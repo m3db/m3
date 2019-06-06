@@ -88,7 +88,7 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	}
 }
 
-type readerFetchBlocksTestCase struct {
+type readTestCase struct {
 	title           string
 	times           []time.Time
 	cachedBlocks    map[xtime.UnixNano]streamResponse
@@ -102,346 +102,345 @@ type streamResponse struct {
 	err         error
 }
 
+var (
+	opts      = newSeriesTestOptions()
+	ropts     = opts.RetentionOptions()
+	blockSize = ropts.BlockSize()
+	start     = opts.ClockOptions().NowFn()().Truncate(blockSize)
+)
+
+var robustReaderTestCases = []readTestCase{
+	{
+		// Should return an empty slice if there is no data.
+		title: "Handle no data",
+		times: []time.Time{start},
+	},
+	{
+		// Read one block from disk which should return an error.
+		title: "Handles disk read errors",
+		times: []time.Time{start},
+		diskBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				err: errors.New("some-error"),
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+	},
+	{
+		// Read one block from the disk cache which should return an error.
+		title: "Handles disk cache read errors",
+		times: []time.Time{start},
+		cachedBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				err: errors.New("some-error"),
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+	},
+	{
+		// Read one block from the buffer which should return an error.
+		title: "Handles buffer read errors",
+		times: []time.Time{start},
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+	},
+	{
+		// Read one block from the disk cache.
+		title: "Handles disk cache reads (should not query disk)",
+		times: []time.Time{start},
+		cachedBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+		},
+	},
+	{
+		// Read two blocks, each of which should be returned from disk.
+		title: "Handles multiple disk reads",
+		times: []time.Time{start, start.Add(blockSize)},
+		diskBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+			xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start.Add(blockSize),
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+			{
+				Start:  start.Add(blockSize),
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+			},
+		},
+	},
+	{
+		// Read one block from the buffer.
+		title: "Handles buffer reads",
+		times: []time.Time{start},
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+		},
+	},
+	{
+		title: "Combines data from disk cache and buffer for same blockstart",
+		times: []time.Time{start},
+		cachedBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Blocks: []xio.BlockReader{
+					// One from disk cache.
+					xio.BlockReader{Start: start, BlockSize: blockSize},
+					// One from buffer.
+					xio.BlockReader{Start: start, BlockSize: blockSize},
+				},
+			},
+		},
+	},
+	{
+		title: "Combines data from disk and buffer for same blockstart",
+		times: []time.Time{start},
+		diskBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Blocks: []xio.BlockReader{
+					// One from disk.
+					xio.BlockReader{Start: start, BlockSize: blockSize},
+					// One from buffer.
+					xio.BlockReader{Start: start, BlockSize: blockSize},
+				},
+			},
+		},
+	},
+	// Both disk cache and buffer have data for same blockstart but buffer has an
+	// error. The error should be propagated to the caller (not masked by the
+	// valid data from the disk cache).
+	{
+		title: "Handles buffer and disk cache merge with buffer error for same blockstart",
+		times: []time.Time{start},
+		cachedBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+	},
+	// Both disk and buffer have data for same blockstart but buffer has an
+	// error. The error should be propagated to the caller (not masked by the
+	// valid data from the disk cache).
+	{
+		title: "Handles buffer and disk merge with buffer error for same blockstart",
+		times: []time.Time{start},
+		cachedBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Err:   errors.New("some-error"),
+			},
+		},
+	},
+	{
+		title: "Combines data from all sources for different block starts and same block starts",
+		times: []time.Time{start, start.Add(blockSize), start.Add(2 * blockSize), start.Add(3 * blockSize)},
+		// Block 1 and 3 from disk cache.
+		cachedBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start,
+					BlockSize:     blockSize,
+				},
+			},
+			xtime.ToUnixNano(start.Add(2 * blockSize)): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start.Add(2 * blockSize),
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		// blocks 2 and 4 from disk.
+		diskBlocks: map[xtime.UnixNano]streamResponse{
+			xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start.Add(blockSize),
+					BlockSize:     blockSize,
+				},
+			},
+			xtime.ToUnixNano(start.Add(3 * blockSize)): streamResponse{
+				blockReader: xio.BlockReader{
+					SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+					Start:         start.Add(3 * blockSize),
+					BlockSize:     blockSize,
+				},
+			},
+		},
+		// Blocks 1, 2, and 3 from buffer.
+		bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+			xtime.ToUnixNano(start): {
+				Start:  start,
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
+			},
+			xtime.ToUnixNano(start.Add(blockSize)): {
+				Start:  start.Add(blockSize),
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
+			},
+			xtime.ToUnixNano(start.Add(2 * blockSize)): {
+				Start:  start.Add(2 * blockSize),
+				Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
+			},
+		},
+		expectedResults: []block.FetchBlockResult{
+			{
+				Start: start,
+				Blocks: []xio.BlockReader{
+					// One from disk cache.
+					xio.BlockReader{Start: start, BlockSize: blockSize},
+					// One from buffer.
+					xio.BlockReader{Start: start, BlockSize: blockSize},
+				},
+			},
+			{
+				Start: start.Add(blockSize),
+				Blocks: []xio.BlockReader{
+					// One from disk.
+					xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+					// One from buffer.
+					xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+				},
+			},
+			{
+				Start: start.Add(2 * blockSize),
+				Blocks: []xio.BlockReader{
+					// One from disk cache.
+					xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					// One from buffer.
+					xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+				},
+			},
+			{
+				Start: start.Add(3 * blockSize),
+				Blocks: []xio.BlockReader{
+					// One from disk.
+					xio.BlockReader{Start: start.Add(3 * blockSize), BlockSize: blockSize},
+				},
+			},
+		},
+	},
+}
+
 func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
-	var (
-		opts      = newSeriesTestOptions()
-		ropts     = opts.RetentionOptions()
-		blockSize = ropts.BlockSize()
-		end       = opts.ClockOptions().NowFn()().Truncate(blockSize)
-		start     = end.Add(-2 * blockSize)
-	)
-
-	testCases := []readerFetchBlocksTestCase{
-		{
-			// Should return an empty slice if there is no data.
-			title: "Handle no data",
-			times: []time.Time{start},
-		},
-		{
-			// Read one block from disk which should return an error.
-			title: "Handles disk read errors",
-			times: []time.Time{start},
-			diskBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					err: errors.New("some-error"),
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-		},
-		{
-			// Read one block from the disk cache which should return an error.
-			title: "Handles disk cache read errors",
-			times: []time.Time{start},
-			cachedBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					err: errors.New("some-error"),
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-		},
-		{
-			// Read one block from the buffer which should return an error.
-			title: "Handles buffer read errors",
-			times: []time.Time{start},
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-		},
-		{
-			// Read one block from the disk cache.
-			title: "Handles disk cache reads (should not query disk)",
-			times: []time.Time{start},
-			cachedBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-			},
-		},
-		{
-			// Read two blocks, each of which should be returned from disk.
-			title: "Handles multiple disk reads",
-			times: []time.Time{start, start.Add(blockSize)},
-			diskBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-				xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start.Add(blockSize),
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-				{
-					Start:  start.Add(blockSize),
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
-				},
-			},
-		},
-		{
-			// Read one block from the buffer.
-			title: "Handles buffer reads",
-			times: []time.Time{start},
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-			},
-		},
-		{
-			title: "Combines data from disk cache and buffer for same blockstart",
-			times: []time.Time{start},
-			cachedBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Blocks: []xio.BlockReader{
-						// One from disk cache.
-						xio.BlockReader{Start: start, BlockSize: blockSize},
-						// One from buffer.
-						xio.BlockReader{Start: start, BlockSize: blockSize},
-					},
-				},
-			},
-		},
-		{
-			title: "Combines data from disk and buffer for same blockstart",
-			times: []time.Time{start},
-			diskBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Blocks: []xio.BlockReader{
-						// One from disk.
-						xio.BlockReader{Start: start, BlockSize: blockSize},
-						// One from buffer.
-						xio.BlockReader{Start: start, BlockSize: blockSize},
-					},
-				},
-			},
-		},
-		// Both disk cache and buffer have data for same blockstart but buffer has an
-		// error. The error should be propagated to the caller (not masked by the
-		// valid data from the disk cache).
-		{
-			title: "Handles buffer and disk cache merge with buffer error for same blockstart",
-			times: []time.Time{start},
-			cachedBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-		},
-		// Both disk and buffer have data for same blockstart but buffer has an
-		// error. The error should be propagated to the caller (not masked by the
-		// valid data from the disk cache).
-		{
-			title: "Handles buffer and disk merge with buffer error for same blockstart",
-			times: []time.Time{start},
-			cachedBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Err:   errors.New("some-error"),
-				},
-			},
-		},
-		{
-			title: "Combines data from all sources for different block starts and same block starts",
-			times: []time.Time{start, start.Add(blockSize), start.Add(2 * blockSize), start.Add(3 * blockSize)},
-			// Block 1 and 3 from disk cache.
-			cachedBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start,
-						BlockSize:     blockSize,
-					},
-				},
-				xtime.ToUnixNano(start.Add(2 * blockSize)): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start.Add(2 * blockSize),
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			// blocks 2 and 4 from disk.
-			diskBlocks: map[xtime.UnixNano]streamResponse{
-				xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start.Add(blockSize),
-						BlockSize:     blockSize,
-					},
-				},
-				xtime.ToUnixNano(start.Add(3 * blockSize)): streamResponse{
-					blockReader: xio.BlockReader{
-						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
-						Start:         start.Add(3 * blockSize),
-						BlockSize:     blockSize,
-					},
-				},
-			},
-			// Blocks 1, 2, and 3 from buffer.
-			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
-				xtime.ToUnixNano(start): {
-					Start:  start,
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start, BlockSize: blockSize}},
-				},
-				xtime.ToUnixNano(start.Add(blockSize)): {
-					Start:  start.Add(blockSize),
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize}},
-				},
-				xtime.ToUnixNano(start.Add(2 * blockSize)): {
-					Start:  start.Add(2 * blockSize),
-					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
-				},
-			},
-			expectedResults: []block.FetchBlockResult{
-				{
-					Start: start,
-					Blocks: []xio.BlockReader{
-						// One from disk cache.
-						xio.BlockReader{Start: start, BlockSize: blockSize},
-						// One from buffer.
-						xio.BlockReader{Start: start, BlockSize: blockSize},
-					},
-				},
-				{
-					Start: start.Add(blockSize),
-					Blocks: []xio.BlockReader{
-						// One from disk.
-						xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
-						// One from buffer.
-						xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
-					},
-				},
-				{
-					Start: start.Add(2 * blockSize),
-					Blocks: []xio.BlockReader{
-						// One from disk cache.
-						xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
-						// One from buffer.
-						xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
-					},
-				},
-				{
-					Start: start.Add(3 * blockSize),
-					Blocks: []xio.BlockReader{
-						// One from disk.
-						xio.BlockReader{Start: start.Add(3 * blockSize), BlockSize: blockSize},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range testCases {
+	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
