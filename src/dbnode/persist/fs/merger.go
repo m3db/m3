@@ -224,6 +224,9 @@ func (m *merger) Merge(
 			id, tags, blockAllocSize, nsCtx.Schema, encoderPool); err != nil {
 			return err
 		}
+		// Closing the context will finalize the data returned from
+		// mergeWith.Read(), but is safe because it has already been persisted
+		// to disk.
 		tmpCtx.BlockingClose()
 	}
 	// Second stage: loop through any series in the merge target that were not
@@ -236,10 +239,16 @@ func (m *merger) Merge(
 			brs = append(brs, mergeWithData)
 			sliceOfSlices.Reset(brs)
 			multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
-			return persistIter(prepared.Persist, multiIter, startTime,
+			err := persistIter(prepared.Persist, multiIter, startTime,
 				seriesID, tags, blockAllocSize, nsCtx.Schema, encoderPool)
+			// Context is safe to close after persisting data to disk.
+			tmpCtx.BlockingClose()
+			// Reset context here within the passed in function so that the
+			// context gets reset for each remaining series instead of getting
+			// finalized at the end of the ForEachRemaining call.
+			tmpCtx.Reset()
+			return err
 		}, nsCtx)
-	tmpCtx.BlockingClose()
 	if err != nil {
 		return err
 	}

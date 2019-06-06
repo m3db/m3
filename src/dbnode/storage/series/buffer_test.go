@@ -1006,12 +1006,11 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 }
 
 func TestBufferSnapshot(t *testing.T) {
-	opts := newBufferTestOptions()
+	opts := newBufferTestOptions().SetColdWritesEnabled(true)
 	testBufferSnapshot(t, opts, nil)
 }
 
 func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
-	// Setup
 	var (
 		rops      = opts.RetentionOptions()
 		blockSize = rops.BlockSize()
@@ -1025,9 +1024,9 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	}))
 	buffer.Reset(opts)
 
-	// Create test data to perform out of order writes that will create two in-order
+	// Create test data to perform warm writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
-	data := []value{
+	warmData := []value{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
 		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
@@ -1040,38 +1039,83 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		{curr.Add(blockSize), 6, xtime.Second, nil},
 	}
 	if setAnn != nil {
-		data = setAnn(data)
+		warmData = setAnn(warmData)
 		nsCtx = namespace.Context{Schema: testSchemaDesc}
 	}
-
-	// Perform the writes.
-	for _, v := range data {
+	// Perform warm writes.
+	for _, v := range warmData {
+		// Set curr so that every write is a warm write.
 		curr = v.timestamp
 		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
 	}
 
+	// Also add cold writes to the buffer to verify that Snapshot will capture
+	// cold writes as well and perform a merge across both warm and cold data.
+	// The cold data itself is not in order, so we expect to have two in-order
+	// encoders for these.
+	curr = start.Add(mins(1.5))
+	// In order for these writes to actually be cold, they all need to have
+	// timestamps before `curr.Add(-rops.BufferPast())`. Take care to not use
+	// the same timestamps used in the warm writes above, otherwise these will
+	// overwrite them.
+	// Buffer past/future in this test case is 10 seconds.
+	coldData := []value{
+		{start.Add(secs(2)), 11, xtime.Second, nil},
+		{start.Add(secs(4)), 12, xtime.Second, nil},
+		{start.Add(secs(6)), 13, xtime.Second, nil},
+		{start.Add(secs(3)), 14, xtime.Second, nil},
+		{start.Add(secs(5)), 15, xtime.Second, nil},
+	}
+	if setAnn != nil {
+		coldData = setAnn(coldData)
+		nsCtx = namespace.Context{Schema: testSchemaDesc}
+	}
+	// Perform cold writes.
+	for _, v := range coldData {
+		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+	}
+
 	// Verify internal state.
-	var encoders []encoding.Encoder
+	var (
+		warmEncoders []encoding.Encoder
+		coldEncoders []encoding.Encoder
+	)
 
 	buckets, ok := buffer.bucketVersionsAt(start)
 	require.True(t, ok)
+
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
-	// Current bucket encoders should all have data in them.
+	// Warm bucket encoders should all have data in them.
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
 		_, ok := encoder.Stream(encoding.StreamOptions{})
 		require.True(t, ok)
 
-		encoders = append(encoders, encoder)
+		warmEncoders = append(warmEncoders, encoder)
 	}
+	assert.Equal(t, 2, len(warmEncoders))
 
-	assert.Equal(t, 2, len(encoders))
+	bucket, ok = buckets.writableBucket(ColdWrite)
+	require.True(t, ok)
+	// Cold bucket encoders should all have data in them.
+	for j := range bucket.encoders {
+		encoder := bucket.encoders[j].encoder
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
+
+		coldEncoders = append(coldEncoders, encoder)
+	}
+	assert.Equal(t, 2, len(coldEncoders))
 
 	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
 		// Check we got the right results.
-		expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
+		// `len(warmData)-1` because we don't expect the last warm datapoint
+		// since it's for a different block.
+		expectedData := warmData[:len(warmData)-1]
+		expectedData = append(expectedData, coldData...)
 		expectedCopy := make([]value, len(expectedData))
 		copy(expectedCopy, expectedData)
 		sort.Sort(valuesByTime(expectedCopy))
@@ -1091,8 +1135,9 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
 	assert.NoError(t, err)
 
-	// Check internal state to make sure the merge happened and was persisted.
-	encoders = encoders[:0]
+	// Check internal state of warm bucket to make sure the merge happened and
+	// was persisted.
+	warmEncoders = warmEncoders[:0]
 	buckets, ok = buffer.bucketVersionsAt(start)
 	require.True(t, ok)
 	bucket, ok = buckets.writableBucket(WarmWrite)
@@ -1104,11 +1149,29 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		_, ok := encoder.Stream(encoding.StreamOptions{})
 		require.True(t, ok)
 
-		encoders = append(encoders, encoder)
+		warmEncoders = append(warmEncoders, encoder)
 	}
-
 	// Ensure single encoder again.
-	assert.Equal(t, 1, len(encoders))
+	assert.Equal(t, 1, len(warmEncoders))
+
+	// Check internal state of cold bucket to make sure the merge happened and
+	// was persisted.
+	coldEncoders = coldEncoders[:0]
+	buckets, ok = buffer.bucketVersionsAt(start)
+	require.True(t, ok)
+	bucket, ok = buckets.writableBucket(ColdWrite)
+	require.True(t, ok)
+	// Current bucket encoders should all have data in them.
+	for i := range bucket.encoders {
+		encoder := bucket.encoders[i].encoder
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
+
+		coldEncoders = append(coldEncoders, encoder)
+	}
+	// Ensure single encoder again.
+	assert.Equal(t, 1, len(coldEncoders))
 }
 
 func mustGetLastEncoded(t *testing.T, entry inOrderEncoder) ts.Datapoint {

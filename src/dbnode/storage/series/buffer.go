@@ -422,20 +422,18 @@ func (b *dbBuffer) Snapshot(
 		return nil
 	}
 
-	// We only snapshot warm writes since cold writes get force merged every
-	// tick anyway.
-	_, err := buckets.merge(WarmWrite, nsCtx)
+	// Snapshot must take both cold and warm writes because cold flushes don't
+	// happen for the current block (since cold flushes can't happen before a
+	// warm flush has happened).
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	if err != nil {
 		return err
 	}
+	numStreams := len(streams)
 
-	var (
-		stream     xio.SegmentReader
-		streams    = buckets.streams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite})
-		numStreams = len(streams)
-	)
+	var mergedStream xio.SegmentReader
 	if numStreams == 1 {
-		stream = streams[0]
+		mergedStream = streams[0]
 	} else {
 		// We may need to merge again here because the regular merge method does
 		// not merge buckets that have different versions.
@@ -465,14 +463,14 @@ func (b *dbBuffer) Snapshot(
 		}
 
 		var ok bool
-		stream, ok = encoder.Stream(encoding.StreamOptions{})
+		mergedStream, ok = encoder.Stream(encoding.StreamOptions{})
 		if !ok {
 			// Don't write out series with no data.
 			return nil
 		}
 	}
 
-	segment, err := stream.Segment()
+	segment, err := mergedStream.Segment()
 	if err != nil {
 		return err
 	}

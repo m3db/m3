@@ -344,7 +344,7 @@ func (s *dbShard) Stream(
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.WarmStatus) || flushState.ColdVersion > 0
+	return statusIsRetrievable(flushState.WarmStatus)
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -356,11 +356,6 @@ func statusIsRetrievable(status fileOpStatus) bool {
 	}
 	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
 		status))
-}
-
-func (s *dbShard) hasWarmFlushed(blockStart time.Time) bool {
-	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.WarmStatus)
 }
 
 // RetrievableBlockColdVersion implements series.QueryableBlockRetriever
@@ -1964,7 +1959,7 @@ func (s *dbShard) ColdFlush(
 			// Cold flushes can only happen on blockStarts that have been
 			// warm flushed, because warm flush logic does not currently
 			// perform any merging logic.
-			if !s.hasWarmFlushed(t.ToTime()) {
+			if !s.IsBlockRetrievable(t.ToTime()) {
 				return
 			}
 
