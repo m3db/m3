@@ -1006,11 +1006,114 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 }
 
 func TestBufferSnapshot(t *testing.T) {
-	opts := newBufferTestOptions().SetColdWritesEnabled(true)
+	opts := newBufferTestOptions()
 	testBufferSnapshot(t, opts, nil)
 }
 
 func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
+	// Setup
+	var (
+		rops      = opts.RetentionOptions()
+		blockSize = rops.BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		start     = curr
+		buffer    = newDatabaseBuffer().(*dbBuffer)
+		nsCtx     namespace.Context
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	// Create test data to perform out of order writes that will create two in-order
+	// encoders so we can verify that Snapshot will perform a merge.
+	data := []value{
+		{curr, 1, xtime.Second, nil},
+		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
+		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
+		{curr.Add(mins(1.0)), 4, xtime.Second, nil},
+		{curr.Add(mins(1.5)), 5, xtime.Second, nil},
+		{curr.Add(mins(1.5)).Add(-5 * time.Second), 6, xtime.Second, nil},
+
+		// Add one write for a different block to make sure Snapshot only returns
+		// date for the requested block.
+		{curr.Add(blockSize), 6, xtime.Second, nil},
+	}
+	if setAnn != nil {
+		data = setAnn(data)
+		nsCtx = namespace.Context{Schema: testSchemaDesc}
+	}
+
+	// Perform the writes.
+	for _, v := range data {
+		curr = v.timestamp
+		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+	}
+
+	// Verify internal state.
+	var encoders []encoding.Encoder
+
+	buckets, ok := buffer.bucketVersionsAt(start)
+	require.True(t, ok)
+	bucket, ok := buckets.writableBucket(WarmWrite)
+	require.True(t, ok)
+	// Current bucket encoders should all have data in them.
+	for j := range bucket.encoders {
+		encoder := bucket.encoders[j].encoder
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
+
+		encoders = append(encoders, encoder)
+	}
+
+	assert.Equal(t, 2, len(encoders))
+
+	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
+		// Check we got the right results.
+		expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
+		expectedCopy := make([]value, len(expectedData))
+		copy(expectedCopy, expectedData)
+		sort.Sort(valuesByTime(expectedCopy))
+		actual := [][]xio.BlockReader{{
+			xio.BlockReader{
+				SegmentReader: xio.NewSegmentReader(segment),
+			},
+		}}
+		requireReaderValuesEqual(t, expectedCopy, actual, opts, nsCtx)
+
+		return nil
+	}
+
+	// Perform a snapshot.
+	ctx := context.NewContext()
+	defer ctx.Close()
+	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
+	assert.NoError(t, err)
+
+	// Check internal state to make sure the merge happened and was persisted.
+	encoders = encoders[:0]
+	buckets, ok = buffer.bucketVersionsAt(start)
+	require.True(t, ok)
+	bucket, ok = buckets.writableBucket(WarmWrite)
+	require.True(t, ok)
+	// Current bucket encoders should all have data in them.
+	for i := range bucket.encoders {
+		encoder := bucket.encoders[i].encoder
+
+		_, ok := encoder.Stream(encoding.StreamOptions{})
+		require.True(t, ok)
+
+		encoders = append(encoders, encoder)
+	}
+
+	// Ensure single encoder again.
+	assert.Equal(t, 1, len(encoders))
+}
+
+func TestBufferSnapshotWithColdWrites(t *testing.T) {
+	opts := newBufferTestOptions().SetColdWritesEnabled(true)
+
 	var (
 		rops      = opts.RetentionOptions()
 		blockSize = rops.BlockSize()
@@ -1038,10 +1141,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		// date for the requested block.
 		{curr.Add(blockSize), 6, xtime.Second, nil},
 	}
-	if setAnn != nil {
-		warmData = setAnn(warmData)
-		nsCtx = namespace.Context{Schema: testSchemaDesc}
-	}
+
 	// Perform warm writes.
 	for _, v := range warmData {
 		// Set curr so that every write is a warm write.
@@ -1066,10 +1166,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		{start.Add(secs(3)), 14, xtime.Second, nil},
 		{start.Add(secs(5)), 15, xtime.Second, nil},
 	}
-	if setAnn != nil {
-		coldData = setAnn(coldData)
-		nsCtx = namespace.Context{Schema: testSchemaDesc}
-	}
+
 	// Perform cold writes.
 	for _, v := range coldData {
 		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
@@ -1133,7 +1230,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check internal state of warm bucket to make sure the merge happened and
 	// was persisted.

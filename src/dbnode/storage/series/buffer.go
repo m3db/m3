@@ -425,7 +425,7 @@ func (b *dbBuffer) Snapshot(
 	// Snapshot must take both cold and warm writes because cold flushes don't
 	// happen for the current block (since cold flushes can't happen before a
 	// warm flush has happened).
-	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 	if err != nil {
 		return err
 	}
