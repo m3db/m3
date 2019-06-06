@@ -234,7 +234,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 			},
 		},
 		{
-			title: "Combines data from disk cache and buffer",
+			title: "Combines data from disk cache and buffer for same blockstart",
 			times: []time.Time{start},
 			cachedBlocks: map[xtime.UnixNano]streamResponse{
 				xtime.ToUnixNano(start): streamResponse{
@@ -264,7 +264,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 			},
 		},
 		{
-			title: "Combines data from disk  and buffer",
+			title: "Combines data from disk and buffer for same blockstart",
 			times: []time.Time{start},
 			diskBlocks: map[xtime.UnixNano]streamResponse{
 				xtime.ToUnixNano(start): streamResponse{
@@ -297,7 +297,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		// error. The error should be propagated to the caller (not masked by the
 		// valid data from the disk cache).
 		{
-			title: "Handles buffer and disk cache merge with buffer error",
+			title: "Handles buffer and disk cache merge with buffer error for same blockstart",
 			times: []time.Time{start},
 			cachedBlocks: map[xtime.UnixNano]streamResponse{
 				xtime.ToUnixNano(start): streamResponse{
@@ -325,7 +325,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		// error. The error should be propagated to the caller (not masked by the
 		// valid data from the disk cache).
 		{
-			title: "Handles buffer and disk merge with buffer error",
+			title: "Handles buffer and disk merge with buffer error for same blockstart",
 			times: []time.Time{start},
 			cachedBlocks: map[xtime.UnixNano]streamResponse{
 				xtime.ToUnixNano(start): streamResponse{
@@ -346,6 +346,57 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 				{
 					Start: start,
 					Err:   errors.New("some-error"),
+				},
+			},
+		},
+		{
+			title: "Combines data from all sources for different block starts",
+			times: []time.Time{start, start.Add(blockSize), start.Add(2 * blockSize)},
+			// First block from cache.
+			cachedBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start,
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			// Second block from disk.
+			diskBlocks: map[xtime.UnixNano]streamResponse{
+				xtime.ToUnixNano(start.Add(blockSize)): streamResponse{
+					blockReader: xio.BlockReader{
+						SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+						Start:         start.Add(blockSize),
+						BlockSize:     blockSize,
+					},
+				},
+			},
+			// Third block from buffer.
+			bufferBlocks: map[xtime.UnixNano]block.FetchBlockResult{
+				xtime.ToUnixNano(start.Add(2 * blockSize)): {
+					Start:  start.Add(2 * blockSize),
+					Blocks: []xio.BlockReader{xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize}},
+				},
+			},
+			expectedResults: []block.FetchBlockResult{
+				{
+					Start: start,
+					Blocks: []xio.BlockReader{
+						xio.BlockReader{Start: start, BlockSize: blockSize},
+					},
+				},
+				{
+					Start: start.Add(blockSize),
+					Blocks: []xio.BlockReader{
+						xio.BlockReader{Start: start.Add(blockSize), BlockSize: blockSize},
+					},
+				},
+				{
+					Start: start.Add(2 * blockSize),
+					Blocks: []xio.BlockReader{
+						xio.BlockReader{Start: start.Add(2 * blockSize), BlockSize: blockSize},
+					},
 				},
 			},
 		},
@@ -433,6 +484,9 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 					require.True(t, strings.Contains(result.Err.Error(), expectedResult.Err.Error()))
 				} else {
 					require.Equal(t, len(expectedResult.Blocks), len(result.Blocks))
+					for _, block := range result.Blocks {
+						require.Equal(t, expectedResult.Start, block.Start)
+					}
 				}
 			}
 		})
