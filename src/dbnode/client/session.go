@@ -72,7 +72,7 @@ const (
 	blockMetadataChBufSize               = 4096
 	shardResultCapacity                  = 4096
 	hostNotAvailableMinSleepInterval     = 1 * time.Millisecond
-	hostNotAvailableMaxSleepInterval     = 10 * time.Millisecond
+	hostNotAvailableMaxSleepInterval     = 100 * time.Millisecond
 )
 
 type resultTypeEnum string
