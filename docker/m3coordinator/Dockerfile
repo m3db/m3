@@ -1,5 +1,5 @@
 # stage 1: build
-FROM golang:1.10-alpine AS builder
+FROM golang:1.12-alpine AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install Glide
