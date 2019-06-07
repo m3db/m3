@@ -103,17 +103,27 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 		return promWriteMetrics{}, err
 	}
 
-	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 250*time.Millisecond, 40)
+	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 20)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
 
-	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, time.Second, 60)
+	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 10)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
 
-	upTo60mBuckets, err := tally.LinearDurationBuckets(time.Minute, time.Minute, 60)
+	upTo60mBuckets, err := tally.LinearDurationBuckets(0, 5*time.Minute, 12)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 18)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
@@ -123,6 +133,8 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	datapointDelayBuckets = append(datapointDelayBuckets, upTo10sBuckets...)
 	datapointDelayBuckets = append(datapointDelayBuckets, upTo60sBuckets...)
 	datapointDelayBuckets = append(datapointDelayBuckets, upTo60mBuckets...)
+	datapointDelayBuckets = append(datapointDelayBuckets, upTo6hBuckets...)
+	datapointDelayBuckets = append(datapointDelayBuckets, upTo24hBuckets...)
 	return promWriteMetrics{
 		writeSuccess:          writeScope.Counter("success"),
 		writeErrorsServer:     writeScope.Tagged(map[string]string{"code": "5XX"}).Counter("errors"),

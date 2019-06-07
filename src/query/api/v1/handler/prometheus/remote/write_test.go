@@ -152,8 +152,12 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 	writeHandler, ok := handler.(*PromWriteHandler)
 	require.True(t, ok)
 
+	// NB(r): Bucket length is tested just to sanity check how many buckets we are creating
 	buckets := writeHandler.promWriteMetrics.datapointDelayBuckets
-	expected := "[0s 100ms 200ms 300ms 400ms 500ms 600ms 700ms 800ms 900ms 1s 1.25s 1.5s 1.75s 2s 2.25s 2.5s 2.75s 3s 3.25s 3.5s 3.75s 4s 4.25s 4.5s 4.75s 5s 5.25s 5.5s 5.75s 6s 6.25s 6.5s 6.75s 7s 7.25s 7.5s 7.75s 8s 8.25s 8.5s 8.75s 9s 9.25s 9.5s 9.75s 10s 10.25s 10.5s 10.75s 10s 11s 12s 13s 14s 15s 16s 17s 18s 19s 20s 21s 22s 23s 24s 25s 26s 27s 28s 29s 30s 31s 32s 33s 34s 35s 36s 37s 38s 39s 40s 41s 42s 43s 44s 45s 46s 47s 48s 49s 50s 51s 52s 53s 54s 55s 56s 57s 58s 59s 1m0s 1m1s 1m2s 1m3s 1m4s 1m5s 1m6s 1m7s 1m8s 1m9s 1m0s 2m0s 3m0s 4m0s 5m0s 6m0s 7m0s 8m0s 9m0s 10m0s 11m0s 12m0s 13m0s 14m0s 15m0s 16m0s 17m0s 18m0s 19m0s 20m0s 21m0s 22m0s 23m0s 24m0s 25m0s 26m0s 27m0s 28m0s 29m0s 30m0s 31m0s 32m0s 33m0s 34m0s 35m0s 36m0s 37m0s 38m0s 39m0s 40m0s 41m0s 42m0s 43m0s 44m0s 45m0s 46m0s 47m0s 48m0s 49m0s 50m0s 51m0s 52m0s 53m0s 54m0s 55m0s 56m0s 57m0s 58m0s 59m0s 1h0m0s]"
+	require.Equal(t, 82, len(buckets.AsDurations()))
+
+	// NB(r): Bucket values are tested to sanity check they look right
+	expected := "[0s 100ms 200ms 300ms 400ms 500ms 600ms 700ms 800ms 900ms 1s 1.5s 2s 2.5s 3s 3.5s 4s 4.5s 5s 5.5s 6s 6.5s 7s 7.5s 8s 8.5s 9s 9.5s 10s 10.5s 10s 15s 20s 25s 30s 35s 40s 45s 50s 55s 0s 5m0s 10m0s 15m0s 20m0s 25m0s 30m0s 35m0s 40m0s 45m0s 50m0s 55m0s 1h0m0s 1h30m0s 2h0m0s 2h30m0s 3h0m0s 3h30m0s 4h0m0s 4h30m0s 5h0m0s 5h30m0s 6h0m0s 6h30m0s 6h0m0s 7h0m0s 8h0m0s 9h0m0s 10h0m0s 11h0m0s 12h0m0s 13h0m0s 14h0m0s 15h0m0s 16h0m0s 17h0m0s 18h0m0s 19h0m0s 20h0m0s 21h0m0s 22h0m0s 23h0m0s]"
 	actual := fmt.Sprintf("%v", buckets.AsDurations())
 	require.Equal(t, expected, actual)
 
