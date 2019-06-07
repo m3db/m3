@@ -10,16 +10,15 @@ common: &common
     manual: true
 
 steps:
-  # TODO: re-enable codegen as soon as job is fixed
-  # - name: "Codegen"
-  #   command: make clean install-vendor test-all-gen
-  #   env:
-  #     CGO_ENABLED: 0
-  #     GIMME_GO_VERSION: 1.12.x
-  #   plugins:
-  #       gopath-checkout#v1.0.1:
-  #         import: github.com/m3db/m3
-  #   <<: *common
+  - name: "Codegen"
+    command: make clean install-vendor test-all-gen
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.12.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+    <<: *common
   - name: "Unit %n"
     command: make clean install-vendor test-ci-unit
     parallelism: 4
