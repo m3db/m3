@@ -163,7 +163,7 @@ func TestForEachRemaining(t *testing.T) {
 	mergeWith := newFSMergeWithMem(shard, retriever, dirtySeries, dirtySeriesToWrite)
 
 	var forEachCalls []ident.ID
-	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
+	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil).Times(2)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id0, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(fetchedBlocks, nil)
@@ -189,7 +189,7 @@ func TestForEachRemaining(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, exists)
 	assert.Equal(t, fetchedBlocks, res)
-	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil).Times(2)
+	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil).Times(2)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id2, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(fetchedBlocks, nil)
@@ -207,7 +207,7 @@ func TestForEachRemaining(t *testing.T) {
 
 	// Test call with error getting tags.
 	shard.EXPECT().
-		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, errors.New("bad-tags"))
+		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, false, errors.New("bad-tags"))
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id8, xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
 		Return(fetchedBlocks, nil)
@@ -219,7 +219,7 @@ func TestForEachRemaining(t *testing.T) {
 
 	// Test call with bad function execution.
 	shard.EXPECT().
-		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, nil)
+		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil)
 	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
 		return errors.New("bad")
 	}, nsCtx)
