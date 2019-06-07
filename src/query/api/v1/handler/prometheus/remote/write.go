@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -60,14 +61,16 @@ var (
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
-	promWriteMetrics     promWriteMetrics
 	tagOptions           models.TagOptions
+	nowFn                clock.NowFn
+	metrics              promWriteMetrics
 }
 
 // NewPromWriteHandler returns a new instance of handler.
 func NewPromWriteHandler(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
+	nowFn clock.NowFn,
 	scope tally.Scope,
 ) (http.Handler, error) {
 	if downsamplerAndWriter == nil {
@@ -81,23 +84,21 @@ func NewPromWriteHandler(
 
 	return &PromWriteHandler{
 		downsamplerAndWriter: downsamplerAndWriter,
-		promWriteMetrics:     metrics,
 		tagOptions:           tagOptions,
+		nowFn:                nowFn,
+		metrics:              metrics,
 	}, nil
 }
 
 type promWriteMetrics struct {
-	writeSuccess          tally.Counter
-	writeErrorsServer     tally.Counter
-	writeErrorsClient     tally.Counter
-	datapointDelay        tally.Histogram
-	datapointDelayBuckets tally.DurationBuckets
+	writeSuccess         tally.Counter
+	writeErrorsServer    tally.Counter
+	writeErrorsClient    tally.Counter
+	ingestLatency        tally.Histogram
+	ingestLatencyBuckets tally.DurationBuckets
 }
 
 func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
-	writeScope := scope.SubScope("write")
-	datapointScope := scope.SubScope("datapoint")
-
 	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
 	if err != nil {
 		return promWriteMetrics{}, err
@@ -128,31 +129,41 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 		return promWriteMetrics{}, err
 	}
 
-	var datapointDelayBuckets tally.DurationBuckets
-	datapointDelayBuckets = append(datapointDelayBuckets, upTo1sBuckets...)
-	datapointDelayBuckets = append(datapointDelayBuckets, upTo10sBuckets...)
-	datapointDelayBuckets = append(datapointDelayBuckets, upTo60sBuckets...)
-	datapointDelayBuckets = append(datapointDelayBuckets, upTo60mBuckets...)
-	datapointDelayBuckets = append(datapointDelayBuckets, upTo6hBuckets...)
-	datapointDelayBuckets = append(datapointDelayBuckets, upTo24hBuckets...)
+	var ingestLatencyBuckets tally.DurationBuckets
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60sBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
 	return promWriteMetrics{
-		writeSuccess:          writeScope.Counter("success"),
-		writeErrorsServer:     writeScope.Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
-		writeErrorsClient:     writeScope.Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
-		datapointDelay:        datapointScope.Histogram("delay", datapointDelayBuckets),
-		datapointDelayBuckets: datapointDelayBuckets,
+		writeSuccess:         scope.SubScope("write").Counter("success"),
+		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
+		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+		ingestLatency:        scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
+		ingestLatencyBuckets: ingestLatencyBuckets,
 	}, nil
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		h.promWriteMetrics.writeErrorsClient.Inc(1)
+		h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	batchErr := h.write(r.Context(), req)
+
+	// Record ingestion delay latency
+	now := h.nowFn()
+	for _, series := range req.Timeseries {
+		for _, sample := range series.Samples {
+			age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
+			h.metrics.ingestLatency.RecordDuration(age)
+		}
+	}
+
 	if batchErr != nil {
 		var (
 			errs              = batchErr.Errors()
@@ -179,10 +190,10 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case numBadRequest == len(errs):
 			status = http.StatusBadRequest
-			h.promWriteMetrics.writeErrorsClient.Inc(1)
+			h.metrics.writeErrorsClient.Inc(1)
 		default:
 			status = http.StatusInternalServerError
-			h.promWriteMetrics.writeErrorsServer.Inc(1)
+			h.metrics.writeErrorsServer.Inc(1)
 		}
 
 		logger := logging.WithContext(r.Context())
@@ -211,7 +222,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.promWriteMetrics.writeSuccess.Inc(1)
+	h.metrics.writeSuccess.Inc(1)
 }
 
 func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *xhttp.ParseError) {

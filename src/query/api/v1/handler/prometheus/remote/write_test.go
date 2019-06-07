@@ -51,7 +51,7 @@ func TestPromWriteParsing(t *testing.T) {
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req, _ := http.NewRequest("POST", PromWriteURL, promReqBody)
+	req := httptest.NewRequest("POST", PromWriteURL, promReqBody)
 
 	r, err := promWrite.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
@@ -91,7 +91,7 @@ func TestPromWriteError(t *testing.T) {
 		Return(batchErr)
 
 	promWrite, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), tally.NoopScope)
+		models.NewTagOptions(), time.Now, tally.NoopScope)
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -124,7 +124,8 @@ func TestWriteErrorMetricCount(t *testing.T) {
 
 	promWrite := &PromWriteHandler{
 		downsamplerAndWriter: mockDownsamplerAndWriter,
-		promWriteMetrics:     writeMetrics,
+		nowFn:                time.Now,
+		metrics:              writeMetrics,
 	}
 	req, _ := http.NewRequest("POST", PromWriteURL, nil)
 	promWrite.ServeHTTP(httptest.NewRecorder(), req)
@@ -146,14 +147,14 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 	scope := tally.NewTestScope("", map[string]string{"test": "delay-metric-test"})
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), scope)
+		models.NewTagOptions(), time.Now, scope)
 	require.NoError(t, err)
 
 	writeHandler, ok := handler.(*PromWriteHandler)
 	require.True(t, ok)
 
 	// NB(r): Bucket length is tested just to sanity check how many buckets we are creating
-	buckets := writeHandler.promWriteMetrics.datapointDelayBuckets
+	buckets := writeHandler.metrics.ingestLatencyBuckets
 	require.Equal(t, 82, len(buckets.AsDurations()))
 
 	// NB(r): Bucket values are tested to sanity check they look right
@@ -167,11 +168,16 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	foundMetric := xclock.WaitUntil(func() bool {
-		value, found := scope.Snapshot().Histograms()["datapoint.delay+test=delay-metric-test"]
-		for k, v := range scope.Snapshot().Histograms() {
-			fmt.Printf("%s = %v\n", k, len(v.Durations()))
+		values, found := scope.Snapshot().Histograms()["ingest.latency+test=delay-metric-test"]
+		if !found {
+			return false
 		}
-		return found && len(value.Durations()) >= 1
+		for _, valuesInBucket := range values.Durations() {
+			if valuesInBucket > 0 {
+				return true
+			}
+		}
+		return false
 	}, 5*time.Second)
 	require.True(t, foundMetric)
 }
