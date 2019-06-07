@@ -99,6 +99,10 @@ func (m *fsMergeWithMem) fetchBlocks(
 	return nil, false, nil
 }
 
+// The data passed to ForEachRemaining (through the fs.ForEachRemainingFn) is
+// basically a copy that will be finalized when the context is closed, but the
+// ID and tags are expected to live for as long as the caller of the MergeWith
+// requires them, so they should either be NoFinalize() or passed as copies.
 func (m *fsMergeWithMem) ForEachRemaining(
 	ctx context.Context,
 	blockStart xtime.UnixNano,
@@ -109,9 +113,15 @@ func (m *fsMergeWithMem) ForEachRemaining(
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
 		seriesID := seriesElement.Value
-		tags, err := m.shard.TagsFromSeriesID(seriesID)
+		tags, ok, err := m.shard.TagsFromSeriesID(seriesID)
 		if err != nil {
 			return err
+		}
+		if !ok {
+			// Receiving not ok means that the series was not found, for some
+			// reason like it falling out of retention, therefore we skip this
+			// series and continue.
+			continue
 		}
 
 		mergeWithData, hasData, err := m.fetchBlocks(ctx, seriesID, blockStart, nsCtx)

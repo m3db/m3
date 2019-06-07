@@ -507,7 +507,7 @@ type databaseShard interface {
 	) (repair.MetadataComparisonResult, error)
 
 	// TagsFromSeriesID returns the series tags from a series ID.
-	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, error)
+	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error)
 }
 
 // namespaceIndex indexes namespace writes.

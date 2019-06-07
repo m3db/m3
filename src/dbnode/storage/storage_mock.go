@@ -1775,12 +1775,13 @@ func (mr *MockdatabaseShardMockRecorder) Repair(ctx, tr, repairer interface{}) *
 }
 
 // TagsFromSeriesID mocks base method
-func (m *MockdatabaseShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, error) {
+func (m *MockdatabaseShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagsFromSeriesID", seriesID)
 	ret0, _ := ret[0].(ident.Tags)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // TagsFromSeriesID indicates an expected call of TagsFromSeriesID

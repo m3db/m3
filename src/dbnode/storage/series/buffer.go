@@ -436,7 +436,7 @@ func (b *dbBuffer) Snapshot(
 		mergedStream = streams[0]
 	} else {
 		// We may need to merge again here because the regular merge method does
-		// not merge buckets that have different versions.
+		// not merge warm and cold buckets or buckets that have different versions.
 		sr := make([]xio.SegmentReader, 0, numStreams)
 		for _, stream := range streams {
 			sr = append(sr, stream)

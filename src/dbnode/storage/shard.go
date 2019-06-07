@@ -343,6 +343,10 @@ func (s *dbShard) Stream(
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
+	return s.hasWarmFlushed(blockStart)
+}
+
+func (s *dbShard) hasWarmFlushed(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
 	return statusIsRetrievable(flushState.WarmStatus)
 }
@@ -1091,6 +1095,9 @@ func (s *dbShard) newShardEntry(
 	default:
 		return nil, errNewShardEntryTagsTypeInvalid
 	}
+	// Don't put tags back in a pool since the merge logic may still have a
+	// handle on these.
+	seriesTags.NoFinalize()
 
 	series := s.seriesPool.Get()
 	series.Reset(seriesID, seriesTags, s.seriesBlockRetriever,
@@ -1959,7 +1966,7 @@ func (s *dbShard) ColdFlush(
 			// Cold flushes can only happen on blockStarts that have been
 			// warm flushed, because warm flush logic does not currently
 			// perform any merging logic.
-			if !s.IsBlockRetrievable(t.ToTime()) {
+			if !s.hasWarmFlushed(t.ToTime()) {
 				return
 			}
 
@@ -2160,15 +2167,15 @@ func (s *dbShard) Repair(
 	return repairer.Repair(ctx, nsCtx, tr, s)
 }
 
-func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, error) {
+func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
 	if entry == nil || err != nil {
-		return ident.Tags{}, err
+		return ident.Tags{}, false, err
 	}
 
-	return entry.Series.Tags(), nil
+	return entry.Series.Tags(), true, nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
