@@ -107,6 +107,7 @@ func TestMultiErrorMultipleErrors(t *testing.T) {
 	require.Equal(t, last.Error(), "baz")
 	require.False(t, err.Empty())
 	require.Equal(t, 3, err.NumErrors())
+	require.Equal(t, 3, len(err.Errors()))
 }
 
 func TestErrorsIsAnErrorAndFormatsErrors(t *testing.T) {

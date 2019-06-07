@@ -23,9 +23,11 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -33,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -99,14 +102,62 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.write(r.Context(), req)
-	if err != nil {
-		h.promWriteMetrics.writeErrorsServer.Inc(1)
+	batchErr := h.write(r.Context(), req)
+	if batchErr != nil {
+		var (
+			errs              = batchErr.Errors()
+			lastRegularErr    string
+			lastBadRequestErr string
+			numRegular        int
+			numBadRequest     int
+		)
+		for _, err := range errs {
+			switch {
+			case client.IsBadRequestError(err):
+				numBadRequest++
+				lastBadRequestErr = err.Error()
+			case xerrors.IsInvalidParams(err):
+				numBadRequest++
+				lastBadRequestErr = err.Error()
+			default:
+				numRegular++
+				lastRegularErr = err.Error()
+			}
+		}
+
+		var status int
+		switch {
+		case numBadRequest == len(errs):
+			status = http.StatusBadRequest
+			h.promWriteMetrics.writeErrorsClient.Inc(1)
+		default:
+			status = http.StatusInternalServerError
+			h.promWriteMetrics.writeErrorsServer.Inc(1)
+		}
+
 		logger := logging.WithContext(r.Context())
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
-			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+			zap.Int("httpResponseStatusCode", status),
+			zap.Int("numRegularErrors", numRegular),
+			zap.Int("numBadRequestErrors", numBadRequest),
+			zap.String("lastRegularError", lastRegularErr),
+			zap.String("lastBadRequestErr", lastBadRequestErr))
+
+		var resultErr string
+		if lastRegularErr != "" {
+			resultErr = fmt.Sprintf("retryable_errors: count=%d, last=%s",
+				numRegular, lastRegularErr)
+		}
+		if lastBadRequestErr != "" {
+			var sep string
+			if lastRegularErr != "" {
+				sep = ", "
+			}
+			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
+				resultErr, sep, numBadRequest, lastBadRequestErr)
+		}
+		xhttp.Error(w, errors.New(resultErr), status)
 		return
 	}
 
@@ -127,7 +178,7 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 	return &req, nil
 }
 
-func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
+func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) ingest.BatchError {
 	iter := newPromTSIter(r.Timeseries, h.tagOptions)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
 }

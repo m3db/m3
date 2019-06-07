@@ -1321,6 +1321,161 @@ func (mr *MockFetchBlocksMetadataResultsPoolMockRecorder) Put(res interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockFetchBlocksMetadataResultsPool)(nil).Put), res)
 }
 
+// MockLeaseManager is a mock of LeaseManager interface
+type MockLeaseManager struct {
+	ctrl     *gomock.Controller
+	recorder *MockLeaseManagerMockRecorder
+}
+
+// MockLeaseManagerMockRecorder is the mock recorder for MockLeaseManager
+type MockLeaseManagerMockRecorder struct {
+	mock *MockLeaseManager
+}
+
+// NewMockLeaseManager creates a new mock instance
+func NewMockLeaseManager(ctrl *gomock.Controller) *MockLeaseManager {
+	mock := &MockLeaseManager{ctrl: ctrl}
+	mock.recorder = &MockLeaseManagerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockLeaseManager) EXPECT() *MockLeaseManagerMockRecorder {
+	return m.recorder
+}
+
+// RegisterLeaser mocks base method
+func (m *MockLeaseManager) RegisterLeaser(leaser Leaser) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterLeaser", leaser)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RegisterLeaser indicates an expected call of RegisterLeaser
+func (mr *MockLeaseManagerMockRecorder) RegisterLeaser(leaser interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterLeaser", reflect.TypeOf((*MockLeaseManager)(nil).RegisterLeaser), leaser)
+}
+
+// UnregisterLeaser mocks base method
+func (m *MockLeaseManager) UnregisterLeaser(leaser Leaser) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnregisterLeaser", leaser)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnregisterLeaser indicates an expected call of UnregisterLeaser
+func (mr *MockLeaseManagerMockRecorder) UnregisterLeaser(leaser interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterLeaser", reflect.TypeOf((*MockLeaseManager)(nil).UnregisterLeaser), leaser)
+}
+
+// OpenLease mocks base method
+func (m *MockLeaseManager) OpenLease(leaser Leaser, descriptor LeaseDescriptor, state LeaseState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenLease", leaser, descriptor, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// OpenLease indicates an expected call of OpenLease
+func (mr *MockLeaseManagerMockRecorder) OpenLease(leaser, descriptor, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenLease", reflect.TypeOf((*MockLeaseManager)(nil).OpenLease), leaser, descriptor, state)
+}
+
+// UpdateOpenLeases mocks base method
+func (m *MockLeaseManager) UpdateOpenLeases(descriptor LeaseDescriptor, state LeaseState) (UpdateLeasesResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOpenLeases", descriptor, state)
+	ret0, _ := ret[0].(UpdateLeasesResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOpenLeases indicates an expected call of UpdateOpenLeases
+func (mr *MockLeaseManagerMockRecorder) UpdateOpenLeases(descriptor, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOpenLeases", reflect.TypeOf((*MockLeaseManager)(nil).UpdateOpenLeases), descriptor, state)
+}
+
+// MockLeaseVerifier is a mock of LeaseVerifier interface
+type MockLeaseVerifier struct {
+	ctrl     *gomock.Controller
+	recorder *MockLeaseVerifierMockRecorder
+}
+
+// MockLeaseVerifierMockRecorder is the mock recorder for MockLeaseVerifier
+type MockLeaseVerifierMockRecorder struct {
+	mock *MockLeaseVerifier
+}
+
+// NewMockLeaseVerifier creates a new mock instance
+func NewMockLeaseVerifier(ctrl *gomock.Controller) *MockLeaseVerifier {
+	mock := &MockLeaseVerifier{ctrl: ctrl}
+	mock.recorder = &MockLeaseVerifierMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockLeaseVerifier) EXPECT() *MockLeaseVerifierMockRecorder {
+	return m.recorder
+}
+
+// VerifyLease mocks base method
+func (m *MockLeaseVerifier) VerifyLease(descriptor LeaseDescriptor, state LeaseState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VerifyLease", descriptor, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// VerifyLease indicates an expected call of VerifyLease
+func (mr *MockLeaseVerifierMockRecorder) VerifyLease(descriptor, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyLease", reflect.TypeOf((*MockLeaseVerifier)(nil).VerifyLease), descriptor, state)
+}
+
+// MockLeaser is a mock of Leaser interface
+type MockLeaser struct {
+	ctrl     *gomock.Controller
+	recorder *MockLeaserMockRecorder
+}
+
+// MockLeaserMockRecorder is the mock recorder for MockLeaser
+type MockLeaserMockRecorder struct {
+	mock *MockLeaser
+}
+
+// NewMockLeaser creates a new mock instance
+func NewMockLeaser(ctrl *gomock.Controller) *MockLeaser {
+	mock := &MockLeaser{ctrl: ctrl}
+	mock.recorder = &MockLeaserMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockLeaser) EXPECT() *MockLeaserMockRecorder {
+	return m.recorder
+}
+
+// UpdateOpenLease mocks base method
+func (m *MockLeaser) UpdateOpenLease(descriptor LeaseDescriptor, state LeaseState) (UpdateOpenLeaseResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOpenLease", descriptor, state)
+	ret0, _ := ret[0].(UpdateOpenLeaseResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOpenLease indicates an expected call of UpdateOpenLease
+func (mr *MockLeaserMockRecorder) UpdateOpenLease(descriptor, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOpenLease", reflect.TypeOf((*MockLeaser)(nil).UpdateOpenLease), descriptor, state)
+}
+
 // MockOptions is a mock of Options interface
 type MockOptions struct {
 	ctrl     *gomock.Controller
