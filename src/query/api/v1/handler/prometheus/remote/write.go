@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -73,25 +74,62 @@ func NewPromWriteHandler(
 		return nil, errNoDownsamplerAndWriter
 	}
 
+	metrics, err := newPromWriteMetrics(scope)
+	if err != nil {
+		return nil, err
+	}
+
 	return &PromWriteHandler{
 		downsamplerAndWriter: downsamplerAndWriter,
-		promWriteMetrics:     newPromWriteMetrics(scope),
+		promWriteMetrics:     metrics,
 		tagOptions:           tagOptions,
 	}, nil
 }
 
 type promWriteMetrics struct {
-	writeSuccess      tally.Counter
-	writeErrorsServer tally.Counter
-	writeErrorsClient tally.Counter
+	writeSuccess          tally.Counter
+	writeErrorsServer     tally.Counter
+	writeErrorsClient     tally.Counter
+	datapointDelay        tally.Histogram
+	datapointDelayBuckets tally.DurationBuckets
 }
 
-func newPromWriteMetrics(scope tally.Scope) promWriteMetrics {
-	return promWriteMetrics{
-		writeSuccess:      scope.Counter("write.success"),
-		writeErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("write.errors"),
-		writeErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("write.errors"),
+func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
+	writeScope := scope.SubScope("write")
+	datapointScope := scope.SubScope("datapoint")
+
+	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
+	if err != nil {
+		return promWriteMetrics{}, err
 	}
+
+	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 250*time.Millisecond, 40)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, time.Second, 60)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo60mBuckets, err := tally.LinearDurationBuckets(time.Minute, time.Minute, 60)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	var datapointDelayBuckets tally.DurationBuckets
+	datapointDelayBuckets = append(datapointDelayBuckets, upTo1sBuckets...)
+	datapointDelayBuckets = append(datapointDelayBuckets, upTo10sBuckets...)
+	datapointDelayBuckets = append(datapointDelayBuckets, upTo60sBuckets...)
+	datapointDelayBuckets = append(datapointDelayBuckets, upTo60mBuckets...)
+	return promWriteMetrics{
+		writeSuccess:          writeScope.Counter("success"),
+		writeErrorsServer:     writeScope.Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
+		writeErrorsClient:     writeScope.Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+		datapointDelay:        datapointScope.Histogram("delay", datapointDelayBuckets),
+		datapointDelayBuckets: datapointDelayBuckets,
+	}, nil
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
