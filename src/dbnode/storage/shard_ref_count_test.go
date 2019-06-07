@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/x/metrics"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -308,6 +308,17 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	}
 }
 
+func newNowFnForWriteTaggedAsyncRefCount() func() time.Time {
+	// Explicitly truncate the time to the beginning of the index block size to prevent
+	// the ref-counts from being thrown off by needing to re-index entries because the first
+	// write happened near a block boundary so that when the second write comes in they need
+	// to be re-indexed for the next block time.
+	start := time.Now().Truncate(namespaceIndexOptions.BlockSize())
+
+	return func() time.Time {
+		return start
+	}
+}
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -332,7 +343,8 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 		}).
 		AnyTimes()
 
-	testShardWriteTaggedAsyncRefCount(t, idx)
+	nowFn := newNowFnForWriteTaggedAsyncRefCount()
+	testShardWriteTaggedAsyncRefCount(t, idx, nowFn)
 }
 
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
@@ -346,11 +358,16 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 
+	nowFn := newNowFnForWriteTaggedAsyncRefCount()
 	var (
 		opts      = DefaultTestOptions()
 		indexOpts = opts.IndexOptions().
 				SetInsertMode(index.InsertSync)
 	)
+	opts = opts.
+		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	indexOpts = indexOpts.
+		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	opts = opts.SetIndexOptions(indexOpts)
 
 	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
@@ -360,22 +377,28 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 		assert.NoError(t, idx.Close())
 	}()
 
-	testShardWriteTaggedAsyncRefCount(t, idx)
+	testShardWriteTaggedAsyncRefCount(t, idx, nowFn)
 }
 
-func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
+func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex, nowFn func() time.Time) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
 	}, 100*time.Millisecond)
 	defer closer.Close()
 
-	now := time.Now()
-	opts := DefaultTestOptions()
-	opts = opts.SetInstrumentOptions(
-		opts.InstrumentOptions().
-			SetMetricsScope(scope).
-			SetReportInterval(100 * time.Millisecond))
+	var (
+		start = nowFn()
+		now   = start
+		opts  = DefaultTestOptions()
+	)
+	opts = opts.
+		SetInstrumentOptions(
+			opts.InstrumentOptions().
+				SetMetricsScope(scope).
+				SetReportInterval(100 * time.Millisecond))
+	opts = opts.
+		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	shard := testDatabaseShardWithIndexFn(t, opts, idx)
 	shard.SetRuntimeOptions(runtime.NewOptions().
