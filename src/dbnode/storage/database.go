@@ -29,12 +29,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -232,10 +232,10 @@ func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
 	schemaUpdates := newNamespaces.Metadatas()
 	merr := xerrors.NewMultiError()
 	for _, metadata := range schemaUpdates {
-		curSchemaId := "none"
+		curSchemaID := "none"
 		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
 		if curSchema != nil {
-			curSchemaId = curSchema.DeployId()
+			curSchemaID = curSchema.DeployId()
 		}
 		// Log schema update.
 		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
@@ -244,7 +244,7 @@ func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
 			continue
 		} else {
 			d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
-				zap.String("current schema", curSchemaId), zap.String("latest schema", latestSchema.DeployId()))
+				zap.String("current schema", curSchemaID), zap.String("latest schema", latestSchema.DeployId()))
 		}
 		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
 		if err != nil {
