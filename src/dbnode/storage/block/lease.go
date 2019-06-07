@@ -22,17 +22,19 @@ package block
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
 var (
 	errLeaserAlreadyRegistered = errors.New("leaser already registered")
-	errAddLeaseLeaserNotRegistered = errors.New("add lease error as leaser not registered")
+	errLeaserNotRegistered     = errors.New("leaser not registered")
 )
 
+// TODO: This needs tests!
 type leaseManager struct {
 	sync.Mutex
-	leasers []Leaser
+	leasers  []Leaser
 	verifier LeaseVerifier
 }
 
@@ -59,9 +61,29 @@ func (m *leaseManager) RegisterLeaser(leaser Leaser) error {
 	return nil
 }
 
-func (m *leaseManager) OpenLease( 
+func (m *leaseManager) UnregisterLeaser(leaser Leaser) error {
+	m.Lock()
+	defer m.Unlock()
+
+	var leasers []Leaser
+	for _, l := range m.leasers {
+		if l != leaser {
+			leasers = append(leasers, l)
+		}
+	}
+
+	if len(leasers) != len(m.leasers)-1 {
+		return errLeaserNotRegistered
+	}
+
+	m.leasers = leasers
+
+	return nil
+}
+
+func (m *leaseManager) OpenLease(
 	leaser Leaser,
-	descriptor LeaseDescriptor, 
+	descriptor LeaseDescriptor,
 	state LeaseState,
 ) error {
 	// NB(r): Take exclusive lock so that upgrade leases can't be called
@@ -78,23 +100,23 @@ func (m *leaseManager) OpenLease(
 	}
 
 	if !registered {
-		return errAddLeaseLeaserNotRegistered
+		return errLeaserNotRegistered
 	}
 
 	return m.verifier.VerifyLease(descriptor, state)
 }
 
-func (m *leaseManager) UpdateOpenLeases( 
+func (m *leaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,
 ) (UpdateLeasesResult, error) {
 	// NB(r): Take exclusive lock so that add lease can't be called
-	// while we are notifying existing 
+	// while we are notifying existing
 	m.Lock()
 	defer m.Unlock()
 
 	var result UpdateLeasesResult
-	for _, l := range leasers {
+	for _, l := range m.leasers {
 		r, err := l.UpdateOpenLease(descriptor, state)
 		if err != nil {
 			return result, err
@@ -103,10 +125,10 @@ func (m *leaseManager) UpdateOpenLeases(
 		switch r {
 		case UpdateOpenLease:
 			result.LeasersUpdatedLease++
-		case LeasersNoOpenLease:
+		case NoOpenLease:
 			result.LeasersNoOpenLease++
 		default:
-			return fmt.Errorf("unknown update open lease result: %d", r)
+			return result, fmt.Errorf("unknown update open lease result: %d", r)
 		}
 	}
 

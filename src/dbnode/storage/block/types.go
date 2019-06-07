@@ -375,11 +375,13 @@ type FetchBlocksMetadataResultsPool interface {
 	Put(res FetchBlocksMetadataResults)
 }
 
+// LeaseManager is a manager of block leases and leasers.
 type LeaseManager interface {
 	RegisterLeaser(leaser Leaser) error
+	UnregisterLeaser(leaser Leaser) error
 	OpenLease(
 		leaser Leaser,
-		descriptor LeaseDescriptor, 
+		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
 	UpdateOpenLeases(
@@ -388,35 +390,44 @@ type LeaseManager interface {
 	) (UpdateLeasesResult, error)
 }
 
+// UpdateLeasesResult is the result of a call to update leases.
 type UpdateLeasesResult struct {
 	LeasersUpdatedLease int
-	LeasersNoOpenLease int
+	LeasersNoOpenLease  int
 }
 
+// LeaseDescriptor describes a lease (like an ID).
 type LeaseDescriptor struct {
-	Namespace   ident.ID
-	Shard       int
-	BlockStart  time.Time
+	Namespace  ident.ID
+	Shard      int
+	BlockStart time.Time
 }
 
+// LeaseState is the current state of a lease which can be
+// requested to be updated.
 type LeaseState struct {
 	Volume int
 }
 
+// LeaseVerifier verifies that a lease is valid.
 type LeaseVerifier interface {
 	VerifyLease(
-		descriptor LeaseDescriptor, 
+		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
 }
 
+// UpdateOpenLeaseResult is the result of processing an update lease.
 type UpdateOpenLeaseResult uint
 
 const (
-	UpdatedOpenLease UpdateOpenLeaseResult = iota
+	// UpdateOpenLease is used to communicate a lease updated successfully.
+	UpdateOpenLease UpdateOpenLeaseResult = iota
+	// NoOpenLease is used to communitcate there is no related open lease.
 	NoOpenLease
 )
 
+// Leaser is a block leaser.
 type Leaser interface {
 	UpdateOpenLease(
 		descriptor LeaseDescriptor,
