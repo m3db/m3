@@ -90,6 +90,20 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseSeries)(nil).Close))
 }
 
+// ColdFlushBlockStarts mocks base method
+func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 map[time0.UnixNano]BlockState) OptimizedTimes {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", arg0)
+	ret0, _ := ret[0].(OptimizedTimes)
+	return ret0
+}
+
+// ColdFlushBlockStarts indicates an expected call of ColdFlushBlockStarts
+func (mr *MockDatabaseSeriesMockRecorder) ColdFlushBlockStarts(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushBlockStarts", reflect.TypeOf((*MockDatabaseSeries)(nil).ColdFlushBlockStarts), arg0)
+}
+
 // FetchBlocks mocks base method
 func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time, arg2 namespace.Context) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -105,6 +119,21 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1, arg2 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocks), arg0, arg1, arg2)
 }
 
+// FetchBlocksForColdFlush mocks base method
+func (m *MockDatabaseSeries) FetchBlocksForColdFlush(arg0 context.Context, arg1 time.Time, arg2 int, arg3 namespace.Context) ([]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]xio.BlockReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksForColdFlush indicates an expected call of FetchBlocksForColdFlush
+func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksForColdFlush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksForColdFlush", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksForColdFlush), arg0, arg1, arg2, arg3)
+}
+
 // FetchBlocksMetadata mocks base method
 func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.Time, arg3 FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResult, error) {
 	m.ctrl.T.Helper()
@@ -118,21 +147,6 @@ func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg
 func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksMetadata), arg0, arg1, arg2, arg3)
-}
-
-// Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 int, arg4 namespace.Context) (FlushOutcome, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(FlushOutcome)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Flush indicates an expected call of Flush
-func (mr *MockDatabaseSeriesMockRecorder) Flush(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockDatabaseSeries)(nil).Flush), arg0, arg1, arg2, arg3, arg4)
 }
 
 // ID mocks base method
@@ -285,6 +299,21 @@ func (mr *MockDatabaseSeriesMockRecorder) Tick(arg0, arg1 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockDatabaseSeries)(nil).Tick), arg0, arg1)
 }
 
+// WarmFlush mocks base method
+func (m *MockDatabaseSeries) WarmFlush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) (FlushOutcome, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlush", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(FlushOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WarmFlush indicates an expected call of WarmFlush
+func (mr *MockDatabaseSeriesMockRecorder) WarmFlush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockDatabaseSeries)(nil).WarmFlush), arg0, arg1, arg2, arg3)
+}
+
 // Write mocks base method
 func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.Time, arg2 float64, arg3 time0.Unit, arg4 []byte, arg5 WriteOptions) (bool, error) {
 	m.ctrl.T.Helper()
@@ -351,18 +380,18 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBlockRetrievable", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).IsBlockRetrievable), arg0)
 }
 
-// RetrievableBlockVersion mocks base method
-func (m *MockQueryableBlockRetriever) RetrievableBlockVersion(arg0 time.Time) int {
+// RetrievableBlockColdVersion mocks base method
+func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetrievableBlockVersion", arg0)
+	ret := m.ctrl.Call(m, "RetrievableBlockColdVersion", arg0)
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// RetrievableBlockVersion indicates an expected call of RetrievableBlockVersion
-func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockVersion(arg0 interface{}) *gomock.Call {
+// RetrievableBlockColdVersion indicates an expected call of RetrievableBlockColdVersion
+func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockColdVersion(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrievableBlockVersion", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).RetrievableBlockVersion), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrievableBlockColdVersion", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).RetrievableBlockColdVersion), arg0)
 }
 
 // Stream mocks base method

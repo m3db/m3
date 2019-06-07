@@ -26,7 +26,7 @@ byteshashmap-update:
 	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey -ast gen "KeyType=[]byte ValueType=MapValue" > ./byteskey/map_gen.go
 
 # NB(prateek): `target_package` should not have a trailing slash
-# generic targets meant to be re-used by other users
+# Generic targets meant to be re-used by other users
 .PHONY: hashmap-gen
 hashmap-gen:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
@@ -89,11 +89,10 @@ ifeq ($(rename_nogen_key),)
 	[ "$(key_type_alias)" == "" ] || echo "type $(key_type_alias) interface{}" >> $(temp_outdir)/key.go
 endif
 ifeq ($(rename_nogen_value),)
-	# allow users to short circuit the generation of key.go if they don't need it.
+	# Allow users to short circuit the generation of value.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/value.go
 	echo '' >> $(temp_outdir)/value.go
 	[[ $(value_type_alias) = struct* ]] || echo 'type $(value_type_alias) interface{}' >> $(temp_outdir)/value.go
-	# allow users to short circuit the generation of value.go if they don't need it.
 endif
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
 	make hashmap-gen-rename-helper
@@ -133,7 +132,7 @@ genny-arraypool-ident-tags:
 		rename_gen_types=true
 
 # NB(prateek): `target_package` should not have a trailing slash
-# generic arraypool generation rule
+# Generic arraypool generation rule
 .PHONY: genny-arraypool
 genny-arraypool:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
@@ -153,7 +152,7 @@ elem_type_alias ?= $(elem_type)
 arraypool-gen-rename: install-gorename
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 ifneq ($(rename_gen_types),)
-	# allow users to short circuit the generation of types.go if they don't need it.
+	# Allow users to short circuit the generation of types.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/types.go
 	echo '' >> $(temp_outdir)/types.go
 	echo "type $(elem_type_alias) interface{}" >> $(temp_outdir)/types.go
@@ -195,7 +194,7 @@ elem_type_alias ?= $(elem_type)
 list-gen-rename: install-gorename
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 ifneq ($(rename_gen_types),)
-	# allow users to short circuit the generation of types.go if they don't need it.
+	# Allow users to short circuit the generation of types.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/types.go
 	echo '' >> $(temp_outdir)/types.go
 	echo "type $(elem_type_alias) interface{}" >> $(temp_outdir)/types.go

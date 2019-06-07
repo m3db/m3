@@ -30,8 +30,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -134,7 +136,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
-	notStarted := fileOpState{Status: fileOpNotStarted}
+	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
 		assert.Equal(t, notStarted, s.FlushState(earliest))
 	}
@@ -184,7 +186,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
 	s.bootstrapState = Bootstrapping
-	err := s.Flush(time.Now(), nil, namespace.Context{})
+	err := s.WarmFlush(time.Now(), nil, namespace.Context{})
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
@@ -198,7 +200,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
 	}
 
@@ -226,15 +228,15 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any(), 1, gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, int, namespace.Context) {
+			WarmFlush(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
+			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
 		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
-	err := s.Flush(blockStart, flush, namespace.Context{})
+	err := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -248,7 +250,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 2,
 	}, flushState)
 }
@@ -268,7 +270,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
-		Status:      fileOpFailed,
+		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
 	}
 
@@ -293,15 +295,15 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any(), 1, gomock.Any()).
-			Do(func(context.Context, time.Time, persist.DataFn, int, namespace.Context) {
+			WarmFlush(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
+			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
 		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
-	err := s.Flush(blockStart, flush, namespace.Context{})
+	err := s.WarmFlush(blockStart, flush, namespace.Context{})
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -314,10 +316,148 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
-		Status:      fileOpSuccess,
-		Version:     1,
+		WarmStatus:  fileOpSuccess,
+		ColdVersion: 0,
 		NumFailures: 0,
 	}, flushState)
+}
+
+type testDirtySeries struct {
+	id         ident.ID
+	dirtyTimes []time.Time
+}
+
+func optimizedTimesFromTimes(times []time.Time) series.OptimizedTimes {
+	var ret series.OptimizedTimes
+	for _, t := range times {
+		ret.Add(xtime.ToUnixNano(t))
+	}
+	return ret
+}
+
+func TestShardColdFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	now := time.Now()
+	nowFn := func() time.Time {
+		return now
+	}
+	opts := DefaultTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
+	shard := testDatabaseShard(t, opts)
+	shard.bootstrapState = Bootstrapped
+	shard.newMergerFn = newMergerTestFn
+	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
+
+	t0 := now.Truncate(blockSize).Add(-10 * blockSize)
+	t1 := t0.Add(1 * blockSize)
+	t2 := t0.Add(2 * blockSize)
+	t3 := t0.Add(3 * blockSize)
+	t4 := t0.Add(4 * blockSize)
+	t5 := t0.Add(5 * blockSize)
+	t6 := t0.Add(6 * blockSize)
+	t7 := t0.Add(7 * blockSize)
+	// Mark t0-t6 (not t7) as having been warm flushed. Cold flushes can only
+	// happen after a successful warm flush because warm flushes currently don't
+	// have merging logic. This means that all blocks except t7 should
+	// successfully cold flush.
+	shard.markWarmFlushStateSuccess(t0)
+	shard.markWarmFlushStateSuccess(t1)
+	shard.markWarmFlushStateSuccess(t2)
+	shard.markWarmFlushStateSuccess(t3)
+	shard.markWarmFlushStateSuccess(t4)
+	shard.markWarmFlushStateSuccess(t5)
+	shard.markWarmFlushStateSuccess(t6)
+
+	dirtyData := []testDirtySeries{
+		{id: ident.StringID("id0"), dirtyTimes: []time.Time{t0, t2, t3, t4}},
+		{id: ident.StringID("id1"), dirtyTimes: []time.Time{t1}},
+		{id: ident.StringID("id2"), dirtyTimes: []time.Time{t3, t4, t5}},
+		{id: ident.StringID("id3"), dirtyTimes: []time.Time{t6, t7}},
+	}
+	for _, ds := range dirtyData {
+		curr := series.NewMockDatabaseSeries(ctrl)
+		curr.EXPECT().ID().Return(ds.id)
+		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
+			Return(optimizedTimesFromTimes(ds.dirtyTimes))
+		shard.list.PushBack(lookup.NewEntry(curr, 0))
+	}
+
+	preparer := persist.NewMockFlushPreparer(ctrl)
+	fsReader := fs.NewMockDataFileSetReader(ctrl)
+	resources := coldFlushReuseableResources{
+		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
+		idElementPool:      newIDElementPool(nil),
+		fsReader:           fsReader,
+	}
+	nsCtx := namespace.Context{}
+
+	// Assert that flush state cold versions all start at 0.
+	for i := t0; i.Before(t7.Add(blockSize)); i = i.Add(blockSize) {
+		assert.Equal(t, 0, shard.RetrievableBlockColdVersion(i))
+	}
+	shard.ColdFlush(preparer, resources, nsCtx)
+	// After a cold flush, t0-t6 previously dirty block starts should be updated
+	// to version 1.
+	for i := t0; i.Before(t6.Add(blockSize)); i = i.Add(blockSize) {
+		assert.Equal(t, 1, shard.RetrievableBlockColdVersion(i))
+	}
+	// t7 shouldn't be cold flushed because it hasn't been warm flushed.
+	assert.Equal(t, 0, shard.RetrievableBlockColdVersion(t7))
+}
+
+func newMergerTestFn(
+	reader fs.DataFileSetReader,
+	blockAllocSize int,
+	srPool xio.SegmentReaderPool,
+	multiIterPool encoding.MultiReaderIteratorPool,
+	identPool ident.Pool,
+	encoderPool encoding.EncoderPool,
+	nsOpts namespace.Options,
+) fs.Merger {
+	return &noopMerger{}
+}
+
+type noopMerger struct{}
+
+func (m *noopMerger) Merge(
+	fileID fs.FileSetFileIdentifier,
+	mergeWith fs.MergeWith,
+	flushPreparer persist.FlushPreparer,
+	nsCtx namespace.Context,
+) error {
+	return nil
+}
+
+func newFSMergeWithMemTestFn(
+	shard databaseShard,
+	retriever series.QueryableBlockRetriever,
+	dirtySeries *dirtySeriesMap,
+	dirtySeriesToWrite map[xtime.UnixNano]*idList,
+) fs.MergeWith {
+	return &noopMergeWith{}
+}
+
+type noopMergeWith struct{}
+
+func (m *noopMergeWith) Read(
+	ctx context.Context,
+	seriesID ident.ID,
+	blockStart xtime.UnixNano,
+	nsCtx namespace.Context,
+) ([]xio.BlockReader, bool, error) {
+	return nil, false, nil
+}
+
+func (m *noopMergeWith) ForEachRemaining(
+	ctx context.Context,
+	blockStart xtime.UnixNano,
+	fn fs.ForEachRemainingFn,
+	nsCtx namespace.Context,
+) error {
+	return nil
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
@@ -478,10 +618,10 @@ func TestShardTick(t *testing.T) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -639,10 +779,10 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
-		Status: fileOpSuccess,
+		WarmStatus: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -1065,8 +1205,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markFlushStateSuccess(start, 1)
-	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()), 1)
+	shard.markWarmFlushStateSuccess(start)
+	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
