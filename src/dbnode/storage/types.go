@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -331,8 +332,8 @@ type databaseNamespace interface {
 	// Bootstrap performs bootstrapping.
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
-	// Flush flushes in-memory data.
-	Flush(
+	// WarmFlush flushes in-memory WarmWrites.
+	WarmFlush(
 		blockStart time.Time,
 		ShardBootstrapStates ShardBootstrapStates,
 		flush persist.FlushPreparer,
@@ -343,7 +344,12 @@ type databaseNamespace interface {
 		flush persist.IndexFlush,
 	) error
 
-	// Snapshot snapshots unflushed in-memory data
+	// ColdFlush flushes unflushed in-memory ColdWrites.
+	ColdFlush(
+		flush persist.FlushPreparer,
+	) error
+
+	// Snapshot snapshots unflushed in-memory WarmWrites.
 	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
@@ -439,6 +445,17 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) ([]block.FetchBlockResult, error)
 
+	// FetchBlocksForColdFlush fetches blocks for a cold flush. This function
+	// informs the series and the buffer that a cold flush for the specified
+	// block start is occurring so that it knows to update bucket versions.
+	FetchBlocksForColdFlush(
+		ctx context.Context,
+		seriesID ident.ID,
+		start time.Time,
+		version int,
+		nsCtx namespace.Context,
+	) ([]xio.BlockReader, error)
+
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
@@ -453,21 +470,30 @@ type databaseShard interface {
 		bootstrappedSeries *result.Map,
 	) error
 
-	// Flush flushes the series' in this shard.
-	Flush(
+	// WarmFlush flushes the WarmWrites in this shard.
+	WarmFlush(
 		blockStart time.Time,
 		flush persist.FlushPreparer,
 		nsCtx namespace.Context,
 	) error
 
-	// Snapshot snapshot's the unflushed series' in this shard.
-	Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) error
+	// ColdFlush flushes the unflushed ColdWrites in this shard.
+	ColdFlush(
+		flush persist.FlushPreparer,
+		resources coldFlushReuseableResources,
+		nsCtx namespace.Context,
+	) error
+
+	// Snapshot snapshot's the unflushed WarmWrites in this shard.
+	Snapshot(
+		blockStart time.Time,
+		snapshotStart time.Time,
+		flush persist.SnapshotPreparer,
+		nsCtx namespace.Context,
+	) error
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
-
-	// SnapshotState returns the snapshot state for this shard.
-	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
 
 	// CleanupExpiredFileSets removes expired fileset files.
 	CleanupExpiredFileSets(earliestToRetain time.Time) error
@@ -479,6 +505,9 @@ type databaseShard interface {
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
+
+	// TagsFromSeriesID returns the series tags from a series ID.
+	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error)
 }
 
 // namespaceIndex indexes namespace writes.
@@ -966,3 +995,10 @@ const (
 	// Bootstrapped indicates a bootstrap process has completed.
 	Bootstrapped
 )
+
+type newFSMergeWithMemFn func(
+	shard databaseShard,
+	retriever series.QueryableBlockRetriever,
+	dirtySeries *dirtySeriesMap,
+	dirtySeriesToWrite map[xtime.UnixNano]*idList,
+) fs.MergeWith

@@ -148,6 +148,8 @@ type dbShard struct {
 	lookup                   *shardMap
 	list                     *list.List
 	bootstrapState           BootstrapState
+	newMergerFn              fs.NewMergerFn
+	newFSMergeWithMemFn      newFSMergeWithMemFn
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
@@ -155,7 +157,6 @@ type dbShard struct {
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
-	snapshotState            shardSnapshotState
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
@@ -231,12 +232,6 @@ func newShardFlushState() shardFlushState {
 	}
 }
 
-type shardSnapshotState struct {
-	sync.RWMutex
-	isSnapshotting         bool
-	lastSuccessfulSnapshot time.Time
-}
-
 func newDatabaseShard(
 	namespaceMetadata namespace.Metadata,
 	shard uint32,
@@ -252,28 +247,30 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	s := &dbShard{
-		opts:               opts,
-		seriesOpts:         seriesOpts,
-		nowFn:              opts.ClockOptions().NowFn(),
-		state:              dbShardStateOpen,
-		namespace:          namespaceMetadata,
-		shard:              shard,
-		namespaceReaderMgr: namespaceReaderMgr,
-		increasingIndex:    increasingIndex,
-		seriesPool:         opts.DatabaseSeriesPool(),
-		reverseIndex:       reverseIndex,
-		lookup:             newShardMap(shardMapOptions{}),
-		list:               list.New(),
-		filesetBeforeFn:    fs.DataFileSetsBefore,
-		deleteFilesFn:      fs.DeleteFiles,
-		snapshotFilesFn:    fs.SnapshotFiles,
-		sleepFn:            time.Sleep,
-		identifierPool:     opts.IdentifierPool(),
-		contextPool:        opts.ContextPool(),
-		flushState:         newShardFlushState(),
-		tickWg:             &sync.WaitGroup{},
-		logger:             opts.InstrumentOptions().Logger(),
-		metrics:            newDatabaseShardMetrics(shard, scope),
+		opts:                opts,
+		seriesOpts:          seriesOpts,
+		nowFn:               opts.ClockOptions().NowFn(),
+		state:               dbShardStateOpen,
+		namespace:           namespaceMetadata,
+		shard:               shard,
+		namespaceReaderMgr:  namespaceReaderMgr,
+		increasingIndex:     increasingIndex,
+		seriesPool:          opts.DatabaseSeriesPool(),
+		reverseIndex:        reverseIndex,
+		lookup:              newShardMap(shardMapOptions{}),
+		list:                list.New(),
+		newMergerFn:         fs.NewMerger,
+		newFSMergeWithMemFn: newFSMergeWithMem,
+		filesetBeforeFn:     fs.DataFileSetsBefore,
+		deleteFilesFn:       fs.DeleteFiles,
+		snapshotFilesFn:     fs.SnapshotFiles,
+		sleepFn:             time.Sleep,
+		identifierPool:      opts.IdentifierPool(),
+		contextPool:         opts.ContextPool(),
+		flushState:          newShardFlushState(),
+		tickWg:              &sync.WaitGroup{},
+		logger:              opts.InstrumentOptions().Logger(),
+		metrics:             newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope)
@@ -346,8 +343,12 @@ func (s *dbShard) Stream(
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
+	return s.hasWarmFlushed(blockStart)
+}
+
+func (s *dbShard) hasWarmFlushed(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.Status)
+	return statusIsRetrievable(flushState.WarmStatus)
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -361,10 +362,10 @@ func statusIsRetrievable(status fileOpStatus) bool {
 		status))
 }
 
-// RetrievableBlockVersion implements series.QueryableBlockRetriever
-func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
+// RetrievableBlockColdVersion implements series.QueryableBlockRetriever
+func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
-	return flushState.Version
+	return flushState.ColdVersion
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -376,8 +377,8 @@ func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
-			Retrievable: statusIsRetrievable(state.Status),
-			Version:     state.Version,
+			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
+			ColdVersion:     state.ColdVersion,
 		}
 	}
 
@@ -1094,6 +1095,9 @@ func (s *dbShard) newShardEntry(
 	default:
 		return nil, errNewShardEntryTagsTypeInvalid
 	}
+	// Don't put tags back in a pool since the merge logic may still have a
+	// handle on these.
+	seriesTags.NoFinalize()
 
 	series := s.seriesPool.Get()
 	series.Reset(seriesID, seriesTags, s.seriesBlockRetriever,
@@ -1451,6 +1455,23 @@ func (s *dbShard) FetchBlocks(
 	var onReadCb block.OnReadBlock
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, onReadCb, opts)
 	return reader.FetchBlocks(ctx, starts, nsCtx)
+}
+
+func (s *dbShard) FetchBlocksForColdFlush(
+	ctx context.Context,
+	seriesID ident.ID,
+	start time.Time,
+	version int,
+	nsCtx namespace.Context,
+) ([]xio.BlockReader, error) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(seriesID)
+	s.RUnlock()
+	if entry == nil || err != nil {
+		return nil, err
+	}
+
+	return entry.Series.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
 }
 
 func (s *dbShard) fetchActiveBlocksMetadata(
@@ -1838,11 +1859,11 @@ func (s *dbShard) Bootstrap(
 		info := result.Info
 		at := xtime.FromNanoseconds(info.BlockStart)
 		fs := s.FlushState(at)
-		if fs.Status != fileOpNotStarted {
+		if fs.WarmStatus != fileOpNotStarted {
 			continue // Already recorded progress
 		}
 
-		s.markFlushStateSuccess(at, 0)
+		s.markWarmFlushStateSuccess(at)
 	}
 
 	s.Lock()
@@ -1852,7 +1873,7 @@ func (s *dbShard) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Flush(
+func (s *dbShard) WarmFlush(
 	blockStart time.Time,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
@@ -1877,20 +1898,19 @@ func (s *dbShard) Flush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markFlushStateSuccessOrError(blockStart, 0, err)
+		return s.markWarmFlushStateSuccessOrError(blockStart, err)
 	}
 
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
 	flushResult := dbShardFlushResult{}
-	version := s.RetrievableBlockVersion(blockStart) + 1
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version, nsCtx)
+		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist, nsCtx)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1911,7 +1931,86 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markFlushStateSuccessOrError(blockStart, version, multiErr.FinalError())
+	return s.markWarmFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+}
+
+func (s *dbShard) ColdFlush(
+	flushPreparer persist.FlushPreparer,
+	resources coldFlushReuseableResources,
+	nsCtx namespace.Context,
+) error {
+	// We don't flush data when the shard is still bootstrapping.
+	s.RLock()
+	if s.bootstrapState != Bootstrapped {
+		s.RUnlock()
+		return errShardNotBootstrappedToFlush
+	}
+	s.RUnlock()
+
+	resources.reset()
+	var (
+		multiErr           xerrors.MultiError
+		dirtySeries        = resources.dirtySeries
+		dirtySeriesToWrite = resources.dirtySeriesToWrite
+		idElementPool      = resources.idElementPool
+	)
+
+	blockStates := s.BlockStatesSnapshot()
+	// First, loop through all series to capture data on which blocks have dirty
+	// series and add them to the resources for further processing.
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		curr := entry.Series
+		seriesID := curr.ID()
+		blockStarts := curr.ColdFlushBlockStarts(blockStates)
+		blockStarts.ForEach(func(t xtime.UnixNano) {
+			// Cold flushes can only happen on blockStarts that have been
+			// warm flushed, because warm flush logic does not currently
+			// perform any merging logic.
+			if !s.hasWarmFlushed(t.ToTime()) {
+				return
+			}
+
+			seriesList := dirtySeriesToWrite[t]
+			if seriesList == nil {
+				seriesList = newIDList(idElementPool)
+				dirtySeriesToWrite[t] = seriesList
+			}
+			element := seriesList.PushBack(seriesID)
+
+			dirtySeries.Set(idAndBlockStart{blockStart: t, id: seriesID}, element)
+		})
+
+		return true
+	})
+
+	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
+		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),
+		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.namespace.Options())
+	mergeWithMem := s.newFSMergeWithMemFn(s, s, dirtySeries, dirtySeriesToWrite)
+	// Loop through each block that we know has ColdWrites. Since each block
+	// has its own fileset, if we encounter an error while trying to persist
+	// a block, we continue to try persisting other blocks.
+	for blockStart := range dirtySeriesToWrite {
+		startTime := blockStart.ToTime()
+		fsID := fs.FileSetFileIdentifier{
+			Namespace:  s.namespace.ID(),
+			Shard:      s.ID(),
+			BlockStart: startTime,
+		}
+
+		err := merger.Merge(fsID, mergeWithMem, flushPreparer, nsCtx)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
+		// After writing the full block successfully, update the cold version
+		// in the flush state.
+		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
+		s.setFlushStateColdVersion(startTime, nextVersion)
+	}
+
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) Snapshot(
@@ -1929,11 +2028,6 @@ func (s *dbShard) Snapshot(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-
-	s.markIsSnapshotting()
-	defer func() {
-		s.markDoneSnapshotting(multiErr.Empty(), snapshotTime)
-	}()
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
@@ -1988,36 +2082,51 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return fileOpState{Status: fileOpNotStarted}
+		return fileOpState{WarmStatus: fileOpNotStarted}
 	}
 	return state
 }
 
-func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, version int, err error) error {
+func (s *dbShard) markWarmFlushStateSuccessOrError(blockStart time.Time, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markFlushStateSuccess(blockStart, version)
+		s.markWarmFlushStateSuccess(blockStart)
 	} else {
-		s.markFlushStateFail(blockStart)
+		s.markWarmFlushStateFail(blockStart)
 	}
 	return err
 }
 
-func (s *dbShard) markFlushStateSuccess(blockStart time.Time, version int) {
+func (s *dbShard) markWarmFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
 		fileOpState{
-			Status:  fileOpSuccess,
-			Version: version,
+			WarmStatus: fileOpSuccess,
 		}
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) markFlushStateFail(blockStart time.Time) {
+func (s *dbShard) markWarmFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.Status = fileOpFailed
+	state.WarmStatus = fileOpFailed
 	state.NumFailures++
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.NumFailures++
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.ColdVersion = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
@@ -2031,27 +2140,6 @@ func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
 		}
 	}
 	s.flushState.Unlock()
-}
-
-func (s *dbShard) SnapshotState() (bool, time.Time) {
-	s.snapshotState.RLock()
-	defer s.snapshotState.RUnlock()
-	return s.snapshotState.isSnapshotting, s.snapshotState.lastSuccessfulSnapshot
-}
-
-func (s *dbShard) markIsSnapshotting() {
-	s.snapshotState.Lock()
-	s.snapshotState.isSnapshotting = true
-	s.snapshotState.Unlock()
-}
-
-func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
-	s.snapshotState.Lock()
-	s.snapshotState.isSnapshotting = false
-	if success {
-		s.snapshotState.lastSuccessfulSnapshot = completionTime
-	}
-	s.snapshotState.Unlock()
 }
 
 func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
@@ -2077,6 +2165,17 @@ func (s *dbShard) Repair(
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(ctx, nsCtx, tr, s)
+}
+
+func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(seriesID)
+	s.RUnlock()
+	if entry == nil || err != nil {
+		return ident.Tags{}, false, err
+	}
+
+	return entry.Series.Tags(), true, nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
