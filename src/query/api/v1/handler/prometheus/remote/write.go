@@ -125,12 +125,15 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		status := http.StatusInternalServerError
-		if numBadRequest == len(errs) {
+		var status int
+		switch {
+		case numBadRequest == len(errs):
 			status = http.StatusBadRequest
+			h.promWriteMetrics.writeErrorsClient.Inc(1)
+		default:
+			status = http.StatusInternalServerError
+			h.promWriteMetrics.writeErrorsServer.Inc(1)
 		}
-
-		h.promWriteMetrics.writeErrorsServer.Inc(1)
 
 		logger := logging.WithContext(r.Context())
 		logger.Error("write error",
