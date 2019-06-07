@@ -41,6 +41,12 @@ func mins(x float64) time.Duration {
 	return time.Duration(x * float64(time.Minute))
 }
 
+type blockData struct {
+	start     time.Time
+	writeType WriteType
+	data      [][]value
+}
+
 type value struct {
 	timestamp  time.Time
 	value      float64
