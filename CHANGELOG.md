@@ -4,8 +4,8 @@
 
 ## Features
 
-- **M3Query**: Add multi-zonal capability to remote reads (#1687)
-- **M3Query**: Add debug param to namespace get API for better readability (#1698)
+- **M3Query**: Add multi-zone and multi-region configuration for coordinator (#1687)
+- **M3Query**: Add debug param to `GET` `/api/v1/namespace` endpoint for better readability (#1698)
 
 ## Performance
 
@@ -17,7 +17,7 @@
 
 - **M3DB**: Fix a bug where peer bootstrapping would sometimes get stuck for a short period of time due to other M3DB nodes (temporarily) returning more than one block of data for a given time period (#1707)
 - **M3DB**: Fix a bug that would cause multiple orders of magnitude slow-down in peer bootstrapping / node replacements when one of the nodes in the cluster was hard down (#1677)
-- **M3Query**: Fix a bug with parsing Graphite find queries by adding `MatchField` and `MatchNotField` match types, and explicitly makes use of them in graphite queries (#1676)
+- **M3Query**: Fix a bug with parsing Graphite find queries by adding `MatchField` and `MatchNotField` match types, and explicitly making use of them in graphite queries (#1676)
 - **M3Query**: Propagate limit settings when using Prometheus Remote Read (#1685)
 - **M3Coordinator**: Return a 404 rather than a 500 if we attempt to delete a nonexistent placement (#1701)
 
