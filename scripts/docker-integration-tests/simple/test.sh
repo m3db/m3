@@ -32,6 +32,10 @@ echo "Wait for DB to be up"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
   'curl -vvvsSf 0.0.0.0:9002/bootstrappedinplacementornoplacement'
 
+echo "Wait for coordinator API to be up"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  'curl -vvvsSf 0.0.0.0:7201/health'
+
 echo "Adding namespace"
 curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
   "name": "agg",
