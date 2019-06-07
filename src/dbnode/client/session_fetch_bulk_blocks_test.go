@@ -36,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -145,45 +145,8 @@ func newRoundRobinPickBestPeerFn() pickBestPeerFn {
 	}
 }
 
-func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSessionTestAdminOptions()
-	s, err := newSession(opts)
-	require.NoError(t, err)
-	session := s.(*session)
-
-	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
-	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-
-	// Don't drain the peer blocks queue, explicitly drain ourselves to
-	// avoid unpredictable batches being retrieved from peers
-	var (
-		qs      []*peerBlocksQueue
-		qsMutex sync.RWMutex
-	)
-	session.newPeerBlocksQueueFn = func(
-		peer peer,
-		maxQueueSize int,
-		_ time.Duration,
-		workers xsync.WorkerPool,
-		processFn processFn,
-	) *peerBlocksQueue {
-		qsMutex.Lock()
-		defer qsMutex.Unlock()
-		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
-		qs = append(qs, q)
-		return q
-	}
-
-	require.NoError(t, session.Open())
-
-	batchSize := opts.FetchSeriesBlocksBatchSize()
-
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
-	blocks := []testBlocks{
+func newTestBlocks(start time.Time) []testBlocks {
+	return []testBlocks{
 		{
 			id: fooID,
 			blocks: []testBlock{
@@ -221,6 +184,46 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 			},
 		},
 	}
+}
+func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	require.NoError(t, session.Open())
+
+	var (
+		batchSize = opts.FetchSeriesBlocksBatchSize()
+		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks    = newTestBlocks(start)
+	)
 
 	// Expect the fetch metadata calls
 	metadataResult := resultMetadataFromBlocks(blocks)
@@ -274,6 +277,162 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Assert result
+	assertFetchBootstrapBlocksResult(t, blocks, result)
+
+	assert.NoError(t, session.Close())
+}
+
+// TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier was added as a regression test
+// to ensure that in the scenario where a peer is not available (hard down) but the others are
+// available the streamBlocksMetadataFromPeers does not wait for all of the exponential retries
+// to the downed host to fail before continuing. This is important because if the client waits for
+// all the retries to the downed host to complete it can block each metadata fetch for up to 30 seconds
+// due to the exponential backoff logic in the retrier.
+func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions().
+		// Set bootstrap consistency level to unstrict majority because there are only 3 nodes in the
+		// cluster. The first one will not return data because it is the origin and the last node will
+		// return an error.
+		SetBootstrapConsistencyLevel(topology.ReadConsistencyLevelUnstrictMajority).
+		// Configure the stream blocks retrier such that if the short-circuit logic did not work the
+		// test would timeout.
+		SetStreamBlocksRetrier(xretry.NewRetrier(
+			xretry.NewOptions().
+				SetBackoffFactor(10).
+				SetMaxRetries(10).
+				SetInitialBackoff(30 * time.Second).
+				SetJitter(true),
+		))
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	var (
+		mockHostQueues MockHostQueues
+		mockClients    MockTChanNodes
+		hostShardSets  = sessionTestHostAndShards(sessionTestShardSet())
+	)
+	// Skip the last one because it is going to be manually configured to return an error.
+	for i := 0; i < len(hostShardSets)-1; i++ {
+		host := hostShardSets[i].Host()
+		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
+		mockHostQueues = append(mockHostQueues, hostQueue)
+
+		if i != 0 {
+			// Skip creating a client for the origin because it will never be called so we want
+			// to avoid setting up expectations for it.
+			mockClients = append(mockClients, client)
+		}
+	}
+
+	// Construct the last hostQueue with a connection pool that will error out.
+	host := hostShardSets[len(hostShardSets)-1].Host()
+	connectionPool := NewMockconnectionPool(ctrl)
+	connectionPool.EXPECT().
+		NextClient().
+		Return(nil, errConnectionPoolHasNoConnections).
+		AnyTimes()
+	hostQueue := NewMockhostQueue(ctrl)
+	hostQueue.EXPECT().Open()
+	hostQueue.EXPECT().Host().Return(host).AnyTimes()
+	hostQueue.EXPECT().
+		ConnectionCount().
+		Return(opts.MinConnectionCount()).
+		Times(sessionTestShards)
+	hostQueue.EXPECT().
+		ConnectionPool().
+		Return(connectionPool).
+		AnyTimes()
+	hostQueue.EXPECT().
+		BorrowConnection(gomock.Any()).
+		Return(errConnectionPoolHasNoConnections).
+		AnyTimes()
+	hostQueue.EXPECT().Close()
+	mockHostQueues = append(mockHostQueues, hostQueue)
+
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+	require.NoError(t, session.Open())
+
+	var (
+		batchSize = opts.FetchSeriesBlocksBatchSize()
+		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks    = newTestBlocks(start)
+
+		// Expect the fetch metadata calls.
+		metadataResult = resultMetadataFromBlocks(blocks)
+	)
+	mockClients.expectFetchMetadataAndReturn(metadataResult, opts)
+
+	// Expect the fetch blocks calls.
+	participating := len(mockClients)
+	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
+		blocks, batchSize, participating,
+		func(blockIdx int) (clientIdx int) {
+			// Round robin to match the best peer selection algorithm.
+			return blockIdx % participating
+		})
+	// Skip the first client which is the client for the origin.
+	for i, client := range mockClients {
+		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
+	}
+
+	// Make sure peer selection is round robin to match our expected
+	// peer fetch calls.
+	session.pickBestPeerFn = newRoundRobinPickBestPeerFn()
+
+	// Fetch blocks.
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued.
+		for {
+			qsMutex.RLock()
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			qsMutex.RUnlock()
+			if assigned == len(blocks) {
+				qsMutex.Lock()
+				defer qsMutex.Unlock()
+				for _, q := range qs {
+					q.drain()
+				}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	rangeStart := start
+	rangeEnd := start.Add(blockSize * (24 - 1))
+	bootstrapOpts := newResultTestOptions()
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Assert result.
 	assertFetchBootstrapBlocksResult(t, blocks, result)
 
 	assert.NoError(t, session.Close())
@@ -1797,22 +1956,33 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	for i := 0; i < len(hostShardSets); i++ {
 		host := hostShardSets[i].Host()
-		client := rpc.NewMockTChanNode(ctrl)
-		connectionPool := NewMockconnectionPool(ctrl)
-		connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
-		hostQueue := NewMockhostQueue(ctrl)
-		hostQueue.EXPECT().Open()
-		hostQueue.EXPECT().Host().Return(host).AnyTimes()
-		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
-		hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
-		hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
-			fn(client)
-		}).Return(nil).AnyTimes()
-		hostQueue.EXPECT().Close()
+		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
 		hostQueues = append(hostQueues, hostQueue)
 		clients = append(clients, client)
 	}
 	return hostQueues, clients
+}
+
+func defaultHostAndClientWithExpect(
+	ctrl *gomock.Controller,
+	host topology.Host,
+	opts AdminOptions,
+) (*MockhostQueue, *rpc.MockTChanNode) {
+	client := rpc.NewMockTChanNode(ctrl)
+	connectionPool := NewMockconnectionPool(ctrl)
+	connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
+
+	hostQueue := NewMockhostQueue(ctrl)
+	hostQueue.EXPECT().Open()
+	hostQueue.EXPECT().Host().Return(host).AnyTimes()
+	hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
+	hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
+	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
+		fn(client)
+	}).Return(nil).AnyTimes()
+	hostQueue.EXPECT().Close()
+
+	return hostQueue, client
 }
 
 func resultMetadataFromBlocks(

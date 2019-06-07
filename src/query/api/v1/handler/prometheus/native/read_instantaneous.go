@@ -47,7 +47,7 @@ const (
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
 type PromReadInstantHandler struct {
-	engine              *executor.Engine
+	engine              executor.Engine
 	fetchOptionsBuilder handler.FetchOptionsBuilder
 	tagOpts             models.TagOptions
 	timeoutOpts         *prometheus.TimeoutOpts
@@ -55,7 +55,7 @@ type PromReadInstantHandler struct {
 
 // NewPromReadInstantHandler returns a new instance of handler.
 func NewPromReadInstantHandler(
-	engine *executor.Engine,
+	engine executor.Engine,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
@@ -87,13 +87,12 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	engineOpts := &executor.EngineOptions{
+	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
-		},
-	}
+		}}
 
-	result, err := read(ctx, h.engine, engineOpts, h.tagOpts, w, params)
+	result, err := read(ctx, h.engine, queryOpts, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
 		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)

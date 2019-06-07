@@ -19,8 +19,8 @@ rpc:
   remotes:
     - name: "cluster-a"
       remoteListenAddresses: ["coordinator-cluster-a:7202"]
-    - name: "cluster-c"
-      remoteListenAddresses: ["coordinator-cluster-c:7202"]
+    - name: "cluster-b"
+      remoteListenAddresses: ["coordinator-cluster-b:7202"]
 
 clusters:
   - namespaces:
@@ -41,7 +41,7 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - dbnode-cluster-b:2379
+                - dbnode-cluster-c:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 

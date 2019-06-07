@@ -62,7 +62,7 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine              *executor.Engine
+	engine              executor.Engine
 	fetchOptionsBuilder handler.FetchOptionsBuilder
 	tagOpts             models.TagOptions
 	limitsCfg           *config.LimitsConfiguration
@@ -107,7 +107,7 @@ type RespError struct {
 
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
-	engine *executor.Engine,
+	engine executor.Engine,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
@@ -138,11 +138,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, &executor.EngineOptions{
+	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
-		},
-	})
+		}}
+
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts)
 	if respErr != nil {
 		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
 		return
@@ -166,8 +167,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *PromReadHandler) ServeHTTPWithEngine(
 	w http.ResponseWriter,
 	r *http.Request,
-	engine *executor.Engine,
-	opts *executor.EngineOptions,
+	engine executor.Engine,
+	opts *executor.QueryOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
