@@ -151,7 +151,8 @@ type databaseNamespaceIndexStatsLastTick struct {
 
 type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
-	flush               instrument.MethodMetrics
+	flushWarmData       instrument.MethodMetrics
+	flushColdData       instrument.MethodMetrics
 	flushIndex          instrument.MethodMetrics
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
@@ -229,7 +230,8 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", samplingRate),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", samplingRate),
 		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
@@ -902,7 +904,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	return err
 }
 
-func (n *dbNamespace) Flush(
+func (n *dbNamespace) WarmFlush(
 	blockStart time.Time,
 	shardBootstrapStatesAtTickStart ShardBootstrapStates,
 	flushPersist persist.FlushPreparer,
@@ -914,14 +916,14 @@ func (n *dbNamespace) Flush(
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
-		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.flushWarmData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() {
-		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -953,12 +955,12 @@ func (n *dbNamespace) Flush(
 		}
 
 		// skip flushing if the shard has already flushed data for the `blockStart`
-		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
+		if s := shard.FlushState(blockStart); s.WarmStatus == fileOpSuccess {
 			continue
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flushPersist, nsCtx); err != nil {
+		if err := shard.WarmFlush(blockStart, flushPersist, nsCtx); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -966,7 +968,106 @@ func (n *dbNamespace) Flush(
 	}
 
 	res := multiErr.FinalError()
-	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.metrics.flushWarmData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
+}
+
+// idAndBlockStart is the composite key for the genny map used to keep track of
+// dirty series that need to be ColdFlushed.
+type idAndBlockStart struct {
+	id         ident.ID
+	blockStart xtime.UnixNano
+}
+
+type coldFlushReuseableResources struct {
+	// dirtySeries is a map from a composite key of <series ID, block start>
+	// to an element in a list in the dirtySeriesToWrite map. This map is used
+	// to quickly test whether a series is dirty for a particular block start.
+	//
+	// The composite key is deliberately made so that this map stays one level
+	// deep, making it easier to share between shard loops, minimizing the need
+	// for allocations.
+	//
+	// Having a reference to the element in the dirtySeriesToWrite list enables
+	// efficient removal of the series that have been read and subsequent
+	// iterating through remaining series to be read.
+	dirtySeries *dirtySeriesMap
+	// dirtySeriesToWrite is a map from block start to a list of dirty series
+	// that have yet to be written to disk.
+	dirtySeriesToWrite map[xtime.UnixNano]*idList
+	// idElementPool is a pool of list elements to be used when constructing
+	// new lists for the dirtySeriesToWrite map.
+	idElementPool *idElementPool
+	fsReader      fs.DataFileSetReader
+}
+
+func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, error) {
+	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return coldFlushReuseableResources{}, nil
+	}
+
+	return coldFlushReuseableResources{
+		// TODO(juchan): consider setting these options.
+		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
+		// TODO(juchan): set pool options.
+		idElementPool: newIDElementPool(nil),
+		fsReader:      fsReader,
+	}, nil
+}
+
+func (r *coldFlushReuseableResources) reset() {
+	for _, seriesList := range r.dirtySeriesToWrite {
+		if seriesList != nil {
+			seriesList.Reset()
+		}
+		// Don't delete the empty list from the map so that other shards don't
+		// need to reinitialize the list for these blocks.
+	}
+
+	r.dirtySeries.Reset()
+}
+
+func (n *dbNamespace) ColdFlush(
+	flushPersist persist.FlushPreparer,
+) error {
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
+	callStart := n.nowFn()
+
+	n.RLock()
+	if n.bootstrapState != Bootstrapped {
+		n.RUnlock()
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceNotBootstrapped
+	}
+	nsCtx := namespace.Context{Schema: n.schemaDescr}
+	n.RUnlock()
+
+	if !n.nopts.ColdWritesEnabled() {
+		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
+
+	multiErr := xerrors.NewMultiError()
+	shards := n.GetOwnedShards()
+
+	resources, err := newColdFlushReuseableResources(n.opts)
+	if err != nil {
+		return err
+	}
+	for _, shard := range shards {
+		err := shard.ColdFlush(flushPersist, resources, nsCtx)
+		if err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			// Continue with remaining shards.
+		}
+	}
+
+	res := multiErr.FinalError()
+	n.metrics.flushColdData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 	return res
 }
 
@@ -983,13 +1084,13 @@ func (n *dbNamespace) FlushIndex(
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
-		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
 	shards := n.GetOwnedShards()
 	err := n.reverseIndex.Flush(flush, shards)
-	n.metrics.flush.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
 
@@ -1024,15 +1125,6 @@ func (n *dbNamespace) Snapshot(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		isSnapshotting, _ := shard.SnapshotState()
-		if isSnapshotting {
-			// Should never happen because snapshots should never overlap
-			// each other (controlled by loop in flush manager)
-			n.log.Error("[invariant violated] tried to snapshot shard that is already snapshotting",
-				zap.Uint32("shard", shard.ID()))
-			continue
-		}
-
 		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
@@ -1119,7 +1211,7 @@ func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, aligne
 			continue
 		}
 		for _, blockStart := range blockStarts {
-			if shard.FlushState(blockStart).Status != fileOpSuccess {
+			if shard.FlushState(blockStart).WarmStatus != fileOpSuccess {
 				return true
 			}
 		}

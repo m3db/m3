@@ -26,19 +26,21 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -489,3 +491,50 @@ type BlockRetrieverOptions interface {
 	// IdentifierPool returns the identifierPool
 	IdentifierPool() ident.Pool
 }
+
+// ForEachRemainingFn is the function that is run on each of the remaining
+// series of the merge target that did not intersect with the fileset.
+type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error
+
+// MergeWith is an interface that the fs merger uses to merge data with.
+type MergeWith interface {
+	// Read returns the data for the given block start and series ID, whether
+	// any data was found, and the error encountered (if any).
+	Read(
+		ctx context.Context,
+		seriesID ident.ID,
+		blockStart xtime.UnixNano,
+		nsCtx namespace.Context,
+	) ([]xio.BlockReader, bool, error)
+
+	// ForEachRemaining loops through each seriesID/blockStart combination that
+	// was not already handled by a call to Read().
+	ForEachRemaining(
+		ctx context.Context,
+		blockStart xtime.UnixNano,
+		fn ForEachRemainingFn,
+		nsCtx namespace.Context,
+	) error
+}
+
+// Merger is in charge of merging filesets with some target MergeWith interface.
+type Merger interface {
+	// Merge merges the specified fileset file with a merge target.
+	Merge(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+	) error
+}
+
+// NewMergerFn is the function to call to get a new Merger.
+type NewMergerFn func(
+	reader DataFileSetReader,
+	blockAllocSize int,
+	srPool xio.SegmentReaderPool,
+	multiIterPool encoding.MultiReaderIteratorPool,
+	identPool ident.Pool,
+	encoderPool encoding.EncoderPool,
+	nsOpts namespace.Options,
+) Merger
