@@ -6,6 +6,7 @@
 
 - **M3Query**: Add multi-zone and multi-region configuration for coordinator (#1687)
 - **M3Query**: Add debug param to `GET` `/api/v1/namespace` endpoint for better readability (#1698)
+- **M3Coordinator**: Add "ingest_latency" histogram metric and return datapoint too old/new errors with offending timestamps (#1716)
 
 ## Performance
 
