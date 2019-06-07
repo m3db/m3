@@ -42,7 +42,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -68,7 +67,7 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 
 	clockOptions = clockOptions.SetNowFn(func() time.Time { return now })
 	opts = opts.SetClockOptions(clockOptions)
-
+	q
 	return opts, now, blockSize
 }
 
@@ -92,7 +91,7 @@ func setupForwardIndex(
 
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
 	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var (
 		ts     = idx.(*nsIndex).state.latestBlock.StartTime()
@@ -118,7 +117,7 @@ func setupForwardIndex(
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycle)
 	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
-	assert.NoError(t, idx.WriteBatch(batch))
+	require.NoError(t, idx.WriteBatch(batch))
 
 	return idx, now, blockSize
 }
@@ -133,7 +132,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
@@ -146,13 +145,13 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		assert.True(t, res.Exhaustive)
+		require.True(t, res.Exhaustive)
 		results := res.Results
-		assert.Equal(t, "testns1", results.Namespace().String())
+		require.Equal(t, "testns1", results.Namespace().String())
 
 		tags, ok := results.Map().Get(ident.StringID("foo"))
-		assert.True(t, ok)
-		assert.True(t, ident.NewTagIterMatcher(
+		require.True(t, ok)
+		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("name", "value")).Matches(
 			ident.NewTagsIterator(tags)))
 	}
@@ -168,7 +167,7 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
@@ -185,9 +184,9 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		assert.True(t, res.Exhaustive)
+		require.True(t, res.Exhaustive)
 		results := res.Results
-		assert.Equal(t, "testns1", results.Namespace().String())
+		require.Equal(t, "testns1", results.Namespace().String())
 
 		rMap := results.Map()
 		require.Equal(t, 1, rMap.Len())
@@ -196,7 +195,7 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 
 		vMap := seenIters.Map()
 		require.Equal(t, 1, vMap.Len())
-		assert.True(t, vMap.Contains(ident.StringID("value")))
+		require.True(t, vMap.Contains(ident.StringID("value")))
 	}
 }
 
@@ -376,10 +375,10 @@ func testShardForwardWriteTaggedRefCountIndex(
 	opts = opts.SetIndexOptions(opts.IndexOptions().SetInsertMode(syncType))
 
 	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, idx.Close())
+		require.NoError(t, idx.Close())
 	}()
 
 	next := now.Truncate(blockSize).Add(blockSize)
@@ -409,8 +408,8 @@ func writeToShard(
 				ForceValue:        1,
 			},
 		})
-	assert.NoError(t, err)
-	assert.Equal(t, shouldWrite, wasWritten)
+	require.NoError(t, err)
+	require.Equal(t, shouldWrite, wasWritten)
 }
 
 func verifyShard(
@@ -421,30 +420,42 @@ func verifyShard(
 	next time.Time,
 	id string,
 ) {
-	query := m3ninxidx.NewFieldQuery([]byte(id))
-	// check current index block for series
-	res, err := idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
-		StartInclusive: now,
-		EndExclusive:   next,
-	})
-	require.NoError(t, err)
-	require.Equal(t, 1, res.Results.Size())
+	allQueriesSuccess := xclock.WaitUntil(func() bool {
+		query := m3ninxidx.NewFieldQuery([]byte(id))
+		// check current index block for series
+		fmt.Println("querying index for time:", now)
+		res, err := idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
+			StartInclusive: now,
+			EndExclusive:   next,
+		})
+		require.NoError(t, err)
+		if res.Results.Size() != 1 {
+			return false
+		}
 
-	// check next index block for series
-	res, err = idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
-		StartInclusive: next.Add(1 * time.Minute),
-		EndExclusive:   next.Add(5 * time.Minute),
-	})
-	require.NoError(t, err)
-	require.Equal(t, 1, res.Results.Size())
+		// check next index block for series
+		res, err = idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
+			StartInclusive: next.Add(1 * time.Minute),
+			EndExclusive:   next.Add(5 * time.Minute),
+		})
+		require.NoError(t, err)
+		if res.Results.Size() != 1 {
+			return false
+		}
 
-	// check accross both index blocks to ensure only a single ID is returned.
-	res, err = idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
-		StartInclusive: now,
-		EndExclusive:   next.Add(5 * time.Minute),
-	})
-	require.NoError(t, err)
-	require.Equal(t, 1, res.Results.Size())
+		// check across both index blocks to ensure only a single ID is returned.
+		res, err = idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
+			StartInclusive: now,
+			EndExclusive:   next.Add(5 * time.Minute),
+		})
+		require.NoError(t, err)
+		if res.Results.Size() != 1 {
+			return false
+		}
+
+		return true
+	}, 5*time.Second)
+	require.True(t, allQueriesSuccess)
 }
 
 func writeToShardAndVerify(
@@ -485,8 +496,8 @@ func testShardForwardWriteTaggedSyncRefCount(
 		shard.Lock()
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
-		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// move the time the point is written to ensure truncation works.
@@ -501,8 +512,8 @@ func testShardForwardWriteTaggedSyncRefCount(
 		shard.Lock()
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
-		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }
 
@@ -536,12 +547,6 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	writeToShard(ctx, t, shard, now, "bar", true)
 	writeToShard(ctx, t, shard, now, "baz", true)
 
-	inserted := xclock.WaitUntil(func() bool {
-		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
-		return ok && counter == 3
-	}, 5*time.Second)
-	assert.True(t, inserted)
-
 	verifyShard(ctx, t, idx, now, next, "foo")
 	verifyShard(ctx, t, idx, now, next, "bar")
 	verifyShard(ctx, t, idx, now, next, "baz")
@@ -551,8 +556,8 @@ func testShardForwardWriteTaggedAsyncRefCount(
 		shard.Lock()
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
-		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// write already inserted series. This should have no effect.
@@ -566,7 +571,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 		shard.Lock()
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
-		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }
