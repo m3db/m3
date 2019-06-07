@@ -81,7 +81,7 @@ echo "a.biz 0 $t"         | nc 0.0.0.0 7204
 echo "a.biz.cake 0 $t"    | nc 0.0.0.0 7204
 echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
 echo "a.bag 0 $t"         | nc 0.0.0.0 7204
-ATTEMPTS=5 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.c* a.b.c.json

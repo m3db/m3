@@ -58,9 +58,16 @@ type DownsamplerAndWriter interface {
 	WriteBatch(
 		ctx context.Context,
 		iter DownsampleAndWriteIter,
-	) error
+	) BatchError
 
 	Storage() storage.Storage
+}
+
+// BatchError allows for access to individual errors.
+type BatchError interface {
+	error
+	Errors() []error
+	LastError() error
 }
 
 // WriteOptions contains overrides for the downsampling mapping
@@ -135,6 +142,8 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 			return err
 		}
 
+		defer appender.Finalize()
+
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
@@ -166,13 +175,11 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 		}
 
 		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeSample(dp.Value)
+			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 			if err != nil {
 				return err
 			}
 		}
-
-		appender.Finalize()
 	}
 
 	return nil
@@ -243,7 +250,7 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 func (d *downsamplerAndWriter) WriteBatch(
 	ctx context.Context,
 	iter DownsampleAndWriteIter,
-) error {
+) BatchError {
 	var (
 		wg       = sync.WaitGroup{}
 		multiErr xerrors.MultiError
@@ -294,7 +301,11 @@ func (d *downsamplerAndWriter) WriteBatch(
 	}
 
 	wg.Wait()
-	return multiErr.LastError()
+	if multiErr.NumErrors() == 0 {
+		return nil
+	}
+
+	return multiErr
 }
 
 func (d *downsamplerAndWriter) writeAggregatedBatch(
@@ -304,6 +315,8 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	if err != nil {
 		return err
 	}
+
+	defer appender.Finalize()
 
 	var opts downsample.SampleAppenderOptions
 	for iter.Next() {
@@ -319,13 +332,12 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeSample(dp.Value)
+			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	appender.Finalize()
 
 	return iter.Error()
 }
