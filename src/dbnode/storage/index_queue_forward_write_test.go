@@ -67,7 +67,7 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 
 	clockOptions = clockOptions.SetNowFn(func() time.Time { return now })
 	opts = opts.SetClockOptions(clockOptions)
-	q
+
 	return opts, now, blockSize
 }
 
@@ -423,7 +423,6 @@ func verifyShard(
 	allQueriesSuccess := xclock.WaitUntil(func() bool {
 		query := m3ninxidx.NewFieldQuery([]byte(id))
 		// check current index block for series
-		fmt.Println("querying index for time:", now)
 		res, err := idx.Query(ctx, index.Query{Query: query}, index.QueryOptions{
 			StartInclusive: now,
 			EndExclusive:   next,

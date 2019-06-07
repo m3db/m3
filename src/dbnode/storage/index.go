@@ -513,7 +513,6 @@ func (i *nsIndex) writeBatches(
 		// on the provided inserts to terminate quicker during shutdown.
 		return
 	}
-
 	var (
 		now                 = i.nowFn()
 		blockSize           = i.blockSize
