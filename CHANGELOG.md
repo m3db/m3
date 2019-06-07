@@ -20,6 +20,7 @@
 - **M3Query**: Fix a bug with parsing Graphite find queries by adding `MatchField` and `MatchNotField` match types, and explicitly making use of them in graphite queries (#1676)
 - **M3Query**: Propagate limit settings when using Prometheus Remote Read (#1685)
 - **M3Coordinator**: Return a 404 rather than a 500 if we attempt to delete a nonexistent placement (#1701)
+**M3Coordinator**: Return HTTP 400 if all sent samples encounter too old/new or other bad request error (#1692)
 
 # 0.9.6
 
