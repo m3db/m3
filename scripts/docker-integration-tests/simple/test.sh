@@ -30,7 +30,7 @@ fi
 # as the endpoint in the placement instead of being able to use dbnode01.
 echo "Wait for DB to be up"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  'curl -vvvsSf -X POST 0.0.0.0:9002/bootstrappedinplacementornoplacement'
+  'curl -vvvsSf 0.0.0.0:9002/bootstrappedinplacementornoplacement'
 
 echo "Adding namespace"
 curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
