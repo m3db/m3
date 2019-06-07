@@ -28,8 +28,9 @@ fi
 # DB initialization logic with the setup_single_m3db_node command in common.sh like the other files. Right now
 # we can't do that because this test doesn't use the docker-compose networking so we have to specify 127.0.0.1
 # as the endpoint in the placement instead of being able to use dbnode01.
-echo "Sleeping for a bit to ensure db up"
-sleep 15 # TODO Replace sleeps with logic to determine when to proceed
+echo "Wait for DB to be up"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  'curl -vvvsSf -X POST 0.0.0.0:9002/bootstrappedinplacementornoplacement'
 
 echo "Adding namespace"
 curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
