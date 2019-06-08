@@ -1,5 +1,28 @@
 # Changelog
 
+# 0.10.0
+
+## Features
+
+- **M3Query**: Add multi-zone and multi-region configuration for coordinator (#1687)
+- **M3Query**: Add debug param to `GET` `/api/v1/namespace` endpoint for better readability (#1698)
+- **M3Coordinator**: Add "ingest_latency" histogram metric and return datapoint too old/new errors with offending timestamps (#1716)
+
+## Performance
+
+- **M3DB**: Add forward index write capability which eases index pressure at block boundaries (#1613)
+- **M3Query**: Drop empty series from appearing in output when `keepNaNs` option is set to disabled (#1682, #1684)
+- **M3DB**: Build and release M3DB with Go 1.12 (#1674)
+
+## Bug Fixes
+
+- **M3DB**: Fix a bug where peer bootstrapping would sometimes get stuck for a short period of time due to other M3DB nodes (temporarily) returning more than one block of data for a given time period (#1707)
+- **M3DB**: Fix a bug that would cause multiple orders of magnitude slow-down in peer bootstrapping / node replacements when one of the nodes in the cluster was hard down (#1677)
+- **M3Query**: Fix a bug with parsing Graphite find queries by adding `MatchField` and `MatchNotField` match types, and explicitly making use of them in graphite queries (#1676)
+- **M3Query**: Propagate limit settings when using Prometheus Remote Read (#1685)
+- **M3Coordinator**: Return a 404 rather than a 500 if we attempt to delete a nonexistent placement (#1701)
+- **M3Coordinator**: Return HTTP 400 if all sent samples encounter too old/new or other bad request error (#1692)
+
 # 0.9.6
 
 ## Bug Fixes
