@@ -594,7 +594,7 @@ func (s *dbSeries) Close() {
 
 	// Reset (not close) underlying resources because the series will go
 	// back into the pool and be re-used.
-	s.buffer.Reset(s.opts)
+	s.buffer.Reset(nil, s.opts)
 	s.cachedBlocks.Reset()
 
 	if s.pool != nil {
@@ -632,7 +632,7 @@ func (s *dbSeries) Reset(
 	s.tags = tags
 
 	s.cachedBlocks.Reset()
-	s.buffer.Reset(opts)
+	s.buffer.Reset(id, opts)
 	s.opts = opts
 	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever

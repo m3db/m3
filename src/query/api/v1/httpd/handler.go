@@ -180,6 +180,7 @@ func (h *Handler) RegisterRoutes() error {
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
 		h.downsamplerAndWriter,
 		h.tagOptions,
+		nowFn,
 		h.scope.Tagged(remoteSource))
 	if err != nil {
 		return err

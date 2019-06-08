@@ -27,12 +27,10 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"os/signal"
 	"path"
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"syscall"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -720,13 +718,13 @@ func Run(runOpts RunOptions) {
 
 	go func() {
 		if runOpts.BootstrapCh != nil {
-			// Notify on bootstrap chan if specified
+			// Notify on bootstrap chan if specified.
 			defer func() {
 				runOpts.BootstrapCh <- struct{}{}
 			}()
 		}
 
-		// Bootstrap asynchronously so we can handle interrupt
+		// Bootstrap asynchronously so we can handle interrupt.
 		if err := db.Bootstrap(); err != nil {
 			logger.Fatal("could not bootstrap database", zap.Error(err))
 		}
@@ -737,24 +735,12 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
-	// Handle interrupt
-	interruptCh := runOpts.InterruptCh
-	if interruptCh == nil {
-		// Make a noop chan so we can always select
-		interruptCh = make(chan error)
-	}
+	// Wait for process interrupt.
+	xos.WaitForInterrupt(logger, xos.InterruptOptions{
+		InterruptCh: runOpts.InterruptCh,
+	})
 
-	var interruptErr error
-	select {
-	case err := <-interruptCh:
-		interruptErr = err
-	case sig := <-interrupt():
-		interruptErr = fmt.Errorf("%v", sig)
-	}
-
-	logger.Warn("interrupt", zap.Error(interruptErr))
-
-	// Attempt graceful server close
+	// Attempt graceful server close.
 	closedCh := make(chan struct{})
 	go func() {
 		err := db.Terminate()
@@ -764,7 +750,7 @@ func Run(runOpts RunOptions) {
 		closedCh <- struct{}{}
 	}()
 
-	// Wait then close or hard close
+	// Wait then close or hard close.
 	closeTimeout := serverGracefulCloseTimeout
 	select {
 	case <-closedCh:
@@ -772,12 +758,6 @@ func Run(runOpts RunOptions) {
 	case <-time.After(closeTimeout):
 		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
 	}
-}
-
-func interrupt() <-chan os.Signal {
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	return c
 }
 
 func bgValidateProcessLimits(logger *zap.Logger) {

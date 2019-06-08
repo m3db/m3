@@ -25,6 +25,8 @@ import (
 	"fmt"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
+	"os/signal"
+	"syscall"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
@@ -33,6 +35,7 @@ import (
 	coordinatorserver "github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/etcd"
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 var (
@@ -62,11 +65,19 @@ func main() {
 	}
 
 	var (
+		numComponents     int
 		dbClientCh        chan client.Client
 		clusterClientCh   chan clusterclient.Client
 		coordinatorDoneCh chan struct{}
 	)
+	if cfg.DB != nil {
+		numComponents++
+	}
+	if cfg.Coordinator != nil {
+		numComponents++
+	}
 
+	interruptCh := xos.NewInterruptChannel(numComponents)
 	if cfg.DB != nil {
 		dbClientCh = make(chan client.Client, 1)
 		clusterClientCh = make(chan clusterclient.Client, 1)
@@ -80,6 +91,7 @@ func main() {
 				DBConfig:      cfg.DB,
 				DBClient:      dbClientCh,
 				ClusterClient: clusterClientCh,
+				InterruptCh:   interruptCh,
 			})
 			coordinatorDoneCh <- struct{}{}
 		}()
@@ -90,8 +102,15 @@ func main() {
 			Config:          *cfg.DB,
 			ClientCh:        dbClientCh,
 			ClusterClientCh: clusterClientCh,
+			InterruptCh:     interruptCh,
 		})
 	} else if cfg.Coordinator != nil {
 		<-coordinatorDoneCh
 	}
+}
+
+func interrupt() <-chan os.Signal {
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	return c
 }

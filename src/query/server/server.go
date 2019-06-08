@@ -27,10 +27,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -60,6 +58,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
@@ -166,6 +165,9 @@ func Run(runOpts RunOptions) {
 
 	// Close metrics scope
 	defer func() {
+		if e := recover(); e != nil {
+			logger.Warn("recovered from panic", zap.String("e", fmt.Sprintf("%v", e)))
+		}
 		logger.Info("closing metrics scope")
 		if err := closer.Close(); err != nil {
 			logger.Error("unable to close metrics scope", zap.Error(err))
@@ -339,31 +341,17 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		startCarbonIngestion(
-			cfg.Carbon, instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
-	}
-
-	var interruptCh <-chan error = make(chan error)
-	if runOpts.InterruptCh != nil {
-		interruptCh = runOpts.InterruptCh
-	}
-
-	var interruptErr error
-	if runOpts.DBConfig != nil {
-		interruptErr = <-interruptCh
-	} else {
-		// Only use this if running standalone, as otherwise it will
-		// obfuscate signal channel for the db
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		select {
-		case sig := <-sigChan:
-			interruptErr = fmt.Errorf("%v", sig)
-		case interruptErr = <-interruptCh:
+		server, ok := startCarbonIngestion(cfg.Carbon, instrumentOptions,
+			logger, m3dbClusters, downsamplerAndWriter)
+		if ok {
+			defer server.Close()
 		}
 	}
 
-	logger.Info("interrupt", zap.String("cause", interruptErr.Error()))
+	// Wait for process interrupt.
+	xos.WaitForInterrupt(logger, xos.InterruptOptions{
+		InterruptCh: runOpts.InterruptCh,
+	})
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
@@ -850,7 +838,7 @@ func startCarbonIngestion(
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
-) {
+) (xserver.Server, bool) {
 	ingesterCfg := cfg.Ingester
 	logger.Info("carbon ingestion enabled, configuring ingester")
 
@@ -930,7 +918,7 @@ func startCarbonIngestion(
 
 	if len(rules.Rules) == 0 {
 		logger.Warn("no carbon ingestion rules were provided and no aggregated M3DB namespaces exist, carbon metrics will not be ingested")
-		return
+		return nil, false
 	}
 
 	if len(ingesterCfg.Rules) == 0 {
@@ -964,7 +952,10 @@ func startCarbonIngestion(
 		logger.Fatal("unable to start carbon ingestion server at listen address",
 			zap.String("listenAddress", carbonListenAddress), zap.Error(err))
 	}
+
 	logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
+
+	return carbonServer, true
 }
 
 func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Downsampler) (ingest.DownsamplerAndWriter, error) {

@@ -234,13 +234,13 @@ func (mr *MockdatabaseBufferMockRecorder) Bootstrap(bl interface{}) *gomock.Call
 }
 
 // Reset mocks base method
-func (m *MockdatabaseBuffer) Reset(opts Options) {
+func (m *MockdatabaseBuffer) Reset(id ident.ID, opts Options) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", opts)
+	m.ctrl.Call(m, "Reset", id, opts)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockdatabaseBufferMockRecorder) Reset(opts interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Reset(id, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockdatabaseBuffer)(nil).Reset), opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockdatabaseBuffer)(nil).Reset), id, opts)
 }

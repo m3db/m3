@@ -23,6 +23,7 @@ package series
 import (
 	"io"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,7 +92,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	ctx := context.NewContext()
 	defer ctx.Close()
 
@@ -100,6 +101,10 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
+	assert.True(t, strings.Contains(err.Error(), "datapoint too far in future"))
+	assert.True(t, strings.Contains(err.Error(), "id=foo"))
+	assert.True(t, strings.Contains(err.Error(), "timestamp="))
+	assert.True(t, strings.Contains(err.Error(), "future_limit="))
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
@@ -110,7 +115,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	ctx := context.NewContext()
 	defer ctx.Close()
 	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
@@ -118,6 +123,10 @@ func TestBufferWriteTooPast(t *testing.T) {
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
+	assert.True(t, strings.Contains(err.Error(), "datapoint too far in past"))
+	assert.True(t, strings.Contains(err.Error(), "id=foo"))
+	assert.True(t, strings.Contains(err.Error(), "timestamp="))
+	assert.True(t, strings.Contains(err.Error(), "past_limit="))
 }
 
 func TestBufferWriteError(t *testing.T) {
@@ -131,7 +140,7 @@ func TestBufferWriteError(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	defer ctx.Close()
 
 	timeUnitNotExist := xtime.Unit(127)
@@ -152,7 +161,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	data := []value{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
@@ -188,7 +197,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	data := []value{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
@@ -228,7 +237,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	data := []value{
 		{curr, 1, xtime.Second, nil},
@@ -367,7 +376,7 @@ func newTestBufferWithCustomData(
 	setAnn setAnnotation,
 ) (*dbBuffer, map[xtime.UnixNano][]value) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	expectedMap := make(map[xtime.UnixNano][]value)
 
 	for _, bd := range blockDatas {
@@ -587,7 +596,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	data := []value{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
@@ -638,7 +647,7 @@ func testBufferFetchBlocks(t *testing.T, opts Options, setAnn setAnnotation) {
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	nsCtx := namespace.Context{}
@@ -720,7 +729,7 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)}, namespace.Context{})
@@ -744,7 +753,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	end := b.start.Add(time.Second)
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 	buffer.inOrderBlockStarts = append(buffer.inOrderBlockStarts, b.start)
 
@@ -780,7 +789,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Perform out of order writes that will create two in order encoders.
 	data := []value{
@@ -867,7 +876,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Perform out of order writes that will create two in order encoders.
 	data := []value{
@@ -958,7 +967,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Perform one valid write to setup the state of the buffer.
 	ctx := context.NewContext()
@@ -1023,7 +1032,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Create test data to perform out of order writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
@@ -1125,7 +1134,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(opts)
+	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Create test data to perform warm writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
