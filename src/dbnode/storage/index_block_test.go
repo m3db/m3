@@ -133,8 +133,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 		require.NoError(t, index.Close())
 	}()
 
-	indexState := index.(*nsIndex).state
-	blocksSlice := indexState.blockStartsDescOrder
+	blocksSlice := index.(*nsIndex).state.blockStartsDescOrder
 
 	require.Equal(t, 1, len(blocksSlice))
 	require.Equal(t, xtime.ToUnixNano(now.Truncate(blockSize)), blocksSlice[0])
@@ -751,7 +750,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
 
-	q := index.Query{query}
+	q := index.Query{Query: query}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
@@ -862,7 +861,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
-	q := index.Query{query}
+	q := index.Query{Query: query}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
@@ -955,7 +954,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
 	for _, query := range queries {
-		q := index.Query{query}
+		q := index.Query{Query: query}
 		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
 		_, err = idx.AggregateQuery(ctx, q, aggOpts)
 		require.NoError(t, err)

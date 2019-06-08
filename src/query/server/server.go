@@ -27,10 +27,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -60,6 +58,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
@@ -166,6 +165,9 @@ func Run(runOpts RunOptions) {
 
 	// Close metrics scope
 	defer func() {
+		if e := recover(); e != nil {
+			logger.Warn("recovered from panic", zap.String("e", fmt.Sprintf("%v", e)))
+		}
 		logger.Info("closing metrics scope")
 		if err := closer.Close(); err != nil {
 			logger.Error("unable to close metrics scope", zap.Error(err))
@@ -185,7 +187,6 @@ func Run(runOpts RunOptions) {
 		backendStorage      storage.Storage
 		clusterClient       clusterclient.Client
 		downsampler         downsample.Downsampler
-		enabled             bool
 		fetchOptsBuilderCfg = cfg.Limits.PerQuery.AsFetchOptionsBuilderOptions()
 		fetchOptsBuilder    = handler.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 		queryCtxOpts        = models.QueryContextOptions{
@@ -217,11 +218,11 @@ func Run(runOpts RunOptions) {
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
-	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
-	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
+		// For grpc backend, we need to setup only the grpc client and a storage
+		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
-		backendStorage, enabled, err = remoteClient(cfg, tagOptions, poolWrapper,
+		remotes, enabled, err := remoteClient(cfg, tagOptions, poolWrapper,
 			readWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
@@ -230,8 +231,17 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("need remote clients for grpc backend")
 		}
 
+		var (
+			r = filter.AllowAll
+			w = filter.AllowAll
+			c = filter.CompleteTagsAllowAll
+		)
+
+		backendStorage = fanout.NewStorage(remotes, r, w, c)
 		logger.Info("setup grpc backend")
 	} else {
+		// For m3db backend, we need to make connections to the m3db cluster
+		// which generates a session and use the storage with the session.
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
 			runOpts.DBClient, instrumentOptions)
 		if err != nil {
@@ -331,31 +341,17 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		startCarbonIngestion(
-			cfg.Carbon, instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
-	}
-
-	var interruptCh <-chan error = make(chan error)
-	if runOpts.InterruptCh != nil {
-		interruptCh = runOpts.InterruptCh
-	}
-
-	var interruptErr error
-	if runOpts.DBConfig != nil {
-		interruptErr = <-interruptCh
-	} else {
-		// Only use this if running standalone, as otherwise it will
-		// obfuscate signal channel for the db
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		select {
-		case sig := <-sigChan:
-			interruptErr = fmt.Errorf("%v", sig)
-		case interruptErr = <-interruptCh:
+		server, ok := startCarbonIngestion(cfg.Carbon, instrumentOptions,
+			logger, m3dbClusters, downsamplerAndWriter)
+		if ok {
+			defer server.Close()
 		}
 	}
 
-	logger.Info("interrupt", zap.String("cause", interruptErr.Error()))
+	// Wait for process interrupt.
+	xos.WaitForInterrupt(logger, xos.InterruptOptions{
+		InterruptCh: runOpts.InterruptCh,
+	})
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
@@ -659,7 +655,7 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(
+		remoteStorages, enabled, err := remoteClient(
 			cfg,
 			tagOptions,
 			poolWrapper,
@@ -671,7 +667,7 @@ func newStorages(
 		}
 
 		if enabled {
-			stores = append(stores, remoteStorage)
+			stores = append(stores, remoteStorages...)
 			remoteEnabled = enabled
 		}
 	}
@@ -723,36 +719,94 @@ func newStorages(
 	return fanoutStorage, cleanup, nil
 }
 
+func remoteZoneStorage(
+	remoteAddresses []string,
+	lookbackDuration time.Duration,
+	tagOptions models.TagOptions,
+	poolWrapper *pools.PoolWrapper,
+	readWorkerPool xsync.PooledWorkerPool,
+) (storage.Storage, error) {
+	if len(remoteAddresses) == 0 {
+		// No addresses; skip.
+		return nil, nil
+	}
+
+	client, err := tsdbRemote.NewGRPCClient(
+		remoteAddresses,
+		poolWrapper,
+		readWorkerPool,
+		tagOptions,
+		lookbackDuration,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	remoteStorage := remote.NewStorage(client)
+	return remoteStorage, nil
+}
+
 func remoteClient(
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	instrumentOpts instrument.Options,
-) (storage.Storage, bool, error) {
+) ([]storage.Storage, bool, error) {
 	if cfg.RPC == nil {
 		return nil, false, nil
 	}
 
-	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		logger := instrumentOpts.Logger()
-		logger.Info("creating RPC client with remotes", zap.Strings("remotes", remotes))
-		client, err := tsdbRemote.NewGRPCClient(
-			remotes,
-			poolWrapper,
-			readWorkerPool,
-			tagOptions,
-			*cfg.LookbackDuration,
+	var (
+		lookback        = *cfg.LookbackDuration
+		rpc             = cfg.RPC
+		remotes         = rpc.Remotes
+		zoneCount       = len(remotes)
+		listenAddresses = rpc.RemoteListenAddresses
+		logger          = instrumentOpts.Logger()
+	)
+
+	// NB: if no remote zones are provided, fallback to legacy listen addresses
+	// for determining remote clients. This legacy approach is capped to a single
+	// zone.
+	if zoneCount == 0 {
+		if len(listenAddresses) == 0 {
+			return nil, false, nil
+		}
+
+		logger.Info(
+			"creating RPC client with remote",
+			zap.Strings("addresses", listenAddresses),
 		)
+
+		remote, err := remoteZoneStorage(listenAddresses, lookback, tagOptions,
+			poolWrapper, readWorkerPool)
+
 		if err != nil {
 			return nil, false, err
 		}
 
-		remoteStorage := remote.NewStorage(client)
-		return remoteStorage, true, nil
+		return []storage.Storage{remote}, true, nil
 	}
 
-	return nil, false, nil
+	remoteStores := make([]storage.Storage, 0, zoneCount)
+	for _, zone := range remotes {
+		logger.Info(
+			"creating RPC client with remotes",
+			zap.String("name", zone.Name),
+			zap.Strings("addresses", zone.RemoteListenAddresses),
+		)
+
+		remote, err := remoteZoneStorage(zone.RemoteListenAddresses, lookback,
+			tagOptions, poolWrapper, readWorkerPool)
+		if err != nil {
+			return nil, false, err
+		}
+
+		remoteStores = append(remoteStores, remote)
+	}
+
+	return remoteStores, true, nil
 }
 
 func startGRPCServer(
@@ -784,7 +838,7 @@ func startCarbonIngestion(
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
-) {
+) (xserver.Server, bool) {
 	ingesterCfg := cfg.Ingester
 	logger.Info("carbon ingestion enabled, configuring ingester")
 
@@ -864,7 +918,7 @@ func startCarbonIngestion(
 
 	if len(rules.Rules) == 0 {
 		logger.Warn("no carbon ingestion rules were provided and no aggregated M3DB namespaces exist, carbon metrics will not be ingested")
-		return
+		return nil, false
 	}
 
 	if len(ingesterCfg.Rules) == 0 {
@@ -898,7 +952,10 @@ func startCarbonIngestion(
 		logger.Fatal("unable to start carbon ingestion server at listen address",
 			zap.String("listenAddress", carbonListenAddress), zap.Error(err))
 	}
+
 	logger.Info("started carbon ingestion server", zap.String("listenAddress", carbonListenAddress))
+
+	return carbonServer, true
 }
 
 func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Downsampler) (ingest.DownsamplerAndWriter, error) {

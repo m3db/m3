@@ -329,13 +329,13 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints2 {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -394,7 +394,7 @@ func expectDefaultDownsampling(
 	}
 
 	for _, dp := range datapoints {
-		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 

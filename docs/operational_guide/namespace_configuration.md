@@ -78,6 +78,12 @@ There is currently no atomic namespace modification endpoint. Instead, you will 
 
 Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.
 
+### Viewing a Namespace
+
+In order to view a namespace and its attributes, use the `GET` `/api/v1/namespace` API on a M3Coordinator instance.
+Additionally, for readability/debugging purposes, you can add the `debug=true` parameter to the URL to view block sizes, buffer sizes, etc.
+in duration format as opposed to nanoseconds (default).
+
 ## Namespace Attributes
 
 ### bootstrapEnabled

@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type metricsAppender struct {

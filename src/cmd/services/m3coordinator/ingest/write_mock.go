@@ -88,10 +88,10 @@ func (mr *MockDownsamplerAndWriterMockRecorder) Write(arg0, arg1, arg2, arg3, ar
 }
 
 // WriteBatch mocks base method
-func (m *MockDownsamplerAndWriter) WriteBatch(arg0 context.Context, arg1 DownsampleAndWriteIter) error {
+func (m *MockDownsamplerAndWriter) WriteBatch(arg0 context.Context, arg1 DownsampleAndWriteIter) BatchError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", arg0, arg1)
-	ret0, _ := ret[0].(error)
+	ret0, _ := ret[0].(BatchError)
 	return ret0
 }
 

@@ -26,6 +26,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -79,6 +80,11 @@ func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, 
 	}
 
 	if err := service.Delete(); err != nil {
+		if err == kv.ErrNotFound {
+			logger.Info("cannot delete absent placement", zap.String("service", serviceName))
+			xhttp.Error(w, err, http.StatusNotFound)
+			return
+		}
 		logger.Error("unable to delete placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return

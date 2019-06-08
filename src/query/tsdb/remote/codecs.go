@@ -40,11 +40,11 @@ import (
 const reqIDKey = "reqid"
 
 func fromTime(t time.Time) int64 {
-	return storage.TimeToTimestamp(t)
+	return storage.TimeToPromTimestamp(t)
 }
 
 func toTime(t int64) time.Time {
-	return storage.TimestampToTime(t)
+	return storage.PromTimestampToTime(t)
 }
 
 func encodeTags(tags models.Tags) []*rpc.Tag {

@@ -23,9 +23,12 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -33,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -56,61 +61,170 @@ var (
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
-	promWriteMetrics     promWriteMetrics
 	tagOptions           models.TagOptions
+	nowFn                clock.NowFn
+	metrics              promWriteMetrics
 }
 
 // NewPromWriteHandler returns a new instance of handler.
 func NewPromWriteHandler(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
+	nowFn clock.NowFn,
 	scope tally.Scope,
 ) (http.Handler, error) {
 	if downsamplerAndWriter == nil {
 		return nil, errNoDownsamplerAndWriter
 	}
 
+	metrics, err := newPromWriteMetrics(scope)
+	if err != nil {
+		return nil, err
+	}
+
 	return &PromWriteHandler{
 		downsamplerAndWriter: downsamplerAndWriter,
-		promWriteMetrics:     newPromWriteMetrics(scope),
 		tagOptions:           tagOptions,
+		nowFn:                nowFn,
+		metrics:              metrics,
 	}, nil
 }
 
 type promWriteMetrics struct {
-	writeSuccess      tally.Counter
-	writeErrorsServer tally.Counter
-	writeErrorsClient tally.Counter
+	writeSuccess         tally.Counter
+	writeErrorsServer    tally.Counter
+	writeErrorsClient    tally.Counter
+	ingestLatency        tally.Histogram
+	ingestLatencyBuckets tally.DurationBuckets
 }
 
-func newPromWriteMetrics(scope tally.Scope) promWriteMetrics {
-	return promWriteMetrics{
-		writeSuccess:      scope.Counter("write.success"),
-		writeErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("write.errors"),
-		writeErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("write.errors"),
+func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
+	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
+	if err != nil {
+		return promWriteMetrics{}, err
 	}
+
+	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo60mBuckets, err := tally.LinearDurationBuckets(0, 5*time.Minute, 12)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+	upTo60mBuckets = upTo60mBuckets[1:] // Remove the first 0s to get 5 min aligned buckets
+
+	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+
+	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 19)
+	if err != nil {
+		return promWriteMetrics{}, err
+	}
+	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
+
+	var ingestLatencyBuckets tally.DurationBuckets
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60sBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
+	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
+	return promWriteMetrics{
+		writeSuccess:         scope.SubScope("write").Counter("success"),
+		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
+		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+		ingestLatency:        scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
+		ingestLatencyBuckets: ingestLatencyBuckets,
+	}, nil
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		h.promWriteMetrics.writeErrorsClient.Inc(1)
+		h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	err := h.write(r.Context(), req)
-	if err != nil {
-		h.promWriteMetrics.writeErrorsServer.Inc(1)
+	batchErr := h.write(r.Context(), req)
+
+	// Record ingestion delay latency
+	now := h.nowFn()
+	for _, series := range req.Timeseries {
+		for _, sample := range series.Samples {
+			age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
+			h.metrics.ingestLatency.RecordDuration(age)
+		}
+	}
+
+	if batchErr != nil {
+		var (
+			errs              = batchErr.Errors()
+			lastRegularErr    string
+			lastBadRequestErr string
+			numRegular        int
+			numBadRequest     int
+		)
+		for _, err := range errs {
+			switch {
+			case client.IsBadRequestError(err):
+				numBadRequest++
+				lastBadRequestErr = err.Error()
+			case xerrors.IsInvalidParams(err):
+				numBadRequest++
+				lastBadRequestErr = err.Error()
+			default:
+				numRegular++
+				lastRegularErr = err.Error()
+			}
+		}
+
+		var status int
+		switch {
+		case numBadRequest == len(errs):
+			status = http.StatusBadRequest
+			h.metrics.writeErrorsClient.Inc(1)
+		default:
+			status = http.StatusInternalServerError
+			h.metrics.writeErrorsServer.Inc(1)
+		}
+
 		logger := logging.WithContext(r.Context())
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
-			zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+			zap.Int("httpResponseStatusCode", status),
+			zap.Int("numRegularErrors", numRegular),
+			zap.Int("numBadRequestErrors", numBadRequest),
+			zap.String("lastRegularError", lastRegularErr),
+			zap.String("lastBadRequestErr", lastBadRequestErr))
+
+		var resultErr string
+		if lastRegularErr != "" {
+			resultErr = fmt.Sprintf("retryable_errors: count=%d, last=%s",
+				numRegular, lastRegularErr)
+		}
+		if lastBadRequestErr != "" {
+			var sep string
+			if lastRegularErr != "" {
+				sep = ", "
+			}
+			resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
+				resultErr, sep, numBadRequest, lastBadRequestErr)
+		}
+		xhttp.Error(w, errors.New(resultErr), status)
 		return
 	}
 
-	h.promWriteMetrics.writeSuccess.Inc(1)
+	h.metrics.writeSuccess.Inc(1)
 }
 
 func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *xhttp.ParseError) {
@@ -127,7 +241,7 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 	return &req, nil
 }
 
-func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
+func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) ingest.BatchError {
 	iter := newPromTSIter(r.Timeseries, h.tagOptions)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
 }

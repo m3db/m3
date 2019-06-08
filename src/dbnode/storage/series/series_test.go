@@ -41,9 +41,9 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func newSeriesTestOptions() Options {
@@ -239,7 +239,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.Flush(nil, flushTime, nil, 1, namespace.Context{})
+	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -268,7 +268,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.Flush(ctx, curr, persistFn, 1, namespace.Context{})
+		outcome, err := series.WarmFlush(ctx, curr, persistFn, namespace.Context{})
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
@@ -337,12 +337,12 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(blockStart)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	r, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -384,8 +384,8 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	tickResult, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -413,8 +413,8 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 
 	blockStates = make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -451,8 +451,8 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	tickResult, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -487,8 +487,8 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 
 	blockStates = make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -525,8 +525,8 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates := make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: true,
-		Version:     1,
+		WarmRetrievable: true,
+		ColdVersion:     1,
 	}
 	tickResult, err := series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -541,8 +541,8 @@ func TestSeriesTickCacheNone(t *testing.T) {
 
 	blockStates = make(map[xtime.UnixNano]BlockState)
 	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		Retrievable: false,
-		Version:     0,
+		WarmRetrievable: false,
+		ColdVersion:     0,
 	}
 	tickResult, err = series.Tick(blockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -587,9 +587,9 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 		Return(bufferTickResult{
 			// This means that (curr - 1 block) and (curr - 2 blocks) should
 			// be removed after the tick.
-			evictedBucketTimes: evictedTimes{
+			evictedBucketTimes: OptimizedTimes{
 				arrIdx: 2,
-				arr: [evictedTimesArraySize]xtime.UnixNano{
+				arr: [optimizedTimesArraySize]xtime.UnixNano{
 					xtime.ToUnixNano(curr.Add(-ropts.BlockSize())),
 					xtime.ToUnixNano(curr.Add(-2 * ropts.BlockSize())),
 				},

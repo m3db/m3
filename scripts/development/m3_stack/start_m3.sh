@@ -4,6 +4,9 @@ set -xe
 
 source "$(pwd)/../../docker-integration-tests/common.sh"
 
+# Locally don't care if we hot loop faster
+export MAX_TIMEOUT=4
+
 DOCKER_ARGS="-d --renew-anon-volumes"
 if [[ "$FORCE_BUILD" = true ]] ; then
     DOCKER_ARGS="--build -d --renew-anon-volumes"
@@ -183,7 +186,7 @@ echo "Validating topology"
 echo "Done validating topology"
 
 echo "Waiting until shards are marked as available"
-ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+ATTEMPTS=100 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then

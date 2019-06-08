@@ -109,3 +109,49 @@ func TestNamespaceGetHandler(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":null,\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
 }
+
+func TestNamespaceGetHandlerWithDebug(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	getHandler := NewGetHandler(mockClient)
+
+	// Test namespace present
+	w := httptest.NewRecorder()
+
+	req := httptest.NewRequest("GET", "/namespace/get?debug=true", nil)
+	require.NotNil(t, req)
+
+	registry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"test": &nsproto.NamespaceOptions{
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				SnapshotEnabled:   true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
+				RetentionOptions: &nsproto.RetentionOptions{
+					RetentionPeriodNanos:                     172800000000000,
+					BlockSizeNanos:                           7200000000000,
+					BufferFutureNanos:                        600000000000,
+					BufferPastNanos:                          600000000000,
+					BlockDataExpiry:                          true,
+					BlockDataExpiryAfterNotAccessPeriodNanos: 3600000000000,
+				},
+			},
+		},
+	}
+
+	mockValue := kv.NewMockValue(ctrl)
+	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+
+	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
+	getHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"cleanupEnabled\":false,\"coldWritesEnabled\":false,\"flushEnabled\":true,\"indexOptions\":null,\"repairEnabled\":false,\"retentionOptions\":{\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodDuration\":\"1h0m0s\",\"blockSizeDuration\":\"2h0m0s\",\"bufferFutureDuration\":\"10m0s\",\"bufferPastDuration\":\"10m0s\",\"futureRetentionPeriodDuration\":\"0s\",\"retentionPeriodDuration\":\"48h0m0s\"},\"schemaOptions\":null,\"snapshotEnabled\":true,\"writesToCommitLog\":true}}}}", string(body))
+}

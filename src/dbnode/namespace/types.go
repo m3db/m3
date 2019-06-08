@@ -148,9 +148,9 @@ type SchemaHistory interface {
 
 // SchemaListener listens for updates to schema registry for a namespace.
 type SchemaListener interface {
-	// SetSchema is called when the listener is registered
+	// SetSchemaHistory is called when the listener is registered
 	// and when any updates occurred passing the new schema history.
-	SetSchema(value SchemaDescr)
+	SetSchemaHistory(value SchemaHistory)
 }
 
 // SchemaRegistry represents the schema registry for a database.
