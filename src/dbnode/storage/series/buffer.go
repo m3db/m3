@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -48,6 +49,7 @@ import (
 const (
 	errBucketMapCacheNotInSync    = "bucket map keys do not match sorted keys cache"
 	errBucketMapCacheNotInSyncFmt = errBucketMapCacheNotInSync + ", blockStart: %d"
+	errTimestampFormat            = time.RFC822Z
 )
 
 var (
@@ -135,7 +137,7 @@ type databaseBuffer interface {
 
 	Bootstrap(bl block.DatabaseBlock)
 
-	Reset(opts Options)
+	Reset(id ident.ID, opts Options)
 }
 
 type bufferStats struct {
@@ -203,6 +205,7 @@ func (t *OptimizedTimes) ForEach(fn func(t xtime.UnixNano)) {
 }
 
 type dbBuffer struct {
+	id    ident.ID
 	opts  Options
 	nowFn clock.NowFn
 
@@ -236,7 +239,8 @@ func newDatabaseBuffer() databaseBuffer {
 	return b
 }
 
-func (b *dbBuffer) Reset(opts Options) {
+func (b *dbBuffer) Reset(id ident.ID, opts Options) {
+	b.id = id
 	b.opts = opts
 	b.nowFn = opts.ClockOptions().NowFn()
 	ropts := opts.RetentionOptions()
@@ -250,20 +254,6 @@ func (b *dbBuffer) Reset(opts Options) {
 	b.futureRetentionPeriod = ropts.FutureRetentionPeriod()
 }
 
-// ResolveWriteType returns whether a write is a cold write or warm write.
-func (b *dbBuffer) ResolveWriteType(
-	timestamp time.Time,
-	now time.Time,
-) WriteType {
-	pastLimit := now.Add(-1 * b.bufferPast)
-	futureLimit := now.Add(b.bufferFuture)
-	if !pastLimit.Before(timestamp) || !futureLimit.After(timestamp) {
-		return ColdWrite
-	}
-
-	return WarmWrite
-}
-
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	timestamp time.Time,
@@ -272,14 +262,42 @@ func (b *dbBuffer) Write(
 	annotation []byte,
 	wOpts WriteOptions,
 ) (bool, error) {
-	now := b.nowFn()
-	writeType := b.ResolveWriteType(timestamp, now)
+	var (
+		now         = b.nowFn()
+		pastLimit   = now.Add(-1 * b.bufferPast)
+		futureLimit = now.Add(b.bufferFuture)
+		writeType   WriteType
+	)
+	switch {
+	case !pastLimit.Before(timestamp):
+		writeType = ColdWrite
+		if !b.coldWritesEnabled {
+			return false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("datapoint too far in past: "+
+					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
+					"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
+					b.id.Bytes(), pastLimit.Sub(timestamp).String(),
+					timestamp.Format(errTimestampFormat),
+					pastLimit.Format(errTimestampFormat),
+					timestamp.UnixNano(), pastLimit.UnixNano()))
+		}
+	case !futureLimit.After(timestamp):
+		writeType = ColdWrite
+		if !b.coldWritesEnabled {
+			return false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("datapoint too far in future: "+
+					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
+					"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
+					b.id.Bytes(), timestamp.Sub(futureLimit).String(),
+					timestamp.Format(errTimestampFormat),
+					futureLimit.Format(errTimestampFormat),
+					timestamp.UnixNano(), futureLimit.UnixNano()))
+		}
+	default:
+		writeType = WarmWrite
+	}
 
 	if writeType == ColdWrite {
-		if !b.coldWritesEnabled {
-			return false, m3dberrors.ErrColdWritesNotEnabled
-		}
-
 		if now.Add(-b.retentionPeriod).After(timestamp) {
 			return false, m3dberrors.ErrTooPast
 		}

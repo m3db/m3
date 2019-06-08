@@ -144,7 +144,7 @@ func unmarshalMetrics(dataChannel <-chan []byte, metricChannel chan<- *M3Metric)
 			log.Fatalf("failed to unmarshal metrics, got error: %v\n", err)
 		}
 
-		metricChannel <- &M3Metric{ID: id(m.Tags, m.Name), Time: storage.TimestampToTime(m.Time), Value: m.Value}
+		metricChannel <- &M3Metric{ID: id(m.Tags, m.Name), Time: storage.PromTimestampToTime(m.Time), Value: m.Value}
 	}
 }
 
