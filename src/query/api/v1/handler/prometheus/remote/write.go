@@ -104,12 +104,12 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 		return promWriteMetrics{}, err
 	}
 
-	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 20)
+	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
 
-	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 10)
+	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
@@ -118,16 +118,18 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
+	upTo60mBuckets = upTo60mBuckets[1:] // Remove the first 0s to get 5 min aligned buckets
 
 	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
 
-	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 18)
+	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 19)
 	if err != nil {
 		return promWriteMetrics{}, err
 	}
+	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
 
 	var ingestLatencyBuckets tally.DurationBuckets
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
