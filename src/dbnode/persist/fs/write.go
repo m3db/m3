@@ -96,8 +96,10 @@ type indexEntry struct {
 type indexEntries []indexEntry
 
 func (e indexEntries) releaseRefs() {
+	// memset zero loop optimization
+	var zeroed indexEntry
 	for i := range e {
-		e[i].id = nil
+		e[i] = zeroed
 	}
 }
 

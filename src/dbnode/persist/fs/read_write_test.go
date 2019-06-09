@@ -131,6 +131,19 @@ func writeTestDataWithVolume(
 			digest.Checksum(entries[i].data)))
 	}
 	assert.NoError(t, w.Close())
+
+	// Assert that any index entries released references they held
+	writer, ok := w.(*writer)
+	require.True(t, ok)
+
+	// Take ref to wholly allocated index entries slice
+	slice := writer.indexEntries[:cap(writer.indexEntries)]
+
+	// Check every entry has ID and Tags nil
+	for _, elem := range slice {
+		assert.Nil(t, elem.id)
+		assert.Nil(t, elem.tags.Values())
+	}
 }
 
 type readTestType uint
