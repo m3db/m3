@@ -68,20 +68,7 @@ const (
 )
 
 var (
-	numShards                         = runtime.NumCPU()
-	defaultBufferForPastTimedMetricFn = func(r time.Duration) time.Duration {
-		value := time.Duration(defaultBufferPastTimedMetricFactor * float64(r))
-
-		// Clamp minBufferPast <= value <= maxBufferPast.
-		if value < minBufferPast {
-			return minBufferPast
-		}
-		if value > maxBufferPast {
-			return maxBufferPast
-		}
-
-		return value
-	}
+	numShards = runtime.NumCPU()
 
 	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
 	errNoClusterClient         = errors.New("dynamic downsampling enabled with cluster client not set")
@@ -346,7 +333,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetElectionManager(electionManager).
 		SetFlushManager(flushManager).
 		SetFlushHandler(flushHandler).
-		SetBufferForPastTimedMetricFn(defaultBufferForPastTimedMetricFn).
+		SetBufferForPastTimedMetricFn(bufferForPastTimedMetric).
 		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric)
 
 	if cfg.AggregationTypes != nil {
@@ -616,4 +603,26 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 		flushWorkers, o.TagOptions, instrumentOpts)
 
 	return flushManager, handler
+}
+
+var (
+	bufferPastLimits = []struct {
+		upperBound time.Duration
+		bufferPast time.Duration
+	}{
+		{upperBound: 0, bufferPast: 15 * time.Second},
+		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
+		{upperBound: time.Minute, bufferPast: time.Minute},
+	}
+)
+
+func bufferForPastTimedMetric(tile time.Duration) time.Duration {
+	bufferPast := bufferPastLimits[0].bufferPast
+	for _, limit := range bufferPastLimits {
+		if tile < limit.upperBound {
+			return bufferPast
+		}
+		bufferPast = limit.bufferPast
+	}
+	return bufferPast
 }
