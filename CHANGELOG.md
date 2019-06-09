@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.10.1
+
+## Bug Fixes
+
+- **M3Coordinator**: Use table based approach for aggregation tile buffer past calculation with good defaults for Prometheus remote write latency (#1717)
+
 # 0.10.0
 
 ## Features
