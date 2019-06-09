@@ -56,15 +56,12 @@ import (
 )
 
 const (
-	instanceID                         = "downsampler_local"
-	placementKVKey                     = "/placement"
-	replicationFactor                  = 1
-	defaultStorageFlushConcurrency     = 20000
-	defaultOpenTimeout                 = 10 * time.Second
-	minBufferPast                      = 5 * time.Second
-	maxBufferPast                      = 10 * time.Minute
-	defaultBufferPastTimedMetricFactor = 0.5
-	defaultBufferFutureTimedMetric     = time.Minute
+	instanceID                     = "downsampler_local"
+	placementKVKey                 = "/placement"
+	replicationFactor              = 1
+	defaultStorageFlushConcurrency = 20000
+	defaultOpenTimeout             = 10 * time.Second
+	defaultBufferFutureTimedMetric = time.Minute
 )
 
 var (
