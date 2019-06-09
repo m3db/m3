@@ -48,10 +48,10 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
@@ -63,7 +63,7 @@ const (
 	defaultOpenTimeout                 = 10 * time.Second
 	minBufferPast                      = 5 * time.Second
 	maxBufferPast                      = 10 * time.Minute
-	defaultBufferPastTimedMetricFactor = 0.1
+	defaultBufferPastTimedMetricFactor = 0.5
 	defaultBufferFutureTimedMetric     = time.Minute
 )
 
