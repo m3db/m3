@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterLeaserPreventsDuplicates(t *testing.T) {
+func TestRegisterLeaser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -36,4 +36,18 @@ func TestRegisterLeaserPreventsDuplicates(t *testing.T) {
 
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
 	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser))
+}
+
+func TestUnregisterLeaser(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	leaser := NewMockLeaser(ctrl)
+	leaseMgr := NewLeaseManager(nil)
+
+	require.Equal(t, errLeaserNotRegistered, leaseMgr.UnregisterLeaser(leaser))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser))
+	require.NoError(t, leaseMgr.UnregisterLeaser(leaser))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
 }
