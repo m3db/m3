@@ -48,15 +48,29 @@ func TestUnregisterLeaser(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		leaser   = NewMockLeaser(ctrl)
+		leaser1  = NewMockLeaser(ctrl)
+		leaser2  = NewMockLeaser(ctrl)
 		leaseMgr = NewLeaseManager(nil)
 	)
 
-	require.Equal(t, errLeaserNotRegistered, leaseMgr.UnregisterLeaser(leaser))
-	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
-	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser))
-	require.NoError(t, leaseMgr.UnregisterLeaser(leaser))
-	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	// Cant unregister if not registered.
+	require.Equal(t, errLeaserNotRegistered, leaseMgr.UnregisterLeaser(leaser1))
+	require.Equal(t, errLeaserNotRegistered, leaseMgr.UnregisterLeaser(leaser2))
+
+	// Register.
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser1))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser2))
+
+	// Ensure registered.
+	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser1))
+	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser2))
+
+	// Ensure unregistering works.
+	require.NoError(t, leaseMgr.UnregisterLeaser(leaser1))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser1))
+
+	// Ensure unregistering leaser1 does not unregister leaser2.
+	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser2))
 }
 
 func TestOpenLease(t *testing.T) {
