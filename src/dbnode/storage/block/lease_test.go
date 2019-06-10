@@ -21,6 +21,7 @@
 package block
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -104,27 +105,48 @@ func TestUpdateOpenLeases(t *testing.T) {
 
 	// Expect that the leasers return NoOpenLease the first time to simulate the situation
 	// where they don't have an open lease on the LeaseDescriptor that should be updated.
-	leasers[0].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(NoOpenLease, nil)
-	leasers[1].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(NoOpenLease, nil)
+	leasers[0].EXPECT().
+		UpdateOpenLease(leaseDesc, leaseState).
+		Return(NoOpenLease, nil)
+	leasers[1].EXPECT().
+		UpdateOpenLease(leaseDesc, leaseState).
+		Return(NoOpenLease, nil)
 
 	// Expect that the leasers return UpdateOpenLease the second time to simulate the situation
 	// where they do have an open lease on the LeaseDescriptor that should be updated.
-	leasers[0].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(UpdateOpenLease, nil)
-	leasers[1].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(UpdateOpenLease, nil)
+	leasers[0].EXPECT().
+		UpdateOpenLease(leaseDesc, leaseState).
+		Return(UpdateOpenLease, nil)
+	leasers[1].EXPECT().
+		UpdateOpenLease(leaseDesc, leaseState).
+		Return(UpdateOpenLease, nil)
+
+	// Expect that the first leaser returns an error the third time to simulate the situation
+	// where one of the leasers returns an error and make sure that UpdateOpenLeases() bails out
+	// early and returns an error.
+	leasers[0].EXPECT().
+		UpdateOpenLease(leaseDesc, leaseState).
+		Return(UpdateOpenLeaseResult(0), errors.New("some-error"))
 
 	for _, leaser := range leasers {
 		require.NoError(t, leaseMgr.RegisterLeaser(leaser))
 	}
 
+	// First time the leasers will return that they didn't have an open lease.
 	result, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
 	require.NoError(t, err)
 	require.Equal(t, result, UpdateLeasesResult{LeasersNoOpenLease: 2})
 
 	for _, leaser := range leasers {
-		leaseMgr.OpenLease(leaseDesc, leaseState)
+		leaseMgr.OpenLease(leaser, leaseDesc, leaseState)
 	}
 
-	result, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
+	// Second time the leasers will return that they did have an open lease.
+	result, err = leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
 	require.NoError(t, err)
 	require.Equal(t, result, UpdateLeasesResult{LeasersUpdatedLease: 2})
+
+	// Third time the first leaser will return an error.
+	result, err = leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
+	require.Error(t, err)
 }
