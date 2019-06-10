@@ -22,8 +22,10 @@ package block
 
 import (
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,8 +33,10 @@ func TestRegisterLeaser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	leaser := NewMockLeaser(ctrl)
-	leaseMgr := NewLeaseManager(nil)
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		leaseMgr = NewLeaseManager(nil)
+	)
 
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
 	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser))
@@ -42,12 +46,85 @@ func TestUnregisterLeaser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	leaser := NewMockLeaser(ctrl)
-	leaseMgr := NewLeaseManager(nil)
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		leaseMgr = NewLeaseManager(nil)
+	)
 
 	require.Equal(t, errLeaserNotRegistered, leaseMgr.UnregisterLeaser(leaser))
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
 	require.Equal(t, errLeaserAlreadyRegistered, leaseMgr.RegisterLeaser(leaser))
 	require.NoError(t, leaseMgr.UnregisterLeaser(leaser))
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+}
+
+func TestOpenLease(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser    = NewMockLeaser(ctrl)
+		verifier  = NewMockLeaseVerifier(ctrl)
+		leaseMgr  = NewLeaseManager(verifier)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+	)
+	verifier.EXPECT().VerifyLease(leaseDesc, leaseState)
+
+	require.Equal(t, errLeaserNotRegistered, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	require.NoError(t, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
+}
+
+func TestUpdateOpenLeases(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		verifier = NewMockLeaseVerifier(ctrl)
+		leaseMgr = NewLeaseManager(verifier)
+
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+		leasers = []*MockLeaser{NewMockLeaser(ctrl), NewMockLeaser(ctrl)}
+	)
+	verifier.EXPECT().VerifyLease(leaseDesc, leaseState).Times(len(leasers))
+
+	// Expect that the leasers return NoOpenLease the first time to simulate the situation
+	// where they don't have an open lease on the LeaseDescriptor that should be updated.
+	leasers[0].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(NoOpenLease, nil)
+	leasers[1].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(NoOpenLease, nil)
+
+	// Expect that the leasers return UpdateOpenLease the second time to simulate the situation
+	// where they do have an open lease on the LeaseDescriptor that should be updated.
+	leasers[0].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(UpdateOpenLease, nil)
+	leasers[1].EXPECT().UpdateOpenLease(leaseDesc, leaseState).Return(UpdateOpenLease, nil)
+
+	for _, leaser := range leasers {
+		require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	}
+
+	result, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
+	require.NoError(t, err)
+	require.Equal(t, result, UpdateLeasesResult{LeasersNoOpenLease: 2})
+
+	for _, leaser := range leasers {
+		leaseMgr.OpenLease(leaseDesc, leaseState)
+	}
+
+	result, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
+	require.NoError(t, err)
+	require.Equal(t, result, UpdateLeasesResult{LeasersUpdatedLease: 2})
 }
