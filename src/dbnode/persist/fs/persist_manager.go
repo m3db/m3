@@ -422,8 +422,16 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 	}
 
 	var volumeIndex int
-	if opts.FileSetType == persist.FileSetSnapshotType {
-		// Need to work out the volume index for the next snapshot
+	switch opts.FileSetType {
+	case persist.FileSetFlushType:
+		// Need to work out the volume index for the next data file.
+		volumeIndex, err = NextDataFileSetVolumeIndex(pm.opts.FilePathPrefix(),
+			nsMetadata.ID(), shard, blockStart)
+		if err != nil {
+			return prepared, err
+		}
+	case persist.FileSetSnapshotType:
+		// Need to work out the volume index for the next snapshot.
 		volumeIndex, err = NextSnapshotFileSetVolumeIndex(pm.opts.FilePathPrefix(),
 			nsMetadata.ID(), shard, blockStart)
 		if err != nil {
@@ -453,7 +461,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 	}
 
 	if exists && opts.DeleteIfExists {
-		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
+		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart, volumeIndex)
 		if err != nil {
 			return prepared, err
 		}

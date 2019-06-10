@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -66,6 +66,7 @@ type databaseNamespaceReaderManager interface {
 	get(
 		shard uint32,
 		blockStart time.Time,
+		volume int,
 		position readerPosition,
 	) (fs.DataFileSetReader, error)
 
@@ -109,6 +110,7 @@ type namespaceReaderManager struct {
 type cachedOpenReaderKey struct {
 	shard      uint32
 	blockStart xtime.UnixNano
+	volume     int
 	position   readerPosition
 }
 
@@ -232,12 +234,14 @@ func (m *namespaceReaderManager) cachedReaderForKey(
 func (m *namespaceReaderManager) get(
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 	position readerPosition,
 ) (fs.DataFileSetReader, error) {
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
 		position:   position,
+		volume:     volume,
 	}
 
 	lookup, err := m.cachedReaderForKey(key)
@@ -253,9 +257,10 @@ func (m *namespaceReaderManager) get(
 	reader := lookup.closedReader
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  m.namespace.ID(),
-			Shard:      shard,
-			BlockStart: blockStart,
+			Namespace:   m.namespace.ID(),
+			Shard:       shard,
+			BlockStart:  blockStart,
+			VolumeIndex: volume,
 		},
 	}
 	if err := reader.Open(openOpts); err != nil {
@@ -303,6 +308,7 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
 	key := cachedOpenReaderKey{
 		shard:      status.Shard,
 		blockStart: xtime.ToUnixNano(status.BlockStart),
+		volume:     status.Volume,
 		position: readerPosition{
 			dataIdx:     reader.EntriesRead(),
 			metadataIdx: reader.MetadataRead(),

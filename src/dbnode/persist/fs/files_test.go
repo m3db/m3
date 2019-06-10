@@ -34,9 +34,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -212,7 +212,7 @@ func TestForEachInfoFile(t *testing.T) {
 	require.Equal(t, infoData, res)
 }
 
-func TestTimeFromName(t *testing.T) {
+func TestTimeFromFileName(t *testing.T) {
 	_, err := TimeFromFileName("foo/bar")
 	require.Error(t, err)
 	require.Equal(t, "unexpected file name foo/bar", err.Error())
@@ -222,6 +222,11 @@ func TestTimeFromName(t *testing.T) {
 
 	v, err := TimeFromFileName("foo-1-bar.db")
 	expected := time.Unix(0, 1)
+	require.Equal(t, expected, v)
+	require.NoError(t, err)
+
+	v, err = TimeFromFileName("foo-12345-6-bar.db")
+	expected = time.Unix(0, 12345)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
@@ -281,6 +286,41 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+}
+
+func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
+	_, _, err := TimeAndVolumeIndexFromDataFileSetFilename("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected file name foo/bar", err.Error())
+
+	_, _, err = TimeAndVolumeIndexFromDataFileSetFilename("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i int
+	}
+	ts, i, err := TimeAndVolumeIndexFromDataFileSetFilename("foo-1-0-data.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	validName := "foo/bar/fileset-21234567890-1-data.db"
+	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(validName)
+	exp = expected{time.Unix(0, 21234567890), 1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+
+	unindexedName := "foo/bar/fileset-21234567890-data.db"
+	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(unindexedName)
+	exp = expected{time.Unix(0, 21234567890), -1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), unindexedName)
 }
 
 func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
@@ -732,6 +772,34 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 	curr := -1
 	for i := 0; i <= 10; i++ {
 		index, err := NextIndexFileSetVolumeIndex(dir, testNs1ID, blockStart)
+		require.NoError(t, err)
+		require.Equal(t, curr+1, index)
+		curr = index
+
+		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, checkpointFileSuffix)
+
+		digestBuf := digest.NewBuffer()
+		digestBuf.WriteDigest(digest.Checksum([]byte("bar")))
+
+		err = ioutil.WriteFile(p, digestBuf, defaultNewFileMode)
+		require.NoError(t, err)
+	}
+}
+
+func TestNextDataFileSetVolumeIndex(t *testing.T) {
+	// Make empty directory
+	shard := uint32(0)
+	dir := createTempDir(t)
+	dataDir := ShardDataDirPath(dir, testNs1ID, shard)
+	require.NoError(t, os.MkdirAll(dataDir, 0755))
+	defer os.RemoveAll(dataDir)
+
+	blockStart := time.Now().Truncate(time.Hour)
+
+	// Check increments properly
+	curr := -1
+	for i := 0; i <= 10; i++ {
+		index, err := NextDataFileSetVolumeIndex(dir, testNs1ID, shard, blockStart)
 		require.NoError(t, err)
 		require.Equal(t, curr+1, index)
 		curr = index

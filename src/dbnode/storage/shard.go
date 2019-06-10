@@ -1687,8 +1687,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			pos.metadataIdx = int(flushedPhase.CurrBlockEntryIdx)
 		}
 
+		// TODO(juchan): actually get the volume
+		vol := 0
 		// Open a reader at this position, potentially from cache
-		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, pos)
+		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, vol, pos)
 		if err != nil {
 			return nil, nil, err
 		}

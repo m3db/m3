@@ -271,7 +271,9 @@ func (r *blockRetriever) fetchBatch(
 	seekerResources ReusableSeekerResources,
 ) {
 	// Resolve the seeker from the seeker mgr
-	seeker, err := seekerMgr.Borrow(shard, blockStart)
+	// TODO(juchan): actually get the correct volume.
+	vol := 0
+	seeker, err := seekerMgr.Borrow(shard, blockStart, vol)
 	if err != nil {
 		for _, req := range reqs {
 			req.onError(err)
@@ -366,7 +368,8 @@ func (r *blockRetriever) fetchBatch(
 		}(req)
 	}
 
-	err = seekerMgr.Return(shard, blockStart, seeker)
+	// TODO(juchan): actually get the correct volume.
+	err = seekerMgr.Return(shard, blockStart, vol, seeker)
 	if err != nil {
 		r.logger.Error("err returning seeker for shard",
 			zap.Uint32("shard", shard),
@@ -408,7 +411,9 @@ func (r *blockRetriever) Stream(
 	}
 	r.RUnlock()
 
-	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
+	// TODO(juchan): actually get the correct volume.
+	vol := 0
+	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime, vol)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}

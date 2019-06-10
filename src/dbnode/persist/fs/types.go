@@ -51,7 +51,7 @@ type FileSetFileIdentifier struct {
 	BlockStart         time.Time
 	// Only required for data content files
 	Shard uint32
-	// Required for snapshot files (index yes, data yes) and flush files (index yes, data no)
+	// Required for snapshot files (index yes, data yes) and flush files (index yes, data yes)
 	VolumeIndex int
 }
 
@@ -105,9 +105,9 @@ type SnapshotMetadataFileReader interface {
 type DataFileSetReaderStatus struct {
 	Namespace  ident.ID
 	BlockStart time.Time
-
-	Shard uint32
-	Open  bool
+	Shard      uint32
+	Volume     int
+	Open       bool
 }
 
 // DataReaderOpenOptions is options struct for the reader open method.
@@ -173,6 +173,7 @@ type DataFileSetSeeker interface {
 		namespace ident.ID,
 		shard uint32,
 		start time.Time,
+		volume int,
 		resources ReusableSeekerResources,
 	) error
 
@@ -237,15 +238,15 @@ type DataFileSetSeekerManager interface {
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
 
-	// Borrow returns an open seeker for a given shard and block start time.
-	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
+	// Borrow returns an open seeker for a given shard, block start time, and volume.
+	Borrow(shard uint32, start time.Time, volume int) (ConcurrentDataFileSetSeeker, error)
 
-	// Return returns an open seeker for a given shard and block start time.
-	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
+	// Return returns an open seeker for a given shard, block start time, and volume.
+	Return(shard uint32, start time.Time, volume int, seeker ConcurrentDataFileSetSeeker) error
 
 	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
-	// shard and block start time
-	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
+	// shard, block start time, and volume.
+	ConcurrentIDBloomFilter(shard uint32, start time.Time, volume int) (*ManagedConcurrentBloomFilter, error)
 }
 
 // DataBlockRetriever provides a block retriever for TSDB file sets

@@ -92,6 +92,7 @@ type reader struct {
 	expectedDigestOfDigest    uint32
 	expectedBloomFilterDigest uint32
 	shard                     uint32
+	volume                    int
 	open                      bool
 }
 
@@ -128,11 +129,11 @@ func NewReader(
 
 func (r *reader) Open(opts DataReaderOpenOptions) error {
 	var (
-		namespace     = opts.Identifier.Namespace
-		shard         = opts.Identifier.Shard
-		blockStart    = opts.Identifier.BlockStart
-		snapshotIndex = opts.Identifier.VolumeIndex
-		err           error
+		namespace   = opts.Identifier.Namespace
+		shard       = opts.Identifier.Shard
+		blockStart  = opts.Identifier.BlockStart
+		volumeIndex = opts.Identifier.VolumeIndex
+		err         error
 	)
 
 	var (
@@ -147,20 +148,20 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, infoFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, indexFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, dataFileSuffix)
+		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
-		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
+		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -237,6 +238,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	r.open = true
 	r.namespace = namespace
 	r.shard = shard
+	r.volume = volumeIndex
 
 	return nil
 }
@@ -246,6 +248,7 @@ func (r *reader) Status() DataFileSetReaderStatus {
 		Open:       r.open,
 		Namespace:  r.namespace,
 		Shard:      r.shard,
+		Volume:     r.volume,
 		BlockStart: r.start,
 	}
 }
