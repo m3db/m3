@@ -704,7 +704,6 @@ func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
 	mapCh <- nsMap
 
 	// wait till the update has propagated
-	<-updateCh
 	time.Sleep(10 * time.Millisecond)
 
 	// Ensure the namespace3 is created successfully.
@@ -713,13 +712,32 @@ func TestDatabaseUpdateNamespaceSchemaNotSet(t *testing.T) {
 	ns3, ok := d.Namespace(nsID3)
 	require.True(t, ok)
 
-	// Ensure schema is set for ns1
+	// Ensure schema is set
 	require.NotNil(t, ns3.Schema())
 
 	schema, err := d.Options().SchemaRegistry().GetLatestSchema(nsID3)
 	require.NoError(t, err)
 	require.NotNil(t, schema)
 
+	// Update nsID3 schema to empty
+	md3, err = namespace.NewMetadata(nsID3, defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err = namespace.NewMap([]namespace.Metadata{md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// Ensure schema is not set to empty
+	require.NotNil(t, ns3.Schema())
+
+	schema, err = d.Options().SchemaRegistry().GetLatestSchema(nsID3)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
 }
 
 func TestDatabaseNamespaceIndexFunctions(t *testing.T) {

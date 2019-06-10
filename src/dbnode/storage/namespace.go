@@ -375,6 +375,7 @@ func (n *dbNamespace) SetSchemaHistory(value namespace.SchemaHistory) {
 	schema, ok := value.GetLatest()
 	if !ok {
 		n.log.Error("can not update namespace schema to empty", zap.Stringer("namespace", n.ID()))
+		return
 	}
 
 	metadata, err := namespace.NewMetadata(n.ID(), n.nopts.SetSchemaHistory(value))
