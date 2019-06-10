@@ -31,7 +31,6 @@ var (
 	errLeaserNotRegistered     = errors.New("leaser not registered")
 )
 
-// TODO: This needs tests!
 type leaseManager struct {
 	sync.Mutex
 	leasers  []Leaser
