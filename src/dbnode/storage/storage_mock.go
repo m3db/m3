@@ -1325,21 +1325,6 @@ func (mr *MockdatabaseNamespaceMockRecorder) NeedsFlush(alignedInclusiveStart, a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).NeedsFlush), alignedInclusiveStart, alignedInclusiveEnd)
 }
 
-// IsCapturedBySnapshot mocks base method
-func (m *MockdatabaseNamespace) IsCapturedBySnapshot(alignedInclusiveStart, alignedInclusiveEnd, t time.Time) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsCapturedBySnapshot", alignedInclusiveStart, alignedInclusiveEnd, t)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsCapturedBySnapshot indicates an expected call of IsCapturedBySnapshot
-func (mr *MockdatabaseNamespaceMockRecorder) IsCapturedBySnapshot(alignedInclusiveStart, alignedInclusiveEnd, t interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCapturedBySnapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).IsCapturedBySnapshot), alignedInclusiveStart, alignedInclusiveEnd, t)
-}
-
 // Truncate mocks base method
 func (m *MockdatabaseNamespace) Truncate() (int64, error) {
 	m.ctrl.T.Helper()
