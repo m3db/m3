@@ -1150,53 +1150,6 @@ func (n *dbNamespace) NeedsFlush(
 	return n.needsFlushWithLock(alignedInclusiveStart, alignedInclusiveEnd)
 }
 
-func (n *dbNamespace) IsCapturedBySnapshot(
-	alignedInclusiveStart, alignedInclusiveEnd, capturedUpTo time.Time) (bool, error) {
-	var (
-		blockSize      = n.nopts.RetentionOptions().BlockSize()
-		blockStarts    = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
-		filePathPrefix = n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	)
-
-	n.RLock()
-	defer n.RUnlock()
-
-	for _, shard := range n.shards {
-		if shard == nil {
-			continue
-		}
-
-		for _, blockStart := range blockStarts {
-			snapshotFiles, err := n.snapshotFilesFn(filePathPrefix, n.ID(), shard.ID())
-			if err != nil {
-				return false, err
-			}
-
-			snapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
-			if !ok {
-				// If a single shard is missing a snapshot for the blockStart then
-				// the entire namespace is not covered by snapshots up to time t.
-				return false, nil
-			}
-
-			snapshotTime, _, err := snapshot.SnapshotTimeAndID()
-			if err != nil {
-				return false, err
-			}
-
-			if snapshotTime.Before(capturedUpTo) {
-				// If a single shard's most recent snapshot has a snapshot time before
-				// capturedUpTo then we can't be sure that the entire namespace is
-				// covered by snapshots.
-				return false, nil
-			}
-		}
-
-	}
-
-	return true, nil
-}
-
 func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
