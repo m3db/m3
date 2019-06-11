@@ -21,6 +21,8 @@
 package storage
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/dbnode/storage/block"
 )
 
@@ -32,11 +34,22 @@ func (v *leaseVerifier) VerifyLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) error {
-	// namespaces, err := m.database.GetOwnedNamespaces()
-	// if err != nil {
-	// 	return err
-	// }
+	flushState, err := v.db.FlushState(
+		descriptor.Namespace, uint32(descriptor.Shard), descriptor.BlockStart)
+	if err != nil {
+		return fmt.Errorf(
+			"err retrieving flushState for lease verification, ns: %s, shard: %d, blockStart: %s, err: %v",
+			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
+	}
 
-	// var matchingNS
+	if flushState.ColdVersion != state.Volume {
+		// The cold flush version and volume correspond 1:1 so a lease should only
+		// be permitted if the requested volume is equal to the highest flushed
+		// volume (the current cold flush version).
+		return fmt.Errorf(
+			"cannot permit lease for ns: %s, shard: %d, blockStart: %s, volume: %d when latest volume is %d",
+			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), state.Volume, flushState.ColdVersion)
+	}
+
 	return nil
 }
