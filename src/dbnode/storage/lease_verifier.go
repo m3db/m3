@@ -22,6 +22,10 @@ package storage
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type flushStateRetriever interface {
