@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/pool"
@@ -35,6 +36,31 @@ var (
 	defaultTestOptionsOnce sync.Once
 	defaultTestOptions     Options
 )
+
+type noopBlockLeaseManager struct{}
+
+func (n *noopBlockLeaseManager) RegisterLeaser(leaser block.Leaser) error {
+	return nil
+}
+
+func (n *noopBlockLeaseManager) UnregisterLeaser(leaser block.Leaser) error {
+	return nil
+}
+
+func (n *noopBlockLeaseManager) OpenLease(
+	leaser block.Leaser,
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+) error {
+	return nil
+}
+
+func (n *noopBlockLeaseManager) UpdateOpenLeases(
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+) (block.UpdateLeasesResult, error) {
+	return block.UpdateLeasesResult{}, nil
+}
 
 // DefaultTestOptions provides a single set of test storage options
 // we save considerable memory by doing this avoiding creating
@@ -72,7 +98,8 @@ func DefaultTestOptions() Options {
 			SetSeriesCachePolicy(series.CacheAll).
 			SetPersistManager(pm).
 			SetRepairEnabled(false).
-			SetCommitLogOptions(opts.CommitLogOptions())
+			SetCommitLogOptions(opts.CommitLogOptions()).
+			SetBlockLeaseManager(&noopBlockLeaseManager{})
 	})
 
 	return defaultTestOptions

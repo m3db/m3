@@ -151,16 +151,19 @@ func NewDatabase(
 	shardSet sharding.ShardSet,
 	opts Options,
 ) (Database, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid options: %v", err)
+	// Partial initialization so the db can be passed to the leaser verifier
+	// which can be set on the options and validated before using the options
+	// for anything else.
+	d := &db{
+		shardSet:   shardSet,
+		namespaces: newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
 	}
 
-	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
-	if err != nil {
-		return nil, err
-	}
-	if err := commitLog.Open(); err != nil {
-		return nil, err
+	blLeaseVerifier := newLeaseVerifier(d)
+	blLeaseManager := block.NewLeaseManager(blLeaseVerifier)
+	opts = opts.SetBlockLeaseManager(blLeaseManager)
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid options: %v", err)
 	}
 
 	var (
@@ -169,19 +172,22 @@ func NewDatabase(
 		logger = iopts.Logger()
 		nowFn  = opts.ClockOptions().NowFn()
 	)
+	d.opts = opts
+	d.nowFn = nowFn
+	d.lastReceivedNewShards = nowFn()
+	d.scope = scope
+	d.metrics = newDatabaseMetrics(scope)
+	d.log = logger
+	d.writeBatchPool = opts.WriteBatchPool()
 
-	d := &db{
-		opts:                  opts,
-		nowFn:                 nowFn,
-		shardSet:              shardSet,
-		lastReceivedNewShards: nowFn(),
-		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:             commitLog,
-		scope:                 scope,
-		metrics:               newDatabaseMetrics(scope),
-		log:                   logger,
-		writeBatchPool:        opts.WriteBatchPool(),
+	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
+	if err != nil {
+		return nil, err
 	}
+	if err := commitLog.Open(); err != nil {
+		return nil, err
+	}
+	d.commitLog = commitLog
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
 

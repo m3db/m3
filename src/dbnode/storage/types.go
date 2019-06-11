@@ -964,6 +964,12 @@ type Options interface {
 
 	// SchemaRegistry returns the schema registry the database uses.
 	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetBlockLeaseManager sets the block leaser.
+	SetBlockLeaseManager(leaser block.LeaseManager) Options
+
+	// BlockLeaseManager returns the block leaser.
+	BlockLeaseManager() block.LeaseManager
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

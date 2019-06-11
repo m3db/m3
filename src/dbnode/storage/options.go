@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -38,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -85,6 +85,7 @@ var (
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
 	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
+	errBlockLeaserNotSet          = errors.New("block leaser is not set")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -145,6 +146,7 @@ type options struct {
 	bufferBucketPool               *series.BufferBucketPool
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
 	schemaReg                      namespace.SchemaRegistry
+	blockLeaseManager              block.LeaseManager
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -248,7 +250,15 @@ func (o *options) Validate() error {
 	}
 
 	// validate series cache policy
-	return series.ValidateCachePolicy(o.seriesCachePolicy)
+	if err := series.ValidateCachePolicy(o.seriesCachePolicy); err != nil {
+		return err
+	}
+
+	if o.blockLeaseManager == nil {
+		return errBlockLeaserNotSet
+	}
+
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -671,4 +681,14 @@ func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
 
 func (o *options) SchemaRegistry() namespace.SchemaRegistry {
 	return o.schemaReg
+}
+
+func (o *options) SetBlockLeaseManager(leaser block.LeaseManager) Options {
+	opts := *o
+	opts.blockLeaseManager = leaser
+	return &opts
+}
+
+func (o *options) BlockLeaseManager() block.LeaseManager {
+	return o.blockLeaseManager
 }
