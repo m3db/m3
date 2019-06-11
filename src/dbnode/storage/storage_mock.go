@@ -1368,6 +1368,21 @@ func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
 }
 
+// FlushState mocks base method
+func (m *MockdatabaseNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FlushState", shardID, blockStart)
+	ret0, _ := ret[0].(fileOpState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FlushState indicates an expected call of FlushState
+func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushState), shardID, blockStart)
+}
+
 // MockShard is a mock of Shard interface
 type MockShard struct {
 	ctrl     *gomock.Controller
