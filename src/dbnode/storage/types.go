@@ -210,6 +210,9 @@ type Database interface {
 	// BootstrapState captures and returns a snapshot of the databases'
 	// bootstrap state.
 	BootstrapState() DatabaseBootstrapState
+
+	// FlushState returns the flush state for the specified shard and block start.
+	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
 }
 
 // database is the internal database interface

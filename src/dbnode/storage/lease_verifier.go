@@ -25,11 +25,18 @@ import (
 )
 
 type leaseVerifier struct {
+	db database
 }
 
 func (v *leaseVerifier) VerifyLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) error {
+	// namespaces, err := m.database.GetOwnedNamespaces()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// var matchingNS
 	return nil
 }
