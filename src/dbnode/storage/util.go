@@ -37,31 +37,6 @@ var (
 	defaultTestOptions     Options
 )
 
-type noopBlockLeaseManager struct{}
-
-func (n *noopBlockLeaseManager) RegisterLeaser(leaser block.Leaser) error {
-	return nil
-}
-
-func (n *noopBlockLeaseManager) UnregisterLeaser(leaser block.Leaser) error {
-	return nil
-}
-
-func (n *noopBlockLeaseManager) OpenLease(
-	leaser block.Leaser,
-	descriptor block.LeaseDescriptor,
-	state block.LeaseState,
-) error {
-	return nil
-}
-
-func (n *noopBlockLeaseManager) UpdateOpenLeases(
-	descriptor block.LeaseDescriptor,
-	state block.LeaseState,
-) (block.UpdateLeasesResult, error) {
-	return block.UpdateLeasesResult{}, nil
-}
-
 // DefaultTestOptions provides a single set of test storage options
 // we save considerable memory by doing this avoiding creating
 // default pools several times.
@@ -76,8 +51,8 @@ func DefaultTestOptions() Options {
 		runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
 			runtime.NewOptions())
 
-		blockLeaseManager := &noopBlockLeaseManager{}
-		fsOpts := fs.NewOptions().
+		blockLeaseManager := &block.NoopBlockLeaseManager{}
+		fsOpts :	= fs.NewOptions().
 			SetRuntimeOptionsManager(runtimeOptionsMgr).
 			SetBlockLeaseManager(blockLeaseManager)
 		pm, err := fs.NewPersistManager(fsOpts)

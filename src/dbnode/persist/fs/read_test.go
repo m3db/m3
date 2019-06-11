@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/mmap"
@@ -50,9 +51,10 @@ const (
 )
 
 var (
-	testWriterStart    = time.Now()
-	testBlockSize      = 2 * time.Hour
-	testDefaultOpts    = NewOptions() // To avoid allocing pools each test exec
+	testWriterStart = time.Now()
+	testBlockSize   = 2 * time.Hour
+	testDefaultOpts = NewOptions(). // To avoid allocing pools each test exec
+			SetBlockLeaseManager(&block.NoopBlockLeaseManager{})
 	testBytesPool      pool.CheckedBytesPool
 	testTagDecoderPool serialize.TagDecoderPool
 )
