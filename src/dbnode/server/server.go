@@ -391,6 +391,10 @@ func Run(runOpts RunOptions) {
 			scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
+	// Pass nil for block.LeaseVerifier for now and it will be set after the
+	// db is constructed.
+	blockLeaseManager := block.NewLeaseManager(nil)
+	opts = opts.SetBlockLeaseManager(blockLeaseManager)
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -408,7 +412,8 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault())
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
+		SetBlockLeaseManager(blockLeaseManager)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
