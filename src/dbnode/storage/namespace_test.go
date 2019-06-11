@@ -1229,6 +1229,28 @@ func TestNamespaceBootstrapState(t *testing.T) {
 	}, ns.BootstrapState())
 }
 
+func TestNamespaceFlushState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	var (
+		blockStart         = time.Now().Truncate(2 * time.Hour)
+		expectedFlushState = fileOpState{
+			ColdVersion: 2,
+		}
+		shard0 = NewMockdatabaseShard(ctrl)
+	)
+	shard0.EXPECT().FlushState(blockStart).Return(expectedFlushState)
+	ns.shards[0] = shard0
+
+	flushState, err := ns.FlushState(0, blockStart)
+	require.NoError(t, err)
+	require.Equal(t, expectedFlushState, flushState)
+}
+
 func waitForStats(
 	reporter xmetrics.TestStatsReporter,
 	check func(xmetrics.TestStatsReporter) bool,

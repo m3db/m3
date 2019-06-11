@@ -1401,6 +1401,16 @@ func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
 	return shardStates
 }
 
+func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
+	n.RLock()
+	defer n.RUnlock()
+	shard, err := n.shardAtWithRLock(shardID)
+	if err != nil {
+		return fileOpState{}, err
+	}
+	return shard.FlushState(blockStart), nil
+}
+
 func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 	return namespace.Context{ID: n.id, Schema: n.schemaDescr}
 }

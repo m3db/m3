@@ -366,6 +366,9 @@ type databaseNamespace interface {
 	// BootstrapState captures and returns a snapshot of the namespaces'
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
+
+	// FlushState returns the flush state for the specified shard and block start.
+	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
 }
 
 // Shard is a time series database shard.
