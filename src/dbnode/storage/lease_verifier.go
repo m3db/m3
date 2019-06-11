@@ -22,19 +22,31 @@ package storage
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/ident"
 )
 
+type flushStateRetriever interface {
+	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+}
+
 type leaseVerifier struct {
-	db database
+	flushStateRetriever flushStateRetriever
+}
+
+func newLeaseVerifier(retriever flushStateRetriever) *leaseVerifier {
+	return &leaseVerifier{
+		flushStateRetriever: retriever,
+	}
 }
 
 func (v *leaseVerifier) VerifyLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) error {
-	flushState, err := v.db.FlushState(
+	flushState, err := v.flushStateRetriever.FlushState(
 		descriptor.Namespace, uint32(descriptor.Shard), descriptor.BlockStart)
 	if err != nil {
 		return fmt.Errorf(
