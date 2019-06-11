@@ -252,15 +252,17 @@ func (r *reader) seriesMetadataForEntry(
 		}
 	}
 
+	seriesID := idPool.BinaryID(id)
+	namespaceID := idPool.BinaryID(namespace)
 	metadata = seriesMetadata{
 		Series: ts.Series{
 			UniqueIndex: entry.Index,
-			ID:          idPool.BinaryID(id),
-			Namespace:   idPool.BinaryID(namespace),
+			ID:          seriesID,
+			Namespace:   namespaceID,
 			Shard:       decoded.Shard,
 			Tags:        tags,
 		},
-		passedPredicate: r.seriesPredicate(metadata.ID, metadata.Namespace),
+		passedPredicate: r.seriesPredicate(seriesID, namespaceID),
 	}
 
 	r.metadataLookup[entry.Index] = metadata
