@@ -238,33 +238,32 @@ func (c Configuration) NewAdminClient(
 
 	var envCfg environment.ConfigureResults
 
-	// Initialize envCfg regardless of whether topology initializer is set or not.
-	if c.EnvironmentConfig.Service != nil {
-		cfgParams := environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-		}
-		if c.HashingConfiguration != nil {
-			cfgParams.HashingSeed = c.HashingConfiguration.Seed
-		}
+	// Initialize envCfg only if topology initializer is not set.
+	if params.TopologyInitializer == nil {
+		if c.EnvironmentConfig.Service != nil {
+			cfgParams := environment.ConfigurationParameters{
+				InstrumentOpts: iopts,
+			}
+			if c.HashingConfiguration != nil {
+				cfgParams.HashingSeed = c.HashingConfiguration.Seed
+			}
 
-		envCfg, err = c.EnvironmentConfig.Configure(cfgParams)
-		if err != nil {
-			err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
-			return nil, err
-		}
-	} else if c.EnvironmentConfig.Static != nil {
-		envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+			envCfg, err = c.EnvironmentConfig.Configure(cfgParams)
+			if err != nil {
+				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
+				return nil, err
+			}
+		} else if c.EnvironmentConfig.Static != nil {
+			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
 
-		if err != nil {
-			err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
-			return nil, err
+			if err != nil {
+				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
+				return nil, err
+			}
+		} else {
+			return nil, errConfigurationMustSupplyConfig
 		}
 	} else {
-		return nil, errConfigurationMustSupplyConfig
-	}
-
-	// Override topology initializer with params.
-	if params.TopologyInitializer != nil {
 		envCfg.TopologyInitializer = params.TopologyInitializer
 	}
 
@@ -316,6 +315,10 @@ func (c Configuration) NewAdminClient(
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
+
+		if envCfg.KVStore == nil {
+			return nil, errors.New("m3db client is not properly configured")
+		}
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
 		// Load schema registry from m3db metadata store.
 		err := loadSchemaRegistryFromKVStore(schemaRegistry, envCfg.KVStore)
