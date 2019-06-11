@@ -286,7 +286,7 @@ func (m *seekerManager) UpdateOpenLease(
 	state block.LeaseState,
 ) (block.UpdateOpenLeaseResult, error) {
 	// TODO(rartoul): This is a no-op for now until the logic for swapping out seekers is written.
-	return block.UpdateOpenLeaseResult{}, nil
+	return block.NoOpenLease, nil
 }
 
 // getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
