@@ -58,6 +58,10 @@ func (v *leaseVerifier) VerifyLease(
 		// The cold flush version and volume correspond 1:1 so a lease should only
 		// be permitted if the requested volume is equal to the highest flushed
 		// volume (the current cold flush version).
+		//
+		// This logic also holds in situations where the cold flush feature is not
+		// enabled because even in that case the volume number for the first warm
+		// flush should be 0 and the cold version should also be 0.
 		return fmt.Errorf(
 			"cannot permit lease for ns: %s, shard: %d, blockStart: %s, volume: %d when latest volume is %d",
 			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), state.Volume, flushState.ColdVersion)
