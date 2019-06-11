@@ -966,7 +966,7 @@ type Options interface {
 	SchemaRegistry() namespace.SchemaRegistry
 
 	// SetBlockLeaseManager sets the block leaser.
-	SetBlockLeaseManager(leaser block.LeaseManager) Options
+	SetBlockLeaseManager(leaseMgr block.LeaseManager) Options
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager

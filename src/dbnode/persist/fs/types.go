@@ -457,6 +457,12 @@ type Options interface {
 
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
+
+	// SetBlockLeaseManager sets the block leaser.
+	SetBlockLeaseManager(leaseMgr block.LeaseManager) Options
+
+	// BlockLeaseManager returns the block leaser.
+	BlockLeaseManager() block.LeaseManager
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

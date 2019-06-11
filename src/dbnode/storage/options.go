@@ -683,9 +683,9 @@ func (o *options) SchemaRegistry() namespace.SchemaRegistry {
 	return o.schemaReg
 }
 
-func (o *options) SetBlockLeaseManager(leaser block.LeaseManager) Options {
+func (o *options) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
 	opts := *o
-	opts.blockLeaseManager = leaser
+	opts.blockLeaseManager = leaseMgr
 	return &opts
 }
 

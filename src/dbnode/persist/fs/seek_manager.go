@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -159,6 +159,8 @@ func (m *seekerManager) Open(
 	if m.status != seekerManagerNotOpen {
 		return errSeekerManagerAlreadyOpenOrClosed
 	}
+
+	m.opts.BlockLeaseManager()
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
