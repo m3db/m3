@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -283,7 +284,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
-	) (UpdateOpenLeaseResult, error) {
+) (block.UpdateOpenLeaseResult, error) {
 	// TODO(rartoul): This is a no-op for now until the logic for swapping out seekers is written.
 	return block.UpdateOpenLeaseResult{}, nil
 }
