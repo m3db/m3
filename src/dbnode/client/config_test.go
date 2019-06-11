@@ -60,10 +60,10 @@ proto:
   enabled: false
   schema_registry:
     "ns1:2d":
-      schemaFilePath: "file/path/to/ns1/schema"
+      schemaDeployID: "deployID-123"
       messageName: "ns1_msg_name"
     ns2:
-      schemaFilePath: "file/path/to/ns2/schema"
+      schemaDeployID: "deployID-345"
       messageName: "ns2_msg_name"
 `
 
@@ -120,8 +120,8 @@ proto:
 		Proto: &ProtoConfiguration{
 			Enabled: false,
 			SchemaRegistry: map[string]NamespaceProtoSchema{
-				"ns1:2d": {SchemaFilePath: "file/path/to/ns1/schema", MessageName: "ns1_msg_name"},
-				"ns2": {SchemaFilePath: "file/path/to/ns2/schema", MessageName: "ns2_msg_name"},
+				"ns1:2d": {SchemaDeployID: "deployID-123", MessageName: "ns1_msg_name"},
+				"ns2": {SchemaDeployID: "deployID-345", MessageName: "ns2_msg_name"},
 			},
 		},
 	}
