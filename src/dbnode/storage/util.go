@@ -76,8 +76,11 @@ func DefaultTestOptions() Options {
 		runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
 			runtime.NewOptions())
 
-		pm, err := fs.NewPersistManager(fs.NewOptions().
-			SetRuntimeOptionsManager(runtimeOptionsMgr))
+		blockLeaseManager := &noopBlockLeaseManager{}
+		fsOpts := fs.NewOptions().
+			SetRuntimeOptionsManager(runtimeOptionsMgr).
+			SetBlockLeaseManager(blockLeaseManager)
+		pm, err := fs.NewPersistManager(fsOpts)
 		if err != nil {
 			panic(err)
 		}
@@ -98,8 +101,9 @@ func DefaultTestOptions() Options {
 			SetSeriesCachePolicy(series.CacheAll).
 			SetPersistManager(pm).
 			SetRepairEnabled(false).
-			SetCommitLogOptions(opts.CommitLogOptions()).
-			SetBlockLeaseManager(&noopBlockLeaseManager{})
+			SetCommitLogOptions(
+				opts.CommitLogOptions().SetFilesystemOptions(fsOpts)).
+			SetBlockLeaseManager(blockLeaseManager)
 	})
 
 	return defaultTestOptions

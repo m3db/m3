@@ -158,10 +158,6 @@ func NewDatabase(
 		shardSet:   shardSet,
 		namespaces: newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
 	}
-
-	blLeaseVerifier := newLeaseVerifier(d)
-	blLeaseManager := block.NewLeaseManager(blLeaseVerifier)
-	opts = opts.SetBlockLeaseManager(blLeaseManager)
 	if err := opts.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid options: %v", err)
 	}
