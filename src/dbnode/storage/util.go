@@ -52,7 +52,7 @@ func DefaultTestOptions() Options {
 			runtime.NewOptions())
 
 		blockLeaseManager := &block.NoopBlockLeaseManager{}
-		fsOpts :	= fs.NewOptions().
+		fsOpts := fs.NewOptions().
 			SetRuntimeOptionsManager(runtimeOptionsMgr).
 			SetBlockLeaseManager(blockLeaseManager)
 		pm, err := fs.NewPersistManager(fsOpts)
