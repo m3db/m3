@@ -27,6 +27,11 @@ import (
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
+	"github.com/m3db/m3/src/x/sampler"
+)
+
+var (
+	defaultSampleRate = 0.01
 )
 
 // Serve starts serving RPC traffic.
@@ -58,7 +63,8 @@ func Serve(
 	log.Infof("http server: listening on %s", httpAddr)
 
 	if m3msgConfig := m3msgServerOpts.M3msgConfiguration(); m3msgConfig != nil {
-		m3msgServer, err := m3msgConfig.NewServer(m3msgserver.GetWriteFn(aggregator, nil), m3msgServerOpts.InstrumentOptions())
+		s, _ := sampler.NewSampler(defaultSampleRate)
+		m3msgServer, err := m3msgConfig.NewServer(m3msgserver.GetWriteFn(aggregator, s, log), m3msgServerOpts.InstrumentOptions())
 		if err != nil {
 			return fmt.Errorf("could not create m3msg server at %s: %v", m3msgAddr, err)
 		}

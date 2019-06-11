@@ -11,12 +11,15 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/sampler"
+
+	"go.uber.org/zap"
 )
 
 // GetWriteFn returns the m3msg write function for pass-through metrics
 func GetWriteFn(
 	aggregator aggregator.Aggregator,
 	s *sampler.Sampler,
+	log *zap.SugaredLogger,
 ) m3msg.WriteFn {
 	return func(
 		ctx context.Context,
@@ -43,9 +46,23 @@ func GetWriteFn(
 		}
 
 		if err := aggregator.AddPassThrough(metric, metadata); err != nil {
+			if log != nil {
+				log.Infof("[FAIL] to write pass-through metric %s with metadata ID=%s SP=%s",
+					metric.String(),
+					metadata.AggregationID.String(),
+					metadata.StoragePolicy.String(),
+				)
+			}
 			callback.Callback(m3msg.OnRetriableError)
 		}
 
+		if s != nil && s.Sample() && log != nil {
+			log.Infof("[SUCCESS] to write pass-through metric %s with metadata ID=%s SP=%s (sampled)",
+				metric.String(),
+				metadata.AggregationID.String(),
+				metadata.StoragePolicy.String(),
+			)
+		}
 		callback.Callback(m3msg.OnSuccess)
 	}
 }

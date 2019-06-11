@@ -36,7 +36,7 @@ var (
 
 func TestGetWriteFn(t *testing.T) {
 	aggregator := &mockAggregator{}
-	writeFn := GetWriteFn(aggregator, nil)
+	writeFn := GetWriteFn(aggregator, nil, nil)
 
 	callback := &mockCallback{
 		record: make(map[xm3msg.CallbackType]int),
