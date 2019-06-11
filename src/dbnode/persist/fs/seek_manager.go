@@ -160,7 +160,8 @@ func (m *seekerManager) Open(
 		return errSeekerManagerAlreadyOpenOrClosed
 	}
 
-	m.opts.BlockLeaseManager()
+	// Register for updates to block leases.
+	m.opts.BlockLeaseManager().RegisterLeaser(m)
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
@@ -276,6 +277,15 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 	}
 
 	return nil
+}
+
+// Implements block.Leaser.
+func (m *seekerManager) UpdateOpenLease(
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+	) (UpdateOpenLeaseResult, error) {
+	// TODO(rartoul): This is a no-op for now until the logic for swapping out seekers is written.
+	return block.UpdateOpenLeaseResult{}, nil
 }
 
 // getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
@@ -464,6 +474,9 @@ func (m *seekerManager) Close() error {
 		m.Unlock()
 		return errSeekerManagerAlreadyClosed
 	}
+
+	// Unregister for lease updates since all the seekers are going to be closed.
+	m.opts.BlockLeaseManager().UnregisterLeaser(m)
 
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
