@@ -238,8 +238,8 @@ func (c Configuration) NewAdminClient(
 
 	var envCfg environment.ConfigureResults
 
-	// Initialize envCfg only if topology initializer is not set.
-	if params.TopologyInitializer == nil {
+	// Initialize envCfg
+	if c.EnvironmentConfig != nil {
 		if c.EnvironmentConfig.Service != nil {
 			cfgParams := environment.ConfigurationParameters{
 				InstrumentOpts: iopts,
@@ -263,7 +263,8 @@ func (c Configuration) NewAdminClient(
 		} else {
 			return nil, errConfigurationMustSupplyConfig
 		}
-	} else {
+	}
+	if params.TopologyInitializer != nil {
 		envCfg.TopologyInitializer = params.TopologyInitializer
 	}
 
@@ -316,9 +317,6 @@ func (c Configuration) NewAdminClient(
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
 
-		if envCfg.KVStore == nil {
-			return nil, errors.New("m3db client is not properly configured")
-		}
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
 		// Load schema registry from m3db metadata store.
 		err := loadSchemaRegistryFromKVStore(schemaRegistry, envCfg.KVStore)
