@@ -20,18 +20,18 @@
 
 package block
 
-// NoopBlockLeaseManager is a no-op implementation of LeaseManager.
-type NoopBlockLeaseManager struct{}
+// NoopLeaseManager is a no-op implementation of LeaseManager.
+type NoopLeaseManager struct{}
 
-func (n *NoopBlockLeaseManager) RegisterLeaser(leaser Leaser) error {
+func (n *NoopLeaseManager) RegisterLeaser(leaser Leaser) error {
 	return nil
 }
 
-func (n *NoopBlockLeaseManager) UnregisterLeaser(leaser Leaser) error {
+func (n *NoopLeaseManager) UnregisterLeaser(leaser Leaser) error {
 	return nil
 }
 
-func (n *NoopBlockLeaseManager) OpenLease(
+func (n *NoopLeaseManager) OpenLease(
 	leaser Leaser,
 	descriptor LeaseDescriptor,
 	state LeaseState,
@@ -39,13 +39,13 @@ func (n *NoopBlockLeaseManager) OpenLease(
 	return nil
 }
 
-func (n *NoopBlockLeaseManager) UpdateOpenLeases(
+func (n *NoopLeaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,
 ) (UpdateLeasesResult, error) {
 	return UpdateLeasesResult{}, nil
 }
 
-func (n *NoopBlockLeaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
+func (n *NoopLeaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
 	return nil
 }

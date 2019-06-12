@@ -31,11 +31,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -85,7 +86,8 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 		SetFilePathPrefix(filePathPrefix).
 		SetWriterBufferSize(testWriterBufferSize).
 		SetNewFileMode(testFileMode).
-		SetNewDirectoryMode(testDirMode)
+		SetNewDirectoryMode(testDirMode).
+		SetBlockLeaseManager(&block.NoopLeaseManager{})
 }
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
