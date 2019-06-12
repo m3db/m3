@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/checked"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -116,8 +115,7 @@ func (w *writer) writeWithPredicate(
 		SetFilePathPrefix(gOpts.FilePathPrefix()).
 		SetWriterBufferSize(gOpts.WriterBufferSize()).
 		SetNewFileMode(gOpts.NewFileMode()).
-		SetNewDirectoryMode(gOpts.NewDirectoryMode()).
-		SetBlockLeaseManager(&block.NoopLeaseManager{}))
+		SetNewDirectoryMode(gOpts.NewDirectoryMode()))
 	if err != nil {
 		return err
 	}

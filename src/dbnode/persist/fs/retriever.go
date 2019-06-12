@@ -38,8 +38,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -103,7 +103,11 @@ type blockRetriever struct {
 func NewBlockRetriever(
 	opts BlockRetrieverOptions,
 	fsOpts Options,
-) DataBlockRetriever {
+) (DataBlockRetriever, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	segmentReaderPool := opts.SegmentReaderPool()
 	reqPoolOpts := opts.RequestPoolOptions()
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
@@ -122,7 +126,7 @@ func NewBlockRetriever(
 		// buffering is required
 		fetchLoopsShouldShutdownCh: make(chan struct{}),
 		fetchLoopsHaveShutdownCh:   make(chan struct{}, opts.FetchConcurrency()),
-	}
+	}, nil
 }
 
 func (r *blockRetriever) Open(ns namespace.Metadata) error {

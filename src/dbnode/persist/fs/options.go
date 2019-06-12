@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -74,9 +73,8 @@ var (
 	defaultNewFileMode      = os.FileMode(0666)
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
 
-	errTagEncoderPoolNotSet    = errors.New("tag encoder pool is not set")
-	errTagDecoderPoolNotSet    = errors.New("tag decoder pool is not set")
-	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")
+	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
+	errTagDecoderPoolNotSet = errors.New("tag decoder pool is not set")
 )
 
 type options struct {
@@ -100,7 +98,6 @@ type options struct {
 	forceIndexSummariesMmapMemory        bool
 	forceBloomFilterMmapMemory           bool
 	mmapEnableHugePages                  bool
-	blockLeaseManager                    block.LeaseManager
 }
 
 // NewOptions creates a new set of fs options
@@ -153,9 +150,6 @@ func (o *options) Validate() error {
 	}
 	if o.tagDecoderPool == nil {
 		return errTagDecoderPoolNotSet
-	}
-	if o.blockLeaseManager == nil {
-		return errBlockLeaseManagerNotSet
 	}
 	return nil
 }
@@ -358,14 +352,4 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
-}
-
-func (o *options) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
-	opts := *o
-	opts.blockLeaseManager = leaseMgr
-	return &opts
-}
-
-func (o *options) BlockLeaseManager() block.LeaseManager {
-	return o.blockLeaseManager
 }

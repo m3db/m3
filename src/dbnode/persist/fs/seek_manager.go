@@ -162,7 +162,7 @@ func (m *seekerManager) Open(
 	}
 
 	// Register for updates to block leases.
-	m.opts.BlockLeaseManager().RegisterLeaser(m)
+	// m.opts.BlockLeaseManager().RegisterLeaser(m)
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
@@ -477,7 +477,7 @@ func (m *seekerManager) Close() error {
 	}
 
 	// Unregister for lease updates since all the seekers are going to be closed.
-	m.opts.BlockLeaseManager().UnregisterLeaser(m)
+	// m.opts.BlockLeaseManager().UnregisterLeaser(m)
 
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.

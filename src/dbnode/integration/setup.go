@@ -314,7 +314,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		fsOpts = fs.NewOptions().
 			SetFilePathPrefix(filePathPrefix)
 	}
-	fsOpts = fsOpts.SetBlockLeaseManager(blockLeaseManager)
 
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
@@ -340,8 +339,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		default:
 			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 				func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-					retrieverOpts := fs.NewBlockRetrieverOptions()
-					retriever := fs.NewBlockRetriever(retrieverOpts, fsOpts)
+					retrieverOpts := fs.NewBlockRetrieverOptions().
+						SetBlockLeaseManager(blockLeaseManager)
+					retriever, err := fs.NewBlockRetriever(retrieverOpts, fsOpts)
+					if err != nil {
+						return nil, err
+					}
+
 					if err := retriever.Open(md); err != nil {
 						return nil, err
 					}

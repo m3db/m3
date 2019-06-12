@@ -412,8 +412,7 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
-		SetBlockLeaseManager(blockLeaseManager)
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault())
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -469,14 +468,18 @@ func Run(runOpts RunOptions) {
 		retrieverOpts := fs.NewBlockRetrieverOptions().
 			SetBytesPool(opts.BytesPool()).
 			SetSegmentReaderPool(opts.SegmentReaderPool()).
-			SetIdentifierPool(opts.IdentifierPool())
+			SetIdentifierPool(opts.IdentifierPool()).
+			SetBlockLeaseManager(blockLeaseManager)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-				retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
+				retriever, err := fs.NewBlockRetriever(retrieverOpts, fsopts)
+				if err != nil {
+					return nil, err
+				}
 				if err := retriever.Open(md); err != nil {
 					return nil, err
 				}

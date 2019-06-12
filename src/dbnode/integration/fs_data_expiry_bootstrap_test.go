@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -34,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +65,11 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-			retriever := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
+			retriever, err := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
+			if err != nil {
+				return nil, err
+			}
+
 			if err := retriever.Open(md); err != nil {
 				return nil, err
 			}

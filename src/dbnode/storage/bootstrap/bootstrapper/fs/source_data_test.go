@@ -86,8 +86,7 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 		SetFilePathPrefix(filePathPrefix).
 		SetWriterBufferSize(testWriterBufferSize).
 		SetNewFileMode(testFileMode).
-		SetNewDirectoryMode(testDirMode).
-		SetBlockLeaseManager(&block.NoopLeaseManager{})
+		SetNewDirectoryMode(testDirMode)
 }
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
