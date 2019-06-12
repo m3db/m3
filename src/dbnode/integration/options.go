@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 
 	"github.com/stretchr/testify/require"
@@ -256,7 +256,7 @@ type testOptions interface {
 	FilePathPrefix() string
 
 	// SetProtoEncoding turns on proto encoder.
-	SetProtoEncoding (value bool) testOptions
+	SetProtoEncoding(value bool) testOptions
 
 	// ProtoEncoding returns whether proto encoder is turned on.
 	ProtoEncoding() bool
@@ -267,6 +267,12 @@ type testOptions interface {
 
 	// AssertTestDataEqual returns a comparator to compare two byte arrays.
 	AssertTestDataEqual() assertTestDataEqual
+
+	// SetNowFn will set the now fn.
+	SetNowFn(value func() time.Time) testOptions
+
+	// NowFn returns the now fn.
+	NowFn() func() time.Time
 }
 
 type options struct {
@@ -298,6 +304,7 @@ type options struct {
 	writeNewSeriesAsync                bool
 	protoEncoding                      bool
 	assertEqual                        assertTestDataEqual
+	nowFn                              func() time.Time
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -612,4 +619,14 @@ func (o *options) SetAssertTestDataEqual(value assertTestDataEqual) testOptions 
 
 func (o *options) AssertTestDataEqual() assertTestDataEqual {
 	return o.assertEqual
+}
+
+func (o *options) SetNowFn(value func() time.Time) testOptions {
+	opts := *o
+	opts.nowFn = value
+	return &opts
+}
+
+func (o *options) NowFn() func() time.Time {
+	return o.nowFn
 }

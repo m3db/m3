@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -47,7 +48,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -82,7 +82,7 @@ var (
 	testProtoEqual    = func(expect, actual []byte) bool {
 		return prototest.ProtoEqual(testSchema, expect, actual)
 	}
-	testProtoIter    = prototest.NewProtoMessageIterator(testProtoMessages)
+	testProtoIter = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // nowSetterFn is the function that sets the current time
@@ -293,8 +293,14 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		now = t
 		lock.Unlock()
 	}
-	storageOpts = storageOpts.SetClockOptions(
-		storageOpts.ClockOptions().SetNowFn(getNowFn))
+	if overrideTimeNow := opts.NowFn(); overrideTimeNow != nil {
+		// Allow overriding the frozen time
+		storageOpts = storageOpts.SetClockOptions(
+			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
+	} else {
+		storageOpts = storageOpts.SetClockOptions(
+			storageOpts.ClockOptions().SetNowFn(getNowFn))
+	}
 
 	// Set up file path prefix
 	idx := atomic.AddUint64(&created, 1) - 1
