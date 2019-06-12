@@ -23,6 +23,8 @@
 package integration
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -37,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -87,6 +90,14 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	// Write test data
 	log.Info("generating data")
 
+	// NB(r): Use TEST_NUM_SERIES=50000 for a representative large data set to
+	// test loading locally
+	numSeries := 1024
+	if str := os.Getenv("TEST_NUM_SERIES"); str != "" {
+		numSeries, err = strconv.Atoi(str)
+		require.NoError(t, err)
+	}
+
 	step := time.Second
 	numPoints := 128
 	if str := os.Getenv("TEST_NUM_POINTS"); str != "" {
@@ -98,34 +109,30 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 		fmt.Sprintf("num points %d multiplied by step %s is greater than block size %s",
 			numPoints, step.String(), blockSize.String()))
 
-	numSeries := 2 << 15 // 64k
-	if str := os.Getenv("TEST_NUM_SERIES"); str != "" {
-		numSeries, err = strconv.Atoi(str)
-		require.NoError(t, err)
-	}
-
 	numTags := 8
 	if str := os.Getenv("TEST_NUM_TAGS"); str != "" {
 		numTags, err = strconv.Atoi(str)
 		require.NoError(t, err)
 	}
 
-	series := make([]struct {
-		id   ident.ID
-		tags ident.Tags
-	}, numSeries)
-	prefix := "test.id.test.id.test.id.test.id.test.id.test.id"
-	prefix += prefix
-	for i := 0; i < numSeries; i++ {
-		series[i].id = ident.StringID(fmt.Sprintf("%s.%d", prefix, i))
-		series[i].tags = ident.NewTags()
+	numTagSets := 128
+	if str := os.Getenv("TEST_NUM_TAG_SETS"); str != "" {
+		numTagSets, err = strconv.Atoi(str)
+		require.NoError(t, err)
+	}
+
+	// Pre-generate tag sets, but not too many to reduce heap size.
+	tagSets := make([]ident.Tags, 0, numTagSets)
+	for i := 0; i < numTagSets; i++ {
+		tags := ident.NewTags()
 		for j := 0; j < numTags; j++ {
 			tag := ident.Tag{
 				Name:  ident.StringID(fmt.Sprintf("series.%d.tag.%d", i, j)),
 				Value: ident.StringID(fmt.Sprintf("series.%d.tag-value.%d", i, j)),
 			}
-			series[i].tags.Append(tag)
+			tags.Append(tag)
 		}
+		tagSets = append(tagSets, tags)
 	}
 
 	log.Info("writing data")
@@ -138,17 +145,37 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, commitLog.Open())
 
-	// write points
+	// NB(r): Write points using no up front series metadata or point
+	// generation so that the memory usage is constant during the write phase
 	ctx := context.NewContext()
 	defer ctx.Close()
 	shardSet := setup.shardSet
+	idPrefix := "test.id.test.id.test.id.test.id.test.id.test.id.test.id.test.id"
+	idPrefixBytes := []byte(idPrefix)
+	checkedBytes := checked.NewBytes(nil, nil)
+	seriesID := ident.BinaryID(checkedBytes)
+	numBytes := make([]byte, 8)
+	numHexBytes := make([]byte, hex.EncodedLen(len(numBytes)))
 	for i := 0; i < numPoints; i++ {
 		for j := 0; j < numSeries; j++ {
+			// Write the ID prefix
+			checkedBytes.Resize(0)
+			checkedBytes.AppendAll(idPrefixBytes)
+
+			// Write out the binary representation then hex encode the
+			// that into the ID to give it a unique ID for this series number
+			binary.LittleEndian.PutUint64(numBytes, uint64(j))
+			hex.Encode(numHexBytes, numBytes)
+			checkedBytes.AppendAll(numHexBytes)
+
+			// Use the tag sets appropriate for this series number
+			seriesTags := tagSets[j%len(tagSets)]
+
 			series := ts.Series{
 				Namespace:   ns.ID(),
-				Shard:       shardSet.Lookup(series[j].id),
-				ID:          series[j].id,
-				Tags:        series[j].tags,
+				Shard:       shardSet.Lookup(seriesID),
+				ID:          seriesID,
+				Tags:        seriesTags,
 				UniqueIndex: uint64(j),
 			}
 			dp := ts.Datapoint{
