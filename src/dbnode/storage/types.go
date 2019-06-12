@@ -210,6 +210,9 @@ type Database interface {
 	// BootstrapState captures and returns a snapshot of the databases'
 	// bootstrap state.
 	BootstrapState() DatabaseBootstrapState
+
+	// FlushState returns the flush state for the specified shard and block start.
+	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
 }
 
 // database is the internal database interface
@@ -357,16 +360,6 @@ type databaseNamespace interface {
 	// NB: The start/end times are assumed to be aligned to block size boundary.
 	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
 
-	// IsCapturedBySnapshot accepts a time t (system time, not datapoint timestamp time)
-	// as well as a [start, end] range (inclusive on both sides) and determines if all of
-	// the data for all of its shards in the namespace blocks contained within the range
-	// are captured by snapshot files at least up until time t.
-	// This function will not take into account whether or not the data has been flushed
-	// already. I.E even if the data has been flushed successfully to disk, this function
-	// will return false if the data is not also present in a snapshot file.
-	IsCapturedBySnapshot(
-		alignedInclusiveStart, alignedInclusiveEnd, t time.Time) (bool, error)
-
 	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
 
@@ -376,6 +369,9 @@ type databaseNamespace interface {
 	// BootstrapState captures and returns a snapshot of the namespaces'
 	// bootstrap state.
 	BootstrapState() ShardBootstrapStates
+
+	// FlushState returns the flush state for the specified shard and block start.
+	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
 }
 
 // Shard is a time series database shard.

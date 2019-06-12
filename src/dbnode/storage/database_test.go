@@ -1094,6 +1094,34 @@ func TestDatabaseBootstrapState(t *testing.T) {
 	}, dbBootstrapState)
 }
 
+func TestDatabaseFlushState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	var (
+		shardID            = uint32(0)
+		blockStart         = time.Now().Truncate(2 * time.Hour)
+		expectedFlushState = fileOpState{
+			ColdVersion: 2,
+		}
+		nsID = "testns1"
+		ns   = dbAddNewMockNamespace(ctrl, d, nsID)
+	)
+	ns.EXPECT().FlushState(shardID, blockStart).Return(expectedFlushState, nil)
+
+	flushState, err := d.FlushState(ident.StringID(nsID), shardID, blockStart)
+	require.NoError(t, err)
+	require.Equal(t, expectedFlushState, flushState)
+
+	_, err = d.FlushState(ident.StringID("not-exist"), shardID, blockStart)
+	require.Error(t, err)
+}
+
 func TestDatabaseIsBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

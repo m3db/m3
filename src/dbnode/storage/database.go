@@ -951,6 +951,18 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 	}
 }
 
+func (d *db) FlushState(
+	namespace ident.ID,
+	shardID uint32,
+	blockStart time.Time,
+) (fileOpState, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		return fileOpState{}, err
+	}
+	return n.FlushState(shardID, blockStart)
+}
+
 func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RLock()
 	n, exists := d.namespaces.Get(namespace)
