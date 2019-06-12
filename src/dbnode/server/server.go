@@ -714,6 +714,11 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not construct database", zap.Error(err))
 	}
 
+	// Now that the database has been created it can be set as the block lease verifier
+	// on the block lease manager.
+	leaseVerifier := storage.NewLeaseVerifier(db)
+	blockLeaseManager.SetLeaseVerifier(leaseVerifier)
+
 	if err := db.Open(); err != nil {
 		logger.Fatal("could not open database", zap.Error(err))
 	}

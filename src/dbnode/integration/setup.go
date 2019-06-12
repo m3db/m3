@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -47,7 +48,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -82,7 +82,7 @@ var (
 	testProtoEqual    = func(expect, actual []byte) bool {
 		return prototest.ProtoEqual(testSchema, expect, actual)
 	}
-	testProtoIter    = prototest.NewProtoMessageIterator(testProtoMessages)
+	testProtoIter = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // nowSetterFn is the function that sets the current time
@@ -99,17 +99,18 @@ type testSetup struct {
 
 	logger *zap.Logger
 
-	db             cluster.Database
-	storageOpts    storage.Options
-	fsOpts         fs.Options
-	hostID         string
-	origin         topology.Host
-	topoInit       topology.Initializer
-	shardSet       sharding.ShardSet
-	getNowFn       clock.NowFn
-	setNowFn       nowSetterFn
-	tchannelClient rpc.TChanNode
-	m3dbClient     client.Client
+	db                cluster.Database
+	storageOpts       storage.Options
+	fsOpts            fs.Options
+	blockLeaseManager block.LeaseManager
+	hostID            string
+	origin            topology.Host
+	topoInit          topology.Initializer
+	shardSet          sharding.ShardSet
+	getNowFn          clock.NowFn
+	setNowFn          nowSetterFn
+	tchannelClient    rpc.TChanNode
+	m3dbClient        client.Client
 	// We need two distinct clients where one has the origin set to the same ID as the
 	// node itself (I.E) the client will behave exactly as if it is the node itself
 	// making requests, and another client with the origin set to an ID different than
@@ -160,9 +161,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// Schema registry is shared between database and admin client.
 	schemaReg := namespace.NewSchemaRegistry(opts.ProtoEncoding(), nil)
 
+	blockLeaseManager := block.NewLeaseManager(nil)
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(nsInit).
-		SetSchemaRegistry(schemaReg)
+		SetSchemaRegistry(schemaReg).
+		SetBlockLeaseManager(blockLeaseManager)
 
 	if opts.ProtoEncoding() {
 		blockOpts := storageOpts.DatabaseBlockOptions().
@@ -311,6 +314,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		fsOpts = fs.NewOptions().
 			SetFilePathPrefix(filePathPrefix)
 	}
+	fsOpts = fsOpts.SetBlockLeaseManager(blockLeaseManager)
 
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
@@ -379,6 +383,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		schemaReg:                   schemaReg,
 		logger:                      logger,
 		storageOpts:                 storageOpts,
+		blockLeaseManager:           blockLeaseManager,
 		fsOpts:                      fsOpts,
 		hostID:                      id,
 		origin:                      newOrigin(id, tchannelNodeAddr),
@@ -540,6 +545,9 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 	if err != nil {
 		return err
 	}
+
+	leaseVerifier := storage.NewLeaseVerifier(ts.db)
+	ts.blockLeaseManager.SetLeaseVerifier(leaseVerifier)
 
 	// Check if clients were closed by stopServer and need to be re-created.
 	ts.maybeResetClients()
