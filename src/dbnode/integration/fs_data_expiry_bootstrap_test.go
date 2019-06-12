@@ -61,7 +61,8 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
-	retrieverOpts := fs.NewBlockRetrieverOptions()
+	retrieverOpts := fs.NewBlockRetrieverOptions().
+		SetBlockLeaseManager(&block.NoopLeaseManager{})
 
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
