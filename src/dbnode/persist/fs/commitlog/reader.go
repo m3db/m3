@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -81,7 +82,6 @@ type reader struct {
 	seriesPredicate SeriesFilterPredicate
 
 	logEntryBytes          []byte
-	metadataLookup         map[uint64]seriesMetadata
 	tagDecoder             serialize.TagDecoder
 	tagDecoderCheckedBytes checked.Bytes
 	checkedBytesPool       pool.CheckedBytesPool
@@ -89,6 +89,9 @@ type reader struct {
 	infoDecoder            *msgpack.Decoder
 	infoDecoderStream      msgpack.ByteDecoderStream
 	hasBeenOpened          bool
+
+	metadataLookup map[uint64]seriesMetadata
+	namespacesRead []ident.ID
 }
 
 func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) commitLogReader {
@@ -137,8 +140,7 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 	}
 	r.infoDecoderStream.Reset(r.logEntryBytes)
 	r.infoDecoder.Reset(r.infoDecoderStream)
-	logInfo, err := r.infoDecoder.DecodeLogInfo()
-	return logInfo, err
+	return r.infoDecoder.DecodeLogInfo()
 }
 
 // Read reads the next log entry in order.
@@ -228,9 +230,19 @@ func (r *reader) seriesMetadataForEntry(
 	id.IncRef()
 	id.AppendAll(decoded.ID)
 
-	namespace := r.checkedBytesPool.Get(len(decoded.Namespace))
-	namespace.IncRef()
-	namespace.AppendAll(decoded.Namespace)
+	// Find or allocate the namespace ID.
+	var namespaceID ident.ID
+	for _, ns := range r.namespacesRead {
+		if bytes.Equal(ns.Bytes(), decoded.Namespace) {
+			namespaceID = ns
+			break
+		}
+	}
+	if namespaceID == nil {
+		// Take a copy and keep around to reuse later.
+		namespaceID = ident.BytesID(append([]byte(nil), decoded.Namespace...))
+		r.namespacesRead = append(r.namespacesRead, namespaceID)
+	}
 
 	var (
 		idPool      = r.opts.IdentifierPool()
@@ -253,7 +265,6 @@ func (r *reader) seriesMetadataForEntry(
 	}
 
 	seriesID := idPool.BinaryID(id)
-	namespaceID := idPool.BinaryID(namespace)
 	metadata = seriesMetadata{
 		Series: ts.Series{
 			UniqueIndex: entry.Index,
@@ -267,7 +278,6 @@ func (r *reader) seriesMetadataForEntry(
 
 	r.metadataLookup[entry.Index] = metadata
 
-	namespace.DecRef()
 	id.DecRef()
 
 	return metadata, nil
