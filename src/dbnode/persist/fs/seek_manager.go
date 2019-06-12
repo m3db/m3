@@ -69,9 +69,10 @@ const (
 type seekerManager struct {
 	sync.RWMutex
 
-	opts             Options
-	fetchConcurrency int
-	logger           *zap.Logger
+	opts               Options
+	blockRetrieverOpts BlockRetrieverOptions
+	fetchConcurrency   int
+	logger             *zap.Logger
 
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
@@ -125,7 +126,7 @@ type seekerManagerPendingClose struct {
 func NewSeekerManager(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
-	fetchConcurrency int,
+	blockRetrieverOpts BlockRetrieverOptions,
 ) DataFileSetSeekerManager {
 	reusableSeekerResourcesPool := pool.NewObjectPool(
 		pool.NewObjectPoolOptions().
@@ -140,7 +141,8 @@ func NewSeekerManager(
 		bytesPool:                   bytesPool,
 		filePathPrefix:              opts.FilePathPrefix(),
 		opts:                        opts,
-		fetchConcurrency:            fetchConcurrency,
+		blockRetrieverOpts:          blockRetrieverOpts,
+		fetchConcurrency:            blockRetrieverOpts.FetchConcurrency(),
 		logger:                      opts.InstrumentOptions().Logger(),
 		openCloseLoopDoneCh:         make(chan struct{}),
 		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
@@ -162,7 +164,7 @@ func (m *seekerManager) Open(
 	}
 
 	// Register for updates to block leases.
-	// m.opts.BlockLeaseManager().RegisterLeaser(m)
+	m.blockRetrieverOpts.BlockLeaseManager().RegisterLeaser(m)
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
@@ -477,7 +479,7 @@ func (m *seekerManager) Close() error {
 	}
 
 	// Unregister for lease updates since all the seekers are going to be closed.
-	// m.opts.BlockLeaseManager().UnregisterLeaser(m)
+	m.blockRetrieverOpts.BlockLeaseManager().UnregisterLeaser(m)
 
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.

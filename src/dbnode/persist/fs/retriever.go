@@ -66,7 +66,7 @@ type blockRetrieverStatus int
 type newSeekerMgrFn func(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
-	fetchConcurrency int,
+	blockRetrieverOpts BlockRetrieverOptions,
 ) DataFileSetSeekerManager
 
 const (
@@ -137,7 +137,7 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 		return errBlockRetrieverAlreadyOpenOrClosed
 	}
 
-	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts.FetchConcurrency())
+	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts)
 	if err := seekerMgr.Open(ns); err != nil {
 		return err
 	}
