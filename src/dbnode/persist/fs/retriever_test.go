@@ -52,11 +52,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
-		SetBlockLeaseManager(&block.NoopLeaseManager{})
-)
-
 type testBlockRetrieverOptions struct {
 	retrieverOpts  BlockRetrieverOptions
 	fsOpts         Options
@@ -516,7 +511,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	newSeekerMgr := func(
 		bytesPool pool.CheckedBytesPool,
 		opts Options,
-		fetchConcurrency int,
+		blockRetrieverOpts BlockRetrieverOptions,
 	) DataFileSetSeekerManager {
 
 		return mockSeekerManager
@@ -524,7 +519,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 
 	// Setup the reader.
 	opts := testBlockRetrieverOptions{
-		retrieverOpts:  NewBlockRetrieverOptions(),
+		retrieverOpts:  defaultTestBlockRetrieverOptions,
 		fsOpts:         fsOpts,
 		newSeekerMgrFn: newSeekerMgr,
 	}
