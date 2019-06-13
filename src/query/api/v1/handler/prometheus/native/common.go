@@ -83,13 +83,14 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	if floatErr == nil {
 		ts := seconds * float64(time.Second)
 		if ts > maxInt64 || ts < minInt64 {
-			return 0, fmt.Errorf("cannot parse step='%s': as_float_err=int64 overflow after float conversion", str)
+			return 0, fmt.Errorf("cannot parse step='%s': as_float_err="+
+				"int64 overflow after float conversion", str)
 		}
 
 		return time.Duration(ts), nil
 	}
 
-	return 0, fmt.Errorf("could not parse step='%s': as_duration_err=%s, as_float_err=%s",
+	return 0, fmt.Errorf("cannot parse step='%s': as_duration_err=%s, as_float_err=%s",
 		str, durationErr, floatErr)
 }
 
