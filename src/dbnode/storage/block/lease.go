@@ -27,8 +27,11 @@ import (
 )
 
 var (
-	errLeaserAlreadyRegistered = errors.New("leaser already registered")
-	errLeaserNotRegistered     = errors.New("leaser not registered")
+	errLeaserAlreadyRegistered        = errors.New("leaser already registered")
+	errLeaserNotRegistered            = errors.New("leaser not registered")
+	errLeaseVerifierAlreadySet        = errors.New("lease verifier already set")
+	errOpenLeaseVerifierNotSet        = errors.New("cannot open leases while verifier is not set")
+	errUpdateOpenLeasesVerifierNotSet = errors.New("cannot update open leases while verifier is not set")
 )
 
 type leaseManager struct {
@@ -90,6 +93,10 @@ func (m *leaseManager) OpenLease(
 	m.Lock()
 	defer m.Unlock()
 
+	if m.verifier == nil {
+		return errOpenLeaseVerifierNotSet
+	}
+
 	registered := false
 	for _, l := range m.leasers {
 		if l == leaser {
@@ -114,6 +121,10 @@ func (m *leaseManager) UpdateOpenLeases(
 	m.Lock()
 	defer m.Unlock()
 
+	if m.verifier == nil {
+		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
+	}
+
 	var result UpdateLeasesResult
 	for _, l := range m.leasers {
 		r, err := l.UpdateOpenLease(descriptor, state)
@@ -132,4 +143,18 @@ func (m *leaseManager) UpdateOpenLeases(
 	}
 
 	return result, nil
+}
+
+func (m *leaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
+	m.Lock()
+	defer m.Unlock()
+
+	if m.verifier != nil {
+		// SetLeaseVerifier is used for delayed initialization so calling it more
+		// than once means there is an initialization bug.
+		return errLeaseVerifierAlreadySet
+	}
+
+	m.verifier = leaseVerifier
+	return nil
 }

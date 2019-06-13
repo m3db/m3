@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/pool"
@@ -50,8 +51,10 @@ func DefaultTestOptions() Options {
 		runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
 			runtime.NewOptions())
 
-		pm, err := fs.NewPersistManager(fs.NewOptions().
-			SetRuntimeOptionsManager(runtimeOptionsMgr))
+		blockLeaseManager := &block.NoopLeaseManager{}
+		fsOpts := fs.NewOptions().
+			SetRuntimeOptionsManager(runtimeOptionsMgr)
+		pm, err := fs.NewPersistManager(fsOpts)
 		if err != nil {
 			panic(err)
 		}
@@ -72,7 +75,9 @@ func DefaultTestOptions() Options {
 			SetSeriesCachePolicy(series.CacheAll).
 			SetPersistManager(pm).
 			SetRepairEnabled(false).
-			SetCommitLogOptions(opts.CommitLogOptions())
+			SetCommitLogOptions(
+				opts.CommitLogOptions().SetFilesystemOptions(fsOpts)).
+			SetBlockLeaseManager(blockLeaseManager)
 	})
 
 	return defaultTestOptions

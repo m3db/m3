@@ -461,35 +461,44 @@ type Options interface {
 
 // BlockRetrieverOptions represents the options for block retrieval
 type BlockRetrieverOptions interface {
-	// SetRequestPoolOptions sets the request pool options
+	// Validate validates the options.
+	Validate() error
+
+	// SetRequestPoolOptions sets the request pool options.
 	SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions
 
-	// RequestPoolOptions returns the request pool options
+	// RequestPoolOptions returns the request pool options.
 	RequestPoolOptions() pool.ObjectPoolOptions
 
-	// SetBytesPool sets the bytes pool
+	// SetBytesPool sets the bytes pool.
 	SetBytesPool(value pool.CheckedBytesPool) BlockRetrieverOptions
 
-	// BytesPool returns the bytes pool
+	// BytesPool returns the bytes pool.
 	BytesPool() pool.CheckedBytesPool
 
-	// SetSegmentReaderPool sets the segment reader pool
+	// SetSegmentReaderPool sets the segment reader pool.
 	SetSegmentReaderPool(value xio.SegmentReaderPool) BlockRetrieverOptions
 
-	// SegmentReaderPool returns the segment reader pool
+	// SegmentReaderPool returns the segment reader pool.
 	SegmentReaderPool() xio.SegmentReaderPool
 
-	// SetFetchConcurrency sets the fetch concurrency
+	// SetFetchConcurrency sets the fetch concurrency.
 	SetFetchConcurrency(value int) BlockRetrieverOptions
 
-	// FetchConcurrency returns the fetch concurrency
+	// FetchConcurrency returns the fetch concurrency.
 	FetchConcurrency() int
 
-	// SetIdentifierPool sets the identifierPool
+	// SetIdentifierPool sets the identifierPool.
 	SetIdentifierPool(value ident.Pool) BlockRetrieverOptions
 
-	// IdentifierPool returns the identifierPool
+	// IdentifierPool returns the identifierPool.
 	IdentifierPool() ident.Pool
+
+	// SetBlockLeaseManager sets the block leaser.
+	SetBlockLeaseManager(leaseMgr block.LeaseManager) BlockRetrieverOptions
+
+	// BlockLeaseManager returns the block leaser.
+	BlockLeaseManager() block.LeaseManager
 }
 
 // ForEachRemainingFn is the function that is run on each of the remaining
