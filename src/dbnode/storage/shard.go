@@ -1902,9 +1902,9 @@ func (s *dbShard) WarmFlush(
 		// happen first before cold flushes happen.
 		VolumeIndex: 0,
 		// We explicitly set delete if exists to false here as we track which
-		// filesets exists at bootstrap time so we should never encounter a time
-		// when we attempt to flush and a fileset already exists unless there is
-		// racing competing processes.
+		// filesets exist at bootstrap time so we should never encounter a time
+		// when we attempt to flush and a fileset that already exists unless
+		// there are racing competing processes.
 		DeleteIfExists: false,
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)

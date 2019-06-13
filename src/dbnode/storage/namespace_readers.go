@@ -77,11 +77,12 @@ type databaseNamespaceReaderManager interface {
 	close()
 }
 
-type fsFileSetExistsAtFn func(
+type fsFileSetExistsFn func(
 	prefix string,
 	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 ) (bool, error)
 
 type fsNewReaderFn func(
@@ -92,8 +93,8 @@ type fsNewReaderFn func(
 type namespaceReaderManager struct {
 	sync.Mutex
 
-	filesetExistsAtFn fsFileSetExistsAtFn
-	newReaderFn       fsNewReaderFn
+	filesetExistsFn fsFileSetExistsFn
+	newReaderFn     fsNewReaderFn
 
 	namespace namespace.Metadata
 	fsOpts    fs.Options
@@ -151,14 +152,14 @@ func newNamespaceReaderManager(
 	opts Options,
 ) databaseNamespaceReaderManager {
 	return &namespaceReaderManager{
-		filesetExistsAtFn: fs.DataFileSetExistsAt,
-		newReaderFn:       fs.NewReader,
-		namespace:         namespace,
-		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
-		bytesPool:         opts.BytesPool(),
-		logger:            opts.InstrumentOptions().Logger(),
-		openReaders:       make(map[cachedOpenReaderKey]cachedReader),
-		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
+		filesetExistsFn: fs.DataFileSetExists,
+		newReaderFn:     fs.NewReader,
+		namespace:       namespace,
+		fsOpts:          opts.CommitLogOptions().FilesystemOptions(),
+		bytesPool:       opts.BytesPool(),
+		logger:          opts.InstrumentOptions().Logger(),
+		openReaders:     make(map[cachedOpenReaderKey]cachedReader),
+		metrics:         newNamespaceReaderManagerMetrics(namespaceScope),
 	}
 }
 
@@ -166,8 +167,10 @@ func (m *namespaceReaderManager) filesetExistsAt(
 	shard uint32,
 	blockStart time.Time,
 ) (bool, error) {
-	return m.filesetExistsAtFn(m.fsOpts.FilePathPrefix(),
-		m.namespace.ID(), shard, blockStart)
+	// TODO(juchan): get the actual volume here.
+	vol := 0
+	return m.filesetExistsFn(m.fsOpts.FilePathPrefix(),
+		m.namespace.ID(), shard, blockStart, vol)
 }
 
 type cachedReaderForKeyResult struct {

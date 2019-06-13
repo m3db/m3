@@ -271,7 +271,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	var (
 		shardDir       = ShardDataDirPath(filePathPrefix, testNs1ID, shard)
-		checkpointFile = filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
+		checkpointFile = filesetPathFromTimeLegacy(shardDir, testWriterStart, checkpointFileSuffix)
 	)
 	exists, err := CompleteCheckpointFileExists(checkpointFile)
 	require.NoError(t, err)
@@ -316,7 +316,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
-		digestFile := filesetPathFromTime(shardDir, start, suffix)
+		digestFile := filesetPathFromTimeLegacy(shardDir, start, suffix)
 		fd, err := os.OpenFile(digestFile, os.O_WRONLY|os.O_TRUNC, os.FileMode(0666))
 		require.NoError(t, err)
 		_, err = fd.Write(data)

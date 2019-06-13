@@ -181,7 +181,7 @@ func (f FileSetFilesSlice) Filepaths() []string {
 }
 
 // LatestVolumeForBlock returns the latest (highest index) FileSetFile in the
-// slice for a given block start.
+// slice for a given block start that has a complete checkpoint file.
 func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFile, bool) {
 	// Make sure we're already sorted.
 	f.sortByTimeAndVolumeIndexAscending()
@@ -445,7 +445,7 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (time.Time, int, er
 
 	if len(components) == 3 {
 		// Three components mean that there is no index in the filename.
-		return t, unindexedFilesetIndex, err
+		return t, unindexedFilesetIndex, nil
 	}
 
 	if len(components) == 4 {
@@ -458,7 +458,7 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (time.Time, int, er
 		return t, int(index), nil
 	}
 
-	return timeZero, 0, fmt.Errorf("malformed filename: %s", fname)
+	return timeZero, 0, fmt.Errorf("malformed data fileset filename: %s", fname)
 }
 
 // TimeAndVolumeIndexFromFileSetFilename extracts the block start and
@@ -633,9 +633,12 @@ func forEachInfoFile(
 		t := matched[i].ID.BlockStart
 		volume := matched[i].ID.VolumeIndex
 
-		isLegacy, err := isFirstVolumeLegacy(dir, t, checkpointFileSuffix)
-		if err != nil {
-			continue
+		isLegacy := false
+		if volume == 0 {
+			isLegacy, err = isFirstVolumeLegacy(dir, t, checkpointFileSuffix)
+			if err != nil {
+				continue
+			}
 		}
 		var (
 			checkpointFilePath string
@@ -1292,21 +1295,6 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
-func DataFileSetExistsAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
-	dataFiles, err := DataFiles(filePathPrefix, namespace, shard)
-	if err != nil {
-		return false, err
-	}
-
-	_, ok := dataFiles.LatestVolumeForBlock(blockStart)
-	if !ok {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 // DataFileSetExists determines whether data fileset files exist for the given
 // namespace, shard, block start, and volume.
 func DataFileSetExists(
@@ -1316,12 +1304,16 @@ func DataFileSetExists(
 	blockStart time.Time,
 	volume int,
 ) (bool, error) {
-	dataFiles, err := DataFiles(filePathPrefix, namespace, shard)
-	if err != nil {
-		return false, err
+	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
+	// Check fileset with volume first to optimize for non-legacy use case.
+	checkpointPath := filesetPathFromTimeAndIndex(shardDir, blockStart, volume, checkpointFileSuffix)
+	if volume != 0 {
+		return CompleteCheckpointFileExists(checkpointPath)
 	}
 
-	return dataFiles.VolumeExistsForBlock(blockStart, volume), nil
+	// Check legacy format next only if volume is 0.
+	checkpointPath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
+	return CompleteCheckpointFileExists(checkpointPath)
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
@@ -1481,7 +1473,7 @@ func filesetFileForTime(t time.Time, suffix string) string {
 	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
 }
 
-func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
+func filesetPathFromTimeLegacy(prefix string, t time.Time, suffix string) string {
 	return path.Join(prefix, filesetFileForTime(t, suffix))
 }
 
@@ -1495,13 +1487,14 @@ func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix s
 // the existence of the file and the non-legacy version of the file, and returns
 // and error if neither exist.
 func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error) {
+	// Check non-legacy path first to optimize for newer files.
 	path := filesetPathFromTimeAndIndex(prefix, t, 0, suffix)
 	_, err := os.Stat(path)
 	if err == nil {
 		return false, nil
 	}
 
-	legacyPath := filesetPathFromTime(prefix, t, suffix)
+	legacyPath := filesetPathFromTimeLegacy(prefix, t, suffix)
 	_, err = os.Stat(legacyPath)
 	if err == nil {
 		return true, nil
@@ -1519,7 +1512,7 @@ func dataFilesetPathFromTimeAndIndex(
 	isLegacy bool,
 ) string {
 	if isLegacy {
-		return filesetPathFromTime(prefix, t, suffix)
+		return filesetPathFromTimeLegacy(prefix, t, suffix)
 	}
 
 	return filesetPathFromTimeAndIndex(prefix, t, index, suffix)

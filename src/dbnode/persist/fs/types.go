@@ -173,6 +173,7 @@ type DataFileSetSeeker interface {
 		namespace ident.ID,
 		shard uint32,
 		start time.Time,
+		volume int,
 		resources ReusableSeekerResources,
 	) error
 

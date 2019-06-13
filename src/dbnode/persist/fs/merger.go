@@ -97,13 +97,15 @@ func (m *merger) Merge(
 		nsID       = fileID.Namespace
 		shard      = fileID.Shard
 		startTime  = fileID.BlockStart
+		volume     = fileID.VolumeIndex
 		blockSize  = nsOpts.RetentionOptions().BlockSize()
 		blockStart = xtime.ToUnixNano(startTime)
 		openOpts   = DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
-				Namespace:  nsID,
-				Shard:      shard,
-				BlockStart: startTime,
+				Namespace:   nsID,
+				Shard:       shard,
+				BlockStart:  startTime,
+				VolumeIndex: volume,
 			},
 			FileSetType: persist.FileSetFlushType,
 		}

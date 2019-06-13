@@ -146,9 +146,12 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		dataFilepath        string
 	)
 
-	isLegacy, err := isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
-	if err != nil {
-		return err
+	isLegacy := false
+	if volumeIndex == 0 {
+		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		if err != nil {
+			return err
+		}
 	}
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:

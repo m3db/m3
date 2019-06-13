@@ -208,7 +208,7 @@ func TestForEachInfoFile(t *testing.T) {
 			res = append(res, data...)
 		})
 
-	require.Equal(t, []string{filesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, []string{filesetPathFromTimeLegacy(shardDir, blockStart, infoFileSuffix)}, fnames)
 	require.Equal(t, infoData, res)
 }
 
@@ -391,16 +391,16 @@ func TestFileExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 	require.NoError(t, err)
 
-	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
+	infoFilePath := filesetPathFromTimeLegacy(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, checkpointFileBuf)
 	require.True(t, mustFileExists(t, infoFilePath))
-	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
+	exists, err := DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+	checkpointFilePath := filesetPathFromTimeLegacy(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, checkpointFileBuf)
-	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
+	exists, err = DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.True(t, exists)
 
@@ -421,7 +421,7 @@ func TestCompleteCheckpointFileExists(t *testing.T) {
 		shard              = uint32(10)
 		start              = time.Now()
 		shardDir           = ShardDataDirPath(dir, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, start, checkpointFileSuffix)
 		err                = os.MkdirAll(shardDir, defaultNewDirectoryMode)
 
 		validCheckpointFileBuf   = make([]byte, CheckpointFileSizeBytes)
@@ -464,7 +464,7 @@ func TestFilePathFromTime(t *testing.T) {
 		{"foo/bar/", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, filesetPathFromTime(input.prefix, start, input.suffix))
+		require.Equal(t, input.expected, filesetPathFromTimeLegacy(input.prefix, start, input.suffix))
 	}
 }
 
@@ -482,7 +482,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
-		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
+		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, infoFileSuffix), res[i])
 	}
 }
 
@@ -1173,7 +1173,7 @@ func createDataFiles(t *testing.T,
 		if isSnapshot {
 			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, 0, fileSuffix)
 		} else {
-			infoFilePath = filesetPathFromTime(shardDir, ts, fileSuffix)
+			infoFilePath = filesetPathFromTimeLegacy(shardDir, ts, fileSuffix)
 		}
 		var contents []byte
 		if fileSuffix == checkpointFileSuffix {
@@ -1230,7 +1230,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 				var path string
 				switch fileSetType {
 				case persist.FileSetFlushType:
-					path = filesetPathFromTime(shardDir, blockStart, suffix)
+					path = filesetPathFromTimeLegacy(shardDir, blockStart, suffix)
 					writeFile(t, path, nil)
 				case persist.FileSetSnapshotType:
 					path = filesetPathFromTimeAndIndex(shardDir, blockStart, 0, fileSuffix)
@@ -1262,7 +1262,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 }
 
 func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
-	filePath := filesetPathFromTime(shardDir, blockStart, suffix)
+	filePath := filesetPathFromTimeLegacy(shardDir, blockStart, suffix)
 	createFile(t, filePath, b)
 }
 

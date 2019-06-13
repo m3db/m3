@@ -397,7 +397,9 @@ func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
 ) (DataFileSetSeeker, error) {
-	exists, err := DataFileSetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart)
+	// TODO(juchan): get the actual volume here.
+	vol := 0
+	exists, err := DataFileSetExists(m.filePathPrefix, m.namespace, shard, blockStart, vol)
 	if err != nil {
 		return nil, err
 	}
