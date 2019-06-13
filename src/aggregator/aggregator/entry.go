@@ -875,8 +875,8 @@ func (e *Entry) checkLatenessForForwardedMetric(
 	timestamp := time.Unix(0, metricTimeNanos)
 	pastLimit := time.Unix(0, currNanos-maxLatenessAllowed.Nanoseconds())
 	err := fmt.Errorf("datapoint for aggregation forwarded too late: "+
-		"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
-		"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
+		"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
+		"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
 		metric.ID, maxLatenessAllowed.String(),
 		timestamp.Format(errTimestampFormat),
 		pastLimit.Format(errTimestampFormat),
