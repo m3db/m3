@@ -3751,3 +3751,31 @@ func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
 }
+
+// SetBlockLeaseManager mocks base method
+func (m *MockOptions) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBlockLeaseManager", leaseMgr)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBlockLeaseManager indicates an expected call of SetBlockLeaseManager
+func (mr *MockOptionsMockRecorder) SetBlockLeaseManager(leaseMgr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).SetBlockLeaseManager), leaseMgr)
+}
+
+// BlockLeaseManager mocks base method
+func (m *MockOptions) BlockLeaseManager() block.LeaseManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockLeaseManager")
+	ret0, _ := ret[0].(block.LeaseManager)
+	return ret0
+}
+
+// BlockLeaseManager indicates an expected call of BlockLeaseManager
+func (mr *MockOptionsMockRecorder) BlockLeaseManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).BlockLeaseManager))
+}

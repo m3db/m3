@@ -47,9 +47,9 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type testBlockRetrieverOptions struct {
@@ -67,7 +67,9 @@ func newOpenTestBlockRetriever(
 	require.NotNil(t, opts.retrieverOpts)
 	require.NotNil(t, opts.fsOpts)
 
-	r := NewBlockRetriever(opts.retrieverOpts, opts.fsOpts)
+	r, err := NewBlockRetriever(opts.retrieverOpts, opts.fsOpts)
+	require.NoError(t, err)
+
 	retriever := r.(*blockRetriever)
 	if opts.newSeekerMgrFn != nil {
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
@@ -140,7 +142,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	fetchConcurrency := 4
 	seekConcurrency := 4 * fetchConcurrency
 	opts := testBlockRetrieverOptions{
-		retrieverOpts: NewBlockRetrieverOptions().
+		retrieverOpts: defaultTestBlockRetrieverOptions.
 			SetFetchConcurrency(fetchConcurrency).
 			SetRequestPoolOptions(pool.NewObjectPoolOptions().
 				// NB(r): Try to make sure same req structs are reused frequently
@@ -330,7 +332,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 
 	// Setup the reader
 	opts := testBlockRetrieverOptions{
-		retrieverOpts: NewBlockRetrieverOptions(),
+		retrieverOpts: defaultTestBlockRetrieverOptions,
 		fsOpts:        fsOpts,
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
@@ -376,7 +378,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 
 	// Setup the reader.
 	opts := testBlockRetrieverOptions{
-		retrieverOpts: NewBlockRetrieverOptions(),
+		retrieverOpts: defaultTestBlockRetrieverOptions,
 		fsOpts:        fsOpts,
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
@@ -509,7 +511,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	newSeekerMgr := func(
 		bytesPool pool.CheckedBytesPool,
 		opts Options,
-		fetchConcurrency int,
+		blockRetrieverOpts BlockRetrieverOptions,
 	) DataFileSetSeekerManager {
 
 		return mockSeekerManager
@@ -517,7 +519,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 
 	// Setup the reader.
 	opts := testBlockRetrieverOptions{
-		retrieverOpts:  NewBlockRetrieverOptions(),
+		retrieverOpts:  defaultTestBlockRetrieverOptions,
 		fsOpts:         fsOpts,
 		newSeekerMgrFn: newSeekerMgr,
 	}

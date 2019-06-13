@@ -97,6 +97,32 @@ func TestOpenLease(t *testing.T) {
 	require.NoError(t, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
 }
 
+func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser    = NewMockLeaser(ctrl)
+		leaseMgr  = NewLeaseManager(nil)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+	)
+
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	require.Equal(t, errOpenLeaseVerifierNotSet, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
+
+	verifier := NewMockLeaseVerifier(ctrl)
+	verifier.EXPECT().VerifyLease(leaseDesc, leaseState)
+	require.NoError(t, leaseMgr.SetLeaseVerifier(verifier))
+	require.NoError(t, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
+}
+
 func TestUpdateOpenLeases(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -163,4 +189,30 @@ func TestUpdateOpenLeases(t *testing.T) {
 	// Third time the first leaser will return an error.
 	result, err = leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
 	require.Error(t, err)
+}
+
+func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaseMgr  = NewLeaseManager(nil)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+		leasers = []*MockLeaser{NewMockLeaser(ctrl), NewMockLeaser(ctrl)}
+	)
+
+	for _, leaser := range leasers {
+		require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	}
+
+	// First time the leasers will return that they didn't have an open lease.
+	_, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
+	require.Equal(t, errUpdateOpenLeasesVerifierNotSet, err)
 }

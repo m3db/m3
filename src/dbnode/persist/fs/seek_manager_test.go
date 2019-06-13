@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -32,11 +33,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
+		SetBlockLeaseManager(&block.NoopLeaseManager{})
+)
+
 func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	var byTimes []*seekersByTime
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
 		byTimes = append(byTimes, byTime)
@@ -75,7 +81,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
@@ -118,7 +124,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	clockOpts := m.opts.ClockOptions()
 	now := clockOpts.NowFn()()
 	startNano := xtime.ToUnixNano(now)
