@@ -157,6 +157,9 @@ import:
   - package: github.com/hydrogen18/stalecucumber
     version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
 
+  - package: github.com/c2h5oh/datasize
+    version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
+
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
     version: 998dfcbac689ae832ea64ca134fcb096f61a7f62

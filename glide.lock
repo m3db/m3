@@ -1,5 +1,5 @@
-hash: 88640e940000eacfdf8cce77ed94121794d32f16d40e1c52e37d93965677998f
-updated: 2019-05-23T15:26:57.158244+02:00
+hash: 105536886b45a56d0e59ffc500254941bbe3d0ca9355e32bd94fb2d7a4deb9f8
+updated: 2019-06-12T15:04:52.880394+10:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -11,6 +11,8 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
+- name: github.com/c2h5oh/datasize
+  version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/cockroachdb/cmux
