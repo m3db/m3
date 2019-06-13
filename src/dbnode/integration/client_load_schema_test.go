@@ -37,6 +37,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/golang/mock/gomock"
+	"os"
+	"path/filepath"
 )
 
 const (
@@ -201,16 +203,37 @@ func TestClientLoadSchemaFromEtcd(t *testing.T) {
 	require.NoError(t, kv.Close())
 }
 
+const (
+	testProtoStr = `syntax = "proto3";
+
+package mainpkg;
+
+message TestMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+  map<string, string> attributes = 5;
+}
+`
+)
+
 func TestClientLoadSchemaFromFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	tempDir, err := ioutil.TempDir("", "m3db-client-schema")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	protoFile := filepath.Join(tempDir, "test.proto")
+	require.NoError(t, ioutil.WriteFile(protoFile, []byte(testProtoStr), 0644))
+
 	schemaReg := namespace.NewSchemaRegistry(true, nil)
-	require.NoError(t, namespace.LoadSchemaRegistryFromFile(schemaReg, ident.StringID("ns1"), "fromconfig", "mainpkg/main.proto", "mainpkg.TestMessage", "testdata"))
+	protoMsg := "mainpkg.TestMessage"
+	require.NoError(t, namespace.LoadSchemaRegistryFromFile(schemaReg, ident.StringID("ns1"), "fromconfig", protoFile, protoMsg))
 	expectedDescr, err := schemaReg.GetLatestSchema(ident.StringID("ns1"))
 	require.NoError(t, err)
-	protoMsg := "mainpkg.TestMessage"
-	protoFile := "testdata/mainpkg/main.proto"
 	require.EqualValues(t, protoMsg, expectedDescr.Get().GetFullyQualifiedName())
 
 	cfg := &client.Configuration{
