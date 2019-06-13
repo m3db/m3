@@ -2007,7 +2007,19 @@ func (s *dbShard) ColdFlush(
 		// After writing the full block successfully, update the cold version
 		// in the flush state.
 		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
+
+		// Once this function completes block leasers will no longer be able to acquire
+		// leases on previous volumes for the given namespace/shard/blockstart.
 		s.setFlushStateColdVersion(startTime, nextVersion)
+
+		// Notify all block leasers that a new volume for the namespace/shard/blockstart
+		// has been created. This will block until all leasers have relinquished their
+		// leases.
+		s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+			Namespace:  s.namespace.ID(),
+			Shard:      s.ID(),
+			BlockStart: startTime,
+		}, block.LeaseState{Volume: nextVersion})
 	}
 
 	return multiErr.FinalError()

@@ -25,8 +25,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -68,9 +69,10 @@ const (
 type seekerManager struct {
 	sync.RWMutex
 
-	opts             Options
-	fetchConcurrency int
-	logger           *zap.Logger
+	opts               Options
+	blockRetrieverOpts BlockRetrieverOptions
+	fetchConcurrency   int
+	logger             *zap.Logger
 
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
@@ -124,7 +126,7 @@ type seekerManagerPendingClose struct {
 func NewSeekerManager(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
-	fetchConcurrency int,
+	blockRetrieverOpts BlockRetrieverOptions,
 ) DataFileSetSeekerManager {
 	reusableSeekerResourcesPool := pool.NewObjectPool(
 		pool.NewObjectPoolOptions().
@@ -139,7 +141,8 @@ func NewSeekerManager(
 		bytesPool:                   bytesPool,
 		filePathPrefix:              opts.FilePathPrefix(),
 		opts:                        opts,
-		fetchConcurrency:            fetchConcurrency,
+		blockRetrieverOpts:          blockRetrieverOpts,
+		fetchConcurrency:            blockRetrieverOpts.FetchConcurrency(),
 		logger:                      opts.InstrumentOptions().Logger(),
 		openCloseLoopDoneCh:         make(chan struct{}),
 		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
@@ -159,6 +162,9 @@ func (m *seekerManager) Open(
 	if m.status != seekerManagerNotOpen {
 		return errSeekerManagerAlreadyOpenOrClosed
 	}
+
+	// Register for updates to block leases.
+	m.blockRetrieverOpts.BlockLeaseManager().RegisterLeaser(m)
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
@@ -274,6 +280,15 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 	}
 
 	return nil
+}
+
+// Implements block.Leaser.
+func (m *seekerManager) UpdateOpenLease(
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+) (block.UpdateOpenLeaseResult, error) {
+	// TODO(rartoul): This is a no-op for now until the logic for swapping out seekers is written.
+	return block.NoOpenLease, nil
 }
 
 // getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
@@ -462,6 +477,9 @@ func (m *seekerManager) Close() error {
 		m.Unlock()
 		return errSeekerManagerAlreadyClosed
 	}
+
+	// Unregister for lease updates since all the seekers are going to be closed.
+	m.blockRetrieverOpts.BlockLeaseManager().UnregisterLeaser(m)
 
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.

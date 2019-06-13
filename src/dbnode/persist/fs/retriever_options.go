@@ -21,6 +21,9 @@
 package fs
 
 import (
+	"errors"
+
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -31,12 +34,17 @@ const (
 	defaultFetchConcurrency = 2
 )
 
+var (
+	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")
+)
+
 type blockRetrieverOptions struct {
 	requestPoolOpts   pool.ObjectPoolOptions
 	bytesPool         pool.CheckedBytesPool
 	segmentReaderPool xio.SegmentReaderPool
 	fetchConcurrency  int
 	identifierPool    ident.Pool
+	blockLeaseManager block.LeaseManager
 }
 
 // NewBlockRetrieverOptions creates a new set of block retriever options
@@ -57,6 +65,13 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 	}
 	o.segmentReaderPool.Init()
 	return o
+}
+
+func (o *blockRetrieverOptions) Validate() error {
+	if o.blockLeaseManager == nil {
+		return errBlockLeaseManagerNotSet
+	}
+	return nil
 }
 
 func (o *blockRetrieverOptions) SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions {
@@ -107,4 +122,14 @@ func (o *blockRetrieverOptions) SetIdentifierPool(value ident.Pool) BlockRetriev
 
 func (o *blockRetrieverOptions) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *blockRetrieverOptions) SetBlockLeaseManager(leaseMgr block.LeaseManager) BlockRetrieverOptions {
+	opts := *o
+	opts.blockLeaseManager = leaseMgr
+	return &opts
+}
+
+func (o *blockRetrieverOptions) BlockLeaseManager() block.LeaseManager {
+	return o.blockLeaseManager
 }
