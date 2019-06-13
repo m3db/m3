@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1265,7 +1266,9 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	for _, input := range inputs {
 		metric := testTimedMetric
 		metric.TimeNanos = input.timeNanos
-		require.Equal(t, errTooFarInThePast, e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy}))
+		err := e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy})
+		require.Equal(t, errTooFarInThePast, xerrors.InnerError(err))
+		require.True(t, xerrors.IsInvalidParams(err))
 	}
 }
 
@@ -1293,7 +1296,9 @@ func TestEntryAddTimedMetricTooEarly(t *testing.T) {
 	for _, input := range inputs {
 		metric := testTimedMetric
 		metric.TimeNanos = input.timeNanos
-		require.Equal(t, errTooFarInTheFuture, e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy}))
+		err := e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy})
+		require.Equal(t, errTooFarInTheFuture, xerrors.InnerError(err))
+		require.True(t, xerrors.IsInvalidParams(err))
 	}
 }
 
@@ -1492,7 +1497,9 @@ func TestEntryAddForwardedMetricTooLate(t *testing.T) {
 		metadata := testForwardMetadata
 		metadata.StoragePolicy = input.storagePolicy
 		metadata.NumForwardedTimes = input.numForwardedTimes
-		require.Equal(t, errArrivedTooLate, e.AddForwarded(metric, metadata))
+		err := e.AddForwarded(metric, metadata)
+		require.Equal(t, errArrivedTooLate, xerrors.InnerError(err))
+		require.True(t, xerrors.IsInvalidParams(err))
 	}
 }
 

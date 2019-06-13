@@ -40,8 +40,9 @@ func TestBufferForPastTimedMetric(t *testing.T) {
 		{value: 30 * time.Second, expected: 30 * time.Second},
 		{value: 59 * time.Second, expected: 30 * time.Second},
 		{value: 60 * time.Second, expected: time.Minute},
-		{value: 59 * time.Minute, expected: time.Minute},
-		{value: 61 * time.Minute, expected: time.Minute},
+		{value: 2 * time.Minute, expected: 2 * time.Minute},
+		{value: 59 * time.Minute, expected: 2 * time.Minute},
+		{value: 61 * time.Minute, expected: 2 * time.Minute},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("test_value_%v", test.value), func(t *testing.T) {

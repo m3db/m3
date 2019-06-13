@@ -610,6 +610,7 @@ var (
 		{upperBound: 0, bufferPast: 15 * time.Second},
 		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
 		{upperBound: time.Minute, bufferPast: time.Minute},
+		{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
 	}
 )
 
