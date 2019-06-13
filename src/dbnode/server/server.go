@@ -574,8 +574,7 @@ func Run(runOpts RunOptions) {
 	}
 	schemaRegistry := namespace.NewSchemaRegistry(protoEnabled, logger)
 	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
-	// we allow loading user schema from db node configuration into schema registry
-	// at dbnode startup/initialization time.
+	// we allow loading user schema from local file into schema registry.
 	if protoEnabled {
 		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
 			dummyDeployID := "fromconfig"

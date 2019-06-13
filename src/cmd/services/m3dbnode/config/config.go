@@ -325,13 +325,12 @@ type HashingConfiguration struct {
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
 	Enabled bool `yaml:"enabled"`
-	// TODO [haijun] remove after PR to set schema in etcd is done (plan layed out in issue #1614).
-	// To unblock #1578, we will load user schema from db node configuration into schema registry
-	// at dbnode startup/initialization time, there will be no dynamic schema update.
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
 type NamespaceProtoSchema struct {
+	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
+	// we allow loading user schema from local file into schema registry.
 	SchemaFilePath string `yaml:"schemaFilePath"`
 	MessageName    string `yaml:"messageName"`
 }

@@ -93,6 +93,7 @@ type Configuration struct {
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
 	Enabled bool `yaml:"enabled"`
+	TestOnly bool `yaml:"testOnly"`
 	// load user schema from client configuration into schema registry
 	// at startup/initialization time.
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
@@ -101,12 +102,19 @@ type ProtoConfiguration struct {
 type NamespaceProtoSchema struct {
 	MessageName    string `yaml:"messageName"`
 	SchemaDeployID string `yaml:"schemaDeployID"`
+	SchemaFilePath string `yaml:"schemaFilePath"`
 }
 
 // Validate validates the NamespaceProtoSchema.
-func (c NamespaceProtoSchema) Validate() error {
-	if c.SchemaDeployID == "" {
-		return errors.New("schemaDeployID is required for Proto data mode")
+func (c NamespaceProtoSchema) Validate(testOnly bool) error {
+	if testOnly {
+		if c.SchemaFilePath == "" {
+			return errors.New("schemaFilePath is required for Proto data mode when testOnly is true")
+		}
+	} else {
+		if c.SchemaDeployID == "" {
+			return errors.New("schemaDeployID is required for Proto data mode")
+		}
 	}
 
 	if c.MessageName == "" {
@@ -123,7 +131,7 @@ func (c *ProtoConfiguration) Validate() error {
 	}
 
 	for _, schema := range c.SchemaRegistry {
-		if err := schema.Validate(); err != nil {
+		if err := schema.Validate(c.TestOnly); err != nil {
 			return err
 		}
 	}
@@ -238,7 +246,7 @@ func (c Configuration) NewAdminClient(
 
 	var envCfg environment.ConfigureResults
 
-	// Initialize envCfg
+	// Initialize envCfg.
 	if c.EnvironmentConfig != nil {
 		if c.EnvironmentConfig.Service != nil {
 			cfgParams := environment.ConfigurationParameters{
@@ -318,16 +326,27 @@ func (c Configuration) NewAdminClient(
 		v = v.SetEncodingProto(encodingOpts)
 
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
-		// Load schema registry from m3db metadata store.
-		err := loadSchemaRegistryFromKVStore(schemaRegistry, envCfg.KVStore)
-		if err != nil {
-			return nil, xerrors.Wrap(err, "could not load schema registry from m3db metadata store")
-		}
-		// Validate the schema deploy ID.
-		for nsID, protoConfig := range c.Proto.SchemaRegistry {
-			_, err := schemaRegistry.GetSchema(ident.StringID(nsID), protoConfig.SchemaDeployID)
+		if c.Proto.TestOnly {
+			// Load schema registry from file.
+			deployID := "fromfile"
+			for nsID, protoConfig := range c.Proto.SchemaRegistry {
+				err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
+				}
+			}
+		} else {
+			// Load schema registry from m3db metadata store.
+			err := loadSchemaRegistryFromKVStore(schemaRegistry, envCfg.KVStore)
 			if err != nil {
-				return nil, xerrors.Wrapf(err, "could not find schema for namespace: %s with schema deploy ID: %s", nsID, protoConfig.SchemaDeployID)
+				return nil, xerrors.Wrap(err, "could not load schema registry from m3db metadata store")
+			}
+			// Validate the schema deploy ID.
+			for nsID, protoConfig := range c.Proto.SchemaRegistry {
+				_, err := schemaRegistry.GetSchema(ident.StringID(nsID), protoConfig.SchemaDeployID)
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not find schema for namespace: %s with schema deploy ID: %s", nsID, protoConfig.SchemaDeployID)
+				}
 			}
 		}
 		v = v.SetSchemaRegistry(schemaRegistry)
@@ -353,7 +372,7 @@ func loadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore k
 	}
 	nsMap, err := namespace.FromProto(*nsReg)
 	if err != nil {
-		return xerrors.Wrap(err, "could not unmarshall metadata")
+		return xerrors.Wrap(err, "could not unmarshal metadata")
 	}
 	merr := xerrors.NewMultiError()
 	for _, metadata := range nsMap.Metadatas() {
@@ -362,8 +381,5 @@ func loadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore k
 			merr.Add(xerrors.Wrapf(err, "could not set schema history for namespace %s", metadata.ID().String()))
 		}
 	}
-	if merr.Empty() {
-		return nil
-	}
-	return merr
+	return merr.FinalError()
 }
