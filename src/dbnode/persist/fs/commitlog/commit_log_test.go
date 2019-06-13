@@ -46,6 +46,22 @@ import (
 	"github.com/uber-go/tally"
 )
 
+// readAllSeriesPredicateTest is the same as ReadAllSeriesPredicate except
+// it asserts that the ID and the namespace are not nil.
+func readAllSeriesPredicateTest() SeriesFilterPredicate {
+	return func(id ident.ID, namespace ident.ID) bool {
+		if id == nil {
+			panic(fmt.Sprintf("series ID passed to series predicate is nil"))
+		}
+
+		if namespace == nil {
+			panic(fmt.Sprintf("namespace ID passed to series predicate is nil"))
+		}
+
+		return true
+	}
+}
+
 type overrides struct {
 	clock            *mclock.Mock
 	flushInterval    *time.Duration
@@ -286,7 +302,7 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	iterOpts := IteratorOpts{
 		CommitLogOptions:      l.opts,
 		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		SeriesFilterPredicate: readAllSeriesPredicateTest(),
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
@@ -413,7 +429,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	iterOpts := IteratorOpts{
 		CommitLogOptions:      opts,
 		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		SeriesFilterPredicate: readAllSeriesPredicateTest(),
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
@@ -461,7 +477,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	require.Equal(t, 2, len(files))
 
 	// Assert commitlog cannot be opened more than once
-	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
+	reader := newCommitLogReader(opts, readAllSeriesPredicateTest())
 	_, err = reader.Open(files[0])
 	require.NoError(t, err)
 	reader.Close()
@@ -519,7 +535,7 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	iterOpts := IteratorOpts{
 		CommitLogOptions:      opts,
 		FileFilterPredicate:   commitLogPredicate,
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		SeriesFilterPredicate: readAllSeriesPredicateTest(),
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
@@ -563,7 +579,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	iterOpts := IteratorOpts{
 		CommitLogOptions:      opts,
 		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		SeriesFilterPredicate: readAllSeriesPredicateTest(),
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
@@ -580,7 +596,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	iterOpts = IteratorOpts{
 		CommitLogOptions:      opts,
 		FileFilterPredicate:   ignoreCorruptPredicate,
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		SeriesFilterPredicate: readAllSeriesPredicateTest(),
 	}
 	iter, corruptFiles, err = NewIterator(iterOpts)
 	require.NoError(t, err)

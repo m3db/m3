@@ -296,8 +296,14 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		now = t
 		lock.Unlock()
 	}
-	storageOpts = storageOpts.SetClockOptions(
-		storageOpts.ClockOptions().SetNowFn(getNowFn))
+	if overrideTimeNow := opts.NowFn(); overrideTimeNow != nil {
+		// Allow overriding the frozen time
+		storageOpts = storageOpts.SetClockOptions(
+			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
+	} else {
+		storageOpts = storageOpts.SetClockOptions(
+			storageOpts.ClockOptions().SetNowFn(getNowFn))
+	}
 
 	// Set up file path prefix
 	idx := atomic.AddUint64(&created, 1) - 1

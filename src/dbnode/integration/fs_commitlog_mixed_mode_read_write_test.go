@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -35,14 +36,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+	"github.com/stretchr/testify/require"
 )
 
 type annotationGenerator interface {
@@ -86,6 +86,8 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log & fileset files, write, read, and merge bootstrap test")
+
+	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// setting time to 2017/02/13 15:30:10
 	fakeStart := time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
@@ -137,7 +139,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	expectedFlushedData := datapoints.toSeriesMap(ns1BlockSize)
 	delete(expectedFlushedData, xtime.ToUnixNano(blkStart18))
 	waitTimeout := 5 * time.Minute
-	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+
 	log.Info("waiting till expected fileset files have been written")
 	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
 	log.Info("expected fileset files have been written")
