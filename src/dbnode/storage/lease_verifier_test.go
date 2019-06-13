@@ -46,7 +46,7 @@ func TestLeaseVerifierHandlesErrors(t *testing.T) {
 
 	var (
 		mockDB        = NewMockDatabase(ctrl)
-		leaseVerifier = newLeaseVerifier(mockDB)
+		leaseVerifier = NewLeaseVerifier(mockDB)
 	)
 	mockDB.EXPECT().FlushState(
 		testBlockDescriptor.Namespace,
@@ -64,7 +64,7 @@ func TestLeaseVerifierReturnsErrorIfNotLatestVolume(t *testing.T) {
 
 	var (
 		mockDB        = NewMockDatabase(ctrl)
-		leaseVerifier = newLeaseVerifier(mockDB)
+		leaseVerifier = NewLeaseVerifier(mockDB)
 	)
 	mockDB.EXPECT().FlushState(
 		testBlockDescriptor.Namespace,
@@ -84,7 +84,7 @@ func TestLeaseVerifierSuccessIfVolumeIsLatest(t *testing.T) {
 		volumeNum     = 1
 		state         = block.LeaseState{Volume: volumeNum}
 		mockDB        = NewMockDatabase(ctrl)
-		leaseVerifier = newLeaseVerifier(mockDB)
+		leaseVerifier = NewLeaseVerifier(mockDB)
 	)
 	mockDB.EXPECT().FlushState(
 		testBlockDescriptor.Namespace,
