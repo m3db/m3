@@ -701,6 +701,10 @@ func (e *Entry) checkTimestampForTimedMetric(
 	timedBufferFuture := e.opts.BufferForFutureTimedMetric()
 	if metricTimeNanos-currNanos > timedBufferFuture.Nanoseconds() {
 		e.metrics.timed.tooFarInTheFuture.Inc(1)
+		if !e.opts.VerboseErrors() {
+			// Don't return verbose errors if not enabled.
+			return errTooFarInTheFuture
+		}
 		timestamp := time.Unix(0, metricTimeNanos)
 		futureLimit := time.Unix(0, currNanos+timedBufferFuture.Nanoseconds())
 		err := fmt.Errorf("datapoint for aggregation too far in future: "+
@@ -716,6 +720,10 @@ func (e *Entry) checkTimestampForTimedMetric(
 	timedBufferPast := bufferPastFn(resolution)
 	if currNanos-metricTimeNanos > timedBufferPast.Nanoseconds() {
 		e.metrics.timed.tooFarInThePast.Inc(1)
+		if !e.opts.VerboseErrors() {
+			// Don't return verbose errors if not enabled.
+			return errTooFarInThePast
+		}
 		timestamp := time.Unix(0, metricTimeNanos)
 		pastLimit := time.Unix(0, currNanos-timedBufferPast.Nanoseconds())
 		err := fmt.Errorf("datapoint for aggregation too far in past: "+
@@ -856,7 +864,14 @@ func (e *Entry) checkLatenessForForwardedMetric(
 	if currNanos-metricTimeNanos <= maxLatenessAllowed.Nanoseconds() {
 		return nil
 	}
+
 	e.metrics.forwarded.arrivedTooLate.Inc(1)
+
+	if !e.opts.VerboseErrors() {
+		// Don't return verbose errors if not enabled.
+		return errArrivedTooLate
+	}
+
 	timestamp := time.Unix(0, metricTimeNanos)
 	pastLimit := time.Unix(0, currNanos-maxLatenessAllowed.Nanoseconds())
 	err := fmt.Errorf("datapoint for aggregation forwarded too late: "+

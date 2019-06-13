@@ -62,6 +62,7 @@ const (
 	defaultStorageFlushConcurrency = 20000
 	defaultOpenTimeout             = 10 * time.Second
 	defaultBufferFutureTimedMetric = time.Minute
+	defaultVerboseErrors           = true
 )
 
 var (
@@ -185,6 +186,9 @@ type Configuration struct {
 
 	// Pool of gauge elements.
 	GaugeElemPool pool.ObjectPoolConfiguration `yaml:"gaugeElemPool"`
+
+	// BufferPastLimits specifies the buffer past limits.
+	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
 }
 
 // RemoteAggregatorConfiguration specifies a remote aggregator
@@ -205,6 +209,13 @@ func (c RemoteAggregatorConfiguration) newClient(
 		return c.clientOverride, nil
 	}
 	return c.Client.NewClient(kvClient, clockOpts, instrumentOpts)
+}
+
+// BufferPastLimitConfiguration specifies a custom buffer past limit
+// for aggregation tiles.
+type BufferPastLimitConfiguration struct {
+	Resolution time.Duration `yaml:"resolution"`
+	BufferPast time.Duration `yaml:"bufferPast"`
 }
 
 // NewDownsampler returns a new downsampler.
@@ -316,7 +327,23 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		placementManager, flushTimesManager, electionManager, instrumentOpts,
 		storageFlushConcurrency, pools)
 
-	// Finally construct all options
+	bufferPastLimits := defaultBufferPastLimits
+	if numLimitsCfg := len(cfg.BufferPastLimits); numLimitsCfg > 0 {
+		// Allow overrides from config.
+		bufferPastLimits = make([]bufferPastLimit, 0, numLimitsCfg)
+		for _, limit := range cfg.BufferPastLimits {
+			bufferPastLimits = append(bufferPastLimits, bufferPastLimit{
+				upperBound: limit.Resolution,
+				bufferPast: limit.BufferPast,
+			})
+		}
+	}
+
+	bufferForPastTimedMetricFn := func(tile time.Duration) time.Duration {
+		return bufferForPastTimedMetric(bufferPastLimits, tile)
+	}
+
+	// Finally construct all options.
 	aggregatorOpts := aggregator.NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
@@ -330,8 +357,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetElectionManager(electionManager).
 		SetFlushManager(flushManager).
 		SetFlushHandler(flushHandler).
-		SetBufferForPastTimedMetricFn(bufferForPastTimedMetric).
-		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric)
+		SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn).
+		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric).
+		SetVerboseErrors(defaultVerboseErrors)
 
 	if cfg.AggregationTypes != nil {
 		aggTypeOpts, err := cfg.AggregationTypes.NewOptions(instrumentOpts)
@@ -602,11 +630,13 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 	return flushManager, handler
 }
 
+type bufferPastLimit struct {
+	upperBound time.Duration
+	bufferPast time.Duration
+}
+
 var (
-	bufferPastLimits = []struct {
-		upperBound time.Duration
-		bufferPast time.Duration
-	}{
+	defaultBufferPastLimits = []bufferPastLimit{
 		{upperBound: 0, bufferPast: 15 * time.Second},
 		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
 		{upperBound: time.Minute, bufferPast: time.Minute},
@@ -614,9 +644,9 @@ var (
 	}
 )
 
-func bufferForPastTimedMetric(tile time.Duration) time.Duration {
-	bufferPast := bufferPastLimits[0].bufferPast
-	for _, limit := range bufferPastLimits {
+func bufferForPastTimedMetric(limits []bufferPastLimit, tile time.Duration) time.Duration {
+	bufferPast := limits[0].bufferPast
+	for _, limit := range limits {
 		if tile < limit.upperBound {
 			return bufferPast
 		}

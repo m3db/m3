@@ -29,6 +29,7 @@ import (
 )
 
 func TestBufferForPastTimedMetric(t *testing.T) {
+	limits := defaultBufferPastLimits
 	tests := []struct {
 		value    time.Duration
 		expected time.Duration
@@ -46,7 +47,7 @@ func TestBufferForPastTimedMetric(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("test_value_%v", test.value), func(t *testing.T) {
-			result := bufferForPastTimedMetric(test.value)
+			result := bufferForPastTimedMetric(limits, test.value)
 			require.Equal(t, test.expected, result)
 		})
 	}
