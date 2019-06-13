@@ -128,6 +128,8 @@ func (m *merger) Merge(
 		NamespaceMetadata: nsMd,
 		Shard:             shard,
 		BlockStart:        startTime,
+		VolumeIndex:       fileID.VolumeIndex + 1,
+		FileSetType:       persist.FileSetFlushType,
 		DeleteIfExists:    false,
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)

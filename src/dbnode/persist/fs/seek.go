@@ -145,7 +145,6 @@ func (s *seeker) Open(
 	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
-	volume int,
 	resources ReusableSeekerResources,
 ) error {
 	if s.isClone {
@@ -157,12 +156,12 @@ func (s *seeker) Open(
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTimeAndIndex(shardDir, blockStart, volume, infoFileSuffix):        &infoFd,
-		filesetPathFromTimeAndIndex(shardDir, blockStart, volume, indexFileSuffix):       &s.indexFd,
-		filesetPathFromTimeAndIndex(shardDir, blockStart, volume, dataFileSuffix):        &s.dataFd,
-		filesetPathFromTimeAndIndex(shardDir, blockStart, volume, digestFileSuffix):      &digestFd,
-		filesetPathFromTimeAndIndex(shardDir, blockStart, volume, bloomFilterFileSuffix): &bloomFilterFd,
-		filesetPathFromTimeAndIndex(shardDir, blockStart, volume, summariesFileSuffix):   &summariesFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
+		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
 	}); err != nil {
 		return err
 	}

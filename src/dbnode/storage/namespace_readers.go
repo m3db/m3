@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -66,7 +67,6 @@ type databaseNamespaceReaderManager interface {
 	get(
 		shard uint32,
 		blockStart time.Time,
-		volume int,
 		position readerPosition,
 	) (fs.DataFileSetReader, error)
 
@@ -234,14 +234,12 @@ func (m *namespaceReaderManager) cachedReaderForKey(
 func (m *namespaceReaderManager) get(
 	shard uint32,
 	blockStart time.Time,
-	volume int,
 	position readerPosition,
 ) (fs.DataFileSetReader, error) {
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
 		position:   position,
-		volume:     volume,
 	}
 
 	lookup, err := m.cachedReaderForKey(key)
@@ -257,13 +255,13 @@ func (m *namespaceReaderManager) get(
 	reader := lookup.closedReader
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   m.namespace.ID(),
-			Shard:       shard,
-			BlockStart:  blockStart,
-			VolumeIndex: volume,
+			Namespace:  m.namespace.ID(),
+			Shard:      shard,
+			BlockStart: blockStart,
 		},
 	}
 	if err := reader.Open(openOpts); err != nil {
+		fmt.Printf("j>> %+v\n", 2)
 		return nil, err
 	}
 

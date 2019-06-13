@@ -73,7 +73,13 @@ var (
 	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
 )
 
-type filesetBeforeFn func(
+type filesetsFn func(
+	filePathPrefix string,
+	namespace ident.ID,
+	shardID uint32,
+) (fs.FileSetFilesSlice, error)
+
+type filesetPathsBeforeFn func(
 	filePathPrefix string,
 	namespace ident.ID,
 	shardID uint32,
@@ -150,7 +156,8 @@ type dbShard struct {
 	bootstrapState           BootstrapState
 	newMergerFn              fs.NewMergerFn
 	newFSMergeWithMemFn      newFSMergeWithMemFn
-	filesetBeforeFn          filesetBeforeFn
+	filesetsFn               filesetsFn
+	filesetPathsBeforeFn     filesetPathsBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
 	sleepFn                  func(time.Duration)
@@ -247,30 +254,31 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	s := &dbShard{
-		opts:                opts,
-		seriesOpts:          seriesOpts,
-		nowFn:               opts.ClockOptions().NowFn(),
-		state:               dbShardStateOpen,
-		namespace:           namespaceMetadata,
-		shard:               shard,
-		namespaceReaderMgr:  namespaceReaderMgr,
-		increasingIndex:     increasingIndex,
-		seriesPool:          opts.DatabaseSeriesPool(),
-		reverseIndex:        reverseIndex,
-		lookup:              newShardMap(shardMapOptions{}),
-		list:                list.New(),
-		newMergerFn:         fs.NewMerger,
-		newFSMergeWithMemFn: newFSMergeWithMem,
-		filesetBeforeFn:     fs.DataFileSetsBefore,
-		deleteFilesFn:       fs.DeleteFiles,
-		snapshotFilesFn:     fs.SnapshotFiles,
-		sleepFn:             time.Sleep,
-		identifierPool:      opts.IdentifierPool(),
-		contextPool:         opts.ContextPool(),
-		flushState:          newShardFlushState(),
-		tickWg:              &sync.WaitGroup{},
-		logger:              opts.InstrumentOptions().Logger(),
-		metrics:             newDatabaseShardMetrics(shard, scope),
+		opts:                 opts,
+		seriesOpts:           seriesOpts,
+		nowFn:                opts.ClockOptions().NowFn(),
+		state:                dbShardStateOpen,
+		namespace:            namespaceMetadata,
+		shard:                shard,
+		namespaceReaderMgr:   namespaceReaderMgr,
+		increasingIndex:      increasingIndex,
+		seriesPool:           opts.DatabaseSeriesPool(),
+		reverseIndex:         reverseIndex,
+		lookup:               newShardMap(shardMapOptions{}),
+		list:                 list.New(),
+		newMergerFn:          fs.NewMerger,
+		newFSMergeWithMemFn:  newFSMergeWithMem,
+		filesetsFn:           fs.DataFiles,
+		filesetPathsBeforeFn: fs.DataFilePathsBefore,
+		deleteFilesFn:        fs.DeleteFiles,
+		snapshotFilesFn:      fs.SnapshotFiles,
+		sleepFn:              time.Sleep,
+		identifierPool:       opts.IdentifierPool(),
+		contextPool:          opts.ContextPool(),
+		flushState:           newShardFlushState(),
+		tickWg:               &sync.WaitGroup{},
+		logger:               opts.InstrumentOptions().Logger(),
+		metrics:              newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope)
@@ -1687,10 +1695,8 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			pos.metadataIdx = int(flushedPhase.CurrBlockEntryIdx)
 		}
 
-		// TODO(juchan): actually get the volume
-		vol := 0
 		// Open a reader at this position, potentially from cache
-		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, vol, pos)
+		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, pos)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1892,6 +1898,9 @@ func (s *dbShard) WarmFlush(
 		NamespaceMetadata: s.namespace,
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
+		// Volume index is always 0 for warm flushes because a warm flush must
+		// happen first before cold flushes happen.
+		VolumeIndex: 0,
 		// We explicitly set delete if exists to false here as we track which
 		// filesets exists at bootstrap time so we should never encounter a time
 		// when we attempt to flush and a fileset already exists unless there is
@@ -1994,10 +2003,12 @@ func (s *dbShard) ColdFlush(
 	// a block, we continue to try persisting other blocks.
 	for blockStart := range dirtySeriesToWrite {
 		startTime := blockStart.ToTime()
+		coldVersion := s.RetrievableBlockColdVersion(startTime)
 		fsID := fs.FileSetFileIdentifier{
-			Namespace:  s.namespace.ID(),
-			Shard:      s.ID(),
-			BlockStart: startTime,
+			Namespace:   s.namespace.ID(),
+			Shard:       s.ID(),
+			BlockStart:  startTime,
+			VolumeIndex: coldVersion,
 		}
 
 		err := merger.Merge(fsID, mergeWithMem, flushPreparer, nsCtx)
@@ -2008,7 +2019,7 @@ func (s *dbShard) ColdFlush(
 
 		// After writing the full block successfully, update the cold version
 		// in the flush state.
-		nextVersion := s.RetrievableBlockColdVersion(startTime) + 1
+		nextVersion := coldVersion + 1
 
 		// Once this function completes block leasers will no longer be able to acquire
 		// leases on previous volumes for the given namespace/shard/blockstart.
@@ -2158,18 +2169,36 @@ func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
 
 func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	multiErr := xerrors.NewMultiError()
-	expired, err := s.filesetBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)
+	expired, err := s.filesetPathsBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)
 	if err != nil {
-		detailedErr :=
-			fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
-				filePathPrefix, s.namespace.ID(), s.ID(), err)
-		multiErr = multiErr.Add(detailedErr)
+		return fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
+			filePathPrefix, s.namespace.ID(), s.ID(), err)
 	}
-	if err := s.deleteFilesFn(expired); err != nil {
-		multiErr = multiErr.Add(err)
+
+	return s.deleteFilesFn(expired)
+}
+
+func (s *dbShard) CleanupCompactedFileSets() error {
+	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filesets, err := s.filesetsFn(filePathPrefix, s.namespace.ID(), s.ID())
+	if err != nil {
+		return fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
+			filePathPrefix, s.namespace.ID(), s.ID(), err)
 	}
-	return multiErr.FinalError()
+	// Get a snapshot of all states here to prevent constantly getting/releasing
+	// locks in a tight loop below.
+	blockStates := s.BlockStatesSnapshot()
+	// Filter without allocating by using same backing array.
+	compacted := filesets[:0]
+	for _, datafile := range filesets {
+		fileID := datafile.ID
+		blockState := blockStates[xtime.ToUnixNano(fileID.BlockStart)]
+		if fileID.VolumeIndex < blockState.ColdVersion {
+			compacted = append(compacted, datafile)
+		}
+	}
+
+	return s.deleteFilesFn(compacted.Filepaths())
 }
 
 func (s *dbShard) Repair(

@@ -173,7 +173,6 @@ type DataFileSetSeeker interface {
 		namespace ident.ID,
 		shard uint32,
 		start time.Time,
-		volume int,
 		resources ReusableSeekerResources,
 	) error
 
@@ -239,14 +238,14 @@ type DataFileSetSeekerManager interface {
 	CacheShardIndices(shards []uint32) error
 
 	// Borrow returns an open seeker for a given shard, block start time, and volume.
-	Borrow(shard uint32, start time.Time, volume int) (ConcurrentDataFileSetSeeker, error)
+	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
 
 	// Return returns an open seeker for a given shard, block start time, and volume.
-	Return(shard uint32, start time.Time, volume int, seeker ConcurrentDataFileSetSeeker) error
+	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
 
 	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
 	// shard, block start time, and volume.
-	ConcurrentIDBloomFilter(shard uint32, start time.Time, volume int) (*ManagedConcurrentBloomFilter, error)
+	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
 }
 
 // DataBlockRetriever provides a block retriever for TSDB file sets

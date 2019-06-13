@@ -191,13 +191,13 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 			return err
 		}
 
-		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, infoFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, indexFileSuffix)
-		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, summariesFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, bloomFilterFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, dataFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, digestFileSuffix)
+		w.checkpointFilePath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, checkpointFileSuffix, false)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, infoFileSuffix, false)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, indexFileSuffix, false)
+		summariesFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, summariesFileSuffix, false)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, bloomFilterFileSuffix, false)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, dataFileSuffix, false)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, nextVolumeIndex, digestFileSuffix, false)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}

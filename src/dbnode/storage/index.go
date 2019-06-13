@@ -277,7 +277,7 @@ func newNamespaceIndexWithOptions(
 		bufferFuture:          nsMD.Options().RetentionOptions().BufferFuture(),
 		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
-		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
+		indexFilesetsBeforeFn: fs.IndexFilePathsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
 
 		newBlockFn: newBlockFn,

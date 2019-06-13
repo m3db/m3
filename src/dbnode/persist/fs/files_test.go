@@ -312,15 +312,15 @@ func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
-	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+	require.Equal(t, dataFilesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data", false), validName)
 
 	unindexedName := "foo/bar/fileset-21234567890-data.db"
 	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(unindexedName)
-	exp = expected{time.Unix(0, 21234567890), -1}
+	exp = expected{time.Unix(0, 21234567890), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
-	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), unindexedName)
+	require.Equal(t, dataFilesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data", true), unindexedName)
 }
 
 func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
@@ -475,7 +475,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := DataFileSetsBefore(dir, testNs1ID, shard, cutoff)
+	res, err := DataFilePathsBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
@@ -494,7 +494,7 @@ func TestFileSetAt(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, timestamp, res.ID.BlockStart)
@@ -509,7 +509,7 @@ func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}
@@ -523,15 +523,15 @@ func TestDeleteFileSetAt(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, timestamp, res.ID.BlockStart)
 
-		err = DeleteFileSetAt(dir, testNs1ID, shard, timestamp)
+		err = DeleteFileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 
-		res, ok, err = FileSetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err = FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}
@@ -543,7 +543,7 @@ func TestFileSetAtNotExist(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	timestamp := time.Unix(0, 0)
-	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -772,34 +772,6 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 	curr := -1
 	for i := 0; i <= 10; i++ {
 		index, err := NextIndexFileSetVolumeIndex(dir, testNs1ID, blockStart)
-		require.NoError(t, err)
-		require.Equal(t, curr+1, index)
-		curr = index
-
-		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, checkpointFileSuffix)
-
-		digestBuf := digest.NewBuffer()
-		digestBuf.WriteDigest(digest.Checksum([]byte("bar")))
-
-		err = ioutil.WriteFile(p, digestBuf, defaultNewFileMode)
-		require.NoError(t, err)
-	}
-}
-
-func TestNextDataFileSetVolumeIndex(t *testing.T) {
-	// Make empty directory
-	shard := uint32(0)
-	dir := createTempDir(t)
-	dataDir := ShardDataDirPath(dir, testNs1ID, shard)
-	require.NoError(t, os.MkdirAll(dataDir, 0755))
-	defer os.RemoveAll(dataDir)
-
-	blockStart := time.Now().Truncate(time.Hour)
-
-	// Check increments properly
-	curr := -1
-	for i := 0; i <= 10; i++ {
-		index, err := NextDataFileSetVolumeIndex(dir, testNs1ID, shard, blockStart)
 		require.NoError(t, err)
 		require.Equal(t, curr+1, index)
 		curr = index
@@ -1101,7 +1073,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	}
 	files.create(t, dir)
 
-	results, err := IndexFileSetsBefore(dir, ns1, timeFor(3))
+	results, err := IndexFilePathsBefore(dir, ns1, timeFor(3))
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	for _, res := range results {

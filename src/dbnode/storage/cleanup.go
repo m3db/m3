@@ -134,7 +134,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	if err := m.cleanupExpiredDataFiles(t); err != nil {
+	if err := m.cleanupDataFiles(t); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up data files for %v: %v", t, err))
 	}
@@ -227,7 +227,7 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredDataFiles(t time.Time) error {
+func (m *cleanupManager) cleanupDataFiles(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
@@ -240,6 +240,7 @@ func (m *cleanupManager) cleanupExpiredDataFiles(t time.Time) error {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		shards := n.GetOwnedShards()
 		multiErr = multiErr.Add(m.cleanupExpiredNamespaceDataFiles(earliestToRetain, shards))
+		multiErr = multiErr.Add(m.cleanupCompactedNamespaceDataFiles(shards))
 	}
 	return multiErr.FinalError()
 }
@@ -268,6 +269,17 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
 		if err := shard.CleanupExpiredFileSets(earliestToRetain); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseShard) error {
+	multiErr := xerrors.NewMultiError()
+	for _, shard := range shards {
+		if err := shard.CleanupCompactedFileSets(); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

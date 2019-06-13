@@ -58,9 +58,12 @@ const (
 	snapshotDirName   = "snapshots"
 	commitLogsDirName = "commitlogs"
 
-	// Filesets that are not indexed should be ordered before 0-indexed fileset
-	// files.
-	unindexedFilesetIndex = -1
+	// The volume index assigned to (legacy) filesets that don't have a volume
+	// number in their filename.
+	// NOTE: Since this index is the same as the index for the first
+	// (non-legacy) fileset, receiving an index of 0 means that we need to
+	// check for both indexed and non-indexed filenames.
+	unindexedFilesetIndex = 0
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
@@ -178,9 +181,9 @@ func (f FileSetFilesSlice) Filepaths() []string {
 }
 
 // LatestVolumeForBlock returns the latest (highest index) FileSetFile in the
-// slice for a given block start; applicable for data, index and snapshot file set files.
+// slice for a given block start.
 func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFile, bool) {
-	// Make sure we're already sorted
+	// Make sure we're already sorted.
 	f.sortByTimeAndVolumeIndexAscending()
 
 	for i, curr := range f {
@@ -209,6 +212,18 @@ func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFi
 	}
 
 	return FileSetFile{}, false
+}
+
+// VolumeExistsForBlock returns whether there is a valid FileSetFile for the
+// given block start and volume index.
+func (f FileSetFilesSlice) VolumeExistsForBlock(blockStart time.Time, volume int) bool {
+	for _, curr := range f {
+		if curr.ID.BlockStart.Equal(blockStart) && curr.ID.VolumeIndex == volume {
+			return curr.HasCompleteCheckpointFile()
+		}
+	}
+
+	return false
 }
 
 // ignores the index in the FileSetFileIdentifier because fileset files should
@@ -540,6 +555,27 @@ func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, reade
 		infoFilePath, readerBufferSize, expectedInfoDigest)
 }
 
+func readCheckpointFile(filePath string, digestBuf digest.Buffer) (uint32, error) {
+	exists, err := CompleteCheckpointFileExists(filePath)
+	if err != nil {
+		return 0, err
+	}
+	if !exists {
+		return 0, ErrCheckpointFileNotFound
+	}
+	fd, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer fd.Close()
+	digest, err := digestBuf.ReadDigestFromFile(fd)
+	if err != nil {
+		return 0, err
+	}
+
+	return digest, nil
+}
+
 type forEachInfoFileSelector struct {
 	fileSetType    persist.FileSetType
 	contentType    persist.FileSetContentType
@@ -597,6 +633,10 @@ func forEachInfoFile(
 		t := matched[i].ID.BlockStart
 		volume := matched[i].ID.VolumeIndex
 
+		isLegacy, err := isFirstVolumeLegacy(dir, t, checkpointFileSuffix)
+		if err != nil {
+			continue
+		}
 		var (
 			checkpointFilePath string
 			digestsFilePath    string
@@ -606,9 +646,9 @@ func forEachInfoFile(
 		case persist.FileSetFlushType:
 			switch args.contentType {
 			case persist.FileSetDataContentType:
-				checkpointFilePath = filesetPathFromTimeAndIndex(dir, t, volume, checkpointFileSuffix)
-				digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
-				infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
+				checkpointFilePath = dataFilesetPathFromTimeAndIndex(dir, t, volume, checkpointFileSuffix, isLegacy)
+				digestsFilePath = dataFilesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix, isLegacy)
+				infoFilePath = dataFilesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix, isLegacy)
 			case persist.FileSetIndexContentType:
 				checkpointFilePath = filesetPathFromTimeAndIndex(dir, t, volume, checkpointFileSuffix)
 				digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
@@ -619,21 +659,8 @@ func forEachInfoFile(
 			digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
 			infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
 		}
-		checkpointExists, err := CompleteCheckpointFileExists(checkpointFilePath)
-		if err != nil {
-			continue
-		}
-		if !checkpointExists {
-			continue
-		}
-		checkpointFd, err := os.Open(checkpointFilePath)
-		if err != nil {
-			continue
-		}
-
 		// Read digest of digests from the checkpoint file
-		expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
-		checkpointFd.Close()
+		expectedDigestOfDigest, err := readCheckpointFile(checkpointFilePath, digestBuf)
 		if err != nil {
 			continue
 		}
@@ -896,8 +923,8 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 	}
 
 	matched.sortByTimeAndVolumeIndexAscending()
-	for i, fileset := range matched {
-		if fileset.ID.BlockStart.Equal(blockStart) {
+	for _, fileset := range matched {
+		if fileset.ID.BlockStart.Equal(blockStart) && fileset.ID.VolumeIndex == volume {
 			if !fileset.HasCompleteCheckpointFile() {
 				continue
 			}
@@ -950,8 +977,8 @@ func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, bl
 	return DeleteFiles(fileset.AbsoluteFilepaths)
 }
 
-// DataFileSetsBefore returns all the flush data fileset files whose timestamps are earlier than a given time.
-func DataFileSetsBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
+// DataFilePathsBefore returns all the flush data fileset paths whose timestamps are earlier than a given time.
+func DataFilePathsBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetDataContentType,
@@ -966,8 +993,8 @@ func DataFileSetsBefore(filePathPrefix string, namespace ident.ID, shard uint32,
 	return FilesBefore(matched.Filepaths(), t)
 }
 
-// IndexFileSetsBefore returns all the flush index fileset files whose timestamps are earlier than a given time.
-func IndexFileSetsBefore(filePathPrefix string, namespace ident.ID, t time.Time) ([]string, error) {
+// IndexFilePathsBefore returns all the flush index fileset paths whose timestamps are earlier than a given time.
+func IndexFilePathsBefore(filePathPrefix string, namespace ident.ID, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,
@@ -1267,9 +1294,34 @@ func CommitLogsDirPath(prefix string) string {
 
 // DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
 func DataFileSetExistsAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
-	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
-	checkpointPath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return CompleteCheckpointFileExists(checkpointPath)
+	dataFiles, err := DataFiles(filePathPrefix, namespace, shard)
+	if err != nil {
+		return false, err
+	}
+
+	_, ok := dataFiles.LatestVolumeForBlock(blockStart)
+	if !ok {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// DataFileSetExists determines whether data fileset files exist for the given
+// namespace, shard, block start, and volume.
+func DataFileSetExists(
+	filePathPrefix string,
+	namespace ident.ID,
+	shard uint32,
+	blockStart time.Time,
+	volume int,
+) (bool, error) {
+	dataFiles, err := DataFiles(filePathPrefix, namespace, shard)
+	if err != nil {
+		return false, err
+	}
+
+	return dataFiles.VolumeExistsForBlock(blockStart, volume), nil
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
@@ -1279,29 +1331,12 @@ func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 		return false, err
 	}
 
-	latest, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
+	_, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
 	if !ok {
 		return false, nil
 	}
 
-	return latest.HasCompleteCheckpointFile(), nil
-}
-
-// NextDataFileSetVolumeIndex returns the next data file set index for a
-// given namespace/blockStart combination.
-func NextDataFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (int, error) {
-	files, err := DataFiles(filePathPrefix, namespace, shard)
-	if err != nil {
-		return 0, err
-	}
-
-	latestFile, ok := files.LatestVolumeForBlock(blockStart)
-	if !ok {
-		// There isn't a fileset for this block yet; start at 0.
-		return 0, nil
-	}
-
-	return latestFile.ID.VolumeIndex + 1, nil
+	return true, nil
 }
 
 // NextSnapshotMetadataFileIndex returns the next snapshot metadata file index.
@@ -1451,13 +1486,43 @@ func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
 }
 
 func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix string) string {
-	var newSuffix string
-	if index == unindexedFilesetIndex {
-		newSuffix = suffix
-	} else {
-		newSuffix = fmt.Sprintf("%d%s%s", index, separator, suffix)
-	}
+	newSuffix := fmt.Sprintf("%d%s%s", index, separator, suffix)
 	return path.Join(prefix, filesetFileForTime(t, newSuffix))
+}
+
+// isFirstVolumeLegacy returns whether the first volume of the provided type is
+// legacy, i.e. does not have a volume index in its filename. It only checks for
+// the existence of the file and the non-legacy version of the file, and returns
+// and error if neither exist.
+func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error) {
+	path := filesetPathFromTimeAndIndex(prefix, t, 0, suffix)
+	_, err := os.Stat(path)
+	if err == nil {
+		return false, nil
+	}
+
+	legacyPath := filesetPathFromTime(prefix, t, suffix)
+	_, err = os.Stat(legacyPath)
+	if err == nil {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("first volume does not exist for prefix: %s, time: %v, suffix: %s",
+		prefix, t, suffix)
+}
+
+func dataFilesetPathFromTimeAndIndex(
+	prefix string,
+	t time.Time,
+	index int,
+	suffix string,
+	isLegacy bool,
+) string {
+	if isLegacy {
+		return filesetPathFromTime(prefix, t, suffix)
+	}
+
+	return filesetPathFromTimeAndIndex(prefix, t, index, suffix)
 }
 
 func filesetIndexSegmentFileSuffixFromTime(

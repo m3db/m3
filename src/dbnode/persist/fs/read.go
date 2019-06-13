@@ -145,6 +145,11 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		indexFilepath       string
 		dataFilepath        string
 	)
+
+	isLegacy, err := isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+	if err != nil {
+		return err
+	}
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
@@ -156,12 +161,12 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -498,27 +503,6 @@ func (r *reader) Close() error {
 	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
-}
-
-func readCheckpointFile(filePath string, digestBuf digest.Buffer) (uint32, error) {
-	exists, err := CompleteCheckpointFileExists(filePath)
-	if err != nil {
-		return 0, err
-	}
-	if !exists {
-		return 0, ErrCheckpointFileNotFound
-	}
-	fd, err := os.Open(filePath)
-	if err != nil {
-		return 0, err
-	}
-	defer fd.Close()
-	digest, err := digestBuf.ReadDigestFromFile(fd)
-	if err != nil {
-		return 0, err
-	}
-
-	return digest, nil
 }
 
 // indexEntriesByOffsetAsc implements sort.Sort
