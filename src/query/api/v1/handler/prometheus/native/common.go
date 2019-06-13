@@ -68,7 +68,7 @@ func parseTime(r *http.Request, key string) (time.Time, error) {
 
 // nolint: unparam
 func parseDuration(r *http.Request, key string) (time.Duration, error) {
-	str := r.FormValue(key)
+	str := strings.TrimSpace(r.FormValue(key))
 	if str == "" {
 		return 0, errors.ErrNotFound
 	}
