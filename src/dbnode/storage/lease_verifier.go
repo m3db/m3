@@ -70,3 +70,15 @@ func (v *leaseVerifier) VerifyLease(
 
 	return nil
 }
+
+func (v *leaseVerifier) LatestState(descriptor block.LeaseDescriptor) (block.LeaseState, error) {
+	flushState, err := v.flushStateRetriever.FlushState(
+		descriptor.Namespace, uint32(descriptor.Shard), descriptor.BlockStart)
+	if err != nil {
+		return false, block.LeaseState{}, fmt.Errorf(
+			"err retrieving flushState for LatestState, ns: %s, shard: %d, blockStart: %s, err: %v",
+			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
+	}
+
+	return block.LeaseState{Volume: flushState.ColdVersion}, nil
+}

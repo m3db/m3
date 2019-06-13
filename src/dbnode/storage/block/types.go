@@ -416,6 +416,8 @@ type LeaseVerifier interface {
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
+
+	LatestState(descriptor LeaseDescriptor) (LeaseState, error)
 }
 
 // UpdateOpenLeaseResult is the result of processing an update lease.
