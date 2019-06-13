@@ -216,7 +216,6 @@ func TestClientLoadSchemaFromFile(t *testing.T) {
 	cfg := &client.Configuration{
 		Proto: &client.ProtoConfiguration{
 			Enabled: true,
-			TestOnly: true,
 			SchemaRegistry: map[string]client.NamespaceProtoSchema{
 				"ns1": {MessageName: protoMsg, SchemaFilePath: protoFile},
 			},
@@ -224,6 +223,10 @@ func TestClientLoadSchemaFromFile(t *testing.T) {
 	}
 
 	mockTopo := topology.NewMockInitializer(ctrl)
+	_, err = cfg.NewAdminClient(client.ConfigurationParameters{TopologyInitializer: mockTopo})
+	require.Error(t, err)
+
+	cfg.Proto.TestOnly = true
 	adminClient, err := cfg.NewAdminClient(client.ConfigurationParameters{TopologyInitializer: mockTopo})
 	require.NoError(t, err)
 
