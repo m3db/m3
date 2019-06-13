@@ -392,7 +392,9 @@ func Run(runOpts RunOptions) {
 	tagDecoderPool.Init()
 
 	// Pass nil for block.LeaseVerifier for now and it will be set after the
-	// db is constructed.
+	// db is constructed (since the db is required to construct a
+	// block.LeaseVerifier). Initialized here because it needs to be propagated
+	// to both the DB and the blockRetriever.
 	blockLeaseManager := block.NewLeaseManager(nil)
 	opts = opts.SetBlockLeaseManager(blockLeaseManager)
 	fsopts := fs.NewOptions().
