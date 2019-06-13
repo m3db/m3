@@ -38,8 +38,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -66,7 +66,7 @@ type blockRetrieverStatus int
 type newSeekerMgrFn func(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
-	fetchConcurrency int,
+	blockRetrieverOpts BlockRetrieverOptions,
 ) DataFileSetSeekerManager
 
 const (
@@ -103,7 +103,11 @@ type blockRetriever struct {
 func NewBlockRetriever(
 	opts BlockRetrieverOptions,
 	fsOpts Options,
-) DataBlockRetriever {
+) (DataBlockRetriever, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	segmentReaderPool := opts.SegmentReaderPool()
 	reqPoolOpts := opts.RequestPoolOptions()
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
@@ -122,7 +126,7 @@ func NewBlockRetriever(
 		// buffering is required
 		fetchLoopsShouldShutdownCh: make(chan struct{}),
 		fetchLoopsHaveShutdownCh:   make(chan struct{}, opts.FetchConcurrency()),
-	}
+	}, nil
 }
 
 func (r *blockRetriever) Open(ns namespace.Metadata) error {
@@ -133,7 +137,7 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 		return errBlockRetrieverAlreadyOpenOrClosed
 	}
 
-	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts.FetchConcurrency())
+	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts)
 	if err := seekerMgr.Open(ns); err != nil {
 		return err
 	}

@@ -388,6 +388,7 @@ type LeaseManager interface {
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) (UpdateLeasesResult, error)
+	SetLeaseVerifier(leaseVerifier LeaseVerifier) error
 }
 
 // UpdateLeasesResult is the result of a call to update leases.
@@ -399,7 +400,7 @@ type UpdateLeasesResult struct {
 // LeaseDescriptor describes a lease (like an ID).
 type LeaseDescriptor struct {
 	Namespace  ident.ID
-	Shard      int
+	Shard      uint32
 	BlockStart time.Time
 }
 

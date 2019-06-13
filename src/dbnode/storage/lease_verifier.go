@@ -36,7 +36,8 @@ type leaseVerifier struct {
 	flushStateRetriever flushStateRetriever
 }
 
-func newLeaseVerifier(retriever flushStateRetriever) *leaseVerifier {
+// NewLeaseVerifier creates a new LeaseVerifier.
+func NewLeaseVerifier(retriever flushStateRetriever) *leaseVerifier {
 	return &leaseVerifier{
 		flushStateRetriever: retriever,
 	}
