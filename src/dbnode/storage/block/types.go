@@ -451,6 +451,9 @@ type Leaser interface {
 	// optionally acquiring new ones related to the updated lease) accordingly,
 	// but it should *not* call LeaseManager.OpenLease() with the provided
 	// descriptor and state.
+	//
+	// UpdateOpenLease will never be called concurrently on the same Leaser. Each
+	// call to UpdateOpenLease() must return before the next one will begin.
 	UpdateOpenLease(
 		descriptor LeaseDescriptor,
 		state LeaseState,
