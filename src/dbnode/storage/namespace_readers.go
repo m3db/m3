@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -256,15 +255,17 @@ func (m *namespaceReaderManager) get(
 	// We have a closed reader from the cache (either a cached closed
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
+	// TODO(juchan): get the actual volume here.
+	vol := 0
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  m.namespace.ID(),
-			Shard:      shard,
-			BlockStart: blockStart,
+			Namespace:   m.namespace.ID(),
+			Shard:       shard,
+			BlockStart:  blockStart,
+			VolumeIndex: vol,
 		},
 	}
 	if err := reader.Open(openOpts); err != nil {
-		fmt.Printf("j>> %+v\n", 2)
 		return nil, err
 	}
 

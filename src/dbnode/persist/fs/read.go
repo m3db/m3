@@ -146,13 +146,6 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		dataFilepath        string
 	)
 
-	isLegacy := false
-	if volumeIndex == 0 {
-		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
-		if err != nil {
-			return err
-		}
-	}
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
@@ -164,6 +157,15 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
+
+		isLegacy := false
+		if volumeIndex == 0 {
+			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+			if err != nil {
+				return err
+			}
+		}
+
 		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
 		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
 		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)

@@ -1304,14 +1304,17 @@ func DataFileSetExists(
 	blockStart time.Time,
 	volume int,
 ) (bool, error) {
+	// This function is in some cases the bottleneck, thus, we use different
+	// logic to handle this case specifically (don't use DataFiles(...)).
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
+
 	// Check fileset with volume first to optimize for non-legacy use case.
 	checkpointPath := filesetPathFromTimeAndIndex(shardDir, blockStart, volume, checkpointFileSuffix)
-	if volume != 0 {
-		return CompleteCheckpointFileExists(checkpointPath)
+	exists, err := CompleteCheckpointFileExists(checkpointPath)
+	if err == nil && exists {
+		return true, nil
 	}
 
-	// Check legacy format next only if volume is 0.
 	checkpointPath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
 	return CompleteCheckpointFileExists(checkpointPath)
 }
@@ -1500,8 +1503,7 @@ func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error
 		return true, nil
 	}
 
-	return false, fmt.Errorf("first volume does not exist for prefix: %s, time: %v, suffix: %s",
-		prefix, t, suffix)
+	return false, ErrCheckpointFileNotFound
 }
 
 func dataFilesetPathFromTimeAndIndex(
