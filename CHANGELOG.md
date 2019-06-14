@@ -9,7 +9,7 @@
 ## Bug Fixes
 
 - **M3Query**: Add verbose step size parsing errors to identify problematic queries (#1734)
-- **M3Coordinator**: Add verbose errors to identify metrics arriving too late for aggregation and make lateness policies configurable by config (#1731)
+- **M3Coordinator**: Add verbose errors to identify metrics arriving too late for aggregation and make lateness policies able to be set by config (#1731)
 
 # 0.10.1
 
