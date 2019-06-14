@@ -446,7 +446,11 @@ const (
 // Leaser is a block leaser.
 type Leaser interface {
 	// UpdateOpenLease is called on the Leaser when the latest state
-	// has changed and the leaser needs to update their lease.
+	// has changed and the leaser needs to update their lease. The leaser
+	// should update its state (releasing any resources as necessary and
+	// optionally acquiring new ones related to the updated lease) accordingly,
+	// but it should *not* call LeaseManager.OpenLease() with the provided
+	// descriptor and state.
 	UpdateOpenLease(
 		descriptor LeaseDescriptor,
 		state LeaseState,
