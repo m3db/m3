@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 )
 
 var (
@@ -91,20 +93,28 @@ type Configuration struct {
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
 	Enabled bool `yaml:"enabled"`
+	TestOnly bool `yaml:"testOnly"`
 	// load user schema from client configuration into schema registry
 	// at startup/initialization time.
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
 type NamespaceProtoSchema struct {
-	SchemaFilePath string `yaml:"schemaFilePath"`
 	MessageName    string `yaml:"messageName"`
+	SchemaDeployID string `yaml:"schemaDeployID"`
+	SchemaFilePath string `yaml:"schemaFilePath"`
 }
 
 // Validate validates the NamespaceProtoSchema.
-func (c NamespaceProtoSchema) Validate() error {
-	if c.SchemaFilePath == "" {
-		return errors.New("schemaFilePath is required for Proto data mode")
+func (c NamespaceProtoSchema) Validate(testOnly bool) error {
+	if testOnly {
+		if c.SchemaFilePath == "" {
+			return errors.New("schemaFilePath is required for Proto data mode when testOnly is true")
+		}
+	} else {
+		if c.SchemaDeployID == "" {
+			return errors.New("schemaDeployID is required for Proto data mode")
+		}
 	}
 
 	if c.MessageName == "" {
@@ -121,7 +131,7 @@ func (c *ProtoConfiguration) Validate() error {
 	}
 
 	for _, schema := range c.SchemaRegistry {
-		if err := schema.Validate(); err != nil {
+		if err := schema.Validate(c.TestOnly); err != nil {
 			return err
 		}
 	}
@@ -234,11 +244,10 @@ func (c Configuration) NewAdminClient(
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	envCfg := environment.ConfigureResults{
-		TopologyInitializer: params.TopologyInitializer,
-	}
+	var envCfg environment.ConfigureResults
 
-	if envCfg.TopologyInitializer == nil {
+	// Initialize envCfg.
+	if c.EnvironmentConfig != nil {
 		if c.EnvironmentConfig.Service != nil {
 			cfgParams := environment.ConfigurationParameters{
 				InstrumentOpts: iopts,
@@ -262,6 +271,9 @@ func (c Configuration) NewAdminClient(
 		} else {
 			return nil, errConfigurationMustSupplyConfig
 		}
+	}
+	if params.TopologyInitializer != nil {
+		envCfg.TopologyInitializer = params.TopologyInitializer
 	}
 
 	v := NewAdminOptions().
@@ -312,19 +324,32 @@ func (c Configuration) NewAdminClient(
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
+
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
-		// Load schema from config if it is available.
-		// If admin client is initialized by dbnode, the schema registry can be overridden
-		// by admin custom options.
-		for nsID, protoConfig := range c.Proto.SchemaRegistry {
-			dummyDeployID := "fromconfig"
-			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
-				dummyDeployID,
-				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
-				return nil, xerrors.Wrapf(err, "could not load schema from configuration for namespace: %s", nsID)
+		if c.Proto.TestOnly {
+			// Load schema registry from file.
+			deployID := "fromfile"
+			for nsID, protoConfig := range c.Proto.SchemaRegistry {
+				err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
+				}
+			}
+		} else {
+			// Load schema registry from m3db metadata store.
+			err := loadSchemaRegistryFromKVStore(schemaRegistry, envCfg.KVStore)
+			if err != nil {
+				return nil, xerrors.Wrap(err, "could not load schema registry from m3db metadata store")
+			}
+			// Validate the schema deploy ID.
+			for nsID, protoConfig := range c.Proto.SchemaRegistry {
+				_, err := schemaRegistry.GetSchema(ident.StringID(nsID), protoConfig.SchemaDeployID)
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not find schema for namespace: %s with schema deploy ID: %s", nsID, protoConfig.SchemaDeployID)
+				}
 			}
 		}
-		v.SetSchemaRegistry(schemaRegistry)
+		v = v.SetSchemaRegistry(schemaRegistry)
 	}
 
 	// Apply programtic custom options last
@@ -334,4 +359,27 @@ func (c Configuration) NewAdminClient(
 	}
 
 	return NewAdminClient(opts)
+}
+
+func loadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore kv.Store) error {
+	if kvStore == nil {
+		return errors.New("m3db metadata store is not configured properly")
+	}
+	as := kvadmin.NewAdminService(kvStore, "", nil)
+	nsReg, err := as.GetAll()
+	if err != nil {
+		return xerrors.Wrap(err, "could not get metadata from metadata store")
+	}
+	nsMap, err := namespace.FromProto(*nsReg)
+	if err != nil {
+		return xerrors.Wrap(err, "could not unmarshal metadata")
+	}
+	merr := xerrors.NewMultiError()
+	for _, metadata := range nsMap.Metadatas() {
+		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
+		if err != nil {
+			merr.Add(xerrors.Wrapf(err, "could not set schema history for namespace %s", metadata.ID().String()))
+		}
+	}
+	return merr.FinalError()
 }
