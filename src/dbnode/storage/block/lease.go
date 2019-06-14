@@ -101,7 +101,7 @@ func (m *leaseManager) OpenLease(
 	return m.verifier.VerifyLease(descriptor, state)
 }
 
-func (m *leaseManager) OpenLeaseForLatest(
+func (m *leaseManager) OpenLatestLease(
 	leaser Leaser,
 	descriptor LeaseDescriptor,
 ) (LeaseState, error) {

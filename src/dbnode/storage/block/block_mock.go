@@ -1386,19 +1386,19 @@ func (mr *MockLeaseManagerMockRecorder) OpenLease(leaser, descriptor, state inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenLease", reflect.TypeOf((*MockLeaseManager)(nil).OpenLease), leaser, descriptor, state)
 }
 
-// OpenLeaseForLatest mocks base method
-func (m *MockLeaseManager) OpenLeaseForLatest(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error) {
+// OpenLatestLease mocks base method
+func (m *MockLeaseManager) OpenLatestLease(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OpenLeaseForLatest", leaser, descriptor)
+	ret := m.ctrl.Call(m, "OpenLatestLease", leaser, descriptor)
 	ret0, _ := ret[0].(LeaseState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// OpenLeaseForLatest indicates an expected call of OpenLeaseForLatest
-func (mr *MockLeaseManagerMockRecorder) OpenLeaseForLatest(leaser, descriptor interface{}) *gomock.Call {
+// OpenLatestLease indicates an expected call of OpenLatestLease
+func (mr *MockLeaseManagerMockRecorder) OpenLatestLease(leaser, descriptor interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenLeaseForLatest", reflect.TypeOf((*MockLeaseManager)(nil).OpenLeaseForLatest), leaser, descriptor)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenLatestLease", reflect.TypeOf((*MockLeaseManager)(nil).OpenLatestLease), leaser, descriptor)
 }
 
 // UpdateOpenLeases mocks base method

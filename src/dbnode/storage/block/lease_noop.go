@@ -39,7 +39,7 @@ func (n *NoopLeaseManager) OpenLease(
 	return nil
 }
 
-func (n *NoopLeaseManager) OpenLeaseForLatest(
+func (n *NoopLeaseManager) OpenLatestLease(
 	leaser Leaser,
 	descriptor LeaseDescriptor,
 ) (LeaseState, error) {

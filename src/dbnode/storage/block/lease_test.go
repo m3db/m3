@@ -123,7 +123,7 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 	require.NoError(t, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
 }
 
-func TestOpenLeaseForLatest(t *testing.T) {
+func TestOpenLatestLease(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -144,12 +144,12 @@ func TestOpenLeaseForLatest(t *testing.T) {
 
 	require.Equal(t, errLeaserNotRegistered, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
-	latestState, err := leaseMgr.OpenLeaseForLatest(leaser, leaseDesc)
+	latestState, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
 	require.NoError(t, err)
 	require.Equal(t, leaseState, latestState)
 }
 
-func TestOpenLeaseForLatestErrorIfNoVerifier(t *testing.T) {
+func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -166,13 +166,13 @@ func TestOpenLeaseForLatestErrorIfNoVerifier(t *testing.T) {
 		}
 	)
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
-	_, err := leaseMgr.OpenLeaseForLatest(leaser, leaseDesc)
+	_, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
 	require.Equal(t, errOpenLeaseVerifierNotSet, err)
 
 	verifier := NewMockLeaseVerifier(ctrl)
 	verifier.EXPECT().LatestState(leaseDesc).Return(leaseState, nil)
 	require.NoError(t, leaseMgr.SetLeaseVerifier(verifier))
-	latestState, err := leaseMgr.OpenLeaseForLatest(leaser, leaseDesc)
+	latestState, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
 	require.NoError(t, err)
 	require.Equal(t, leaseState, latestState)
 }
