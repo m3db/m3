@@ -1,15 +1,24 @@
 {
   "images": {
     "m3dbnode": {
+      "name": "m3dbnode",
       "dockerfile": "docker/m3dbnode/Dockerfile"
     },
+    "m3dbnode-setcap": {
+      "name": "m3dbnode",
+      "dockerfile": "docker/m3dbnode/Dockerfile",
+      "tag_suffix": "setcap"
+    },
     "m3coordinator": {
+      "name": "m3coordinator",
       "dockerfile": "docker/m3coordinator/Dockerfile"
     },
     "m3query": {
+      "name": "m3query",
       "dockerfile": "docker/m3query/Dockerfile"
     },
     "m3nsch": {
+      "name": "m3nsch",
       "dockerfile": "docker/m3nsch/Dockerfile"
     }
   }
