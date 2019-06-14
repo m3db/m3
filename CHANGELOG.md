@@ -1,5 +1,16 @@
 # Changelog
 
+# 0.10.2
+
+## Performance
+
+- **M3DB**: First of a set of incremental bootstrap improvements, improve commit log reader speed (#1724)
+
+## Bug Fixes
+
+- **M3Query**: Add verbose step size parsing errors to identify problematic queries (#1734)
+- **M3Coordinator**: Add verbose errors to identify metrics arriving too late for aggregation and make lateness policies configurable by config (#1731)
+
 # 0.10.1
 
 ## Bug Fixes
