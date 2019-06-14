@@ -633,13 +633,6 @@ func forEachInfoFile(
 		t := matched[i].ID.BlockStart
 		volume := matched[i].ID.VolumeIndex
 
-		isLegacy := false
-		if volume == 0 {
-			isLegacy, err = isFirstVolumeLegacy(dir, t, checkpointFileSuffix)
-			if err != nil {
-				continue
-			}
-		}
 		var (
 			checkpointFilePath string
 			digestsFilePath    string
@@ -649,6 +642,13 @@ func forEachInfoFile(
 		case persist.FileSetFlushType:
 			switch args.contentType {
 			case persist.FileSetDataContentType:
+				isLegacy := false
+				if volume == 0 {
+					isLegacy, err = isFirstVolumeLegacy(dir, t, checkpointFileSuffix)
+					if err != nil {
+						continue
+					}
+				}
 				checkpointFilePath = dataFilesetPathFromTimeAndIndex(dir, t, volume, checkpointFileSuffix, isLegacy)
 				digestsFilePath = dataFilesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix, isLegacy)
 				infoFilePath = dataFilesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix, isLegacy)
