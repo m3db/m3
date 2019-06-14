@@ -377,17 +377,28 @@ type FetchBlocksMetadataResultsPool interface {
 
 // LeaseManager is a manager of block leases and leasers.
 type LeaseManager interface {
+	// RegisterLeaser registers the leaser to receive UpdateOpenLease()
+	// calls when leases need to be updated.
 	RegisterLeaser(leaser Leaser) error
+	// UnregisterLeaser unregisters the leaser from receiving UpdateOpenLease()
+	// calls.
 	UnregisterLeaser(leaser Leaser) error
+	// OpenLease opens a lease.
 	OpenLease(
 		leaser Leaser,
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
+	// OpenLatestLease opens a lease for the latest LeaseState for a given
+	// LeaseDescriptor.
+	OpenLatestLease(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error)
+	// UpdateOpenLeases propagate a call to UpdateOpenLease() to each registered
+	// leaser.
 	UpdateOpenLeases(
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) (UpdateLeasesResult, error)
+	// SetLeaseVerifier sets the LeaseVerifier (for delayed initialization).
 	SetLeaseVerifier(leaseVerifier LeaseVerifier) error
 }
 
@@ -412,10 +423,14 @@ type LeaseState struct {
 
 // LeaseVerifier verifies that a lease is valid.
 type LeaseVerifier interface {
+	// VerifyLease is called to determine if the requested lease is valid.
 	VerifyLease(
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
+
+	// LatestState returns the latest LeaseState for a given descriptor.
+	LatestState(descriptor LeaseDescriptor) (LeaseState, error)
 }
 
 // UpdateOpenLeaseResult is the result of processing an update lease.
@@ -430,6 +445,15 @@ const (
 
 // Leaser is a block leaser.
 type Leaser interface {
+	// UpdateOpenLease is called on the Leaser when the latest state
+	// has changed and the leaser needs to update their lease. The leaser
+	// should update its state (releasing any resources as necessary and
+	// optionally acquiring new ones related to the updated lease) accordingly,
+	// but it should *not* call LeaseManager.OpenLease() with the provided
+	// descriptor and state.
+	//
+	// UpdateOpenLease will never be called concurrently on the same Leaser. Each
+	// call to UpdateOpenLease() must return before the next one will begin.
 	UpdateOpenLease(
 		descriptor LeaseDescriptor,
 		state LeaseState,

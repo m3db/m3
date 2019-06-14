@@ -123,6 +123,60 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 	require.NoError(t, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
 }
 
+func TestOpenLatestLease(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser    = NewMockLeaser(ctrl)
+		verifier  = NewMockLeaseVerifier(ctrl)
+		leaseMgr  = NewLeaseManager(verifier)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+	)
+	verifier.EXPECT().LatestState(leaseDesc).Return(leaseState, nil)
+
+	require.Equal(t, errLeaserNotRegistered, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	latestState, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
+	require.NoError(t, err)
+	require.Equal(t, leaseState, latestState)
+}
+
+func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser    = NewMockLeaser(ctrl)
+		leaseMgr  = NewLeaseManager(nil)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+	)
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
+	require.Equal(t, errOpenLeaseVerifierNotSet, err)
+
+	verifier := NewMockLeaseVerifier(ctrl)
+	verifier.EXPECT().LatestState(leaseDesc).Return(leaseState, nil)
+	require.NoError(t, leaseMgr.SetLeaseVerifier(verifier))
+	latestState, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
+	require.NoError(t, err)
+	require.Equal(t, leaseState, latestState)
+}
+
 func TestUpdateOpenLeases(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

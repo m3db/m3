@@ -39,6 +39,13 @@ func (n *NoopLeaseManager) OpenLease(
 	return nil
 }
 
+func (n *NoopLeaseManager) OpenLatestLease(
+	leaser Leaser,
+	descriptor LeaseDescriptor,
+) (LeaseState, error) {
+	return LeaseState{}, nil
+}
+
 func (n *NoopLeaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,

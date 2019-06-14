@@ -52,12 +52,9 @@ func (m *leaseManager) RegisterLeaser(leaser Leaser) error {
 	m.Lock()
 	defer m.Unlock()
 
-	for _, l := range m.leasers {
-		if l == leaser {
-			return errLeaserAlreadyRegistered
-		}
+	if m.isRegistered(leaser) {
+		return errLeaserAlreadyRegistered
 	}
-
 	m.leasers = append(m.leasers, leaser)
 
 	return nil
@@ -97,19 +94,31 @@ func (m *leaseManager) OpenLease(
 		return errOpenLeaseVerifierNotSet
 	}
 
-	registered := false
-	for _, l := range m.leasers {
-		if l == leaser {
-			registered = true
-			break
-		}
-	}
-
-	if !registered {
+	if !m.isRegistered(leaser) {
 		return errLeaserNotRegistered
 	}
 
 	return m.verifier.VerifyLease(descriptor, state)
+}
+
+func (m *leaseManager) OpenLatestLease(
+	leaser Leaser,
+	descriptor LeaseDescriptor,
+) (LeaseState, error) {
+	// NB(r): Take exclusive lock so that upgrade leases can't be called
+	// while we are verifying a lease (racey)
+	m.Lock()
+	defer m.Unlock()
+
+	if m.verifier == nil {
+		return LeaseState{}, errOpenLeaseVerifierNotSet
+	}
+
+	if !m.isRegistered(leaser) {
+		return LeaseState{}, errLeaserNotRegistered
+	}
+
+	return m.verifier.LatestState(descriptor)
 }
 
 func (m *leaseManager) UpdateOpenLeases(
@@ -157,4 +166,13 @@ func (m *leaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
 
 	m.verifier = leaseVerifier
 	return nil
+}
+
+func (m *leaseManager) isRegistered(leaser Leaser) bool {
+	for _, l := range m.leasers {
+		if l == leaser {
+			return true
+		}
+	}
+	return false
 }
