@@ -112,6 +112,34 @@ func (m *leaseManager) OpenLease(
 	return m.verifier.VerifyLease(descriptor, state)
 }
 
+func (m *leaseManager) OpenLeaseForLatest(
+	leaser Leaser,
+	descriptor LeaseDescriptor,
+) (LeaseState, error) {
+	// NB(r): Take exclusive lock so that upgrade leases can't be called
+	// while we are verifying a lease (racey)
+	m.Lock()
+	defer m.Unlock()
+
+	if m.verifier == nil {
+		return LeaseState{}, errOpenLeaseVerifierNotSet
+	}
+
+	registered := false
+	for _, l := range m.leasers {
+		if l == leaser {
+			registered = true
+			break
+		}
+	}
+
+	if !registered {
+		return LeaseState{}, errLeaserNotRegistered
+	}
+
+	return m.verifier.LatestState(descriptor)
+}
+
 func (m *leaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,

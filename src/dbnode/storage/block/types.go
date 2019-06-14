@@ -384,6 +384,7 @@ type LeaseManager interface {
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
+	OpenLeaseForLatest(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error)
 	UpdateOpenLeases(
 		descriptor LeaseDescriptor,
 		state LeaseState,
