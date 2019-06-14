@@ -165,14 +165,18 @@ func TestAdminService_Crud(t *testing.T) {
 	as := NewAdminService(store, nsRegKey, func() string {return "first"})
 	require.NotNil(t, as)
 
-	require.NoError(t, as.Add("ns1", namespace.OptionsToProto(namespace.NewOptions())))
-	require.Error(t, as.Add("ns1", namespace.OptionsToProto(namespace.NewOptions())))
-	require.NoError(t, as.Set("ns1", namespace.OptionsToProto(namespace.NewOptions())))
-	require.Error(t, as.Set("ns2", namespace.OptionsToProto(namespace.NewOptions())))
+	expectedOpt := namespace.NewOptions()
+	require.NoError(t, as.Add("ns1", namespace.OptionsToProto(expectedOpt)))
+	require.Error(t, as.Add("ns1", namespace.OptionsToProto(expectedOpt)))
+	require.NoError(t, as.Set("ns1", namespace.OptionsToProto(expectedOpt)))
+	require.Error(t, as.Set("ns2", namespace.OptionsToProto(expectedOpt)))
 
 	nsOpt, err := as.Get("ns1")
 	require.NoError(t, err)
 	require.NotNil(t, nsOpt)
+	nsMeta, err := namespace.ToMetadata("ns1", nsOpt)
+	require.NoError(t, err)
+	require.True(t, nsMeta.Options().Equal(expectedOpt))
 
 	_, err = as.Get("ns2")
 	require.Error(t, err)
