@@ -980,8 +980,8 @@ func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, bl
 	return DeleteFiles(fileset.AbsoluteFilepaths)
 }
 
-// DataFilePathsBefore returns all the flush data fileset paths whose timestamps are earlier than a given time.
-func DataFilePathsBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
+// DataFileSetsBefore returns all the flush data fileset paths whose timestamps are earlier than a given time.
+func DataFileSetsBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetDataContentType,
@@ -996,8 +996,8 @@ func DataFilePathsBefore(filePathPrefix string, namespace ident.ID, shard uint32
 	return FilesBefore(matched.Filepaths(), t)
 }
 
-// IndexFilePathsBefore returns all the flush index fileset paths whose timestamps are earlier than a given time.
-func IndexFilePathsBefore(filePathPrefix string, namespace ident.ID, t time.Time) ([]string, error) {
+// IndexFileSetsBefore returns all the flush index fileset paths whose timestamps are earlier than a given time.
+func IndexFileSetsBefore(filePathPrefix string, namespace ident.ID, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetIndexContentType,

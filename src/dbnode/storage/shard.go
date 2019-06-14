@@ -269,7 +269,7 @@ func newDatabaseShard(
 		newMergerFn:          fs.NewMerger,
 		newFSMergeWithMemFn:  newFSMergeWithMem,
 		filesetsFn:           fs.DataFiles,
-		filesetPathsBeforeFn: fs.DataFilePathsBefore,
+		filesetPathsBeforeFn: fs.DataFileSetsBefore,
 		deleteFilesFn:        fs.DeleteFiles,
 		snapshotFilesFn:      fs.SnapshotFiles,
 		sleepFn:              time.Sleep,

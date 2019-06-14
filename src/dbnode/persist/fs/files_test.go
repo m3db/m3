@@ -475,7 +475,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := DataFilePathsBefore(dir, testNs1ID, shard, cutoff)
+	res, err := DataFileSetsBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
@@ -1073,7 +1073,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	}
 	files.create(t, dir)
 
-	results, err := IndexFilePathsBefore(dir, ns1, timeFor(3))
+	results, err := IndexFileSetsBefore(dir, ns1, timeFor(3))
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	for _, res := range results {
