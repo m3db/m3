@@ -171,7 +171,7 @@ func (m *seekerManager) Open(
 	// Register for updates to block leases.
 	// NB(rartoul): This should be safe to do within the context of the lock
 	// because the block.LeaseManager does not yet have a handle on the SeekerManager
-	// so they can't deadlock trying to acquire each other's locks, but do it otuside
+	// so they can't deadlock trying to acquire each other's locks, but do it outside
 	// of the lock just to be safe.
 	m.blockRetrieverOpts.BlockLeaseManager().RegisterLeaser(m)
 
