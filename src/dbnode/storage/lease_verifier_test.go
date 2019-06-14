@@ -109,7 +109,7 @@ func TestLeaseVerifierLatestStateHandlesErrors(t *testing.T) {
 		testBlockDescriptor.BlockStart,
 	).Return(fileOpState{}, errors.New("some-error"))
 
-	_, err := leaseVerifier.LatestState(testBlockDescriptor, testBlockLeaseState)
+	_, err := leaseVerifier.LatestState(testBlockDescriptor)
 	require.Error(t, err)
 }
 
@@ -127,7 +127,7 @@ func TestLeaseVerifierLatestStateSuccess(t *testing.T) {
 		testBlockDescriptor.BlockStart,
 	).Return(fileOpState{ColdVersion: 1}, nil)
 
-	state, err := leaseVerifier.LatestState(testBlockDescriptor, testBlockLeaseState)
+	state, err := leaseVerifier.LatestState(testBlockDescriptor)
 	require.NoError(t, err)
 	require.Equal(t, block.LeaseState{Volume: 1}, state)
 }
