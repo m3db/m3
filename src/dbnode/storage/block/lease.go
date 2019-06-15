@@ -32,12 +32,14 @@ var (
 	errLeaseVerifierAlreadySet        = errors.New("lease verifier already set")
 	errOpenLeaseVerifierNotSet        = errors.New("cannot open leases while verifier is not set")
 	errUpdateOpenLeasesVerifierNotSet = errors.New("cannot update open leases while verifier is not set")
+	errParallelUpdateOpenLeases       = errors.New("cannot call updateOpenLeases() in parallel")
 )
 
 type leaseManager struct {
 	sync.Mutex
-	leasers  []Leaser
-	verifier LeaseVerifier
+	updateOpenLeasesInProgress bool
+	leasers                    []Leaser
+	verifier                   LeaseVerifier
 }
 
 // NewLeaseManager creates a new lease manager with a provided
@@ -130,9 +132,27 @@ func (m *leaseManager) UpdateOpenLeases(
 		m.Unlock()
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
+	if m.updateOpenLeasesInProgress {
+		// Prevent UpdateOpenLeases() calls from happening in parallel (since the lock
+		// is not held for the duration) to ensure that Leaser's receive all updates
+		// and in the correct order.
+		//
+		// NB(rartoul): In the future this could be made more granular by preventing
+		// parallel calls for a given descriptor, but for now this is simpler since
+		// currently callers never need to call this function in parallel.
+		return UpdateLeasesResult{}, errParallelUpdateOpenLeases
+	}
+	m.updateOpenLeasesInProgress = true
+	defer func() {
+		m.Lock()
+		m.updateOpenLeasesInProgress = false
+		m.Unlock()
+	}()
 	// NB(rartoul): Release lock while calling UpdateOpenLease() so that
-	// calls to OpenLease() and OpenLatestLease() are not blocked (which
-	// would subsequently block reads).
+	// calls to OpenLease() and OpenLatestLease() are not blocked which
+	// would blocks reads and could cause deadlocks if those calls were
+	// made while holding locks that would not allow UpdateOpenLease() to
+	// return before being released.
 	m.Unlock()
 
 	var result UpdateLeasesResult
