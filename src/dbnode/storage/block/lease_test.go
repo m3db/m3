@@ -25,8 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"code.uber.internal/infra/m3db-client/dep/github.com/stretchr/testify/require"
-
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
@@ -286,9 +284,10 @@ func TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack(t *testing.T) {
 		leaseMgr = NewLeaseManager(verifier)
 	)
 	verifier.EXPECT().VerifyLease(gomock.Any(), gomock.Any()).AnyTimes()
+	verifier.EXPECT().LatestState(gomock.Any()).AnyTimes()
 	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
 		require.NoError(t, leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}))
-		_, err := leaseMgr.OpenLatestLease(leaser)
+		_, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{})
 		require.NoError(t, err)
 	})
 

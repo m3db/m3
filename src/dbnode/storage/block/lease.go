@@ -125,12 +125,14 @@ func (m *leaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,
 ) (UpdateLeasesResult, error) {
-	// NB(rartoul): Take exclusive
 	m.Lock()
 	if m.verifier == nil {
 		m.Unlock()
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
+	// NB(rartoul): Release lock while calling UpdateOpenLease() so that
+	// calls to OpenLease() and OpenLatestLease() are not blocked (which
+	// would subsequently block reads).
 	m.Unlock()
 
 	var result UpdateLeasesResult
