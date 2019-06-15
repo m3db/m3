@@ -29,7 +29,7 @@ import (
 // StepCollector is implemented by any accumulators or consolidators working on
 // stepwise iteration.
 type StepCollector interface {
-	AddPointForIterator(ts.Datapoint, int)
+	AddPoint(ts.Datapoint)
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.

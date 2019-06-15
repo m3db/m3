@@ -28,11 +28,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (
@@ -53,6 +54,7 @@ type encodedBlockOptions struct {
 	iterAlloc        encoding.ReaderIteratorAllocate
 	pools            encoding.IteratorPools
 	checkedPools     pool.CheckedBytesPool
+	readWorkerPools  xsync.PooledWorkerPool
 }
 
 // NewOptions creates a default encoded block options which dictates how
@@ -144,6 +146,16 @@ func (o *encodedBlockOptions) SetCheckedBytesPool(p pool.CheckedBytesPool) Optio
 
 func (o *encodedBlockOptions) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.checkedPools
+}
+
+func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.readWorkerPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
+	return o.readWorkerPools
 }
 
 func (o *encodedBlockOptions) Validate() error {

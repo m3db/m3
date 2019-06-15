@@ -101,6 +101,7 @@ func TestConsolidatedSeriesIteratorWithLookback(t *testing.T) {
 		opts := NewOptions().
 			SetLookbackDuration(1 * time.Minute).
 			SetSplitSeriesByBlock(false)
+		require.NoError(t, opts.Validate())
 		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
 		j := 0
 		for i, block := range blocks {
@@ -225,6 +226,7 @@ func TestConsolidatedSeriesIteratorSplitByBlock(t *testing.T) {
 		opts := NewOptions().
 			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
+		require.NoError(t, opts.Validate())
 		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
 		for i, block := range blocks {
 			iters, err := block.SeriesIter()

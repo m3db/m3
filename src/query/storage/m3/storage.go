@@ -78,6 +78,9 @@ func NewStorage(
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 
 	return &m3storage{
 		clusters:        clusters,
@@ -145,7 +148,8 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration(), options.Enforcer)
+		return storage.FetchResultToBlockResult(fetchResult, query,
+			s.opts.LookbackDuration(), options.Enforcer)
 	}
 
 	// If using multiblock, update options to reflect this.

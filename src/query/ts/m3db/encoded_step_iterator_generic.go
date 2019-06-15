@@ -21,12 +21,17 @@
 package m3db
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
+
+type updateFn func()
 
 type encodedStepIterWithCollector struct {
 	lastBlock bool
@@ -36,9 +41,15 @@ type encodedStepIterWithCollector struct {
 	meta       block.Metadata
 	seriesMeta []block.SeriesMeta
 
-	collector   consolidators.StepCollector
-	seriesPeek  []peekValue
-	seriesIters []encoding.SeriesIterator
+	seriesCollectors []consolidators.StepCollector
+	seriesPeek       []peekValue
+	seriesIters      []encoding.SeriesIterator
+
+	updateFn updateFn
+
+	workerPool xsync.PooledWorkerPool
+	wg         sync.WaitGroup
+	mu         sync.Mutex
 }
 
 // Moves to the next step for the i-th series in the block, populating
@@ -46,14 +57,15 @@ type encodedStepIterWithCollector struct {
 // hitting the next step boundary and returning, or until encountering
 // a point beyond the step boundary. This point is then added to a stored
 // peeked value that is consumed on the next pass.
-func (it *encodedStepIterWithCollector) nextForStep(
-	i int,
+func nextForStep(
+	peek peekValue,
+	iter encoding.SeriesIterator,
+	collector consolidators.StepCollector,
 	stepTime time.Time,
-) {
-	peek := it.seriesPeek[i]
+) (peekValue, consolidators.StepCollector, error) {
 	if peek.finished {
 		// No next value in this iterator.
-		return
+		return peek, collector, nil
 	}
 
 	if peek.started {
@@ -61,24 +73,23 @@ func (it *encodedStepIterWithCollector) nextForStep(
 		if point.Timestamp.After(stepTime) {
 			// This point exists further than the current step
 			// There are next values, but this point should be NaN.
-			return
+			return peek, collector, nil
 		}
 
 		// Currently at a potentially viable data point.
 		// Record previously peeked value, and all potentially valid
 		// values, then apply consolidation function to them to get the
 		// consolidated point.
-		it.collector.AddPointForIterator(point, i)
+		collector.AddPoint(point)
 		// clear peeked point.
-		it.seriesPeek[i].started = false
+		peek.started = false
 		// If this point is currently at the boundary, finish here as there is no
 		// need to check any additional points in the enclosed iterator.
 		if point.Timestamp.Equal(stepTime) {
-			return
+			return peek, collector, nil
 		}
 	}
 
-	iter := it.seriesIters[i]
 	// Read through iterator until finding a data point outside of the
 	// range of this consolidated step; then consolidate those points into
 	// a value, set the next peek value.
@@ -88,21 +99,73 @@ func (it *encodedStepIterWithCollector) nextForStep(
 		// If this datapoint is before the current timestamp, add it as a
 		// consolidation candidate.
 		if !dp.Timestamp.After(stepTime) {
-			it.seriesPeek[i].started = false
-			it.collector.AddPointForIterator(dp, i)
+			peek.started = false
+			collector.AddPoint(dp)
 		} else {
 			// This point exists further than the current step.
 			// Set peeked value to this point, then consolidate the retrieved
 			// series.
-			it.seriesPeek[i].point = dp
-			it.seriesPeek[i].started = true
-			return
+			peek.point = dp
+			peek.started = true
+			return peek, collector, nil
 		}
 	}
 
-	if err := iter.Err(); err != nil {
-		it.err = err
+	return peek, collector, iter.Err()
+}
+
+func (it *encodedStepIterWithCollector) nextParallel() error {
+	var (
+		stepTime = it.stepTime
+
+		multiErr xerrors.MultiError
+	)
+
+	it.wg.Add(len(it.seriesIters))
+	for i := range it.seriesIters {
+		var (
+			i         = i
+			peek      = it.seriesPeek[i]
+			iter      = it.seriesIters[i]
+			collector = it.seriesCollectors[i]
+		)
+
+		it.workerPool.Go(func() {
+			peek, collector, err := nextForStep(peek, iter, collector, stepTime)
+			it.mu.Lock()
+			it.seriesPeek[i] = peek
+			it.seriesCollectors[i] = collector
+			multiErr = multiErr.Add(err)
+			it.mu.Unlock()
+			it.wg.Done()
+		})
 	}
+
+	it.wg.Wait()
+	if it.err = multiErr.FinalError(); it.err != nil {
+		return it.err
+	}
+
+	return nil
+}
+
+func (it *encodedStepIterWithCollector) nextSequential() error {
+	for i, iter := range it.seriesIters {
+		peek, collector, err := nextForStep(
+			it.seriesPeek[i],
+			iter,
+			it.seriesCollectors[i],
+			it.stepTime,
+		)
+
+		it.seriesPeek[i] = peek
+		it.seriesCollectors[i] = collector
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (it *encodedStepIterWithCollector) Next() bool {
@@ -115,8 +178,11 @@ func (it *encodedStepIterWithCollector) Next() bool {
 		return false
 	}
 
-	for i := range it.seriesIters {
-		it.nextForStep(i, it.stepTime)
+	// NB: If no reader worker pool configured, use sequential iteration.
+	if it.workerPool == nil {
+		it.err = it.nextSequential()
+	} else {
+		it.err = it.nextParallel()
 	}
 
 	if it.err != nil {
@@ -124,7 +190,12 @@ func (it *encodedStepIterWithCollector) Next() bool {
 	}
 
 	it.stepTime = it.stepTime.Add(bounds.StepSize)
-	return !bounds.End().Before(it.stepTime)
+	next := !bounds.End().Before(it.stepTime)
+	if next && it.updateFn != nil {
+		it.updateFn()
+	}
+
+	return next
 }
 
 func (it *encodedStepIterWithCollector) StepCount() int {

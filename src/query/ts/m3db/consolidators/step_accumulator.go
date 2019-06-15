@@ -35,7 +35,7 @@ type StepLookbackAccumulator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
-	datapoints       [][]xts.Datapoint
+	datapoints       []xts.Datapoint
 }
 
 // Ensure StepLookbackAccumulator satisfies StepCollector.
@@ -46,13 +46,8 @@ var _ StepCollector = (*StepLookbackAccumulator)(nil)
 func NewStepLookbackAccumulator(
 	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
-	resultSize int,
 ) *StepLookbackAccumulator {
-	datapoints := make([][]xts.Datapoint, resultSize)
-	for i := range datapoints {
-		datapoints[i] = make([]xts.Datapoint, 0, initLength)
-	}
-
+	datapoints := make([]xts.Datapoint, 0, initLength)
 	return &StepLookbackAccumulator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
@@ -61,18 +56,15 @@ func NewStepLookbackAccumulator(
 	}
 }
 
-// AddPointForIterator adds a datapoint to a given step if it's within the valid
+// AddPoint adds a datapoint to a given step if it's within the valid
 // time period; otherwise drops it silently, which is fine for accumulation.
-func (c *StepLookbackAccumulator) AddPointForIterator(
-	dp ts.Datapoint,
-	i int,
-) {
+func (c *StepLookbackAccumulator) AddPoint(dp ts.Datapoint) {
 	if dp.Timestamp.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
 
-	c.datapoints[i] = append(c.datapoints[i], xts.Datapoint{
+	c.datapoints = append(c.datapoints, xts.Datapoint{
 		Timestamp: dp.Timestamp,
 		Value:     dp.Value,
 	})
@@ -80,16 +72,12 @@ func (c *StepLookbackAccumulator) AddPointForIterator(
 
 // AccumulateAndMoveToNext consolidates the current values and moves the
 // consolidator to the next given value, purging stale values.
-func (c *StepLookbackAccumulator) AccumulateAndMoveToNext() []xts.Datapoints {
+func (c *StepLookbackAccumulator) AccumulateAndMoveToNext() []xts.Datapoint {
 	// Update earliest lookback then remove stale values for the next
 	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
-	accumulated := make([]xts.Datapoints, len(c.datapoints))
-	for i, dps := range c.datapoints {
-		accumulated[i] = make(xts.Datapoints, len(dps))
-		copy(accumulated[i], dps)
-		c.datapoints[i] = c.datapoints[i][:0]
-	}
-
+	accumulated := make([]xts.Datapoint, len(c.datapoints))
+	copy(accumulated, c.datapoints)
+	c.datapoints = c.datapoints[:0]
 	return accumulated
 }
