@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"code.uber.internal/infra/m3db-client/dep/github.com/stretchr/testify/require"
+
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
@@ -269,4 +271,28 @@ func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
 	// First time the leasers will return that they didn't have an open lease.
 	_, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
 	require.Equal(t, errUpdateOpenLeasesVerifierNotSet, err)
+}
+
+// TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack verifies that a deadlock does
+// not occur if a Leaser calls OpenLease or OpenLatestLease while the LeaseManager is
+// waiting for a call to UpdateOpenLease() to complete on the same leaser.
+func TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		verifier = NewMockLeaseVerifier(ctrl)
+		leaseMgr = NewLeaseManager(verifier)
+	)
+	verifier.EXPECT().VerifyLease(gomock.Any(), gomock.Any()).AnyTimes()
+	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+		require.NoError(t, leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}))
+		_, err := leaseMgr.OpenLatestLease(leaser)
+		require.NoError(t, err)
+	})
+
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+	require.NoError(t, err)
 }

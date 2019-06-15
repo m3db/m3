@@ -125,14 +125,13 @@ func (m *leaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,
 ) (UpdateLeasesResult, error) {
-	// NB(r): Take exclusive lock so that add lease can't be called
-	// while we are notifying existing
+	// NB(rartoul): Take exclusive
 	m.Lock()
-	defer m.Unlock()
-
 	if m.verifier == nil {
+		m.Unlock()
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
+	m.Unlock()
 
 	var result UpdateLeasesResult
 	for _, l := range m.leasers {
