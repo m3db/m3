@@ -145,17 +145,18 @@ func (m *leaseManager) UpdateOpenLeases(
 	}
 
 	m.updateOpenLeasesInProgress = true
-	defer func() {
-		m.Lock()
-		m.updateOpenLeasesInProgress = false
-		m.Unlock()
-	}()
 	// NB(rartoul): Release lock while calling UpdateOpenLease() so that
 	// calls to OpenLease() and OpenLatestLease() are not blocked which
 	// would blocks reads and could cause deadlocks if those calls were
 	// made while holding locks that would not allow UpdateOpenLease() to
 	// return before being released.
 	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.updateOpenLeasesInProgress = false
+		m.Unlock()
+	}()
 
 	var result UpdateLeasesResult
 	for _, l := range m.leasers {
