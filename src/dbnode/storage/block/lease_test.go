@@ -22,6 +22,7 @@ package block
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -289,6 +290,34 @@ func TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack(t *testing.T) {
 		require.NoError(t, leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}))
 		_, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{})
 		require.NoError(t, err)
+	})
+
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+	require.NoError(t, err)
+}
+
+// TestUpdateOpenLeasesConcurrentNotAllowed verifies that concurrent calls to
+// UpdateOpenleases() are not allowed which ensures that leasers receive all
+// updates and in the correct order.
+func TestUpdateOpenLeasesConcurrentNotAllowed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		verifier = NewMockLeaseVerifier(ctrl)
+		leaseMgr = NewLeaseManager(verifier)
+		wg       sync.WaitGroup
+	)
+	wg.Add(1)
+	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+		go func() {
+			_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+			require.Equal(t, errConcurrentUpdateOpenLeases, err)
+			wg.Done()
+		}()
+		wg.Wait()
 	})
 
 	require.NoError(t, leaseMgr.RegisterLeaser(leaser))

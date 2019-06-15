@@ -32,7 +32,7 @@ var (
 	errLeaseVerifierAlreadySet        = errors.New("lease verifier already set")
 	errOpenLeaseVerifierNotSet        = errors.New("cannot open leases while verifier is not set")
 	errUpdateOpenLeasesVerifierNotSet = errors.New("cannot update open leases while verifier is not set")
-	errParallelUpdateOpenLeases       = errors.New("cannot call updateOpenLeases() in parallel")
+	errConcurrentUpdateOpenLeases     = errors.New("cannot call updateOpenLeases() concurrently")
 )
 
 type leaseManager struct {
@@ -133,15 +133,17 @@ func (m *leaseManager) UpdateOpenLeases(
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
 	if m.updateOpenLeasesInProgress {
-		// Prevent UpdateOpenLeases() calls from happening in parallel (since the lock
+		// Prevent UpdateOpenLeases() calls from happening concurrently (since the lock
 		// is not held for the duration) to ensure that Leaser's receive all updates
 		// and in the correct order.
 		//
 		// NB(rartoul): In the future this could be made more granular by preventing
-		// parallel calls for a given descriptor, but for now this is simpler since
-		// currently callers never need to call this function in parallel.
-		return UpdateLeasesResult{}, errParallelUpdateOpenLeases
+		// concurrent calls for a given descriptor, but for now this is simpler since
+		// there is no existing code path that calls this method concurrently.
+		m.Unlock()
+		return UpdateLeasesResult{}, errConcurrentUpdateOpenLeases
 	}
+
 	m.updateOpenLeasesInProgress = true
 	defer func() {
 		m.Lock()
