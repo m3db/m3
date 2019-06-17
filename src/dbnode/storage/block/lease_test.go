@@ -324,3 +324,80 @@ func TestUpdateOpenLeasesConcurrentNotAllowed(t *testing.T) {
 	_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
 	require.NoError(t, err)
 }
+
+func TestUpdateOpenLeasesConcurrencyTest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser     = NewMockLeaser(ctrl)
+		verifier   = NewMockLeaseVerifier(ctrl)
+		leaseMgr   = NewLeaseManager(verifier)
+		wg         sync.WaitGroup
+		doneCh     = make(chan struct{}, 1)
+		numWorkers = 1
+	)
+	verifier.EXPECT().VerifyLease(gomock.Any(), gomock.Any()).AnyTimes()
+	verifier.EXPECT().LatestState(gomock.Any()).AnyTimes()
+	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+		// Call back into the LeaseManager from the Leaser on each call to UpdateOpenLease to ensure there
+		// are no deadlocks there.
+		require.NoError(t, leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}))
+		_, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{})
+		require.NoError(t, err)
+	}).AnyTimes()
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+
+	// One goroutine calling UpdateOpenLeases in a loop.
+	wg.Add(1)
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				wg.Done()
+				return
+			default:
+				_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	// Several goroutines calling OpenLease and OpenLatestLease.
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(2)
+		go func() {
+			for {
+				select {
+				case <-doneCh:
+					wg.Done()
+					return
+				default:
+					if err := leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}); err != nil {
+						panic(err)
+					}
+				}
+			}
+		}()
+
+		go func() {
+			for {
+				select {
+				case <-doneCh:
+					wg.Done()
+					return
+				default:
+					if _, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{}); err != nil {
+						panic(err)
+					}
+				}
+			}
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	close(doneCh)
+	wg.Wait()
+}
