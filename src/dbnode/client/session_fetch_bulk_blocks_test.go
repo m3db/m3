@@ -301,9 +301,9 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 		// test would timeout.
 		SetStreamBlocksRetrier(xretry.NewRetrier(
 			xretry.NewOptions().
-				SetBackoffFactor(1).
-				SetMaxRetries(1).
-				SetInitialBackoff(100 * time.Millisecond).
+				SetBackoffFactor(10).
+				SetMaxRetries(10).
+				SetInitialBackoff(30 * time.Second).
 				SetJitter(true),
 		)).
 		// Ensure that the batch size is configured such that all of the blocks could
@@ -397,23 +397,22 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
 		blocks, batchSize, participating,
 		func(id ident.ID, blockIdx int) (clientIdx int) {
+			// Only one host to pull data from.
 			return 0
 		})
 	// Skip the first client which is the client for the origin.
 	for i, client := range mockClients {
-		// for i := 0; i < len(blocksExpectedReqs); i++ {
 		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
-		// }
 	}
 
 	// Make sure peer selection is round robin to match our expected
 	// peer fetch calls.
-	// session.pickBestPeerFn = newRoundRobinPickBestPeerFn()
 	session.pickBestPeerFn = func(
 		perPeerBlocksMetadata []receivedBlockMetadata,
 		peerQueues peerBlocksQueues,
 		resources pickBestPeerPooledResources,
 	) (int, pickBestPeerPooledResources) {
+		// Only one host to pull data from.
 		return 0, resources
 	}
 
