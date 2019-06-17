@@ -1902,8 +1902,9 @@ func (s *session) fetchBlocksMetadataFromPeers(
 		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
 	)
 	go func() {
-		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
+		err := s.streamBlocksMetadataFromPeers(namespace, shard,
 			peers, start, end, level, metadataCh, resultOpts, m)
+		errCh <- err
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -1959,8 +1960,10 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// all the peers and pushing them into the metadatach
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard,
+		err := s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard,
 			peers, start, end, level, metadataCh, opts, progress)
+		errCh <- err
+
 		close(metadataCh)
 	}()
 
