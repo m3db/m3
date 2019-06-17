@@ -1961,7 +1961,6 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard,
 			peers, start, end, level, metadataCh, opts, progress)
-
 		close(metadataCh)
 	}()
 
