@@ -35,9 +35,11 @@ type updateFn func()
 
 type encodedStepIterWithCollector struct {
 	lastBlock bool
+	finished  bool
 	err       error
 
 	stepTime   time.Time
+	blockEnd   time.Time
 	meta       block.Metadata
 	seriesMeta []block.SeriesMeta
 
@@ -111,6 +113,7 @@ func nextForStep(
 		}
 	}
 
+	peek.finished = true
 	return peek, collector, iter.Err()
 }
 
@@ -169,12 +172,7 @@ func (it *encodedStepIterWithCollector) nextSequential() error {
 }
 
 func (it *encodedStepIterWithCollector) Next() bool {
-	if it.err != nil {
-		return false
-	}
-
-	bounds := it.meta.Bounds
-	if bounds.End().Before(it.stepTime) {
+	if it.err != nil || it.finished {
 		return false
 	}
 
@@ -189,10 +187,14 @@ func (it *encodedStepIterWithCollector) Next() bool {
 		return false
 	}
 
-	it.stepTime = it.stepTime.Add(bounds.StepSize)
-	next := !bounds.End().Before(it.stepTime)
+	it.stepTime = it.stepTime.Add(it.meta.Bounds.StepSize)
+	next := !it.blockEnd.Before(it.stepTime)
 	if next && it.updateFn != nil {
 		it.updateFn()
+	}
+
+	if !next {
+		it.finished = true
 	}
 
 	return next

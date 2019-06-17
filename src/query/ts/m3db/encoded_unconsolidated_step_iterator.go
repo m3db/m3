@@ -65,6 +65,7 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 			lastBlock: b.lastBlock,
 
 			stepTime:   cs.currentTime,
+			blockEnd:   b.meta.Bounds.End(),
 			meta:       b.meta,
 			seriesMeta: b.seriesMetas,
 

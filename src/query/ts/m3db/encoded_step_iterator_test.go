@@ -355,89 +355,102 @@ func BenchmarkSingleBlockSerialll(b *testing.B) {
 
 type noopCollector struct{}
 
-func (n noopCollector) AddPoint(ts.Datapoint) {}
+func (n noopCollector) AddPoint(dp ts.Datapoint) {}
 
 func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
 
 	var (
-		seriesCount = 100
+		seriesCount = 1
 		start       = time.Now()
 		stepSize    = time.Second * 10
 		annotation  = ts.Annotation{}
 		iters       = make([]encoding.SeriesIterator, seriesCount)
-		peeks       = make([]peekValue, seriesCount)
+		pIters      = make([]*encoding.MockSeriesIterator, seriesCount)
 		collectors  = make([]consolidators.StepCollector, seriesCount)
+		peeks       = make([]peekValue, seriesCount)
+
+		points = make([]ts.Datapoint, iterations)
 	)
 
-	for i := range collectors {
+	for i := 0; i < seriesCount; i++ {
 		collectors[i] = noopCollector{}
+		it := encoding.NewMockSeriesIterator(ctrl)
+		it.EXPECT().Err().Return(nil).AnyTimes()
+		iters[i] = it
+		pIters[i] = it
 	}
 
+	for i := 0; i < iterations; i++ {
+		points[i] = ts.Datapoint{Timestamp: start.Add(time.Duration(i) * 5 * time.Second)}
+	}
+
+	duration := stepSize * time.Duration(iterations)
+	it := &encodedStepIterWithCollector{
+		stepTime: start,
+		blockEnd: start.Add(duration),
+		meta: block.Metadata{
+			Bounds: models.Bounds{
+				Start:    start,
+				StepSize: stepSize,
+				Duration: duration,
+			},
+		},
+
+		seriesCollectors: collectors,
+		seriesPeek:       peeks,
+		seriesIters:      iters,
+	}
+
+	if usePools {
+		opts := xsync.NewPooledWorkerPoolOptions()
+		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
+		require.NoError(b, err)
+		readWorkerPools.Init()
+		it.workerPool = readWorkerPools
+	}
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		for z := 0; z < seriesCount; z++ {
-			series := encoding.NewMockSeriesIterator(ctrl)
-			for i := 0; i < iterations; i++ {
-				dp := ts.Datapoint{Timestamp: start.Add(time.Duration(i) * time.Second)}
-				series.EXPECT().Current().Return(dp, xtime.Second, annotation)
+		it.stepTime = start
+		it.finished = false
+		for i := range it.seriesPeek {
+			it.seriesPeek[i] = peekValue{}
+		}
+
+		for _, it := range pIters {
+			for _, p := range points {
+				it.EXPECT().Current().Return(p, xtime.Second, annotation)
 			}
 
-			series.EXPECT().Next().Return(true).Times(iterations)
-			series.EXPECT().Next().Return(false).AnyTimes()
-			series.EXPECT().Err().Return(nil).AnyTimes()
-			iters[z] = series
+			it.EXPECT().Next().DoAndReturn(func() bool {
+				// simulate load
+				time.Sleep(time.Millisecond)
+				return true
+			}).Times(iterations)
+			it.EXPECT().Next().Return(false).Times(1)
 		}
 
-		it := &encodedStepIterWithCollector{
-			stepTime: start,
-			meta: block.Metadata{
-				Bounds: models.Bounds{
-					Start:    start,
-					StepSize: stepSize,
-					Duration: stepSize * time.Duration(iterations),
-				},
-			},
-
-			seriesCollectors: collectors,
-			seriesPeek:       peeks,
-			seriesIters:      iters,
-		}
-
-		if usePools {
-			opts := xsync.
-				NewPooledWorkerPoolOptions().
-				SetGrowOnDemand(false).
-				SetKillWorkerProbability(0).
-				SetNumShards(1)
-
-			readWorkerPools, err := xsync.NewPooledWorkerPool(64, opts)
-			require.NoError(b, err)
-			readWorkerPools.Init()
-			it.workerPool = readWorkerPools
-		}
-
-		b.StartTimer()
 		for it.Next() {
 		}
 	}
 }
 
 // pooled
-// BenchmarkNextIteration/10_pooled-8    	  100	  18177326 ns/op	 2763900 B/op	   39759 allocs/op
-// BenchmarkNextIteration/100_pooled-8   	   10	 150897231 ns/op	25925763 B/op	  374966 allocs/op
-// BenchmarkNextIteration/200_pooled-8   	    5	 291013756 ns/op	51654841 B/op	  747171 allocs/op
-// BenchmarkNextIteration/500_pooled-8   	    2	 729015537 ns/op	128613736 B/op	 1863580 allocs/op
-// BenchmarkNextIteration/1000_pooled-8  	    1	1432259618 ns/op	257045408 B/op	 3724192 allocs/op
-// BenchmarkNextIteration/2000_pooled-8  	    1	2938592417 ns/op	516488480 B/op	 7445496 allocs/op
+// BenchmarkNextIteration/10_pooled-8    	 100	  14394817 ns/op   31149 B/op   508 allocs/op
+// BenchmarkNextIteration/100_pooled-8   	  10	 145047833 ns/op  280805 B/op  4607 allocs/op
+// BenchmarkNextIteration/200_pooled-8   	   5	 289788726 ns/op  558550 B/op  9163 allocs/op
+// BenchmarkNextIteration/500_pooled-8   	   2	 730133093 ns/op 1393132 B/op 22828 allocs/op
+// BenchmarkNextIteration/1000_pooled-8  	   1	1418842429 ns/op 2790352 B/op 45593 allocs/op
+// BenchmarkNextIteration/2000_pooled-8  	   1	2895354142 ns/op 5626000 B/op 91090 allocs/op
 // unpooled
-// BenchmarkNextIteration/10_unpooled-8  	  100	  13790754 ns/op	 2618534 B/op	   38606 allocs/op
-// BenchmarkNextIteration/100_unpooled-8 	   10	 112089616 ns/op	24622001 B/op	  364706 allocs/op
-// BenchmarkNextIteration/200_unpooled-8 	    5	 228854771 ns/op	49066000 B/op	  726809 allocs/op
-// BenchmarkNextIteration/500_unpooled-8 	    2	 559993830 ns/op	122169848 B/op	 1812916 allocs/op
-// BenchmarkNextIteration/1000_unpooled-8	    1	1185663351 ns/op	244177392 B/op	 3623023 allocs/op
-// BenchmarkNextIteration/2000_unpooled-8	    1	2459521396 ns/op	490771584 B/op	 7243324 allocs/op
+// BenchmarkNextIteration/10_unpooled-8  	 100	  14421499 ns/op   28868 B/op   481 allocs/op
+// BenchmarkNextIteration/100_unpooled-8 	  10	 138518888 ns/op  259644 B/op  4354 allocs/op
+// BenchmarkNextIteration/200_unpooled-8 	   5	 281995023 ns/op  516390 B/op  8658 allocs/op
+// BenchmarkNextIteration/500_unpooled-8 	   2	 709990332 ns/op 1287936 B/op 21567 allocs/op
+// BenchmarkNextIteration/1000_unpooled-8	   1	1386331977 ns/op 2581040 B/op 43083 allocs/op
+// BenchmarkNextIteration/2000_unpooled-8	   1	2666497332 ns/op 5209520 B/op 86089 allocs/op
 func BenchmarkNextIteration(b *testing.B) {
 	for _, usePools := range []bool{true, false} {
 		for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
