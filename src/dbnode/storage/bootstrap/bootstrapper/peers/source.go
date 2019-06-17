@@ -140,7 +140,6 @@ func (s *peersSource) ReadData(
 		defer persist.DoneFlush()
 
 		shouldPersist = true
-		blockRetriever = r
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
 		persistFlush = persist
 	}
