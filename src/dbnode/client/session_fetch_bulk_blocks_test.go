@@ -234,7 +234,7 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	participating := len(mockClients) - 1
 	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
 		blocks, batchSize, participating,
-		func(blockIdx int) (clientIdx int) {
+		func(_ ident.ID, blockIdx int) (clientIdx int) {
 			// Round robin to match the best peer selection algorithm
 			return blockIdx % participating
 		})
@@ -305,7 +305,13 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 				SetMaxRetries(10).
 				SetInitialBackoff(30 * time.Second).
 				SetJitter(true),
-		))
+		)).
+		// Ensure that the batch size is configured such that all of the blocks could
+		// be retrieved from a single peer in a single request. This makes mocking
+		// expected calls and responses significantly easier since which batch call a
+		// given block will fall into is non-deterministic (depends on the result of
+		// concurrent execution).
+		SetFetchSeriesBlocksBatchSize(len(newTestBlocks(time.Now())))
 	s, err := newSession(opts)
 	require.NoError(t, err)
 	session := s.(*session)
@@ -390,9 +396,9 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	participating := len(mockClients)
 	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
 		blocks, batchSize, participating,
-		func(blockIdx int) (clientIdx int) {
-			// Round robin to match the best peer selection algorithm.
-			return blockIdx % participating
+		func(id ident.ID, blockIdx int) (clientIdx int) {
+			// Only one host to pull data from.
+			return 0
 		})
 	// Skip the first client which is the client for the origin.
 	for i, client := range mockClients {
@@ -401,7 +407,14 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 
 	// Make sure peer selection is round robin to match our expected
 	// peer fetch calls.
-	session.pickBestPeerFn = newRoundRobinPickBestPeerFn()
+	session.pickBestPeerFn = func(
+		perPeerBlocksMetadata []receivedBlockMetadata,
+		peerQueues peerBlocksQueues,
+		resources pickBestPeerPooledResources,
+	) (int, pickBestPeerPooledResources) {
+		// Only one host to pull data from.
+		return 0, resources
+	}
 
 	// Fetch blocks.
 	go func() {
@@ -429,13 +442,13 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchBootstrapBlocksFromPeers(
 		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 
 	// Assert result.
 	assertFetchBootstrapBlocksResult(t, blocks, result)
 
-	assert.NoError(t, session.Close())
+	require.NoError(t, session.Close())
 }
 
 type fetchBlocksFromPeersTestScenarioGenerator func(
@@ -533,11 +546,11 @@ func fetchBlocksFromPeersTestsHelper(
 	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchBlocksFromPeers(testsNsMetadata(t), 0, topology.ReadConsistencyLevelAll,
 		blockReplicasMetadata, bootstrapOpts)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 
 	assertFetchBlocksFromPeersResult(t, peerBlocks, mockHostQueues[1:], result)
-	assert.NoError(t, session.Close())
+	require.NoError(t, session.Close())
 }
 
 func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
@@ -2061,7 +2074,7 @@ func expectedReqsAndResultFromBlocks(
 	blocks []testBlocks,
 	batchSize int,
 	clientsParticipatingLen int,
-	selectClientForBlockFn func(blockIndex int) (clientIndex int),
+	selectClientForBlockFn func(id ident.ID, blockIndex int) (clientIndex int),
 ) ([][]fetchBlocksReq, [][][]testBlocks) {
 	var (
 		clientsExpectReqs   [][]fetchBlocksReq
@@ -2077,7 +2090,7 @@ func expectedReqsAndResultFromBlocks(
 	for len(blocks) > 0 {
 		currBlock := blocks[0]
 
-		clientIdx := selectClientForBlockFn(blockIdx)
+		clientIdx := selectClientForBlockFn(currBlock.id, blockIdx)
 		if clientIdx >= clientsParticipatingLen {
 			msg := "client selected for block (%d) " +
 				"is greater than clients partipating (%d)"
@@ -2265,7 +2278,34 @@ func expectFetchBlocksAndReturn(
 			}
 			ret.Elements = append(ret.Elements, blocks)
 		}
-		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
+
+		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Do(func(_ interface{}, req *rpc.FetchBlocksRawRequest) {
+			// The order of the elements in the request is non-deterministic (due to concurrency) so inspect the request
+			// and re-order the response to match by trying to match up values (their may be duplicate entries for a
+			// given series ID so comparing IDs is not sufficient).
+			retElements := make([]*rpc.Blocks, 0, len(ret.Elements))
+			for _, elem := range req.Elements {
+			inner:
+				for _, retElem := range ret.Elements {
+					if !bytes.Equal(elem.ID, retElem.ID) {
+						continue
+					}
+					if len(elem.Starts) != len(retElem.Blocks) {
+						continue
+					}
+
+					for i, start := range elem.Starts {
+						block := retElem.Blocks[i]
+						if start != block.Start {
+							continue inner
+						}
+					}
+
+					retElements = append(retElements, retElem)
+				}
+			}
+			ret.Elements = retElements
+		}).Return(ret, nil)
 	}
 }
 
@@ -2285,17 +2325,30 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		reqID := ident.BinaryID(checked.NewBytes(req.Elements[i].ID, nil))
-		if !params[i].id.Equal(reqID) {
-			return false
-		}
-		if len(params[i].starts) != len(req.Elements[i].Starts) {
-			return false
-		}
-		for j := range params[i].starts {
-			if params[i].starts[j].UnixNano() != req.Elements[i].Starts[j] {
-				return false
+		// Possible for slices to be in different orders so try and match
+		// them up intelligently.
+		var found = false
+	inner:
+		for reqIdx, element := range req.Elements {
+			reqID := ident.BinaryID(checked.NewBytes(element.ID, nil))
+			if !params[i].id.Equal(reqID) {
+				continue
 			}
+
+			if len(params[i].starts) != len(req.Elements[reqIdx].Starts) {
+				continue
+			}
+			for j := range params[i].starts {
+				if params[i].starts[j].UnixNano() != req.Elements[reqIdx].Starts[j] {
+					continue inner
+				}
+			}
+
+			found = true
+		}
+
+		if !found {
+			return false
 		}
 	}
 
@@ -2361,13 +2414,13 @@ func assertFetchBootstrapBlocksResult(
 	defer ctx.Close()
 
 	series := actual.AllSeries()
-	assert.Equal(t, len(expected), series.Len())
+	require.Equal(t, len(expected), series.Len())
 
 	for i := range expected {
 		id := expected[i].id
 		entry, ok := series.Get(id)
 		if !ok {
-			assert.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id.String()))
+			require.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id.String()))
 			continue
 		}
 
@@ -2378,12 +2431,12 @@ func assertFetchBootstrapBlocksResult(
 			}
 			expectedLen++
 		}
-		assert.Equal(t, expectedLen, entry.Blocks.Len())
+		require.Equal(t, expectedLen, entry.Blocks.Len())
 
 		for _, block := range expected[i].blocks {
 			actualBlock, ok := entry.Blocks.BlockAt(block.start)
 			if !ok {
-				assert.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id.String(), block.start))
+				require.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id.String(), block.start))
 				continue
 			}
 
@@ -2394,9 +2447,9 @@ func assertFetchBootstrapBlocksResult(
 				seg, err := stream.Segment()
 				require.NoError(t, err)
 				actualData := append(bytesFor(seg.Head), bytesFor(seg.Tail)...)
-				assert.Equal(t, expectedData, actualData)
+				require.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
-				assert.Fail(t, "unmerged comparison not supported")
+				require.Fail(t, "unmerged comparison not supported")
 			}
 		}
 	}
