@@ -325,6 +325,8 @@ func TestUpdateOpenLeasesConcurrentNotAllowed(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestUpdateOpenLeasesConcurrencyTest spins up a number of goroutines to call UpdateOpenLeases(),
+// OpenLease(), and OpenLatestLease() concurrently and ensure there are no deadlocks.
 func TestUpdateOpenLeasesConcurrencyTest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
