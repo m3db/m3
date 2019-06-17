@@ -29,7 +29,6 @@ import (
 var (
 	errLeaserAlreadyRegistered        = errors.New("leaser already registered")
 	errLeaserNotRegistered            = errors.New("leaser not registered")
-	errLeaseVerifierAlreadySet        = errors.New("lease verifier already set")
 	errOpenLeaseVerifierNotSet        = errors.New("cannot open leases while verifier is not set")
 	errUpdateOpenLeasesVerifierNotSet = errors.New("cannot update open leases while verifier is not set")
 	errConcurrentUpdateOpenLeases     = errors.New("cannot call updateOpenLeases() concurrently")
@@ -181,13 +180,6 @@ func (m *leaseManager) UpdateOpenLeases(
 func (m *leaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
 	m.Lock()
 	defer m.Unlock()
-
-	if m.verifier != nil {
-		// SetLeaseVerifier is used for delayed initialization so calling it more
-		// than once means there is an initialization bug.
-		return errLeaseVerifierAlreadySet
-	}
-
 	m.verifier = leaseVerifier
 	return nil
 }
