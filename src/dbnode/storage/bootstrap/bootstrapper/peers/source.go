@@ -28,12 +28,12 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
@@ -197,14 +197,6 @@ func (s *peersSource) ReadData(
 	if shouldPersist {
 		// Wait for the persistenceQueueWorker to finish flushing everything
 		<-persistenceWorkerDoneCh
-	}
-
-	if shouldPersist {
-		// Now cache the flushed results
-		err := s.cacheShardIndices(shardsTimeRanges, blockRetriever)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return result, nil
@@ -506,19 +498,6 @@ func (s *peersSource) flush(
 	}
 
 	return nil
-}
-
-func (s *peersSource) cacheShardIndices(
-	shardsTimeRanges result.ShardTimeRanges,
-	blockRetriever block.DatabaseBlockRetriever,
-) error {
-	// Now cache the flushed results
-	shards := make([]uint32, 0, len(shardsTimeRanges))
-	for shard := range shardsTimeRanges {
-		shards = append(shards, shard)
-	}
-
-	return blockRetriever.CacheShardIndices(shards)
 }
 
 func (s *peersSource) AvailableIndex(
