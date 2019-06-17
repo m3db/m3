@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -33,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -946,9 +946,8 @@ func (s *fileSystemSource) read(
 	}
 
 	if run == bootstrapDataRunType {
-		// NB(r): We only need to cache shard indices and marks blocks as
-		// fulfilled when bootstrapping data, because the data can be retrieved
-		// lazily from disk during reads.
+		// NB(r): We only need to marks blocks as fulfilled when bootstrapping data,
+		// because the data can be retrieved lazily from disk during reads.
 		// On the other hand, if we're bootstrapping the index then currently we
 		// need to rebuild it from scratch by reading all the IDs/tags until
 		// we can natively bootstrap persisted segments from disk and compact them
@@ -959,7 +958,7 @@ func (s *fileSystemSource) read(
 				shards = append(shards, shard)
 			}
 			var err error
-			blockRetriever, err = s.resolveBlockRetrieverAndCacheDataShardIndices(md,
+			blockRetriever, err = s.resolveBlockRetriever(md,
 				mgr, shards)
 			if err != nil {
 				return nil, err
@@ -1015,7 +1014,7 @@ func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 	return s.newReaderFn(bytesPool, s.fsopts)
 }
 
-func (s *fileSystemSource) resolveBlockRetrieverAndCacheDataShardIndices(
+func (s *fileSystemSource) resolveBlockRetriever(
 	md namespace.Metadata,
 	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
 	shards []uint32,
@@ -1030,16 +1029,6 @@ func (s *fileSystemSource) resolveBlockRetrieverAndCacheDataShardIndices(
 
 	var err error
 	blockRetriever, err = blockRetrieverMgr.Retriever(md)
-	if err != nil {
-		return nil, err
-	}
-
-	s.log.Info("filesystem bootstrapper caching block retriever shard indices",
-		zap.Stringer("namespace", md.ID()),
-		zap.Int("shards", len(shards)),
-	)
-
-	err = blockRetriever.CacheShardIndices(shards)
 	if err != nil {
 		return nil, err
 	}
