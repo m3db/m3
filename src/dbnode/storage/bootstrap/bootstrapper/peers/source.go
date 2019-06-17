@@ -105,7 +105,6 @@ func (s *peersSource) ReadData(
 
 	var (
 		namespace         = nsMetadata.ID()
-		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.FlushPreparer
 		shouldPersist     = false
