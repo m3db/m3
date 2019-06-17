@@ -32,12 +32,14 @@ var (
 	errLeaseVerifierAlreadySet        = errors.New("lease verifier already set")
 	errOpenLeaseVerifierNotSet        = errors.New("cannot open leases while verifier is not set")
 	errUpdateOpenLeasesVerifierNotSet = errors.New("cannot update open leases while verifier is not set")
+	errConcurrentUpdateOpenLeases     = errors.New("cannot call updateOpenLeases() concurrently")
 )
 
 type leaseManager struct {
 	sync.Mutex
-	leasers  []Leaser
-	verifier LeaseVerifier
+	updateOpenLeasesInProgress bool
+	leasers                    []Leaser
+	verifier                   LeaseVerifier
 }
 
 // NewLeaseManager creates a new lease manager with a provided
@@ -125,14 +127,36 @@ func (m *leaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,
 ) (UpdateLeasesResult, error) {
-	// NB(r): Take exclusive lock so that add lease can't be called
-	// while we are notifying existing
 	m.Lock()
-	defer m.Unlock()
-
 	if m.verifier == nil {
+		m.Unlock()
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
+	if m.updateOpenLeasesInProgress {
+		// Prevent UpdateOpenLeases() calls from happening concurrently (since the lock
+		// is not held for the duration) to ensure that Leaser's receive all updates
+		// and in the correct order.
+		//
+		// NB(rartoul): In the future this could be made more granular by preventing
+		// concurrent calls for a given descriptor, but for now this is simpler since
+		// there is no existing code path that calls this method concurrently.
+		m.Unlock()
+		return UpdateLeasesResult{}, errConcurrentUpdateOpenLeases
+	}
+
+	m.updateOpenLeasesInProgress = true
+	// NB(rartoul): Release lock while calling UpdateOpenLease() so that
+	// calls to OpenLease() and OpenLatestLease() are not blocked which
+	// would blocks reads and could cause deadlocks if those calls were
+	// made while holding locks that would not allow UpdateOpenLease() to
+	// return before being released.
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.updateOpenLeasesInProgress = false
+		m.Unlock()
+	}()
 
 	var result UpdateLeasesResult
 	for _, l := range m.leasers {

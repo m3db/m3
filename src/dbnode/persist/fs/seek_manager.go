@@ -157,20 +157,23 @@ func (m *seekerManager) Open(
 	nsMetadata namespace.Metadata,
 ) error {
 	m.Lock()
-	defer m.Unlock()
-
 	if m.status != seekerManagerNotOpen {
+		m.Unlock()
 		return errSeekerManagerAlreadyOpenOrClosed
 	}
-
-	// Register for updates to block leases.
-	m.blockRetrieverOpts.BlockLeaseManager().RegisterLeaser(m)
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
 	m.status = seekerManagerOpen
-
 	go m.openCloseLoop()
+	m.Unlock()
+
+	// Register for updates to block leases.
+	// NB(rartoul): This should be safe to do within the context of the lock
+	// because the block.LeaseManager does not yet have a handle on the SeekerManager
+	// so they can't deadlock trying to acquire each other's locks, but do it outside
+	// of the lock just to be safe.
+	m.blockRetrieverOpts.BlockLeaseManager().RegisterLeaser(m)
 
 	return nil
 }
@@ -288,6 +291,8 @@ func (m *seekerManager) UpdateOpenLease(
 	state block.LeaseState,
 ) (block.UpdateOpenLeaseResult, error) {
 	// TODO(rartoul): This is a no-op for now until the logic for swapping out seekers is written.
+	// Also make sure that this function is a proper no-op if the SeekerManager state has been
+	// been switched to closed.
 	return block.NoOpenLease, nil
 }
 
@@ -478,9 +483,6 @@ func (m *seekerManager) Close() error {
 		return errSeekerManagerAlreadyClosed
 	}
 
-	// Unregister for lease updates since all the seekers are going to be closed.
-	m.blockRetrieverOpts.BlockLeaseManager().UnregisterLeaser(m)
-
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
 	for _, byTime := range m.seekersByShardIdx {
@@ -500,6 +502,14 @@ func (m *seekerManager) Close() error {
 	m.status = seekerManagerClosed
 
 	m.Unlock()
+
+	// Unregister for lease updates since all the seekers are going to be closed.
+	// NB(rartoul): Perform this outside the lock to prevent deadlock issues where
+	// the block.LeaseManager is trying to acquire the SeekerManager's lock (via
+	// a call to UpdateOpenLease) and the SeekerManager is trying to acquire the
+	// block.LeaseManager's lock (via a call to UnregisterLeaser).
+	m.blockRetrieverOpts.BlockLeaseManager().UnregisterLeaser(m)
+
 	<-m.openCloseLoopDoneCh
 	return nil
 }
