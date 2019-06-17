@@ -2281,17 +2281,31 @@ func expectFetchBlocksAndReturn(
 
 		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Do(func(_ interface{}, req *rpc.FetchBlocksRawRequest) {
 			// The order of the elements in the request is non-deterministic (due to concurrency) so inspect the request
-			// and re-order the response to match.
+			// and re-order the response to match by trying to match up values (their may be duplicate entries for a
+			// given series ID so comparing IDs is not sufficient).
 			retElements := make([]*rpc.Blocks, 0, len(ret.Elements))
 			for _, elem := range req.Elements {
+			inner:
 				for _, retElem := range ret.Elements {
-					if bytes.Equal(elem.ID, retElem.ID) {
-						retElements = append(retElements, retElem)
+					if !bytes.Equal(elem.ID, retElem.ID) {
+						continue
 					}
+					if len(elem.Starts) != len(retElem.Blocks) {
+						continue
+					}
+
+					for i, start := range elem.Starts {
+						block := retElem.Blocks[i]
+						if start != block.Start {
+							continue inner
+						}
+					}
+
+					retElements = append(retElements, retElem)
 				}
 			}
 			ret.Elements = retElements
-		}).Return(ret, nil).AnyTimes()
+		}).Return(ret, nil)
 	}
 }
 
@@ -2311,25 +2325,30 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		// Slices are likely to be in different orders so match up each ID by name.
-		reqIdx := -1
-		for j, element := range req.Elements {
+		// Possible for slices to be in different orders so try and match
+		// them up intelligently.
+		var found = false
+	inner:
+		for reqIdx, element := range req.Elements {
 			reqID := ident.BinaryID(checked.NewBytes(element.ID, nil))
-			if params[i].id.Equal(reqID) {
-				reqIdx = j
+			if !params[i].id.Equal(reqID) {
+				continue
 			}
-		}
-		if reqIdx < 0 {
-			return false
+
+			if len(params[i].starts) != len(req.Elements[reqIdx].Starts) {
+				continue
+			}
+			for j := range params[i].starts {
+				if params[i].starts[j].UnixNano() != req.Elements[reqIdx].Starts[j] {
+					continue inner
+				}
+			}
+
+			found = true
 		}
 
-		if len(params[i].starts) != len(req.Elements[reqIdx].Starts) {
+		if !found {
 			return false
-		}
-		for j := range params[i].starts {
-			if params[i].starts[j].UnixNano() != req.Elements[reqIdx].Starts[j] {
-				return false
-			}
 		}
 	}
 
