@@ -115,7 +115,12 @@ type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
-	seekers  map[xtime.UnixNano]seekersAndBloom
+	seekers  map[xtime.UnixNano]seekers
+}
+
+type seekers struct {
+	active   seekersAndBloom
+	inactive seekersAndBloom
 }
 
 type seekerManagerPendingClose struct {
@@ -204,11 +209,12 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	// Try fast RLock() first
 	byTime.RLock()
 	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, ok := byTime.seekers[startNano]
+	seekers, ok := byTime.seekers[startNano]
 	byTime.RUnlock()
 
-	if ok && seekersAndBloom.wg == nil {
-		return seekersAndBloom.bloomFilter, nil
+	// TODO(rartoul): Is this nil check safe?
+	if ok && seekers.active.wg == nil {
+		return seekers.active.bloomFilter, nil
 	}
 
 	byTime.Lock()
@@ -259,7 +265,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 	defer byTime.Unlock()
 
 	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, ok := byTime.seekers[startNano]
+	seekers, ok := byTime.seekers[startNano]
 	// Should never happen - This either means that the caller (DataBlockRetriever) is trying to return seekers
 	// that it never requested, OR its trying to return seekers after the openCloseLoop has already
 	// determined that they were all no longer in use and safe to close. Either way it indicates there is
@@ -268,12 +274,13 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 		return errSeekersDontExist
 	}
 
+	// TODO(rartoul): Handle the case where an inactive seeker is being returned.
 	found := false
-	for i, compareSeeker := range seekersAndBloom.seekers {
+	for i, compareSeeker := range seekers.active.seekers {
 		if seeker == compareSeeker.seeker {
 			found = true
 			compareSeeker.isBorrowed = false
-			seekersAndBloom.seekers[i] = compareSeeker
+			seekers.active.seekers[i] = compareSeeker
 			break
 		}
 	}
@@ -308,15 +315,15 @@ func (m *seekerManager) UpdateOpenLease(
 // and then notify the waiting goroutines that we've finished.
 func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
 	seekers, ok := byTime.seekers[start]
-	if ok && seekers.wg == nil {
+	if ok && seekers.active.wg == nil {
 		// Seekers are already open
-		return seekers, nil
+		return seekers.active, nil
 	}
 
-	if seekers.wg != nil {
+	if seekers.active.wg != nil {
 		// Seekers are being initialized / opened, wait for the that to complete
 		byTime.Unlock()
-		seekers.wg.Wait()
+		seekers.active.wg.Wait()
 		byTime.Lock()
 		// Need to do the lookup again recursively to see the new state
 		return m.getOrOpenSeekersWithLock(start, byTime)
@@ -328,8 +335,8 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 	// that other routines which would have otherwise attempted to also open this
 	// same seeker can use instead to wait for us to finish.
 	wg := &sync.WaitGroup{}
-	seekers.wg = wg
-	seekers.wg.Add(1)
+	seekers.active.wg = wg
+	seekers.active.wg.Add(1)
 	byTime.seekers[start] = seekers
 	byTime.Unlock()
 	// Open first one - Do this outside the context of the lock because opening
@@ -366,13 +373,13 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 		borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: clone})
 	}
 
-	seekers.wg = nil
-	seekers.seekers = borrowableSeekers
+	seekers.active.wg = nil
+	seekers.active.seekers = borrowableSeekers
 	// Doesn't matter which seeker we pick to grab the bloom filter from, they all share the same underlying one.
 	// Use index 0 because its guaranteed to be there.
-	seekers.bloomFilter = borrowableSeekers[0].seeker.ConcurrentIDBloomFilter()
+	seekers.active.bloomFilter = borrowableSeekers[0].seeker.ConcurrentIDBloomFilter()
 	byTime.seekers[start] = seekers
-	return seekers, nil
+	return seekers.active, nil
 }
 
 func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
@@ -479,7 +486,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		}
 		seekersByShardIdx[i] = &seekersByTime{
 			shard:   uint32(i),
-			seekers: make(map[xtime.UnixNano]seekersAndBloom),
+			seekers: make(map[xtime.UnixNano]seekers),
 		}
 	}
 
@@ -501,8 +508,18 @@ func (m *seekerManager) Close() error {
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
 	for _, byTime := range m.seekersByShardIdx {
 		byTime.Lock()
-		for _, seekersByTime := range byTime.seekers {
-			for _, seeker := range seekersByTime.seekers {
+		for _, seekersForBlock := range byTime.seekers {
+			// Ensure active seekers are all returned.
+			for _, seeker := range seekersForBlock.active.seekers {
+				if seeker.isBorrowed {
+					byTime.Unlock()
+					m.Unlock()
+					return errCantCloseSeekerManagerWhileSeekersAreBorrowed
+				}
+			}
+
+			// Ensure inactive seekers are all returned.
+			for _, seeker := range seekersForBlock.inactive.seekers {
 				if seeker.isBorrowed {
 					byTime.Unlock()
 					m.Unlock()
@@ -612,9 +629,19 @@ func (m *seekerManager) openCloseLoop() {
 				byTime := m.seekersByShardIdx[elem.shard]
 				blockStartNano := xtime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
-				seekersAndBloom := byTime.seekers[blockStartNano]
+				seekers := byTime.seekers[blockStartNano]
 				allSeekersAreReturned := true
-				for _, seeker := range seekersAndBloom.seekers {
+
+				// Ensure no active seekers are still borrowed.
+				for _, seeker := range seekers.active.seekers {
+					if seeker.isBorrowed {
+						allSeekersAreReturned = false
+						break
+					}
+				}
+
+				// Ensure no ianctive seekers are still borrowed
+				for _, seeker := range seekers.inactive.seekers {
 					if seeker.isBorrowed {
 						allSeekersAreReturned = false
 						break
@@ -624,7 +651,8 @@ func (m *seekerManager) openCloseLoop() {
 				// some of them are clones of the original and can't be used once
 				// the parent is closed (because they share underlying resources)
 				if allSeekersAreReturned {
-					closing = append(closing, seekersAndBloom.seekers...)
+					closing = append(closing, seekers.active.seekers...)
+					closing = append(closing, seekers.inactive.seekers...)
 					delete(byTime.seekers, blockStartNano)
 				}
 				byTime.Unlock()
@@ -649,8 +677,19 @@ func (m *seekerManager) openCloseLoop() {
 	m.Lock()
 	for _, byTime := range m.seekersByShardIdx {
 		byTime.Lock()
-		for _, seekersByTime := range byTime.seekers {
-			for _, seeker := range seekersByTime.seekers {
+		for _, seekersForBlock := range byTime.seekers {
+			// Close the active seekers.
+			for _, seeker := range seekersForBlock.active.seekers {
+				// We don't need to check if the seeker is borrowed here because we don't allow the
+				// SeekerManager to be closed if any seekers are still outstanding.
+				err := seeker.seeker.Close()
+				if err != nil {
+					m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
+				}
+			}
+
+			// Close the inactive seekers.
+			for _, seeker := range seekersForBlock.inactive.seekers {
 				// We don't need to check if the seeker is borrowed here because we don't allow the
 				// SeekerManager to be closed if any seekers are still outstanding.
 				err := seeker.seeker.Close()
