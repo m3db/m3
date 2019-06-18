@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -423,7 +424,20 @@ func (m *seekerManager) newOpenSeeker(
 	// Set the unread buffer to reuse it amongst all seekers.
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
-	resources := m.getSeekerResources()
+	var (
+		resources = m.getSeekerResources()
+		blm       = m.blockRetrieverOpts.BlockLeaseManager()
+	)
+	_, err = blm.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace,
+		Shard:      shard,
+		BlockStart: blockStart,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("err opening latest lease: %v", err)
+	}
+
+	// TODO_OUT_OF_ORDER_WRITES(rartoul): Pass volume obtained from OpenLatestLease here.
 	err = seeker.Open(m.namespace, shard, blockStart, resources)
 	m.putSeekerResources(resources)
 	if err != nil {
