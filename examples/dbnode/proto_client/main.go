@@ -47,7 +47,7 @@ func main() {
 		log.Fatalf("unable to parse YAML: %v", err)
 	}
 
-	// TODO(rartoul): Provide guidelines on reducing memory usage.
+	// TODO(rartoul): Provide guidelines on reducing memory usage by tuning pooling options.
 	client, err := cfg.Client.NewClient(client.ConfigurationParameters{})
 	if err != nil {
 		log.Fatalf("unable to create new M3DB client: %v", err)
@@ -72,8 +72,11 @@ func main() {
 
 	runUntaggedExample(session, schema)
 	runTaggedExample(session, schema)
+	// TODO(rartoul): Add an aggregations query example.
 }
 
+// runUntaggedExample demonstrates how to write "untagged" (unindexed) data into M3DB with a given
+// protobuf schema and then read it back out again.
 func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 	log.Printf("------ run untagged example ------")
 	var (
@@ -105,6 +108,11 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 	}
 }
 
+// runTaggedExample demonstrates how to write "tagged" (indexed) data into M3DB with a given protobuf
+// schema and then read it back out again by either:
+//
+//   1. Querying for a specific time series by its ID directly
+//   2. TODO(rartoul): Querying for a set of time series using an inverted index query
 func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 	log.Printf("------ run tagged example ------")
 	var (
