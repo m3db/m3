@@ -12,14 +12,12 @@ docker create --name "${CONTAINER_NAME}" -p 9000:9000 -p 9001:9001 -p 9002:9002 
 
 # think of this as a defer func() in golang
 function defer {
-  if [ $? -ne 0 ]; then
-    echo "Tested failed, dumping logs"
-    echo "---------------------------"
-    docker logs "${CONTAINER_NAME}"
-    exit 1
-  fi
+  echo "Test complete, dumping logs"
+  echo "---------------------------"
+  docker logs "${CONTAINER_NAME}"
+  echo "---------------------------"
 
-  echo "Remove docker container"
+  echo "Removing docker container"
   docker rm --force "${CONTAINER_NAME}"
 }
 trap defer EXIT
@@ -117,7 +115,7 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
 
 echo "Sleep until bootstrapped"
-ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Waiting until shards are marked as available"
