@@ -1789,6 +1789,20 @@ func (mr *MockdatabaseShardMockRecorder) CleanupExpiredFileSets(earliestToRetain
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupExpiredFileSets), earliestToRetain)
 }
 
+// CleanupCompactedFileSets mocks base method
+func (m *MockdatabaseShard) CleanupCompactedFileSets() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupCompactedFileSets")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupCompactedFileSets indicates an expected call of CleanupCompactedFileSets
+func (mr *MockdatabaseShardMockRecorder) CleanupCompactedFileSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupCompactedFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupCompactedFileSets))
+}
+
 // Repair mocks base method
 func (m *MockdatabaseShard) Repair(ctx context.Context, nsCtx namespace.Context, tr time0.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
 	m.ctrl.T.Helper()
