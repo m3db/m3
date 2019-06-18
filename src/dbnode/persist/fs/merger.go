@@ -192,10 +192,10 @@ func (m *merger) Merge(
 
 	// First stage: loop through series on disk.
 	for id, tagsIter, data, _, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
-		idsToFinalize = append(idsToFinalize, id)
 		if err != nil {
 			return err
 		}
+		idsToFinalize = append(idsToFinalize, id)
 
 		// Reset BlockReaders.
 		brs = brs[:0]
@@ -220,10 +220,10 @@ func (m *merger) Merge(
 		// are valid, and the IDs are valid for the duration of the file writing.
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
 		tagsIter.Close()
-		tagsToFinalize = append(tagsToFinalize, tags)
 		if err != nil {
 			return err
 		}
+		tagsToFinalize = append(tagsToFinalize, tags)
 		if err := persistIter(prepared.Persist, multiIter, startTime,
 			id, tags, blockAllocSize, nsCtx.Schema, encoderPool); err != nil {
 			return err

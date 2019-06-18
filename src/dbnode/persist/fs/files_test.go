@@ -215,7 +215,7 @@ func TestForEachInfoFile(t *testing.T) {
 func TestTimeFromFileName(t *testing.T) {
 	_, err := TimeFromFileName("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, err = TimeFromFileName("foo/bar-baz")
 	require.Error(t, err)
@@ -239,7 +239,7 @@ func TestTimeFromFileName(t *testing.T) {
 func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
 	_, _, err := TimeAndIndexFromCommitlogFilename("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, _, err = TimeAndIndexFromCommitlogFilename("foo/bar-baz")
 	require.Error(t, err)
@@ -264,7 +264,7 @@ func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
 func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	_, _, err := TimeAndVolumeIndexFromFileSetFilename("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, _, err = TimeAndVolumeIndexFromFileSetFilename("foo/bar-baz")
 	require.Error(t, err)
@@ -291,7 +291,7 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
 	_, _, err := TimeAndVolumeIndexFromDataFileSetFilename("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, _, err = TimeAndVolumeIndexFromDataFileSetFilename("foo/bar-baz")
 	require.Error(t, err)

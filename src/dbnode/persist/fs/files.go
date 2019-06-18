@@ -65,6 +65,7 @@ const (
 	// check for both indexed and non-indexed filenames.
 	unindexedFilesetIndex = 0
 
+	timeComponentPosition         = 1
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
 
@@ -72,6 +73,8 @@ const (
 	numComponentsSnapshotMetadataCheckpointFile = 5
 	snapshotMetadataUUIDComponentPosition       = 1
 	snapshotMetadataIndexComponentPosition      = 2
+
+	errUnexpectedFilename = "unexpected filename: %s"
 )
 
 var (
@@ -408,23 +411,62 @@ func (a fileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
 	return ti.Equal(tj) && ii < ij
 }
 
-func componentsAndTimeFromFileName(fname string) ([]string, time.Time, error) {
-	components := strings.Split(filepath.Base(fname), separator)
-	if len(components) < 3 {
-		return nil, timeZero, fmt.Errorf("unexpected file name %s", fname)
+func intComponentFromFilename(
+	baseFilename string,
+	componentPos int,
+	separatorIdx [4]int,
+) (int64, error) {
+	var start int
+	if componentPos > 0 {
+		start = separatorIdx[componentPos-1] + 1
+	}
+	end := separatorIdx[componentPos]
+	if start > end || end > len(baseFilename)-1 || start < 0 {
+		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
 	}
 
-	nanoseconds, err := strconv.ParseInt(components[1], 10, 64)
+	num, err := strconv.ParseInt(baseFilename[start:end], 10, 64)
 	if err != nil {
-		return nil, timeZero, err
+		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
 	}
-	return components, time.Unix(0, nanoseconds), nil
+	return num, nil
+}
+
+func delimiterPositions(baseFilename string) ([4]int, int) {
+	var (
+		delimPos    [4]int
+		delimsFound int
+	)
+
+	for i := range baseFilename {
+		if r := baseFilename[i]; r == separatorRune || r == fileSuffixDelimeterRune {
+			delimPos[delimsFound] = i
+			delimsFound++
+
+			if delimsFound == len(delimPos) {
+				// Found the maximum expected number of separators.
+				break
+			}
+		}
+	}
+
+	return delimPos, delimsFound
 }
 
 // TimeFromFileName extracts the block start time from file name.
 func TimeFromFileName(fname string) (time.Time, error) {
-	_, t, err := componentsAndTimeFromFileName(fname)
-	return t, err
+	base := filepath.Base(fname)
+
+	delims, delimsFound := delimiterPositions(base)
+	if delimsFound < 2 {
+		return timeZero, fmt.Errorf(errUnexpectedFilename, fname)
+	}
+	nanos, err := intComponentFromFilename(base, timeComponentPosition, delims)
+	if err != nil {
+		return timeZero, fmt.Errorf(errUnexpectedFilename, fname)
+	}
+
+	return time.Unix(0, nanos), nil
 }
 
 // TimeAndIndexFromCommitlogFilename extracts the block start and index from
@@ -435,30 +477,33 @@ func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
 
 // TimeAndVolumeIndexFromDataFileSetFilename extracts the block start and volume
 // index from a data fileset file name that may or may not have an index. If the
-// file name does not include an index, defaultFilesetIndex is returned as the
+// file name does not include an index, unindexedFilesetIndex is returned as the
 // volume index.
 func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (time.Time, int, error) {
-	components, t, err := componentsAndTimeFromFileName(fname)
+	base := filepath.Base(fname)
+
+	delims, delimsFound := delimiterPositions(base)
+	if delimsFound < 3 {
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+	}
+
+	nanos, err := intComponentFromFilename(base, timeComponentPosition, delims)
 	if err != nil {
-		return timeZero, 0, err
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+	}
+	unixNanos := time.Unix(0, nanos)
+
+	// Legacy filename with no volume index.
+	if delimsFound == 3 {
+		return unixNanos, unindexedFilesetIndex, nil
 	}
 
-	if len(components) == 3 {
-		// Three components mean that there is no index in the filename.
-		return t, unindexedFilesetIndex, nil
+	volume, err := intComponentFromFilename(base, 2, delims)
+	if err != nil {
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
 	}
 
-	if len(components) == 4 {
-		// Four components mean that there is an index in the filename.
-		str := strings.Replace(components[indexFileSetComponentPosition], fileSuffix, "", 1)
-		index, err := strconv.ParseInt(str, 10, 64)
-		if err != nil {
-			return timeZero, 0, err
-		}
-		return t, int(index), nil
-	}
-
-	return timeZero, 0, fmt.Errorf("malformed data fileset filename: %s", fname)
+	return unixNanos, int(volume), nil
 }
 
 // TimeAndVolumeIndexFromFileSetFilename extracts the block start and
@@ -468,21 +513,25 @@ func TimeAndVolumeIndexFromFileSetFilename(fname string) (time.Time, int, error)
 }
 
 func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, int, error) {
-	components, t, err := componentsAndTimeFromFileName(fname)
-	if err != nil {
-		return timeZero, 0, err
+	base := filepath.Base(fname)
+
+	delims, delimsFound := delimiterPositions(base)
+	if componentPosition > delimsFound {
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
 	}
 
-	if componentPosition > len(components)-1 {
-		return timeZero, 0, fmt.Errorf("malformed filename: %s", fname)
+	nanos, err := intComponentFromFilename(base, 1, delims)
+	if err != nil {
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+	}
+	unixNanos := time.Unix(0, nanos)
+
+	index, err := intComponentFromFilename(base, componentPosition, delims)
+	if err != nil {
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
 	}
 
-	str := strings.Replace(components[componentPosition], fileSuffix, "", 1)
-	index, err := strconv.ParseInt(str, 10, 64)
-	if err != nil {
-		return timeZero, 0, err
-	}
-	return t, int(index), nil
+	return unixNanos, int(index), nil
 }
 
 // SnapshotTimeAndID returns the metadata for the snapshot.
@@ -926,8 +975,17 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 	}
 
 	matched.sortByTimeAndVolumeIndexAscending()
-	for _, fileset := range matched {
+	for i, fileset := range matched {
 		if fileset.ID.BlockStart.Equal(blockStart) && fileset.ID.VolumeIndex == volume {
+			nextIdx := i + 1
+			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(blockStart) {
+				// Should never happen.
+				return FileSetFile{}, false, fmt.Errorf(
+					"found multiple fileset files for blockStart: %d",
+					blockStart.Unix(),
+				)
+			}
+
 			if !fileset.HasCompleteCheckpointFile() {
 				continue
 			}
@@ -1488,7 +1546,8 @@ func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix s
 // isFirstVolumeLegacy returns whether the first volume of the provided type is
 // legacy, i.e. does not have a volume index in its filename. It only checks for
 // the existence of the file and the non-legacy version of the file, and returns
-// and error if neither exist.
+// an error if neither exist. Note that this function does not check for the
+// volume's complete checkpoint file.
 func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error) {
 	// Check non-legacy path first to optimize for newer files.
 	path := filesetPathFromTimeAndIndex(prefix, t, 0, suffix)
@@ -1506,6 +1565,10 @@ func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error
 	return false, ErrCheckpointFileNotFound
 }
 
+// Once we decide that we no longer want to support legacy (non-volume-indexed)
+// filesets, we can remove this function and just use
+// `filesetPathFromTimeAndIndex`. Getting code to compile and tests to pass
+// after that should be a comprehensive way to remove dead code.
 func dataFilesetPathFromTimeAndIndex(
 	prefix string,
 	t time.Time,

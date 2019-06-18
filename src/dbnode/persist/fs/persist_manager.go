@@ -424,8 +424,8 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 	var volumeIndex int
 	switch opts.FileSetType {
 	case persist.FileSetFlushType:
-		// Use the volume index passed in. This ensures that this index is the
-		// same as the flush index.
+		// Use the volume index passed in. This ensures that the volume index is
+		// the same as the cold flush version.
 		volumeIndex = opts.VolumeIndex
 	case persist.FileSetSnapshotType:
 		// Need to work out the volume index for the next snapshot.
