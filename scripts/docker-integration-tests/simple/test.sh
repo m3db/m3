@@ -75,7 +75,7 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodDuration": "48h",
+      "retentionPeriodDuration": "8h",
       "blockSizeDuration": "2h",
       "bufferFutureDuration": "10m",
       "bufferPastDuration": "10m",
@@ -95,7 +95,7 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
 
 echo "Placement initialization"
 curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/placement/init -d '{
-    "num_shards": 64,
+    "num_shards": 4,
     "replication_factor": 1,
     "instances": [
         {

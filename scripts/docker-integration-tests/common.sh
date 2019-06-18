@@ -62,6 +62,7 @@ function wait_for_db_init {
     "type": "cluster",
     "namespaceName": "agg",
     "retentionTime": "6h",
+    "num_shards": 4,
     "replicationFactor": 1,
     "hosts": [
       {
