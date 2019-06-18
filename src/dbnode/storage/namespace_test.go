@@ -369,7 +369,9 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().Retriever(ns.metadata).Return(mockRetriever, nil)
+	ns.Lock()
 	ns.opts = ns.opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+	ns.Unlock()
 
 	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
@@ -426,7 +428,9 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().Retriever(ns.metadata).Return(mockRetriever, nil)
+	ns.Lock()
 	ns.opts = ns.opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+	ns.Unlock()
 
 	require.NoError(t, ns.Bootstrap(start, bs))
 	require.Equal(t, Bootstrapped, ns.bootstrapState)
