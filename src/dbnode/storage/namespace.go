@@ -362,7 +362,7 @@ func newDatabaseNamespace(
 	}
 	n.schemaListener = sl
 	n.initShards(nopts.BootstrapEnabled())
-	go n.reportStatusLoop()
+	go n.reportStatusLoop(opts.InstrumentOptions().ReportInterval())
 
 	return n, nil
 }
@@ -388,8 +388,7 @@ func (n *dbNamespace) SetSchemaHistory(value namespace.SchemaHistory) {
 	n.metadata = metadata
 }
 
-func (n *dbNamespace) reportStatusLoop() {
-	reportInterval := n.opts.InstrumentOptions().ReportInterval()
+func (n *dbNamespace) reportStatusLoop(reportInterval time.Duration) {
 	ticker := time.NewTicker(reportInterval)
 	defer ticker.Stop()
 	for {
