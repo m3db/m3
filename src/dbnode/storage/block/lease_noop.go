@@ -18,34 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package kvadmin
+package block
 
-import (
-	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-)
+// NoopLeaseManager is a no-op implementation of LeaseManager.
+type NoopLeaseManager struct{}
 
-type NamespaceMetadataAdminService interface {
-	// GetAll gets namespace options for all namespaces.
-	GetAll() (*nsproto.Registry, error)
+func (n *NoopLeaseManager) RegisterLeaser(leaser Leaser) error {
+	return nil
+}
 
-	// Get gets option for the specified namespace.
-	Get(name string) (*nsproto.NamespaceOptions, error)
+func (n *NoopLeaseManager) UnregisterLeaser(leaser Leaser) error {
+	return nil
+}
 
-	// Add adds a new namespace and set its options.
-	Add(name string, options *nsproto.NamespaceOptions) error
+func (n *NoopLeaseManager) OpenLease(
+	leaser Leaser,
+	descriptor LeaseDescriptor,
+	state LeaseState,
+) error {
+	return nil
+}
 
-	// Set sets the options for the specified namespace.
-	Set(name string, options *nsproto.NamespaceOptions) error
+func (n *NoopLeaseManager) OpenLatestLease(
+	leaser Leaser,
+	descriptor LeaseDescriptor,
+) (LeaseState, error) {
+	return LeaseState{}, nil
+}
 
-	// Delete deletes the specified namespace.
-	Delete(name string) error
+func (n *NoopLeaseManager) UpdateOpenLeases(
+	descriptor LeaseDescriptor,
+	state LeaseState,
+) (UpdateLeasesResult, error) {
+	return UpdateLeasesResult{}, nil
+}
 
-	// DeploySchema deploys a new version schema to the specified namespace.
-	// An opaque string (deployID) is returned if successful.
-	// Application developer is to include the deployID in their m3db client configuration
-	// when they upgrade their application to use the new schema version.
-	DeploySchema(name, protoFileName, msgName string, protos map[string]string) (string, error)
-
-	// ResetSchema reset schema for the specified namespace.
-	ResetSchema(name string) error
+func (n *NoopLeaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
+	return nil
 }

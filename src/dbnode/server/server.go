@@ -391,6 +391,12 @@ func Run(runOpts RunOptions) {
 			scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool.Init()
 
+	// Pass nil for block.LeaseVerifier for now and it will be set after the
+	// db is constructed (since the db is required to construct a
+	// block.LeaseVerifier). Initialized here because it needs to be propagated
+	// to both the DB and the blockRetriever.
+	blockLeaseManager := block.NewLeaseManager(nil)
+	opts = opts.SetBlockLeaseManager(blockLeaseManager)
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -464,14 +470,18 @@ func Run(runOpts RunOptions) {
 		retrieverOpts := fs.NewBlockRetrieverOptions().
 			SetBytesPool(opts.BytesPool()).
 			SetSegmentReaderPool(opts.SegmentReaderPool()).
-			SetIdentifierPool(opts.IdentifierPool())
+			SetIdentifierPool(opts.IdentifierPool()).
+			SetBlockLeaseManager(blockLeaseManager)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-				retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
+				retriever, err := fs.NewBlockRetriever(retrieverOpts, fsopts)
+				if err != nil {
+					return nil, err
+				}
 				if err := retriever.Open(md); err != nil {
 					return nil, err
 				}
@@ -574,8 +584,7 @@ func Run(runOpts RunOptions) {
 	}
 	schemaRegistry := namespace.NewSchemaRegistry(protoEnabled, logger)
 	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
-	// we allow loading user schema from db node configuration into schema registry
-	// at dbnode startup/initialization time.
+	// we allow loading user schema from local file into schema registry.
 	if protoEnabled {
 		for nsID, protoConfig := range cfg.Proto.SchemaRegistry {
 			dummyDeployID := "fromconfig"
@@ -708,6 +717,11 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not construct database", zap.Error(err))
 	}
+
+	// Now that the database has been created it can be set as the block lease verifier
+	// on the block lease manager.
+	leaseVerifier := storage.NewLeaseVerifier(db)
+	blockLeaseManager.SetLeaseVerifier(leaseVerifier)
 
 	if err := db.Open(); err != nil {
 		logger.Fatal("could not open database", zap.Error(err))

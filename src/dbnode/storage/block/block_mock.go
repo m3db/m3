@@ -1386,6 +1386,21 @@ func (mr *MockLeaseManagerMockRecorder) OpenLease(leaser, descriptor, state inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenLease", reflect.TypeOf((*MockLeaseManager)(nil).OpenLease), leaser, descriptor, state)
 }
 
+// OpenLatestLease mocks base method
+func (m *MockLeaseManager) OpenLatestLease(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenLatestLease", leaser, descriptor)
+	ret0, _ := ret[0].(LeaseState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenLatestLease indicates an expected call of OpenLatestLease
+func (mr *MockLeaseManagerMockRecorder) OpenLatestLease(leaser, descriptor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenLatestLease", reflect.TypeOf((*MockLeaseManager)(nil).OpenLatestLease), leaser, descriptor)
+}
+
 // UpdateOpenLeases mocks base method
 func (m *MockLeaseManager) UpdateOpenLeases(descriptor LeaseDescriptor, state LeaseState) (UpdateLeasesResult, error) {
 	m.ctrl.T.Helper()
@@ -1399,6 +1414,20 @@ func (m *MockLeaseManager) UpdateOpenLeases(descriptor LeaseDescriptor, state Le
 func (mr *MockLeaseManagerMockRecorder) UpdateOpenLeases(descriptor, state interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOpenLeases", reflect.TypeOf((*MockLeaseManager)(nil).UpdateOpenLeases), descriptor, state)
+}
+
+// SetLeaseVerifier mocks base method
+func (m *MockLeaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLeaseVerifier", leaseVerifier)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetLeaseVerifier indicates an expected call of SetLeaseVerifier
+func (mr *MockLeaseManagerMockRecorder) SetLeaseVerifier(leaseVerifier interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLeaseVerifier", reflect.TypeOf((*MockLeaseManager)(nil).SetLeaseVerifier), leaseVerifier)
 }
 
 // MockLeaseVerifier is a mock of LeaseVerifier interface
@@ -1436,6 +1465,21 @@ func (m *MockLeaseVerifier) VerifyLease(descriptor LeaseDescriptor, state LeaseS
 func (mr *MockLeaseVerifierMockRecorder) VerifyLease(descriptor, state interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyLease", reflect.TypeOf((*MockLeaseVerifier)(nil).VerifyLease), descriptor, state)
+}
+
+// LatestState mocks base method
+func (m *MockLeaseVerifier) LatestState(descriptor LeaseDescriptor) (LeaseState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LatestState", descriptor)
+	ret0, _ := ret[0].(LeaseState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LatestState indicates an expected call of LatestState
+func (mr *MockLeaseVerifierMockRecorder) LatestState(descriptor interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LatestState", reflect.TypeOf((*MockLeaseVerifier)(nil).LatestState), descriptor)
 }
 
 // MockLeaser is a mock of Leaser interface

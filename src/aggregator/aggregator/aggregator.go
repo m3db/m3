@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
@@ -706,10 +707,12 @@ func newAggregatorAddTimedMetrics(
 }
 
 func (m *aggregatorAddTimedMetrics) ReportError(err error) {
-	switch err {
-	case errTooFarInTheFuture:
+	switch {
+	case err == errTooFarInTheFuture ||
+		xerrors.InnerError(err) == errTooFarInTheFuture:
 		m.tooFarInTheFuture.Inc(1)
-	case errTooFarInThePast:
+	case err == errTooFarInThePast ||
+		xerrors.InnerError(err) == errTooFarInThePast:
 		m.tooFarInThePast.Inc(1)
 	default:
 		m.aggregatorAddMetricMetrics.ReportError(err)
@@ -736,8 +739,8 @@ func newAggregatorAddForwardedMetrics(
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
 	return aggregatorAddForwardedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		scope: scope,
+		aggregatorAddMetricMetrics:  newAggregatorAddMetricMetrics(scope, samplingRate),
+		scope:                       scope,
 		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
 		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
 	}

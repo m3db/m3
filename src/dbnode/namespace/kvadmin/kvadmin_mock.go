@@ -56,10 +56,10 @@ func (m *MockNamespaceMetadataAdminService) EXPECT() *MockNamespaceMetadataAdmin
 }
 
 // GetAll mocks base method
-func (m *MockNamespaceMetadataAdminService) GetAll() ([]*namespace.NamespaceOptions, error) {
+func (m *MockNamespaceMetadataAdminService) GetAll() (*namespace.Registry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAll")
-	ret0, _ := ret[0].([]*namespace.NamespaceOptions)
+	ret0, _ := ret[0].(*namespace.Registry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

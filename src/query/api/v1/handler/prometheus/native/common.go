@@ -68,27 +68,30 @@ func parseTime(r *http.Request, key string) (time.Time, error) {
 
 // nolint: unparam
 func parseDuration(r *http.Request, key string) (time.Duration, error) {
-	str := r.FormValue(key)
+	str := strings.TrimSpace(r.FormValue(key))
 	if str == "" {
 		return 0, errors.ErrNotFound
 	}
 
-	value, err := time.ParseDuration(str)
-	if err == nil {
+	value, durationErr := time.ParseDuration(str)
+	if durationErr == nil {
 		return value, nil
 	}
 
 	// Try parsing as a float value specifying seconds, the Prometheus default
-	if seconds, floatErr := strconv.ParseFloat(str, 64); floatErr == nil {
+	seconds, floatErr := strconv.ParseFloat(str, 64)
+	if floatErr == nil {
 		ts := seconds * float64(time.Second)
 		if ts > maxInt64 || ts < minInt64 {
-			return 0, fmt.Errorf("cannot parse %s to a valid duration: int64 overflow", str)
+			return 0, fmt.Errorf("cannot parse step='%s': as_float_err="+
+				"int64 overflow after float conversion", str)
 		}
 
 		return time.Duration(ts), nil
 	}
 
-	return 0, err
+	return 0, fmt.Errorf("cannot parse step='%s': as_duration_err=%s, as_float_err=%s",
+		str, durationErr, floatErr)
 }
 
 // parseParams parses all params from the GET request

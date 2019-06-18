@@ -58,12 +58,13 @@ hashing:
   seed: 42
 proto:
   enabled: false
+  testOnly: true
   schema_registry:
     "ns1:2d":
-      schemaFilePath: "file/path/to/ns1/schema"
+      schemaFilePath: "/path/to/schema"
       messageName: "ns1_msg_name"
     ns2:
-      schemaFilePath: "file/path/to/ns2/schema"
+      schemaDeployID: "deployID-345"
       messageName: "ns2_msg_name"
 `
 
@@ -119,9 +120,10 @@ proto:
 		},
 		Proto: &ProtoConfiguration{
 			Enabled: false,
+			TestOnly: true,
 			SchemaRegistry: map[string]NamespaceProtoSchema{
-				"ns1:2d": {SchemaFilePath: "file/path/to/ns1/schema", MessageName: "ns1_msg_name"},
-				"ns2": {SchemaFilePath: "file/path/to/ns2/schema", MessageName: "ns2_msg_name"},
+				"ns1:2d": {SchemaFilePath: "/path/to/schema", MessageName: "ns1_msg_name"},
+				"ns2": {SchemaDeployID: "deployID-345", MessageName: "ns2_msg_name"},
 			},
 		},
 	}
