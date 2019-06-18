@@ -127,16 +127,20 @@ func TestConfig(t *testing.T) {
 	placementSvc, err := svcs.PlacementService(serviceID, placementOpts)
 	require.NoError(t, err)
 
-	instance := placement.NewInstance().
-		SetID(hostID).
-		SetEndpoint(endpoint("127.0.0.1", servicePort)).
-		SetPort(servicePort).
-		SetIsolationGroup("local").
-		SetWeight(1).
-		SetZone(serviceZone)
-	instances := []placement.Instance{instance}
-	shards := 256
-	replicas := 1
+	var (
+		instance = placement.NewInstance().
+				SetID(hostID).
+				SetEndpoint(endpoint("127.0.0.1", servicePort)).
+				SetPort(servicePort).
+				SetIsolationGroup("local").
+				SetWeight(1).
+				SetZone(serviceZone)
+		instances = []placement.Instance{instance}
+		// Reduce number of shards to avoid having to tune F.D limits.
+		shards   = 4
+		replicas = 1
+	)
+
 	_, err = placementSvc.BuildInitialPlacement(instances, shards, replicas)
 	require.NoError(t, err)
 
