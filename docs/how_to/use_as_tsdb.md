@@ -41,7 +41,7 @@ Each time series in M3DB stores data as a stream of data points in the form of <
 
 The `value` portion of the tuple is a protobuf message that matches the configured namespace schema. This means that all time series that belong to a given namespace must contain values that match the same protobuf message schema, although this limitation may be lifted in the future.
 
-## Schema Modeling
+### Schema Modeling
 
 Every M3DB namespace can be configured with a schema where the schema is a protobuf message that each value in time series must conform to.
 
@@ -53,8 +53,8 @@ syntax = "proto3";
 message VehicleLocation {
   double latitude = 1;
   double longitude = 2;
-	double fuel_percent = 3;
-	string status = 4;
+  double fuel_percent = 3;
+  string status = 4;
 }
 ```
 
@@ -73,7 +73,7 @@ The following features are currently not supported:
 3. Options of any type
 4. Custom field types
 
-### Compression
+#### Compression
 
 While M3DB supports schemas that contain nested messages, repeated fields, and map fields, currently it can only effectively compress top level scalar fields. For example, M3DB can compress every field in the following schema:
 
@@ -83,8 +83,8 @@ syntax = "proto3";
 message VehicleLocation {
   double latitude = 1;
   double longitude = 2;
-	double fuel_percent = 3;
-	string status = 4;
+  double fuel_percent = 3;
+  string status = 4;
 }
 ```
 
@@ -96,12 +96,58 @@ syntax = "proto3";
 message VehicleLocation {
   double latitude = 1;
   double longitude = 2;
-	double fuel_percent = 3;
-	string status = 4;
-	map<string, string> attributes = 5;
+  double fuel_percent = 3;
+  string status = 4;
+  map<string, string> attributes = 5;
 }
 ```
 
 This isn't to say that the schema above shouldn't be used, but users should take into account that any data stored in the attributes map will be held in memory and eventually stored on disk with no compression.
 
 For more details on the compression scheme and its limitations, review [the documentation for M3DB's compressed protobuf encoding](https://github.com/m3db/m3/blob/master/src/dbnode/encoding/proto/docs/encoding.md).
+
+
+### Getting Started
+
+#### M3DB setup
+
+For more advanced setups, its best to follow the guide's on how to configure an [M3DB cluster manually](./cluster_hard_way.md) or [using Kubernetes](./kubernetes.md). However, this tutorial will walk you through configuring a single node setup locally for development.
+
+First, run the following command to pull the latest M3DB image:
+
+```
+docker pull quay.io/m3db/m3dbnode:latest
+```
+
+Next, run the following command to start the M3DB container:
+
+```
+docker run -p 7201:7201 -p 7203:7203 -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 2379:2379 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $(pwd)/src/dbnode/config/m3dbnode-local-etcd-proto.yml:/etc/m3dbnode/m3dbnode.yml -v <PATH_TO_SCHEMA_PROTOBUF_FILE>:/etc/m3dbnode/default_schema.proto quay.io/m3db/m3dbnode:latest
+```
+
+- All the `-p` flags expose the necessary ports.
+- The `-v $(pwd)/m3db_data:/var/lib/m3db` section creates a durable data folder that can be reused between container restarts.
+- The `-v <PATH_TO_YAML_CONFIG_FILE>:/etc/m3dbnode/m3dbnode.yml` section mounts the specified configuration file in the container. [This example file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd-proto.yml) can be used as a good starting point. It configures the database to have the protobuf feature enabled and expects one namespace with the name `default` and a protobuf message name of `VehicleLocation` for the schema. You'll need to update that portion of the config if you intend to use a different schema than the example one used throughout this document. Note that hard-coding paths to the schema should only be done for local development and testing. For production use-cases, M3DB supports storing the current schema in `etcd` so that it can be update dynamically.
+- The `-v <PATH_TO_SCHEMA_PROTOBUF_FILE>:/etc/m3dbnode/default_schema.proto` section mounts the protobuf file containing the schema in the container so that M3DB can load it. See the bullet point above about not doing this for production setups.
+
+TODO(rartoul): Document how to manage schemas dynamically using etcd for production setups.
+
+Once the M3DB container has started, issue the following CURL statement to create the `default` namespace:
+
+```
+curl -X POST http://localhost:7201/api/v1/database/create -d '{
+  "type": "local",
+  "namespaceName": "default",
+  "retentionTime": "4h"
+}'
+```
+
+After a few moments, the M3DB container should finish bootstrapping. At this point it should be ready to serve write and read queries.
+
+#### Clients
+
+M3DB only has a Go client and this is unlikely to change in the future due to the fact that the client is "fat" and contains a lot of logic that would be difficult to port to other languages.
+
+Users interested in interacting with M3DB directly from Go applications can review [this runnable example](https://github.com/m3db/m3/tree/master/examples/dbnode/proto_client) to get an understanding of how to interact with M3DB in Go. Note that the example above uses the same `default` namespace and `VehicleLocation` schema used throughout this document so it can be run directly against an M3DB docker container setup using the "M3DB setup" instructions above.
+
+M3DB will eventually support other languages by exposing an `M3Coordinator` endpoint which will allow users to write/read from M3DB directly using GRPC/JSON.
