@@ -891,7 +891,15 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 			for _, shard := range shards {
 				shardIDs = append(shardIDs, shard.ID())
 			}
-			retriever.CacheShardIndices(shardIDs)
+			n.log.Info("Caching shard indices",
+				zap.Int("numShards", len(shardIDs)),
+			)
+			if err := retriever.CacheShardIndices(shardIDs); err != nil {
+				multiErr = multiErr.Add(err)
+				n.log.Error("Caching shard indices error", zap.Error(err))
+			} else {
+				n.log.Info("Caching shard indices completed successfully")
+			}
 		}
 	}
 
