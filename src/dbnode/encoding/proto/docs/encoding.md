@@ -10,7 +10,7 @@ All compression is performed in a streaming manner such that the encoded stream 
 1. Lossless compression.
 1. Compression of Protobuf message timestamps using [Gorilla-style delta-of-delta encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
 2. Compression of Protobuf message streams that match a provided schema by using different forms of compression for each field based on its type.
-4. Changing Protobuf message schemas mid-stream (pending).
+4. Changing Protobuf message schemas mid-stream.
 
 ## Supported Syntax
 
