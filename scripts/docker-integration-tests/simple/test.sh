@@ -12,17 +12,19 @@ docker create --name "${CONTAINER_NAME}" -p 9000:9000 -p 9001:9001 -p 9002:9002 
 
 # think of this as a defer func() in golang
 function defer {
+  if [ $? -ne 0 ]; then
+    echo "Tested failed, dumping logs"
+    echo "---------------------------"
+    docker logs "${CONTAINER_NAME}"
+    exit 1
+  fi
+
   echo "Remove docker container"
   docker rm --force "${CONTAINER_NAME}"
 }
 trap defer EXIT
 
 docker start "${CONTAINER_NAME}"
-if [ $? -ne 0 ]; then
-  echo "m3dbnode docker failed to start"
-  docker logs "${CONTAINER_NAME}"
-  exit 1
-fi
 
 # TODO(rartoul): Rewrite this test to use a docker-compose file like the others so that we can share all the
 # DB initialization logic with the setup_single_m3db_node command in common.sh like the other files. Right now
