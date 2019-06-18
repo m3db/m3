@@ -437,7 +437,7 @@ func (m *seekerManager) newOpenSeeker(
 		return nil, fmt.Errorf("err opening latest lease: %v", err)
 	}
 
-	// TODO(rartoul): Pass volume obtained from OpenLatestLease here.
+	// TODO_OUT_OF_ORDER_WRITES(rartoul): Pass volume obtained from OpenLatestLease here.
 	err = seeker.Open(m.namespace, shard, blockStart, resources)
 	m.putSeekerResources(resources)
 	if err != nil {
