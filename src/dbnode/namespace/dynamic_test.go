@@ -95,6 +95,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 
 	rw, err := reg.Watch()
 	require.NoError(t, err)
+	<-rw.C()
 	rMap := rw.Get()
 	mds := rMap.Metadatas()
 	require.Len(t, mds, 1)
@@ -140,6 +141,8 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
+
+	<-rmap.C()
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
@@ -179,6 +182,8 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
+	<-rmap.C()
+
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
@@ -212,6 +217,7 @@ func TestInitializerUpdateWithNilValue(t *testing.T) {
 
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
+	<-rmap.C()
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
@@ -223,23 +229,6 @@ func TestInitializerUpdateWithNilValue(t *testing.T) {
 
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.NoError(t, reg.Close())
-}
-
-func TestInitializerUpdateWithNilInitialValue(t *testing.T) {
-	defer leaktest.CheckTimeout(t, time.Second)()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	w := newTestWatchable(t, nil)
-	defer w.Close()
-
-	opts := newTestOpts(t, ctrl, w)
-	init := NewDynamicInitializer(opts)
-
-	require.NoError(t, w.Update(nil))
-	_, err := init.Init()
-	require.Error(t, err)
 }
 
 func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
@@ -260,6 +249,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
+	<-rmap.C()
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
@@ -294,6 +284,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
+	<-rmap.C()
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 	require.Equal(t, 0., currentVersionMetrics(opts))

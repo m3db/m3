@@ -41,6 +41,7 @@ func (i *staticInit) Init() (Registry, error) {
 
 type staticReg struct {
 	xwatch.Watchable
+	m Map
 }
 
 func newStaticRegistry(metadatas []Metadata) (Registry, error) {
@@ -48,7 +49,7 @@ func newStaticRegistry(metadatas []Metadata) (Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	reg := &staticReg{xwatch.NewWatchable()}
+	reg := &staticReg{Watchable: xwatch.NewWatchable(), m: m}
 	if err := reg.Update(m); err != nil {
 		return nil, err
 	}
@@ -61,6 +62,10 @@ func (r *staticReg) Watch() (Watch, error) {
 		return nil, err
 	}
 	return NewWatch(w), nil
+}
+
+func (r *staticReg) ForceGet() (Map, bool, error) {
+	return r.m, true, nil
 }
 
 func (r *staticReg) Close() error {

@@ -77,6 +77,7 @@ type dynamicRegistry struct {
 	metrics      dynamicRegistryMetrics
 	watchable    xwatch.Watchable
 	kvWatch      kv.ValueWatch
+	store        kv.Store
 	currentValue kv.Value
 	currentMap   Map
 	closed       bool
@@ -107,29 +108,15 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-	logger.Info("waiting for dynamic namespace registry initialization, " +
-		"if this takes a long time, make sure that a namespace is configured")
-	<-watch.C()
-	logger.Info("initial namespace value received")
-
-	initValue := watch.Get()
-	m, err := getMapFromUpdate(initValue)
-	if err != nil {
-		logger.Error("dynamic namespace registry received invalid initial value", zap.Error(err))
-		return nil, err
-	}
-
 	watchable := xwatch.NewWatchable()
-	watchable.Update(m)
 
 	dt := &dynamicRegistry{
-		opts:         opts,
-		logger:       logger,
-		metrics:      newDynamicRegistryMetrics(opts),
-		watchable:    watchable,
-		kvWatch:      watch,
-		currentValue: initValue,
-		currentMap:   m,
+		opts:      opts,
+		logger:    logger,
+		metrics:   newDynamicRegistryMetrics(opts),
+		watchable: watchable,
+		store:     kvStore,
+		kvWatch:   watch,
 	}
 	go dt.run()
 	go dt.reportMetrics()
@@ -182,7 +169,7 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		if !val.IsNewer(r.currentValue) {
+		if r.currentValue != nil && !val.IsNewer(r.currentValue) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received older version, skipping",
 				zap.Int("version", val.Version()))
@@ -197,7 +184,7 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		if m.Equal(r.maps()) {
+		if currM := r.maps(); currM != nil && m.Equal(currM) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received identical update, skipping")
 			continue
@@ -218,6 +205,22 @@ func (r *dynamicRegistry) Watch() (Watch, error) {
 		return nil, err
 	}
 	return NewWatch(w), err
+}
+
+func (r *dynamicRegistry) ForceGet() (Map, bool, error) {
+	val, err := r.store.Get(r.opts.NamespaceRegistryKey())
+	if (val == nil && err == nil) || err == kv.ErrNotFound {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	m, err := getMapFromUpdate(val)
+	if err != nil {
+		return nil, false, err
+	}
+	return m, true, nil
 }
 
 func (r *dynamicRegistry) Close() error {
