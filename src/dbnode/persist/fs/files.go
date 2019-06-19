@@ -58,6 +58,10 @@ const (
 	snapshotDirName   = "snapshots"
 	commitLogsDirName = "commitlogs"
 
+	// The maximum number of delimeters ('-' or '.') that is expected in a
+	// (base) filename.
+	maxDelimNum = 4
+
 	// The volume index assigned to (legacy) filesets that don't have a volume
 	// number in their filename.
 	// NOTE: Since this index is the same as the index for the first
@@ -411,30 +415,14 @@ func (a fileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
 	return ti.Equal(tj) && ii < ij
 }
 
-func intComponentFromFilename(
-	baseFilename string,
-	componentPos int,
-	separatorIdx [4]int,
-) (int64, error) {
-	var start int
-	if componentPos > 0 {
-		start = separatorIdx[componentPos-1] + 1
-	}
-	end := separatorIdx[componentPos]
-	if start > end || end > len(baseFilename)-1 || start < 0 {
-		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
-	}
-
-	num, err := strconv.ParseInt(baseFilename[start:end], 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
-	}
-	return num, nil
-}
-
-func delimiterPositions(baseFilename string) ([4]int, int) {
+// Returns the positions of filename delimiters ('-' and '.') and the number of
+// delimeters found, to be used in conjunction with the intComponentFromFilename
+// function to extract filename components. This function is deliberately
+// optimized for speed and lack of allocationsm, since filename parsing is known
+// to account for a significant proportion of sytstem resources.
+func delimiterPositions(baseFilename string) ([maxDelimNum]int, int) {
 	var (
-		delimPos    [4]int
+		delimPos    [maxDelimNum]int
 		delimsFound int
 	)
 
@@ -451,6 +439,30 @@ func delimiterPositions(baseFilename string) ([4]int, int) {
 	}
 
 	return delimPos, delimsFound
+}
+
+// Returns the the specified component of a filename given delimeter positions.
+// Our only use cases involve extracting numeric components, so this function
+// assumes this and returns the component as an int64.
+func intComponentFromFilename(
+	baseFilename string,
+	componentPos int,
+	delimPos [maxDelimNum]int,
+) (int64, error) {
+	var start int
+	if componentPos > 0 {
+		start = delimPos[componentPos-1] + 1
+	}
+	end := delimPos[componentPos]
+	if start > end || end > len(baseFilename)-1 || start < 0 {
+		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
+	}
+
+	num, err := strconv.ParseInt(baseFilename[start:end], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
+	}
+	return num, nil
 }
 
 // TimeFromFileName extracts the block start time from file name.
