@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -136,31 +135,35 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
-	filePathPrefix := filepath.Join(dir, "")
-	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 
-	fetchConcurrency := 4
-	seekConcurrency := 4 * fetchConcurrency
-	opts := testBlockRetrieverOptions{
-		retrieverOpts: defaultTestBlockRetrieverOptions.
-			SetFetchConcurrency(fetchConcurrency).
-			SetRequestPoolOptions(pool.NewObjectPoolOptions().
-				// NB(r): Try to make sure same req structs are reused frequently
-				// to surface any race issues that might occur with pooling.
-				SetSize(fetchConcurrency / 2)),
-		fsOpts: fsOpts,
-	}
+	// Setup retriever.
+	var (
+		filePathPrefix = filepath.Join(dir, "")
+		fsOpts         = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+
+		fetchConcurrency = 4
+		seekConcurrency  = 4 * fetchConcurrency
+		opts             = testBlockRetrieverOptions{
+			retrieverOpts: defaultTestBlockRetrieverOptions.
+				SetFetchConcurrency(fetchConcurrency).
+				SetRequestPoolOptions(pool.NewObjectPoolOptions().
+					// NB(r): Try to make sure same req structs are reused frequently
+					// to surface any race issues that might occur with pooling.
+					SetSize(fetchConcurrency / 2)),
+			fsOpts: fsOpts,
+		}
+	)
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
-	nsMeta := testNs1Metadata(t)
-	ropts := nsMeta.Options().RetentionOptions()
-	nsCtx := namespace.NewContextFrom(nsMeta)
-
-	now := time.Now().Truncate(ropts.BlockSize())
-	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
-
+	// Setup data generation.
 	var (
+		nsMeta   = testNs1Metadata(t)
+		ropts    = nsMeta.Options().RetentionOptions()
+		nsCtx    = namespace.NewContextFrom(nsMeta)
+		now      = time.Now().Truncate(ropts.BlockSize())
+		min, max = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
+
 		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ident.ID)
@@ -168,10 +171,13 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		dataBytesPerID = 32
 		shardData      = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
 		blockStarts    []time.Time
+		volumes        = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
+
+	// Generate data.
 	for _, shard := range shards {
 		shardIDs[shard] = make([]ident.ID, 0, idsPerShard)
 		shardData[shard] = make(map[string]map[xtime.UnixNano]checked.Bytes, idsPerShard)
@@ -234,6 +240,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		retrievedIDsMutex.Unlock()
 	})
 
+	// Setup concurrent seeks.
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
 	for i := 0; i < seekConcurrency; i++ {
@@ -287,6 +294,27 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			}
 		}()
 	}
+
+	// Setup concurrent block lease updates.
+	readyWg.Add(1)
+	enqueueWg.Add(1)
+	go func() {
+		defer enqueueWg.Done()
+		readyWg.Done()
+		startWg.Wait()
+
+		for _, shard := range shards {
+			for _, blockStart := range blockStarts {
+				leaser := retriever.seekerMgr.(block.Leaser)
+				leaser.UpdateOpenLease(block.LeaseDescriptor{
+					Namespace:  nsMeta.ID(),
+					Shard:      shard,
+					BlockStart: blockStart,
+					// TODO(rartoul): Handle multiple volumes.
+				}, block.LeaseState{})
+			}
+		}
+	}()
 
 	// Wait for all routines to be ready then start.
 	readyWg.Wait()

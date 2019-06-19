@@ -162,7 +162,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		mock.EXPECT().Close().Return(nil)
 		mocks := []borrowableSeeker{}
 		mocks = append(mocks, borrowableSeeker{seeker: mock})
-		byTime.seekers[startNano] = seekers{
+		byTime.seekers[startNano] = rotatableSeekers{
 			active: seekersAndBloom{
 				seekers:     mocks,
 				bloomFilter: nil,

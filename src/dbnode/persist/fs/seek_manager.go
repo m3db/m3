@@ -315,10 +315,14 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 			for _, inactiveSeeker := range seekers.inactive.seekers {
 				multiErr = multiErr.Add(inactiveSeeker.seeker.Close())
 			}
+
 			// Clear out inactive state.
+			allInactiveSeekersClosedWg := seekers.inactive.wg
 			seekers.inactive = seekersAndBloom{}
-			// Signal completion regardless of any errors encountered while closing.
-			seekers.inactive.wg.Done()
+			if allInactiveSeekersClosedWg != nil {
+				// Signal completion regardless of any errors encountered while closing.
+				allInactiveSeekersClosedWg.Done()
+			}
 
 			if multiErr.FinalError() != nil {
 				return multiErr.FinalError()
@@ -370,6 +374,8 @@ func (m *seekerManager) UpdateOpenLease(
 		return 0, errUpdateOpenLeaseSeekerManagerNotOpen
 	}
 	m.Unlock()
+
+	// TODO(rartoul): Need to ignore updates for the wrong namespace.
 
 	// First open a new seeker outside the context of any locks.
 	// TODO(rartoul): Use the volume number from the LeaseState.
