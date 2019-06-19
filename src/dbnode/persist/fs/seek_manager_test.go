@@ -85,6 +85,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
+		volume int,
 	) (DataFileSetSeeker, error) {
 		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)

@@ -171,7 +171,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		dataBytesPerID = 32
 		shardData      = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
 		blockStarts    []time.Time
-		volumes        = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+		// volumes        = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)

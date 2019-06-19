@@ -58,6 +58,7 @@ type openAnyUnopenSeekersFn func(*seekersByTime) error
 type newOpenSeekerFn func(
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 ) (DataFileSetSeeker, error)
 
 type seekerManagerStatus int
@@ -379,7 +380,8 @@ func (m *seekerManager) UpdateOpenLease(
 
 	// First open a new seeker outside the context of any locks.
 	// TODO(rartoul): Use the volume number from the LeaseState.
-	seeker, err := m.newOpenSeekerFn(descriptor.Shard, descriptor.BlockStart)
+	seeker, err := m.newOpenSeekerFn(
+		descriptor.Shard, descriptor.BlockStart, state.Volume)
 	if err != nil {
 		return 0, err
 	}
@@ -485,8 +487,18 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 	byTime.seekers[start] = seekers
 	byTime.Unlock()
 	// Open first one - Do this outside the context of the lock because opening
-	// a seeker can be an expensive operation (validating index files)
-	seeker, err := m.newOpenSeekerFn(byTime.shard, start.ToTime())
+	// a seeker can be an expensive operation (validating index files).
+	blm := m.blockRetrieverOpts.BlockLeaseManager()
+	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace,
+		Shard:      byTime.shard,
+		BlockStart: start.ToTime(),
+	})
+	if err != nil {
+		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
+	}
+
+	seeker, err := m.newOpenSeekerFn(byTime.shard, start.ToTime(), state.Volume)
 	// Immediately re-lock once the seeker is open regardless of errors because
 	// thats the contract of this function
 	byTime.Lock()
@@ -560,18 +572,10 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 ) (DataFileSetSeeker, error) {
-	blm := m.blockRetrieverOpts.BlockLeaseManager()
-	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
-		Namespace:  m.namespace,
-		Shard:      shard,
-		BlockStart: blockStart,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("err opening latest lease: %v", err)
-	}
-
-	exists, err := DataFileSetExists(m.filePathPrefix, m.namespace, shard, blockStart, state.Volume)
+	exists, err := DataFileSetExists(
+		m.filePathPrefix, m.namespace, shard, blockStart, volume)
 	if err != nil {
 		return nil, err
 	}
@@ -599,7 +603,7 @@ func (m *seekerManager) newOpenSeeker(
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
 	resources := m.getSeekerResources()
-	err = seeker.Open(m.namespace, shard, blockStart, state.Volume, resources)
+	err = seeker.Open(m.namespace, shard, blockStart, volume, resources)
 	m.putSeekerResources(resources)
 	if err != nil {
 		return nil, err
