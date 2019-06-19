@@ -274,13 +274,55 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 		return errSeekersDontExist
 	}
 
-	// TODO(rartoul): Handle the case where an inactive seeker is being returned.
 	found := false
 	for i, compareSeeker := range seekers.active.seekers {
 		if seeker == compareSeeker.seeker {
 			found = true
 			compareSeeker.isBorrowed = false
 			seekers.active.seekers[i] = compareSeeker
+			break
+		}
+	}
+
+	if found {
+		return nil
+	}
+
+	// If no match was found in the active seekers, its possible that an inactive seeker is being returned.
+	for i, compareSeeker := range seekers.inactive.seekers {
+		if seeker == compareSeeker.seeker {
+			found = true
+			compareSeeker.isBorrowed = false
+			seekers.inactive.seekers[i] = compareSeeker
+
+			// The goroutine that returns the last outstanding inactive seeker is responsible for notifying any
+			// goroutines waiting for all inactive seekers to be returned and clearing out the inactive seekers
+			// state entirely.
+			allAreReturned := true
+			for _, inactiveSeeker := range seekers.inactive.seekers {
+				if inactiveSeeker.isBorrowed {
+					allAreReturned = false
+					break
+				}
+			}
+
+			if !allAreReturned {
+				break
+			}
+
+			// All the inactive seekers have been returned so its safe to signal and clear them out.
+			var multiErr = xerrors.NewMultiError()
+			for _, inactiveSeeker := range seekers.inactive.seekers {
+				multiErr = multiErr.Add(inactiveSeeker.seeker.Close())
+			}
+			// Clear out inactive state.
+			seekers.inactive = seekersAndBloom{}
+			// Signal completion regardless of any errors encountered while closing.
+			seekers.inactive.wg.Done()
+
+			if multiErr.FinalError() != nil {
+				return multiErr.FinalError()
+			}
 			break
 		}
 	}
@@ -293,8 +335,31 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 	return nil
 }
 
-// Implements block.Leaser.
-// TODO(rartoul): Guard against concurrent calls without holding lock forever.
+// UpdateOpenLease() implements block.Leaser. The contract of this API is that once the function
+// returns successfully any resources associated with the previous release should have been
+// released (in this case the Seeker / files for the previous volume) and the resources associated
+// with the new lease should have been acquired (the seeker for the provided volume).
+//
+// Practically speaking, the goal of this function is to open a new seeker for the latest volume and
+// then "hot-swap" it so that by the time this function returns there are no more outstanding reads
+// using the old seekers, all the old seekers have been closed, and all subsequent reads will use the
+// seekers associated with the latest volume.
+//
+// The bulk of the complexity of this function is caused by the desire to avoid the hot-swap from
+// causing any latency spikes. To accomplish this, the following is performed:
+//
+//   1. Open the new seeker outside the context of any locks.
+//   2. Acquire a lock on the seekers that need to be swapped and rotate the existing "active" seekers
+//      to be "inactive" and set the newly opened seekers as "active". This operation is extremely cheap
+//      and ensures that all subsequent reads will use the seekers for the latest volume instead of the
+//      previous. In addition, this phase also creates a waitgroup for the inactive seekers that will be
+//      be used to "wait" for all of the existing seekers that are currently borrowed to be returned.
+//   3. Release the lock so that reads can continue uninterrupted and call waitgroup.Wait() to wait for all
+//      the currently borrowed "inactive" seekers (if any) to be returned.
+//   4. Every call to Return() for an "inactive" seeker will check if its the last borrowed inactive seeker,
+//      and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
+//      running the UpdateOpenlease() function that all inactive seekers have been returned and closed at
+//      which point the function will return sucessfully.
 func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
@@ -321,13 +386,20 @@ func (m *seekerManager) UpdateOpenLease(
 		return 0, err
 	}
 
-	byTime := m.seekersByTime(descriptor.Shard)
-	blockStartNano := xtime.ToUnixNano(descriptor.BlockStart)
+	var (
+		byTime                = m.seekersByTime(descriptor.Shard)
+		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
+		updateOpenLeaseResult = block.NoOpenLease
+	)
+
 	byTime.Lock()
 	seekers, ok := byTime.seekers[blockStartNano]
 	if !ok {
+		// No existing seekers, so just set the newly created ones.
 		seekers.active = newActiveSeekers
 	} else {
+		updateOpenLeaseResult = block.UpdateOpenLease
+		// Existing seekers exist.
 		if seekers.active.wg != nil {
 			// If another goroutine is currently trying to open seekers for this block start
 			// then wait for that operation to complete.
@@ -340,11 +412,36 @@ func (m *seekerManager) UpdateOpenLease(
 
 		seekers.inactive = seekers.active
 		seekers.active = newActiveSeekers
+
+		anySeekersAreBorrowed := false
+		for _, seeker := range seekers.inactive.seekers {
+			if seeker.isBorrowed {
+				anySeekersAreBorrowed = true
+				break
+			}
+		}
+
+		if anySeekersAreBorrowed {
+			// If any of the seekers are borrowed setup a waitgroup which will be used to
+			// signal when they've all been returned (the last seeker that is returned via
+			// the Return() API will call wg.Done()).
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+			seekers.inactive.wg = wg
+		}
 	}
+	wg := seekers.inactive.wg
 	byTime.seekers[blockStartNano] = seekers
 	byTime.Unlock()
 
-	return block.NoOpenLease, nil
+	if wg != nil {
+		// Wait for all the inactive seekers to be returned and closed because this contract
+		// of this API is that the Leaser (SeekerManager) should have relinquished any resources
+		// associated with the old lease by the time this function returns.
+		wg.Wait()
+	}
+
+	return updateOpenLeaseResult, nil
 }
 
 // getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
