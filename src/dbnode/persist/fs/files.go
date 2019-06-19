@@ -418,8 +418,8 @@ func (a fileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
 // Returns the positions of filename delimiters ('-' and '.') and the number of
 // delimeters found, to be used in conjunction with the intComponentFromFilename
 // function to extract filename components. This function is deliberately
-// optimized for speed and lack of allocationsm, since filename parsing is known
-// to account for a significant proportion of sytstem resources.
+// optimized for speed and lack of allocations, since filename parsing is known
+// to account for a significant proportion of system resources.
 func delimiterPositions(baseFilename string) ([maxDelimNum]int, int) {
 	var (
 		delimPos    [maxDelimNum]int
@@ -441,9 +441,10 @@ func delimiterPositions(baseFilename string) ([maxDelimNum]int, int) {
 	return delimPos, delimsFound
 }
 
-// Returns the the specified component of a filename given delimeter positions.
-// Our only use cases involve extracting numeric components, so this function
-// assumes this and returns the component as an int64.
+// Returns the the specified component of a filename, given the positions of
+// delimeters. Our only use cases for this involve extracting numeric
+// components, so this function assumes this and returns the component as an
+// int64.
 func intComponentFromFilename(
 	baseFilename string,
 	componentPos int,
