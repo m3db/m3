@@ -86,6 +86,7 @@ pages:
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
     - "M3Query": "how_to/query.md"
+    - "Use M3DB as a general purpose time series database": "how_to/use_as_tsdb.md"
   - "Operational Guides":
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
