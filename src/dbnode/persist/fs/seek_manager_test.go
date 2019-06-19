@@ -107,7 +107,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
-		require.Equal(t, defaultFetchConcurrency, len(seekers.seekers))
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
 		byTime.RUnlock()
 		require.NoError(t, m.Return(shard, time.Time{}, seeker))
 	}
@@ -162,9 +162,11 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		mock.EXPECT().Close().Return(nil)
 		mocks := []borrowableSeeker{}
 		mocks = append(mocks, borrowableSeeker{seeker: mock})
-		byTime.seekers[startNano] = seekersAndBloom{
-			seekers:     mocks,
-			bloomFilter: nil,
+		byTime.seekers[startNano] = seekers{
+			active: seekersAndBloom{
+				seekers:     mocks,
+				bloomFilter: nil,
+			},
 		}
 		return nil
 	}
@@ -194,7 +196,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].seekers))
+					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
 				}
 				m.RUnlock()
 			},
@@ -225,7 +227,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].seekers))
+					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
 				}
 				m.RUnlock()
 			},
