@@ -107,6 +107,12 @@
      <changefreq>daily</changefreq>
     </url>
         
+    <url>
+     <loc>/how_to/use_as_tsdb/</loc>
+     <lastmod>2019-06-19</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
     
 
     
