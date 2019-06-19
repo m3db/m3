@@ -307,6 +307,7 @@ func (m *seekerManager) UpdateOpenLease(
 	m.Unlock()
 
 	// First open a new seeker outside the context of any locks.
+	// TODO(rartoul): Use the volume number from the LeaseState.
 	seeker, err := m.newOpenSeekerFn(descriptor.Shard, descriptor.BlockStart)
 	if err != nil {
 		return 0, err
