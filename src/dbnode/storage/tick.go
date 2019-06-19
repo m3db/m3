@@ -39,7 +39,6 @@ const (
 )
 
 var (
-	errEmptyNamespaces = errors.New("empty namespaces")
 	errTickInProgress  = errors.New("another tick is in progress")
 	errTickCancelled   = errors.New("tick is cancelled")
 )
@@ -156,7 +155,7 @@ func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
 		return err
 	}
 	if len(namespaces) == 0 {
-		return errEmptyNamespaces
+		return nil
 	}
 
 	// Begin ticking

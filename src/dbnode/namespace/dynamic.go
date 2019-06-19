@@ -151,7 +151,11 @@ func (r *dynamicRegistry) reportMetrics() {
 			return
 		}
 
-		r.metrics.currentVersion.Update(float64(r.value().Version()))
+		if r.value() != nil {
+			r.metrics.currentVersion.Update(float64(r.value().Version()))
+		} else {
+			r.metrics.currentVersion.Update(-1)
+		}
 	}
 }
 
