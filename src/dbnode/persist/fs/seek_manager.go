@@ -788,7 +788,7 @@ func (m *seekerManager) openCloseLoop() {
 					}
 				}
 
-				// Ensure no ianctive seekers are still borrowed
+				// Ensure no ianctive seekers are still borrowed.
 				for _, seeker := range seekers.inactive.seekers {
 					if seeker.isBorrowed {
 						allSeekersAreReturned = false
