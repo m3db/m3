@@ -200,13 +200,26 @@ func NewDatabase(
 		return nil, err
 	}
 
-	// Wait till first namespaces value is received and set the value.
-	// Its important that this happens before the mediator is started to prevent
-	// a race condition where the namespaces haven't been initialized yet and
-	// GetOwnedNamespaces() returns an empty slice which makes the cleanup logic
-	// in the background Tick think it can clean up files that it shouldn't.
-	logger.Info("resolving namespaces with namespace watch")
-	<-watch.C()
+	var blockOnNamespaceWatch = true
+	_, namespacesExist, err := nsReg.ForceGet()
+	if err == nil && namespacesExist == false {
+		// If it can be confirmed that no existing namespaces exist (as verified
+		// by forcing an RPC to etcd) then there is no need to block startup
+		// on the namespace watch because there is no risk of the Mediator
+		// deleting data as described in the comment below.
+		blockOnNamespaceWatch = false
+	}
+
+	if blockOnNamespaceWatch {
+		// Wait till first namespaces value is received and set the value.
+		// Its important that this happens before the mediator is started to prevent
+		// a race condition where the namespaces haven't been initialized yet and
+		// GetOwnedNamespaces() returns an empty slice which makes the cleanup logic
+		// in the background Tick think it can clean up files that it shouldn't.
+		logger.Info("resolving namespaces with namespace watch")
+		<-watch.C()
+	}
+
 	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
 	nsMap := watch.Get()
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {

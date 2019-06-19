@@ -1012,6 +1012,22 @@ func (mr *MockRegistryMockRecorder) Watch() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockRegistry)(nil).Watch))
 }
 
+// ForceGet mocks base method
+func (m *MockRegistry) ForceGet() (Map, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForceGet")
+	ret0, _ := ret[0].(Map)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ForceGet indicates an expected call of ForceGet
+func (mr *MockRegistryMockRecorder) ForceGet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceGet", reflect.TypeOf((*MockRegistry)(nil).ForceGet))
+}
+
 // Close mocks base method
 func (m *MockRegistry) Close() error {
 	m.ctrl.T.Helper()

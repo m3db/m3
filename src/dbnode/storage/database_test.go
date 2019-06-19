@@ -107,6 +107,7 @@ func newMockNsInitializer(
 
 	nsWatch := namespace.NewWatch(w)
 	reg := namespace.NewMockRegistry(ctrl)
+	reg.EXPECT().ForceGet().Return(nil, true, nil)
 	reg.EXPECT().Watch().Return(nsWatch, nil).AnyTimes()
 
 	return &mockNsInitializer{
