@@ -1,3 +1,4 @@
+// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -79,7 +80,7 @@ func newOpenTestBlockRetriever(
 	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 
 	return retriever, func() {
-		assert.NoError(t, retriever.Close())
+		require.NoError(t, retriever.Close())
 	}
 }
 
@@ -88,19 +89,21 @@ func newOpenTestWriter(
 	fsOpts Options,
 	shard uint32,
 	start time.Time,
+	volume int,
 ) (DataFileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
 		Identifier: FileSetFileIdentifier{
-			Namespace:  testNs1ID,
-			Shard:      shard,
-			BlockStart: start,
+			Namespace:   testNs1ID,
+			Shard:       shard,
+			BlockStart:  start,
+			VolumeIndex: volume,
 		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 	return w, func() {
-		assert.NoError(t, w.Close())
+		require.NoError(t, w.Close())
 	}
 }
 
@@ -169,9 +172,10 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		shardIDs       = make(map[uint32][]ident.ID)
 		shardIDStrings = make(map[uint32][]string)
 		dataBytesPerID = 32
-		shardData      = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
-		blockStarts    []time.Time
-		// volumes        = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+		// Shard -> ID -> Blockstart -> Data
+		shardData   = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
+		blockStarts []time.Time
+		volumes     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
@@ -182,29 +186,38 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		shardIDs[shard] = make([]ident.ID, 0, idsPerShard)
 		shardData[shard] = make(map[string]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
-			w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
-			for i := 0; i < idsPerShard; i++ {
-				idString := fmt.Sprintf("foo.%d", i)
-				shardIDStrings[shard] = append(shardIDStrings[shard], idString)
+			for _, volume := range volumes {
+				w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, volume)
+				for i := 0; i < idsPerShard; i++ {
+					idString := fmt.Sprintf("foo.%d", i)
+					shardIDStrings[shard] = append(shardIDStrings[shard], idString)
 
-				id := ident.StringID(idString)
-				shardIDs[shard] = append(shardIDs[shard], id)
-				if _, ok := shardData[shard][idString]; !ok {
-					shardData[shard][idString] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
+					id := ident.StringID(idString)
+					shardIDs[shard] = append(shardIDs[shard], id)
+					if _, ok := shardData[shard][idString]; !ok {
+						shardData[shard][idString] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
+					}
+
+					// Always write the same data for each series regardless of volume to make asserting on
+					// Stream() responses simpler. Each volume gets a unique tag so we can verify that leases
+					// are being upgraded by checking the tags.
+					blockStartNanos := xtime.ToUnixNano(blockStart)
+					data, ok := shardData[shard][idString][blockStartNanos]
+					if !ok {
+						data = checked.NewBytes(nil, nil)
+						data.IncRef()
+						for j := 0; j < dataBytesPerID; j++ {
+							data.Append(byte(rand.Int63n(256)))
+						}
+						shardData[shard][idString][blockStartNanos] = data
+					}
+
+					tags := testTagsFromIDAndVolume(id.String(), volume)
+					err := w.Write(id, tags, data, digest.Checksum(data.Bytes()))
+					require.NoError(t, err)
 				}
-
-				data := checked.NewBytes(nil, nil)
-				data.IncRef()
-				for j := 0; j < dataBytesPerID; j++ {
-					data.Append(byte(rand.Int63n(256)))
-				}
-				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
-
-				tags := testTagsFromTestID(id.String())
-				err := w.Write(id, ident.NewTags(tags...), data, digest.Checksum(data.Bytes()))
-				require.NoError(t, err)
+				closer()
 			}
-			closer()
 		}
 	}
 
@@ -286,7 +299,13 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 					require.NoError(t, err)
 					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
-					assert.True(t, seg.Equal(&compare))
+					require.True(
+						t,
+						seg.Equal(&compare),
+						"data mismatch for series %s, returned data: %v",
+						r.id,
+						string(seg.Head.Bytes()),
+						string(compare.Head.Bytes()))
 
 					r.ctx.Close()
 				}
@@ -305,13 +324,14 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 		for _, shard := range shards {
 			for _, blockStart := range blockStarts {
-				leaser := retriever.seekerMgr.(block.Leaser)
-				leaser.UpdateOpenLease(block.LeaseDescriptor{
-					Namespace:  nsMeta.ID(),
-					Shard:      shard,
-					BlockStart: blockStart,
-					// TODO(rartoul): Handle multiple volumes.
-				}, block.LeaseState{})
+				for _, volume := range volumes {
+					leaser := retriever.seekerMgr.(block.Leaser)
+					leaser.UpdateOpenLease(block.LeaseDescriptor{
+						Namespace:  nsMeta.ID(),
+						Shard:      shard,
+						BlockStart: blockStart,
+					}, block.LeaseState{Volume: volume})
+				}
 			}
 		}
 	}()
@@ -331,13 +351,46 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			retrievedIDsMutex.Unlock()
 			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
 
-			expectedTags := ident.NewTags(testTagsFromTestID(id)...)
+			// Strip the volume tag because these reads were performed while concurrent block lease updates
+			// were happening so its not deterministic which volume tag they'll have at this point.
+			tags = stripVolumeTag(tags)
+			expectedTags := stripVolumeTag(testTagsFromIDAndVolume(id, 0))
 			require.True(
 				t,
 				tags.Equal(expectedTags),
 				fmt.Sprintf("expectedNumTags=%d, actualNumTags=%d", len(expectedTags.Values()), len(tags.Values())))
 		}
 	}
+
+	// Now that all the block lease updates have completed, all reads from this point should return tags with the
+	// highest volume number.
+	for _, shard := range shards {
+		for _, blockStart := range blockStarts {
+			for _, idString := range shardIDStrings[shard] {
+				ctx := context.NewContext()
+				id := ident.StringID(idString)
+				_, err := retriever.Stream(ctx, shard, id, blockStart, onRetrieve, nsCtx)
+				require.NoError(t, err)
+			}
+		}
+	}
+
+	for _, shard := range shardIDStrings {
+		for _, id := range shard {
+			retrievedIDsMutex.Lock()
+			tags, ok := retrievedIDs[id]
+			retrievedIDsMutex.Unlock()
+			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
+			tagsSlice := tags.Values()
+
+			// Highest volume is expected.
+			expectedVolumeTag := string(volumes[len(volumes)-1])
+			// Volume tag is last.
+			volumeTag := tagsSlice[len(tagsSlice)-1].Value.String()
+			require.Equal(t, expectedVolumeTag, volumeTag)
+		}
+	}
+
 }
 
 // TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
@@ -367,7 +420,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	defer cleanup()
 
 	// Write out a test file
-	w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
+	w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
@@ -414,7 +467,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 
 	// Write out a test file.
 	var (
-		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart)
+		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
 		tag       = ident.Tag{
 			Name:  ident.StringID("name"),
 			Value: ident.StringID("value"),
@@ -567,13 +620,20 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	assert.Equal(t, nil, segment.Tail)
 }
 
-func testTagsFromTestID(seriesID string) []ident.Tag {
+func testTagsFromIDAndVolume(seriesID string, volume int) ident.Tags {
 	tags := []ident.Tag{}
 	for j := 0; j < 5; j++ {
-		tags = append(tags, ident.Tag{
-			Name:  ident.StringID(fmt.Sprintf("%s.tag.%d.name", seriesID, j)),
-			Value: ident.StringID(fmt.Sprintf("%s.tag.%d.value", seriesID, j)),
-		})
+		tags = append(tags, ident.StringTag(
+			fmt.Sprintf("%s.tag.%d.name", seriesID, j),
+			fmt.Sprintf("%s.tag.%d.value", seriesID, j),
+		))
 	}
-	return tags
+	tags = append(tags, ident.StringTag("volume", string(volume)))
+	return ident.NewTags(tags...)
+}
+
+func stripVolumeTag(tags ident.Tags) ident.Tags {
+	tagsSlice := tags.Values()
+	tagsSlice = tagsSlice[:len(tagsSlice)-1]
+	return ident.NewTags(tagsSlice...)
 }
