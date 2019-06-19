@@ -141,7 +141,6 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
-
 	<-rmap.C()
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
@@ -183,7 +182,6 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
 	<-rmap.C()
-
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
