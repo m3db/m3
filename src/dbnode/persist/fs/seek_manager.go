@@ -106,6 +106,7 @@ type seekersAndBloom struct {
 	wg          *sync.WaitGroup
 	seekers     []borrowableSeeker
 	bloomFilter *ManagedConcurrentBloomFilter
+	volume      int
 }
 
 // borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
@@ -377,6 +378,11 @@ func (m *seekerManager) UpdateOpenLease(
 		m.Unlock()
 		return 0, errUpdateOpenLeaseSeekerManagerNotOpen
 	}
+
+	if !m.nsMeta.ID().Equal(descriptor.Namespace) {
+		m.Unlock()
+		return block.NoOpenLease, nil
+	}
 	m.Unlock()
 
 	// TODO(rartoul): Need to ignore updates for the wrong namespace.
@@ -389,7 +395,7 @@ func (m *seekerManager) UpdateOpenLease(
 		return 0, err
 	}
 
-	newActiveSeekers, err := m.seekersAndBloomFromSeeker(seeker)
+	newActiveSeekers, err := m.seekersAndBloomFromSeeker(seeker, state.Volume)
 	if err != nil {
 		// Don't need to worry about closing / leaking seeker here because
 		// seekersAndBloomFromSeeker will have closed it already if there
@@ -515,7 +521,7 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 		return seekersAndBloom{}, err
 	}
 
-	activeSeekers, err := m.seekersAndBloomFromSeeker(seeker)
+	activeSeekers, err := m.seekersAndBloomFromSeeker(seeker, state.Volume)
 	if err != nil {
 		// Delete the seekersByTime struct so that the process can be restarted if necessary
 		delete(byTime.seekers, start)
@@ -530,7 +536,7 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 	return activeSeekers, nil
 }
 
-func (m *seekerManager) seekersAndBloomFromSeeker(seeker DataFileSetSeeker) (seekersAndBloom, error) {
+func (m *seekerManager) seekersAndBloomFromSeeker(seeker DataFileSetSeeker, volume int) (seekersAndBloom, error) {
 	borrowableSeekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
 	borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: seeker})
 	// Clone remaining seekers from the original - No need to release the lock, cloning is cheap.
@@ -551,6 +557,7 @@ func (m *seekerManager) seekersAndBloomFromSeeker(seeker DataFileSetSeeker) (see
 	return seekersAndBloom{
 		seekers:     borrowableSeekers,
 		bloomFilter: borrowableSeekers[0].seeker.ConcurrentIDBloomFilter(),
+		volume:      volume,
 	}, nil
 }
 

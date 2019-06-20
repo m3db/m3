@@ -73,6 +73,47 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	}
 }
 
+func TestSeekerManagerIgnoreUpdateOpenLeaseWrongNamespace(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	ctrl := gomock.NewController(t)
+
+	shards := []uint32{2, 5, 9, 478, 1023}
+	m := NewSeekerManager(nil, nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		mock := NewMockDataFileSetSeeker(ctrl)
+		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mock.EXPECT().ConcurrentClone().Return(mock, nil)
+		for i := 0; i < defaultFetchConcurrency; i++ {
+			mock.EXPECT().Close().Return(nil)
+			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
+		}
+		return mock, nil
+	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
+
+	metadata := testNs1Metadata(t)
+	require.NoError(t, m.Open(metadata))
+	for _, shard := range shards {
+		seeker, err := m.Borrow(shard, time.Time{})
+		require.NoError(t, err)
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		byTime.RUnlock()
+		require.NoError(t, m.Return(shard, time.Time{}, seeker))
+	}
+
+	require.NoError(t, m.Close())
+}
+
 // TestSeekerManagerBorrowOpenSeekersLazy tests that the Borrow() method will
 // open seekers lazily if they're not already open.
 func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
