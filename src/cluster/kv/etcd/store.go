@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
@@ -616,7 +617,32 @@ func (c *client) writeCacheToFile() error {
 	return nil
 }
 
+func (c *client) createCacheDir() error {
+	path := path.Dir(c.opts.CacheFileFn()(c.opts.Prefix()))
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.Mkdir(path, 0755); err != nil {
+				c.m.diskWriteError.Inc(1)
+				c.logger.Warn("error creating cache directory",
+					zap.String("path", path),
+					zap.Error(err),
+				)
+				return fmt.Errorf("unable to create cache directory: %s", path)
+			}
+		} else {
+			c.m.diskReadError.Inc(1)
+			c.logger.Warn("error reading filesystem",
+				zap.String("path", path),
+				zap.Error(err),
+			)
+			return fmt.Errorf("unable to create cache directory: %s", path)
+		}
+	}
+	return nil
+}
+
 func (c *client) initCache() error {
+	c.createCacheDir()
 	file, err := os.Open(c.cacheFile)
 	if err != nil {
 		c.m.diskReadError.Inc(1)
