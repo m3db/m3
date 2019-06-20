@@ -1,3 +1,4 @@
+// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -589,11 +590,11 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	mockSeekerManager.EXPECT().Close().Return(nil)
 
 	newSeekerMgr := func(
-		nsMeta namespace.Metadata,
 		bytesPool pool.CheckedBytesPool,
 		opts Options,
 		blockRetrieverOpts BlockRetrieverOptions,
 	) DataFileSetSeekerManager {
+
 		return mockSeekerManager
 	}
 
