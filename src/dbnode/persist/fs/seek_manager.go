@@ -418,10 +418,29 @@ func (m *seekerManager) UpdateOpenLease(
 		byTime                = m.seekersByTime(descriptor.Shard)
 		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
 		updateOpenLeaseResult = block.NoOpenLease
-	)
 
-	byTime.Lock()
-	seekers, ok := byTime.seekers[blockStartNano]
+		seekers rotatableSeekers
+		ok      bool
+	)
+	// Check in a loop because its possible that the goroutine we're waiting for will fail
+	// to open the seeker and a different goroutine will reattempt and set a new waitgroup
+	// inbetween Unlock() and Lock().
+	for {
+		byTime.Lock()
+		seekers, ok = byTime.seekers[blockStartNano]
+
+		if !ok || seekers.active.wg == nil {
+			// Exit the loop still holding the lock.
+			break
+		}
+
+		// If another goroutine is currently trying to open seekers for this block start
+		// then wait for that operation to complete.
+		wg := seekers.active.wg
+		byTime.Unlock()
+		wg.Wait()
+	}
+
 	if !ok {
 		// No existing seekers, so just set the newly created ones and be done.
 		seekers.active = newActiveSeekers
@@ -452,25 +471,6 @@ func (m *seekerManager) UpdateOpenLease(
 
 	// Existing seekers exist.
 	updateOpenLeaseResult = block.UpdateOpenLease
-
-	// If another goroutine is currently trying to open seekers for this block start
-	// then wait for that operation to complete.
-	//
-	// Check in a loop because its possible that the goroutine we're waiting for will fail
-	// to open the seeker and a different goroutine will reattempt and set a new waitgroup
-	// inbetween Unlock() and Lock().
-	for {
-		if !ok || seekers.active.wg == nil {
-			break
-		}
-
-		wg := seekers.active.wg
-		byTime.Unlock()
-		wg.Wait()
-		byTime.Lock()
-		// Need to re-read since the lock was released.
-		seekers, ok = byTime.seekers[blockStartNano]
-	}
 
 	if seekers.active.volume > state.Volume {
 		var multiErr = xerrors.NewMultiError()
