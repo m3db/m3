@@ -21,6 +21,7 @@
 package validator
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -39,6 +40,8 @@ const (
 
 	// By default we allow at most one level of rollup in a pipeline.
 	defaultMaxRollupLevels = 1
+
+	tagTimerType = "timertype"
 )
 
 // MetricTypesFn determines the possible metric types based on a set of tag based filters.
@@ -110,6 +113,11 @@ type Options interface {
 	// CheckInvalidCharactersForTagName checks if the given tag name contains invalid characters
 	// returning an error if invalid character(s) present.
 	CheckInvalidCharactersForTagName(tagName string) error
+
+	// CheckTimertypeFilterForTagName checks if the given tag name is "timertype"
+	// and returns an error if so, as timertype is added at the aggregation tier
+	// and not the client.
+	CheckTimertypeFilterForTagName(tagName string) error
 
 	// SetMetricNameInvalidChars sets the list of invalid chars for a metric name.
 	SetMetricNameInvalidChars(value []rune) Options
@@ -265,6 +273,13 @@ func (o *options) SetTagNameInvalidChars(values []rune) Options {
 
 func (o *options) CheckInvalidCharactersForTagName(tagName string) error {
 	return validateChars(tagName, o.tagNameInvalidChars)
+}
+
+func (o *options) CheckTimertypeFilterForTagName(tagName string) error {
+	if tagName == tagTimerType {
+		return errors.New("tag name cannot be timertype; timertype is not added at the client layer")
+	}
+	return nil
 }
 
 func (o *options) SetMetricNameInvalidChars(values []rune) Options {
