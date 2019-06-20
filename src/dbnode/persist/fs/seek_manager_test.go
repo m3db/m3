@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -73,8 +74,7 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	}
 }
 
-// TODO(rartoul): Rename test.
-func TestSeekerManagerIgnoreUpdateOpenLeaseWrongNamespace(t *testing.T) {
+func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	var (
@@ -115,18 +115,39 @@ func TestSeekerManagerIgnoreUpdateOpenLeaseWrongNamespace(t *testing.T) {
 		require.NoError(t, m.Return(shard, time.Time{}, seeker))
 	}
 
+	// Ensure that UpdateOpenLease() updates the volumes.
 	for _, shard := range shards {
-		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
+		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
 			Namespace:  metadata.ID(),
 			Shard:      shard,
 			BlockStart: time.Time{},
 		}, block.LeaseState{Volume: 1})
 		require.NoError(t, err)
+		require.Equal(t, block.UpdateOpenLease, updateResult)
 
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 1, seekers.active.volume)
+		byTime.RUnlock()
+	}
+
+	// Ensure that UpdateOpenLease() ignores updates for the wrong namespace.
+	for _, shard := range shards {
+		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  ident.StringID("some-other-ns"),
+			Shard:      shard,
+			BlockStart: time.Time{},
+		}, block.LeaseState{Volume: 2})
+		require.NoError(t, err)
+		require.Equal(t, block.NoOpenLease, updateResult)
+
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		// Should not have increased to 2.
 		require.Equal(t, 1, seekers.active.volume)
 		byTime.RUnlock()
 	}
