@@ -8,10 +8,10 @@ Then create your clone:
 
 ```bash
 export working_dir=$GOPATH/src/github.com/m3db
-mkdir -p $workding_dir
+mkdir -p $working_dir
 
 # Set this to your Github user
-export user={your github profile name}
+export user="your github profile name"
 
 # Clone your fork
 cd $working_dir
@@ -19,6 +19,7 @@ git clone git@github.com:$user/m3.git
 # or: https://github.com/$user/m3.git
 
 # Set upstream
+cd m3
 git remote add upstream git@github.com:m3db/m3.git
 # or: https://github.com/m3db/m3.git
 
