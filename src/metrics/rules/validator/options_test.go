@@ -23,8 +23,8 @@ package validator
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateChars(t *testing.T) {
@@ -38,5 +38,6 @@ func TestValidateChars(t *testing.T) {
 func TestCheckTimertypeFilterForTagName(t *testing.T) {
 	o := NewOptions()
 	assert.Error(t, o.CheckTimertypeFilterForTagName("timertype"))
+	assert.Error(t, o.CheckTimertypeFilterForTagName("timerType"))
 	assert.NoError(t, o.CheckTimertypeFilterForTagName("service"))
 }

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
@@ -276,9 +277,10 @@ func (o *options) CheckInvalidCharactersForTagName(tagName string) error {
 }
 
 func (o *options) CheckTimertypeFilterForTagName(tagName string) error {
-	if tagName == tagTimerType {
+	if strings.ToLower(tagName) == tagTimerType {
 		return errors.New("tag name cannot be timertype; timertype is not added at the client layer")
 	}
+
 	return nil
 }
 
