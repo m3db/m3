@@ -376,8 +376,9 @@ func (m *seekerManager) UpdateOpenLease(
 		return 0, errUpdateOpenLeaseSeekerManagerNotOpen
 	}
 
-	if !m.nsMeta.ID().Equal(descriptor.Namespace) {
+	if !m.namespace.Equal(descriptor.Namespace) {
 		m.Unlock()
+		// TODO(rartoul): Maybe this should be a separate outcome.
 		return block.NoOpenLease, nil
 	}
 	m.Unlock()

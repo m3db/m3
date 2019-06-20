@@ -79,7 +79,7 @@ func TestSeekerManagerIgnoreUpdateOpenLeaseWrongNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
