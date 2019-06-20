@@ -73,13 +73,16 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	}
 }
 
+// TODO(rartoul): Rename test.
 func TestSeekerManagerIgnoreUpdateOpenLeaseWrongNamespace(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
-	ctrl := gomock.NewController(t)
+	var (
+		ctrl   = gomock.NewController(t)
+		shards = []uint32{2, 5, 9, 478, 1023}
+		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	)
 
-	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
@@ -107,8 +110,25 @@ func TestSeekerManagerIgnoreUpdateOpenLeaseWrongNamespace(t *testing.T) {
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 0, seekers.active.volume)
 		byTime.RUnlock()
 		require.NoError(t, m.Return(shard, time.Time{}, seeker))
+	}
+
+	for _, shard := range shards {
+		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  metadata.ID(),
+			Shard:      shard,
+			BlockStart: time.Time{},
+		}, block.LeaseState{Volume: 1})
+		require.NoError(t, err)
+
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 1, seekers.active.volume)
+		byTime.RUnlock()
 	}
 
 	require.NoError(t, m.Close())

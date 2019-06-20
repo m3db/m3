@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -391,6 +390,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		}
 	}
 
+	// panic("yolo")
 }
 
 // TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
