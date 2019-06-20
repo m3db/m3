@@ -1140,7 +1140,7 @@ func TestValidatorValidateNoTimertypeFilter(t *testing.T) {
 				}
 			}
 
-			validator := NewValidator(testValidatorOptions())
+			validator := NewValidator(testValidatorOptions().SetFilterInvalidTagNames([]string{"timertype"}))
 			assert.Error(t, validator.ValidateSnapshot(ruleView))
 
 			if test == "rollup" {

@@ -35,9 +35,11 @@ func TestValidateChars(t *testing.T) {
 	require.NoError(t, validateChars("test", invalidChars))
 }
 
-func TestCheckTimertypeFilterForTagName(t *testing.T) {
+func TestCheckFilterTagNameValid(t *testing.T) {
 	o := NewOptions()
-	assert.Error(t, o.CheckTimertypeFilterForTagName("timertype"))
-	assert.Error(t, o.CheckTimertypeFilterForTagName("timerType"))
-	assert.NoError(t, o.CheckTimertypeFilterForTagName("service"))
+	assert.NoError(t, o.CheckFilterTagNameValid("timertype"))
+	assert.NoError(t, o.CheckFilterTagNameValid("timerType"))
+	o = o.SetFilterInvalidTagNames([]string{"timertype"})
+	assert.Error(t, o.CheckFilterTagNameValid("timertype"))
+	assert.Error(t, o.CheckFilterTagNameValid("timerType"))
 }
