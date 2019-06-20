@@ -439,8 +439,11 @@ type UpdateOpenLeaseResult uint
 const (
 	// UpdateOpenLease is used to communicate a lease updated successfully.
 	UpdateOpenLease UpdateOpenLeaseResult = iota
-	// NoOpenLease is used to communitcate there is no related open lease.
+	// NoOpenLease is used to communicate there is no related open lease.
 	NoOpenLease
+	// OutOfOrderOpenLease is used to communicate that the leaser received an
+	// out of order lease (i.e it received volume 7 and then volume 6).
+	OutOfOrderOpenLease
 )
 
 // Leaser is a block leaser.

@@ -28,6 +28,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -143,9 +144,10 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		filePathPrefix = filepath.Join(dir, "")
 		fsOpts         = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 
-		fetchConcurrency = 4
-		seekConcurrency  = 4 * fetchConcurrency
-		opts             = testBlockRetrieverOptions{
+		fetchConcurrency           = 4
+		seekConcurrency            = 4 * fetchConcurrency
+		updateOpenLeaseConcurrency = 16
+		opts                       = testBlockRetrieverOptions{
 			retrieverOpts: defaultTestBlockRetrieverOptions.
 				SetFetchConcurrency(fetchConcurrency).
 				SetRequestPoolOptions(pool.NewObjectPoolOptions().
@@ -157,6 +159,17 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	)
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
+
+	seekerMgr := retriever.seekerMgr.(*seekerManager)
+	existingFn := seekerMgr.newOpenSeekerFn
+	newFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
+		// Artificially slow down how long it takes to open a seeker to exercise the logic where
+		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
+		// to wait for the others to complete.
+		time.Sleep(5 * time.Millisecond)
+		return existingFn(shard, blockStart, volume)
+	}
+	seekerMgr.newOpenSeekerFn = newFn
 
 	// Setup data generation.
 	var (
@@ -321,15 +334,20 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		readyWg.Done()
 		startWg.Wait()
 
+		sem := make(chan struct{}, updateOpenLeaseConcurrency)
 		for _, shard := range shards {
 			for _, blockStart := range blockStarts {
 				for _, volume := range volumes {
-					leaser := retriever.seekerMgr.(block.Leaser)
-					leaser.UpdateOpenLease(block.LeaseDescriptor{
-						Namespace:  nsMeta.ID(),
-						Shard:      shard,
-						BlockStart: blockStart,
-					}, block.LeaseState{Volume: volume})
+					sem <- struct{}{}
+					go func(shard uint32, blockStart time.Time, volume int) {
+						leaser := retriever.seekerMgr.(block.Leaser)
+						leaser.UpdateOpenLease(block.LeaseDescriptor{
+							Namespace:  nsMeta.ID(),
+							Shard:      shard,
+							BlockStart: blockStart,
+						}, block.LeaseState{Volume: volume})
+						<-sem
+					}(shard, blockStart, volume)
 				}
 			}
 		}
@@ -383,7 +401,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			tagsSlice := tags.Values()
 
 			// Highest volume is expected.
-			expectedVolumeTag := string(volumes[len(volumes)-1])
+			expectedVolumeTag := strconv.Itoa(volumes[len(volumes)-1])
 			// Volume tag is last.
 			volumeTag := tagsSlice[len(tagsSlice)-1].Value.String()
 			require.Equal(t, expectedVolumeTag, volumeTag)
@@ -628,7 +646,7 @@ func testTagsFromIDAndVolume(seriesID string, volume int) ident.Tags {
 			fmt.Sprintf("%s.tag.%d.value", seriesID, j),
 		))
 	}
-	tags = append(tags, ident.StringTag("volume", string(volume)))
+	tags = append(tags, ident.StringTag("volume", strconv.Itoa(volume)))
 	return ident.NewTags(tags...)
 }
 

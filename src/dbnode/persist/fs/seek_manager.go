@@ -412,6 +412,25 @@ func (m *seekerManager) UpdateOpenLease(
 	if !ok {
 		// No existing seekers, so just set the newly created ones.
 		seekers.active = newActiveSeekers
+		if seekers.active.volume > state.Volume {
+			var multiErr = xerrors.NewMultiError()
+			for _, seeker := range newActiveSeekers.seekers {
+				multiErr = multiErr.Add(seeker.seeker.Close())
+			}
+			if multiErr.FinalError() != nil {
+				// Log the error but don't return it since its not relevant from
+				// the callers perspective.
+				m.logger.Error(
+					"error closing seeker in update open lease",
+					zap.Error(multiErr.FinalError()),
+					zap.String("namespace", descriptor.Namespace.String()),
+					zap.Int("shard", int(descriptor.Shard)),
+					zap.Time("blockStart", descriptor.BlockStart))
+			}
+
+			byTime.Unlock()
+			return block.OutOfOrderOpenLease, nil
+		}
 	} else {
 		updateOpenLeaseResult = block.UpdateOpenLease
 		// Existing seekers exist.
@@ -423,6 +442,26 @@ func (m *seekerManager) UpdateOpenLease(
 			byTime.Unlock()
 			wg.Wait()
 			byTime.Lock()
+		}
+
+		if seekers.active.volume > state.Volume {
+			var multiErr = xerrors.NewMultiError()
+			for _, seeker := range newActiveSeekers.seekers {
+				multiErr = multiErr.Add(seeker.seeker.Close())
+			}
+			if multiErr.FinalError() != nil {
+				// Log the error but don't return it since its not relevant from
+				// the callers perspective.
+				m.logger.Error(
+					"error closing seeker in update open lease",
+					zap.Error(multiErr.FinalError()),
+					zap.String("namespace", descriptor.Namespace.String()),
+					zap.Int("shard", int(descriptor.Shard)),
+					zap.Time("blockStart", descriptor.BlockStart))
+			}
+
+			byTime.Unlock()
+			return block.OutOfOrderOpenLease, nil
 		}
 
 		seekers.inactive = seekers.active
