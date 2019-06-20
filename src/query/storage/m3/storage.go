@@ -511,12 +511,13 @@ func (s *m3storage) Write(
 	)
 
 	for _, datapoint := range datapoints {
-		// Need to duplicate since will iterate itself.
-		tagIter := query.Tags().Duplicate()
 		// capture var
 		datapoint := datapoint
 		wg.Add(1)
 		s.writeWorkerPool.Go(func() {
+			// Need to duplicate since will iterate itself.
+			tagIter := query.Tags().Duplicate()
+
 			err := s.writeSingle(ctx, datapoint, id, tagIter,
 				query.Unit(), query.Annotation(), query.Attributes())
 			if err != nil {

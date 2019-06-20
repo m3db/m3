@@ -153,4 +153,4 @@ func (e emptyTagIterator) Err() error             { return nil }
 func (e emptyTagIterator) Close()                 {}
 func (e emptyTagIterator) Len() int               { return 0 }
 func (e emptyTagIterator) Remaining() int         { return 0 }
-func (e emptyTagIterator) Duplicate() TagIterator { return e }
+func (e emptyTagIterator) Duplicate() TagIterator { return EmptyTagIterator }

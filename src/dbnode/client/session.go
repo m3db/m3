@@ -1005,6 +1005,8 @@ func (s *session) writeAttemptWithRLock(
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
+		// TODO(r): if inputTags is already a set of TagDecoder (do a type check)
+		// then just copy the bytes
 		if err := tagEncoder.Encode(inputTags); err != nil {
 			tagEncoder.Finalize()
 			return nil, 0, 0, err

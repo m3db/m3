@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -36,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -244,7 +246,9 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) ingest.BatchError {
 	iter := newPromTSIter(r.Timeseries, h.tagOptions)
-	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
+	err := h.downsamplerAndWriter.WriteBatch(ctx, iter)
+	iter.Close()
+	return err
 }
 
 func newPromTSIter(
@@ -268,7 +272,7 @@ func newPromTSIter(
 	for i, promTS := range timeseries {
 		// First grab reference to the prealloced tag iterators, reset to labels.
 		iter := &(preallocTagIterators[i])
-		iter.Reset(promTS.Labels)
+		iter.Reset(promTS.Labels, nil)
 		tags[i] = iter
 
 		// Grab reference to prealloc datapoints, reset to samples.
@@ -326,28 +330,47 @@ func (i *promTSIter) Error() error {
 	return nil
 }
 
+func (i *promTSIter) Close() {
+	for _, iter := range i.tags {
+		iter.Close()
+	}
+	*i = promTSIter{}
+}
+
 type tagIterator struct {
 	numTags int
 	idx     int
 	labels  []*prompb.Label
+	name    *idAndCheckedBytes
+	value   *idAndCheckedBytes
+	pool    *sync.Pool
 }
 
-func (i *tagIterator) Reset(labels []*prompb.Label) {
+func (i *tagIterator) Reset(labels []*prompb.Label, pool *sync.Pool) {
 	*i = tagIterator{}
 	i.numTags = len(labels)
 	i.idx = -1
 	i.labels = labels
+	i.name = getIDAndCheckedBytes()
+	i.value = getIDAndCheckedBytes()
+	i.pool = pool
 }
 
 func (i *tagIterator) Next() bool {
 	i.idx++
-	return i.idx < i.numTags
+	next := i.idx < i.numTags
+	if !next {
+		return false
+	}
+	i.name.checkedBytes.Reset(i.labels[i.idx].Name)
+	i.value.checkedBytes.Reset(i.labels[i.idx].Value)
+	return true
 }
 
 func (i *tagIterator) Current() ident.Tag {
 	return ident.Tag{
-		Name:  ident.BytesID(i.labels[i.idx].Name),
-		Value: ident.BytesID(i.labels[i.idx].Value),
+		Name:  i.name.id,
+		Value: i.value.id,
 	}
 }
 
@@ -360,6 +383,12 @@ func (i *tagIterator) Err() error {
 }
 
 func (i *tagIterator) Close() {
+	putIDAndCheckedBytes(i.name)
+	putIDAndCheckedBytes(i.value)
+	if i.pool == nil {
+		return
+	}
+	i.pool.Put(i)
 }
 
 func (i *tagIterator) Len() int {
@@ -367,11 +396,52 @@ func (i *tagIterator) Len() int {
 }
 
 func (i *tagIterator) Remaining() int {
+	if i.idx < 0 {
+		return i.numTags
+	}
 	return i.numTags - i.idx
 }
 
 func (i *tagIterator) Duplicate() ident.TagIterator {
-	result := &tagIterator{}
-	result.Reset(i.labels)
+	result := getIterDuplicate()
+	result.Reset(i.labels, iterDuplicatesPool)
 	return result
+}
+
+type idAndCheckedBytes struct {
+	id           ident.ID
+	checkedBytes checked.Bytes
+}
+
+var idAndCheckedBytesPool = &sync.Pool{
+	New: func() interface{} {
+		checkedBytes := checked.NewBytes(nil, nil)
+		return &idAndCheckedBytes{
+			id:           ident.BinaryID(checkedBytes),
+			checkedBytes: checkedBytes,
+		}
+	},
+}
+
+func getIDAndCheckedBytes() *idAndCheckedBytes {
+	return idAndCheckedBytesPool.Get().(*idAndCheckedBytes)
+}
+
+func putIDAndCheckedBytes(v *idAndCheckedBytes) {
+	idAndCheckedBytesPool.Put(v)
+}
+
+var iterDuplicatesPool = &sync.Pool{
+	New: func() interface{} {
+		return &tagIterator{}
+	},
+}
+
+func getIterDuplicate() *tagIterator {
+	return iterDuplicatesPool.Get().(*tagIterator)
+}
+
+func putIterDuplicate(v *tagIterator) {
+	*v = tagIterator{}
+	iterDuplicatesPool.Put(v)
 }

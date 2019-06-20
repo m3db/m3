@@ -99,6 +99,7 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 		return err
 	}
 
+	encoded := 0
 	for tags.Next() {
 		tag := tags.Current()
 		err := e.encodeTag(tag.Name.Bytes(), tag.Value.Bytes())
@@ -106,6 +107,12 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 			e.buf.Reset()
 			return err
 		}
+		encoded++
+	}
+	if encoded != numTags {
+		e.buf.Reset()
+		return fmt.Errorf("iterator returned %d tags but expected %d",
+			encoded, numTags)
 	}
 
 	if err := tags.Err(); err != nil {

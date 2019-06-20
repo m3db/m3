@@ -153,9 +153,9 @@ func TestEmptyTagIterEncode(t *testing.T) {
 	mockBytes.EXPECT().IncRef()
 	mockBytes.EXPECT().Reset(gomock.Any())
 	gomock.InOrder(
-		mockBytes.EXPECT().NumRef().Return(0),
 		iter.EXPECT().Duplicate().Return(clonedIter),
 		clonedIter.EXPECT().Remaining().Return(0),
+		mockBytes.EXPECT().NumRef().Return(0),
 		clonedIter.EXPECT().Next().Return(false),
 		clonedIter.EXPECT().Err().Return(nil),
 		clonedIter.EXPECT().Close(),
@@ -199,9 +199,9 @@ func TestSingleValueTagIterEncode(t *testing.T) {
 	mockBytes.EXPECT().IncRef()
 	mockBytes.EXPECT().Reset(gomock.Any())
 	gomock.InOrder(
-		mockBytes.EXPECT().NumRef().Return(0),
 		iter.EXPECT().Duplicate().Return(clonedIter),
 		clonedIter.EXPECT().Remaining().Return(1),
+		mockBytes.EXPECT().NumRef().Return(0),
 		clonedIter.EXPECT().Next().Return(true),
 		clonedIter.EXPECT().Current().Return(
 			ident.StringTag("some", "tag"),
@@ -214,7 +214,12 @@ func TestSingleValueTagIterEncode(t *testing.T) {
 	enc := newTagEncoder(newBytesFn, newTestEncoderOpts(), nil)
 	require.NoError(t, enc.Encode(iter))
 
-	mockBytes.EXPECT().NumRef().Return(1)
+	gomock.InOrder(
+		iter.EXPECT().Duplicate().Return(clonedIter),
+		clonedIter.EXPECT().Remaining().Return(1),
+		mockBytes.EXPECT().NumRef().Return(1),
+		clonedIter.EXPECT().Close(),
+	)
 	require.Error(t, enc.Encode(iter))
 
 	mockBytes.EXPECT().NumRef().Return(1)

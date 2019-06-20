@@ -15,5 +15,5 @@ Then use the `start_coordinator.sh` and `stop_coordinator.sh` scripts.
 
 Adjust environment variables as necessary:
 ```
-docker run --rm -it -e PROMREMOTEBENCH_TARGET=http://host.docker.internal:17201/api/v1/prom/remote/write -e PROMREMOTEBENCH_NUM_HOSTS=100 -e PROMREMOTEBENCH_INTERVAL=10 -e PROMREMOTEBENCH_BATCH=128 quay.io/m3db/promremotebench:latest
+docker run --rm -it -e PROMREMOTEBENCH_TARGET=http://host.docker.internal:17201/api/v1/prom/remote/write -e PROMREMOTEBENCH_NUM_HOSTS=1000 -e PROMREMOTEBENCH_INTERVAL=10 -e PROMREMOTEBENCH_BATCH=128 quay.io/m3db/promremotebench:latest
 ```

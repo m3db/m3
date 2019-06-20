@@ -121,7 +121,7 @@ func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypePrependMeta).
 		AddTag(Tag{Name: []byte("t9"), Value: []byte(`"v1"t2"v2"`)})
 	actual := tags.ID()
-	expectedLength, _ := prependMetaLen(tags, nil)
+	expectedLength, _ := prependMetaLen(newTagsIter(tags, nil))
 	require.Equal(t, expectedLength, len(actual))
 	assert.Equal(t, []byte(`2,2,2,2,2,2,2,2,2,10!t1v1t2v2t3v3t4v4t9"v1"t2"v2"`), actual)
 }
