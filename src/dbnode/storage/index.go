@@ -56,6 +56,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -1022,15 +1023,29 @@ func (i *nsIndex) query(
 	)
 	defer sp.Finish()
 
+	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (i *nsIndex) queryWithSpan(
+	ctx context.Context,
+	query index.Query,
+	results index.BaseResults,
+	opts index.QueryOptions,
+	execBlockFn execBlockQueryFn,
+	span opentracing.Span,
+) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
 
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		err := errDbIndexUnableToQueryClosed
-		sp.LogFields(opentracinglog.Error(err))
-		return false, err
+		return false, errDbIndexUnableToQueryClosed
 	}
 
 	// Track this as an inflight query that needs to finish
@@ -1054,7 +1069,6 @@ func (i *nsIndex) query(
 	i.state.RUnlock()
 
 	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 
@@ -1121,10 +1135,8 @@ func (i *nsIndex) query(
 		}
 
 		if timedOut {
-			err := fmt.Errorf("index query timed out: %s", timeout.String())
-			sp.LogFields(opentracinglog.Error(err))
 			// Exceeded our deadline waiting for this block's query to start.
-			return false, err
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1136,9 +1148,7 @@ func (i *nsIndex) query(
 		// Need to abort early if timeout hit.
 		timeLeft := deadline.Sub(i.nowFn())
 		if timeLeft <= 0 {
-			err := fmt.Errorf("index query timed out: %s", timeout.String())
-			sp.LogFields(opentracinglog.Error(err))
-			return false, err
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 
 		var (
@@ -1160,9 +1170,7 @@ func (i *nsIndex) query(
 		ticker.Stop()
 
 		if aborted {
-			err := fmt.Errorf("index query timed out: %s", timeout.String())
-			sp.LogFields(opentracinglog.Error(err))
-			return false, err
+			return false, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
@@ -1173,7 +1181,6 @@ func (i *nsIndex) query(
 	state.Unlock()
 
 	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 

@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -786,26 +787,37 @@ func (b *block) Query(
 	)
 	defer sp.Finish()
 
+	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (b *block) queryWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
+	sp opentracing.Span,
+) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
 
 	if b.state == blockStateClosed {
-		err := ErrUnableToQueryBlockClosed
-		sp.LogFields(opentracinglog.Error(err))
-		return false, err
+		return false, ErrUnableToQueryBlockClosed
 	}
 
 	exec, err := b.newExecutorFn()
 	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 
-	// STOP HERE FOR TRACING
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
 	iter, err := exec.Execute(query.Query.SearchQuery())
 	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		exec.Close()
 		return false, err
 	}
@@ -840,7 +852,6 @@ func (b *block) Query(
 
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
-			sp.LogFields(opentracinglog.Error(err))
 			return false, err
 		}
 	}
@@ -849,23 +860,19 @@ func (b *block) Query(
 	if len(batch) > 0 {
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
-			sp.LogFields(opentracinglog.Error(err))
 			return false, err
 		}
 	}
 
 	if err := iter.Err(); err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 
 	if err := iterCloser.Close(); err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 
 	if err := execCloser.Close(); err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 
@@ -924,13 +931,26 @@ func (b *block) Aggregate(
 	)
 	defer sp.Finish()
 
+	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (b *block) aggregateWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	opts QueryOptions,
+	results AggregateResults,
+	sp opentracing.Span,
+) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
 
 	if b.state == blockStateClosed {
-		err := ErrUnableToQueryBlockClosed
-		sp.LogFields(opentracinglog.Error(err))
-		return false, err
+		return false, ErrUnableToQueryBlockClosed
 	}
 
 	aggOpts := results.AggregateResultsOptions()
@@ -964,7 +984,6 @@ func (b *block) Aggregate(
 
 	iter, err := b.newFieldsAndTermsIteratorFn(nil, iterateOpts)
 	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
 		return false, err
 	}
 
@@ -994,7 +1013,6 @@ func (b *block) Aggregate(
 
 		err = iter.Reset(s, iterateOpts)
 		if err != nil {
-			sp.LogFields(opentracinglog.Error(err))
 			return false, err
 		}
 		iterClosed = false // only once the iterator has been successfully Reset().
@@ -1012,19 +1030,16 @@ func (b *block) Aggregate(
 
 			batch, size, err = b.addAggregateResults(cancellable, results, batch)
 			if err != nil {
-				sp.LogFields(opentracinglog.Error(err))
 				return false, err
 			}
 		}
 
 		if err := iter.Err(); err != nil {
-			sp.LogFields(opentracinglog.Error(err))
 			return false, err
 		}
 
 		iterClosed = true
 		if err := iter.Close(); err != nil {
-			sp.LogFields(opentracinglog.Error(err))
 			return false, err
 		}
 	}
@@ -1033,7 +1048,6 @@ func (b *block) Aggregate(
 	if len(batch) > 0 {
 		batch, size, err = b.addAggregateResults(cancellable, results, batch)
 		if err != nil {
-			sp.LogFields(opentracinglog.Error(err))
 			return false, err
 		}
 	}

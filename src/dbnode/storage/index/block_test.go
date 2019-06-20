@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -1207,6 +1208,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertQueryLimit(t *testing.T) {
@@ -1367,6 +1369,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
@@ -1442,6 +1445,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockWriteBackgroundCompact(t *testing.T) {
@@ -1661,6 +1665,7 @@ func TestBlockAggregate(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -1724,6 +1729,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertAggregate(t *testing.T) {
@@ -1830,6 +1836,9 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 4)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[2].OperationName)
 }
 
 func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {
