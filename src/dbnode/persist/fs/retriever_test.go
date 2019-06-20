@@ -166,7 +166,11 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		// Artificially slow down how long it takes to open a seeker to exercise the logic where
 		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
 		// to wait for the others to complete.
-		time.Sleep(5 * time.Millisecond)
+		// time.Sleep(5 * time.Millisecond)
+		// 10% chance for this to fail to exercise error paths as well.
+		// if val := rand.Intn(100); val >= 90 {
+		// 	return nil, errors.New("some-error")
+		// }
 		return existingFn(shard, blockStart, volume)
 	}
 	seekerMgr.newOpenSeekerFn = newFn
@@ -289,8 +293,20 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve, nsCtx)
-					require.NoError(t, err)
+
+					var (
+						stream xio.BlockReader
+						err    error
+					)
+					for {
+						// Run in a loop since the open seeker function is configured to randomly fail
+						// sometimes.
+						stream, err = retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve, nsCtx)
+						if err == nil {
+							break
+						}
+					}
+
 					results = append(results, streamResult{
 						ctx:        ctx,
 						shard:      shard,
@@ -326,36 +342,40 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		}()
 	}
 
-	// Setup concurrent block lease updates.
-	readyWg.Add(1)
-	enqueueWg.Add(1)
-	go func() {
-		defer enqueueWg.Done()
-		readyWg.Done()
-		startWg.Wait()
+	// Wait for all routines to be ready.
+	readyWg.Wait()
+	// Allow all the goroutines to begin.
+	startWg.Done()
 
-		sem := make(chan struct{}, updateOpenLeaseConcurrency)
-		for _, shard := range shards {
-			for _, blockStart := range blockStarts {
-				for _, volume := range volumes {
-					sem <- struct{}{}
-					go func(shard uint32, blockStart time.Time, volume int) {
-						leaser := retriever.seekerMgr.(block.Leaser)
-						leaser.UpdateOpenLease(block.LeaseDescriptor{
+	// Setup concurrent block lease updates.
+	sem := make(chan struct{}, updateOpenLeaseConcurrency)
+	for _, shard := range shards {
+		for _, blockStart := range blockStarts {
+			for _, volume := range volumes {
+				enqueueWg.Add(1)
+				sem <- struct{}{}
+				go func(shard uint32, blockStart time.Time, volume int) {
+					defer enqueueWg.Done()
+					leaser := retriever.seekerMgr.(block.Leaser)
+
+					for {
+						// Run in a loop since the open seeker function is configured to randomly fail
+						// sometimes.
+						_, err := leaser.UpdateOpenLease(block.LeaseDescriptor{
 							Namespace:  nsMeta.ID(),
 							Shard:      shard,
 							BlockStart: blockStart,
 						}, block.LeaseState{Volume: volume})
-						<-sem
-					}(shard, blockStart, volume)
-				}
+						if err == nil {
+							break
+						}
+					}
+
+					<-sem
+				}(shard, blockStart, volume)
 			}
 		}
-	}()
-
-	// Wait for all routines to be ready then start.
-	readyWg.Wait()
-	startWg.Done()
+	}
 
 	// Wait until done.
 	enqueueWg.Wait()
@@ -384,10 +404,20 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	for _, shard := range shards {
 		for _, blockStart := range blockStarts {
 			for _, idString := range shardIDStrings[shard] {
-				ctx := context.NewContext()
-				id := ident.StringID(idString)
-				_, err := retriever.Stream(ctx, shard, id, blockStart, onRetrieve, nsCtx)
-				require.NoError(t, err)
+				var (
+					ctx = context.NewContext()
+					id  = ident.StringID(idString)
+				)
+
+				for {
+					// Run in a loop since the open seeker function is configured to randomly fail
+					// sometimes.
+					_, err := retriever.Stream(ctx, shard, id, blockStart, onRetrieve, nsCtx)
+					if err == nil {
+						break
+					}
+				}
+
 			}
 		}
 	}

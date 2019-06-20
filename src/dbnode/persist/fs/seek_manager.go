@@ -51,6 +51,7 @@ var (
 	errCantCloseSeekerManagerWhileSeekersAreBorrowed = errors.New("cant close seeker manager while seekers are borrowed")
 	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
 	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
+	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -81,6 +82,7 @@ type seekerManager struct {
 	filePathPrefix string
 
 	status                 seekerManagerStatus
+	isUpdatingLease        bool
 	seekersByShardIdx      []*seekersByTime
 	namespace              ident.ID
 	namespaceMetadata      namespace.Metadata
@@ -376,12 +378,23 @@ func (m *seekerManager) UpdateOpenLease(
 		return 0, errUpdateOpenLeaseSeekerManagerNotOpen
 	}
 
+	if m.isUpdatingLease {
+		m.Unlock()
+		return 0, errConcurrentUpdateOpenLeaseNotAllowed
+	}
+
 	if !m.namespace.Equal(descriptor.Namespace) {
 		m.Unlock()
 		// TODO(rartoul): Maybe this should be a separate outcome.
 		return block.NoOpenLease, nil
 	}
+	m.isUpdatingLease = true
 	m.Unlock()
+	defer func() {
+		m.Lock()
+		m.isUpdatingLease = false
+		m.Unlock()
+	}()
 
 	// TODO(rartoul): Need to ignore updates for the wrong namespace.
 
@@ -410,7 +423,7 @@ func (m *seekerManager) UpdateOpenLease(
 	byTime.Lock()
 	seekers, ok := byTime.seekers[blockStartNano]
 	if !ok {
-		// No existing seekers, so just set the newly created ones.
+		// No existing seekers, so just set the newly created ones and be done.
 		seekers.active = newActiveSeekers
 		if seekers.active.volume > state.Volume {
 			var multiErr = xerrors.NewMultiError()
@@ -431,65 +444,75 @@ func (m *seekerManager) UpdateOpenLease(
 			byTime.Unlock()
 			return block.OutOfOrderOpenLease, nil
 		}
-	} else {
-		updateOpenLeaseResult = block.UpdateOpenLease
-		// Existing seekers exist.
-		if seekers.active.wg != nil {
-			// If another goroutine is currently trying to open seekers for this block start
-			// then wait for that operation to complete.
-			// TODO(rartoul): This needs to be recursive / in a for loop or something.
-			wg := seekers.active.wg
+
+		byTime.seekers[blockStartNano] = seekers
+		byTime.Unlock()
+		return updateOpenLeaseResult, nil
+	}
+
+	// Existing seekers exist.
+	updateOpenLeaseResult = block.UpdateOpenLease
+
+	// If another goroutine is currently trying to open seekers for this block start
+	// then wait for that operation to complete.
+	if seekers.active.wg != nil {
+		// Check in a loop because its possible that the goroutine we're waiting for will fail
+		// to open the seeker and a different goroutine will reattempt and set a new waitgroup
+		// inbetween Unlock() and Lock().
+		for wg := seekers.active.wg; wg != nil; {
 			byTime.Unlock()
 			wg.Wait()
 			byTime.Lock()
 		}
+		// Need to re-read since the lock was released.
+		seekers, ok = byTime.seekers[blockStartNano]
+	}
 
-		if seekers.active.volume > state.Volume {
-			var multiErr = xerrors.NewMultiError()
-			for _, seeker := range newActiveSeekers.seekers {
-				multiErr = multiErr.Add(seeker.seeker.Close())
-			}
-			if multiErr.FinalError() != nil {
-				// Log the error but don't return it since its not relevant from
-				// the callers perspective.
-				m.logger.Error(
-					"error closing seeker in update open lease",
-					zap.Error(multiErr.FinalError()),
-					zap.String("namespace", descriptor.Namespace.String()),
-					zap.Int("shard", int(descriptor.Shard)),
-					zap.Time("blockStart", descriptor.BlockStart))
-			}
-
-			byTime.Unlock()
-			return block.OutOfOrderOpenLease, nil
+	if seekers.active.volume > state.Volume {
+		var multiErr = xerrors.NewMultiError()
+		for _, seeker := range newActiveSeekers.seekers {
+			multiErr = multiErr.Add(seeker.seeker.Close())
+		}
+		if multiErr.FinalError() != nil {
+			// Log the error but don't return it since its not relevant from
+			// the callers perspective.
+			m.logger.Error(
+				"error closing seeker in update open lease",
+				zap.Error(multiErr.FinalError()),
+				zap.String("namespace", descriptor.Namespace.String()),
+				zap.Int("shard", int(descriptor.Shard)),
+				zap.Time("blockStart", descriptor.BlockStart))
 		}
 
-		seekers.inactive = seekers.active
-		seekers.active = newActiveSeekers
+		byTime.Unlock()
+		return block.OutOfOrderOpenLease, nil
+	}
 
-		anySeekersAreBorrowed := false
-		for _, seeker := range seekers.inactive.seekers {
-			if seeker.isBorrowed {
-				anySeekersAreBorrowed = true
-				break
-			}
-		}
+	seekers.inactive = seekers.active
+	seekers.active = newActiveSeekers
 
-		if anySeekersAreBorrowed {
-			// If any of the seekers are borrowed setup a waitgroup which will be used to
-			// signal when they've all been returned (the last seeker that is returned via
-			// the Return() API will call wg.Done()).
-			wg := &sync.WaitGroup{}
-			wg.Add(1)
-			seekers.inactive.wg = wg
+	anySeekersAreBorrowed := false
+	for _, seeker := range seekers.inactive.seekers {
+		if seeker.isBorrowed {
+			anySeekersAreBorrowed = true
+			break
 		}
 	}
-	wg := seekers.inactive.wg
+
+	var wg *sync.WaitGroup
+	if anySeekersAreBorrowed {
+		// If any of the seekers are borrowed setup a waitgroup which will be used to
+		// signal when they've all been returned (the last seeker that is returned via
+		// the Return() API will call wg.Done()).
+		wg = &sync.WaitGroup{}
+		wg.Add(1)
+		seekers.inactive.wg = wg
+	}
 	byTime.seekers[blockStartNano] = seekers
 	byTime.Unlock()
 
 	if wg != nil {
-		// Wait for all the inactive seekers to be returned and closed because this contract
+		// Wait for all the inactive seekers to be returned and closed because the contract
 		// of this API is that the Leaser (SeekerManager) should have relinquished any resources
 		// associated with the old lease by the time this function returns.
 		wg.Wait()
