@@ -455,15 +455,19 @@ func (m *seekerManager) UpdateOpenLease(
 
 	// If another goroutine is currently trying to open seekers for this block start
 	// then wait for that operation to complete.
-	if seekers.active.wg != nil {
-		// Check in a loop because its possible that the goroutine we're waiting for will fail
-		// to open the seeker and a different goroutine will reattempt and set a new waitgroup
-		// inbetween Unlock() and Lock().
-		for wg := seekers.active.wg; wg != nil; {
-			byTime.Unlock()
-			wg.Wait()
-			byTime.Lock()
+	//
+	// Check in a loop because its possible that the goroutine we're waiting for will fail
+	// to open the seeker and a different goroutine will reattempt and set a new waitgroup
+	// inbetween Unlock() and Lock().
+	for {
+		if !ok || seekers.active.wg == nil {
+			break
 		}
+
+		wg := seekers.active.wg
+		byTime.Unlock()
+		wg.Wait()
+		byTime.Lock()
 		// Need to re-read since the lock was released.
 		seekers, ok = byTime.seekers[blockStartNano]
 	}

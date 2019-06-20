@@ -146,7 +146,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 		fetchConcurrency           = 4
 		seekConcurrency            = 4 * fetchConcurrency
-		updateOpenLeaseConcurrency = 16
+		updateOpenLeaseConcurrency = 4
 		opts                       = testBlockRetrieverOptions{
 			retrieverOpts: defaultTestBlockRetrieverOptions.
 				SetFetchConcurrency(fetchConcurrency).
@@ -168,9 +168,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		// to wait for the others to complete.
 		// time.Sleep(5 * time.Millisecond)
 		// 10% chance for this to fail to exercise error paths as well.
-		// if val := rand.Intn(100); val >= 90 {
-		// 	return nil, errors.New("some-error")
-		// }
+		if val := rand.Intn(100); val >= 90 {
+			return nil, errors.New("some-error")
+		}
 		return existingFn(shard, blockStart, volume)
 	}
 	seekerMgr.newOpenSeekerFn = newFn
