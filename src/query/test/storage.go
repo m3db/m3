@@ -80,7 +80,7 @@ func (s *slowStorage) CompleteTags(
 
 func (s *slowStorage) Write(
 	ctx context.Context,
-	query *storage.WriteQuery,
+	query storage.WriteQuery,
 ) error {
 	time.Sleep(s.delay)
 	return s.storage.Write(ctx, query)

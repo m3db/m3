@@ -39,6 +39,15 @@ type TagEncoder interface {
 	// NB: leaves the original iterator un-modified.
 	Encode(ident.TagIterator) error
 
+	// EncodeMetricTags encodes the provided metrics tag iterator into its
+	// internal byte stream.
+	// NB: will modify and progress the original iterator, does not close it
+	// in case caller wants to reset and reuse it.
+	EncodeMetricTags(
+		tags MetricTagsIterator,
+		opts EncodeMetricTagsOptions,
+	) error
+
 	// Data returns the encoded bytes.
 	// NB: The bytes returned as still owned by the TagEncoder. i.e. They are
 	// only safe for use until Reset/Finalize is called upon the original
@@ -50,6 +59,12 @@ type TagEncoder interface {
 
 	// Finalize releases any held resources.
 	Finalize()
+}
+
+// EncodeMetricTagsOptions adds the ability to add/remove tags during encoding.
+type EncodeMetricTagsOptions struct {
+	AppendTags  ident.Tags
+	ExcludeTags []ident.ID
 }
 
 // TagEncoderPool pools TagEncoders.

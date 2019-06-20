@@ -12,6 +12,8 @@ if [[ "$FORCE_BUILD" = true ]] ; then
     DOCKER_ARGS="--build -d --renew-anon-volumes"
 fi
 
+SEED_HOST="${SEED_HOST:-m3db_seed}"
+
 echo "Bringing up nodes in the background with docker compose, remember to run ./stop.sh when done"
 
 # need to start Jaeger before m3db or else m3db will not be able to talk to the Jaeger agent.
@@ -26,20 +28,39 @@ if [[ "$USE_JAEGER" = true ]] ; then
     fi
 fi
 
-docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
+# Always bring up data node
+echo "Running dbnode 01"
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
-docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
-docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
 
-if [[ "$MULTI_DB_NODE" = true ]] ; then
+USE_COORDINATOR=${USE_COORDINATOR:-true}
+if [[ "$USE_COORDINATOR" = true ]] ; then
+    echo "Running coordinator"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
+fi
+
+USE_PROMETHEUS=${USE_PROMETHEUS:-true}
+if [[ "$USE_PROMETHEUS" = true ]] ; then
+    echo "Running prometheus"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
+fi
+
+USE_GRAFANA=${USE_GRAFANA:-true}
+if [[ "$USE_GRAFANA" = true ]] ; then
+    echo "Running grafana"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+fi
+
+if [[ "$USE_MULTI_DBNODE" = true ]] ; then
     echo "Running multi node"
+    echo "Running dbnode 02"
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data01
+    echo "Running dbnode 03"
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data02
 else
     echo "Running single node"
 fi
 
-if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Running aggregator pipeline"
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
         "num_shards": 64,
@@ -129,7 +150,7 @@ echo "Validating namespace"
 echo "Done validating namespace"
 
 echo "Initializing topology"
-if [[ "$MULTI_DB_NODE" = true ]] ; then
+if [[ "$USE_MULTI_DBNODE" = true ]] ; then
     curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 3,
@@ -139,8 +160,8 @@ if [[ "$MULTI_DB_NODE" = true ]] ; then
                 "isolation_group": "rack-a",
                 "zone": "embedded",
                 "weight": 1024,
-                "endpoint": "m3db_seed:9000",
-                "hostname": "m3db_seed",
+                "endpoint": "'$SEED_HOST':9000",
+                "hostname": "'$SEED_HOST'",
                 "port": 9000
             },
             {
@@ -173,8 +194,8 @@ else
                 "isolation_group": "rack-a",
                 "zone": "embedded",
                 "weight": 1024,
-                "endpoint": "m3db_seed:9000",
-                "hostname": "m3db_seed",
+                "endpoint": "'$SEED_HOST':9000",
+                "hostname": "'$SEED_HOST'",
                 "port": 9000
             }
         ]
@@ -189,7 +210,7 @@ echo "Waiting until shards are marked as available"
 ATTEMPTS=100 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
-if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Initializing M3Coordinator topology"
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
         "instances": [

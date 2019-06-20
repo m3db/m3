@@ -23,47 +23,47 @@ package filter
 import "github.com/m3db/m3/src/query/storage"
 
 // Storage determines whether storage can fulfil the query
-type Storage func(query storage.Query, store storage.Storage) bool
+type Storage func(store storage.Storage) bool
 
 // LocalOnly filters out all remote storages
-func LocalOnly(_ storage.Query, store storage.Storage) bool {
+func LocalOnly(store storage.Storage) bool {
 	return store.Type() == storage.TypeLocalDC
 }
 
 // RemoteOnly filters out any non-remote storages
-func RemoteOnly(_ storage.Query, store storage.Storage) bool {
+func RemoteOnly(store storage.Storage) bool {
 	return store.Type() == storage.TypeRemoteDC
 }
 
 // AllowAll does not filter any storages
-func AllowAll(_ storage.Query, _ storage.Storage) bool {
+func AllowAll(_ storage.Storage) bool {
 	return true
 }
 
 // AllowNone filters all storages
-func AllowNone(_ storage.Query, _ storage.Storage) bool {
+func AllowNone(_ storage.Storage) bool {
 	return false
 }
 
 // StorageCompleteTags determines whether storage can fulfil the complete tag query
-type StorageCompleteTags func(query storage.CompleteTagsQuery, store storage.Storage) bool
+type StorageCompleteTags func(store storage.Storage) bool
 
 // CompleteTagsLocalOnly filters out all remote storages
-func CompleteTagsLocalOnly(_ storage.CompleteTagsQuery, store storage.Storage) bool {
+func CompleteTagsLocalOnly(store storage.Storage) bool {
 	return store.Type() == storage.TypeLocalDC
 }
 
 // CompleteTagsRemoteOnly filters out any non-remote storages
-func CompleteTagsRemoteOnly(_ storage.CompleteTagsQuery, store storage.Storage) bool {
+func CompleteTagsRemoteOnly(store storage.Storage) bool {
 	return store.Type() == storage.TypeRemoteDC
 }
 
 // CompleteTagsAllowAll does not filter any storages
-func CompleteTagsAllowAll(_ storage.CompleteTagsQuery, _ storage.Storage) bool {
+func CompleteTagsAllowAll(_ storage.Storage) bool {
 	return true
 }
 
 // CompleteTagsAllowNone filters all storages
-func CompleteTagsAllowNone(_ storage.CompleteTagsQuery, _ storage.Storage) bool {
+func CompleteTagsAllowNone(_ storage.Storage) bool {
 	return false
 }

@@ -26,8 +26,11 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/models"
+
+	"github.com/m3db/m3/src/x/ident"
+
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
@@ -48,11 +51,15 @@ const (
 
 // WriteJSONHandler represents a handler for the write json endpoint
 type WriteJSONHandler struct {
-	store storage.Storage
+	store      storage.Storage
+	tagOptions models.TagOptions
 }
 
 // NewWriteJSONHandler returns a new instance of handler.
-func NewWriteJSONHandler(store storage.Storage) http.Handler {
+func NewWriteJSONHandler(
+	store storage.Storage,
+	tagOptions models.TagOptions,
+) http.Handler {
 	return &WriteJSONHandler{
 		store: store,
 	}
@@ -75,7 +82,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeQuery, err := newStorageWriteQuery(req)
+	writeQuery, err := h.newStorageWriteQuery(req)
 	if err != nil {
 		logger := logging.WithContext(r.Context())
 		logger.Error("parsing error",
@@ -93,28 +100,32 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
+func (h *WriteJSONHandler) newStorageWriteQuery(req *WriteQuery) (storage.WriteQuery, error) {
 	parsedTime, err := util.ParseTimeString(req.Timestamp)
 	if err != nil {
-		return nil, err
+		return storage.WriteQuery{}, err
 	}
 
-	tags := models.NewTags(len(req.Tags), nil)
+	var tags ident.Tags
 	for n, v := range req.Tags {
-		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
+		tags.Append(ident.Tag{
+			Name:  ident.StringID(n),
+			Value: ident.StringID(v),
+		})
 	}
 
-	return &storage.WriteQuery{
-		Tags: tags,
-		Datapoints: ts.Datapoints{
-			{
-				Timestamp: parsedTime,
-				Value:     req.Value,
-			},
-		},
+	write := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags:       ident.NewTagsIterator(tags),
+		TagOptions: h.tagOptions,
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
-	}, nil
+	})
+	write.AppendDatapoint(ts.Datapoint{
+		Timestamp: parsedTime,
+		Value:     req.Value,
+	})
+
+	return write, nil
 }
 
 func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {

@@ -29,10 +29,11 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
-	"github.com/m3db/m3/src/x/serialize"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -45,6 +46,16 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := mock.NewMockStorage()
+
+	tagEncoderOptions := serialize.NewTagEncoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagEncoderPool := serialize.NewTagEncoderPool(tagEncoderOptions,
+		pool.NewObjectPoolOptions().SetSize(1))
+	tagEncoderPool.Init()
+	tagDecoderPool := serialize.NewTagDecoderPool(tagDecoderOptions,
+		pool.NewObjectPoolOptions().SetSize(1))
+	tagDecoderPool.Init()
+
 	pool := serialize.NewMockMetricTagsIteratorPool(ctrl)
 
 	workers := xsync.NewWorkerPool(1)
@@ -52,8 +63,8 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 
 	instrumentOpts := instrument.NewOptions()
 
-	handler := newDownsamplerFlushHandler(store, pool,
-		workers, models.NewTagOptions(), instrumentOpts)
+	handler := newDownsamplerFlushHandler(store, pool, tagEncoderPool,
+		tagDecoderPool, workers, models.NewTagOptions(), instrumentOpts)
 	writer, err := handler.NewWriter(tally.NoopScope)
 	require.NoError(t, err)
 
@@ -95,12 +106,15 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	require.Equal(t, 1, len(writes))
 
 	// Ensure tag pointers _DO_NOT_ match but equal to same content
-	tags := writes[0].Tags.Tags
-	require.Equal(t, 1, len(tags))
+	tags := writes[0].Tags()
+	require.Equal(t, 1, tags.Remaining())
 
-	tag := tags[0]
-	assert.True(t, bytes.Equal(tagName, tag.Name))
-	assert.True(t, bytes.Equal(tagValue, tag.Value))
-	assert.False(t, xtest.ByteSlicesBackedBySameData(tagName, tag.Name))
-	assert.False(t, xtest.ByteSlicesBackedBySameData(tagValue, tag.Value))
+	require.True(t, tags.Next())
+	tag := tags.Current()
+	assert.True(t, bytes.Equal(tagName, tag.Name.Bytes()))
+	assert.True(t, bytes.Equal(tagValue, tag.Value.Bytes()))
+	assert.False(t, xtest.ByteSlicesBackedBySameData(tagName, tag.Name.Bytes()))
+	assert.False(t, xtest.ByteSlicesBackedBySameData(tagValue, tag.Value.Bytes()))
+
+	require.NoError(t, tags.Err())
 }

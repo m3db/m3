@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
@@ -176,15 +178,98 @@ type Querier interface {
 
 // WriteQuery represents the input timeseries that is written to the db
 type WriteQuery struct {
-	Tags       models.Tags
-	Datapoints ts.Datapoints
+	tags       ident.TagIterator
+	tagOptions models.TagOptions
+	datapoints ts.Datapoints
+	unit       xtime.Unit
+	annotation []byte
+	attributes Attributes
+
+	constDatapoints [2]ts.Datapoint
+}
+
+// WriteQueryOptions is a set of write query options used when constructing
+// a write query.
+type WriteQueryOptions struct {
+	Tags       ident.TagIterator
+	TagOptions models.TagOptions
 	Unit       xtime.Unit
 	Annotation []byte
 	Attributes Attributes
 }
 
-func (q *WriteQuery) String() string {
-	return string(q.Tags.ID())
+// NewWriteQuery creates a new write query, which tries to use the local
+// datapoints slice when possible.
+func NewWriteQuery(opts WriteQueryOptions) WriteQuery {
+	return WriteQuery{
+		tags:       opts.Tags,
+		tagOptions: opts.TagOptions,
+		unit:       opts.Unit,
+		annotation: opts.Annotation,
+		attributes: opts.Attributes,
+	}
+}
+
+// AppendDatapoint appends a datapoint to the write query,
+// using the internal preallocated buffer when possible.
+func (q *WriteQuery) AppendDatapoint(dp ts.Datapoint) {
+	if len(q.datapoints) >= len(q.constDatapoints) {
+		// Need to alloc into slice
+		q.datapoints = append(q.datapoints, dp)
+		return
+	}
+
+	// Can use the internal buffer
+	idx := len(q.datapoints)
+	q.constDatapoints[idx] = dp
+	q.datapoints = q.constDatapoints[:idx+1]
+}
+
+// AppendDatapoints appends all datapoints to the write query,
+// using the internal preallocated buffer when possible.
+func (q *WriteQuery) AppendDatapoints(dps ts.Datapoints) {
+	for _, dp := range dps {
+		q.AppendDatapoint(dp)
+	}
+}
+
+// Datapoints returns the mutable Datapoints of the write query.
+func (q *WriteQuery) Datapoints() ts.Datapoints {
+	return q.datapoints
+}
+
+// Tags returns the immutable Tags of the write query.
+func (q *WriteQuery) Tags() ident.TagIterator {
+	return q.tags
+}
+
+// TagOptions returns the immutable TagsOptions of the write query.
+func (q *WriteQuery) TagOptions() models.TagOptions {
+	return q.tagOptions
+}
+
+// Unit returns the immutable Unit of the write query.
+func (q *WriteQuery) Unit() xtime.Unit {
+	return q.unit
+}
+
+// Annotation returns the immutable Annotation of the write query.
+func (q *WriteQuery) Annotation() []byte {
+	return q.annotation
+}
+
+// Attributes returns the immutable Attributes of the write query.
+func (q *WriteQuery) Attributes() Attributes {
+	return q.attributes
+}
+
+// String returns the ID of the write.
+func (q WriteQuery) String() string {
+	id, err := models.TagsIDIdentTagIterator(nil, q.tags, q.tagOptions)
+	if err != nil {
+		id = []byte(err.Error())
+	}
+	return string(id)
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
@@ -235,7 +320,7 @@ type CompleteTagsResultBuilder interface {
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write value to the database for an ID
-	Write(ctx context.Context, query *WriteQuery) error
+	Write(ctx context.Context, query WriteQuery) error
 }
 
 // SearchResults is the result from a search

@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
-	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -39,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -55,12 +55,15 @@ const (
 	namespaceInvalid queryFanoutType = iota
 	namespaceCoversAllQueryRange
 	namespaceCoversPartialQueryRange
+
+	defaultWriteBytesIDLength = 1024
 )
 
 type m3storage struct {
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
+	writeBytesPool  *writeBytesPool
 	opts            m3db.Options
 	nowFn           func() time.Time
 }
@@ -78,11 +81,12 @@ func NewStorage(
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
-
+	// opts.IteratorPools().ID().Binar
 	return &m3storage{
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,
 		writeWorkerPool: writeWorkerPool,
+		writeBytesPool:  newWriteBytesPool(),
 		opts:            opts,
 		nowFn:           time.Now,
 	}, nil
@@ -468,7 +472,7 @@ func (s *m3storage) SearchCompressed(
 
 func (s *m3storage) Write(
 	ctx context.Context,
-	query *storage.WriteQuery,
+	query storage.WriteQuery,
 ) error {
 	// Check if the query was interrupted.
 	select {
@@ -477,26 +481,28 @@ func (s *m3storage) Write(
 	default:
 	}
 
-	if query == nil {
-		return errors.ErrNilWriteQuery
+	duplicate := query.Tags().Duplicate()
+	idBytes, err := models.TagsIDIdentTagIterator(s.writeBytesPool.Get(),
+		duplicate, query.TagOptions())
+	duplicate.Close()
+	if err != nil {
+		return err
 	}
 
-	var (
-		// TODO: Pool this once an ident pool is setup. We will have
-		// to stop calling NoFinalize() below if we do that.
-		idBuf = query.Tags.ID()
-		id    = ident.BytesID(idBuf)
-	)
-	// Set id to NoFinalize to avoid cloning it in write operations
-	id.NoFinalize()
-	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
+	// Return buffer used to pool
+	defer s.writeBytesPool.Put(idBytes)
 
-	if len(query.Datapoints) == 1 {
+	id := ident.BytesID(idBytes)
+	datapoints := query.Datapoints()
+	if len(datapoints) == 1 {
 		// Special case single datapoint because it is common and we
 		// can avoid the overhead of a waitgroup, goroutine, multierr,
 		// iterator duplication etc.
-		return s.writeSingle(
-			ctx, query, query.Datapoints[0], id, tagIterator)
+		tagIter := query.Tags().Duplicate()
+		err := s.writeSingle(ctx, datapoints[0], id, tagIter,
+			query.Unit(), query.Annotation(), query.Attributes())
+		tagIter.Close()
+		return err
 	}
 
 	var (
@@ -504,13 +510,16 @@ func (s *m3storage) Write(
 		multiErr syncMultiErrs
 	)
 
-	for _, datapoint := range query.Datapoints {
-		tagIter := tagIterator.Duplicate()
+	for _, datapoint := range datapoints {
+		// Need to duplicate since will iterate itself.
+		tagIter := query.Tags().Duplicate()
 		// capture var
 		datapoint := datapoint
 		wg.Add(1)
 		s.writeWorkerPool.Go(func() {
-			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
+			err := s.writeSingle(ctx, datapoint, id, tagIter,
+				query.Unit(), query.Annotation(), query.Attributes())
+			if err != nil {
 				multiErr.add(err)
 			}
 
@@ -533,17 +542,18 @@ func (s *m3storage) Close() error {
 
 func (s *m3storage) writeSingle(
 	ctx context.Context,
-	query *storage.WriteQuery,
 	datapoint ts.Datapoint,
 	identID ident.ID,
 	iterator ident.TagIterator,
+	unit xtime.Unit,
+	annotation []byte,
+	attributes storage.Attributes,
 ) error {
 	var (
 		namespace ClusterNamespace
 		err       error
 	)
 
-	attributes := query.Attributes
 	switch attributes.MetricsType {
 	case storage.UnaggregatedMetricsType:
 		namespace = s.clusters.UnaggregatedClusterNamespace()
@@ -570,5 +580,27 @@ func (s *m3storage) writeSingle(
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
 	return session.WriteTagged(namespaceID, identID, iterator,
-		datapoint.Timestamp, datapoint.Value, query.Unit, query.Annotation)
+		datapoint.Timestamp, datapoint.Value, unit, annotation)
+}
+
+type writeBytesPool struct {
+	pool sync.Pool
+}
+
+func newWriteBytesPool() *writeBytesPool {
+	return &writeBytesPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return make([]byte, 0, defaultWriteBytesIDLength)
+			},
+		},
+	}
+}
+
+func (p *writeBytesPool) Get() []byte {
+	return p.pool.Get().([]byte)[:0]
+}
+
+func (p *writeBytesPool) Put(v []byte) {
+	p.pool.Put(v)
 }

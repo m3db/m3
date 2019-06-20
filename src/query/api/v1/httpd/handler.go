@@ -211,7 +211,7 @@ func (h *Handler) RegisterRoutes() error {
 			h.fetchOptionsBuilder)).ServeHTTP,
 	).Methods(handler.SearchHTTPMethod)
 	h.router.HandleFunc(m3json.WriteJSONURL,
-		wrapped(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
+		wrapped(m3json.NewWriteJSONHandler(h.storage, h.tagOptions)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints

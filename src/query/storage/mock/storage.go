@@ -24,6 +24,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 )
@@ -41,7 +43,7 @@ type Storage interface {
 	SetWriteResult(error)
 	SetFetchBlocksResult(block.Result, error)
 	SetCloseResult(error)
-	Writes() []*storage.WriteQuery
+	Writes() []storage.WriteQuery
 }
 
 type mockStorage struct {
@@ -72,7 +74,7 @@ type mockStorage struct {
 	closeResult struct {
 		err error
 	}
-	writes []*storage.WriteQuery
+	writes []storage.WriteQuery
 }
 
 // NewMockStorage creates a new mock Storage instance.
@@ -126,7 +128,7 @@ func (s *mockStorage) SetCloseResult(err error) {
 	s.closeResult.err = err
 }
 
-func (s *mockStorage) Writes() []*storage.WriteQuery {
+func (s *mockStorage) Writes() []storage.WriteQuery {
 	s.RLock()
 	defer s.RUnlock()
 	return s.writes
@@ -181,11 +183,38 @@ func (s *mockStorage) CompleteTags(
 
 func (s *mockStorage) Write(
 	ctx context.Context,
-	query *storage.WriteQuery,
+	query storage.WriteQuery,
 ) error {
 	s.Lock()
 	defer s.Unlock()
-	s.writes = append(s.writes, query)
+
+	// NB(r): Annoying, but need to copy the iterator
+	// as can't be sure of lifecycle after it finishes.
+	var tagStrings []string
+	for query.Tags().Next() {
+		t := query.Tags().Current()
+		tagStrings = append(tagStrings, t.Name.String())
+		tagStrings = append(tagStrings, t.Value.String())
+	}
+	if err := query.Tags().Err(); err != nil {
+		return err
+	}
+
+	tags, err := ident.NewTagStringsIterator(tagStrings...)
+	if err != nil {
+		return err
+	}
+
+	write := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags:       tags,
+		TagOptions: query.TagOptions(),
+		Unit:       query.Unit(),
+		Annotation: query.Annotation(),
+		Attributes: query.Attributes(),
+	})
+	write.AppendDatapoints(query.Datapoints())
+
+	s.writes = append(s.writes, write)
 	return s.writeResult.err
 }
 

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -37,8 +38,9 @@ import (
 // DownsampleAndWriteIter is an interface that can be implemented to use
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
+	TagOptions() models.TagOptions
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, xtime.Unit)
+	Current() (ident.TagIterator, ts.Datapoints, xtime.Unit)
 	Reset() error
 	Error() error
 }
@@ -48,7 +50,8 @@ type DownsampleAndWriteIter interface {
 type DownsamplerAndWriter interface {
 	Write(
 		ctx context.Context,
-		tags models.Tags,
+		tags ident.TagIterator,
+		tagOptions models.TagOptions,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
 		overrides WriteOptions,
@@ -103,21 +106,23 @@ func NewDownsamplerAndWriter(
 
 func (d *downsamplerAndWriter) Write(
 	ctx context.Context,
-	tags models.Tags,
+	tags ident.TagIterator,
+	tagOptions models.TagOptions,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) error {
-	err := d.maybeWriteDownsampler(tags, datapoints, unit, overrides)
+	err := d.maybeWriteDownsampler(tags, tagOptions, datapoints, unit, overrides)
 	if err != nil {
 		return err
 	}
 
-	return d.maybeWriteStorage(ctx, tags, datapoints, unit, overrides)
+	return d.maybeWriteStorage(ctx, tags, tagOptions, datapoints, unit, overrides)
 }
 
 func (d *downsamplerAndWriter) maybeWriteDownsampler(
-	tags models.Tags,
+	tags ident.TagIterator,
+	tagOptions models.TagOptions,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
@@ -144,11 +149,7 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 
 		defer appender.Finalize()
 
-		for _, tag := range tags.Tags {
-			appender.AddTag(tag.Name, tag.Value)
-		}
-
-		if tags.Opts.IDSchemeType() == models.TypeGraphite {
+		if tagOptions.IDSchemeType() == models.TypeGraphite {
 			// NB(r): This is gross, but if this is a graphite metric then
 			// we are going to set a special tag that means the downsampler
 			// will write a graphite ID. This should really be plumbed
@@ -157,6 +158,18 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 			// back the context is lost currently.
 			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
 				downsample.GraphiteIDSchemeTagValue)
+		}
+
+		// Duplicate so other iterators can cleanly iterate.
+		duplicate := tags.Duplicate()
+		for duplicate.Next() {
+			tag := duplicate.Current()
+			appender.AddTag(tag.Name.Bytes(), tag.Value.Bytes())
+		}
+		err = duplicate.Err()
+		duplicate.Close()
+		if err != nil {
+			return err
 		}
 
 		var appenderOpts downsample.SampleAppenderOptions
@@ -187,7 +200,8 @@ func (d *downsamplerAndWriter) maybeWriteDownsampler(
 
 func (d *downsamplerAndWriter) maybeWriteStorage(
 	ctx context.Context,
-	tags models.Tags,
+	tags ident.TagIterator,
+	tagOptions models.TagOptions,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
@@ -202,14 +216,21 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 	}
 
 	if storageExists && useDefaultStoragePolicies {
-		return d.store.Write(ctx, &storage.WriteQuery{
-			Tags:       tags,
-			Datapoints: datapoints,
+		// Duplicate so others can iterate in order.
+		duplicate := tags.Duplicate()
+
+		write := storage.NewWriteQuery(storage.WriteQueryOptions{
+			Tags:       duplicate,
+			TagOptions: tagOptions,
 			Unit:       unit,
 			Attributes: storage.Attributes{
 				MetricsType: storage.UnaggregatedMetricsType,
 			},
 		})
+		write.AppendDatapoints(datapoints)
+		err := d.store.Write(ctx, write)
+		duplicate.Close()
+		return err
 	}
 
 	var (
@@ -223,9 +244,12 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
-			err := d.store.Write(ctx, &storage.WriteQuery{
-				Tags:       tags,
-				Datapoints: datapoints,
+			// Duplicate so others can iterate in order.
+			duplicate := tags.Duplicate()
+
+			write := storage.NewWriteQuery(storage.WriteQueryOptions{
+				Tags:       duplicate,
+				TagOptions: tagOptions,
 				Unit:       unit,
 				Attributes: storage.Attributes{
 					// Assume all overridden storage policies are for aggregated namespaces.
@@ -234,11 +258,13 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 					Retention:   p.Retention().Duration(),
 				},
 			})
-			if err != nil {
+			write.AppendDatapoints(datapoints)
+			if err := d.store.Write(ctx, write); err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
 				errLock.Unlock()
 			}
+			duplicate.Close()
 			wg.Done()
 		})
 	}
@@ -270,17 +296,22 @@ func (d *downsamplerAndWriter) WriteBatch(
 			wg.Add(1)
 			tags, datapoints, unit := iter.Current()
 			d.workerPool.Go(func() {
-				err := d.store.Write(ctx, &storage.WriteQuery{
-					Tags:       tags,
-					Datapoints: datapoints,
+				// Duplicate so others can iterate in order.
+				duplicate := tags.Duplicate()
+
+				write := storage.NewWriteQuery(storage.WriteQueryOptions{
+					Tags:       duplicate,
+					TagOptions: iter.TagOptions(),
 					Unit:       unit,
 					Attributes: storage.Attributes{
 						MetricsType: storage.UnaggregatedMetricsType,
 					},
 				})
-				if err != nil {
+				write.AppendDatapoints(datapoints)
+				if err := d.store.Write(ctx, write); err != nil {
 					addError(err)
 				}
+				duplicate.Close()
 				wg.Done()
 			})
 		}
@@ -322,8 +353,17 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	for iter.Next() {
 		appender.Reset()
 		tags, datapoints, _ := iter.Current()
-		for _, tag := range tags.Tags {
-			appender.AddTag(tag.Name, tag.Value)
+
+		// Duplicate so other iterators can cleanly iterate.
+		duplicate := tags.Duplicate()
+		for duplicate.Next() {
+			tag := duplicate.Current()
+			appender.AddTag(tag.Name.Bytes(), tag.Value.Bytes())
+		}
+		err = duplicate.Err()
+		duplicate.Close()
+		if err != nil {
+			return err
 		}
 
 		samplesAppender, err := appender.SamplesAppender(opts)

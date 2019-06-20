@@ -180,7 +180,7 @@ func (s *debugStorage) Close() error {
 
 func (s *debugStorage) Write(
 	ctx context.Context,
-	query *storage.WriteQuery,
+	query storage.WriteQuery,
 ) error {
 	return errors.New("write not implemented")
 }

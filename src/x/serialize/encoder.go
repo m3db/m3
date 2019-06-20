@@ -69,6 +69,8 @@ type encoder struct {
 	buf          *bytes.Buffer
 	checkedBytes checked.Bytes
 
+	headerWritten bool
+
 	opts TagEncoderOptions
 	pool TagEncoderPool
 }
@@ -89,14 +91,39 @@ func newTagEncoder(
 }
 
 func (e *encoder) Encode(srcTags ident.TagIterator) error {
-	if e.checkedBytes.NumRef() > 0 {
-		return errTagEncoderInUse
-	}
-
 	tags := srcTags.Duplicate()
 	defer tags.Close()
 
 	numTags := tags.Remaining()
+	if err := e.writeHeader(numTags); err != nil {
+		return err
+	}
+
+	for tags.Next() {
+		tag := tags.Current()
+		err := e.encodeTag(tag.Name.Bytes(), tag.Value.Bytes())
+		if err != nil {
+			e.buf.Reset()
+			return err
+		}
+	}
+
+	if err := tags.Err(); err != nil {
+		e.buf.Reset()
+		return err
+	}
+
+	e.checkedBytes.IncRef()
+	e.checkedBytes.Reset(e.buf.Bytes())
+
+	return nil
+}
+
+func (e *encoder) writeHeader(numTags int) error {
+	if e.checkedBytes.NumRef() > 0 {
+		return errTagEncoderInUse
+	}
+
 	max := int(e.opts.TagSerializationLimits().MaxNumberTags())
 	if numTags > max {
 		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, max)
@@ -112,9 +139,77 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 		return err
 	}
 
+	return nil
+}
+
+func (e *encoder) EncodeMetricTags(
+	tags MetricTagsIterator,
+	opts EncodeMetricTagsOptions,
+) error {
+	numTags := tags.NumTags()
+	for _, append := range opts.AppendTags.Values() {
+		_, exists := tags.TagValue(append.Name.Bytes())
+		if !exists {
+			numTags++
+		}
+	}
+	for _, exclude := range opts.ExcludeTags {
+		_, exists := tags.TagValue(exclude.Bytes())
+		if exists {
+			numTags--
+		}
+	}
+
+	if err := e.writeHeader(numTags); err != nil {
+		return err
+	}
+
+	appendTags := opts.AppendTags.Values()
+	appendTagIdx := 0
+
 	for tags.Next() {
-		tag := tags.Current()
-		if err := e.encodeTag(tag); err != nil {
+		name, value := tags.Current()
+
+		skip := false
+		if appendTagIdx < len(appendTags) {
+			// Need to check if need to append tag.
+			append := appendTags[appendTagIdx]
+			cmp := bytes.Compare(append.Name.Bytes(), name)
+			if cmp <= 0 {
+				if cmp == 0 {
+					// Skip this after we encode the append tag which overrides
+					// the current encoded tag.
+					skip = true
+				}
+				err := e.encodeTag(append.Name.Bytes(), append.Value.Bytes())
+				if err != nil {
+					e.buf.Reset()
+					return err
+				}
+			}
+		}
+
+		for _, exclude := range opts.ExcludeTags {
+			if bytes.Equal(name, exclude.Bytes()) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		if err := e.encodeTag(name, value); err != nil {
+			e.buf.Reset()
+			return err
+		}
+	}
+
+	// Append remaining tags.
+	for i := appendTagIdx; i < len(appendTags); i++ {
+		append := appendTags[appendTagIdx]
+		err := e.encodeTag(append.Name.Bytes(), append.Value.Bytes())
+		if err != nil {
 			e.buf.Reset()
 			return err
 		}
@@ -156,21 +251,19 @@ func (e *encoder) Finalize() {
 	p.Put(e)
 }
 
-func (e *encoder) encodeTag(t ident.Tag) error {
-	if len(t.Name.Bytes()) == 0 {
+func (e *encoder) encodeTag(name, value []byte) error {
+	if len(name) == 0 {
 		return errEmptyTagNameLiteral
 	}
 
-	if err := e.encodeID(t.Name); err != nil {
+	if err := e.encodeID(name); err != nil {
 		return err
 	}
 
-	return e.encodeID(t.Value)
+	return e.encodeID(value)
 }
 
-func (e *encoder) encodeID(i ident.ID) error {
-	d := i.Bytes()
-
+func (e *encoder) encodeID(d []byte) error {
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
 	if len(d) >= max {
 		return errTagLiteralTooLong

@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -246,20 +247,47 @@ func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) in
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
 }
 
-func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
-	// Construct the tags and datapoints upfront so that if the iterator
+func newPromTSIter(
+	timeseries []*prompb.TimeSeries,
+	tagOpts models.TagOptions,
+) *promTSIter {
+	// Calculate number of datapoints
+	numDatapoints := 0
+	for _, promTS := range timeseries {
+		numDatapoints += len(promTS.Samples)
+	}
+
+	// Construct the tags and datapoints up front so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
-		tags       = make([]models.Tags, 0, len(timeseries))
-		datapoints = make([]ts.Datapoints, 0, len(timeseries))
+		tags                 = make([]ident.TagIterator, len(timeseries))
+		preallocTagIterators = make([]tagIterator, len(timeseries))
+		datapoints           = make([]ts.Datapoints, len(timeseries))
+		preallocDatapoints   = make(ts.Datapoints, numDatapoints)
 	)
-	for _, promTS := range timeseries {
-		tags = append(tags, storage.PromLabelsToM3Tags(promTS.Labels, tagOpts))
-		datapoints = append(datapoints, storage.PromSamplesToM3Datapoints(promTS.Samples))
+	for i, promTS := range timeseries {
+		// First grab reference to the prealloced tag iterators, reset to labels.
+		iter := &(preallocTagIterators[i])
+		iter.Reset(promTS.Labels)
+		tags[i] = iter
+
+		// Grab reference to prealloc datapoints, reset to samples.
+		ref := preallocDatapoints[:len(promTS.Samples)]
+		for j := range promTS.Samples {
+			ref[j] = ts.Datapoint{
+				Timestamp: storage.PromTimestampToTime(promTS.Samples[j].Timestamp),
+				Value:     promTS.Samples[j].Value,
+			}
+		}
+		datapoints[i] = ref
+
+		// Move the prealloc datapoints slice along.
+		preallocDatapoints = preallocDatapoints[len(promTS.Samples):]
 	}
 
 	return &promTSIter{
 		idx:        -1,
+		tagOpts:    tagOpts,
 		tags:       tags,
 		datapoints: datapoints,
 	}
@@ -267,8 +295,13 @@ func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *
 
 type promTSIter struct {
 	idx        int
-	tags       []models.Tags
+	tagOpts    models.TagOptions
+	tags       []ident.TagIterator
 	datapoints []ts.Datapoints
+}
+
+func (i *promTSIter) TagOptions() models.TagOptions {
+	return i.tagOpts
 }
 
 func (i *promTSIter) Next() bool {
@@ -276,9 +309,9 @@ func (i *promTSIter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
+func (i *promTSIter) Current() (ident.TagIterator, ts.Datapoints, xtime.Unit) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0
+		return nil, nil, 0
 	}
 
 	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond
@@ -291,4 +324,54 @@ func (i *promTSIter) Reset() error {
 
 func (i *promTSIter) Error() error {
 	return nil
+}
+
+type tagIterator struct {
+	numTags int
+	idx     int
+	labels  []*prompb.Label
+}
+
+func (i *tagIterator) Reset(labels []*prompb.Label) {
+	*i = tagIterator{}
+	i.numTags = len(labels)
+	i.idx = -1
+	i.labels = labels
+}
+
+func (i *tagIterator) Next() bool {
+	i.idx++
+	return i.idx < i.numTags
+}
+
+func (i *tagIterator) Current() ident.Tag {
+	return ident.Tag{
+		Name:  ident.BytesID(i.labels[i.idx].Name),
+		Value: ident.BytesID(i.labels[i.idx].Value),
+	}
+}
+
+func (i *tagIterator) CurrentIndex() int {
+	return i.idx
+}
+
+func (i *tagIterator) Err() error {
+	return nil
+}
+
+func (i *tagIterator) Close() {
+}
+
+func (i *tagIterator) Len() int {
+	return i.numTags
+}
+
+func (i *tagIterator) Remaining() int {
+	return i.numTags - i.idx
+}
+
+func (i *tagIterator) Duplicate() ident.TagIterator {
+	result := &tagIterator{}
+	result.Reset(i.labels)
+	return result
 }

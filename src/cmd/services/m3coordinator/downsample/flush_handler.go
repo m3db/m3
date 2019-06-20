@@ -23,8 +23,11 @@ package downsample
 import (
 	"bytes"
 	"context"
+	"errors"
 	"sync"
 	"time"
+
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
@@ -52,12 +55,20 @@ var (
 
 var (
 	aggregationSuffixTag = []byte("agg")
+
+	errTagsEncodeData = errors.New("could not get encoded tags data")
+
+	excludeGraphiteTags = []ident.ID{
+		ident.BytesID(MetricsOptionIDSchemeTagName),
+	}
 )
 
 type downsamplerFlushHandler struct {
 	sync.RWMutex
 	storage                storage.Storage
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
+	tagEncoderPool         serialize.TagEncoderPool
+	tagDecoderPool         serialize.TagDecoderPool
 	workerPool             xsync.WorkerPool
 	instrumentOpts         instrument.Options
 	metrics                downsamplerFlushHandlerMetrics
@@ -81,6 +92,8 @@ func newDownsamplerFlushHandlerMetrics(
 func newDownsamplerFlushHandler(
 	storage storage.Storage,
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
+	tagEncoderPool serialize.TagEncoderPool,
+	tagDecoderPool serialize.TagDecoderPool,
 	workerPool xsync.WorkerPool,
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
@@ -89,6 +102,8 @@ func newDownsamplerFlushHandler(
 	return &downsamplerFlushHandler{
 		storage:                storage,
 		metricTagsIteratorPool: metricTagsIteratorPool,
+		tagEncoderPool:         tagEncoderPool,
+		tagDecoderPool:         tagDecoderPool,
 		workerPool:             workerPool,
 		instrumentOpts:         instrumentOpts,
 		metrics:                newDownsamplerFlushHandlerMetrics(scope),
@@ -100,9 +115,8 @@ func (h *downsamplerFlushHandler) NewWriter(
 	scope tally.Scope,
 ) (writer.Writer, error) {
 	return &downsamplerFlushHandlerWriter{
-		tagOptions: h.tagOptions,
-		ctx:        context.Background(),
-		handler:    h,
+		ctx:     context.Background(),
+		handler: h,
 	}, nil
 }
 
@@ -110,10 +124,9 @@ func (h *downsamplerFlushHandler) Close() {
 }
 
 type downsamplerFlushHandlerWriter struct {
-	tagOptions models.TagOptions
-	wg         sync.WaitGroup
-	ctx        context.Context
-	handler    *downsamplerFlushHandler
+	wg      sync.WaitGroup
+	ctx     context.Context
+	handler *downsamplerFlushHandler
 }
 
 func (w *downsamplerFlushHandlerWriter) Write(
@@ -134,53 +147,70 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			expected++
 		}
 
-		tags := models.NewTags(expected, w.tagOptions)
-		for iter.Next() {
-			name, value := iter.Current()
+		var (
+			tags           = w.handler.tagEncoderPool.Get()
+			tagsIter       = w.handler.tagDecoderPool.Get()
+			tagsOpts       = w.handler.tagOptions
+			tagsEncodeOpts serialize.EncodeMetricTagsOptions
+		)
+		defer func() {
+			iter.Close()
+			tags.Finalize()
+			tagsIter.Close()
+		}()
 
+		// Check for graphite style metrics
+		scheme, ok := iter.TagValue(MetricsOptionIDSchemeTagName)
+		if ok && bytes.Equal(scheme, GraphiteIDSchemeTagValue) {
 			// NB(r): Quite gross, need to actually make it possible to plumb this
 			// through for each metric.
-			if bytes.Equal(name, MetricsOptionIDSchemeTagName) {
-				if bytes.Equal(value, GraphiteIDSchemeTagValue) &&
-					tags.Opts.IDSchemeType() != models.TypeGraphite {
-					iter.Reset(mp.ChunkedID.Data)
-					tags.Opts = w.tagOptions.SetIDSchemeType(models.TypeGraphite)
-					tags.Tags = tags.Tags[:0]
-				}
-				// Continue, whether we updated and need to restart iteration,
-				// or if passing for the second time
-				continue
-			}
-
-			tags = tags.AddTag(models.Tag{Name: name, Value: value}.Clone())
+			tagsOpts = tagsOpts.SetIDSchemeType(models.TypeGraphite)
+			tagsEncodeOpts.ExcludeTags = excludeGraphiteTags
 		}
 
+		// Check if need to add aggregation suffix tag.
 		if len(chunkSuffix) != 0 {
-			tags = tags.AddTag(models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix}.Clone())
+			tagsEncodeOpts.AppendTags = ident.NewTags(ident.Tag{
+				Name:  ident.BytesID(aggregationSuffixTag),
+				Value: ident.BytesID(chunkSuffix),
+			})
 		}
 
-		err := iter.Err()
-		iter.Close()
+		// Encode the tags.
+		err := tags.EncodeMetricTags(iter, serialize.EncodeMetricTagsOptions{})
 		if err != nil {
-			logger.Error("downsampler flush error preparing write", zap.Error(err))
+			logger.Error("downsampler flush error preparing write",
+				zap.Error(err))
 			w.handler.metrics.flushErrors.Inc(1)
 			return
 		}
 
-		err = w.handler.storage.Write(w.ctx, &storage.WriteQuery{
-			Tags: tags,
-			Datapoints: ts.Datapoints{ts.Datapoint{
-				Timestamp: time.Unix(0, mp.TimeNanos),
-				Value:     mp.Value,
-			}},
-			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
+		encodedTagsData, ok := tags.Data()
+		if !ok {
+			logger.Error("downsampler flush error preparing write",
+				zap.Error(errTagsEncodeData))
+			w.handler.metrics.flushErrors.Inc(1)
+			return
+		}
+
+		// Set decoder to decoded the tags we just encoded.
+		tagsIter.Reset(encodedTagsData)
+
+		write := storage.NewWriteQuery(storage.WriteQueryOptions{
+			Tags:       tagsIter,
+			TagOptions: tagsOpts,
+			Unit:       convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
 			Attributes: storage.Attributes{
 				MetricsType: storage.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),
 				Resolution:  mp.StoragePolicy.Resolution().Window,
 			},
 		})
-		if err != nil {
+		write.AppendDatapoint(ts.Datapoint{
+			Timestamp: time.Unix(0, mp.TimeNanos),
+			Value:     mp.Value,
+		})
+		if err := w.handler.storage.Write(w.ctx, write); err != nil {
 			logger.Error("downsampler flush error failed write", zap.Error(err))
 			w.handler.metrics.flushErrors.Inc(1)
 			return

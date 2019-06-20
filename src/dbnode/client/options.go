@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
-	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -134,10 +134,10 @@ const (
 	defaultSeriesIteratorPoolSize = 65536
 
 	// defaultTagEncoderPoolSize is the default size of the tag encoder pool.
-	defaultTagEncoderPoolSize = 4096
+	defaultTagEncoderPoolSize = defaultWriteTaggedOpPoolSize
 
 	// defaultTagDecoderPoolSize is the default size of the tag decoder pool.
-	defaultTagDecoderPoolSize = 4096
+	defaultTagDecoderPoolSize = defaultFetchBatchOpPoolSize
 
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
 	// from a single peer

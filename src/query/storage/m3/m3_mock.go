@@ -179,7 +179,7 @@ func (mr *MockStorageMockRecorder) Type() *gomock.Call {
 }
 
 // Write mocks base method
-func (m *MockStorage) Write(arg0 context.Context, arg1 *storage.WriteQuery) error {
+func (m *MockStorage) Write(arg0 context.Context, arg1 storage.WriteQuery) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0, arg1)
 	ret0, _ := ret[0].(error)

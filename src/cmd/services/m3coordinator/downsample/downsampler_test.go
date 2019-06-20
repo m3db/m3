@@ -21,10 +21,12 @@
 package downsample
 
 import (
-	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -39,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
 	"github.com/m3db/m3/src/metrics/rules/view"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/clock"
@@ -47,10 +48,10 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
-	"go.uber.org/zap"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var (
@@ -264,9 +265,9 @@ func testDownsamplerAggregation(
 		}
 
 		write := mustFindWrite(t, writes, name)
-		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
-		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
+		assert.Equal(t, metric.tags, tagsToStringMap(t, write.Tags()))
+		require.Equal(t, 1, len(write.Datapoints()))
+		assert.Equal(t, float64(expected), write.Datapoints()[0].Value)
 	}
 	for _, metric := range testGaugeMetrics {
 		name := metric.tags["__name__"]
@@ -276,9 +277,9 @@ func testDownsamplerAggregation(
 		}
 
 		write := mustFindWrite(t, writes, name)
-		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
-		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(expected), write.Datapoints[0].Value)
+		assert.Equal(t, metric.tags, tagsToStringMap(t, write.Tags()))
+		require.Equal(t, 1, len(write.Datapoints()))
+		assert.Equal(t, float64(expected), write.Datapoints()[0].Value)
 	}
 }
 
@@ -436,11 +437,17 @@ func testDownsamplerAggregationIngest(
 	}
 }
 
-func tagsToStringMap(tags models.Tags) map[string]string {
+func tagsToStringMap(t *testing.T, tags ident.TagIterator) map[string]string {
 	stringMap := make(map[string]string, tags.Len())
-	for _, t := range tags.Tags {
-		stringMap[string(t.Name)] = string(t.Value)
+
+	tags.Duplicate()
+	defer tags.Close()
+
+	for tags.Next() {
+		t := tags.Current()
+		stringMap[t.Name.String()] = t.Value.String()
 	}
+	require.NoError(t, tags.Err())
 
 	return stringMap
 }
@@ -570,18 +577,32 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 	return iter
 }
 
-func mustFindWrite(t *testing.T, writes []*storage.WriteQuery, name string) *storage.WriteQuery {
-	var write *storage.WriteQuery
+func mustFindWrite(t *testing.T, writes []storage.WriteQuery, name string) storage.WriteQuery {
+	var (
+		write storage.WriteQuery
+		found bool
+	)
 	for _, w := range writes {
-		if t, ok := w.Tags.Get([]byte("__name__")); ok {
-			if bytes.Equal(t, []byte(name)) {
+		if found {
+			break
+		}
+
+		iter := w.Tags().Duplicate()
+		defer iter.Close()
+
+		for iter.Next() {
+			tag := iter.Current()
+			if tag.Name.String() == nameTag && tag.Value.String() == name {
 				write = w
+				found = true
 				break
 			}
 		}
+
+		require.NoError(t, iter.Err())
 	}
 
-	require.NotNil(t, write)
+	require.True(t, found)
 	return write
 }
 

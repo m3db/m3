@@ -62,7 +62,7 @@ func (s *fanoutStorage) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	stores := filterStores(s.stores, s.fetchFilter, query)
+	stores := filterStores(s.stores, s.fetchFilter)
 	requests := make([]execution.Request, len(stores))
 	for idx, store := range stores {
 		requests[idx] = newFetchRequest(store, query, options)
@@ -81,7 +81,7 @@ func (s *fanoutStorage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	stores := filterStores(s.stores, s.fetchFilter, query)
+	stores := filterStores(s.stores, s.fetchFilter)
 	// Optimization for the single store case
 	if len(stores) == 1 {
 		return stores[0].FetchBlocks(ctx, query, options)
@@ -156,7 +156,7 @@ func (s *fanoutStorage) SearchSeries(
 ) (*storage.SearchResults, error) {
 	var metrics models.Metrics
 
-	stores := filterStores(s.stores, s.fetchFilter, query)
+	stores := filterStores(s.stores, s.fetchFilter)
 	for _, store := range stores {
 		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
@@ -175,7 +175,7 @@ func (s *fanoutStorage) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
+	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter)
 	// short circuit complete tags
 	if len(stores) == 1 {
 		return stores[0].CompleteTags(ctx, query, options)
@@ -195,9 +195,9 @@ func (s *fanoutStorage) CompleteTags(
 	return &built, nil
 }
 
-func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+func (s *fanoutStorage) Write(ctx context.Context, query storage.WriteQuery) error {
 	// TODO: Consider removing this lookup on every write by maintaining different read/write lists
-	stores := filterStores(s.stores, s.writeFilter, query)
+	stores := filterStores(s.stores, s.writeFilter)
 	// short circuit writes
 	if len(stores) == 1 {
 		return stores[0].Write(ctx, query)
@@ -232,11 +232,10 @@ func (s *fanoutStorage) Close() error {
 func filterStores(
 	stores []storage.Storage,
 	filterPolicy filter.Storage,
-	query storage.Query,
 ) []storage.Storage {
 	filtered := make([]storage.Storage, 0, len(stores))
 	for _, s := range stores {
-		if filterPolicy(query, s) {
+		if filterPolicy(s) {
 			filtered = append(filtered, s)
 		}
 	}
@@ -247,11 +246,10 @@ func filterStores(
 func filterCompleteTagsStores(
 	stores []storage.Storage,
 	filterPolicy filter.StorageCompleteTags,
-	query storage.CompleteTagsQuery,
 ) []storage.Storage {
 	filtered := make([]storage.Storage, 0, len(stores))
 	for _, s := range stores {
-		if filterPolicy(query, s) {
+		if filterPolicy(s) {
 			filtered = append(filtered, s)
 		}
 	}
@@ -290,10 +288,10 @@ func (f *fetchRequest) Process(ctx context.Context) error {
 
 type writeRequest struct {
 	store storage.Storage
-	query *storage.WriteQuery
+	query storage.WriteQuery
 }
 
-func newWriteRequest(store storage.Storage, query *storage.WriteQuery) execution.Request {
+func newWriteRequest(store storage.Storage, query storage.WriteQuery) execution.Request {
 	return &writeRequest{
 		store: store,
 		query: query,
