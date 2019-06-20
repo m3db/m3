@@ -72,6 +72,7 @@ const (
 type seekerManager struct {
 	sync.RWMutex
 
+	nsMeta             namespace.Metadata
 	opts               Options
 	blockRetrieverOpts BlockRetrieverOptions
 	fetchConcurrency   int
@@ -132,6 +133,7 @@ type seekerManagerPendingClose struct {
 
 // NewSeekerManager returns a new TSDB file set seeker manager.
 func NewSeekerManager(
+	nsMeta namespace.Metadata,
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
 	blockRetrieverOpts BlockRetrieverOptions,
@@ -146,6 +148,7 @@ func NewSeekerManager(
 	})
 
 	m := &seekerManager{
+		nsMeta:                      nsMeta,
 		bytesPool:                   bytesPool,
 		filePathPrefix:              opts.FilePathPrefix(),
 		opts:                        opts,

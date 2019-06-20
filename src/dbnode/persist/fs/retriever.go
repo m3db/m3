@@ -64,6 +64,7 @@ const (
 type blockRetrieverStatus int
 
 type newSeekerMgrFn func(
+	ns namespace.Metadata,
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
 	blockRetrieverOpts BlockRetrieverOptions,
@@ -137,7 +138,7 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 		return errBlockRetrieverAlreadyOpenOrClosed
 	}
 
-	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts)
+	seekerMgr := r.newSeekerMgrFn(ns, r.bytesPool, r.fsOpts, r.opts)
 	if err := seekerMgr.Open(ns); err != nil {
 		return err
 	}
