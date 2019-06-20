@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -58,29 +57,30 @@ type TimeoutOpts struct {
 }
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
-func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
+func ParsePromCompressedRequest(dst []byte, buff *bytes.Buffer, r *http.Request) ([]byte, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	defer body.Close()
-	compressed, err := ioutil.ReadAll(body)
 
+	buff.Reset()
+	_, err := io.Copy(buff, body)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
-	if len(compressed) == 0 {
+	if buff.Len() == 0 {
 		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
 	}
 
-	reqBuf, err := snappy.Decode(nil, compressed)
+	dst, err = snappy.Decode(dst, buff.Bytes())
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return reqBuf, nil
+	return dst, nil
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.

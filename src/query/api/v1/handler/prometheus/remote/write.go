@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -66,6 +67,8 @@ type PromWriteHandler struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	tagOptions           models.TagOptions
 	nowFn                clock.NowFn
+	writeBytesPool       *writeBytesPool
+	bufferPool           *bufferPool
 	metrics              promWriteMetrics
 }
 
@@ -89,6 +92,8 @@ func NewPromWriteHandler(
 		downsamplerAndWriter: downsamplerAndWriter,
 		tagOptions:           tagOptions,
 		nowFn:                nowFn,
+		writeBytesPool:       newWriteBytesPool(),
+		bufferPool:           newBufferPool(),
 		metrics:              metrics,
 	}, nil
 }
@@ -231,13 +236,23 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *xhttp.ParseError) {
-	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
+	var (
+		dst  = h.writeBytesPool.Get()
+		buff = h.bufferPool.Get()
+		err  *xhttp.ParseError
+	)
+	defer func() {
+		h.writeBytesPool.Put(dst)
+		h.bufferPool.Put(buff)
+	}()
+
+	dst, err = prometheus.ParsePromCompressedRequest(dst, buff, r)
 	if err != nil {
 		return nil, err
 	}
 
 	var req prompb.WriteRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+	if err := proto.Unmarshal(dst, &req); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
@@ -444,4 +459,49 @@ func getIterDuplicate() *tagIterator {
 func putIterDuplicate(v *tagIterator) {
 	*v = tagIterator{}
 	iterDuplicatesPool.Put(v)
+}
+
+type writeBytesPool struct {
+	pool sync.Pool
+}
+
+func newWriteBytesPool() *writeBytesPool {
+	return &writeBytesPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return []byte(nil)
+			},
+		},
+	}
+}
+
+func (p *writeBytesPool) Get() []byte {
+	return p.pool.Get().([]byte)[:0]
+}
+
+func (p *writeBytesPool) Put(v []byte) {
+	p.pool.Put(v)
+}
+
+type bufferPool struct {
+	pool sync.Pool
+}
+
+func newBufferPool() *bufferPool {
+	return &bufferPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return bytes.NewBuffer(nil)
+			},
+		},
+	}
+}
+
+func (p *bufferPool) Get() *bytes.Buffer {
+	return p.pool.Get().(*bytes.Buffer)
+}
+
+func (p *bufferPool) Put(v *bytes.Buffer) {
+	v.Reset()
+	p.pool.Put(v)
 }

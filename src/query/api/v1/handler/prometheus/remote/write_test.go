@@ -48,13 +48,19 @@ import (
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 
-	promWrite := &PromWriteHandler{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+
+	promWrite, err := NewPromWriteHandler(mockDownsamplerAndWriter, nil, nil, tally.NoopScope)
+	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest("POST", PromWriteURL, promReqBody)
 
-	r, err := promWrite.parseRequest(req)
+	r, err := promWrite.(*PromWriteHandler).parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Timeseries), 2)
 }
@@ -63,19 +69,22 @@ func TestPromWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	mockDownsamplerAndWriter.EXPECT().WriteBatch(gomock.Any(), gomock.Any())
 
-	promWrite := &PromWriteHandler{downsamplerAndWriter: mockDownsamplerAndWriter}
+	promWrite, err := NewPromWriteHandler(mockDownsamplerAndWriter, nil, nil, tally.NoopScope)
+	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest("POST", PromWriteURL, promReqBody)
 
-	r, err := promWrite.parseRequest(req)
+	r, err := promWrite.(*PromWriteHandler).parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
 
-	writeErr := promWrite.write(context.TODO(), r)
+	writeErr := promWrite.(*PromWriteHandler).write(context.TODO(), r)
 	require.NoError(t, writeErr)
 }
 
@@ -120,16 +129,16 @@ func TestWriteErrorMetricCount(t *testing.T) {
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
-	writeMetrics, err := newPromWriteMetrics(scope)
+
+	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
+		models.NewTagOptions(), time.Now, scope)
 	require.NoError(t, err)
 
-	promWrite := &PromWriteHandler{
-		downsamplerAndWriter: mockDownsamplerAndWriter,
-		nowFn:                time.Now,
-		metrics:              writeMetrics,
-	}
-	req, _ := http.NewRequest("POST", PromWriteURL, nil)
-	promWrite.ServeHTTP(httptest.NewRecorder(), req)
+	handler, ok := handler.(*PromWriteHandler)
+	require.True(t, ok)
+
+	req := httptest.NewRequest("POST", PromWriteURL, nil)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	foundMetric := xclock.WaitUntil(func() bool {
 		found := reporter.Counters()["write.errors"]
