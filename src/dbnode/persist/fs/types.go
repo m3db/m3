@@ -533,6 +533,7 @@ type Merger interface {
 	Merge(
 		fileID FileSetFileIdentifier,
 		mergeWith MergeWith,
+		nextVolumeIndex int,
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
 	) error

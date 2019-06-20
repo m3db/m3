@@ -425,6 +425,7 @@ type noopMerger struct{}
 func (m *noopMerger) Merge(
 	fileID fs.FileSetFileIdentifier,
 	mergeWith fs.MergeWith,
+	nextVersion int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) error {

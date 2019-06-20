@@ -72,13 +72,14 @@ const (
 	timeComponentPosition         = 1
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
+	dataFileSetComponentPosition  = 2
 
 	numComponentsSnapshotMetadataFile           = 4
 	numComponentsSnapshotMetadataCheckpointFile = 5
 	snapshotMetadataUUIDComponentPosition       = 1
 	snapshotMetadataIndexComponentPosition      = 2
 
-	errUnexpectedFilename = "unexpected filename: %s"
+	errUnexpectedFilenamePattern = "unexpected filename: %s"
 )
 
 var (
@@ -416,10 +417,11 @@ func (a fileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
 }
 
 // Returns the positions of filename delimiters ('-' and '.') and the number of
-// delimeters found, to be used in conjunction with the intComponentFromFilename
+// delimeters found, to be used in conjunction with the intComponentAtIndex
 // function to extract filename components. This function is deliberately
-// optimized for speed and lack of allocations, since filename parsing is known
-// to account for a significant proportion of system resources.
+// optimized for speed and lack of allocations, since allocation-heavy filename
+// parsing can quickly become a large source of allocations in the entire
+// system, especially when namespaces with long retentions are configured.
 func delimiterPositions(baseFilename string) ([maxDelimNum]int, int) {
 	var (
 		delimPos    [maxDelimNum]int
@@ -445,23 +447,23 @@ func delimiterPositions(baseFilename string) ([maxDelimNum]int, int) {
 // delimeters. Our only use cases for this involve extracting numeric
 // components, so this function assumes this and returns the component as an
 // int64.
-func intComponentFromFilename(
+func intComponentAtIndex(
 	baseFilename string,
 	componentPos int,
 	delimPos [maxDelimNum]int,
 ) (int64, error) {
-	var start int
+	start := 0
 	if componentPos > 0 {
 		start = delimPos[componentPos-1] + 1
 	}
 	end := delimPos[componentPos]
 	if start > end || end > len(baseFilename)-1 || start < 0 {
-		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
+		return 0, fmt.Errorf(errUnexpectedFilenamePattern, baseFilename)
 	}
 
 	num, err := strconv.ParseInt(baseFilename[start:end], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf(errUnexpectedFilename, baseFilename)
+		return 0, fmt.Errorf(errUnexpectedFilenamePattern, baseFilename)
 	}
 	return num, nil
 }
@@ -471,12 +473,15 @@ func TimeFromFileName(fname string) (time.Time, error) {
 	base := filepath.Base(fname)
 
 	delims, delimsFound := delimiterPositions(base)
-	if delimsFound < 2 {
-		return timeZero, fmt.Errorf(errUnexpectedFilename, fname)
+	// There technically only needs to be two delimeters here since the time
+	// component is in index 1. However, all DB files have a minimum of three
+	// delimeters, so check for that instead.
+	if delimsFound < 3 {
+		return timeZero, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
-	nanos, err := intComponentFromFilename(base, timeComponentPosition, delims)
+	nanos, err := intComponentAtIndex(base, timeComponentPosition, delims)
 	if err != nil {
-		return timeZero, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
 	return time.Unix(0, nanos), nil
@@ -497,12 +502,12 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (time.Time, int, er
 
 	delims, delimsFound := delimiterPositions(base)
 	if delimsFound < 3 {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	nanos, err := intComponentFromFilename(base, timeComponentPosition, delims)
+	nanos, err := intComponentAtIndex(base, timeComponentPosition, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 	unixNanos := time.Unix(0, nanos)
 
@@ -511,9 +516,9 @@ func TimeAndVolumeIndexFromDataFileSetFilename(fname string) (time.Time, int, er
 		return unixNanos, unindexedFilesetIndex, nil
 	}
 
-	volume, err := intComponentFromFilename(base, 2, delims)
+	volume, err := intComponentAtIndex(base, dataFileSetComponentPosition, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
 	return unixNanos, int(volume), nil
@@ -530,18 +535,18 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 
 	delims, delimsFound := delimiterPositions(base)
 	if componentPosition > delimsFound {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
-	nanos, err := intComponentFromFilename(base, 1, delims)
+	nanos, err := intComponentAtIndex(base, 1, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 	unixNanos := time.Unix(0, nanos)
 
-	index, err := intComponentFromFilename(base, componentPosition, delims)
+	index, err := intComponentAtIndex(base, componentPosition, delims)
 	if err != nil {
-		return timeZero, 0, fmt.Errorf(errUnexpectedFilename, fname)
+		return timeZero, 0, fmt.Errorf(errUnexpectedFilenamePattern, fname)
 	}
 
 	return unixNanos, int(index), nil
@@ -1375,8 +1380,12 @@ func DataFileSetExists(
 	blockStart time.Time,
 	volume int,
 ) (bool, error) {
-	// This function is in some cases the bottleneck, thus, we use different
-	// logic to handle this case specifically (don't use DataFiles(...)).
+	// This function can easily become a performance bottleneck if the
+	// implementation is slow or requires scanning directories with a large
+	// number of files in them (as is common if namespaces with long retentions
+	// are configured). As a result, instead of using existing helper functions,
+	// it implements an optimized code path that only involves checking if a few
+	// specific files exist and contain the correct contents.
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 
 	// Check fileset with volume first to optimize for non-legacy use case.
@@ -1402,6 +1411,8 @@ func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 		return false, nil
 	}
 
+	// LatestVolumeForBlock checks for a complete checkpoint file, so we don't
+	// need to recheck it here.
 	return true, nil
 }
 
@@ -1557,10 +1568,10 @@ func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix s
 }
 
 // isFirstVolumeLegacy returns whether the first volume of the provided type is
-// legacy, i.e. does not have a volume index in its filename. It only checks for
-// the existence of the file and the non-legacy version of the file, and returns
-// an error if neither exist. Note that this function does not check for the
-// volume's complete checkpoint file.
+// legacy, i.e. does not have a volume index in its filename. Using this
+// function, the caller expects there to be a legacy or non-legacy file, and
+// thus returns an error if neither exist. Note that this function does not
+// check for the volume's complete checkpoint file.
 func isFirstVolumeLegacy(prefix string, t time.Time, suffix string) (bool, error) {
 	// Check non-legacy path first to optimize for newer files.
 	path := filesetPathFromTimeAndIndex(prefix, t, 0, suffix)

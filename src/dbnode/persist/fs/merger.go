@@ -82,6 +82,7 @@ func NewMerger(
 func (m *merger) Merge(
 	fileID FileSetFileIdentifier,
 	mergeWith MergeWith,
+	nextVolumeIndex int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) (err error) {
@@ -130,7 +131,7 @@ func (m *merger) Merge(
 		NamespaceMetadata: nsMd,
 		Shard:             shard,
 		BlockStart:        startTime,
-		VolumeIndex:       fileID.VolumeIndex + 1,
+		VolumeIndex:       nextVolumeIndex,
 		FileSetType:       persist.FileSetFlushType,
 		DeleteIfExists:    false,
 	}

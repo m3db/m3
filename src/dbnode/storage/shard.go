@@ -1903,8 +1903,8 @@ func (s *dbShard) WarmFlush(
 		VolumeIndex: 0,
 		// We explicitly set delete if exists to false here as we track which
 		// filesets exist at bootstrap time so we should never encounter a time
-		// when we attempt to flush and a fileset that already exists unless
-		// there are racing competing processes.
+		// where a fileset already exists when we attempt to flush unless there
+		// is a bug in the code.
 		DeleteIfExists: false,
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
@@ -2011,18 +2011,17 @@ func (s *dbShard) ColdFlush(
 			VolumeIndex: coldVersion,
 		}
 
-		err := merger.Merge(fsID, mergeWithMem, flushPreparer, nsCtx)
+		nextVersion := coldVersion + 1
+		err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
 		}
 
 		// After writing the full block successfully, update the cold version
-		// in the flush state.
-		nextVersion := coldVersion + 1
-
-		// Once this function completes block leasers will no longer be able to acquire
-		// leases on previous volumes for the given namespace/shard/blockstart.
+		// in the flush state. Once this function completes block leasers will
+		// no longer be able to acquire leases on previous volumes for the given
+		// namespace/shard/blockstart.
 		s.setFlushStateColdVersion(startTime, nextVersion)
 
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
@@ -2186,19 +2185,19 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 			filePathPrefix, s.namespace.ID(), s.ID(), err)
 	}
 	// Get a snapshot of all states here to prevent constantly getting/releasing
-	// locks in a tight loop below.
+	// locks in a tight loop below. This snapshot won't become stale halfway
+	// through this because flushing and cleanup never happen in parallel.
 	blockStates := s.BlockStatesSnapshot()
-	// Filter without allocating by using same backing array.
-	compacted := filesets[:0]
+	toDelete := fs.FileSetFilesSlice(make([]fs.FileSetFile, 0, len(filesets)))
 	for _, datafile := range filesets {
 		fileID := datafile.ID
 		blockState := blockStates[xtime.ToUnixNano(fileID.BlockStart)]
 		if fileID.VolumeIndex < blockState.ColdVersion {
-			compacted = append(compacted, datafile)
+			toDelete = append(toDelete, datafile)
 		}
 	}
 
-	return s.deleteFilesFn(compacted.Filepaths())
+	return s.deleteFilesFn(toDelete.Filepaths())
 }
 
 func (s *dbShard) Repair(
