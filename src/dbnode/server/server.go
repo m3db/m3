@@ -665,7 +665,8 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
 
-	emitBootstrappersGauge(scope, cfg.Bootstrap.Bootstrappers)
+	bsGauge := emitBootstrappersGauge(scope, cfg.Bootstrap.Bootstrappers)
+	bsGauge.Update(1)
 
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
@@ -684,7 +685,9 @@ func Run(runOpts RunOptions) {
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 
-			emitBootstrappersGauge(scope, bootstrappers)
+			bsGauge.Update(0)
+			bsGaugeUpdated := emitBootstrappersGauge(scope, bootstrappers)
+			bsGaugeUpdated.Update(1)
 		})
 
 	// Start the cluster services now that the M3DB client is available.
@@ -1512,8 +1515,12 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 	return t.t.Get(), nil
 }
 
-func emitBootstrappersGauge(scope tally.Scope, bs []string) {
+func emitBootstrappersGauge(scope tally.Scope, bs []string) tally.Gauge {
+	tags := make(map[string]string, len(bs))
 	for i, v := range bs {
-		scope.Gauge(fmt.Sprintf("bootstrapper_bootstrappers_%s", v)).Update(float64(i))
+		tags[fmt.Sprintf("bootstrapper%d", i)] = v
 	}
+	g := scope.Tagged(tags).Gauge("bootstrapper_bootstrappers")
+
+	return g
 }
