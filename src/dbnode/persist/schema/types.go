@@ -40,6 +40,7 @@ type IndexInfo struct {
 	SnapshotTime int64
 	FileType     persist.FileSetType
 	SnapshotID   []byte
+	VolumeIndex  int
 }
 
 // IndexSummariesInfo stores metadata about the summaries
