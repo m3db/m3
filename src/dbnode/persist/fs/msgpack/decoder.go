@@ -241,16 +241,23 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
+	switch dec.legacy.decodeLegacyIndexInfoVersion {
+	case legacyEncodingIndexVersionV1:
 		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
-	} else if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
+	case legacyEncodingIndexVersionV2:
 		// V2 had 8 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 8
 		opts.numExpectedCurrFields = 8
+	case legacyEncodingIndexVersionV3:
+		// V3 had 9 fields.
+		opts.override = true
+		// TODO(rartoul): Should this be six?
+		opts.numExpectedMinFields = 9
+		opts.numExpectedCurrFields = 9
 	}
 
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
@@ -284,6 +291,15 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 
 	// Decode fields added in V3.
 	indexInfo.SnapshotID, _, _ = dec.decodeBytes()
+
+	// At this point if its a V3 file we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV3 || actual < 10 {
+		dec.skip(numFieldsToSkip)
+		return indexInfo
+	}
+
+	// Decode fields added in V4.
+	indexInfo.VolumeIndex = int(dec.decodeVarint())
 
 	dec.skip(numFieldsToSkip)
 	return indexInfo
