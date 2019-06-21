@@ -136,17 +136,14 @@ type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        time.Time
 	Shard             uint32
-	FileSetType       FileSetType
-	DeleteIfExists    bool
+	// This volume index is only used when preparing for a flush fileset type.
+	// When opening a snapshot, the new volume index is determined by looking
+	// at what files exist on disk.
+	VolumeIndex    int
+	FileSetType    FileSetType
+	DeleteIfExists bool
 	// Snapshot options are applicable to snapshots (index yes, data yes)
 	Snapshot DataPrepareSnapshotOptions
-}
-
-// DataPrepareVolumeOptions is the options struct for the prepare method that contains
-// information specific to read/writing filesets that have multiple volumes (such as
-// snapshots and index file sets).
-type DataPrepareVolumeOptions struct {
-	VolumeIndex int
 }
 
 // IndexPrepareOptions is the options struct for the IndexFlush's Prepare method.

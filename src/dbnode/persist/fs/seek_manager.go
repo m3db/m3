@@ -397,7 +397,17 @@ func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
 ) (DataFileSetSeeker, error) {
-	exists, err := DataFileSetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart)
+	blm := m.blockRetrieverOpts.BlockLeaseManager()
+	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace,
+		Shard:      shard,
+		BlockStart: blockStart,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("err opening latest lease: %v", err)
+	}
+
+	exists, err := DataFileSetExists(m.filePathPrefix, m.namespace, shard, blockStart, state.Volume)
 	if err != nil {
 		return nil, err
 	}
@@ -424,21 +434,8 @@ func (m *seekerManager) newOpenSeeker(
 	// Set the unread buffer to reuse it amongst all seekers.
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
-	var (
-		resources = m.getSeekerResources()
-		blm       = m.blockRetrieverOpts.BlockLeaseManager()
-	)
-	_, err = blm.OpenLatestLease(m, block.LeaseDescriptor{
-		Namespace:  m.namespace,
-		Shard:      shard,
-		BlockStart: blockStart,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("err opening latest lease: %v", err)
-	}
-
-	// TODO_OUT_OF_ORDER_WRITES(rartoul): Pass volume obtained from OpenLatestLease here.
-	err = seeker.Open(m.namespace, shard, blockStart, resources)
+	resources := m.getSeekerResources()
+	err = seeker.Open(m.namespace, shard, blockStart, state.Volume, resources)
 	m.putSeekerResources(resources)
 	if err != nil {
 		return nil, err

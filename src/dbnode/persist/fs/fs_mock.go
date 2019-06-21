@@ -400,17 +400,17 @@ func (mr *MockDataFileSetSeekerMockRecorder) ConcurrentIDBloomFilter() *gomock.C
 }
 
 // Open mocks base method
-func (m *MockDataFileSetSeeker) Open(arg0 ident.ID, arg1 uint32, arg2 time.Time, arg3 ReusableSeekerResources) error {
+func (m *MockDataFileSetSeeker) Open(arg0 ident.ID, arg1 uint32, arg2 time.Time, arg3 int, arg4 ReusableSeekerResources) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Open", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "Open", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Open indicates an expected call of Open
-func (mr *MockDataFileSetSeekerMockRecorder) Open(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDataFileSetSeekerMockRecorder) Open(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeeker)(nil).Open), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeeker)(nil).Open), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Range mocks base method

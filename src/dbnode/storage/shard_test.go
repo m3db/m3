@@ -425,6 +425,7 @@ type noopMerger struct{}
 func (m *noopMerger) Merge(
 	fileID fs.FileSetFileIdentifier,
 	mergeWith fs.MergeWith,
+	nextVersion int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) error {
@@ -1136,7 +1137,7 @@ func TestShardCleanupExpiredFileSets(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	shard.filesetBeforeFn = func(_ string, namespace ident.ID, shardID uint32, t time.Time) ([]string, error) {
+	shard.filesetPathsBeforeFn = func(_ string, namespace ident.ID, shardID uint32, t time.Time) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
 	}
 	var deletedFiles []string

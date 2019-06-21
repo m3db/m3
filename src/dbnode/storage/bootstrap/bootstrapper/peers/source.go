@@ -386,6 +386,14 @@ func (s *peersSource) flush(
 			FileSetType:       persistConfig.FileSetType,
 			Shard:             shard,
 			BlockStart:        start,
+			// When bootstrapping, the volume index will always be 0. However,
+			// if we want to be able to snapshot and flush while bootstrapping,
+			// this may not be the case, e.g. if a flush occurs before a
+			// bootstrap, then the bootstrap volume index will be >0. In order
+			// to support this, bootstrapping code will need to incorporate
+			// merging logic and flush version/volume index will need to be
+			// synchronized between processes.
+			VolumeIndex: 0,
 			// If we've peer bootstrapped this shard/block combination AND the fileset
 			// already exists on disk, then that means either:
 			// 1) The Filesystem bootstrapper was unable to bootstrap the fileset

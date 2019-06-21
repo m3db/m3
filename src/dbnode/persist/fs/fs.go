@@ -34,13 +34,16 @@ const (
 	filesetFilePrefix        = "fileset"
 	commitLogFilePrefix      = "commitlog"
 	segmentFileSetFilePrefix = "segment"
-	fileSuffix               = ".db"
+
+	fileSuffix              = ".db"
+	fileSuffixDelimeterRune = '.'
 
 	anyLowerCaseCharsPattern        = "[a-z]*"
 	anyNumbersPattern               = "[0-9]*"
 	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
 
-	separator = "-"
+	separator     = "-"
+	separatorRune = '-'
 
 	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
 	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix

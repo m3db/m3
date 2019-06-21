@@ -107,8 +107,8 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		}
 
 		// Read the summaries file into memory
-		summariesFilePath := filesetPathFromTime(
-			shardDirPath, testWriterStart, summariesFileSuffix)
+		summariesFilePath := dataFilesetPathFromTimeAndIndex(
+			shardDirPath, testWriterStart, 0, summariesFileSuffix, false)
 		summariesFile, err := os.Open(summariesFilePath)
 		if err != nil {
 			return false, fmt.Errorf("err opening summaries file: %v, ", err)
@@ -254,7 +254,7 @@ func genTagIdent() gopter.Gen {
 }
 
 func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) (map[string]int64, error) {
-	indexFilePath := filesetPathFromTime(shardDirPath, start, indexFileSuffix)
+	indexFilePath := dataFilesetPathFromTimeAndIndex(shardDirPath, start, 0, indexFileSuffix, false)
 	buf, err := ioutil.ReadFile(indexFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("err reading index file: %v, ", err)
