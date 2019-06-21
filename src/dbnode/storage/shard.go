@@ -1872,6 +1872,10 @@ func (s *dbShard) Bootstrap(
 		}
 
 		s.markWarmFlushStateSuccess(at)
+		// Cold version needs to get bootstrapped so that the 1:1 relationship between volume number
+		// and cold version is maintained and the volume numbers / flush versions remaining monotonically
+		// increasing.
+		s.setFlushStateColdVersion(at, info.VolumeIndex)
 	}
 
 	s.Lock()
