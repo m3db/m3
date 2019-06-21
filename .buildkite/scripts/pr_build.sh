@@ -26,6 +26,11 @@ if [[ -z "$BUILDKITE_CLI_TOKEN" ]]; then
   exit 1
 fi
 
+if ! command -v jq; then
+  echo "cannot find jq in PATH"
+  exit 1
+fi
+
 RESP=$(mktemp)
 
 function cleanup() {
