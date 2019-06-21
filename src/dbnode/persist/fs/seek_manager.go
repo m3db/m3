@@ -292,7 +292,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 		return nil
 	}
 
-	// If no match was found in the active seekers, its possible that an inactive seeker is being returned.
+	// If no match was found in the active seekers, it's possible that an inactive seeker is being returned.
 	for i, compareSeeker := range seekers.inactive.seekers {
 		if seeker == compareSeeker.seeker {
 			found = true
@@ -314,7 +314,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 				break
 			}
 
-			// All the inactive seekers have been returned so its safe to signal and clear them out.
+			// All the inactive seekers have been returned so it's safe to signal and clear them out.
 			var multiErr = xerrors.NewMultiError()
 			for _, inactiveSeeker := range seekers.inactive.seekers {
 				multiErr = multiErr.Add(inactiveSeeker.seeker.Close())
@@ -364,7 +364,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 //      be used to "wait" for all of the existing seekers that are currently borrowed to be returned.
 //   3. Release the lock so that reads can continue uninterrupted and call waitgroup.Wait() to wait for all
 //      the currently borrowed "inactive" seekers (if any) to be returned.
-//   4. Every call to Return() for an "inactive" seeker will check if its the last borrowed inactive seeker,
+//   4. Every call to Return() for an "inactive" seeker will check if it's the last borrowed inactive seeker,
 //      and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
 //      running the UpdateOpenlease() function that all inactive seekers have been returned and closed at
 //      which point the function will return sucessfully.
@@ -379,9 +379,10 @@ func (m *seekerManager) UpdateOpenLease(
 	}
 
 	if m.isUpdatingLease {
-		// This guard is a little overly aggressive. In practice, the algorithm permits concurrent UpdateOpenLease()
-		// calls as long as they are for different shard/blockStart combinations. However, the calling code currently
-		// has no need to call this method concurrently at all so use the simpler check for now.
+		// This guard is a little overly aggressive. In practice, the algorithm remains correct even in the presence
+		// of concurrent UpdateOpenLease() calls as long as they are for different shard/blockStart combinations.
+		// However, the calling code currently has no need to call this method concurrently at all so use the
+		// simpler check for now.
 		m.Unlock()
 		return 0, errConcurrentUpdateOpenLeaseNotAllowed
 	}

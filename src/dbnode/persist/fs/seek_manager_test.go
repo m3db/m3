@@ -152,6 +152,16 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		byTime.RUnlock()
 	}
 
+	// Ensure that UpdateOpenLease() returns a lease for out-of-order updates.
+	for _, shard := range shards {
+		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  metadata.ID(),
+			Shard:      shard,
+			BlockStart: time.Time{},
+		}, block.LeaseState{Volume: 0})
+		require.Equal(t, errOutOfOrderUpdateOpenLease, err)
+	}
+
 	require.NoError(t, m.Close())
 }
 
