@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+message VehicleLocation {
+  double latitude = 1;
+  double longitude = 2;
+  double fuel_percent = 3;
+  string status = 4;
+  map<string, string> attributes = 5;
+}

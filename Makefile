@@ -145,8 +145,8 @@ install-retool:
 .PHONY: install-tools
 install-tools: install-retool
 	@echo "Installing retool dependencies"
-	retool sync
-	retool build
+	PATH=$(PATH):$(gopath_bin_path) retool sync
+	PATH=$(PATH):$(gopath_bin_path) retool build
 
 	@# NB(r): to ensure correct version of mock-gen is present we match the version
 	@# of the retool installed mockgen, and if not a match in binary contents, then
@@ -394,7 +394,7 @@ ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
 	@echo "Building UI components, if npm install or build fails try: npm cache clean"
 	make node-yarn-run \
 		node_version="6" \
-		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && npm run build"
+		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && yarn build"
 else
 	@echo "Skip building UI components, already built, to rebuild first make clean"
 endif
@@ -415,7 +415,7 @@ build-ui-ctl-statik: build-ui-ctl install-tools
 node-yarn-run:
 	make node-run \
 		node_version="$(node_version)" \
-		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn) && $(node_cmd)"
+		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn@^1.17.0) && $(node_cmd)"
 
 .PHONY: node-run
 node-run:
