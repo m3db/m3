@@ -134,7 +134,7 @@ func TestCacheDirCreation(t *testing.T) {
 	require.NoError(t, err)
 
 	cdir := path.Join(tdir, randSeq(10))
-	fname := path.Join(cdir, randSeq(10))
+	fname := path.Join(cdir, "mk3kv.json")
 	opts = opts.SetCacheFileFn(func(string) string {
 		return fname
 	})
@@ -143,8 +143,9 @@ func TestCacheDirCreation(t *testing.T) {
 	defer closeFn()
 	require.NoError(t, err)
 
-	_, err = os.Stat(cdir)
+	info, err := os.Stat(cdir)
 	require.NoError(t, err)
+	require.Equal(t, info.IsDir(), true)
 }
 
 func TestCache(t *testing.T) {
