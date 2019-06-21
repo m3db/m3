@@ -23,6 +23,7 @@ package validator
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,4 +33,13 @@ func TestValidateChars(t *testing.T) {
 	}
 	require.Error(t, validateChars("test$", invalidChars))
 	require.NoError(t, validateChars("test", invalidChars))
+}
+
+func TestCheckFilterTagNameValid(t *testing.T) {
+	o := NewOptions()
+	assert.NoError(t, o.CheckFilterTagNameValid("timertype"))
+	assert.NoError(t, o.CheckFilterTagNameValid("timerType"))
+	o = o.SetFilterInvalidTagNames([]string{"timertype"})
+	assert.Error(t, o.CheckFilterTagNameValid("timertype"))
+	assert.Error(t, o.CheckFilterTagNameValid("timerType"))
 }
