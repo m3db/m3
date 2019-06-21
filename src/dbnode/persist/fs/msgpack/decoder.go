@@ -250,13 +250,12 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	case legacyEncodingIndexVersionV2:
 		// V2 had 8 fields.
 		opts.override = true
-		opts.numExpectedMinFields = 8
+		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 8
 	case legacyEncodingIndexVersionV3:
 		// V3 had 9 fields.
 		opts.override = true
-		// TODO(rartoul): Should this be six?
-		opts.numExpectedMinFields = 9
+		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 9
 	}
 
