@@ -349,7 +349,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Setup concurrent block lease updates.
 	sem := make(chan struct{}, updateOpenLeaseConcurrency)
-	// Volume -> shard -> blockStart to stripe as many shard/blockStart as quicky as possible to
+	// Volume -> shard -> blockStart to stripe as many shard/blockStart as quickly as possible to
 	// improve the chance of triggering the code path where UpdateOpenLease is the first time a set
 	// of seekers are opened for a shard/blocksStart combination.
 	for _, volume := range volumes {
@@ -369,7 +369,11 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 							Shard:      shard,
 							BlockStart: blockStart,
 						}, block.LeaseState{Volume: volume})
-						if err == nil {
+						// Ignore errOutOfOrderUpdateOpenLease because the goroutines in this test are not coordinated
+						// and thus may try to call UpdateOpenLease() with out of order volumes. Thats fine for the
+						// purposes of this test since the goal here is to make sure there are no race conditions and
+						// ensure that the SeekerManager ends up in the correct state when the test is complete.
+						if err == nil || err == errOutOfOrderUpdateOpenLease {
 							break
 						}
 					}
