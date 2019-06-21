@@ -1875,6 +1875,7 @@ func (s *dbShard) Bootstrap(
 		// Cold version needs to get bootstrapped so that the 1:1 relationship between volume number
 		// and cold version is maintained and the volume numbers / flush versions remaining monotonically
 		// increasing.
+		// TODO(rartoul): Add a test for this before merging.
 		s.setFlushStateColdVersion(at, info.VolumeIndex)
 	}
 
