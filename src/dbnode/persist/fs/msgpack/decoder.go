@@ -241,6 +241,7 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 
+	// Overrides only used to test forwards compatibility.
 	switch dec.legacy.decodeLegacyIndexInfoVersion {
 	case legacyEncodingIndexVersionV1:
 		// V1 had 6 fields.
