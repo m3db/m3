@@ -462,8 +462,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			require.Equal(t, expectedVolumeTag, volumeTag)
 		}
 	}
-
-	// panic("yolo")
 }
 
 // TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
