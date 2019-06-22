@@ -22,8 +22,10 @@ package debug
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
+	"net/http"
 )
 
 // Source provides functions for fetching debug information from a single debug source.
@@ -39,13 +41,18 @@ type ZipWriter interface {
 	WriteZip(io.Writer) error
 	// RegisterSource adds a new source to the produced archive.
 	RegisterSource(string, Source) error
+	// HTTPHandler sends out the ZIP file as raw bytes.
+	HTTPHandler() http.Handler
+	// RegisterHandler wires the HTTPHandlerFunc with the given router.
+	RegisterHandler(string, *http.ServeMux) error
 }
 
 type zipWriter struct {
 	sources map[string]Source
 }
 
-// NewZipWriter returns an instance of an ZipWriter.
+// NewZipWriter returns an instance of an ZipWriter. The passed prefix
+// indicates the folder where to save the zip files.
 func NewZipWriter() ZipWriter {
 	return &zipWriter{
 		sources: make(map[string]Source),
@@ -78,5 +85,24 @@ func (i *zipWriter) WriteZip(w io.Writer) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (i *zipWriter) HTTPHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		errMsg := "Unable to write ZIP file:"
+		buf := bytes.NewBuffer([]byte{})
+		if err := i.WriteZip(buf); err != nil {
+			http.Error(w, fmt.Sprintf("%s: %s", errMsg, err), http.StatusInternalServerError)
+		}
+		if _, err := io.Copy(w, buf); err != nil {
+			http.Error(w, fmt.Sprintf("%s: %s", errMsg, err), http.StatusInternalServerError)
+		}
+	})
+}
+
+func (i *zipWriter) RegisterHandler(path string, r *http.ServeMux) error {
+	r.Handle(path, i.HTTPHandler())
+
 	return nil
 }
