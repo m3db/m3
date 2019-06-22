@@ -30,6 +30,9 @@ _tools/
 debug
 debug.test
 
+# Track src/x/debug though
+!src/x/debug
+
 # Test data
 test-data
 
