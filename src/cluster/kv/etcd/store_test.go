@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"path"
 	"sync/atomic"
@@ -128,24 +127,31 @@ func TestNoCache(t *testing.T) {
 
 func TestCacheDirCreation(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
+	defer closeFn()
 
 	tdir, err := ioutil.TempDir("", "m3tests")
-	defer os.RemoveAll(tdir)
 	require.NoError(t, err)
+	defer os.RemoveAll(tdir)
 
-	cdir := path.Join(tdir, randSeq(10))
-	fname := path.Join(cdir, "mk3kv.json")
+	cdir := path.Join(tdir, "testCache")
 	opts = opts.SetCacheFileFn(func(string) string {
-		return fname
+		return path.Join(cdir, opts.Prefix())
 	})
 
-	_, err = NewStore(ec, ec, opts)
-	defer closeFn()
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	info, err := os.Stat(cdir)
 	require.NoError(t, err)
 	require.Equal(t, info.IsDir(), true)
+
+	_, err = store.Set("foo", genProto("bar"))
+	require.NoError(t, err)
+
+	value, err := store.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar", 1)
+	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 }
 
 func TestCache(t *testing.T) {
@@ -1161,14 +1167,4 @@ func readCacheJSONAndFilename(dirPath string) (string, []byte, error) {
 func readCacheJSON(dirPath string) ([]byte, error) {
 	_, b, err := readCacheJSONAndFilename(dirPath)
 	return b, err
-}
-
-func randSeq(n int) string {
-	rand.Seed(time.Now().UnixNano())
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
 }
