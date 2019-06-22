@@ -28,7 +28,7 @@ import (
 
 // Source provides functions for fetching debug information from a single debug source.
 type Source interface {
-	// Write writes it's debug information into the provided writer
+	// Write writes it's debug information into the provided writer.
 	Write(w io.Writer) error
 }
 
