@@ -24,7 +24,10 @@ package config
 import (
 	"errors"
 	"io/ioutil"
+	"reflect"
+	"strings"
 
+	"go.uber.org/zap"
 	validator "gopkg.in/validator.v2"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -66,4 +69,21 @@ func LoadFiles(config interface{}, files []string, opts Options) error {
 		return nil
 	}
 	return validator.Validate(config)
+}
+
+// DeprecationCheck checks the config for deprecated fields and emits a warning
+// if any are found.
+func DeprecationCheck(cfg interface{}, logger *zap.SugaredLogger) {
+	n := reflect.TypeOf(cfg).NumField()
+	for i := 0; i < n; i++ {
+		v := reflect.ValueOf(cfg).Field(i)
+		if v.Kind() == reflect.Struct {
+			DeprecationCheck(v.Interface(), logger)
+		}
+		name := reflect.TypeOf(cfg).Field(i).Name
+		if strings.HasPrefix(name, "Deprecated") {
+			logger.Warn("using deprecated configuration field", zap.String("field", name))
+		}
+
+	}
 }

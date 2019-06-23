@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const (
@@ -57,6 +58,19 @@ type configuration struct {
 	ListenAddress string   `yaml:"listen_address" validate:"nonzero"`
 	BufferSpace   int      `yaml:"buffer_space" validate:"min=255"`
 	Servers       []string `validate:"nonzero"`
+}
+
+type commitlogPolicyConfiguration struct {
+	FlushMaxBytes       int    `yaml:"flushMaxBytes" validate:"nonzero"`
+	FlushEvery          string `yaml:"flushEvery" validate:"nonzero"`
+	DeprecatedBlockSize int    `yaml:"blockSize"`
+}
+
+type nestedConfiguration struct {
+	ListenAddress string                       `yaml:"listen_address" validate:"nonzero"`
+	BufferSpace   int                          `yaml:"buffer_space" validate:"min=255"`
+	Servers       []string                     `validate:"nonzero"`
+	CommitLog     commitlogPolicyConfiguration `yaml:"commitlog"`
 }
 
 func TestLoadFile(t *testing.T) {
@@ -211,6 +225,30 @@ func TestLoadFilesValidateOnce(t *testing.T) {
 	require.Equal(t, "localhost:8080", mergedCfg.ListenAddress)
 	require.Equal(t, 256, mergedCfg.BufferSpace)
 	require.Equal(t, []string{"server2:8010"}, mergedCfg.Servers)
+}
+
+func TestDeprecationCheck(t *testing.T) {
+	nestedConfig := `
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+    - server1:8090
+    - server2:8010
+commitlog:
+    flushMaxBytes: 42
+    flushEvery: second
+    blockSize: 23
+`
+	var cfg nestedConfiguration
+
+	fname := writeFile(t, nestedConfig)
+	defer os.Remove(fname)
+
+	err := LoadFile(&cfg, fname, Options{})
+	require.NoError(t, err)
+
+	logger := zap.NewNop().Sugar()
+	DeprecationCheck(cfg, logger)
 }
 
 func writeFile(t *testing.T, contents string) string {
