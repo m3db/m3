@@ -30,13 +30,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
 
@@ -123,7 +124,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				}
 
 				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(cancellable, indexQuery,
+				exhaustive, err := uncachedBlock.Query(context.NewContext(), cancellable, indexQuery,
 					queryOpts, uncachedResults)
 				if err != nil {
 					return false, fmt.Errorf("error querying uncached block: %v", err)
@@ -133,7 +134,7 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(cancellable, indexQuery,
+				exhaustive, err = cachedBlock.Query(context.NewContext(), cancellable, indexQuery,
 					queryOpts, cachedResults)
 				if err != nil {
 					return false, fmt.Errorf("error querying cached block: %v", err)

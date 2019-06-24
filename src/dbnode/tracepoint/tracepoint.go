@@ -46,8 +46,8 @@ const (
 	// NSIdxAggregateQuery is the operation name for the nsIndex AggregateQuery path.
 	NSIdxAggregateQuery = "storage.nsIndex.AggregateQuery"
 
-	// NSIdxSubQuery is the operation name for the nsIndex query path.
-	NSIdxSubQuery = "storage.nsIndex.query"
+	// NSIdxQueryHelper is the operation name for the nsIndex query path.
+	NSIdxQueryHelper = "storage.nsIndex.query"
 
 	// NSIdxBlockQuery is the operation name for the nsIndex block query path.
 	NSIdxBlockQuery = "storage.nsIndex.blockQuery"

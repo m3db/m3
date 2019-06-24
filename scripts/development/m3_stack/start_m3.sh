@@ -27,8 +27,7 @@ if [[ "$USE_JAEGER" = true ]] ; then
 fi
 
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
-# Remove this!!!
-docker-compose -f docker-compose.yml up --build -d --renew-anon-volumes m3db_seed
+docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
 docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
 

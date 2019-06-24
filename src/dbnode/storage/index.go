@@ -1013,7 +1013,7 @@ func (i *nsIndex) query(
 	opts index.QueryOptions,
 	execBlockFn execBlockQueryFn,
 ) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxSubQuery)
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
 	sp.LogFields(
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
