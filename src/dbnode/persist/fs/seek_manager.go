@@ -602,26 +602,31 @@ func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
 	// Open first one - Do this outside the context of the lock because opening
 	// a seeker can be an expensive operation (validating index files).
 	blm := m.blockRetrieverOpts.BlockLeaseManager()
+	blockStart := start.ToTime()
 	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
 		Namespace:  m.namespace,
 		Shard:      byTime.shard,
-		BlockStart: start.ToTime(),
+		BlockStart: blockStart,
 	})
 	if err != nil {
 		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
 	}
 
-	seeker, err := m.newOpenSeekerFn(byTime.shard, start.ToTime(), state.Volume)
+	return m.newSeekersAndBloom(byTime.shard, blockStart, state.Volume)
+}
+
+func (m *seekerManager) newSeekersAndBloom(shard uint32, blockStart time.Time, volume int) (seekersAndBloom, error) {
+	seeker, err := m.newOpenSeekerFn(shard, blockStart, volume)
 	if err != nil {
 		return seekersAndBloom{}, err
 	}
 
-	activeSeekers, err := m.seekersAndBloomFromSeeker(seeker, state.Volume)
+	newSeekersAndBloom, err := m.seekersAndBloomFromSeeker(seeker, volume)
 	if err != nil {
 		return seekersAndBloom{}, err
 	}
 
-	return activeSeekers, nil
+	return newSeekersAndBloom, nil
 }
 
 func (m *seekerManager) seekersAndBloomFromSeeker(seeker DataFileSetSeeker, volume int) (seekersAndBloom, error) {
