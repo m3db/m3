@@ -308,10 +308,11 @@ func NewCluster() Cluster {
 }
 
 type cluster struct {
-	zone          string
-	endpoints     []string
-	keepAliveOpts KeepAliveOptions
-	tlsOpts       TLSOptions
+	zone             string
+	endpoints        []string
+	keepAliveOpts    KeepAliveOptions
+	tlsOpts          TLSOptions
+	autoSyncInterval time.Duration
 }
 
 func (c cluster) Zone() string {
@@ -347,5 +348,14 @@ func (c cluster) TLSOptions() TLSOptions {
 
 func (c cluster) SetTLSOptions(opts TLSOptions) Cluster {
 	c.tlsOpts = opts
+	return c
+}
+
+func (c cluster) AutoSyncInterval() time.Duration {
+	return c.autoSyncInterval
+}
+
+func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {
+	c.autoSyncInterval = autoSyncInterval
 	return c
 }
