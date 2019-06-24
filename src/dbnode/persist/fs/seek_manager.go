@@ -372,29 +372,16 @@ func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) (block.UpdateOpenLeaseResult, error) {
-	m.Lock()
-	if m.status != seekerManagerOpen {
-		m.Unlock()
-		return 0, errUpdateOpenLeaseSeekerManagerNotOpen
+	noop, err := m.startUpdateOpenLease(descriptor)
+	if err != nil {
+		return 0, err
 	}
-
-	if m.isUpdatingLease {
-		// This guard is a little overly aggressive. In practice, the algorithm remains correct even in the presence
-		// of concurrent UpdateOpenLease() calls as long as they are for different shard/blockStart combinations.
-		// However, the calling code currently has no need to call this method concurrently at all so use the
-		// simpler check for now.
-		m.Unlock()
-		return 0, errConcurrentUpdateOpenLeaseNotAllowed
-	}
-
-	if !m.namespace.Equal(descriptor.Namespace) {
-		m.Unlock()
+	if noop {
 		return block.NoOpenLease, nil
 	}
-	m.isUpdatingLease = true
-	m.Unlock()
 	defer func() {
 		m.Lock()
+		// Was already set to true but startUpdateOpenLease().
 		m.isUpdatingLease = false
 		m.Unlock()
 	}()
@@ -506,6 +493,27 @@ func (m *seekerManager) UpdateOpenLease(
 	}
 
 	return updateOpenLeaseResult, nil
+}
+
+func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (bool, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	if m.status != seekerManagerOpen {
+		return false, errUpdateOpenLeaseSeekerManagerNotOpen
+	}
+	if m.isUpdatingLease {
+		// This guard is a little overly aggressive. In practice, the algorithm remains correct even in the presence
+		// of concurrent UpdateOpenLease() calls as long as they are for different shard/blockStart combinations.
+		// However, the calling code currently has no need to call this method concurrently at all so use the
+		// simpler check for now.
+		return false, errConcurrentUpdateOpenLeaseNotAllowed
+	}
+	if !m.namespace.Equal(descriptor.Namespace) {
+		return true, nil
+	}
+
+	m.isUpdatingLease = true
 }
 
 // closeSeekersAndLogError is a helper function that closes all the seekers in a slice of borrowableSeeker
