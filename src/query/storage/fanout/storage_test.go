@@ -200,6 +200,9 @@ func TestFanoutWriteSuccess(t *testing.T) {
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
 		Tags:       models.NewTags(0, nil),
+		Attributes: storage.Attributes{
+			MetricsType: storage.UnaggregatedMetricsType,
+		},
 	})
 	assert.NoError(t, err)
 }

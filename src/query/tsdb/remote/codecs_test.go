@@ -170,13 +170,13 @@ func TestEncodeFetchMessage(t *testing.T) {
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = 42
 	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
-		MetricsType:   storage.UnaggregatedMetricsType,
+		MetricsType:   storage.AggregatedMetricsType,
 		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
 	}
 
 	grpcQ, err := encodeFetchRequest(rQ, fetchOpts)
-	require.NotNil(t, grpcQ)
 	require.NoError(t, err)
+	require.NotNil(t, grpcQ)
 	assert.Equal(t, fromTime(start), grpcQ.GetStart())
 	assert.Equal(t, fromTime(end), grpcQ.GetEnd())
 	mRPC := grpcQ.GetTagMatchers().GetTagMatchers()
@@ -190,7 +190,7 @@ func TestEncodeFetchMessage(t *testing.T) {
 	require.NotNil(t, grpcQ.Options)
 	assert.Equal(t, int64(42), grpcQ.Options.Limit)
 	require.NotNil(t, grpcQ.Options.Restrict)
-	assert.Equal(t, rpc.MetricsType_UNAGGREGATED_METRICS_TYPE, grpcQ.Options.Restrict.MetricsType)
+	assert.Equal(t, rpc.MetricsType_AGGREGATED_METRICS_TYPE, grpcQ.Options.Restrict.MetricsType)
 	require.NotNil(t, grpcQ.Options.Restrict.MetricsStoragePolicy)
 	expectedStoragePolicyProto, err := fetchOpts.RestrictFetchOptions.StoragePolicy.Proto()
 	require.NoError(t, err)

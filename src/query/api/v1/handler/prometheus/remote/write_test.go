@@ -143,7 +143,7 @@ func TestWriteErrorMetricCount(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	foundMetric := xclock.WaitUntil(func() bool {
-		found, ok := scope.Snapshot().Counters()["write.errors+test=error-metric-test"]
+		found, ok := scope.Snapshot().Counters()["write.errors+code=4XX,test=error-metric-test"]
 		return ok && found.Value() == 1
 	}, 5*time.Second)
 	require.True(t, foundMetric)
