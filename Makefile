@@ -44,6 +44,13 @@ GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
+# Retool will look for tools.json in the nearest parent git directory if not
+# explicitly told the current dir. Allow setting the base dir so that tools can
+# be built inside of other external repos.
+ifdef RETOOL_BASE_DIR
+	retool_base_args := -base-dir $(RETOOL_BASE_DIR)
+endif
+
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
 SERVICES :=     \
@@ -145,8 +152,8 @@ install-retool:
 .PHONY: install-tools
 install-tools: install-retool
 	@echo "Installing retool dependencies"
-	PATH=$(PATH):$(gopath_bin_path) retool sync
-	PATH=$(PATH):$(gopath_bin_path) retool build
+	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) sync
+	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) build
 
 	@# NB(r): to ensure correct version of mock-gen is present we match the version
 	@# of the retool installed mockgen, and if not a match in binary contents, then
@@ -395,6 +402,9 @@ ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
 	make node-yarn-run \
 		node_version="6" \
 		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && yarn build"
+	# If we've installed nvm locally, remove it due to some cleanup permissions
+	# issue we run into in CI.
+	rm -rf .nvm
 else
 	@echo "Skip building UI components, already built, to rebuild first make clean"
 endif
@@ -419,19 +429,15 @@ node-yarn-run:
 
 .PHONY: node-run
 node-run:
-ifneq ($(shell brew --prefix nvm 2>/dev/null),)
-	@echo "Using nvm from brew to select node version $(node_version)"
-	source $(shell brew --prefix nvm)/nvm.sh && nvm use $(node_version) && bash -c "$(node_cmd)"
-else ifneq ($(shell type nvm 2>/dev/null),)
+ifneq ($(shell command -v nvm 2>/dev/null),)
 	@echo "Using nvm to select node version $(node_version)"
 	nvm use $(node_version) && bash -c "$(node_cmd)"
 else
-	node --version 2>&1 >/dev/null || \
-		(echo "Trying apt install" && which apt-get && (curl -sL https://deb.nodesource.com/setup_$(node_version).x | bash) && apt-get install -y nodejs) || \
-		(echo "Trying apk install" && which apk && apk add --update nodejs nodejs-npm) || \
-		(echo "No node install or known package manager" && exit 1)
-	@echo "Not using nvm, using node version $(shell node --version)"
-	bash -c "$(node_cmd)"
+	mkdir .nvm
+	# Install nvm locally
+	NVM_DIR=$(SELF_DIR)/.nvm PROFILE=/dev/null scripts/install_nvm.sh
+	bash -c "source $(SELF_DIR)/.nvm/nvm.sh; nvm install 6"
+	bash -c "source $(SELF_DIR)/.nvm/nvm.sh && nvm use 6 && $(node_cmd)"
 endif
 
 .PHONY: metalint
