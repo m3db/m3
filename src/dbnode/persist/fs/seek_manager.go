@@ -315,7 +315,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 			}
 
 			// All the inactive seekers have been returned so it's safe to signal and clear them out.
-			var multiErr = xerrors.NewMultiError()
+			multiErr := xerrors.NewMultiError()
 			for _, inactiveSeeker := range seekers.inactive.seekers {
 				multiErr = multiErr.Add(inactiveSeeker.seeker.Close())
 			}
@@ -328,8 +328,8 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 				allInactiveSeekersClosedWg.Done()
 			}
 
-			if multiErr.FinalError() != nil {
-				return multiErr.FinalError()
+			if err := multiErr.FinalError(); err != nil {
+				return err
 			}
 			break
 		}
