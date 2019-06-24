@@ -201,6 +201,10 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = 42
+	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
+		MetricsType:   storage.AggregatedMetricsType,
+		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+	}
 	gq, err := encodeFetchRequest(rQ, fetchOpts)
 	require.NoError(t, err)
 	reverted, revertedOpts, err := decodeFetchRequest(gq)
@@ -208,6 +212,10 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	readQueriesAreEqual(t, rQ, reverted)
 	require.NotNil(t, revertedOpts)
 	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
+	require.Equal(t, fetchOpts.RestrictFetchOptions.MetricsType,
+		revertedOpts.RestrictFetchOptions.MetricsType)
+	require.Equal(t, fetchOpts.RestrictFetchOptions.StoragePolicy.String(),
+		revertedOpts.RestrictFetchOptions.StoragePolicy.String())
 
 	// Encode again
 	gqr, err := encodeFetchRequest(reverted, revertedOpts)
