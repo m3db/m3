@@ -175,7 +175,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		if val := rand.Intn(100); val >= 90 {
 			return nil, errors.New("some-error")
 		}
-		return existingNewSeekerFn(shard, blockStart, volume)
+		return existingNewOpenSeekerFn(shard, blockStart, volume)
 	}
 	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
 
