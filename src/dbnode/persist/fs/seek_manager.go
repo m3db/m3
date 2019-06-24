@@ -381,73 +381,15 @@ func (m *seekerManager) UpdateOpenLease(
 	}
 	defer func() {
 		m.Lock()
-		// Was already set to true but startUpdateOpenLease().
+		// Was already set to true by startUpdateOpenLease().
 		m.isUpdatingLease = false
 		m.Unlock()
 	}()
 
-	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
+	wg, updateLeaseResult, err := m.updateOpenLeaseHotSwapSeekers(descriptor, state)
 	if err != nil {
 		return 0, err
 	}
-
-	var (
-		byTime                = m.seekersByTime(descriptor.Shard)
-		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
-		updateOpenLeaseResult = block.NoOpenLease
-	)
-	seekers, ok := m.acquireSeekersLockWaitGroupAware(blockStartNano, byTime)
-	if !ok {
-		// No existing seekers, so just set the newly created ones and be done.
-		seekers.active = newActiveSeekers
-		if seekers.active.volume > state.Volume {
-			// Ignore any close errors because its not relevant from the callers perspective.
-			m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
-			byTime.Unlock()
-			return 0, errOutOfOrderUpdateOpenLease
-		}
-
-		byTime.seekers[blockStartNano] = seekers
-		byTime.Unlock()
-		return updateOpenLeaseResult, nil
-	}
-
-	// Existing seekers exist.
-	updateOpenLeaseResult = block.UpdateOpenLease
-
-	if seekers.active.volume > state.Volume {
-		// Ignore any close errors because its not relevant from the callers perspective.
-		m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
-		byTime.Unlock()
-		// TODO(rartoul): Should this just be an error?
-		return 0, errOutOfOrderUpdateOpenLease
-	}
-
-	seekers.inactive = seekers.active
-	seekers.active = newActiveSeekers
-
-	// If any of the previous seekers are still borrowed this function will need to wait for
-	// them to be returned.
-	anySeekersAreBorrowed := false
-	for _, seeker := range seekers.inactive.seekers {
-		if seeker.isBorrowed {
-			anySeekersAreBorrowed = true
-			break
-		}
-	}
-
-	var wg *sync.WaitGroup
-	if anySeekersAreBorrowed {
-		// If any of the seekers are borrowed setup a waitgroup which will be used to
-		// signal when they've all been returned (the last seeker that is returned via
-		// the Return() API will call wg.Done()).
-		wg = &sync.WaitGroup{}
-		wg.Add(1)
-		seekers.inactive.wg = wg
-	}
-	byTime.seekers[blockStartNano] = seekers
-	byTime.Unlock()
-
 	if wg != nil {
 		// Wait for all the inactive seekers to be returned and closed because the contract
 		// of this API is that the Leaser (SeekerManager) should have relinquished any resources
@@ -455,7 +397,7 @@ func (m *seekerManager) UpdateOpenLease(
 		wg.Wait()
 	}
 
-	return updateOpenLeaseResult, nil
+	return updateLeaseResult, nil
 }
 
 func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (bool, error) {
@@ -481,7 +423,74 @@ func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (
 	return false, nil
 }
 
-func (m *seekerManager) acquireSeekersLockWaitGroupAware(
+// updateOpenLeaseHotSwapSeekers encapsulates all of the logic for swapping the existing seekers with the new ones
+// as dictated by the call to UpdateOpenLease(). For details of the algorithm review the comment above the
+// UpdateOpenLease() method.
+func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+) (*sync.WaitGroup, block.UpdateOpenLeaseResult, error) {
+	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var (
+		byTime                = m.seekersByTime(descriptor.Shard)
+		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
+		updateOpenLeaseResult = block.NoOpenLease
+	)
+	seekers, ok := m.acquireByTimeLockWaitGroupAware(blockStartNano, byTime)
+	defer byTime.Unlock()
+	if !ok {
+		// No existing seekers, so just set the newly created ones and be done.
+		seekers.active = newActiveSeekers
+		if seekers.active.volume > state.Volume {
+			// Ignore any close errors because its not relevant from the callers perspective.
+			m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
+			return nil, 0, errOutOfOrderUpdateOpenLease
+		}
+
+		byTime.seekers[blockStartNano] = seekers
+		return nil, updateOpenLeaseResult, nil
+	}
+
+	// Existing seekers exist.
+	updateOpenLeaseResult = block.UpdateOpenLease
+	if seekers.active.volume > state.Volume {
+		// Ignore any close errors because its not relevant from the callers perspective.
+		m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
+		return nil, 0, errOutOfOrderUpdateOpenLease
+	}
+
+	seekers.inactive = seekers.active
+	seekers.active = newActiveSeekers
+
+	// If any of the previous seekers are still borrowed this function will need to wait for
+	// them to be returned.
+	anySeekersAreBorrowed := false
+	for _, seeker := range seekers.inactive.seekers {
+		if seeker.isBorrowed {
+			anySeekersAreBorrowed = true
+			break
+		}
+	}
+
+	var wg *sync.WaitGroup
+	if anySeekersAreBorrowed {
+		// If any of the seekers are borrowed setup a waitgroup which will be used to
+		// signal when they've all been returned (the last seeker that is returned via
+		// the Return() API will call wg.Done()).
+		wg = &sync.WaitGroup{}
+		wg.Add(1)
+		seekers.inactive.wg = wg
+	}
+	byTime.seekers[blockStartNano] = seekers
+
+	return wg, updateOpenLeaseResult, nil
+}
+
+func (m *seekerManager) acquireByTimeLockWaitGroupAware(
 	blockStart xtime.UnixNano,
 	byTime *seekersByTime,
 ) (seekers rotatableSeekers, ok bool) {
