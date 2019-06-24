@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -44,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -165,8 +165,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Setup the open seeker function to fail sometimes to exercise that code path.
 	seekerMgr := retriever.seekerMgr.(*seekerManager)
-	existingNewSeekerFn := seekerMgr.newOpenSeekerFn
-	newNewSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
+	existingNewOpenSeekerFn := seekerMgr.newOpenSeekerFn
+	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
 		// Artificially slow down how long it takes to open a seeker to exercise the logic where
 		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
 		// to wait for the others to complete.
@@ -177,7 +177,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		}
 		return existingNewSeekerFn(shard, blockStart, volume)
 	}
-	seekerMgr.newOpenSeekerFn = newNewSeekerFn
+	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
 
 	// Setup the block lease manager to return errors sometimes to exercise that code path.
 	mockBlockLeaseManager := block.NewMockLeaseManager(ctrl)
@@ -366,7 +366,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	startWg.Done()
 
 	// Setup concurrent block lease updates.
-	sem := make(chan struct{}, updateOpenLeaseConcurrency)
+	workers := xsync.NewWorkerPool(updateOpenLeaseConcurrency)
 	// Volume -> shard -> blockStart to stripe as many shard/blockStart as quickly as possible to
 	// improve the chance of triggering the code path where UpdateOpenLease is the first time a set
 	// of seekers are opened for a shard/blocksStart combination.
@@ -374,8 +374,13 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		for _, shard := range shards {
 			for _, blockStart := range blockStarts {
 				enqueueWg.Add(1)
-				sem <- struct{}{}
-				go func(shard uint32, blockStart time.Time, volume int) {
+				var (
+					// Capture vars for async goroutine.
+					volume     = volume
+					shard      = shard
+					blockStart = blockStart
+				)
+				workers.Go(func() {
 					defer enqueueWg.Done()
 					leaser := retriever.seekerMgr.(block.Leaser)
 
@@ -395,9 +400,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 							break
 						}
 					}
-
-					<-sem
-				}(shard, blockStart, volume)
+				})
 			}
 		}
 	}
@@ -438,6 +441,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					// Run in a loop since the open seeker function is configured to randomly fail
 					// sometimes.
 					_, err := retriever.Stream(ctx, shard, id, blockStart, onRetrieve, nsCtx)
+					ctx.BlockingClose()
 					if err == nil {
 						break
 					}
