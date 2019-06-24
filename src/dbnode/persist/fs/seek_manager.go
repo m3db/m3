@@ -514,6 +514,8 @@ func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (
 	}
 
 	m.isUpdatingLease = true
+
+	return false, nil
 }
 
 // closeSeekersAndLogError is a helper function that closes all the seekers in a slice of borrowableSeeker
