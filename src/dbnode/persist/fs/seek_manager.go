@@ -572,21 +572,33 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 	byTime.seekers[start] = seekers
 	byTime.Unlock()
 
-	onDoneOpeningNewSeeker := func() {
-		// Lock must be held when function returns.
-		byTime.Lock()
-		// Signal to other waiting goroutines that this goroutine is done attempting to open
-		// the seekers. This is done *after* acquiring the lock so that other goroutines that
-		// were waiting won't acquire the lock before this goroutine does.
-		wg.Done()
-	}
-	onErr := func() {
-		onDoneOpeningNewSeeker()
+	activeSeekers, err := m.openLatestSeekersWithActiveWaitGroup(start, seekers, byTime)
+	// Lock must be held when function returns.
+	byTime.Lock()
+	// Signal to other waiting goroutines that this goroutine is done attempting to open
+	// the seekers. This is done *after* acquiring the lock so that other goroutines that
+	// were waiting won't acquire the lock before this goroutine does.
+	wg.Done()
+	if err != nil {
 		// Delete the seekersByTime struct so that the process can be restarted by the next
 		// goroutine (since this one errored out).
 		delete(byTime.seekers, start)
+		return seekersAndBloom{}, err
 	}
 
+	seekers.active = activeSeekers
+	byTime.seekers[start] = seekers
+	return activeSeekers, nil
+}
+
+// openLatestSeekersWithActiveWaitGroup opens the latest seekers for the provided block start. Similar
+// to the withLock() convention, the caller of this function is expected to be the owner of the waitgroup
+// that is being used to signal that seekers have completed opening.
+func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
+	start xtime.UnixNano,
+	seekers rotatableSeekers,
+	byTime *seekersByTime,
+) (seekersAndBloom, error) {
 	// Open first one - Do this outside the context of the lock because opening
 	// a seeker can be an expensive operation (validating index files).
 	blm := m.blockRetrieverOpts.BlockLeaseManager()
@@ -595,27 +607,20 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 		Shard:      byTime.shard,
 		BlockStart: start.ToTime(),
 	})
-
 	if err != nil {
-		onErr()
 		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
 	}
 
 	seeker, err := m.newOpenSeekerFn(byTime.shard, start.ToTime(), state.Volume)
 	if err != nil {
-		onErr()
 		return seekersAndBloom{}, err
 	}
 
 	activeSeekers, err := m.seekersAndBloomFromSeeker(seeker, state.Volume)
 	if err != nil {
-		onErr()
 		return seekersAndBloom{}, err
 	}
 
-	onDoneOpeningNewSeeker()
-	seekers.active = activeSeekers
-	byTime.seekers[start] = seekers
 	return activeSeekers, nil
 }
 
