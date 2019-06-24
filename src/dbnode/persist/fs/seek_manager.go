@@ -344,7 +344,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 }
 
 // UpdateOpenLease() implements block.Leaser. The contract of this API is that once the function
-// returns successfully any resources associated with the previous release should have been
+// returns successfully any resources associated with the previous lease should have been
 // released (in this case the Seeker / files for the previous volume) and the resources associated
 // with the new lease should have been acquired (the seeker for the provided volume).
 //
