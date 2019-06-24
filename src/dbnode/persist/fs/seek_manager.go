@@ -386,18 +386,8 @@ func (m *seekerManager) UpdateOpenLease(
 		m.Unlock()
 	}()
 
-	// First open a new seeker outside the context of any locks.
-	seeker, err := m.newOpenSeekerFn(
-		descriptor.Shard, descriptor.BlockStart, state.Volume)
+	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
 	if err != nil {
-		return 0, err
-	}
-
-	newActiveSeekers, err := m.seekersAndBloomFromSeeker(seeker, state.Volume)
-	if err != nil {
-		// Don't need to worry about closing / leaking seeker here because
-		// seekersAndBloomFromSeeker will have closed it already if there
-		// were any errors.
 		return 0, err
 	}
 
