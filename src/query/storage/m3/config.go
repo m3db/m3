@@ -94,24 +94,24 @@ type ClusterStaticNamespaceConfiguration struct {
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storage.MetricsType, error) {
-	result := storage.DefaultMetricsType
-	if c.Type != storage.DefaultMetricsType && c.StorageMetricsType != storage.DefaultMetricsType {
+	unset := storage.MetricsType(0)
+	if c.Type != unset && c.StorageMetricsType != unset {
 		// Don't allow both to not be default
-		return result, errBothNamespaceTypeNewAndDeprecatedFieldsSet
+		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
 	}
 
-	if c.Type != storage.DefaultMetricsType {
+	if c.Type != unset {
 		// New field value set
 		return c.Type, nil
 	}
 
-	if c.StorageMetricsType != storage.DefaultMetricsType {
+	if c.StorageMetricsType != unset {
 		// Deprecated field value set
 		return c.StorageMetricsType, nil
 	}
 
-	// Both are default
-	return result, nil
+	// Both are unset
+	return storage.DefaultMetricsType, nil
 }
 
 func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (

@@ -241,6 +241,7 @@ func (s *m3storage) fetchCompressed(
 		query.Start,
 		query.End,
 		options.FanoutOptions,
+		options.RestrictFetchOptions,
 	)
 
 	if err != nil {

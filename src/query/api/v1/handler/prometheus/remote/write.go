@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -55,7 +56,10 @@ const (
 )
 
 var (
-	errNoDownsamplerAndWriter = errors.New("no ingest.DownsamplerAndWriter was set")
+	errNoDownsamplerAndWriter       = errors.New("no downsampler and writer set")
+	errNoTagOptions                 = errors.New("no tag options set")
+	errNoNowFn                      = errors.New("no now fn set")
+	errUnaggregatedStoragePolicySet = errors.New("storage policy should not be set for unaggregated metrics")
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
@@ -75,6 +79,12 @@ func NewPromWriteHandler(
 ) (http.Handler, error) {
 	if downsamplerAndWriter == nil {
 		return nil, errNoDownsamplerAndWriter
+	}
+	if tagOptions == nil {
+		return nil, errNoTagOptions
+	}
+	if nowFn == nil {
+		return nil, errNoNowFn
 	}
 
 	metrics, err := newPromWriteMetrics(scope)
@@ -148,14 +158,14 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	req, rErr := h.parseRequest(r)
+	req, opts, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	batchErr := h.write(r.Context(), req)
+	batchErr := h.write(r.Context(), req, opts)
 
 	// Record ingestion delay latency
 	now := h.nowFn()
@@ -227,23 +237,70 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.metrics.writeSuccess.Inc(1)
 }
 
-func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *xhttp.ParseError) {
+func (h *PromWriteHandler) parseRequest(
+	r *http.Request,
+) (*prompb.WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
+	var opts ingest.WriteOptions
+	if v := r.Header.Get(handler.MetricsTypeHeader); v != "" {
+		// Allow the metrics type and storage policies to override
+		// the default rules and policies if specified.
+		metricsType, err := storage.ParseMetricsType(v)
+		if err != nil {
+			return nil, ingest.WriteOptions{},
+				xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		// Ensure ingest options specify we are overriding the
+		// downsampling rules with zero rules to be applied (so
+		// only direct writes will be made).
+		opts.DownsampleOverride = true
+		opts.DownsampleMappingRules = nil
+
+		strPolicy := r.Header.Get(handler.MetricsStoragePolicyHeader)
+		switch metricsType {
+		case storage.UnaggregatedMetricsType:
+			if strPolicy != "" {
+				err := errUnaggregatedStoragePolicySet
+				return nil, ingest.WriteOptions{},
+					xhttp.NewParseError(err, http.StatusBadRequest)
+			}
+		default:
+			parsed, err := policy.ParseStoragePolicy(strPolicy)
+			if err != nil {
+				err = fmt.Errorf("could not parse storage policy: %v", err)
+				return nil, ingest.WriteOptions{},
+					xhttp.NewParseError(err, http.StatusBadRequest)
+			}
+
+			// Make sure this specific storage policy is used for the writes.
+			opts.WriteOverride = true
+			opts.WriteStoragePolicies = policy.StoragePolicies{
+				parsed,
+			}
+		}
+	}
+
 	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
-		return nil, err
+		return nil, ingest.WriteOptions{}, err
 	}
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, ingest.WriteOptions{},
+			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return &req, nil
+	return &req, opts, nil
 }
 
-func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) ingest.BatchError {
+func (h *PromWriteHandler) write(
+	ctx context.Context,
+	r *prompb.WriteRequest,
+	opts ingest.WriteOptions,
+) ingest.BatchError {
 	iter := newPromTSIter(r.Timeseries, h.tagOptions)
-	return h.downsamplerAndWriter.WriteBatch(ctx, iter)
+	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
 func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {

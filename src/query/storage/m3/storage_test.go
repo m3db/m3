@@ -166,6 +166,9 @@ func newWriteQuery() *storage.WriteQuery {
 		Tags:       tags,
 		Unit:       xtime.Millisecond,
 		Datapoints: datapoints,
+		Attributes: storage.Attributes{
+			MetricsType: storage.UnaggregatedMetricsType,
+		},
 	}
 }
 

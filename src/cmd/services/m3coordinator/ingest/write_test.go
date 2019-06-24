@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	testm3 "github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
@@ -162,7 +163,8 @@ func TestDownsampleAndWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 
 	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 	expectDefaultStorageWrites(session, testDatapoints1)
@@ -176,7 +178,8 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 
 	// We're overriding the downsampling with zero mapping rules, so we expect no data to be sent
 	// to the downsampler, but everything to be written to storage.
@@ -187,8 +190,8 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 
 	expectDefaultStorageWrites(session, testDatapoints1)
 
-	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+	err := downAndWrite.Write(context.Background(),
+		testTags1, testDatapoints1, xtime.Second, overrides)
 	require.NoError(t, err)
 }
 
@@ -196,7 +199,8 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 
 	// We're overriding the downsampling with mapping rules, so we expect data to be
 	// sent to the downsampler, as well as everything being written to storage.
@@ -233,7 +237,8 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, downsampler, _ := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, downsampler, _ := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 
 	// We're overriding the write with zero storage policies, so we expect no data to be sent
 	// to the storage, but everything to be written to the downsampler with the default settings.
@@ -300,7 +305,8 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 	downAndWrite.downsampler = nil
 
 	expectDefaultStorageWrites(session, testDatapoints1)
@@ -314,7 +320,8 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 
 	var (
 		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
@@ -352,7 +359,7 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	}
 
 	iter := newTestIter(testEntries)
-	err := downAndWrite.WriteBatch(context.Background(), iter)
+	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{})
 	require.NoError(t, err)
 }
 
@@ -360,7 +367,8 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl)
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
 	downAndWrite.downsampler = nil
 
 	for _, dp := range testDatapoints1 {
@@ -373,7 +381,100 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 	}
 
 	iter := newTestIter(testEntries)
-	err := downAndWrite.WriteBatch(context.Background(), iter)
+	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{})
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, downsampler, _ := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
+
+	var (
+		mockSamplesAppender  = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender  = downsample.NewMockMetricsAppender(ctrl)
+		overrideMappingRules = []downsample.MappingRule{
+			downsample.MappingRule{
+				Aggregations: []aggregation.Type{
+					aggregation.Sum,
+				},
+				Policies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("1h:30d"),
+				},
+			},
+		}
+	)
+
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(downsample.SampleAppenderOptions{
+			Override: true,
+			OverrideRules: downsample.SamplesAppenderOverrideRules{
+				MappingRules: overrideMappingRules,
+			},
+		}).
+		Return(mockSamplesAppender, nil)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().Reset()
+	mockMetricsAppender.EXPECT().Finalize()
+
+	iter := newTestIter(testEntries[:1])
+	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{
+		DownsampleOverride:     true,
+		DownsampleMappingRules: overrideMappingRules,
+		WriteOverride:          true,
+		WriteStoragePolicies:   nil,
+	})
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteBatchOverrideStoragePolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testOpts := testDownsamplerAndWriterOptions{
+		aggregatedNamespaces: []m3.AggregatedClusterNamespaceDefinition{
+			m3.AggregatedClusterNamespaceDefinition{
+				NamespaceID: ident.StringID("namespace_10m_7d"),
+				Resolution:  10 * time.Minute,
+				Retention:   7 * 24 * time.Hour,
+			},
+			m3.AggregatedClusterNamespaceDefinition{
+				NamespaceID: ident.StringID("namespace_1h_60d"),
+				Resolution:  time.Hour,
+				Retention:   60 * 24 * time.Hour,
+			},
+		},
+	}
+	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl, testOpts)
+
+	for _, namespace := range testOpts.aggregatedNamespaces {
+		for _, dp := range testDatapoints1 {
+			namespaceMatcher := ident.NewIDMatcher(namespace.NamespaceID.String())
+			session.EXPECT().WriteTagged(namespaceMatcher,
+				gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+		}
+	}
+
+	iter := newTestIter(testEntries[:1])
+	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{
+		DownsampleOverride:     true,
+		DownsampleMappingRules: nil,
+		WriteOverride:          true,
+		WriteStoragePolicies: policy.StoragePolicies{
+			policy.MustParseStoragePolicy("10m:7d"),
+			policy.MustParseStoragePolicy("1h:60d"),
+		},
+	})
 	require.NoError(t, err)
 }
 
@@ -408,11 +509,24 @@ func expectDefaultStorageWrites(session *client.MockSession, datapoints []ts.Dat
 	}
 }
 
+type testDownsamplerAndWriterOptions struct {
+	aggregatedNamespaces []m3.AggregatedClusterNamespaceDefinition
+}
+
 func newTestDownsamplerAndWriter(
 	t *testing.T,
 	ctrl *gomock.Controller,
+	opts testDownsamplerAndWriterOptions,
 ) (*downsamplerAndWriter, *downsample.MockDownsampler, *client.MockSession) {
-	storage, session := testm3.NewStorageAndSession(t, ctrl)
+	var (
+		storage storage.Storage
+		session *client.MockSession
+	)
+	if ns := opts.aggregatedNamespaces; len(ns) > 0 {
+		storage, session = testm3.NewStorageAndSessionWithAggregatedNamespaces(t, ctrl, ns)
+	} else {
+		storage, session = testm3.NewStorageAndSession(t, ctrl)
+	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
 	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
 }

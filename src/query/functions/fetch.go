@@ -97,12 +97,26 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	// No need to adjust start and ends since physical plan already considers the offset, range
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
+	ctxOpts := queryCtx.Options
 
 	opts := storage.NewFetchOptions()
-	opts.Limit = queryCtx.Options.LimitMaxTimeseries
+	opts.Limit = ctxOpts.LimitMaxTimeseries
 	opts.BlockType = n.blockType
 	opts.Scope = queryCtx.Scope
 	opts.Enforcer = queryCtx.Enforcer
+
+	if v := ctxOpts.RestrictFetchTimeseries; v != nil {
+		restrict := storage.RestrictFetchOptions{
+			MetricsType:   storage.MetricsType(v.MetricsType),
+			StoragePolicy: v.StoragePolicy,
+		}
+		if err := restrict.Validate(); err != nil {
+			return block.Result{}, err
+		}
+
+		opts.RestrictFetchOptions = &restrict
+	}
+
 	offset := n.op.Offset
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime.Add(-1 * offset),

@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
+
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -166,8 +168,14 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 
 func TestEncodeFetchMessage(t *testing.T) {
 	rQ, start, end := createStorageFetchQuery(t)
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = 42
+	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
+		MetricsType:   storage.UnaggregatedMetricsType,
+		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+	}
 
-	grpcQ, err := encodeFetchRequest(rQ)
+	grpcQ, err := encodeFetchRequest(rQ, fetchOpts)
 	require.NotNil(t, grpcQ)
 	require.NoError(t, err)
 	assert.Equal(t, fromTime(start), grpcQ.GetStart())
@@ -180,23 +188,35 @@ func TestEncodeFetchMessage(t *testing.T) {
 	assert.Equal(t, name1, mRPC[1].GetName())
 	assert.Equal(t, val1, mRPC[1].GetValue())
 	assert.Equal(t, models.MatchEqual, models.MatchType(mRPC[1].GetType()))
+	require.NotNil(t, grpcQ.Options)
+	assert.Equal(t, int64(42), grpcQ.Options.Limit)
+	require.NotNil(t, grpcQ.Options.Restrict)
+	assert.Equal(t, rpc.MetricsType_UNAGGREGATED_METRICS_TYPE, grpcQ.Options.Restrict.MetricsType)
+	require.NotNil(t, grpcQ.Options.Restrict.MetricsStoragePolicy)
+	expectedStoragePolicyProto, err := fetchOpts.RestrictFetchOptions.StoragePolicy.Proto()
+	require.NoError(t, err)
+	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.MetricsStoragePolicy)
 }
 
 func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
-	gq, err := encodeFetchRequest(rQ)
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Limit = 42
+	gq, err := encodeFetchRequest(rQ, fetchOpts)
 	require.NoError(t, err)
-	reverted, err := decodeFetchRequest(gq)
+	reverted, revertedOpts, err := decodeFetchRequest(gq)
 	require.NoError(t, err)
 	readQueriesAreEqual(t, rQ, reverted)
+	require.NotNil(t, revertedOpts)
+	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
 
 	// Encode again
-	gqr, err := encodeFetchRequest(reverted)
+	gqr, err := encodeFetchRequest(reverted, revertedOpts)
 	require.NoError(t, err)
 	assert.Equal(t, gq, gqr)
 }
 
-func TestencodeMetadata(t *testing.T) {
+func TestEncodeMetadata(t *testing.T) {
 	headers := make(http.Header)
 	headers.Add("Foo", "bar")
 	headers.Add("Foo", "baz")

@@ -21,9 +21,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -59,10 +61,47 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	if str := req.Header.Get(LimitMaxSeriesHeader); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
+			err = fmt.Errorf(
+				"could not parse limit: input=%s, err=%v", str, err)
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 		fetchOpts.Limit = n
 	}
-
+	if str := req.Header.Get(MetricsTypeHeader); str != "" {
+		mt, err := storage.ParseMetricsType(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse metrics type: input=%s, err=%v", str, err)
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
+		fetchOpts.RestrictFetchOptions.MetricsType = mt
+	}
+	if str := req.Header.Get(MetricsStoragePolicyHeader); str != "" {
+		sp, err := policy.ParseStoragePolicy(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse storage policy: input=%s, err=%v", str, err)
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
+		fetchOpts.RestrictFetchOptions.StoragePolicy = sp
+	}
+	if restrict := fetchOpts.RestrictFetchOptions; restrict != nil {
+		if err := restrict.Validate(); err != nil {
+			err = fmt.Errorf(
+				"could not validate restrict options: err=%v", err)
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
 	return fetchOpts, nil
+}
+
+func newOrExistingRestrictFetchOptions(
+	fetchOpts *storage.FetchOptions,
+) *storage.RestrictFetchOptions {
+	if v := fetchOpts.RestrictFetchOptions; v != nil {
+		return v
+	}
+	return &storage.RestrictFetchOptions{}
 }

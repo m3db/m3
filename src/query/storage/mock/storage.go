@@ -152,30 +152,33 @@ func (s *mockStorage) Fetch(
 func (s *mockStorage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	options *storage.FetchOptions,
+	opts *storage.FetchOptions,
 ) (block.Result, error) {
 	s.RLock()
 	defer s.RUnlock()
+	s.lastFetchOptions = opts
 	return s.fetchBlocksResult.result, s.fetchBlocksResult.err
 }
 
 func (s *mockStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	_ *storage.FetchOptions,
+	opts *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
 	s.RLock()
 	defer s.RUnlock()
+	s.lastFetchOptions = opts
 	return s.fetchTagsResult.result, s.fetchTagsResult.err
 }
 
 func (s *mockStorage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
-	_ *storage.FetchOptions,
+	opts *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
 	s.RLock()
 	defer s.RUnlock()
+	s.lastFetchOptions = opts
 	return s.completeTagsResult.result, s.completeTagsResult.err
 }
 
