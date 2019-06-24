@@ -367,6 +367,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Setup concurrent block lease updates.
 	workers := xsync.NewWorkerPool(updateOpenLeaseConcurrency)
+	workers.Init()
 	// Volume -> shard -> blockStart to stripe as many shard/blockStart as quickly as possible to
 	// improve the chance of triggering the code path where UpdateOpenLease is the first time a set
 	// of seekers are opened for a shard/blocksStart combination.
