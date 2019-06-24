@@ -278,24 +278,35 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 		return errSeekersDontExist
 	}
 
-	found := false
-	for i, compareSeeker := range seekers.active.seekers {
-		if seeker == compareSeeker.seeker {
-			found = true
-			compareSeeker.isBorrowed = false
-			seekers.active.seekers[i] = compareSeeker
-			break
-		}
+	returned, err := m.returnSeekerWithLock(seekers, seeker)
+	if err != nil {
+		return err
 	}
 
-	if found {
-		return nil
+	// Should never happen with a well behaved caller. Either they are trying to return a seeker
+	// that we're not managing, or they provided the wrong shard/start.
+	if !returned {
+		return errReturnedUnmanagedSeeker
+	}
+
+	return nil
+}
+
+// returnSeekerWithLock encapsulates all the logic for returning a seeker, including distinguishing between active
+// and inactive seekers. For more details on this read the comment above the UpdateOpenLease() method.
+func (m *seekerManager) returnSeekerWithLock(seekers rotatableSeekers, seeker ConcurrentDataFileSetSeeker) (bool, error) {
+	// Check if the seeker being returned is an active seeker first.
+	for i, compareSeeker := range seekers.active.seekers {
+		if seeker == compareSeeker.seeker {
+			compareSeeker.isBorrowed = false
+			seekers.active.seekers[i] = compareSeeker
+			return true, nil
+		}
 	}
 
 	// If no match was found in the active seekers, it's possible that an inactive seeker is being returned.
 	for i, compareSeeker := range seekers.inactive.seekers {
 		if seeker == compareSeeker.seeker {
-			found = true
 			compareSeeker.isBorrowed = false
 			seekers.inactive.seekers[i] = compareSeeker
 
@@ -311,7 +322,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 			}
 
 			if !allAreReturned {
-				break
+				return true, nil
 			}
 
 			// All the inactive seekers have been returned so it's safe to signal and clear them out.
@@ -328,19 +339,11 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 				allInactiveSeekersClosedWg.Done()
 			}
 
-			if err := multiErr.FinalError(); err != nil {
-				return err
-			}
-			break
+			return true, multiErr.FinalError()
 		}
 	}
-	// Should never happen with a well behaved caller. Either they are trying to return a seeker
-	// that we're not managing, or they provided the wrong shard/start.
-	if !found {
-		return errReturnedUnmanagedSeeker
-	}
 
-	return nil
+	return false, nil
 }
 
 // UpdateOpenLease() implements block.Leaser. The contract of this API is that once the function
