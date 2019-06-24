@@ -134,8 +134,13 @@ func (d *downsamplerAndWriter) shouldWrite(
 		storageExists = d.store != nil
 		// Ensure using default storage policies or some storage policies set.
 		useDefaultStoragePolicies = !overrides.WriteOverride
-		_, writeOverride          = d.writeOverrideStoragePolicies(overrides)
+		// If caller tried to override the storage policies, make sure there's
+		// at least one.
+		_, writeOverride = d.writeOverrideStoragePolicies(overrides)
 	)
+	// Only write directly to storage if the store exists, and caller wants to
+	// use the default storage policies, or they're trying to override the
+	// storage policies and they've provided at least one override to do so.
 	return storageExists && (useDefaultStoragePolicies || writeOverride)
 }
 
@@ -359,8 +364,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 	}
 
 	if d.shouldDownsample(overrides) && resetErr == nil {
-		err := d.writeAggregatedBatch(iter, overrides)
-		if err != nil {
+		if err := d.writeAggregatedBatch(iter, overrides); err != nil {
 			addError(err)
 		}
 	}

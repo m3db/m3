@@ -66,7 +66,7 @@ func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Hour * 24 * -90)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
-		store.clusters, start, end, opts, nil)
+		start, end, store.clusters, opts, nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(clusters))
 	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
@@ -85,7 +85,7 @@ func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Hour * 24 * -90)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
-		store.clusters, start, end, opts, nil)
+		start, end, store.clusters, opts, nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(clusters))
 	assert.Equal(t, "metrics_unaggregated", clusters[0].NamespaceID().String())
@@ -106,7 +106,7 @@ func TestGraphitePath(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Second * -30)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
-		store.clusters, start, end, opts, nil)
+		start, end, store.clusters, opts, nil)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(clusters))
 	expected := []string{"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
@@ -374,7 +374,7 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 			}
 
 			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-				clusters, start, end, tt.opts, tt.restrict)
+				start, end, clusters, tt.opts, tt.restrict)
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr, err)
@@ -454,7 +454,7 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 	}
 
 	fanoutType, ns, err := resolveClusterNamespacesForQuery(now,
-		clusters, start, end, opts, nil)
+		start, end, clusters, opts, nil)
 
 	require.NoError(t, err)
 	actualNames := make([]string, len(ns))
@@ -502,7 +502,7 @@ func TestExampleCase(t *testing.T) {
 	for i := 27; i < 17520; i++ {
 		start := now.Add(time.Hour * -1 * time.Duration(i))
 		fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-			ns, start, end, &storage.FanoutOptions{}, nil)
+			start, end, ns, &storage.FanoutOptions{}, nil)
 
 		require.NoError(t, err)
 		actualNames := make([]string, len(clusters))

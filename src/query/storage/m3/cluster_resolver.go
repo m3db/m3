@@ -45,8 +45,7 @@ type unaggregatedNamespaceDetails struct {
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
 // should be used, and if so, determines if it fully satisfies the query range.
 func resolveUnaggregatedNamespaceForQuery(
-	now time.Time,
-	start time.Time,
+	now, start time.Time,
 	unaggregated ClusterNamespace,
 	opts *storage.FanoutOptions,
 ) unaggregatedNamespaceDetails {
@@ -74,17 +73,15 @@ func resolveUnaggregatedNamespaceForQuery(
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
 func resolveClusterNamespacesForQuery(
-	now time.Time,
+	now, start, end time.Time,
 	clusters Clusters,
-	start time.Time,
-	end time.Time,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictFetchOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	if restrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
 		return resolveClusterNamespacesForQueryWithRestrictFetchOptions(now,
-			clusters, start, restrict)
+			start, clusters, restrict)
 	}
 
 	// First check if the unaggregated cluster can fully satisfy the query range.
@@ -302,9 +299,8 @@ func aggregatedNamespaces(
 // namespace referred to by the restrict fetch options or an error if it
 // cannot be found.
 func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
-	now time.Time,
+	now, start time.Time,
 	clusters Clusters,
-	start time.Time,
 	restrict *storage.RestrictFetchOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{

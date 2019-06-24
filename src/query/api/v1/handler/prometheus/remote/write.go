@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -53,6 +54,9 @@ const (
 
 	// PromWriteHTTPMethod is the HTTP method used with this resource.
 	PromWriteHTTPMethod = http.MethodPost
+
+	// emptyStoragePolicyVar for code readability.
+	emptyStoragePolicyVar = ""
 )
 
 var (
@@ -241,7 +245,7 @@ func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
 	var opts ingest.WriteOptions
-	if v := r.Header.Get(handler.MetricsTypeHeader); v != "" {
+	if v := strings.TrimSpace(r.Header.Get(handler.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storage.ParseMetricsType(v)
@@ -256,10 +260,10 @@ func (h *PromWriteHandler) parseRequest(
 		opts.DownsampleOverride = true
 		opts.DownsampleMappingRules = nil
 
-		strPolicy := r.Header.Get(handler.MetricsStoragePolicyHeader)
+		strPolicy := strings.TrimSpace(r.Header.Get(handler.MetricsStoragePolicyHeader))
 		switch metricsType {
 		case storage.UnaggregatedMetricsType:
-			if strPolicy != "" {
+			if strPolicy != emptyStoragePolicyVar {
 				err := errUnaggregatedStoragePolicySet
 				return nil, ingest.WriteOptions{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
