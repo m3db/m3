@@ -395,35 +395,8 @@ func (m *seekerManager) UpdateOpenLease(
 		byTime                = m.seekersByTime(descriptor.Shard)
 		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
 		updateOpenLeaseResult = block.NoOpenLease
-
-		seekers rotatableSeekers
-		ok      bool
 	)
-	// It's possible that another goroutine is currently trying to open seekers for this blockStart. If so, this
-	// goroutine will need to wait for the other goroutine to finish before proceeding. The check is performed in
-	// a loop because each iteration relinquishes the lock temporarily. Once the lock is reacquired the same
-	// conditions need to be checked again until this Goroutine finds that either:
-	//
-	//   a) Seekers are already present for this blockStart in which case it can proceed to hot swap them.
-	// or
-	//   b) Seeks are not present for this blockStart and no other goroutines are currently trying to open them,
-	//      in which case this goroutine can just set the new seekers and be done.
-	for {
-		byTime.Lock()
-		seekers, ok = byTime.seekers[blockStartNano]
-
-		if !ok || seekers.active.wg == nil {
-			// Exit the loop still holding the lock.
-			break
-		}
-
-		// If another goroutine is currently trying to open seekers for this block start
-		// then wait for that operation to complete.
-		wg := seekers.active.wg
-		byTime.Unlock()
-		wg.Wait()
-	}
-
+	seekers, ok := m.acquireSeekersLockWaitGroupAware(blockStartNano, byTime)
 	if !ok {
 		// No existing seekers, so just set the newly created ones and be done.
 		seekers.active = newActiveSeekers
@@ -506,6 +479,37 @@ func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (
 	m.isUpdatingLease = true
 
 	return false, nil
+}
+
+func (m *seekerManager) acquireSeekersLockWaitGroupAware(
+	blockStart xtime.UnixNano,
+	byTime *seekersByTime,
+) (seekers rotatableSeekers, ok bool) {
+	// It's possible that another goroutine is currently trying to open seekers for this blockStart. If so, this
+	// goroutine will need to wait for the other goroutine to finish before proceeding. The check is performed in
+	// a loop because each iteration relinquishes the lock temporarily. Once the lock is reacquired the same
+	// conditions need to be checked again until this Goroutine finds that either:
+	//
+	//   a) Seekers are already present for this blockStart in which case this function can return while holding the
+	//      lock.
+	// or
+	//   b) Seeks are not present for this blockStart and no other goroutines are currently trying to open them, in
+	//      which case this function can also return while holding the lock.
+	for {
+		byTime.Lock()
+		seekers, ok = byTime.seekers[blockStart]
+
+		if !ok || seekers.active.wg == nil {
+			// Exit the loop still holding the lock.
+			return seekers, ok
+		}
+
+		// If another goroutine is currently trying to open seekers for this block start
+		// then wait for that operation to complete.
+		wg := seekers.active.wg
+		byTime.Unlock()
+		wg.Wait()
+	}
 }
 
 // closeSeekersAndLogError is a helper function that closes all the seekers in a slice of borrowableSeeker
