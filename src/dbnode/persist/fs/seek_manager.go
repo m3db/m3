@@ -445,12 +445,6 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	if !ok {
 		// No existing seekers, so just set the newly created ones and be done.
 		seekers.active = newActiveSeekers
-		if seekers.active.volume > state.Volume {
-			// Ignore any close errors because its not relevant from the callers perspective.
-			m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
-			return nil, 0, errOutOfOrderUpdateOpenLease
-		}
-
 		byTime.seekers[blockStartNano] = seekers
 		return nil, updateOpenLeaseResult, nil
 	}
