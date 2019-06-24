@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"

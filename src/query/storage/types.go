@@ -26,12 +26,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
-
 	"github.com/m3db/m3/src/metrics/policy"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"

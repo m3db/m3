@@ -25,10 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/cost"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -40,6 +38,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestFetch(t *testing.T) {

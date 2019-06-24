@@ -29,12 +29,11 @@ import (
 
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 )
 
 func TestNewRestrictFetchOptionsFromProto(t *testing.T) {

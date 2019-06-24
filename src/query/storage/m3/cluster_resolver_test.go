@@ -26,9 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/metrics/policy"
-
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 

@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/policy"
-
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/stretchr/testify/require"

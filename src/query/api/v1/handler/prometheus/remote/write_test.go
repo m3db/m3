@@ -31,15 +31,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/metrics/policy"
-
-	"github.com/m3db/m3/src/query/storage"
-
-	"github.com/m3db/m3/src/query/api/v1/handler"
-
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
