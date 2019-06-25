@@ -21,41 +21,53 @@
 package debug
 
 import (
-	"encoding/json"
-	"io"
-	"os"
+	"bytes"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// hostInfoSource is Source implementation returning data about the underlying host:
-// PID, working directory, etc.
-type hostInfoSource struct{}
+func TestProfileSources(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		for _, name := range []string{
+			"goroutine",
+			"heap",
+			"allocs",
+			"threadcreate",
+			"block",
+			"mutex",
+			"custom",
+			"ヽ༼ຈل͜ຈ༽ﾉ ヽ༼ຈل͜ຈ༽ﾉ",
+			"😍",
+		} {
+			for _, v := range []int{-5, -2, -1, 0, 3, 4, 5, 10, 0, 1, 2} {
+				goProfSource, err := NewProfileSource(name, v)
+				require.NoError(t, err)
+				require.NotNil(t, goProfSource)
+				require.Equal(t, goProfSource.name, name)
+				require.Equal(t, goProfSource.debug, v)
 
-type hostInfo struct {
-	PID int    `json:"pid"`
-	CWD string `json:"cwd"`
-}
+				goProf := goProfSource.Profile()
+				require.NotNil(t, goProf)
 
-// NewHostInfoSource returns a Source for host information
-func NewHostInfoSource() Source {
-	return &hostInfoSource{}
-}
+				// Test additional calls to Profile()
+				goProf = goProfSource.Profile()
+				require.NotNil(t, goProf)
 
-// Write fetches data about the host and writes it in the given writer.
-// The data is formatted in json.
-// It will return an error if it can't get working directory or marshal.
-func (h *hostInfoSource) Write(w io.Writer) error {
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	hostInfo := &hostInfo{
-		PID: os.Getpid(),
-		CWD: wd,
-	}
-	jsonData, err := json.MarshalIndent(hostInfo, "", "  ")
-	if err != nil {
-		return err
-	}
-	w.Write(jsonData)
-	return nil
+				// Test zip writes
+				buf := bytes.NewBuffer([]byte{})
+				err = goProfSource.Write(buf)
+				require.NoError(t, err)
+				require.NotZero(t, buf.Len())
+				fmt.Printf("%s\n", buf.String())
+			}
+		}
+	})
+
+	t.Run("Fail", func(t *testing.T) {
+		goProfSource, err := NewProfileSource("", 0)
+		require.Error(t, err)
+		require.Nil(t, goProfSource)
+	})
 }
