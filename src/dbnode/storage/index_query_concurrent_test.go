@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -223,29 +224,31 @@ func testNamespaceIndexHighConcurrentQueries(
 
 			if opts.blockErrors {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						_ context.Context,
 						_ *resource.CancellableLifetime,
 						_ index.Query,
 						_ index.QueryOptions,
 						_ index.QueryResults,
+						_ []opentracinglog.Field,
 					) (bool, error) {
 						return false, errors.New("some-error")
 					}).
 					AnyTimes()
 			} else {
 				mockBlock.EXPECT().
-					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Query(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(
 						ctx context.Context,
 						c *resource.CancellableLifetime,
 						q index.Query,
 						opts index.QueryOptions,
 						r index.QueryResults,
+						logFields []opentracinglog.Field,
 					) (bool, error) {
 						timeoutWg.Wait()
-						return block.Query(ctx, c, q, opts, r)
+						return block.Query(ctx, c, q, opts, r, logFields)
 					}).
 					AnyTimes()
 			}

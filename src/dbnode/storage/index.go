@@ -1020,9 +1020,7 @@ func (i *nsIndex) query(
 	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
-	sp.LogFields(
-		logFields...,
-	)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields)
