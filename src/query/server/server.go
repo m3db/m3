@@ -628,14 +628,8 @@ func newStorages(
 		logger  = instrumentOpts.Logger()
 		cleanup = func() error { return nil }
 	)
-
-	localStorage, err := m3.NewStorage(
-		clusters,
-		readWorkerPool,
-		writeWorkerPool,
-		tagOptions,
-		*cfg.LookbackDuration,
-	)
+	localStorage, err := m3.NewStorage(clusters, readWorkerPool,
+		writeWorkerPool, tagOptions, *cfg.LookbackDuration, instrumentOpts)
 	if err != nil {
 		return nil, nil, err
 	}
