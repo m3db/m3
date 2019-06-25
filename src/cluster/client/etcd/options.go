@@ -45,6 +45,8 @@ const (
 	defaultRetryMaxRetries     = 3
 	defaultRetryMaxBackoff     = time.Duration(math.MaxInt64)
 	defaultRetryJitter         = true
+
+	defaultAutoSyncInterval = time.Minute
 )
 
 type keepAliveOptions struct {
@@ -302,8 +304,9 @@ func (o options) SetWatchWithRevision(rev int64) Options {
 // NewCluster creates a Cluster.
 func NewCluster() Cluster {
 	return cluster{
-		keepAliveOpts: NewKeepAliveOptions(),
-		tlsOpts:       NewTLSOptions(),
+		keepAliveOpts:    NewKeepAliveOptions(),
+		tlsOpts:          NewTLSOptions(),
+		autoSyncInterval: defaultAutoSyncInterval,
 	}
 }
 

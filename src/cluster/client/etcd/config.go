@@ -34,7 +34,7 @@ type ClusterConfig struct {
 	Endpoints        []string         `yaml:"endpoints"`
 	KeepAlive        *keepAliveConfig `yaml:"keepAlive"`
 	TLS              *TLSConfig       `yaml:"tls"`
-	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
+	AutoSyncInterval *time.Duration   `yaml:"autoSyncInterval"`
 }
 
 // NewCluster creates a new Cluster.
@@ -43,12 +43,15 @@ func (c ClusterConfig) NewCluster() Cluster {
 	if c.KeepAlive != nil {
 		keepAliveOpts = c.KeepAlive.NewOptions()
 	}
-	return NewCluster().
+	cluster := NewCluster().
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
 		SetKeepAliveOptions(keepAliveOpts).
-		SetTLSOptions(c.TLS.newOptions()).
-		SetAutoSyncInterval(c.AutoSyncInterval)
+		SetTLSOptions(c.TLS.newOptions())
+	if v := c.AutoSyncInterval; v != nil {
+		cluster = cluster.SetAutoSyncInterval(*v)
+	}
+	return cluster
 }
 
 // TLSConfig is the config for TLS.

@@ -28,6 +28,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var (
+	minute = time.Minute
+)
+
 func TestKeepAliveConfig(t *testing.T) {
 	const cfgStr = `
 enabled: true
@@ -101,7 +105,7 @@ m3sd:
 				Jitter:  5 * time.Second,
 				Timeout: time.Second,
 			},
-			AutoSyncInterval: time.Second * 60,
+			AutoSyncInterval: &minute,
 		},
 		ClusterConfig{
 			Zone:      "z2",
@@ -140,4 +144,18 @@ m3sd:
 	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriod())
 	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriodMaxJitter())
 	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAliveTimeout())
+}
+
+func TestClusterConfigDefaultAutoSyncInterval(t *testing.T) {
+	const testConfig = `
+zone: z1
+endpoints:
+- etcd1:2379
+`
+
+	var cfg ClusterConfig
+	require.NoError(t, yaml.Unmarshal([]byte(testConfig), &cfg))
+
+	cluster := cfg.NewCluster()
+	require.Equal(t, defaultAutoSyncInterval, cluster.AutoSyncInterval())
 }
