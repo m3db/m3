@@ -27,7 +27,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/stretchr/testify/require"
@@ -185,4 +187,58 @@ func TestHTTPEndpoint(t *testing.T) {
 
 		require.Equal(t, rr.Code, http.StatusInternalServerError)
 	})
+}
+
+func TestDefaultSources(t *testing.T) {
+	defaultSources := []string{
+		"cpuSource",
+		"heapSource",
+		"hostSource",
+		"goroutineProfile",
+	}
+
+	zw, err := NewZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions())
+	require.NoError(t, err)
+	require.NotNil(t, zw)
+
+	// Make sure all default sources are present
+	for _, source := range defaultSources {
+		iv := reflect.ValueOf(zw).Elem().Interface()
+		z, ok := iv.(zipWriter)
+		require.True(t, ok)
+
+		_, ok = z.sources[source]
+		require.True(t, ok)
+	}
+
+	// Check writing ZIP is ok
+	buff := bytes.NewBuffer([]byte{})
+	err = zw.WriteZip(buff)
+	require.NoError(t, err)
+	require.NotZero(t, buff.Len())
+
+	// Check written ZIP is not empty
+	bytesReader := bytes.NewReader(buff.Bytes())
+	zipReader, err := zip.NewReader(bytesReader, int64(bytesReader.Len()))
+	require.NoError(t, err)
+	require.NotNil(t, zipReader)
+
+	actualFnames := make(map[string]bool)
+	for _, f := range zipReader.File {
+		actualFnames[f.Name] = true
+
+		rc, ferr := f.Open()
+		require.NoError(t, ferr)
+		defer rc.Close()
+
+		content := []byte{}
+		rc.Read(content)
+		require.NotZero(t, content)
+	}
+
+	for _, source := range defaultSources {
+		_, ok := actualFnames[source]
+		require.True(t, ok)
+	}
+
 }

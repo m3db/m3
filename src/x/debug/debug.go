@@ -26,13 +26,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"go.uber.org/zap"
 )
 
-// Source provides functions for fetching debug information from a single debug source.
+// Source is the interface that must be implemented to provide a new debug
+// source. Each debug source's Write method will be called to write out a debug
+// file for that source into the overall debug zip file.
 type Source interface {
 	// Write writes it's debug information into the provided writer.
 	Write(w io.Writer) error
@@ -63,6 +66,35 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 		sources: make(map[string]Source),
 		logger:  iopts.Logger(),
 	}
+}
+
+// NewZipWriterWithDefaultSources returns a zipWriter with the following
+// debug sources already registered: CPU, heap, host, goroutines.
+func NewZipWriterWithDefaultSources(cpuProfileDuration time.Duration, iopts instrument.Options) (ZipWriter, error) {
+	zw := NewZipWriter(iopts)
+
+	err := zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))
+	if err != nil {
+		return nil, fmt.Errorf("unable to register CPUProfileSource: %s", err)
+	}
+
+	err = zw.RegisterSource("heapSource", NewHeapDumpSource())
+	if err != nil {
+		return nil, fmt.Errorf("unable to register HeapDumpSource: %s", err)
+	}
+
+	err = zw.RegisterSource("hostSource", NewHostInfoSource())
+	if err != nil {
+		return nil, fmt.Errorf("unable to register HostInfoSource: %s", err)
+	}
+
+	gp, err := NewProfileSource("goroutine", 2)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create goroutineProfileSource: %s", err)
+	}
+
+	err = zw.RegisterSource("goroutineProfile", gp)
+	return zw, nil
 }
 
 // RegisterSource adds a new source in the ZipWriter instance.
