@@ -44,6 +44,7 @@ import (
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 // MockBaseResults is a mock of BaseResults interface
@@ -695,33 +696,33 @@ func (mr *MockBlockMockRecorder) WriteBatch(inserts interface{}) *gomock.Call {
 }
 
 // Query mocks base method
-func (m *MockBlock) Query(ctx context.Context, cancellable *resource.CancellableLifetime, query Query, opts QueryOptions, results BaseResults) (bool, error) {
+func (m *MockBlock) Query(ctx context.Context, cancellable *resource.CancellableLifetime, query Query, opts QueryOptions, results BaseResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", ctx, cancellable, query, opts, results)
+	ret := m.ctrl.Call(m, "Query", ctx, cancellable, query, opts, results, logFields)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Query indicates an expected call of Query
-func (mr *MockBlockMockRecorder) Query(ctx, cancellable, query, opts, results interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) Query(ctx, cancellable, query, opts, results, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), ctx, cancellable, query, opts, results)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), ctx, cancellable, query, opts, results, logFields)
 }
 
 // Aggregate mocks base method
-func (m *MockBlock) Aggregate(ctx context.Context, cancellable *resource.CancellableLifetime, opts QueryOptions, results AggregateResults) (bool, error) {
+func (m *MockBlock) Aggregate(ctx context.Context, cancellable *resource.CancellableLifetime, opts QueryOptions, results AggregateResults, logFields []log.Field) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Aggregate", ctx, cancellable, opts, results)
+	ret := m.ctrl.Call(m, "Aggregate", ctx, cancellable, opts, results, logFields)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Aggregate indicates an expected call of Aggregate
-func (mr *MockBlockMockRecorder) Aggregate(ctx, cancellable, opts, results interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) Aggregate(ctx, cancellable, opts, results, logFields interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregate", reflect.TypeOf((*MockBlock)(nil).Aggregate), ctx, cancellable, opts, results)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Aggregate", reflect.TypeOf((*MockBlock)(nil).Aggregate), ctx, cancellable, opts, results, logFields)
 }
 
 // AddResults mocks base method

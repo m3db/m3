@@ -189,6 +189,7 @@ type execBlockQueryFn func(
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
+	logFields []opentracinglog.Field,
 )
 
 // asyncQueryExecState tracks the async execution errors and results for a query.
@@ -932,14 +933,16 @@ func (i *nsIndex) Query(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
-	sp.LogFields(
+	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
 		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("start", opts.StartInclusive),
-		xopentracing.Time("end", opts.EndExclusive),
-	)
+		xopentracing.Time("queryStart", opts.StartInclusive),
+		xopentracing.Time("queryEnd", opts.EndExclusive),
+	}
+
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	// Get results and set the namespace ID and size limit.
@@ -948,7 +951,7 @@ func (i *nsIndex) Query(
 		SizeLimit: opts.Limit,
 	})
 	ctx.RegisterFinalizer(results)
-	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn)
+	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 		return index.QueryResult{}, err
@@ -964,14 +967,16 @@ func (i *nsIndex) AggregateQuery(
 	query index.Query,
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxAggregateQuery)
-	sp.LogFields(
+	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
 		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("start", opts.StartInclusive),
-		xopentracing.Time("end", opts.EndExclusive),
-	)
+		xopentracing.Time("queryStart", opts.StartInclusive),
+		xopentracing.Time("queryEnd", opts.EndExclusive),
+	}
+
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxAggregateQuery)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	// Get results and set the filters, namespace ID and size limit.
@@ -996,7 +1001,7 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(i.nsMetadata.ID(), aopts)
-	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn)
+	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
 	}
@@ -1012,18 +1017,15 @@ func (i *nsIndex) query(
 	results index.BaseResults,
 	opts index.QueryOptions,
 	execBlockFn execBlockQueryFn,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQueryHelper)
 	sp.LogFields(
-		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("start", opts.StartInclusive),
-		xopentracing.Time("end", opts.EndExclusive),
+		logFields...,
 	)
 	defer sp.Finish()
 
-	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp)
+	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -1038,6 +1040,7 @@ func (i *nsIndex) queryWithSpan(
 	opts index.QueryOptions,
 	execBlockFn execBlockQueryFn,
 	span opentracing.Span,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	// Capture start before needing to acquire lock.
 	start := i.nowFn()
@@ -1111,7 +1114,7 @@ func (i *nsIndex) queryWithSpan(
 			// No timeout, just wait blockingly for a worker.
 			wg.Add(1)
 			i.queryWorkersPool.Go(func() {
-				execBlockFn(ctx, cancellable, block, query, opts, &state, results)
+				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			})
 			continue
@@ -1122,7 +1125,7 @@ func (i *nsIndex) queryWithSpan(
 		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
 			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
-				execBlockFn(ctx, cancellable, block, query, opts, &state, results)
+				execBlockFn(ctx, cancellable, block, query, opts, &state, results, logFields)
 				wg.Done()
 			}, timeLeft)
 
@@ -1195,20 +1198,18 @@ func (i *nsIndex) execBlockQueryFn(
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
+	logFields []opentracinglog.Field,
 ) {
+	logFields = append(logFields, []opentracinglog.Field{
+		xopentracing.Time("blockStart", block.StartTime()),
+		xopentracing.Time("blockEnd", block.EndTime()),
+	}...)
+
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
-	sp.LogFields(
-		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("query_start", opts.StartInclusive),
-		xopentracing.Time("query_end", opts.EndExclusive),
-		xopentracing.Time("block_start", block.StartTime()),
-		xopentracing.Time("block_end", block.EndTime()),
-	)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, results)
+	blockExhaustive, err := block.Query(ctx, cancellable, query, opts, results, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in
@@ -1235,17 +1236,15 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,
+	logFields []opentracinglog.Field,
 ) {
+	logFields = append(logFields, []opentracinglog.Field{
+		xopentracing.Time("blockStart", block.StartTime()),
+		xopentracing.Time("blockEnd", block.EndTime()),
+	}...)
+
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQuery)
-	sp.LogFields(
-		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("query_start", opts.StartInclusive),
-		xopentracing.Time("query_end", opts.EndExclusive),
-		xopentracing.Time("block_start", block.StartTime()),
-		xopentracing.Time("block_end", block.EndTime()),
-	)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	aggResults, ok := results.(index.AggregateResults)
@@ -1257,7 +1256,7 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		return
 	}
 
-	blockExhaustive, err := block.Aggregate(ctx, cancellable, opts, aggResults)
+	blockExhaustive, err := block.Aggregate(ctx, cancellable, opts, aggResults, logFields)
 	if err == index.ErrUnableToQueryBlockClosed {
 		// NB(r): Because we query this block outside of the results lock, it's
 		// possible this block may get closed if it slides out of retention, in

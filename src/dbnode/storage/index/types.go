@@ -40,6 +40,8 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
 var (
@@ -307,6 +309,7 @@ type Block interface {
 		query Query,
 		opts QueryOptions,
 		results BaseResults,
+		logFields []opentracinglog.Field,
 	) (exhaustive bool, err error)
 
 	// Aggregate aggregates known tag names/values.
@@ -317,6 +320,7 @@ type Block interface {
 		cancellable *resource.CancellableLifetime,
 		opts QueryOptions,
 		results AggregateResults,
+		logFields []opentracinglog.Field,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block.

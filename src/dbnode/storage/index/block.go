@@ -43,7 +43,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -774,20 +773,13 @@ func (b *block) Query(
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
-	sp.LogFields(
-		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", b.nsMD.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("query_start", opts.StartInclusive),
-		xopentracing.Time("query_end", opts.EndExclusive),
-		xopentracing.Time("block_start", b.StartTime()),
-		xopentracing.Time("block_end", b.EndTime()),
-	)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp)
+	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -802,6 +794,7 @@ func (b *block) queryWithSpan(
 	opts QueryOptions,
 	results BaseResults,
 	sp opentracing.Span,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -919,16 +912,10 @@ func (b *block) Aggregate(
 	cancellable *resource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
-	sp.LogFields(
-		opentracinglog.String("namespace", b.nsMD.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("query_start", opts.StartInclusive),
-		xopentracing.Time("query_end", opts.EndExclusive),
-		xopentracing.Time("block_start", b.StartTime()),
-		xopentracing.Time("block_end", b.EndTime()),
-	)
+	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
