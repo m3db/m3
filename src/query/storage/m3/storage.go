@@ -61,6 +61,17 @@ const (
 	namespaceCoversPartialQueryRange
 )
 
+func (t queryFanoutType) String() string {
+	switch t {
+	case namespaceCoversAllQueryRange:
+		return "coversAllQueryRange"
+	case namespaceCoversPartialQueryRange:
+		return "coversPartialQueryRange"
+	default:
+		return "unknown"
+	}
+}
+
 type m3storage struct {
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
@@ -254,12 +265,13 @@ func (s *m3storage) fetchCompressed(
 	}
 
 	debugLog := s.logger.Check(zapcore.DebugLevel,
-		"query resolved cluster namespaces, will use most granular per result")
+		"query resolved cluster namespace, will use most granular per result")
 	if debugLog != nil {
 		for _, n := range namespaces {
 			debugLog.Write(zap.String("query", query.Raw),
 				zap.Time("start", query.Start),
 				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
 				zap.String("retention", n.Options().Attributes().Retention.String()),
