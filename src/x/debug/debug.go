@@ -26,6 +26,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+	"go.uber.org/zap"
 )
 
 // Source provides functions for fetching debug information from a single debug source.
@@ -49,13 +53,15 @@ type ZipWriter interface {
 
 type zipWriter struct {
 	sources map[string]Source
+	logger  *zap.Logger
 }
 
 // NewZipWriter returns an instance of an ZipWriter. The passed prefix
 // indicates the folder where to save the zip files.
-func NewZipWriter() ZipWriter {
+func NewZipWriter(iopts instrument.Options) ZipWriter {
 	return &zipWriter{
 		sources: make(map[string]Source),
+		logger:  iopts.Logger(),
 	}
 }
 
@@ -90,13 +96,14 @@ func (i *zipWriter) WriteZip(w io.Writer) error {
 
 func (i *zipWriter) HTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		errMsg := "Unable to write ZIP file:"
 		buf := bytes.NewBuffer([]byte{})
 		if err := i.WriteZip(buf); err != nil {
-			http.Error(w, fmt.Sprintf("%s: %s", errMsg, err), http.StatusInternalServerError)
+			xhttp.Error(w, fmt.Errorf("unable to write ZIP file: %s", err), http.StatusInternalServerError)
+			return
 		}
 		if _, err := io.Copy(w, buf); err != nil {
-			http.Error(w, fmt.Sprintf("%s: %s", errMsg, err), http.StatusInternalServerError)
+			i.logger.Error("unable to write ZIP response", zap.Error(err))
+			return
 		}
 	})
 }

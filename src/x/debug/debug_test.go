@@ -29,6 +29,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +49,7 @@ func (f *fakeSource) Write(w io.Writer) error {
 }
 
 func TestWriteZip(t *testing.T) {
-	zipWriter := NewZipWriter()
+	zipWriter := NewZipWriter(instrument.NewOptions())
 	fs1 := &fakeSource{
 		content: "content1",
 	}
@@ -94,7 +95,7 @@ func TestWriteZip(t *testing.T) {
 }
 
 func TestWriteZipErr(t *testing.T) {
-	zipWriter := NewZipWriter()
+	zipWriter := NewZipWriter(instrument.NewOptions())
 	fs := &fakeSource{
 		shouldErr: true,
 	}
@@ -106,7 +107,7 @@ func TestWriteZipErr(t *testing.T) {
 }
 
 func TestRegisterSourceSameName(t *testing.T) {
-	zipWriter := NewZipWriter()
+	zipWriter := NewZipWriter(instrument.NewOptions())
 	fs := &fakeSource{}
 	err := zipWriter.RegisterSource("test", fs)
 	require.NoError(t, err)
@@ -118,7 +119,7 @@ func TestHTTPEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
 	path := "/debug/dump"
 
-	zw := NewZipWriter()
+	zw := NewZipWriter(instrument.NewOptions())
 	fs1 := &fakeSource{
 		content: "test",
 	}
@@ -146,6 +147,7 @@ func TestHTTPEndpoint(t *testing.T) {
 		n, err := rr.Body.Read(rawResponse)
 		require.NoError(t, err)
 		require.NotZero(t, n)
+		require.Equal(t, rr.Code, http.StatusOK)
 
 		bytesReader := bytes.NewReader(rawResponse)
 		zipReader, err := zip.NewReader(bytesReader, int64(bytesReader.Len()))
