@@ -30,10 +30,11 @@ import (
 
 // ClusterConfig is the config for a zoned etcd cluster.
 type ClusterConfig struct {
-	Zone      string           `yaml:"zone"`
-	Endpoints []string         `yaml:"endpoints"`
-	KeepAlive *keepAliveConfig `yaml:"keepAlive"`
-	TLS       *TLSConfig       `yaml:"tls"`
+	Zone             string           `yaml:"zone"`
+	Endpoints        []string         `yaml:"endpoints"`
+	KeepAlive        *keepAliveConfig `yaml:"keepAlive"`
+	TLS              *TLSConfig       `yaml:"tls"`
+	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
 }
 
 // NewCluster creates a new Cluster.
@@ -46,7 +47,8 @@ func (c ClusterConfig) NewCluster() Cluster {
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
 		SetKeepAliveOptions(keepAliveOpts).
-		SetTLSOptions(c.TLS.newOptions())
+		SetTLSOptions(c.TLS.newOptions()).
+		SetAutoSyncInterval(c.AutoSyncInterval)
 }
 
 // TLSConfig is the config for TLS.
