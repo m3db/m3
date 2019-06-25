@@ -601,6 +601,7 @@ func TestConfiguration(t *testing.T) {
         - 1.1.1.3:2379
         keepAlive: null
         tls: null
+        autoSyncInterval: 0s
       m3sd:
         initTimeout: null
       watchWithRevision: 0
