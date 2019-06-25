@@ -47,6 +47,8 @@ markdown_extensions:
   - pymdownx.magiclink
   - pymdownx.mark
   - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
   - pymdownx.superfences
   - pymdownx.tasklist:
       custom_checkbox: true
@@ -69,7 +71,11 @@ pages:
       - "Commit Logs": "m3db/architecture/commitlogs.md"
       - "Peer Streaming": "m3db/architecture/peer_streaming.md"
       - "Caching": "m3db/architecture/caching.md"
-  - "Query Engine and Coordinator":
+  - "Coordinator":
+    - "Introduction": "coordinator/index.md"
+    - "API":
+      - "Prometheus Remote Read/Write": "coordinator/api/remote.md"
+  - "Query Engine":
     - "Introduction": "query_engine/index.md"
     - "API":
       - "Query": "query_engine/api/index.md"
