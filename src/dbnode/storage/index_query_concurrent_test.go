@@ -37,10 +37,10 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
-	opentracinglog "github.com/opentracing/opentracing-go/log"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/stretchr/testify/require"
 )
 
