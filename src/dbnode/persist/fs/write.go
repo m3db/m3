@@ -71,6 +71,7 @@ type writer struct {
 	indexEntries               indexEntries
 
 	start        time.Time
+	volumeIndex  int
 	snapshotTime time.Time
 	snapshotID   uuid.UUID
 
@@ -149,11 +150,13 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		namespace       = opts.Identifier.Namespace
 		shard           = opts.Identifier.Shard
 		blockStart      = opts.Identifier.BlockStart
+		volumeIndex     = opts.Identifier.VolumeIndex
 		nextVolumeIndex = opts.Identifier.VolumeIndex
 	)
 
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
+	w.volumeIndex = volumeIndex
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.snapshotID = opts.Snapshot.SnapshotID
 	w.currIdx = 0
@@ -533,6 +536,7 @@ func (w *writer) writeInfoFileContents(
 
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
+		VolumeIndex:  w.volumeIndex,
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),

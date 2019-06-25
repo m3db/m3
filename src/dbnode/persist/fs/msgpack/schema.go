@@ -99,7 +99,7 @@ const (
 	// correct number of fields is encoded into the files. These values need
 	// to be incremened whenever we add new fields to an object.
 	currNumRootObjectFields           = 2
-	currNumIndexInfoFields            = 9
+	currNumIndexInfoFields            = 10
 	currNumIndexSummariesInfoFields   = 1
 	currNumIndexBloomFilterInfoFields = 2
 	currNumIndexEntryFields           = 6
