@@ -16,7 +16,7 @@ Write a Prometheus Remote write query to M3.
 
 ### URL Params
 
-None
+None.
 
 ### Header Params
 
@@ -28,7 +28,7 @@ docs/common/headers_optional_read_write.md
 
 ### Data Params
 
-Snappy compressed Prometheus WriteRequest protobuf message.
+Binary [snappy compressed](https://en.wikipedia.org/wiki/Snappy_(compression)) Prometheus [WriteRequest protobuf message](https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L22).
 
 ### Sample Call
 
