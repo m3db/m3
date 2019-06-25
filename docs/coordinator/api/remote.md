@@ -57,6 +57,11 @@ docker run -it --rm                                            \
   -t handler:graph                                             \
   -t method:get                                                \
   -d $(date +"%s"),123.456
+promremotecli_log 2019/06/25 04:13:56 writing datapoint [2019-06-25 04:13:55 +0000 UTC 123.456]
+promremotecli_log 2019/06/25 04:13:56 labelled [[__name__ http_requests_total] [code 200] [handler graph] [method get]]
+promremotecli_log 2019/06/25 04:13:56 writing to http://host.docker.internal:7201/api/v1/prom/remote/write
+{"success":true,"statusCode":200}
+promremotecli_log 2019/06/25 04:13:56 write success
 
 # You can also use the following docker image for paranoia about the image being published:
 # quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
