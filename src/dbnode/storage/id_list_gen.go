@@ -307,7 +307,8 @@ func (l *idList) PushFrontList(other *idList) {
 
 // Reset resets list l for reuse and puts all elements back into the pool.
 func (l *idList) Reset() {
-	for e := l.Back(); e != nil; l.Remove(e) {
+	for e := l.Back(); e != nil; e = l.Back() {
+		l.Remove(e)
 	}
 }
 
