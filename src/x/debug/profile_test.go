@@ -60,7 +60,6 @@ func TestProfileSources(t *testing.T) {
 				err = goProfSource.Write(buf)
 				require.NoError(t, err)
 				require.NotZero(t, buf.Len())
-				fmt.Printf("%s\n", buf.String())
 			}
 		}
 	})
