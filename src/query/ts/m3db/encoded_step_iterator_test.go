@@ -361,6 +361,9 @@ func BenchmarkSingleBlockSerialll(b *testing.B) {
 type noopCollector struct{}
 
 func (n noopCollector) AddPoint(dp ts.Datapoint) {}
+func (n noopCollector) BufferStep()              {}
+func (n noopCollector) BufferStepCount() int     { return 0 }
+func (n noopCollector) BufferReset()             {}
 
 func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 	ctrl := gomock.NewController(b)
