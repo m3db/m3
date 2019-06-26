@@ -42,7 +42,7 @@ func TestContextWithID(t *testing.T) {
 	assert.Equal(t, undefinedID, ReadContextID(ctx))
 
 	id := "cool id"
-	ctx = NewContextWithID(ctx, instrument.NewOptions(), id)
+	ctx = NewContextWithID(ctx, id, instrument.NewOptions())
 	assert.Equal(t, id, ReadContextID(ctx))
 }
 

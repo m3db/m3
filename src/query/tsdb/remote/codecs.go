@@ -245,7 +245,7 @@ func retrieveMetadata(
 		}
 	}
 
-	return logging.NewContextWithID(streamCtx, instrumentOpts, id)
+	return logging.NewContextWithID(streamCtx, id, instrumentOpts)
 }
 
 func decodeFetchRequest(

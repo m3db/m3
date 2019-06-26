@@ -72,14 +72,14 @@ func NewContextWithGeneratedID(
 ) context.Context {
 	// Attach a rqID with all logs so that its simple to trace the whole call stack
 	rqID := uuid.NewRandom()
-	return NewContextWithID(ctx, instrumentOpts, rqID.String())
+	return NewContextWithID(ctx, rqID.String(), instrumentOpts)
 }
 
 // NewContextWithID returns a context which has a zap logger and an id field.
 func NewContextWithID(
 	ctx context.Context,
-	instrumentOpts instrument.Options,
 	id string,
+	instrumentOpts instrument.Options,
 ) context.Context {
 	ctxWithID := context.WithValue(ctx, rqIDKey, id)
 	return context.WithValue(ctxWithID, loggerKey,
