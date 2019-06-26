@@ -248,7 +248,6 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	r.open = true
 	r.namespace = namespace
 	r.shard = shard
-	r.volume = volumeIndex
 
 	return nil
 }
@@ -296,6 +295,7 @@ func (r *reader) readInfo(size int) error {
 		return err
 	}
 	r.start = xtime.FromNanoseconds(info.BlockStart)
+	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0

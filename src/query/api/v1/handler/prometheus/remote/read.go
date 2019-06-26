@@ -55,6 +55,7 @@ type PromReadHandler struct {
 	promReadMetrics     promReadMetrics
 	timeoutOpts         *prometheus.TimeoutOpts
 	fetchOptionsBuilder handler.FetchOptionsBuilder
+	keepEmpty           bool
 }
 
 // NewPromReadHandler returns a new instance of handler.
@@ -63,12 +64,14 @@ func NewPromReadHandler(
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	scope tally.Scope,
 	timeoutOpts *prometheus.TimeoutOpts,
+	keepEmpty bool,
 ) http.Handler {
 	return &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     newPromReadMetrics(scope),
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: fetchOptionsBuilder,
+		keepEmpty:           keepEmpty,
 	}
 }
 
@@ -203,7 +206,7 @@ func (h *PromReadHandler) read(
 			return nil, result.Err
 		}
 
-		promRes := storage.FetchResultToPromResult(result.FetchResult)
+		promRes := storage.FetchResultToPromResult(result.FetchResult, h.keepEmpty)
 		promResults = append(promResults, promRes)
 	}
 
