@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ import (
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	handler := NewRenderHandler(mockStorage,
-		models.QueryContextOptions{}, nil)
+		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, newGraphiteReadHTTPRequest(t))
@@ -53,7 +54,7 @@ func TestParseQueryNoResults(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchResult(&storage.FetchResult{}, nil)
 	handler := NewRenderHandler(mockStorage,
-		models.QueryContextOptions{}, nil)
+		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=-2h&until=now"
@@ -85,7 +86,7 @@ func TestParseQueryResults(t *testing.T) {
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
 	handler := NewRenderHandler(mockStorage,
-		models.QueryContextOptions{}, nil)
+		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
@@ -127,7 +128,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
 	handler := NewRenderHandler(mockStorage,
-		models.QueryContextOptions{}, nil)
+		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=" + startStr + "&until=" + endStr + "&maxDataPoints=1"
@@ -163,7 +164,7 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 
 	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
 	handler := NewRenderHandler(mockStorage,
-		models.QueryContextOptions{}, nil)
+		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=baz.qux&from=%d&until=%d",

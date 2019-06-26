@@ -73,7 +73,7 @@ func NewGetHandler(opts HandlerOptions) *GetHandler {
 func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
 	)
 
 	placement, badRequest, err := h.Get(serviceName, r)
@@ -116,9 +116,9 @@ func (h *GetHandler) Get(
 	}
 
 	opts := handler.NewServiceOptions(
-		serviceName, headers, h.M3AggServiceOptions)
+		serviceName, headers, h.m3AggServiceOptions)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
+	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		return nil, false, err
 	}

@@ -2,6 +2,9 @@ listenAddress:
   type: "config"
   value: "0.0.0.0:7202"
 
+logging:
+  level: info
+
 metrics:
   scope:
     prefix: "coordinator"

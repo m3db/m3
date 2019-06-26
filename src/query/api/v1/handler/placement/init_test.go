@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -69,12 +70,11 @@ func TestPlacementInitHandler(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
-			handler = NewInitHandler(handlerOpts)
-		)
+		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+		handlerOpts, err := NewHandlerOptions(
+			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+		require.NoError(t, err)
+		handler := NewInitHandler(handlerOpts)
 
 		// Test placement init success
 		var (

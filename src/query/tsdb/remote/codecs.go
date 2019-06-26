@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"google.golang.org/grpc/metadata"
 )
@@ -231,7 +232,10 @@ func convertHeaderToMetaWithID(headers http.Header, requestID string) metadata.M
 }
 
 // creates a context with propagated request metadata as well as requestID
-func retrieveMetadata(streamCtx context.Context) context.Context {
+func retrieveMetadata(
+	streamCtx context.Context,
+	instrumentOpts instrument.Options,
+) context.Context {
 	md, ok := metadata.FromIncomingContext(streamCtx)
 	id := "unknown"
 	if ok {
@@ -241,7 +245,7 @@ func retrieveMetadata(streamCtx context.Context) context.Context {
 		}
 	}
 
-	return logging.NewContextWithID(streamCtx, id)
+	return logging.NewContextWithID(streamCtx, instrumentOpts, id)
 }
 
 func decodeFetchRequest(

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
@@ -55,20 +56,22 @@ type PromReadHandler struct {
 	promReadMetrics     promReadMetrics
 	timeoutOpts         *prometheus.TimeoutOpts
 	fetchOptionsBuilder handler.FetchOptionsBuilder
+	instrumentOpts      instrument.Options
 }
 
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
 	engine executor.Engine,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	scope tally.Scope,
 	timeoutOpts *prometheus.TimeoutOpts,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &PromReadHandler{
 		engine:              engine,
-		promReadMetrics:     newPromReadMetrics(scope),
+		promReadMetrics:     newPromReadMetrics(instrumentOpts.MetricsScope()),
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: fetchOptionsBuilder,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
@@ -92,7 +95,7 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	req, rErr := h.parseRequest(r)
 
@@ -194,7 +197,7 @@ func (h *PromReadHandler) read(
 		}}
 
 	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w)
+	handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
 	go h.engine.Execute(ctx, query, queryOpts, results)
 
 	promResults := make([]*prompb.QueryResult, 0, 1)

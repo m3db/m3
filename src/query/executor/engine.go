@@ -58,7 +58,7 @@ func NewEngine(
 	}
 
 	return &engine{
-		metrics: newEngineMetrics(engineOpts.CostScope()),
+		metrics: newEngineMetrics(engineOpts.InstrumentOptions().MetricsScope()),
 		opts:    engineOpts,
 	}
 }
@@ -141,7 +141,7 @@ func (e *engine) ExecuteExpr(
 
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
-	req := newRequest(e, params)
+	req := newRequest(e, params, e.opts.InstrumentOptions())
 
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
@@ -168,7 +168,8 @@ func (e *engine) ExecuteExpr(
 	result := state.resultNode
 	results <- Query{Result: result}
 
-	queryCtx := models.NewQueryContext(ctx, e.opts.CostScope(), perQueryEnforcer,
+	scope := e.opts.InstrumentOptions().MetricsScope()
+	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
 		opts.QueryContextOptions)
 	if err := state.Execute(queryCtx); err != nil {
 		result.abort(err)

@@ -25,12 +25,11 @@ import (
 
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/storage"
-
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type engineOptions struct {
-	costScope        tally.Scope
+	instrumentOpts   instrument.Options
 	globalEnforcer   qcost.ChainedEnforcer
 	store            storage.Storage
 	lookbackDuration time.Duration
@@ -41,13 +40,13 @@ func NewEngineOpts() EngineOptions {
 	return &engineOptions{}
 }
 
-func (o *engineOptions) CostScope() tally.Scope {
-	return o.costScope
+func (o *engineOptions) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
-func (o *engineOptions) SetCostScope(v tally.Scope) EngineOptions {
+func (o *engineOptions) SetInstrumentOptions(v instrument.Options) EngineOptions {
 	opts := *o
-	opts.costScope = v
+	opts.instrumentOpts = v
 	return &opts
 }
 

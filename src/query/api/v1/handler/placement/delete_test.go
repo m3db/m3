@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -45,7 +46,9 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
-		handler := NewDeleteHandler(NewHandlerOptions(mockClient, config.Configuration{}, nil))
+		handlerOpts, err := NewHandlerOptions(mockClient,
+			config.Configuration{}, nil, instrument.NewOptions())
+		handler := NewDeleteHandler(handlerOpts)
 
 		// Test remove success
 		w := httptest.NewRecorder()
@@ -89,16 +92,18 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+	handlerOpts, err := NewHandlerOptions(
+		mockClient,
+		config.Configuration{},
+		&apihandler.M3AggServiceOptions{
+			WarmupDuration:           time.Minute,
+			MaxAggregationWindowSize: 5 * time.Minute,
+		},
+		instrument.NewOptions())
+	require.NoError(t, err)
+
 	var (
-		mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-		handlerOpts                      = NewHandlerOptions(
-			mockClient,
-			config.Configuration{},
-			&apihandler.M3AggServiceOptions{
-				WarmupDuration:           time.Minute,
-				MaxAggregationWindowSize: 5 * time.Minute,
-			},
-		)
 		handler = NewDeleteHandler(handlerOpts)
 
 		basePlacement = placement.NewPlacement().

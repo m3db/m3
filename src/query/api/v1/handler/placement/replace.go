@@ -65,7 +65,7 @@ func NewReplaceHandler(opts HandlerOptions) *ReplaceHandler {
 
 func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOptions)
 
 	req, pErr := h.parseRequest(r)
 	if pErr != nil {
@@ -121,8 +121,8 @@ func (h *ReplaceHandler) Replace(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), nil)
+	serviceOpts := handler.NewServiceOptions(serviceName, httpReq.Header, h.m3AggServiceOptions)
+	service, algo, err := ServiceWithAlgo(h.clusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

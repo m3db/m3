@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -45,6 +46,7 @@ func read(
 	tagOpts models.TagOptions,
 	w http.ResponseWriter,
 	params models.RequestParams,
+	instrumentOpts instrument.Options,
 ) ([]*ts.Series, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
@@ -59,7 +61,7 @@ func read(
 	)
 
 	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w)
+	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
 
 	// TODO: Capture timing
 	parser, err := promql.Parse(params.Query, tagOpts)

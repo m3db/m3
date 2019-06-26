@@ -76,13 +76,13 @@ func TestBaseWithB0(t *testing.T) {
 		processorFn:  processor{},
 	}
 
-	node := baseOp.Node(c, transform.Options{
+	node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart,
 			End:   boundStart.Add(time.Hour),
 			Step:  time.Second,
 		},
-	})
+	}))
 	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2)
@@ -92,13 +92,13 @@ func TestBaseWithB0(t *testing.T) {
 	assert.True(t, exists, "block cached since the query end is larger")
 
 	c, _ = executor.NewControllerWithSink(parser.NodeID(1))
-	node = baseOp.Node(c, transform.Options{
+	node = baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart,
 			End:   bounds.End(),
 			Step:  time.Second,
 		},
-	})
+	}))
 
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -107,13 +107,13 @@ func TestBaseWithB0(t *testing.T) {
 	assert.False(t, exists, "block not cached since no other blocks left to process")
 
 	c, _ = executor.NewControllerWithSink(parser.NodeID(1))
-	node = baseOp.Node(c, transform.Options{
+	node = baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart.Add(bounds.StepSize),
 			End:   bounds.End().Add(-1 * bounds.StepSize),
 			Step:  time.Second,
 		},
-	})
+	}))
 
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestBaseWithB0(t *testing.T) {
 }
 
 func TestBaseWithB1B0(t *testing.T) {
-	tc := setup(2, 5*time.Minute, 1)
+	tc := setup(t, 2, 5*time.Minute, 1)
 
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestBaseWithB1B0(t *testing.T) {
 }
 
 func TestBaseWithB0B1(t *testing.T) {
-	tc := setup(2, 5*time.Minute, 1)
+	tc := setup(t, 2, 5*time.Minute, 1)
 
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
 	require.NoError(t, err)
@@ -157,7 +157,7 @@ func TestBaseWithB0B1(t *testing.T) {
 }
 
 func TestBaseWithB0B1B2(t *testing.T) {
-	tc := setup(3, 5*time.Minute, 2)
+	tc := setup(t, 3, 5*time.Minute, 2)
 
 	// B0 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
@@ -179,7 +179,7 @@ func TestBaseWithB0B1B2(t *testing.T) {
 }
 
 func TestBaseWithB0B2B1(t *testing.T) {
-	tc := setup(3, 5*time.Minute, 2)
+	tc := setup(t, 3, 5*time.Minute, 2)
 
 	// B0 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
@@ -201,7 +201,7 @@ func TestBaseWithB0B2B1(t *testing.T) {
 }
 
 func TestBaseWithB1B0B2(t *testing.T) {
-	tc := setup(3, 5*time.Minute, 2)
+	tc := setup(t, 3, 5*time.Minute, 2)
 
 	// B1 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
@@ -223,7 +223,7 @@ func TestBaseWithB1B0B2(t *testing.T) {
 }
 
 func TestBaseWithB1B2B0(t *testing.T) {
-	tc := setup(3, 5*time.Minute, 2)
+	tc := setup(t, 3, 5*time.Minute, 2)
 
 	// B1 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[1])
@@ -245,7 +245,7 @@ func TestBaseWithB1B2B0(t *testing.T) {
 }
 
 func TestBaseWithB2B0B1(t *testing.T) {
-	tc := setup(3, 5*time.Minute, 2)
+	tc := setup(t, 3, 5*time.Minute, 2)
 
 	// B2 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
@@ -267,7 +267,7 @@ func TestBaseWithB2B0B1(t *testing.T) {
 }
 
 func TestBaseWithB2B1B0(t *testing.T) {
-	tc := setup(3, 5*time.Minute, 2)
+	tc := setup(t, 3, 5*time.Minute, 2)
 
 	// B2 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[2])
@@ -289,7 +289,7 @@ func TestBaseWithB2B1B0(t *testing.T) {
 }
 
 func TestBaseWithSize3B0B1B2B3B4(t *testing.T) {
-	tc := setup(5, 15*time.Minute, 4)
+	tc := setup(t, 5, 15*time.Minute, 4)
 
 	// B0 arrives
 	err := tc.Node.Process(models.NoopQueryContext(), parser.NodeID(0), tc.Blocks[0])
@@ -329,7 +329,12 @@ type testContext struct {
 	Node   *baseNode
 }
 
-func setup(numBlocks int, duration time.Duration, nextBound int) *testContext {
+func setup(
+	t *testing.T,
+	numBlocks int,
+	duration time.Duration,
+	nextBound int,
+) *testContext {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, numBlocks)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
@@ -338,13 +343,13 @@ func setup(numBlocks int, duration time.Duration, nextBound int) *testContext {
 		duration:     duration,
 		processorFn:  processor{},
 	}
-	node := baseOp.Node(c, transform.Options{
+	node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: bounds.Start,
 			End:   bounds.Next(nextBound).End(),
 			Step:  time.Second,
 		},
-	})
+	}))
 	return &testContext{
 		Bounds: bounds,
 		Blocks: blocks,
@@ -356,7 +361,7 @@ func setup(numBlocks int, duration time.Duration, nextBound int) *testContext {
 // TestBaseWithDownstreamError checks that we handle errors from blocks correctly
 func TestBaseWithDownstreamError(t *testing.T) {
 	numBlocks := 2
-	tc := setup(numBlocks, 5*time.Minute, 1)
+	tc := setup(t, numBlocks, 5*time.Minute, 1)
 
 	testErr := errors.New("test err")
 	errBlock := blockWithDownstreamErr{Block: tc.Blocks[1], Err: testErr}
@@ -399,7 +404,7 @@ func (mbuc unconsolidatedBlockWithSeriesIterErr) SeriesIter() (block.Unconsolida
 // End types for TestBaseWithDownstreamError
 
 func TestBaseClosesBlocks(t *testing.T) {
-	tc := setup(1, 5*time.Minute, 1)
+	tc := setup(t, 1, 5*time.Minute, 1)
 
 	ctrl := gomock.NewController(t)
 	builderCtx := setupCloseableBlock(ctrl, tc.Node)
@@ -413,7 +418,7 @@ func TestBaseClosesBlocks(t *testing.T) {
 
 func TestProcessCompletedBlocks_ClosesBlocksOnError(t *testing.T) {
 	numBlocks := 2
-	tc := setup(numBlocks, 5*time.Minute, 1)
+	tc := setup(t, numBlocks, 5*time.Minute, 1)
 	ctrl := gomock.NewController(t)
 	setupCloseableBlock(ctrl, tc.Node)
 
@@ -543,13 +548,13 @@ func TestSingleProcessRequest(t *testing.T) {
 		processorFn:  processor{},
 	}
 
-	node := baseOp.Node(c, transform.Options{
+	node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart.Add(-2 * bounds.Duration),
 			End:   bounds.End(),
 			Step:  time.Second,
 		},
-	})
+	}))
 	bNode := node.(*baseNode)
 	request := processRequest{
 		blk:      block2,

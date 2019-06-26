@@ -78,13 +78,13 @@ func TestOffsetFetch(t *testing.T) {
 
 	now := time.Now()
 	start := now.Add(time.Hour * -1)
-	opts := transform.Options{
+	opts := test.TransformOptions(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: start,
 			End:   now,
 			Now:   now,
 		},
-	}
+	})
 
 	qMatcher := &predicateMatcher{
 		name: "query",

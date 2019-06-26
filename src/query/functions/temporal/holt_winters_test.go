@@ -88,13 +88,13 @@ func testHoltWinters(t *testing.T, testCases []testCase, vals [][]float64) {
 
 			baseOp, err := NewHoltWintersOp([]interface{}{5 * time.Minute, 0.2, 0.7})
 			require.NoError(t, err)
-			node := baseOp.Node(c, transform.Options{
+			node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
 				TimeSpec: transform.TimeSpec{
 					Start: boundStart.Add(-2 * bounds.Duration),
 					End:   bounds.End(),
 					Step:  time.Second,
 				},
-			})
+			}))
 			bNode := node.(*baseNode)
 			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block3)
 			require.NoError(t, err)
