@@ -165,13 +165,16 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
 	// Wrap requests with response time logging as well as panic recovery.
-	wrapped := func(n http.Handler) http.Handler {
-		return logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts)
-	}
-	panicOnly := func(n http.Handler) http.Handler {
-		return logging.WithPanicErrorResponder(n, h.instrumentOpts)
-	}
-	nowFn := time.Now
+	var (
+		wrapped = func(n http.Handler) http.Handler {
+			return logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts)
+		}
+		panicOnly = func(n http.Handler) http.Handler {
+			return logging.WithPanicErrorResponder(n, h.instrumentOpts)
+		}
+		nowFn    = time.Now
+		keepNans = h.config.ResultOptions.KeepNans
+	)
 
 	h.router.HandleFunc(openapi.URL,
 		wrapped(openapi.NewDocHandler(h.instrumentOpts)).ServeHTTP,
@@ -183,7 +186,7 @@ func (h *Handler) RegisterRoutes() error {
 		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(remoteSource))
 
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
-		h.fetchOptionsBuilder, h.timeoutOpts, remoteSourceInstrumentOpts)
+		h.fetchOptionsBuilder, h.timeoutOpts, remoteSourceInstrumentOpts, keepNans)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.downsamplerAndWriter,
 		h.tagOptions, nowFn, remoteSourceInstrumentOpts)
 	if err != nil {
@@ -194,7 +197,7 @@ func (h *Handler) RegisterRoutes() error {
 		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(nativeSource))
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
-		h.timeoutOpts, h.config.ResultOptions.KeepNans, nativeSourceInstrumentOpts)
+		h.timeoutOpts, keepNans, nativeSourceInstrumentOpts)
 
 	h.router.HandleFunc(remote.PromReadURL,
 		wrapped(promRemoteReadHandler).ServeHTTP,
