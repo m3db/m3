@@ -22,7 +22,6 @@ package debug
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
