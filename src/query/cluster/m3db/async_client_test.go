@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -36,8 +35,6 @@ import (
 )
 
 func SetupAsyncClientTest(t *testing.T) (*client.MockClient, *services.MockServices) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := client.NewMockClient(ctrl)

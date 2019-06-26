@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
 	"github.com/m3db/m3/src/query/ts"
 
 	"github.com/golang/mock/gomock"
@@ -76,7 +77,7 @@ func TestBaseWithB0(t *testing.T) {
 		processorFn:  processor{},
 	}
 
-	node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart,
 			End:   boundStart.Add(time.Hour),
@@ -92,7 +93,7 @@ func TestBaseWithB0(t *testing.T) {
 	assert.True(t, exists, "block cached since the query end is larger")
 
 	c, _ = executor.NewControllerWithSink(parser.NodeID(1))
-	node = baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
+	node = baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart,
 			End:   bounds.End(),
@@ -107,7 +108,7 @@ func TestBaseWithB0(t *testing.T) {
 	assert.False(t, exists, "block not cached since no other blocks left to process")
 
 	c, _ = executor.NewControllerWithSink(parser.NodeID(1))
-	node = baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
+	node = baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart.Add(bounds.StepSize),
 			End:   bounds.End().Add(-1 * bounds.StepSize),
@@ -343,7 +344,7 @@ func setup(
 		duration:     duration,
 		processorFn:  processor{},
 	}
-	node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: bounds.Start,
 			End:   bounds.Next(nextBound).End(),
@@ -548,7 +549,7 @@ func TestSingleProcessRequest(t *testing.T) {
 		processorFn:  processor{},
 	}
 
-	node := baseOp.Node(c, test.TransformOptions(t, transform.OptionsParams{
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart.Add(-2 * bounds.Duration),
 			End:   bounds.End(),

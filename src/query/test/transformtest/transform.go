@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package test
+package transformtest
 
 import (
 	"testing"
@@ -29,9 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TransformOptions returns a valid transform options from
+// Options returns a valid transform options from
 // a set of options params.
-func TransformOptions(
+func Options(
 	t *testing.T,
 	p transform.OptionsParams,
 ) transform.Options {
