@@ -69,9 +69,9 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
-	opts := pool.NewObjectPoolOptions().SetSize(defaultBatchPoolSize)
-	batchPool := pool.NewObjectPool(opts)
-	batchPool.Init(func() interface{})
+	// opts := pool.NewObjectPoolOptions().SetSize(64)
+	// batchPool := pool.NewObjectPool(opts)
+	// batchPool.Init(func() interface{})
 
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,

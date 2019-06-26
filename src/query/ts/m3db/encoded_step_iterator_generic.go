@@ -164,7 +164,7 @@ func (it *encodedStepIterWithCollector) nextParallelBatched() error {
 	batch := it.batchSize
 	count := int(math.Ceil(float64(len(it.seriesIters)) / float64(batch)))
 	it.wg.Add(count)
-	for i := 0; i < count range it.seriesIters {
+	for i := range it.seriesIters {
 		var (
 			i         = i
 			peek      = it.seriesPeek[i]
