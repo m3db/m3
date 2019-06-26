@@ -186,7 +186,7 @@ func (h *Handler) RegisterRoutes() error {
 		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(remoteSource))
 
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
-		h.fetchOptionsBuilder, h.timeoutOpts, remoteSourceInstrumentOpts, keepNans)
+		h.fetchOptionsBuilder, h.timeoutOpts, keepNans, remoteSourceInstrumentOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.downsamplerAndWriter,
 		h.tagOptions, nowFn, remoteSourceInstrumentOpts)
 	if err != nil {
