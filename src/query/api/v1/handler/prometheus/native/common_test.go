@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -63,56 +64,60 @@ func defaultParams() url.Values {
 }
 
 func TestParamParsing(t *testing.T) {
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req := httptest.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, err := parseParams(req, timeoutOpts)
+	r, err := parseParams(req, timeoutOpts, instrument.NewOptions())
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
 
 func TestInstantaneousParamParsing(t *testing.T) {
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req := httptest.NewRequest("GET", PromReadURL, nil)
 	params := url.Values{}
 	now := time.Now()
 	params.Add(queryParam, promQuery)
 	params.Add(timeParam, now.Format(time.RFC3339))
 	req.URL.RawQuery = params.Encode()
 
-	r, err := parseInstantaneousParams(req, timeoutOpts)
+	r, err := parseInstantaneousParams(req, timeoutOpts,
+		instrument.NewOptions())
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
 
 func TestInvalidStart(t *testing.T) {
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req := httptest.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
 	vals.Del(startParam)
 	req.URL.RawQuery = vals.Encode()
-	_, err := parseParams(req, timeoutOpts)
+	_, err := parseParams(req, timeoutOpts,
+		instrument.NewOptions())
 	require.NotNil(t, err, "unable to parse request")
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestInvalidTarget(t *testing.T) {
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req := httptest.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
 	vals.Del(queryParam)
 	req.URL.RawQuery = vals.Encode()
 
-	p, err := parseParams(req, timeoutOpts)
+	p, err := parseParams(req, timeoutOpts,
+		instrument.NewOptions())
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestInvalidStep(t *testing.T) {
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req := httptest.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
 	vals.Del(stepParam)
 	vals.Add(stepParam, "-10.50s")
 	req.URL.RawQuery = vals.Encode()
-	_, err := parseParams(req, timeoutOpts)
+	_, err := parseParams(req, timeoutOpts,
+		instrument.NewOptions())
 	require.NotNil(t, err, "unable to parse request")
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
@@ -132,7 +137,7 @@ func TestParseFloatDuration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 10*time.Minute+30*time.Second, v)
 
-	r, err = http.NewRequest(http.MethodGet, "/foo?step=10.00m", nil)
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=10.00m", nil)
 	require.NoError(t, err)
 	v, err = parseDuration(r, stepParam)
 	require.NoError(t, err)
@@ -170,31 +175,29 @@ func TestParseDurationOverflowError(t *testing.T) {
 }
 
 func TestParseBlockType(t *testing.T) {
-	logging.InitWithCores(nil)
+	r := httptest.NewRequest(http.MethodGet, "/foo", nil)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
+		instrument.NewOptions()))
 
-	r, err := http.NewRequest(http.MethodGet, "/foo", nil)
-	require.NoError(t, err)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=0", nil)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
+		instrument.NewOptions()))
 
-	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=0", nil)
-	require.NoError(t, err)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
+	assert.Equal(t, models.TypeMultiBlock, parseBlockType(r,
+		instrument.NewOptions()))
 
-	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
-	require.NoError(t, err)
-	assert.Equal(t, models.TypeMultiBlock, parseBlockType(r))
+	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
+	assert.Equal(t, models.TypeDecodedBlock, parseBlockType(r,
+		instrument.NewOptions()))
 
-	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
-	require.NoError(t, err)
-	assert.Equal(t, models.TypeDecodedBlock, parseBlockType(r))
+	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
+		instrument.NewOptions()))
 
-	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
-	require.NoError(t, err)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
-
-	r, err = http.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
-	require.NoError(t, err)
-	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r))
+	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
+		instrument.NewOptions()))
 }
 
 func TestRenderResultsJSON(t *testing.T) {

@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -39,16 +40,12 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestPromReadHandler_Read(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
@@ -60,11 +57,11 @@ func TestPromReadHandler_Read(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, parseErr := parseParams(req, timeoutOpts)
+	r, parseErr := parseParams(req, timeoutOpts, instrument.NewOptions())
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
 	seriesList, err := read(context.TODO(), promRead.engine, setup.QueryOpts,
-		promRead.tagOpts, httptest.NewRecorder(), r)
+		promRead.tagOpts, httptest.NewRecorder(), r, instrument.NewOptions())
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
@@ -83,8 +80,6 @@ type M3QLResp []struct {
 }
 
 func TestPromReadHandler_ReadM3QL(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
@@ -134,9 +129,12 @@ type testSetupHandlers struct {
 func newTestSetup() *testSetup {
 	mockStorage := mock.NewMockStorage()
 
-	scope := tally.NoopScope
-	engineOpts := executor.NewEngineOpts().SetStore(mockStorage).SetCostScope(scope).
-		SetLookbackDuration(time.Minute).SetGlobalEnforcer(nil)
+	instrumentOpts := instrument.NewOptions()
+	engineOpts := executor.NewEngineOpts().
+		SetStore(mockStorage).
+		SetLookbackDuration(time.Minute).
+		SetGlobalEnforcer(nil).
+		SetInstrumentOptions(instrumentOpts)
 	engine := executor.NewEngine(engineOpts)
 	fetchOptsBuilderCfg := handler.FetchOptionsBuilderOptions{}
 	fetchOptsBuilder := handler.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
@@ -145,10 +143,10 @@ func newTestSetup() *testSetup {
 	keepNans := false
 
 	read := NewPromReadHandler(engine, fetchOptsBuilder, tagOpts,
-		limitsConfig, scope, timeoutOpts, keepNans)
+		limitsConfig, timeoutOpts, keepNans, instrumentOpts)
 
 	instantRead := NewPromReadInstantHandler(engine, fetchOptsBuilder,
-		tagOpts, timeoutOpts)
+		tagOpts, timeoutOpts, instrumentOpts)
 
 	return &testSetup{
 		Storage: mockStorage,

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/plan"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/execution"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pkg/errors"
 )
@@ -106,6 +107,7 @@ type ScalarParams interface {
 func GenerateExecutionState(
 	pplan plan.PhysicalPlan,
 	storage storage.Storage,
+	instrumentOpts instrument.Options,
 ) (*ExecutionState, error) {
 	result := pplan.ResultStep
 	state := &ExecutionState{
@@ -118,10 +120,14 @@ func GenerateExecutionState(
 		return nil, fmt.Errorf("incorrect parent reference in result node, parentId: %s", result.Parent)
 	}
 
-	options := transform.Options{
-		TimeSpec:  pplan.TimeSpec,
-		Debug:     pplan.Debug,
-		BlockType: pplan.BlockType,
+	options, err := transform.NewOptions(transform.OptionsParams{
+		TimeSpec:          pplan.TimeSpec,
+		Debug:             pplan.Debug,
+		BlockType:         pplan.BlockType,
+		InstrumentOptions: instrumentOpts,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	controller, err := state.createNode(step, options)

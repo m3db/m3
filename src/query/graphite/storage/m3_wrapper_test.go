@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -173,7 +173,7 @@ func TestFetchByQuery(t *testing.T) {
 	enforcer.EXPECT().Child(cost.QueryLevel).Return(childEnforcer).MinTimes(1)
 
 	wrapper := NewM3WrappedStorage(store, enforcer,
-		models.QueryContextOptions{})
+		models.QueryContextOptions{}, instrument.NewOptions())
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
 	end := time.Now()
@@ -198,7 +198,6 @@ func TestFetchByQuery(t *testing.T) {
 }
 
 func TestFetchByInvalidQuery(t *testing.T) {
-	logging.InitWithCores(nil)
 	store := mock.NewMockStorage()
 	start := time.Now().Add(time.Hour * -1)
 	end := time.Now()
@@ -213,7 +212,7 @@ func TestFetchByInvalidQuery(t *testing.T) {
 	query := "a."
 	ctx := xctx.New()
 	wrapper := NewM3WrappedStorage(store, nil,
-		models.QueryContextOptions{})
+		models.QueryContextOptions{}, instrument.NewOptions())
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
 	assert.NoError(t, err)
 	require.Equal(t, 0, len(result.SeriesList))

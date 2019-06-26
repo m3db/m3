@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -95,7 +96,11 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 }
 
 // parseParams parses all params from the GET request
-func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
+func parseParams(
+	r *http.Request,
+	timeoutOpts *prometheus.TimeoutOpts,
+	instrumentOpts instrument.Options,
+) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
@@ -134,15 +139,16 @@ func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.R
 	}
 
 	params.Query = query
-	params.Debug = parseDebugFlag(r)
-	params.BlockType = parseBlockType(r)
+	params.Debug = parseDebugFlag(r, instrumentOpts)
+	params.BlockType = parseBlockType(r, instrumentOpts)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
 	if endExclusiveVal != "" {
 		excludeEnd, err := strconv.ParseBool(endExclusiveVal)
 		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse end inclusive flag", zap.Error(err))
+			logging.WithContext(r.Context(), instrumentOpts).
+				Warn("unable to parse end inclusive flag", zap.Error(err))
 		}
 
 		params.IncludeEnd = !excludeEnd
@@ -155,7 +161,7 @@ func parseParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.R
 	return params, nil
 }
 
-func parseDebugFlag(r *http.Request) bool {
+func parseDebugFlag(r *http.Request, instrumentOpts instrument.Options) bool {
 	var (
 		debug bool
 		err   error
@@ -166,20 +172,22 @@ func parseDebugFlag(r *http.Request) bool {
 	if debugVal != "" {
 		debug, err = strconv.ParseBool(r.FormValue(debugParam))
 		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Error(err))
+			logging.WithContext(r.Context(), instrumentOpts).
+				Warn("unable to parse debug flag", zap.Error(err))
 		}
 	}
 
 	return debug
 }
 
-func parseBlockType(r *http.Request) models.FetchedBlockType {
+func parseBlockType(r *http.Request, instrumentOpts instrument.Options) models.FetchedBlockType {
 	// Use default block type if unable to parse blockTypeParam.
 	useLegacyVal := r.FormValue(blockTypeParam)
 	if useLegacyVal != "" {
 		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
 		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse useLegacy flag", zap.Error(err))
+			logging.WithContext(r.Context(), instrumentOpts).
+				Warn("unable to parse useLegacy flag", zap.Error(err))
 		}
 
 		blockType := models.FetchedBlockType(intVal)
@@ -195,7 +203,11 @@ func parseBlockType(r *http.Request) models.FetchedBlockType {
 }
 
 // parseInstantaneousParams parses all params from the GET request
-func parseInstantaneousParams(r *http.Request, timeoutOpts *prometheus.TimeoutOpts) (models.RequestParams, *xhttp.ParseError) {
+func parseInstantaneousParams(
+	r *http.Request,
+	timeoutOpts *prometheus.TimeoutOpts,
+	instrumentOpts instrument.Options,
+) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now:        time.Now(),
 		Step:       time.Second,
@@ -224,8 +236,8 @@ func parseInstantaneousParams(r *http.Request, timeoutOpts *prometheus.TimeoutOp
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
-	params.Debug = parseDebugFlag(r)
-	params.BlockType = parseBlockType(r)
+	params.Debug = parseDebugFlag(r, instrumentOpts)
+	params.BlockType = parseBlockType(r, instrumentOpts)
 	return params, nil
 }
 
