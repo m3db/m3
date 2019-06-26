@@ -22,16 +22,21 @@ package m3db
 
 import (
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -362,28 +367,87 @@ func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 	defer ctrl.Finish()
 
 	var (
-		seriesCount = 1
-		start       = time.Now()
-		stepSize    = time.Second * 10
-		annotation  = ts.Annotation{}
-		iters       = make([]encoding.SeriesIterator, seriesCount)
-		pIters      = make([]*encoding.MockSeriesIterator, seriesCount)
-		collectors  = make([]consolidators.StepCollector, seriesCount)
-		peeks       = make([]peekValue, seriesCount)
+		seriesCount   = 1
+		replicasCount = 3
+		start         = time.Now()
+		stepSize      = time.Second * 10
+		window        = stepSize * time.Duration(iterations)
+		end           = start.Add(window)
+		iters         = make([]encoding.SeriesIterator, seriesCount)
+		itersReset    = make([]func(), seriesCount)
+		collectors    = make([]consolidators.StepCollector, seriesCount)
+		peeks         = make([]peekValue, seriesCount)
 
-		points = make([]ts.Datapoint, iterations)
+		encodingOpts = encoding.NewOptions()
+		namespaceID  = ident.StringID("namespace")
 	)
 
 	for i := 0; i < seriesCount; i++ {
 		collectors[i] = noopCollector{}
-		it := encoding.NewMockSeriesIterator(ctrl)
-		it.EXPECT().Err().Return(nil).AnyTimes()
-		iters[i] = it
-		pIters[i] = it
-	}
 
-	for i := 0; i < iterations; i++ {
-		points[i] = ts.Datapoint{Timestamp: start.Add(time.Duration(i) * 5 * time.Second)}
+		encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil),
+			m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+
+		timestamp := start
+		for j := 0; j < iterations; j++ {
+			timestamp = timestamp.Add(time.Duration(j) * stepSize)
+			dp := ts.Datapoint{Timestamp: timestamp, Value: float64(j)}
+			err := encoder.Encode(dp, xtime.Second, nil)
+			require.NoError(b, err)
+		}
+
+		iterAlloc := func(
+			r io.Reader,
+			d namespace.SchemaDescr,
+		) encoding.ReaderIterator {
+			decoder := m3tsz.NewDecoder(m3tsz.DefaultIntOptimizationEnabled,
+				encodingOpts)
+			return decoder.Decode(r)
+		}
+
+		data := encoder.Discard()
+		replicas := make([]struct {
+			readers []xio.SegmentReader
+			iter    encoding.MultiReaderIterator
+		}, replicasCount)
+		replicasIters := make([]encoding.MultiReaderIterator, replicasCount)
+		for j := 0; j < replicasCount; j++ {
+			readers := []xio.SegmentReader{xio.NewSegmentReader(data)}
+			replicas[j].readers = readers
+
+			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
+			iter.Reset(readers, start, window, nil)
+			replicas[j].iter = iter
+
+			replicasIters[j] = iter
+		}
+
+		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i))
+
+		tags, err := ident.NewTagStringsIterator("foo", "bar", "baz", "qux")
+		require.NoError(b, err)
+
+		iters[i] = encoding.NewSeriesIterator(
+			encoding.SeriesIteratorOptions{}, nil)
+
+		itersReset[i] = func() {
+			// Reset the replica iters.
+			for _, replica := range replicas {
+				for _, reader := range replica.readers {
+					reader.Reset(data)
+				}
+				replica.iter.Reset(replica.readers, start, window, nil)
+			}
+			// Reset the series iterator.
+			iters[i].Reset(encoding.SeriesIteratorOptions{
+				ID:             seriesID,
+				Namespace:      namespaceID,
+				Tags:           tags,
+				Replicas:       replicasIters,
+				StartInclusive: start,
+				EndExclusive:   end,
+			})
+		}
 	}
 
 	duration := stepSize * time.Duration(iterations)
@@ -419,21 +483,14 @@ func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 			it.seriesPeek[i] = peekValue{}
 		}
 
-		for _, it := range pIters {
-			for _, p := range points {
-				it.EXPECT().Current().Return(p, xtime.Second, annotation)
-			}
-
-			it.EXPECT().Next().DoAndReturn(func() bool {
-				// simulate load
-				time.Sleep(time.Millisecond)
-				return true
-			}).Times(iterations)
-			it.EXPECT().Next().Return(false).Times(1)
+		// Reset all the underlying compressed series iterators.
+		for _, reset := range itersReset {
+			reset()
 		}
 
 		for it.Next() {
 		}
+		require.NoError(b, it.Err())
 	}
 }
 
@@ -452,16 +509,16 @@ func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 // BenchmarkNextIteration/1000_unpooled-8	   1	1386331977 ns/op 2581040 B/op 43083 allocs/op
 // BenchmarkNextIteration/2000_unpooled-8	   1	2666497332 ns/op 5209520 B/op 86089 allocs/op
 func BenchmarkNextIteration(b *testing.B) {
-	for _, usePools := range []bool{true, false} {
+	for _, useGoroutineWorkerPools := range []bool{true, false} {
 		for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
 			name := fmt.Sprintf("%d", s)
-			if usePools {
-				name = name + "_pooled"
+			if useGoroutineWorkerPools {
+				name = name + "_parallel"
 			} else {
-				name = name + "_unpooled"
+				name = name + "_sequential"
 			}
 			b.Run(name, func(b *testing.B) {
-				benchmarkNextIterationReal(b, s, usePools)
+				benchmarkNextIterationReal(b, s, useGoroutineWorkerPools)
 			})
 		}
 	}
@@ -508,7 +565,7 @@ func benchmarkNextIterationReal(b *testing.B, iterations int, usePools bool) {
 
 	if usePools {
 		opts := xsync.NewPooledWorkerPoolOptions()
-		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
+		readWorkerPools, err := xsync.NewPooledWorkerPool(128, opts)
 		require.NoError(b, err)
 		readWorkerPools.Init()
 		it.workerPool = readWorkerPools
