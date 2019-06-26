@@ -379,7 +379,6 @@ func TestSanitizedUUIDsCanBeParsed(t *testing.T) {
 }
 
 func TestFileExists(t *testing.T) {
-
 	var (
 		dir               = createTempDir(t)
 		shard             = uint32(10)
@@ -403,6 +402,9 @@ func TestFileExists(t *testing.T) {
 	exists, err = DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.True(t, exists)
+	exists, err = DataFileSetExists(dir, testNs1ID, uint32(shard), start, 1)
+	require.NoError(t, err)
+	require.False(t, exists)
 
 	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
 	require.NoError(t, err)

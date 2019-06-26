@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
 	"github.com/m3db/m3/src/query/storage/mock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func TestValidState(t *testing.T) {
 	store := mock.NewMockStorage()
 	p, err := plan.NewPhysicalPlan(lp, store, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
 	require.NoError(t, err)
-	state, err := GenerateExecutionState(p, store)
+	state, err := GenerateExecutionState(p, store, instrument.NewOptions())
 	require.NoError(t, err)
 	require.Len(t, state.sources, 1)
 	err = state.Execute(models.NoopQueryContext())
@@ -74,7 +75,7 @@ func TestWithoutSources(t *testing.T) {
 	require.NoError(t, err)
 	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
 	require.NoError(t, err)
-	_, err = GenerateExecutionState(p, nil)
+	_, err = GenerateExecutionState(p, nil, instrument.NewOptions())
 	assert.Error(t, err)
 }
 
@@ -86,7 +87,7 @@ func TestOnlySources(t *testing.T) {
 	require.NoError(t, err)
 	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
 	require.NoError(t, err)
-	state, err := GenerateExecutionState(p, nil)
+	state, err := GenerateExecutionState(p, nil, instrument.NewOptions())
 	assert.NoError(t, err)
 	require.Len(t, state.sources, 1)
 }
@@ -113,7 +114,7 @@ func TestMultipleSources(t *testing.T) {
 	require.NoError(t, err)
 	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
 	require.NoError(t, err)
-	state, err := GenerateExecutionState(p, nil)
+	state, err := GenerateExecutionState(p, nil, instrument.NewOptions())
 	assert.NoError(t, err)
 	require.Len(t, state.sources, 2)
 	assert.Contains(t, state.String(), "sources")

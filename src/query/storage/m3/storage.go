@@ -38,7 +38,11 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -57,12 +61,24 @@ const (
 	namespaceCoversPartialQueryRange
 )
 
+func (t queryFanoutType) String() string {
+	switch t {
+	case namespaceCoversAllQueryRange:
+		return "coversAllQueryRange"
+	case namespaceCoversPartialQueryRange:
+		return "coversPartialQueryRange"
+	default:
+		return "unknown"
+	}
+}
+
 type m3storage struct {
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
 	opts            m3db.Options
 	nowFn           func() time.Time
+	logger          *zap.Logger
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -73,6 +89,7 @@ func NewStorage(
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	lookbackDuration time.Duration,
+	instrumentOpts instrument.Options,
 ) (Storage, error) {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
@@ -85,6 +102,7 @@ func NewStorage(
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
+		logger:          instrumentOpts.Logger(),
 	}, nil
 }
 
@@ -242,9 +260,23 @@ func (s *m3storage) fetchCompressed(
 		query.End,
 		options.FanoutOptions,
 	)
-
 	if err != nil {
 		return nil, err
+	}
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"query resolved cluster namespace, will use most granular per result")
+	if debugLog != nil {
+		for _, n := range namespaces {
+			debugLog.Write(zap.String("query", query.Raw),
+				zap.Time("start", query.Start),
+				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()))
+		}
 	}
 
 	var (

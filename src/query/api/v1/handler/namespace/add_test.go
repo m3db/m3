@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient)
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -112,7 +113,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewAddHandler(mockClient)
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Ensure adding an existing namespace returns 409

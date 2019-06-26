@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -214,8 +215,6 @@ func TestencodeMetadata(t *testing.T) {
 }
 
 func TestRetrieveMetadata(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	headers := make(http.Header)
 	headers.Add("Foo", "bar")
 	headers.Add("Foo", "baz")
@@ -224,7 +223,7 @@ func TestRetrieveMetadata(t *testing.T) {
 	requestID := "requestID"
 	headers[reqIDKey] = []string{requestID}
 	ctx := metadata.NewIncomingContext(context.TODO(), metadata.MD(headers))
-	encodedCtx := retrieveMetadata(ctx)
+	encodedCtx := retrieveMetadata(ctx, instrument.NewOptions())
 
 	require.Equal(t, requestID, logging.ReadContextID(encodedCtx))
 }

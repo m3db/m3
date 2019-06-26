@@ -56,12 +56,12 @@ func (o baseOp) String() string {
 
 func (o baseOp) Node(
 	controller *transform.Controller,
-	options transform.Options,
+	opts transform.Options,
 ) parser.Source {
 	return &baseNode{
-		op: o, controller: controller,
-		timespec: options.TimeSpec,
-		debug:    options.Debug,
+		op:         o,
+		controller: controller,
+		opts:       opts,
 	}
 }
 
@@ -81,20 +81,20 @@ func NewScalarOp(fn block.ScalarFunc, opType string) (parser.Params, error) {
 type baseNode struct {
 	op         baseOp
 	controller *transform.Controller
-	timespec   transform.TimeSpec
-	debug      bool
+	opts       transform.Options
 }
 
 // Execute runs the scalar node operation
 func (n *baseNode) Execute(queryCtx *models.QueryContext) error {
-	bounds := n.timespec.Bounds()
+	bounds := n.opts.TimeSpec().Bounds()
 
 	block := block.NewScalar(n.op.fn, bounds)
-	if n.debug {
+	if n.opts.Debug() {
 		// Ignore any errors
 		iter, _ := block.StepIter()
 		if iter != nil {
-			logging.WithContext(queryCtx.Ctx).Info("scalar node", zap.Any("meta", iter.Meta()))
+			logging.WithContext(queryCtx.Ctx, n.opts.InstrumentOptions()).
+				Info("scalar node", zap.Any("meta", iter.Meta()))
 		}
 	}
 

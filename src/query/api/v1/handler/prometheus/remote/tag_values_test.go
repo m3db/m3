@@ -30,10 +30,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -92,8 +92,6 @@ func bs(ss ...string) [][]byte {
 }
 
 func TestTagValues(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -105,7 +103,8 @@ func TestTagValues(t *testing.T) {
 	}
 
 	handler := NewTagValuesHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}), nowFn)
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		nowFn, instrument.NewOptions())
 	names := []struct {
 		name string
 	}{
@@ -153,8 +152,6 @@ func TestTagValues(t *testing.T) {
 }
 
 func TestTagValueErrors(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -166,7 +163,8 @@ func TestTagValueErrors(t *testing.T) {
 	}
 
 	handler := NewTagValuesHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}), nowFn)
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		nowFn, instrument.NewOptions())
 	url := "/label"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

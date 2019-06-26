@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -42,10 +41,9 @@ var (
 )
 
 func SetupAsyncSessionTest(t *testing.T) (*client.MockClient, *client.MockSession) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 	mockSession := client.NewMockSession(ctrl)

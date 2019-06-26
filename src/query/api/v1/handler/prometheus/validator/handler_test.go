@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -38,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
-	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -299,23 +299,26 @@ type MismatchesJSON struct {
 }
 
 func newServer() (*httptest.Server, *PromDebugHandler) {
-	logging.InitWithCores(nil)
-
 	mockStorage := mock.NewMockStorage()
-	engineOpts := executor.NewEngineOpts().SetStore(mockStorage).SetCostScope(tally.NewTestScope("test_engine", nil)).
-		SetLookbackDuration(defaultLookbackDuration).SetGlobalEnforcer(cost.NoopChainedEnforcer())
+	instrumentOpts := instrument.NewOptions()
+	engineOpts := executor.NewEngineOpts().
+		SetStore(mockStorage).
+		SetLookbackDuration(defaultLookbackDuration).
+		SetGlobalEnforcer(cost.NoopChainedEnforcer()).
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(tally.NewTestScope("test_engine", nil)))
 	debugHandler := NewPromDebugHandler(
 		native.NewPromReadHandler(
 			executor.NewEngine(engineOpts),
 			handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
-			tally.NewTestScope("test", nil),
 			timeoutOpts,
 			true,
-		), tally.NewTestScope("test", nil),
+			instrumentOpts,
+		),
 		defaultLookbackDuration,
-	)
+		instrumentOpts)
 
 	return httptest.NewServer(debugHandler), debugHandler
 }

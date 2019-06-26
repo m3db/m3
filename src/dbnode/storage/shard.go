@@ -1910,6 +1910,7 @@ func (s *dbShard) WarmFlush(
 		// where a fileset already exists when we attempt to flush unless there
 		// is a bug in the code.
 		DeleteIfExists: false,
+		FileSetType:    persist.FileSetFlushType,
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {

@@ -28,8 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
-
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Engine executes a Query.
@@ -57,10 +56,12 @@ type Engine interface {
 
 // EngineOptions are used to create an engine.
 type EngineOptions interface {
-	// CostScopte returns the scope used for metrics.
-	CostScope() tally.Scope
-	// SetCostScope sets the scope used for metrics.
-	SetCostScope(tally.Scope) EngineOptions
+	// InstrumentOptions returns the instrument options and scope used
+	// for metrics.
+	InstrumentOptions() instrument.Options
+	// SetInstrumentOptions sets the instrument options and scope used
+	// for metrics.
+	SetInstrumentOptions(instrument.Options) EngineOptions
 
 	// GlobalEnforcer returns the query cost enforcer.
 	GlobalEnforcer() qcost.ChainedEnforcer

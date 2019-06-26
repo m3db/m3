@@ -40,9 +40,9 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	qjson "github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -59,21 +59,21 @@ const (
 // PromDebugHandler represents a handler for prometheus debug endpoint, which allows users
 // to compare Prometheus results vs m3 query results.
 type PromDebugHandler struct {
-	scope            tally.Scope
 	readHandler      *native.PromReadHandler
 	lookbackDuration time.Duration
+	instrumentOpts   instrument.Options
 }
 
 // NewPromDebugHandler returns a new instance of handler.
 func NewPromDebugHandler(
 	h *native.PromReadHandler,
-	scope tally.Scope,
 	lookbackDuration time.Duration,
+	instrumentOpts instrument.Options,
 ) *PromDebugHandler {
 	return &PromDebugHandler{
-		scope:            scope,
 		readHandler:      h,
 		lookbackDuration: lookbackDuration,
+		instrumentOpts:   instrumentOpts,
 	}
 }
 
@@ -85,7 +85,7 @@ type mismatchResp struct {
 
 func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	defer r.Body.Close()
 	data, err := ioutil.ReadAll(r.Body)
@@ -109,8 +109,12 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engineOpts := executor.NewEngineOpts().SetStore(s).SetCostScope(h.scope.SubScope("debug_engine")).
-		SetLookbackDuration(h.lookbackDuration).SetGlobalEnforcer(nil)
+	engineOpts := executor.NewEngineOpts().
+		SetStore(s).
+		SetLookbackDuration(h.lookbackDuration).
+		SetGlobalEnforcer(nil).
+		SetInstrumentOptions(h.instrumentOpts.
+			SetMetricsScope(h.instrumentOpts.MetricsScope().SubScope("debug_engine")))
 
 	engine := executor.NewEngine(engineOpts)
 	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine, &executor.QueryOptions{})
