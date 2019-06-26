@@ -1,5 +1,49 @@
 # Developer Notes
 
+## Setup your development environment
+
+First fork https://github.com/m3db/m3 into your own workspace on Github.
+
+Then create your clone:
+
+```bash
+export working_dir=$GOPATH/src/github.com/m3db
+mkdir -p $working_dir
+
+# Set this to your Github user
+export user="your github profile name"
+
+# Clone your fork
+cd $working_dir
+git clone git@github.com:$user/m3.git
+# or: https://github.com/$user/m3.git
+
+# Set upstream
+cd m3
+git remote add upstream git@github.com:m3db/m3.git
+# or: https://github.com/m3db/m3.git
+
+# Never push to upstream master
+git remote set-url --push upstream no_push
+
+# Check if it makes sense:
+git remote -v
+```
+
+Install dependencies:
+
+```bash
+cd $working_dir/m3
+
+make install-vendor
+```
+
+If everything is setup correctly you should be able to build `m3dbnode`:
+
+```bash
+make m3dbnode
+```
+
 ## Running the M3 stack locally
 
 Follow the instructions in `./scripts/development/m3_stack/README.md`

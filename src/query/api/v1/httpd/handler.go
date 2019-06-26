@@ -165,9 +165,12 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
 	// Wrap requests with response time logging as well as panic recovery.
-	wrapped := logging.WithResponseTimeAndPanicErrorLogging
-	panicOnly := logging.WithPanicErrorResponder
-	nowFn := time.Now
+	var (
+		wrapped   = logging.WithResponseTimeAndPanicErrorLogging
+		panicOnly = logging.WithPanicErrorResponder
+		nowFn     = time.Now
+		keepNans  = h.config.ResultOptions.KeepNans
+	)
 
 	h.router.HandleFunc(openapi.URL,
 		wrapped(&openapi.DocHandler{}).ServeHTTP,
@@ -176,7 +179,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
-		h.fetchOptionsBuilder, h.scope.Tagged(remoteSource), h.timeoutOpts)
+		h.fetchOptionsBuilder, h.scope.Tagged(remoteSource), h.timeoutOpts, keepNans)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
 		h.downsamplerAndWriter,
 		h.tagOptions,
@@ -188,8 +191,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
-		h.scope.Tagged(nativeSource), h.timeoutOpts,
-		h.config.ResultOptions.KeepNans)
+		h.scope.Tagged(nativeSource), h.timeoutOpts, keepNans)
 
 	h.router.HandleFunc(remote.PromReadURL,
 		wrapped(promRemoteReadHandler).ServeHTTP,

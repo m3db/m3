@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -352,13 +353,25 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 			DataResult:  result.NewDataBootstrapResult(),
 			IndexResult: result.NewIndexBootstrapResult(),
 		}, nil)
+
+	shardIDs := make([]uint32, 0, len(errs))
 	for i := range errs {
+		shardID := uint32(i)
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
-		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+		shard.EXPECT().ID().Return(shardID).AnyTimes()
 		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
+		shardIDs = append(shardIDs, shardID)
 	}
+	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	mockRetriever.EXPECT().CacheShardIndices(shardIDs).Return(nil)
+
+	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
+	mockRetrieverMgr.EXPECT().Retriever(ns.metadata).Return(mockRetriever, nil)
+	ns.Lock()
+	ns.opts = ns.opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+	ns.Unlock()
 
 	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
@@ -368,10 +381,14 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var needsBootstrap, alreadyBootstrapped []shard.Shard
+	var (
+		needsBootstrap, alreadyBootstrapped []shard.Shard
+		needsBootstrapShardIDs              []uint32
+	)
 	for i, shard := range testShardIDs {
 		if i%2 == 0 {
 			needsBootstrap = append(needsBootstrap, shard)
+			needsBootstrapShardIDs = append(needsBootstrapShardIDs, shard.ID())
 		} else {
 			alreadyBootstrapped = append(alreadyBootstrapped, shard)
 		}
@@ -405,6 +422,15 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		shard.EXPECT().IsBootstrapped().Return(true)
 		ns.shards[testShard.ID()] = shard
 	}
+
+	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	mockRetriever.EXPECT().CacheShardIndices(needsBootstrapShardIDs).Return(nil)
+
+	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
+	mockRetrieverMgr.EXPECT().Retriever(ns.metadata).Return(mockRetriever, nil)
+	ns.Lock()
+	ns.opts = ns.opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+	ns.Unlock()
 
 	require.NoError(t, ns.Bootstrap(start, bs))
 	require.Equal(t, Bootstrapped, ns.bootstrapState)

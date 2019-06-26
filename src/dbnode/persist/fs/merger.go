@@ -82,6 +82,7 @@ func NewMerger(
 func (m *merger) Merge(
 	fileID FileSetFileIdentifier,
 	mergeWith MergeWith,
+	nextVolumeIndex int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) (err error) {
@@ -97,13 +98,15 @@ func (m *merger) Merge(
 		nsID       = fileID.Namespace
 		shard      = fileID.Shard
 		startTime  = fileID.BlockStart
+		volume     = fileID.VolumeIndex
 		blockSize  = nsOpts.RetentionOptions().BlockSize()
 		blockStart = xtime.ToUnixNano(startTime)
 		openOpts   = DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
-				Namespace:  nsID,
-				Shard:      shard,
-				BlockStart: startTime,
+				Namespace:   nsID,
+				Shard:       shard,
+				BlockStart:  startTime,
+				VolumeIndex: volume,
 			},
 			FileSetType: persist.FileSetFlushType,
 		}
@@ -128,6 +131,8 @@ func (m *merger) Merge(
 		NamespaceMetadata: nsMd,
 		Shard:             shard,
 		BlockStart:        startTime,
+		VolumeIndex:       nextVolumeIndex,
+		FileSetType:       persist.FileSetFlushType,
 		DeleteIfExists:    false,
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
@@ -188,10 +193,10 @@ func (m *merger) Merge(
 
 	// First stage: loop through series on disk.
 	for id, tagsIter, data, _, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
-		idsToFinalize = append(idsToFinalize, id)
 		if err != nil {
 			return err
 		}
+		idsToFinalize = append(idsToFinalize, id)
 
 		// Reset BlockReaders.
 		brs = brs[:0]
@@ -216,10 +221,10 @@ func (m *merger) Merge(
 		// are valid, and the IDs are valid for the duration of the file writing.
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
 		tagsIter.Close()
-		tagsToFinalize = append(tagsToFinalize, tags)
 		if err != nil {
 			return err
 		}
+		tagsToFinalize = append(tagsToFinalize, tags)
 		if err := persistIter(prepared.Persist, multiIter, startTime,
 			id, tags, blockAllocSize, nsCtx.Schema, encoderPool); err != nil {
 			return err

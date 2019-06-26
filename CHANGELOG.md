@@ -1,5 +1,22 @@
 # Changelog
 
+# 0.11.0 (pending)
+
+## Migration Disclaimer
+
+Version 0.11.0 of M3 includes further work on supporting writing data at arbitrary times (within the retention period). While most of these changes are transparent to the user in terms of functionality and performance, we had to make a change to the naming format of the files that get persisted to disk (#1720). This change was required to handle multiple fileset volumes per block, which is necessary after introducing "cold flushes" (#1624).
+
+The redesign is **backwards compatible** but not **forwards compatible**. This means that you should be able upgrade your < 0.11.0 clusters to 0.11.0 with no issues, but you will not be able to downgrade without taking some additional steps.
+
+### Troubleshooting and Rolling Back
+
+If you run into any issues with the upgrade or need to downgrade to a previous version for any reason, follow these steps:
+
+1. Stop the node that is having trouble with the upgrade or that you're trying to downgrade.
+2. Remove the filesets that include a volume index in them, e.g. this is a filename with the new volumed format: `fileset-1257890400000000000-0-data.db`, and this is the corresponding filename in the original format: `fileset-1257890400000000000-data.db`.
+3. Modify the `bootstrappers` config in the M3DB YAML file from `filesystem, commitlog, peers, uninitialized_topology` to `filesystem, peers, commitlog, uninitialized_topology`. This will force the node to bootstrap from its peers instead of the local snapshot and commitlog files it has on disk, which is important otherwise when the node restarts, it will think that it has already been bootstrapped.
+4. Turn the node back on.
+
 # 0.10.2
 
 ## Performance

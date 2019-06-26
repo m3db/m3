@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -289,10 +289,6 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		opts = opts.SetAdminClient(mockAdminClient)
 
 		mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-		// The shard indices are computed from iterating over a map, they can
-		// come in any order
-		mockRetriever.EXPECT().CacheShardIndices([]uint32{0, 1}).AnyTimes()
-		mockRetriever.EXPECT().CacheShardIndices([]uint32{1, 0}).AnyTimes()
 
 		mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 		mockRetrieverMgr.EXPECT().
@@ -522,8 +518,6 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	mockRetriever.EXPECT().CacheShardIndices(gomock.Any()).AnyTimes()
-
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().
 		Retriever(namespace.NewMetadataMatcher(testNsMd)).

@@ -64,7 +64,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
@@ -104,7 +104,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
@@ -143,7 +143,7 @@ func TestSeekBadChecksum(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
@@ -193,7 +193,7 @@ func TestSeek(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	data, err := s.SeekByID(ident.StringID("foo3"), resources)
@@ -261,7 +261,7 @@ func TestSeekIDNotExists(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	// Test errSeekIDNotFound when we scan far enough into the index file that
@@ -323,7 +323,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), resources)
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), 0, resources)
 	assert.NoError(t, err)
 
 	data, err := s.SeekByID(ident.StringID("foo"), resources)
@@ -333,7 +333,7 @@ func TestReuseSeeker(t *testing.T) {
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	data, err = s.SeekByID(ident.StringID("foo"), resources)
@@ -388,7 +388,7 @@ func TestCloneSeeker(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), resources)
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), 0, resources)
 	assert.NoError(t, err)
 
 	clone, err := s.ConcurrentClone()

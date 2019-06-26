@@ -145,6 +145,7 @@ func (s *seeker) Open(
 	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
+	volumeIndex int,
 	resources ReusableSeekerResources,
 ) error {
 	if s.isClone {
@@ -152,16 +153,27 @@ func (s *seeker) Open(
 	}
 
 	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
-	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
+	var (
+		infoFd, digestFd, bloomFilterFd, summariesFd *os.File
+		err                                          error
+		isLegacy                                     bool
+	)
+
+	if volumeIndex == 0 {
+		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy):        &infoFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy):       &s.indexFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy):        &s.dataFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy):      &digestFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy): &bloomFilterFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, isLegacy):   &summariesFd,
 	}); err != nil {
 		return err
 	}
@@ -219,7 +231,7 @@ func (s *seeker) Open(
 		s.Close()
 		return fmt.Errorf(
 			"index file digest for file: %s does not match the expected digest: %c",
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix), err,
+			filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
 

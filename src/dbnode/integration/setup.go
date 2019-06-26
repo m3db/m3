@@ -557,7 +557,9 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 	}
 
 	leaseVerifier := storage.NewLeaseVerifier(ts.db)
-	ts.blockLeaseManager.SetLeaseVerifier(leaseVerifier)
+	if err := ts.blockLeaseManager.SetLeaseVerifier(leaseVerifier); err != nil {
+		return err
+	}
 
 	// Check if clients were closed by stopServer and need to be re-created.
 	ts.maybeResetClients()

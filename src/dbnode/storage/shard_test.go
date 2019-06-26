@@ -23,6 +23,8 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -180,6 +182,62 @@ func TestShardBootstrapWithError(t *testing.T) {
 	require.NotNil(t, err)
 	require.Equal(t, "series error", err.Error())
 	require.Equal(t, Bootstrapped, s.bootstrapState)
+}
+
+// TestShardBootstrapWithFlushVersion ensures that the shard is able to bootstrap
+// the cold flush version from the info files.
+func TestShardBootstrapWithFlushVersion(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdir")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		opts   = DefaultTestOptions()
+		fsOpts = opts.CommitLogOptions().FilesystemOptions().
+			SetFilePathPrefix(dir)
+		newClOpts = opts.
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
+	)
+	opts = opts.
+		SetCommitLogOptions(newClOpts)
+
+	s := testDatabaseShard(t, opts)
+	defer s.Close()
+
+	writer, err := fs.NewWriter(fsOpts)
+	require.NoError(t, err)
+
+	var (
+		blockSize   = 2 * time.Hour
+		start       = time.Now().Truncate(blockSize)
+		blockStarts = []time.Time{start, start.Add(blockSize)}
+	)
+	for i, blockStart := range blockStarts {
+		writer.Open(fs.DataWriterOpenOptions{
+			FileSetType: persist.FileSetFlushType,
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   defaultTestNs1ID,
+				Shard:       s.ID(),
+				BlockStart:  blockStart,
+				VolumeIndex: i,
+			},
+		})
+		require.NoError(t, writer.Close())
+	}
+
+	bootstrappedSeries := result.NewMap(result.MapOptions{})
+
+	err = s.Bootstrap(bootstrappedSeries)
+	require.NoError(t, err)
+	require.Equal(t, Bootstrapped, s.bootstrapState)
+
+	for i, blockStart := range blockStarts {
+		require.Equal(t, i, s.FlushState(blockStart).ColdVersion)
+	}
 }
 
 func TestShardFlushDuringBootstrap(t *testing.T) {
@@ -425,6 +483,7 @@ type noopMerger struct{}
 func (m *noopMerger) Merge(
 	fileID fs.FileSetFileIdentifier,
 	mergeWith fs.MergeWith,
+	nextVersion int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) error {
@@ -1136,7 +1195,7 @@ func TestShardCleanupExpiredFileSets(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	shard.filesetBeforeFn = func(_ string, namespace ident.ID, shardID uint32, t time.Time) ([]string, error) {
+	shard.filesetPathsBeforeFn = func(_ string, namespace ident.ID, shardID uint32, t time.Time) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
 	}
 	var deletedFiles []string

@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -396,7 +397,17 @@ func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
 ) (DataFileSetSeeker, error) {
-	exists, err := DataFileSetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart)
+	blm := m.blockRetrieverOpts.BlockLeaseManager()
+	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace,
+		Shard:      shard,
+		BlockStart: blockStart,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("err opening latest lease: %v", err)
+	}
+
+	exists, err := DataFileSetExists(m.filePathPrefix, m.namespace, shard, blockStart, state.Volume)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +435,7 @@ func (m *seekerManager) newOpenSeeker(
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
 	resources := m.getSeekerResources()
-	err = seeker.Open(m.namespace, shard, blockStart, resources)
+	err = seeker.Open(m.namespace, shard, blockStart, state.Volume, resources)
 	m.putSeekerResources(resources)
 	if err != nil {
 		return nil, err

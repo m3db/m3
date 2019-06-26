@@ -30,11 +30,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
-	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/ident/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -122,8 +122,8 @@ func waitUntilDataFilesFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				exists, err := fs.DataFileSetExistsAt(
-					filePathPrefix, namespace, shard, timestamp.ToTime())
+				exists, err := fs.DataFileSetExists(
+					filePathPrefix, namespace, shard, timestamp.ToTime(), 0)
 				if err != nil {
 					panic(err)
 				}
