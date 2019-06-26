@@ -31,7 +31,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -49,16 +50,19 @@ var (
 type grahiteFindHandler struct {
 	storage             storage.Storage
 	fetchOptionsBuilder handler.FetchOptionsBuilder
+	instrumentOpts      instrument.Options
 }
 
 // NewFindHandler returns a new instance of handler.
 func NewFindHandler(
 	storage storage.Storage,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &grahiteFindHandler{
 		storage:             storage,
 		fetchOptionsBuilder: fetchOptionsBuilder,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
@@ -100,7 +104,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 
 	// NB: need to run two separate queries, one of which will match only the

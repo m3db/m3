@@ -68,12 +68,12 @@ func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
 func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
 		opts   = handler.NewServiceOptions(
-			serviceName, r.Header, h.M3AggServiceOptions)
+			serviceName, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
+	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return

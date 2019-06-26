@@ -18,33 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package httperrors
+package transformtest
 
 import (
-	"net/http"
+	"testing"
 
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/stretchr/testify/require"
 )
 
-type errorWithID struct {
-	xhttp.ErrorResponse
-	RqID string `json:"rqID"`
-}
-
-// ErrorWithReqInfo writes an xhttp.ErrorResponse with an added request id (
-// RqId) field read from the request context.
-//
-// NB: RqID is currently a query specific concept,
-// which is why this doesn't exist in xhttp proper.
-// We can add it later if we propagate the request id concept to that package as well.
-func ErrorWithReqInfo(w http.ResponseWriter, r *http.Request, code int, err error) {
-	ctx := r.Context()
-	w.WriteHeader(code)
-	xhttp.WriteJSONResponse(w, errorWithID{
-		ErrorResponse: xhttp.ErrorResponse{
-			Error: err.Error(),
-		},
-		RqID: logging.ReadContextID(ctx),
-	}, logging.WithContext(ctx))
+// Options returns a valid transform options from
+// a set of options params.
+func Options(
+	t *testing.T,
+	p transform.OptionsParams,
+) transform.Options {
+	if p.InstrumentOptions == nil {
+		p.InstrumentOptions = instrument.NewOptions()
+	}
+	r, err := transform.NewOptions(p)
+	require.NoError(t, err)
+	return r
 }

@@ -28,7 +28,8 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -51,7 +52,8 @@ type Handler struct {
 	client clusterclient.Client
 	cfg    config.Configuration
 
-	serviceFn serviceFn
+	serviceFn      serviceFn
+	instrumentOpts instrument.Options
 }
 
 // Service gets a topic service from m3cluster client
@@ -63,14 +65,24 @@ func Service(clusterClient clusterclient.Client) (topic.Service, error) {
 }
 
 // RegisterRoutes registers the topic routes
-func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
-	wrapped := logging.WithResponseTimeAndPanicErrorLogging
+func RegisterRoutes(
+	r *mux.Router,
+	client clusterclient.Client,
+	cfg config.Configuration,
+	instrumentOpts instrument.Options,
+) {
+	wrapped := func(n http.Handler) http.Handler {
+		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
+	}
 
-	r.HandleFunc(InitURL, wrapped(NewInitHandler(client, cfg)).ServeHTTP).
+	r.HandleFunc(InitURL,
+		wrapped(NewInitHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(InitHTTPMethod)
-	r.HandleFunc(GetURL, wrapped(NewGetHandler(client, cfg)).ServeHTTP).
+	r.HandleFunc(GetURL,
+		wrapped(NewGetHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL, wrapped(NewAddHandler(client, cfg)).ServeHTTP).
+	r.HandleFunc(AddURL,
+		wrapped(NewAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(AddHTTPMethod)
 }
 

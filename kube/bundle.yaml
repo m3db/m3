@@ -124,6 +124,8 @@ data:
             - namespace: default
               type: unaggregated
               retention: 48h
+      logging:
+        level: info
       metrics:
         scope:
           prefix: "coordinator"

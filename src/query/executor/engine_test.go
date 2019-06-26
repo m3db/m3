@@ -33,28 +33,29 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func newEngine(
 	s storage.Storage,
-	scope tally.Scope,
 	lookbackDuration time.Duration,
 	enforcer qcost.ChainedEnforcer,
+	instrumentOpts instrument.Options,
 ) Engine {
-	engineOpts := NewEngineOpts().SetStore(s).SetCostScope(scope).
-		SetLookbackDuration(lookbackDuration).SetGlobalEnforcer(enforcer)
+	engineOpts := NewEngineOpts().
+		SetStore(s).
+		SetLookbackDuration(lookbackDuration).
+		SetGlobalEnforcer(enforcer).
+		SetInstrumentOptions(instrumentOpts)
 
 	return NewEngine(engineOpts)
 }
 
 func TestEngine_Execute(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
@@ -62,7 +63,7 @@ func TestEngine_Execute(t *testing.T) {
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	engine := newEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
+	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
 	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &QueryOptions{}, results)
 	res := <-results
 	assert.NotNil(t, res.Err)
@@ -81,7 +82,8 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 		require.NoError(t, err)
 
 		results := make(chan Query)
-		engine := newEngine(mock.NewMockStorage(), tally.NewTestScope("", nil), defaultLookbackDuration, mockParent)
+		engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,
+			mockParent, instrument.NewOptions())
 		go engine.ExecuteExpr(context.TODO(), parser, &QueryOptions{}, models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),
 			End:   time.Now(),

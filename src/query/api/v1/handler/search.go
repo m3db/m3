@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -48,21 +49,24 @@ const (
 type SearchHandler struct {
 	store               storage.Storage
 	fetchOptionsBuilder FetchOptionsBuilder
+	instrumentOpts      instrument.Options
 }
 
 // NewSearchHandler returns a new instance of handler
 func NewSearchHandler(
 	storage storage.Storage,
 	fetchOptionsBuilder FetchOptionsBuilder,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &SearchHandler{
 		store:               storage,
 		fetchOptionsBuilder: fetchOptionsBuilder,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := logging.WithContext(r.Context())
+	logger := logging.WithContext(r.Context(), h.instrumentOpts)
 
 	query, parseBodyErr := h.parseBody(r)
 	opts, parseURLParamsErr := h.parseURLParams(r)

@@ -38,7 +38,8 @@ import (
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 const (
@@ -67,9 +68,10 @@ func NewRenderHandler(
 	storage storage.Storage,
 	queryContextOpts models.QueryContextOptions,
 	enforcer cost.ChainedEnforcer,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(storage,
-		enforcer, queryContextOpts)
+		enforcer, queryContextOpts, instrumentOpts)
 	return &renderHandler{
 		engine: native.NewEngine(wrappedStore),
 	}

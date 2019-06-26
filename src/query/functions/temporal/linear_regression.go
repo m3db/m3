@@ -48,7 +48,7 @@ func (l linearRegressionProcessor) Init(op baseOp, controller *transform.Control
 	return &linearRegressionNode{
 		op:         op,
 		controller: controller,
-		timeSpec:   opts.TimeSpec,
+		timeSpec:   opts.TimeSpec(),
 		fn:         l.fn,
 		isDeriv:    l.isDeriv,
 	}
