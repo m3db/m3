@@ -665,8 +665,13 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
 
-	bsGauge := emitBootstrappersGauge(scope, cfg.Bootstrap.Bootstrappers)
-	bsGauge.Update(1)
+	bsGauge := instrument.NewBootstrapGaugeEmitter(scope, cfg.Bootstrap.Bootstrappers)
+	if err := bsGauge.Start(); err != nil {
+		logger.Error("unable to start emitting bootstrap gauge",
+			zap.String("bootstrappers", fmt.Sprintf("%#v", cfg.Bootstrap.Bootstrappers)),
+			zap.Error(err),
+		)
+	}
 
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
@@ -685,9 +690,12 @@ func Run(runOpts RunOptions) {
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 
-			bsGauge.Update(0)
-			bsGaugeUpdated := emitBootstrappersGauge(scope, bootstrappers)
-			bsGaugeUpdated.Update(1)
+			if err := bsGauge.UpdateBootstrappers(bootstrappers); err != nil {
+				logger.Error("unable to update bootstrap gauge with new bootstrappers",
+					zap.String("bootstrappers", fmt.Sprintf("%#v", bootstrappers)),
+					zap.Error(err),
+				)
+			}
 		})
 
 	// Start the cluster services now that the M3DB client is available.
@@ -771,8 +779,14 @@ func Run(runOpts RunOptions) {
 	closeTimeout := serverGracefulCloseTimeout
 	select {
 	case <-closedCh:
+		if err := bsGauge.Close(); err != nil {
+			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
+		}
 		logger.Info("server closed")
 	case <-time.After(closeTimeout):
+		if err := bsGauge.Close(); err != nil {
+			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
+		}
 		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
 	}
 }
@@ -1513,14 +1527,4 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 	}
 
 	return t.t.Get(), nil
-}
-
-func emitBootstrappersGauge(scope tally.Scope, bs []string) tally.Gauge {
-	tags := make(map[string]string, len(bs))
-	for i, v := range bs {
-		tags[fmt.Sprintf("bootstrapper%d", i)] = v
-	}
-	g := scope.Tagged(tags).Gauge("bootstrapper_bootstrappers")
-
-	return g
 }
