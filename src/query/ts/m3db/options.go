@@ -55,7 +55,12 @@ type encodedBlockOptions struct {
 	pools            encoding.IteratorPools
 	checkedPools     pool.CheckedBytesPool
 	readWorkerPools  xsync.PooledWorkerPool
-	readBatchSize    int
+}
+
+type nextDetails struct {
+	peek      peekValue
+	iter      encoding.SeriesIterator
+	collector consolidators.StepCollector
 }
 
 // NewOptions creates a default encoded block options which dictates how
@@ -69,9 +74,11 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
-	// opts := pool.NewObjectPoolOptions().SetSize(64)
-	// batchPool := pool.NewObjectPool(opts)
-	// batchPool.Init(func() interface{})
+	opts := pool.NewObjectPoolOptions().SetSize(1024)
+	batchPool := pool.NewObjectPool(opts)
+	batchPool.Init(func() interface{} {
+		return nextDetails{}
+	})
 
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
@@ -161,16 +168,6 @@ func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Option
 
 func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
 	return o.readWorkerPools
-}
-
-func (o *encodedBlockOptions) SetReadBatchSize(b int) Options {
-	opts := *o
-	opts.readBatchSize = b
-	return &opts
-}
-
-func (o *encodedBlockOptions) ReadBatchSize() int {
-	return o.readBatchSize
 }
 
 func (o *encodedBlockOptions) Validate() error {
