@@ -48,6 +48,8 @@ type StepLookbackConsolidator struct {
 	stepSize         time.Duration
 	earliestLookback time.Time
 	datapoints       []ts.Datapoint
+	buffer           []float64
+	unconsumed       []float64
 	fn               ConsolidationFunc
 }
 
@@ -62,11 +64,14 @@ func NewStepLookbackConsolidator(
 	fn ConsolidationFunc,
 ) *StepLookbackConsolidator {
 	datapoints := make([]ts.Datapoint, 0, initLength)
+	buffer := make([]float64, BufferSteps)
 	return &StepLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
+		buffer:           buffer,
+		unconsumed:       buffer[:0],
 		fn:               fn,
 	}
 }
@@ -82,13 +87,28 @@ func (c *StepLookbackConsolidator) AddPoint(dp ts.Datapoint) {
 	c.datapoints = append(c.datapoints, dp)
 }
 
-// ConsolidateAndMoveToNext consolidates the current values and moves the
-// consolidator to the next given value, purging stale values.
-func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
-	// Update earliest lookback then remove stale values for the next
-	// iteration of the datapoint set.
+func (c *StepLookbackConsolidator) BufferStep() {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	val := c.fn(c.datapoints)
 	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
+	c.unconsumed = append(c.unconsumed, val)
+}
+
+func (c *StepLookbackConsolidator) BufferStepCount() int {
+	return len(c.unconsumed)
+}
+
+func (c *StepLookbackConsolidator) BufferReset() {
+	c.unconsumed = c.buffer[:0]
+}
+
+// ConsolidateAndMoveToNext consolidates the current values and moves the
+// consolidator to the next given value, purging stale values.
+func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
+	if len(c.unconsumed) == 0 {
+		return c.fn(nil)
+	}
+	val := c.unconsumed[0]
+	c.unconsumed = c.unconsumed[1:]
 	return val
 }

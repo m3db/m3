@@ -39,6 +39,7 @@ type encodedStepIterWithCollector struct {
 	err       error
 
 	stepTime   time.Time
+	bufferTime time.Time
 	blockEnd   time.Time
 	meta       block.Metadata
 	seriesMeta []block.SeriesMeta
@@ -51,7 +52,6 @@ type encodedStepIterWithCollector struct {
 
 	workerPool xsync.PooledWorkerPool
 	wg         sync.WaitGroup
-	mu         sync.Mutex
 }
 
 // Moves to the next step for the i-th series in the block, populating
@@ -117,14 +117,12 @@ func nextForStep(
 	return peek, collector, iter.Err()
 }
 
-func (it *encodedStepIterWithCollector) nextParallel() error {
+func (it *encodedStepIterWithCollector) nextParallel(steps int) error {
 	var (
-		stepTime = it.stepTime
-
-		multiErr xerrors.MultiError
+		multiErr     xerrors.MultiError
+		multiErrLock sync.Mutex
 	)
 
-	it.wg.Add(len(it.seriesIters))
 	for i := range it.seriesIters {
 		var (
 			i         = i
@@ -133,13 +131,23 @@ func (it *encodedStepIterWithCollector) nextParallel() error {
 			collector = it.seriesCollectors[i]
 		)
 
+		it.wg.Add(1)
 		it.workerPool.Go(func() {
-			peek, collector, err := nextForStep(peek, iter, collector, stepTime)
-			it.mu.Lock()
+			var err error
+			collector.BufferReset()
+			for i := 0; i < steps && err == nil; i++ {
+				peek, collector, err = nextForStep(peek, iter, collector,
+					it.bufferTime.Add(time.Duration(i)*it.meta.Bounds.StepSize))
+				collector.BufferStep()
+			}
+
 			it.seriesPeek[i] = peek
 			it.seriesCollectors[i] = collector
-			multiErr = multiErr.Add(err)
-			it.mu.Unlock()
+			if err != nil {
+				multiErrLock.Lock()
+				multiErr = multiErr.Add(err)
+				multiErrLock.Unlock()
+			}
 			it.wg.Done()
 		})
 	}
@@ -152,49 +160,23 @@ func (it *encodedStepIterWithCollector) nextParallel() error {
 	return nil
 }
 
-func (it *encodedStepIterWithCollector) nextParallelBatched() error {
-	var (
-		stepTime = it.stepTime
-
-		multiErr xerrors.MultiError
-	)
-
-	it.wg.Add(len(it.seriesIters))
-	for i := range it.seriesIters {
-		var (
-			i         = i
-			peek      = it.seriesPeek[i]
-			iter      = it.seriesIters[i]
-			collector = it.seriesCollectors[i]
-		)
-
-		it.workerPool.Go(func() {
-			peek, collector, err := nextForStep(peek, iter, collector, stepTime)
-			it.mu.Lock()
-			it.seriesPeek[i] = peek
-			it.seriesCollectors[i] = collector
-			multiErr = multiErr.Add(err)
-			it.mu.Unlock()
-			it.wg.Done()
-		})
-	}
-
-	it.wg.Wait()
-	if it.err = multiErr.FinalError(); it.err != nil {
-		return it.err
-	}
-
-	return nil
-}
-
-func (it *encodedStepIterWithCollector) nextSequential() error {
+func (it *encodedStepIterWithCollector) nextSequential(steps int) error {
 	for i, iter := range it.seriesIters {
-		peek, collector, err := nextForStep(
-			it.seriesPeek[i],
-			iter,
-			it.seriesCollectors[i],
-			it.stepTime,
+		var (
+			peek      = it.seriesPeek[i]
+			collector = it.seriesCollectors[i]
+			err       error
 		)
+		collector.BufferReset()
+		for i := 0; i < steps && err == nil; i++ {
+			peek, collector, err = nextForStep(
+				peek,
+				iter,
+				collector,
+				it.bufferTime.Add(time.Duration(i)*it.meta.Bounds.StepSize),
+			)
+			collector.BufferStep()
+		}
 
 		it.seriesPeek[i] = peek
 		it.seriesCollectors[i] = collector
@@ -211,11 +193,25 @@ func (it *encodedStepIterWithCollector) Next() bool {
 		return false
 	}
 
-	// NB: If no reader worker pool configured, use sequential iteration.
-	if it.workerPool == nil {
-		it.err = it.nextSequential()
-	} else {
-		it.err = it.nextParallel()
+	if !it.bufferTime.After(it.stepTime) {
+		it.bufferTime = it.stepTime
+
+		steps := int(it.blockEnd.Sub(it.stepTime) / it.meta.Bounds.StepSize)
+		if steps > consolidators.BufferSteps {
+			steps = consolidators.BufferSteps
+		}
+
+		if steps > 0 {
+			// NB: If no reader worker pool configured, use sequential iteration.
+			if it.workerPool == nil {
+				it.err = it.nextSequential(steps)
+			} else {
+				it.err = it.nextParallel(steps)
+			}
+
+			bufferedDuration := time.Duration(steps) * it.meta.Bounds.StepSize
+			it.bufferTime = it.bufferTime.Add(bufferedDuration)
+		}
 	}
 
 	if it.err != nil {
