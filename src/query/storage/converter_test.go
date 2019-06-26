@@ -339,6 +339,65 @@ func TestIteratorToTsSeries(t *testing.T) {
 	})
 }
 
+func TestFetchResultToPromResult(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Now()
+	promNow := TimeToPromTimestamp(now)
+
+	vals := ts.NewMockValues(ctrl)
+	vals.EXPECT().Len().Return(0).Times(2)
+	vals.EXPECT().Datapoints().Return(ts.Datapoints{})
+
+	tags := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
+
+	valsNonEmpty := ts.NewMockValues(ctrl)
+	valsNonEmpty.EXPECT().Len().Return(1).Times(3)
+	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
+	valsNonEmpty.EXPECT().Datapoints().Return(dp).Times(2)
+	tagsNonEmpty := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
+
+	r := &FetchResult{
+		SeriesList: ts.SeriesList{
+			ts.NewSeries([]byte("a"), vals, tags),
+			ts.NewSeries([]byte("c"), valsNonEmpty, tagsNonEmpty),
+		},
+	}
+
+	// NB: not keeping empty series.
+	result := FetchResultToPromResult(r, false)
+	expected := &prompb.QueryResult{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, result)
+
+	// NB: keeping empty series.
+	result = FetchResultToPromResult(r, true)
+	expected = &prompb.QueryResult{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
+				Samples: []*prompb.Sample{},
+			},
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, result)
+}
+
 // BenchmarkFetchResultToPromResult-8   	     100	  10563444 ns/op	25368543 B/op	    4443 allocs/op
 func BenchmarkFetchResultToPromResult(b *testing.B) {
 	var (
@@ -374,6 +433,6 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		benchResult = FetchResultToPromResult(fr)
+		benchResult = FetchResultToPromResult(fr, false)
 	}
 }
