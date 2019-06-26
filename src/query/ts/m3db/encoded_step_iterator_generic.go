@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -49,6 +50,7 @@ type encodedStepIterWithCollector struct {
 
 	updateFn updateFn
 
+	batchSize  int
 	workerPool xsync.PooledWorkerPool
 	wg         sync.WaitGroup
 	mu         sync.Mutex
@@ -126,6 +128,43 @@ func (it *encodedStepIterWithCollector) nextParallel() error {
 
 	it.wg.Add(len(it.seriesIters))
 	for i := range it.seriesIters {
+		var (
+			i         = i
+			peek      = it.seriesPeek[i]
+			iter      = it.seriesIters[i]
+			collector = it.seriesCollectors[i]
+		)
+
+		it.workerPool.Go(func() {
+			peek, collector, err := nextForStep(peek, iter, collector, stepTime)
+			it.mu.Lock()
+			it.seriesPeek[i] = peek
+			it.seriesCollectors[i] = collector
+			multiErr = multiErr.Add(err)
+			it.mu.Unlock()
+			it.wg.Done()
+		})
+	}
+
+	it.wg.Wait()
+	if it.err = multiErr.FinalError(); it.err != nil {
+		return it.err
+	}
+
+	return nil
+}
+
+func (it *encodedStepIterWithCollector) nextParallelBatched() error {
+	var (
+		stepTime = it.stepTime
+
+		multiErr xerrors.MultiError
+	)
+
+	batch := it.batchSize
+	count := int(math.Ceil(float64(len(it.seriesIters)) / float64(batch)))
+	it.wg.Add(count)
+	for i := 0; i < count range it.seriesIters {
 		var (
 			i         = i
 			peek      = it.seriesPeek[i]

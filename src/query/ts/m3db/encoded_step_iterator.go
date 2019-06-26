@@ -41,7 +41,7 @@ func (b *encodedBlock) StepIter() (
 		lookback = b.options.LookbackDuration()
 
 		collectors       = make([]*consolidators.StepLookbackConsolidator, len(iters))
-		seriesCollectors = make([]consolidators.StepCollector, 0, len(iters))
+		seriesCollectors = make([]consolidators.StepCollector, len(iters))
 	)
 
 	for i := range iters {
@@ -54,7 +54,7 @@ func (b *encodedBlock) StepIter() (
 	}
 
 	for i := range collectors {
-		seriesCollectors = append(seriesCollectors, collectors[i])
+		seriesCollectors[i] = collectors[i]
 	}
 
 	iter := &encodedStepIter{

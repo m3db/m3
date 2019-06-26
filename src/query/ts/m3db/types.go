@@ -69,6 +69,10 @@ type Options interface {
 	SetReadWorkerPool(xsync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the read worker pool for the converter.
 	ReadWorkerPool() xsync.PooledWorkerPool
+	// SetReadBatchSize sets the read batch size for the converter.
+	SetReadBatchSize(int) Options
+	// ReadBatchSize returns the read batch size for the converter.
+	ReadBatchSize() int
 
 	// Validate ensures that the given block options are valid.
 	Validate() error

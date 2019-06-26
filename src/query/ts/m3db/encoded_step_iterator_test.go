@@ -461,8 +461,80 @@ func BenchmarkNextIteration(b *testing.B) {
 				name = name + "_unpooled"
 			}
 			b.Run(name, func(b *testing.B) {
-				benchmarkNextIteration(b, s, usePools)
+				benchmarkNextIterationReal(b, s, usePools)
 			})
+		}
+	}
+}
+
+func benchmarkNextIterationReal(b *testing.B, iterations int, usePools bool) {
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+
+	var (
+		seriesCount = 1
+		start       = time.Now()
+		stepSize    = time.Second * 10
+		iters       = make([]encoding.SeriesIterator, seriesCount)
+		collectors  = make([]consolidators.StepCollector, seriesCount)
+		peeks       = make([]peekValue, seriesCount)
+
+		points = make([]test.Datapoint, iterations)
+	)
+
+	for i := 0; i < iterations; i++ {
+		points[i] = test.Datapoint{Offset: time.Duration(i) * 5 * time.Second}
+	}
+
+	for i := 0; i < seriesCount; i++ {
+		collectors[i] = noopCollector{}
+	}
+
+	duration := stepSize * time.Duration(iterations)
+	it := &encodedStepIterWithCollector{
+		stepTime: start,
+		blockEnd: start.Add(duration),
+		meta: block.Metadata{
+			Bounds: models.Bounds{
+				Start:    start,
+				StepSize: stepSize,
+				Duration: duration,
+			},
+		},
+
+		seriesCollectors: collectors,
+		seriesPeek:       peeks,
+	}
+
+	if usePools {
+		opts := xsync.NewPooledWorkerPoolOptions()
+		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
+		require.NoError(b, err)
+		readWorkerPools.Init()
+		it.workerPool = readWorkerPools
+	}
+
+	for i := 0; i < b.N; i++ {
+		it.stepTime = start
+		it.finished = false
+		for i := range it.seriesPeek {
+			it.seriesPeek[i] = peekValue{}
+		}
+
+		for i := range iters {
+			iter, _, _ := test.BuildCustomIterator(
+				[][]test.Datapoint{points},
+				map[string]string{},
+				"id",
+				"ns",
+				start,
+				stepSize*time.Duration(iterations), stepSize,
+			)
+
+			iters[i] = iter
+		}
+
+		for it.Next() {
 		}
 	}
 }
