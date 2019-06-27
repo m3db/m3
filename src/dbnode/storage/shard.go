@@ -1999,6 +1999,14 @@ func (s *dbShard) ColdFlush(
 		return true
 	})
 
+	if dirtySeries.Len() == 0 {
+		// Early exit if there is nothing dirty to merge. dirtySeriesToWrite
+		// may be non-empty when dirtySeries is empty because we purposely
+		// leave empty seriesLists in the dirtySeriesToWrite map to avoid having
+		// to reallocate them in subsequent usages of the shared resource.
+		return nil
+	}
+
 	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
 		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),
 		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.namespace.Options())
