@@ -115,8 +115,6 @@ func (e *engine) Execute(
 	opts *QueryOptions,
 	results chan *storage.QueryResult,
 ) {
-	defer close(results)
-
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
 
