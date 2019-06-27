@@ -1198,10 +1198,10 @@ func (i *nsIndex) execBlockQueryFn(
 	results index.BaseResults,
 	logFields []opentracinglog.Field,
 ) {
-	logFields = append(logFields, []opentracinglog.Field{
+	logFields = append(logFields,
 		xopentracing.Time("blockStart", block.StartTime()),
 		xopentracing.Time("blockEnd", block.EndTime()),
-	}...)
+	)
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
 	sp.LogFields(logFields...)
@@ -1236,10 +1236,10 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 	results index.BaseResults,
 	logFields []opentracinglog.Field,
 ) {
-	logFields = append(logFields, []opentracinglog.Field{
+	logFields = append(logFields,
 		xopentracing.Time("blockStart", block.StartTime()),
 		xopentracing.Time("blockEnd", block.EndTime()),
-	}...)
+	)
 
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockAggregateQuery)
 	sp.LogFields(logFields...)
