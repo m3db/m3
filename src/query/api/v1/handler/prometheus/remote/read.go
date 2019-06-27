@@ -22,8 +22,8 @@ package remote
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -178,39 +179,61 @@ func (h *PromReadHandler) read(
 	timeout time.Duration,
 	limit int,
 ) ([]*prompb.QueryResult, error) {
-	// TODO: Handle multi query use case
-	if len(r.Queries) != 1 {
-		return nil, fmt.Errorf("only one query at a time is currently supported")
+	var (
+		queryCount  = len(r.Queries)
+		promResults = make([]*prompb.QueryResult, queryCount)
+		cancelFuncs = make([]context.CancelFunc, queryCount)
+		queryOpts   = &executor.QueryOptions{
+			QueryContextOptions: models.QueryContextOptions{
+				LimitMaxTimeseries: limit,
+			}}
+
+		wg           sync.WaitGroup
+		multiErr     xerrors.MultiError
+		multiErrLock sync.Mutex
+	)
+
+	wg.Add(queryCount)
+	for i, promQuery := range r.Queries {
+		i, promQuery := i, promQuery // Capture vars for lambda.
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(reqCtx, timeout)
+			cancelFuncs[i] = cancel
+			query, err := storage.PromReadQueryToM3(promQuery)
+			if err != nil {
+				multiErrLock.Lock()
+				multiErr = multiErr.Add(err)
+				multiErrLock.Unlock()
+				return
+			}
+
+			results := make(chan *storage.QueryResult)
+
+			// Detect clients closing connections
+			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
+			go h.engine.Execute(ctx, query, queryOpts, results)
+
+			result := <-results
+			if err := result.Err; err != nil {
+				multiErrLock.Lock()
+				multiErr = multiErr.Add(err)
+				multiErrLock.Unlock()
+				return
+			}
+
+			promRes := storage.FetchResultToPromResult(result.FetchResult, h.keepEmpty)
+			promResults[i] = promRes
+		}()
 	}
 
-	ctx, cancel := context.WithTimeout(reqCtx, timeout)
-	defer cancel()
-	promQuery := r.Queries[0]
-	query, err := storage.PromReadQueryToM3(promQuery)
-	if err != nil {
+	wg.Wait()
+	for _, cancel := range cancelFuncs {
+		cancel()
+	}
+
+	if err := multiErr.FinalError(); err != nil {
 		return nil, err
-	}
-
-	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
-
-	queryOpts := &executor.QueryOptions{
-		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: limit,
-		}}
-
-	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-	go h.engine.Execute(ctx, query, queryOpts, results)
-
-	promResults := make([]*prompb.QueryResult, 0, 1)
-	for result := range results {
-		if result.Err != nil {
-			return nil, result.Err
-		}
-
-		promRes := storage.FetchResultToPromResult(result.FetchResult, h.keepEmpty)
-		promResults = append(promResults, promRes)
 	}
 
 	return promResults, nil
