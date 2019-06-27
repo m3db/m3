@@ -195,9 +195,7 @@ func (h *PromReadHandler) read(
 
 	wg.Add(queryCount)
 	for i, promQuery := range r.Queries {
-		// capture loop variables
-		promQuery := promQuery
-		i := i
+		i, promQuery := i, promQuery // Capture vars for lambda.
 		go func() {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(reqCtx, timeout)
@@ -210,7 +208,6 @@ func (h *PromReadHandler) read(
 				return
 			}
 
-			// Results is closed by execute
 			results := make(chan *storage.QueryResult)
 
 			// Detect clients closing connections
