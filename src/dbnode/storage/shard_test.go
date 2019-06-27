@@ -466,6 +466,60 @@ func TestShardColdFlush(t *testing.T) {
 	assert.Equal(t, 0, shard.RetrievableBlockColdVersion(t7))
 }
 
+func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	now := time.Now()
+	nowFn := func() time.Time {
+		return now
+	}
+	opts := DefaultTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
+	shard := testDatabaseShard(t, opts)
+	shard.bootstrapState = Bootstrapped
+	shard.newMergerFn = newMergerTestFn
+	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
+
+	t0 := now.Truncate(blockSize).Add(-10 * blockSize)
+	t1 := t0.Add(1 * blockSize)
+	t2 := t0.Add(2 * blockSize)
+	t3 := t0.Add(3 * blockSize)
+	shard.markWarmFlushStateSuccess(t0)
+	shard.markWarmFlushStateSuccess(t1)
+	shard.markWarmFlushStateSuccess(t2)
+	shard.markWarmFlushStateSuccess(t3)
+
+	preparer := persist.NewMockFlushPreparer(ctrl)
+	fsReader := fs.NewMockDataFileSetReader(ctrl)
+	idElementPool := newIDElementPool(nil)
+
+	// Pretend that dirtySeriesToWrite has been used previously, leaving
+	// behind empty idLists at some block starts. This is desired behavior since
+	// we don't want to reallocate new idLists for the same block starts when we
+	// process a different shard.
+	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)
+	dirtySeriesToWrite[xtime.ToUnixNano(t0)] = newIDList(idElementPool)
+	dirtySeriesToWrite[xtime.ToUnixNano(t1)] = newIDList(idElementPool)
+	dirtySeriesToWrite[xtime.ToUnixNano(t2)] = newIDList(idElementPool)
+	dirtySeriesToWrite[xtime.ToUnixNano(t3)] = newIDList(idElementPool)
+
+	resources := coldFlushReuseableResources{
+		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeriesToWrite: dirtySeriesToWrite,
+		idElementPool:      idElementPool,
+		fsReader:           fsReader,
+	}
+	nsCtx := namespace.Context{}
+
+	shard.ColdFlush(preparer, resources, nsCtx)
+	// After a cold flush, t0-t3 should remain version 0, since nothing should
+	// actually be merged.
+	for i := t0; i.Before(t3.Add(blockSize)); i = i.Add(blockSize) {
+		assert.Equal(t, 0, shard.RetrievableBlockColdVersion(i))
+	}
+}
+
 func newMergerTestFn(
 	reader fs.DataFileSetReader,
 	blockAllocSize int,
