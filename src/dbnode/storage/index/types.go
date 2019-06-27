@@ -40,6 +40,8 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
 var (
@@ -302,19 +304,23 @@ type Block interface {
 
 	// Query resolves the given query into known IDs.
 	Query(
+		ctx context.Context,
 		cancellable *resource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results BaseResults,
+		logFields []opentracinglog.Field,
 	) (exhaustive bool, err error)
 
 	// Aggregate aggregates known tag names/values.
 	// NB(prateek): different from aggregating by means of Query, as we can
 	// avoid going to documents, relying purely on the indexed FSTs.
 	Aggregate(
+		ctx context.Context,
 		cancellable *resource.CancellableLifetime,
 		opts QueryOptions,
 		results AggregateResults,
+		logFields []opentracinglog.Field,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block.

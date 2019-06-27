@@ -39,4 +39,25 @@ const (
 
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
+
+	// NSIdxQuery is the operation name for the nsIndex Query path.
+	NSIdxQuery = "storage.nsIndex.Query"
+
+	// NSIdxAggregateQuery is the operation name for the nsIndex AggregateQuery path.
+	NSIdxAggregateQuery = "storage.nsIndex.AggregateQuery"
+
+	// NSIdxQueryHelper is the operation name for the nsIndex query path.
+	NSIdxQueryHelper = "storage.nsIndex.query"
+
+	// NSIdxBlockQuery is the operation name for the nsIndex block query path.
+	NSIdxBlockQuery = "storage.nsIndex.blockQuery"
+
+	// NSIdxBlockAggregateQuery is the operation name for the nsIndex block aggregate query path.
+	NSIdxBlockAggregateQuery = "storage.nsIndex.blockAggregateQuery"
+
+	// BlockQuery is the operation name for the index block query path.
+	BlockQuery = "storage/index.block.Query"
+
+	// BlockAggregate is the operation name for the index block aggregate path.
+	BlockAggregate = "storage/index.block.Aggregate"
 )
