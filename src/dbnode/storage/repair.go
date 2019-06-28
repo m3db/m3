@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/dice"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -146,14 +147,16 @@ func (r shardRepairer) Repair(
 		}
 	}
 
-	// TODO: Wire into config.
-	// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
-	// issues with the repair feature. It should not be enabled for production use-cases.
-	if err := r.shadowCompare(ctx, start, end, accumLocalMetadata, session, shard, nsCtx); err != nil {
-		r.logger.Error(
-			"Shadow compare failed",
-			zap.Error(err))
-		return repair.MetadataComparisonResult{}, err
+	if r.rpopts.DebugShadowComparisonsEnabled() {
+		// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
+		// issues with the repair feature. It should not be enabled for production use-cases.
+		err := r.shadowCompare(ctx, start, end, accumLocalMetadata, session, shard, nsCtx)
+		if err != nil {
+			r.logger.Error(
+				"Shadow compare failed",
+				zap.Error(err))
+			return repair.MetadataComparisonResult{}, err
+		}
 	}
 
 	localIter := block.NewFilteredBlocksMetadataIter(accumLocalMetadata)
@@ -492,6 +495,11 @@ func (r shardRepairer) shadowCompare(
 	shard databaseShard,
 	nsCtx namespace.Context,
 ) error {
+	dice, err := dice.NewDice(r.rpopts.DebugShadowComparisonsPercentage())
+	if err != nil {
+		return fmt.Errorf("err creating shadow comparison dice: %v", err)
+	}
+
 	var localM, peerM *dynamic.Message
 	if nsCtx.Schema != nil {
 		// Only required if a schema (proto feature) is present. Reset between uses.
@@ -655,6 +663,10 @@ func (r shardRepairer) shadowCompare(
 	}
 
 	for _, result := range localMetadataBlocks.Results() {
+		if !dice.Roll() {
+			continue
+		}
+
 		if err := compareResultFunc(result); err != nil {
 			return err
 		}
