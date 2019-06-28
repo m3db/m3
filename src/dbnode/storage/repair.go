@@ -487,7 +487,6 @@ func (r repairerNoOp) Repair() error { return nil }
 func (r repairerNoOp) Report()       {}
 
 func (r shardRepairer) shadowCompare(
-	ctx context.Context,
 	start time.Time,
 	end time.Time,
 	localMetadataBlocks block.FetchBlocksMetadataResults,
@@ -506,6 +505,8 @@ func (r shardRepairer) shadowCompare(
 		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	}
+
+	tmpCtx := context.NewContext()
 	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
 		seriesID := result.ID
 		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
@@ -514,7 +515,8 @@ func (r shardRepairer) shadowCompare(
 		}
 		defer peerSeriesIter.Close()
 
-		// TODO: Use local context here.
+		tmpCtx.Reset()
+		defer tmpCtx.BlockingClose()
 		localSeriesDataBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
