@@ -643,7 +643,12 @@ func Run(runOpts RunOptions) {
 			SetRepairTimeJitter(cfg.Repair.Jitter).
 			SetRepairThrottle(cfg.Repair.Throttle).
 			SetRepairCheckInterval(cfg.Repair.CheckInterval).
-			SetAdminClient(m3dbClient)
+			SetAdminClient(m3dbClient).
+			SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
+
+		if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
+			repairOpts = repairOpts.SetDebugShadowComparisonsPercentage(cfg.Repair.DebugShadowComparisonsPercentage)
+		}
 
 		opts = opts.
 			SetRepairEnabled(cfg.Repair.Enabled).
