@@ -349,10 +349,11 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					require.True(
 						t,
 						seg.Equal(&compare),
-						"data mismatch for series %s, returned data: %v",
-						r.id,
-						string(seg.Head.Bytes()),
-						string(compare.Head.Bytes()))
+						fmt.Sprintf(
+							"data mismatch for series %s, returned data: %v, expected: %v",
+							r.id,
+							string(seg.Head.Bytes()),
+							string(compare.Head.Bytes())))
 
 					r.ctx.Close()
 				}
@@ -431,17 +432,15 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Now that all the block lease updates have completed, all reads from this point should return tags with the
 	// highest volume number.
+	ctx := context.NewContext()
 	for _, shard := range shards {
 		for _, blockStart := range blockStarts {
 			for _, idString := range shardIDStrings[shard] {
-				var (
-					ctx = context.NewContext()
-					id  = ident.StringID(idString)
-				)
-
+				id := ident.StringID(idString)
 				for {
 					// Run in a loop since the open seeker function is configured to randomly fail
 					// sometimes.
+					ctx.Reset()
 					_, err := retriever.Stream(ctx, shard, id, blockStart, onRetrieve, nsCtx)
 					ctx.BlockingClose()
 					if err == nil {

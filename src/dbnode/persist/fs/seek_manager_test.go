@@ -82,6 +82,7 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		shards = []uint32{2, 5, 9, 478, 1023}
 		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	)
+	defer ctrl.Finish()
 
 	m.newOpenSeekerFn = func(
 		shard uint32,
@@ -89,11 +90,14 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		volume int,
 	) (DataFileSetSeeker, error) {
 		mock := NewMockDataFileSetSeeker(ctrl)
-		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mock.EXPECT().ConcurrentClone().Return(mock, nil)
+		// ConcurrentClone() will be called fetchConcurrency-1 times because the original can be used
+		// as one of the clones.
+		for i := 0; i < defaultFetchConcurrency-1; i++ {
+			mock.EXPECT().ConcurrentClone().Return(mock, nil)
+		}
 		for i := 0; i < defaultFetchConcurrency; i++ {
 			mock.EXPECT().Close().Return(nil)
-			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
+			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
 		}
 		return mock, nil
 	}
@@ -152,7 +156,7 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		byTime.RUnlock()
 	}
 
-	// Ensure that UpdateOpenLease() returns a lease for out-of-order updates.
+	// Ensure that UpdateOpenLease() returns an error for out-of-order updates.
 	for _, shard := range shards {
 		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
 			Namespace:  metadata.ID(),
