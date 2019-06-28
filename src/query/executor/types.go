@@ -46,8 +46,7 @@ type Engine interface {
 		parser parser.Parser,
 		opts *QueryOptions,
 		params models.RequestParams,
-		results chan Query,
-	)
+	) (Result, error)
 
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error

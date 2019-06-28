@@ -88,13 +88,16 @@ func (mr *MockEngineMockRecorder) Execute(arg0, arg1, arg2 interface{}) *gomock.
 }
 
 // ExecuteExpr mocks base method
-func (m *MockEngine) ExecuteExpr(arg0 context.Context, arg1 parser.Parser, arg2 *QueryOptions, arg3 models.RequestParams, arg4 chan Query) {
+func (m *MockEngine) ExecuteExpr(arg0 context.Context, arg1 parser.Parser, arg2 *QueryOptions, arg3 models.RequestParams) (Result, error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ExecuteExpr", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "ExecuteExpr", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ExecuteExpr indicates an expected call of ExecuteExpr
-func (mr *MockEngineMockRecorder) ExecuteExpr(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+func (mr *MockEngineMockRecorder) ExecuteExpr(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteExpr", reflect.TypeOf((*MockEngine)(nil).ExecuteExpr), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteExpr", reflect.TypeOf((*MockEngine)(nil).ExecuteExpr), arg0, arg1, arg2, arg3)
 }

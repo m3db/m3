@@ -31,6 +31,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/m3db/m3/src/query/benchmark/common"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -77,9 +79,8 @@ var (
 )
 
 func main() {
-	logging.InitWithCores(nil)
 	ctx := context.Background()
-	logger = logging.WithContext(ctx)
+	logger = logging.WithContext(ctx, instrument.NewOptions())
 	defer logger.Sync()
 
 	if cardinality {
