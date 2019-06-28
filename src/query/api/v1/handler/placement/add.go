@@ -68,7 +68,7 @@ func NewAddHandler(opts HandlerOptions) *AddHandler {
 
 func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOptions)
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
@@ -124,12 +124,12 @@ func (h *AddHandler) Add(
 	}
 
 	serviceOpts := handler.NewServiceOptions(
-		serviceName, httpReq.Header, h.M3AggServiceOptions)
+		serviceName, httpReq.Header, h.m3AggServiceOptions)
 	var validateFn placement.ValidateFn
 	if !req.Force {
 		validateFn = validateAllAvailable
 	}
-	service, _, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), validateFn)
+	service, _, err := ServiceWithAlgo(h.clusterClient, serviceOpts, h.nowFn(), validateFn)
 	if err != nil {
 		return nil, err
 	}

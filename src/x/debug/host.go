@@ -18,33 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package httperrors
+package debug
 
 import (
-	"net/http"
-
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"encoding/json"
+	"io"
+	"os"
 )
 
-type errorWithID struct {
-	xhttp.ErrorResponse
-	RqID string `json:"rqID"`
+// hostInfoSource is Source implementation returning data about the underlying host:
+// PID, working directory, etc.
+type hostInfoSource struct{}
+
+type hostInfo struct {
+	PID int    `json:"pid"`
+	CWD string `json:"cwd"`
 }
 
-// ErrorWithReqInfo writes an xhttp.ErrorResponse with an added request id (
-// RqId) field read from the request context.
-//
-// NB: RqID is currently a query specific concept,
-// which is why this doesn't exist in xhttp proper.
-// We can add it later if we propagate the request id concept to that package as well.
-func ErrorWithReqInfo(w http.ResponseWriter, r *http.Request, code int, err error) {
-	ctx := r.Context()
-	w.WriteHeader(code)
-	xhttp.WriteJSONResponse(w, errorWithID{
-		ErrorResponse: xhttp.ErrorResponse{
-			Error: err.Error(),
-		},
-		RqID: logging.ReadContextID(ctx),
-	}, logging.WithContext(ctx))
+// NewHostInfoSource returns a Source for host information
+func NewHostInfoSource() Source {
+	return &hostInfoSource{}
+}
+
+// Write fetches data about the host and writes it in the given writer.
+// The data is formatted in json.
+// It will return an error if it can't get working directory or marshal.
+func (h *hostInfoSource) Write(w io.Writer) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	hostInfo := &hostInfo{
+		PID: os.Getpid(),
+		CWD: wd,
+	}
+	jsonData, err := json.MarshalIndent(hostInfo, "", "  ")
+	if err != nil {
+		return err
+	}
+	w.Write(jsonData)
+	return nil
 }

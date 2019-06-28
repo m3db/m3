@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/opentracing"
 
 	"go.uber.org/zap"
@@ -64,12 +65,21 @@ func (s State) durationString() string {
 
 // Request represents a single request.
 type Request struct {
-	engine *engine
-	params models.RequestParams
+	engine         *engine
+	params         models.RequestParams
+	instrumentOpts instrument.Options
 }
 
-func newRequest(engine *engine, params models.RequestParams) *Request {
-	return &Request{engine: engine, params: params}
+func newRequest(
+	engine *engine,
+	params models.RequestParams,
+	instrumentOpts instrument.Options,
+) *Request {
+	return &Request{
+		engine:         engine,
+		params:         params,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (r *Request) compile(ctx context.Context, parser parser.Parser) (parser.Nodes, parser.Edges, error) {
@@ -82,7 +92,8 @@ func (r *Request) compile(ctx context.Context, parser parser.Parser) (parser.Nod
 	}
 
 	if r.params.Debug {
-		logging.WithContext(ctx).Info("compiling dag", zap.Any("nodes", nodes), zap.Any("edges", edges))
+		logging.WithContext(ctx, r.instrumentOpts).
+			Info("compiling dag", zap.Any("nodes", nodes), zap.Any("edges", edges))
 	}
 
 	return nodes, edges, nil
@@ -98,7 +109,8 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 	}
 
 	if r.params.Debug {
-		logging.WithContext(ctx).Info("logical plan", zap.String("plan", lp.String()))
+		logging.WithContext(ctx, r.instrumentOpts).
+			Info("logical plan", zap.String("plan", lp.String()))
 	}
 
 	pp, err := plan.NewPhysicalPlan(lp, r.engine.opts.Store(), r.params, r.engine.opts.LookbackDuration())
@@ -107,7 +119,8 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 	}
 
 	if r.params.Debug {
-		logging.WithContext(ctx).Info("physical plan", zap.String("plan", pp.String()))
+		logging.WithContext(ctx, r.instrumentOpts).
+			Info("physical plan", zap.String("plan", pp.String()))
 	}
 
 	return pp, nil
@@ -118,14 +131,16 @@ func (r *Request) generateExecutionState(ctx context.Context, pp plan.PhysicalPl
 		"generate_execution_state")
 	defer sp.Finish()
 
-	state, err := GenerateExecutionState(pp, r.engine.opts.Store())
+	state, err := GenerateExecutionState(pp, r.engine.opts.Store(),
+		r.instrumentOpts)
 	// free up resources
 	if err != nil {
 		return nil, err
 	}
 
 	if r.params.Debug {
-		logging.WithContext(ctx).Info("execution state", zap.String("state", state.String()))
+		logging.WithContext(ctx, r.instrumentOpts).
+			Info("execution state", zap.String("state", state.String()))
 	}
 
 	return state, nil

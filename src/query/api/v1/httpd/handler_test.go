@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
@@ -50,7 +50,6 @@ import (
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -65,19 +64,23 @@ func makeTagOptions() models.TagOptions {
 
 func newEngine(
 	s storage.Storage,
-	scope tally.Scope,
 	lookbackDuration time.Duration,
 	enforcer qcost.ChainedEnforcer,
+	instrumentOpts instrument.Options,
 ) executor.Engine {
-	engineOpts := executor.NewEngineOpts().SetStore(s).SetCostScope(scope).
-		SetLookbackDuration(lookbackDuration).SetGlobalEnforcer(enforcer)
+	engineOpts := executor.NewEngineOpts().
+		SetStore(s).
+		SetLookbackDuration(lookbackDuration).
+		SetGlobalEnforcer(enforcer).
+		SetInstrumentOptions(instrumentOpts)
 
 	return executor.NewEngine(engineOpts)
 }
 
 func setupHandler(store storage.Storage) (*Handler, error) {
+	instrumentOpts := instrument.NewOptions()
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
-	engine := newEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
+	engine := newEngine(store, time.Minute, nil, instrumentOpts)
 	return NewHandler(
 		downsamplerAndWriter,
 		makeTagOptions(),
@@ -89,49 +92,43 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		nil,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
-		tally.NewTestScope("", nil))
+		instrumentOpts)
 }
 
 func TestHandlerFetchTimeoutError(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
 
 	negValue := -1 * time.Second
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
-	engine := newEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
+	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
 		cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, tally.NewTestScope("", nil))
+		models.QueryContextOptions{}, instrument.NewOptions())
 
 	require.Error(t, err)
 }
 
 func TestHandlerFetchTimeout(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
 
 	fourMin := 4 * time.Minute
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
-	engine := newEngine(storage, tally.NewTestScope("test", nil), time.Minute, nil)
+	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
 		nil, nil, cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, tally.NewTestScope("", nil))
+		models.QueryContextOptions{}, instrument.NewOptions())
 	require.NoError(t, err)
 	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("GET", remote.PromReadURL, nil)
+	req := httptest.NewRequest("GET", remote.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -146,9 +143,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 }
 
 func TestPromRemoteReadPost(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("POST", remote.PromReadURL, nil)
+	req := httptest.NewRequest("POST", remote.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -162,9 +157,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 }
 
 func TestPromNativeReadGet(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
+	req := httptest.NewRequest("GET", native.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -177,9 +170,7 @@ func TestPromNativeReadGet(t *testing.T) {
 }
 
 func TestPromNativeReadPost(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("POST", native.PromReadURL, nil)
+	req := httptest.NewRequest("POST", native.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -192,9 +183,7 @@ func TestPromNativeReadPost(t *testing.T) {
 }
 
 func TestJSONWritePost(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("POST", m3json.WriteJSONURL, nil)
+	req := httptest.NewRequest("POST", m3json.WriteJSONURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -207,9 +196,7 @@ func TestJSONWritePost(t *testing.T) {
 }
 
 func TestRoutesGet(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("GET", routesURL, nil)
+	req := httptest.NewRequest("GET", routesURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -239,9 +226,7 @@ func TestRoutesGet(t *testing.T) {
 }
 
 func TestHealthGet(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	req, _ := http.NewRequest("GET", healthURL, nil)
+	req := httptest.NewRequest("GET", healthURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
@@ -268,8 +253,6 @@ func TestHealthGet(t *testing.T) {
 }
 
 func TestCORSMiddleware(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	s, _ := m3.NewStorageAndSession(t, ctrl)
 	h, err := setupHandler(s)
@@ -284,7 +267,7 @@ func TestCORSMiddleware(t *testing.T) {
 
 func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
 
-	req, _ := http.NewRequest("GET", testRoute, nil)
+	req := httptest.NewRequest("GET", testRoute, nil)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	return res

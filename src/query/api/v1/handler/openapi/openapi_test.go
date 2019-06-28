@@ -26,6 +26,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +38,7 @@ func TestDocHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/v1/openapi", nil)
 	require.NotNil(t, req)
 
-	docHandler := DocHandler{}
+	docHandler := NewDocHandler(instrument.NewOptions())
 	require.NotNil(t, docHandler)
 	docHandler.ServeHTTP(w, req)
 

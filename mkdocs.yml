@@ -88,6 +88,7 @@ pages:
     - "M3Query": "how_to/query.md"
     - "Use M3DB as a general purpose time series database": "how_to/use_as_tsdb.md"
   - "Operational Guides":
+    - "Overview": "operational_guide/index.md"
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"

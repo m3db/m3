@@ -21,6 +21,7 @@
 package storage
 
 import (
+	stdlibctx "context"
 	"fmt"
 	"sync"
 	"testing"
@@ -38,10 +39,18 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/require"
 )
 
-var namespaceIndexOptions = namespace.NewIndexOptions()
+var (
+	namespaceIndexOptions = namespace.NewIndexOptions()
+
+	defaultQuery = index.Query{
+		Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+)
 
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
@@ -561,12 +570,18 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
-	q := index.Query{}
+	q := defaultQuery
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
-	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
+
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
@@ -575,8 +590,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t2.Add(time.Minute),
 	}
-	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+	b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
@@ -585,9 +600,13 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t0.Add(time.Minute),
 	}
-	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(false, nil)
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 11)
 }
 
 func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
@@ -666,14 +685,14 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	ctx := context.NewContext()
-	q := index.Query{}
+	q := defaultQuery
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
-		b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil),
+		b0.EXPECT().Query(ctx, gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.Query(ctx, q, qOpts)
@@ -750,14 +769,21 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
 
-	q := index.Query{Query: query}
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	q := index.Query{
+		Query: query,
+	}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
 	}
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
-	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
 	require.NoError(t, err)
 
@@ -767,8 +793,8 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		EndExclusive:   t2.Add(time.Minute),
 	}
 	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil)
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+	b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
 	require.NoError(t, err)
 
@@ -777,10 +803,14 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		StartInclusive: t0,
 		EndExclusive:   t0.Add(time.Minute),
 	}
-	b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(false, nil)
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
 	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
 	require.NoError(t, err)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 11)
 }
 
 func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
@@ -861,7 +891,9 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()
-	q := index.Query{Query: query}
+	q := index.Query{
+		Query: query,
+	}
 	qOpts := index.QueryOptions{
 		StartInclusive: t0,
 		EndExclusive:   now.Add(time.Minute),
@@ -870,7 +902,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 
 	gomock.InOrder(
 		mockPool.EXPECT().Get().Return(stubResult),
-		b0.EXPECT().Query(gomock.Any(), q, qOpts, gomock.Any()).Return(true, nil),
+		b0.EXPECT().Query(ctx, gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil),
 		mockPool.EXPECT().Put(stubResult),
 	)
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
@@ -954,8 +986,10 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
 
 	for _, query := range queries {
-		q := index.Query{Query: query}
-		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
+		q := index.Query{
+			Query: query,
+		}
+		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
 		_, err = idx.AggregateQuery(ctx, q, aggOpts)
 		require.NoError(t, err)
 
@@ -965,8 +999,8 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 			EndExclusive:   t2.Add(time.Minute),
 		}
 		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
-		b1.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(true, nil)
+		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+		b1.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
 		_, err = idx.AggregateQuery(ctx, q, aggOpts)
 		require.NoError(t, err)
 
@@ -975,7 +1009,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 			StartInclusive: t0,
 			EndExclusive:   t0.Add(time.Minute),
 		}
-		b0.EXPECT().Aggregate(gomock.Any(), qOpts, gomock.Any()).Return(false, nil)
+		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
 		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 		_, err = idx.AggregateQuery(ctx, q, aggOpts)
 		require.NoError(t, err)

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -60,13 +61,19 @@ const (
 type GetHandler Handler
 
 // NewGetHandler returns a new instance of GetHandler.
-func NewGetHandler(client clusterclient.Client) *GetHandler {
-	return &GetHandler{client: client}
+func NewGetHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *GetHandler {
+	return &GetHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	nsRegistry, err := h.Get()
 
 	if err != nil {

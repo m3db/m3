@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
@@ -59,17 +60,19 @@ var (
 	// M3CoordinatorServicePlacementPathName is the M3Coordinator service placement API path.
 	M3CoordinatorServicePlacementPathName = path.Join(ServicesPathName, handler.M3CoordinatorServiceName, PlacementPathName)
 
-	errUnableToParseService = errors.New("unable to parse service")
+	errUnableToParseService    = errors.New("unable to parse service")
+	errInstrumentOptionsNotSet = errors.New("instrument options not set")
 )
 
 // HandlerOptions is the options struct for the handler.
 type HandlerOptions struct {
 	// This is used by other placement Handlers
 	// nolint: structcheck
-	ClusterClient clusterclient.Client
-	Config        config.Configuration
+	clusterClient clusterclient.Client
+	config        config.Configuration
 
-	M3AggServiceOptions *handler.M3AggServiceOptions
+	m3AggServiceOptions *handler.M3AggServiceOptions
+	instrumentOptions   instrument.Options
 }
 
 // NewHandlerOptions is the constructor function for HandlerOptions.
@@ -77,12 +80,17 @@ func NewHandlerOptions(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	m3AggOpts *handler.M3AggServiceOptions,
-) HandlerOptions {
-	return HandlerOptions{
-		ClusterClient:       client,
-		Config:              cfg,
-		M3AggServiceOptions: m3AggOpts,
+	instrumentOpts instrument.Options,
+) (HandlerOptions, error) {
+	if instrumentOpts == nil {
+		return HandlerOptions{}, errInstrumentOptionsNotSet
 	}
+	return HandlerOptions{
+		clusterClient:       client,
+		config:              cfg,
+		m3AggServiceOptions: m3AggOpts,
+		instrumentOptions:   instrumentOpts,
+	}, nil
 }
 
 // Handler represents a generic handler for placement endpoints.
@@ -218,12 +226,15 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 }
 
 // RegisterRoutes registers the placement routes
-func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
+func RegisterRoutes(
+	r *mux.Router,
+	opts HandlerOptions,
+) {
 	// Init
 	var (
 		initHandler      = NewInitHandler(opts)
-		deprecatedInitFn = applyDeprecatedMiddleware(initHandler.ServeHTTP)
-		initFn           = applyMiddleware(initHandler.ServeHTTP)
+		deprecatedInitFn = applyDeprecatedMiddleware(initHandler.ServeHTTP, opts.instrumentOptions)
+		initFn           = applyMiddleware(initHandler.ServeHTTP, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBInitURL, deprecatedInitFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
@@ -233,8 +244,8 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Get
 	var (
 		getHandler      = NewGetHandler(opts)
-		deprecatedGetFn = applyDeprecatedMiddleware(getHandler.ServeHTTP)
-		getFn           = applyMiddleware(getHandler.ServeHTTP)
+		deprecatedGetFn = applyDeprecatedMiddleware(getHandler.ServeHTTP, opts.instrumentOptions)
+		getFn           = applyMiddleware(getHandler.ServeHTTP, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBGetURL, deprecatedGetFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
@@ -244,8 +255,8 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Delete all
 	var (
 		deleteAllHandler      = NewDeleteAllHandler(opts)
-		deprecatedDeleteAllFn = applyDeprecatedMiddleware(deleteAllHandler.ServeHTTP)
-		deleteAllFn           = applyMiddleware(deleteAllHandler.ServeHTTP)
+		deprecatedDeleteAllFn = applyDeprecatedMiddleware(deleteAllHandler.ServeHTTP, opts.instrumentOptions)
+		deleteAllFn           = applyMiddleware(deleteAllHandler.ServeHTTP, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deprecatedDeleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
@@ -255,8 +266,8 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Add
 	var (
 		addHandler      = NewAddHandler(opts)
-		deprecatedAddFn = applyDeprecatedMiddleware(addHandler.ServeHTTP)
-		addFn           = applyMiddleware(addHandler.ServeHTTP)
+		deprecatedAddFn = applyDeprecatedMiddleware(addHandler.ServeHTTP, opts.instrumentOptions)
+		addFn           = applyMiddleware(addHandler.ServeHTTP, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBAddURL, deprecatedAddFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
@@ -266,8 +277,8 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Delete
 	var (
 		deleteHandler      = NewDeleteHandler(opts)
-		deprecatedDeleteFn = applyDeprecatedMiddleware(deleteHandler.ServeHTTP)
-		deleteFn           = applyMiddleware(deleteHandler.ServeHTTP)
+		deprecatedDeleteFn = applyDeprecatedMiddleware(deleteHandler.ServeHTTP, opts.instrumentOptions)
+		deleteFn           = applyMiddleware(deleteHandler.ServeHTTP, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deprecatedDeleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
@@ -277,7 +288,7 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
-		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP)
+		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, opts.instrumentOptions)
 	)
 	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
 	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
@@ -386,19 +397,23 @@ func validateAllAvailable(p placement.Placement) error {
 
 func applyMiddleware(
 	f func(serviceName string, w http.ResponseWriter, r *http.Request),
+	instrumentOpts instrument.Options,
 ) func(w http.ResponseWriter, r *http.Request) {
 	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
 		parseServiceMiddleware(f),
+		instrumentOpts,
 	).ServeHTTP
 }
 
 func applyDeprecatedMiddleware(
 	f func(serviceName string, w http.ResponseWriter, r *http.Request),
+	instrumentOpts instrument.Options,
 ) func(w http.ResponseWriter, r *http.Request) {
 	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			f(handler.M3DBServiceName, w, r)
 		},
+		instrumentOpts,
 	).ServeHTTP
 }
 

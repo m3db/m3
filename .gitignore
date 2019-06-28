@@ -27,7 +27,6 @@ _tools/
 !**/openapi/*.html
 
 # Debug binaries
-debug
 debug.test
 
 # Test data

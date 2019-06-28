@@ -28,7 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -45,22 +46,25 @@ const (
 type CompleteTagsHandler struct {
 	storage             storage.Storage
 	fetchOptionsBuilder handler.FetchOptionsBuilder
+	instrumentOpts      instrument.Options
 }
 
 // NewCompleteTagsHandler returns a new instance of handler.
 func NewCompleteTagsHandler(
 	storage storage.Storage,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &CompleteTagsHandler{
 		storage:             storage,
 		fetchOptionsBuilder: fetchOptionsBuilder,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
 func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 
 	query, rErr := prometheus.ParseTagCompletionParamsToQuery(r)

@@ -1872,6 +1872,10 @@ func (s *dbShard) Bootstrap(
 		}
 
 		s.markWarmFlushStateSuccess(at)
+		// Cold version needs to get bootstrapped so that the 1:1 relationship between volume number
+		// and cold version is maintained and the volume numbers / flush versions remain monotonically
+		// increasing.
+		s.setFlushStateColdVersion(at, info.VolumeIndex)
 	}
 
 	s.Lock()
@@ -1906,6 +1910,7 @@ func (s *dbShard) WarmFlush(
 		// where a fileset already exists when we attempt to flush unless there
 		// is a bug in the code.
 		DeleteIfExists: false,
+		FileSetType:    persist.FileSetFlushType,
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
@@ -1993,6 +1998,14 @@ func (s *dbShard) ColdFlush(
 
 		return true
 	})
+
+	if dirtySeries.Len() == 0 {
+		// Early exit if there is nothing dirty to merge. dirtySeriesToWrite
+		// may be non-empty when dirtySeries is empty because we purposely
+		// leave empty seriesLists in the dirtySeriesToWrite map to avoid having
+		// to reallocate them in subsequent usages of the shared resource.
+		return nil
+	}
 
 	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
 		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),

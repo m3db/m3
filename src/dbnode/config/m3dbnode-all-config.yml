@@ -13,6 +13,10 @@ coordinator:
         type: unaggregated
         retention: 48h
 
+  # Configuratino for M3Coordinator logging.
+  logging:
+    level: info
+
   # Configuration for emitting M3Coordinator metrics.
   metrics:
     scope:

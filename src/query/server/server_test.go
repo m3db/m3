@@ -53,6 +53,9 @@ listenAddress:
   type: "config"
   value: "127.0.0.1:0"
 
+logging:
+  level: info
+
 metrics:
   scope:
     prefix: "coordinator"
@@ -242,6 +245,9 @@ func TestGRPCBackend(t *testing.T) {
 listenAddress:
   type: "config"
   value: "127.0.0.1:0"
+
+logging:
+  level: info
 
 metrics:
   scope:

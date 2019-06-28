@@ -366,6 +366,32 @@ func TestInfoReadWrite(t *testing.T) {
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
 
+func TestInfoReadWriteVolumeIndex(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	var (
+		entries = []testEntry{}
+		w       = newTestWriter(t, filePathPrefix)
+		volume  = 1
+	)
+
+	writeTestDataWithVolume(t, w, 0, testWriterStart, volume, entries, persist.FileSetFlushType)
+
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	require.Equal(t, 1, len(readInfoFileResults))
+	for _, result := range readInfoFileResults {
+		require.NoError(t, result.Err.Error())
+	}
+
+	infoFile := readInfoFileResults[0].Info
+	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, volume, infoFile.VolumeIndex)
+	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
+	require.Equal(t, int64(len(entries)), infoFile.Entries)
+}
+
 func TestInfoReadWriteSnapshot(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")

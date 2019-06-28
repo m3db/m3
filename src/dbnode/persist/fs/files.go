@@ -1395,6 +1395,11 @@ func DataFileSetExists(
 		return true, nil
 	}
 
+	if volume != 0 {
+		// Only check for legacy file path if volume is 0.
+		return false, nil
+	}
+
 	checkpointPath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
 	return CompleteCheckpointFileExists(checkpointPath)
 }
