@@ -29,11 +29,7 @@ func GetWriteFn(
 		sp policy.StoragePolicy,
 		callback m3msg.Callbackable,
 	) {
-		// todo: check 10s:2d storage policy
-		// todo: s.Sample()
-
-		// Get metric and metadata
-		// fishie9: the type of a pass-through metric does not matter as they will be written directly into m3db
+		// The type of a pass-through metric does not matter as it is written directly into m3db
 		metric := aggregated.Metric{
 			Type:      metric.GaugeType,
 			ID:        id,

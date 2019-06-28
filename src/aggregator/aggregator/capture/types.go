@@ -40,9 +40,10 @@ type Aggregator interface {
 
 // SnapshotResult is the snapshot result.
 type SnapshotResult struct {
-	CountersWithMetadatas        []unaggregated.CounterWithMetadatas
-	BatchTimersWithMetadatas     []unaggregated.BatchTimerWithMetadatas
-	GaugesWithMetadatas          []unaggregated.GaugeWithMetadatas
-	ForwardedMetricsWithMetadata []aggregated.ForwardedMetricWithMetadata
-	TimedMetricWithMetadata      []aggregated.TimedMetricWithMetadata
+	CountersWithMetadatas         []unaggregated.CounterWithMetadatas
+	BatchTimersWithMetadatas      []unaggregated.BatchTimerWithMetadatas
+	GaugesWithMetadatas           []unaggregated.GaugeWithMetadatas
+	ForwardedMetricsWithMetadata  []aggregated.ForwardedMetricWithMetadata
+	TimedMetricWithMetadata       []aggregated.TimedMetricWithMetadata
+	PassThroughMetricWithMetadata []aggregated.TimedMetricWithMetadata
 }

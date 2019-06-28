@@ -959,7 +959,7 @@ type aggregatorMetrics struct {
 	gauges         tally.Counter
 	forwarded      tally.Counter
 	timed          tally.Counter
-	passthrough    tally.Counter
+	passThrough    tally.Counter
 	addUntimed     aggregatorAddUntimedMetrics
 	addTimed       aggregatorAddTimedMetrics
 	addForwarded   aggregatorAddForwardedMetrics
@@ -978,24 +978,27 @@ func newAggregatorMetrics(
 	addUntimedScope := scope.SubScope("addUntimed")
 	addTimedScope := scope.SubScope("addTimed")
 	addForwardedScope := scope.SubScope("addForwarded")
+	addPassThroughScope := scope.SubScope("addPassThrough")
 	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
 	shardSetIDScope := scope.SubScope("shard-set-id")
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
-		counters:     scope.Counter("counters"),
-		timers:       scope.Counter("timers"),
-		timerBatches: scope.Counter("timer-batches"),
-		gauges:       scope.Counter("gauges"),
-		forwarded:    scope.Counter("forwarded"),
-		timed:        scope.Counter("timed"),
-		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
-		addTimed:     newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
-		addForwarded: newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
-		placement:    newAggregatorPlacementMetrics(placementScope),
-		shards:       newAggregatorShardsMetrics(shardsScope),
-		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
-		tick:         newAggregatorTickMetrics(tickScope),
+		counters:       scope.Counter("counters"),
+		timers:         scope.Counter("timers"),
+		timerBatches:   scope.Counter("timer-batches"),
+		gauges:         scope.Counter("gauges"),
+		forwarded:      scope.Counter("forwarded"),
+		timed:          scope.Counter("timed"),
+		passThrough:    scope.Counter("pass-through"),
+		addUntimed:     newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
+		addTimed:       newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
+		addForwarded:   newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
+		addPassThrough: newAggregatorAddPassThroughMetrics(addPassThroughScope, samplingRate),
+		placement:      newAggregatorPlacementMetrics(placementScope),
+		shards:         newAggregatorShardsMetrics(shardsScope),
+		shardSetID:     newAggregatorShardSetIDMetrics(shardSetIDScope),
+		tick:           newAggregatorTickMetrics(tickScope),
 	}
 }
 
