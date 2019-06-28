@@ -150,7 +150,7 @@ func (r shardRepairer) Repair(
 	if r.rpopts.DebugShadowComparisonsEnabled() {
 		// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
 		// issues with the repair feature. It should not be enabled for production use-cases.
-		err := r.shadowCompare(ctx, start, end, accumLocalMetadata, session, shard, nsCtx)
+		err := r.shadowCompare(start, end, accumLocalMetadata, session, shard, nsCtx)
 		if err != nil {
 			r.logger.Error(
 				"Shadow compare failed",
@@ -517,7 +517,7 @@ func (r shardRepairer) shadowCompare(
 
 		tmpCtx.Reset()
 		defer tmpCtx.BlockingClose()
-		localSeriesDataBlocks, err := shard.ReadEncoded(ctx, seriesID, start, end, nsCtx)
+		localSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
 		}
