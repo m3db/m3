@@ -38,8 +38,7 @@ type Engine interface {
 		ctx context.Context,
 		query *storage.FetchQuery,
 		opts *QueryOptions,
-		results chan *storage.QueryResult,
-	)
+	) (*storage.FetchResult, error)
 
 	// ExecuteExpr runs the query DAG and closes the results channel once done.
 	ExecuteExpr(

@@ -208,21 +208,17 @@ func (h *PromReadHandler) read(
 				return
 			}
 
-			results := make(chan *storage.QueryResult)
-
 			// Detect clients closing connections
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			go h.engine.Execute(ctx, query, queryOpts, results)
-
-			result := <-results
-			if err := result.Err; err != nil {
+			result, err := h.engine.Execute(ctx, query, queryOpts)
+			if err != nil {
 				multiErrLock.Lock()
 				multiErr = multiErr.Add(err)
 				multiErrLock.Unlock()
 				return
 			}
 
-			promRes := storage.FetchResultToPromResult(result.FetchResult, h.keepEmpty)
+			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
 			promResults[i] = promRes
 		}()
 	}

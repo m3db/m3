@@ -113,18 +113,10 @@ func (e *engine) Execute(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	opts *QueryOptions,
-	results chan *storage.QueryResult,
-) {
+) (*storage.FetchResult, error) {
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
-
-	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
-	if err != nil {
-		results <- &storage.QueryResult{Err: err}
-		return
-	}
-
-	results <- &storage.QueryResult{FetchResult: result}
+	return e.opts.Store().Fetch(ctx, query, fetchOpts)
 }
 
 // nolint: unparam

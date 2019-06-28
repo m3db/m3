@@ -58,15 +58,15 @@ func newEngine(
 func TestEngine_Execute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
+		gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
 	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &QueryOptions{}, results)
-	res := <-results
-	assert.NotNil(t, res.Err)
+	_, err := engine.Execute(context.TODO(),
+		&storage.FetchQuery{}, &QueryOptions{})
+	assert.NotNil(t, err)
 }
 
 func TestEngine_ExecuteExpr(t *testing.T) {
