@@ -218,11 +218,11 @@ type Options interface {
 	// DebugShadowComparisonsEnabled returns whether debug shadow comparisons are enabled.
 	DebugShadowComparisonsEnabled() bool
 
-	// SetDebugShadowComparisonsPercent sets the debug shadow comparisons percentage.
-	SetDebugShadowComparisonsPercent(value float64) Options
+	// SetDebugShadowComparisonsPercentage sets the debug shadow comparisons percentage.
+	SetDebugShadowComparisonsPercentage(value float64) Options
 
-	// DebugShadowComparisonsPercent returns the debug shadow comparisons percentage.
-	DebugShadowComparisonsPercent() float64
+	// DebugShadowComparisonsPercentage returns the debug shadow comparisons percentage.
+	DebugShadowComparisonsPercentage() float64
 
 	// Validate checks if the options are valid.
 	Validate() error
