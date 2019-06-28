@@ -492,11 +492,12 @@ func (r shardRepairer) shadowCompare(
 	shard databaseShard,
 	nsCtx namespace.Context,
 ) error {
-	var (
-		// Reset between uses.
+	var localM, peerM *dynamic.Message
+	if nsCtx.Schema != nil {
+		// Only required if a schema (proto feature) is present. Reset between uses.
 		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
-		peerM  = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
-	)
+		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
+	}
 	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
 		seriesID := result.ID
 		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)

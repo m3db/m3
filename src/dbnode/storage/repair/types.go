@@ -150,68 +150,80 @@ type MetadataComparisonResult struct {
 
 // Options are the repair options
 type Options interface {
-	// SetAdminClient sets the admin client
+	// SetAdminClient sets the admin client.
 	SetAdminClient(value client.AdminClient) Options
 
-	// AdminClient returns the admin client
+	// AdminClient returns the admin client.
 	AdminClient() client.AdminClient
 
 	// SetRepairConsistencyLevel sets the repair read level consistency
-	// for which to repair shards with
+	// for which to repair shards with.
 	SetRepairConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
 	// RepairConsistencyLevel returns the repair read level consistency
-	// for which to repair shards with
+	// for which to repair shards with.
 	RepairConsistencyLevel() topology.ReadConsistencyLevel
 
-	// SetRepairShardConcurrency sets the concurrency in which to repair shards with
+	// SetRepairShardConcurrency sets the concurrency in which to repair shards with.
 	SetRepairShardConcurrency(value int) Options
 
-	// RepairShardConcurrency returns the concurrency in which to repair shards with
+	// RepairShardConcurrency returns the concurrency in which to repair shards with.
 	RepairShardConcurrency() int
 
-	// SetRepairInterval sets the repair interval
+	// SetRepairInterval sets the repair interval.
 	SetRepairInterval(value time.Duration) Options
 
-	// RepairInterval returns the repair interval
+	// RepairInterval returns the repair interval.
 	RepairInterval() time.Duration
 
-	// SetRepairTimeOffset sets the repair time offset
+	// SetRepairTimeOffset sets the repair time offset.
 	SetRepairTimeOffset(value time.Duration) Options
 
-	// RepairTimeOffset returns the repair time offset
+	// RepairTimeOffset returns the repair time offset.
 	RepairTimeOffset() time.Duration
 
-	// SetRepairJitter sets the repair time jitter
+	// SetRepairJitter sets the repair time jitter.
 	SetRepairTimeJitter(value time.Duration) Options
 
-	// RepairTimeJitter returns the repair time jitter
+	// RepairTimeJitter returns the repair time jitter.
 	RepairTimeJitter() time.Duration
 
-	// SetRepairCheckInterval sets the repair check interval
+	// SetRepairCheckInterval sets the repair check interval.
 	SetRepairCheckInterval(value time.Duration) Options
 
-	// RepairCheckInterval returns the repair check interval
+	// RepairCheckInterval returns the repair check interval.
 	RepairCheckInterval() time.Duration
 
-	// SetRepairThrottle sets the repair throttle
+	// SetRepairThrottle sets the repair throttle.
 	SetRepairThrottle(value time.Duration) Options
 
-	// RepairThrottle returns the repair throttle
+	// RepairThrottle returns the repair throttle.
 	RepairThrottle() time.Duration
 
-	// SetRepairMaxRetries sets the max number of retries for a block start
+	// SetRepairMaxRetries sets the max number of retries for a block start.
 	SetRepairMaxRetries(value int) Options
 
-	// MaxRepairRetries returns the max number of retries for a block start
+	// MaxRepairRetries returns the max number of retries for a block start.
 	RepairMaxRetries() int
 
-	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool
+	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool.
 	SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options
 
-	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool
+	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool.
 	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
 
-	// Validate checks if the options are valid
+	// SetDebugShadowComparisonsEnabled sets whether debug shadow comparisons are enabled.
+	SetDebugShadowComparisonsEnabled(value bool) Options
+
+	// DebugShadowComparisonsEnabled returns whether debug shadow comparisons are enabled.
+	DebugShadowComparisonsEnabled() bool
+
+	// SetDebugShadowComparisonsPercent sets the debug shadow comparisons percentage.
+	SetDebugShadowComparisonsPercent(value float64) Options
+
+	// DebugShadowComparisonsPercent returns the debug shadow comparisons percentage.
+	DebugShadowComparisonsPercent() float64
+
+	// Validate checks if the options are valid.
 	Validate() error
 }
