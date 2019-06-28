@@ -114,7 +114,7 @@ func (r shardRepairer) Repair(
 		IncludeChecksums: true,
 	}
 	var (
-		accumLocalMetadata block.FetchBlocksMetadataResults
+		accumLocalMetadata = block.NewFetchBlocksMetadataResults()
 		pageToken          PageToken
 	)
 	ctx.RegisterCloser(accumLocalMetadata)
@@ -130,15 +130,10 @@ func (r shardRepairer) Repair(
 			return repair.MetadataComparisonResult{}, err
 		}
 
-		if accumLocalMetadata == nil {
-			// Set if not exist.
-			accumLocalMetadata = currLocalMetadata
-		} else {
-			// Otherwise merge.
-			if currLocalMetadata != nil {
-				for _, result := range currLocalMetadata.Results() {
-					accumLocalMetadata.Add(result)
-				}
+		// Merge.
+		if currLocalMetadata != nil {
+			for _, result := range currLocalMetadata.Results() {
+				accumLocalMetadata.Add(result)
 			}
 		}
 

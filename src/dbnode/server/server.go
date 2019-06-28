@@ -647,6 +647,7 @@ func Run(runOpts RunOptions) {
 			SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
 
 		if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
+			// Set conditionally to avoid stomping on the default value of 1.0.
 			repairOpts = repairOpts.SetDebugShadowComparisonsPercentage(cfg.Repair.DebugShadowComparisonsPercentage)
 		}
 
