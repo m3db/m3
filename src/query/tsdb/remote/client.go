@@ -63,7 +63,7 @@ type grpcClient struct {
 
 const initResultSize = 10
 
-// NewGRPCClient creates grpc client.
+// NewGRPCClient creates a grpc client.
 func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,

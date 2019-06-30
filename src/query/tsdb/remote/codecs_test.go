@@ -197,7 +197,7 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	assert.Equal(t, gq, gqr)
 }
 
-func TestencodeMetadata(t *testing.T) {
+func TestEncodeMetadata(t *testing.T) {
 	headers := make(http.Header)
 	headers.Add("Foo", "bar")
 	headers.Add("Foo", "baz")

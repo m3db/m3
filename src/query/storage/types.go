@@ -83,6 +83,8 @@ func (q *FetchQuery) String() string {
 
 // FetchOptions represents the options for fetch query.
 type FetchOptions struct {
+	// Remote is set when this fetch is originated by a remote grpc call.
+	Remote bool
 	// Limit is the maximum number of series to return.
 	Limit int
 	// BlockType is the block type that the fetch function returns.

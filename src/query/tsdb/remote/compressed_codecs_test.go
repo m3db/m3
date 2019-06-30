@@ -218,14 +218,14 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	assert.False(t, ip.MsiPoolUsed)
 }
 
-func TestencodeToCompressedFetchResult(t *testing.T) {
+func TestEncodeToCompressedFetchResult(t *testing.T) {
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
 	ip := test.MakeMockIteratorPool()
-	fetchResult, err := encodeToCompressedFetchResult(iters, ip)
+	fetchResult, err := encodeToCompressedSeries(iters, ip)
 	require.NoError(t, err)
 
-	require.Len(t, fetchResult.Series, 2)
-	for _, series := range fetchResult.Series {
+	require.Len(t, fetchResult, 2)
+	for _, series := range fetchResult {
 		verifyCompressedSeries(t, series)
 	}
 
@@ -241,19 +241,23 @@ func TestencodeToCompressedFetchResult(t *testing.T) {
 
 func TestDecodeCompressedFetchResult(t *testing.T) {
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
-	fetchResult, err := encodeToCompressedFetchResult(iters, nil)
+	compressed, err := encodeToCompressedSeries(iters, nil)
 	require.Error(t, err)
-	require.Nil(t, fetchResult)
+	require.Nil(t, compressed)
 }
 
 func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 	ip := test.MakeMockIteratorPool()
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
-	fetchResult, err := encodeToCompressedFetchResult(iters, ip)
+	compressed, err := encodeToCompressedSeries(iters, ip)
 	require.NoError(t, err)
-	require.Len(t, fetchResult.Series, 2)
-	for _, series := range fetchResult.Series {
+	require.Len(t, compressed, 2)
+	for _, series := range compressed {
 		verifyCompressedSeries(t, series)
+	}
+
+	fetchResult := &rpc.FetchResponse{
+		Series: compressed,
 	}
 
 	revertedIters, err := decodeCompressedFetchResponse(fetchResult, ip)

@@ -195,11 +195,11 @@ func compressedSeriesFromSeriesIterator(
 	}, nil
 }
 
-// encodeToCompressedFetchResult encodes SeriesIterators to compressed fetch response
-func encodeToCompressedFetchResult(
+// encodeToCompressedSeries encodes SeriesIterators to compressed fetch response
+func encodeToCompressedSeries(
 	iterators encoding.SeriesIterators,
 	iterPools encoding.IteratorPools,
-) (*rpc.FetchResponse, error) {
+) ([]*rpc.Series, error) {
 	iters := iterators.Iters()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
@@ -211,9 +211,7 @@ func encodeToCompressedFetchResult(
 		seriesList = append(seriesList, series)
 	}
 
-	return &rpc.FetchResponse{
-		Series: seriesList,
-	}, nil
+	return seriesList, nil
 }
 
 func segmentBytesFromCompressedSegment(

@@ -275,7 +275,9 @@ func (s *m3storage) fetchCompressed(
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
 				zap.String("retention", n.Options().Attributes().Retention.String()),
-				zap.String("resolution", n.Options().Attributes().Resolution.String()))
+				zap.String("resolution", n.Options().Attributes().Resolution.String()),
+				zap.Bool("remote", options.Remote),
+			)
 		}
 	}
 
