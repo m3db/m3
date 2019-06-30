@@ -53,12 +53,12 @@ type BootstrapGaugeEmitter struct {
 // NewBootstrapGaugeEmitter returns a BootstrapGaugeEmitter with Gauge that is
 // created from the passed scope and tagged according to the passed
 // bootstrappers. The value of the Gauge will be set to 1 on initialization.
-func NewBootstrapGaugeEmitter(scope tally.Scope, bs []string) *BootstrapGaugeEmitter {
+func NewBootstrapGaugeEmitter(scope tally.Scope) *BootstrapGaugeEmitter {
 	return &BootstrapGaugeEmitter{
 		running: false,
 		doneCh:  make(chan bool, 1),
 		scope:   scope,
-		gauge:   newGauge(scope, bs),
+		gauge:   nil,
 	}
 }
 
@@ -74,13 +74,16 @@ func newGauge(scope tally.Scope, bs []string) tally.Gauge {
 }
 
 // Start starts a goroutine that continuously emits the value of the Gauge.
-func (bge *BootstrapGaugeEmitter) Start() error {
+func (bge *BootstrapGaugeEmitter) Start(bs []string) error {
 	bge.Lock()
 	defer bge.Unlock()
 
 	if bge.running {
 		return errBGEAlreadyRunning
 	}
+
+	bge.gauge = newGauge(bge.scope, bs)
+
 	bge.running = true
 	go func() {
 		for {
@@ -107,6 +110,10 @@ func (bge *BootstrapGaugeEmitter) UpdateBootstrappers(bs []string) error {
 
 	if !bge.running {
 		return errBGENotStarted
+	}
+
+	if bge.gauge != nil {
+		bge.gauge.Update(0)
 	}
 
 	bge.gauge = newGauge(bge.scope, bs)

@@ -53,21 +53,26 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 			g := newGauge(scope, bs)
 			require.NotNil(t, g)
 
-			bge := NewBootstrapGaugeEmitter(scope, bs)
+			bge := NewBootstrapGaugeEmitter(scope)
 			require.NotNil(t, bge)
-			if !reflect.DeepEqual(g, bge.gauge) {
-				t.Errorf("expected: %#v, got: %#v", g, bge.gauge)
-			}
+			require.Nil(t, bge.gauge)
+
 			require.False(t, bge.running)
 
 			err := bge.UpdateBootstrappers(bs)
 			require.Error(t, err)
+			require.Nil(t, bge.gauge)
+
 			err = bge.Close()
 			require.Error(t, err)
 
-			err = bge.Start()
+			err = bge.Start(bs)
 			require.NoError(t, err)
+			require.NotNil(t, bge.gauge)
 			require.True(t, bge.running)
+			if !reflect.DeepEqual(g, bge.gauge) {
+				t.Errorf("expected: %#v, got: %#v", g, bge.gauge)
+			}
 
 			err = bge.Close()
 			require.NoError(t, err)
@@ -78,14 +83,15 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 	t.Run("TestEmitting", func(t *testing.T) {
 		scope := tally.NewTestScope("testScope", nil)
 		bs0 := bootstrappers[0]
-		bge := NewBootstrapGaugeEmitter(scope, bs0)
+		bge := NewBootstrapGaugeEmitter(scope)
 		require.NotNil(t, bge)
-		require.NotNil(t, bge.gauge)
+		require.Nil(t, bge.gauge)
 
 		// Start
-		err := bge.Start()
+		err := bge.Start(bs0)
 		require.NoError(t, err)
 		require.True(t, bge.running)
+		require.NotNil(t, bge.gauge)
 
 		gauges := scope.Snapshot().Gauges()
 		require.Equal(t, 1, len(gauges), "length of gauges after start")
