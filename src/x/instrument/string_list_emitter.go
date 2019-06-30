@@ -30,14 +30,14 @@ import (
 )
 
 const (
-	// StringListEmitterWaitInterval defines the time to wait between emitting the value of the Gauge
+	// stringListEmitterWaitInterval defines the time to wait between emitting the value of the Gauge
 	// again.
 	stringListEmitterWaitInterval = 10 * time.Second
 )
 
 var (
-	errStringListEmitterAlreadyRunning = errors.New("can't start bootstrapGaugeEmmitter: already running")
-	errStringListEmitterNotStarted     = errors.New("bootrapGaugeEmitter is not running")
+	errStringListEmitterAlreadyRunning = errors.New("can't start StringListEmitter: already running")
+	errStringListEmitterNotStarted     = errors.New("StringListEmitter is not running")
 )
 
 // StringListEmitter emits a gauge where its tags indicate the order of a
