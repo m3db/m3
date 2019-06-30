@@ -34,10 +34,12 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
+	"github.com/m3db/m3/src/query/ts"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -224,4 +226,76 @@ func TestReadErrorMetricsCount(t *testing.T) {
 		return found == 1
 	}, 5*time.Second)
 	require.True(t, foundMetric)
+}
+
+func TestMultipleRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Now()
+	promNow := storage.TimeToPromTimestamp(now)
+
+	vals := ts.NewMockValues(ctrl)
+	vals.EXPECT().Len().Return(1).AnyTimes()
+	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
+	vals.EXPECT().Datapoints().Return(dp).AnyTimes()
+
+	tags := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
+
+	valsTwo := ts.NewMockValues(ctrl)
+	valsTwo.EXPECT().Len().Return(1).AnyTimes()
+	dpTwo := ts.Datapoints{{Timestamp: now, Value: 2}}
+	valsTwo.EXPECT().Datapoints().Return(dpTwo).AnyTimes()
+	tagsTwo := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
+
+	r := &storage.FetchResult{
+		SeriesList: ts.SeriesList{
+			ts.NewSeries([]byte("a"), vals, tags),
+		},
+	}
+
+	rTwo := &storage.FetchResult{
+		SeriesList: ts.SeriesList{
+			ts.NewSeries([]byte("c"), valsTwo, tagsTwo),
+		},
+	}
+
+	req := &prompb.ReadRequest{
+		Queries: []*prompb.Query{
+			{StartTimestampMs: 10},
+			{StartTimestampMs: 20},
+		},
+	}
+
+	q, err := storage.PromReadQueryToM3(req.Queries[0])
+	require.NoError(t, err)
+	qTwo, err := storage.PromReadQueryToM3(req.Queries[1])
+	require.NoError(t, err)
+
+	engine := executor.NewMockEngine(ctrl)
+	engine.EXPECT().
+		Execute(gomock.Any(), q, gomock.Any()).Return(r, nil)
+	engine.EXPECT().
+		Execute(gomock.Any(), qTwo, gomock.Any()).Return(rTwo, nil)
+
+	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
+	result, err := h.read(context.TODO(), nil, req, 0, 100)
+	require.NoError(t, err)
+	expected := &prompb.QueryResult{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
+				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+			},
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 2}},
+			},
+		},
+	}
+
+	assert.Equal(t, expected.Timeseries[0], result[0].Timeseries[0])
+	assert.Equal(t, expected.Timeseries[1], result[1].Timeseries[0])
 }
