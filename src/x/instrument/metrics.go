@@ -21,6 +21,7 @@
 package instrument
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -32,6 +33,11 @@ const (
 	// wait defines the time to wait between emitting the value of the Gauge
 	// again.
 	wait = 10 * time.Second
+)
+
+var (
+	errBGEAlreadyRunning = errors.New("can't start bootstrapGaugeEmmitter: already running")
+	errBGENotStarted     = errors.New("bootrapGaugeEmitter is not running")
 )
 
 // BootstrapGaugeEmitter is used to emit a Gauge informing about the order of
@@ -73,7 +79,7 @@ func (bge *BootstrapGaugeEmitter) Start() error {
 	defer bge.Unlock()
 
 	if bge.running {
-		return fmt.Errorf("already running")
+		return errBGEAlreadyRunning
 	}
 	bge.running = true
 	go func() {
@@ -100,10 +106,9 @@ func (bge *BootstrapGaugeEmitter) UpdateBootstrappers(bs []string) error {
 	defer bge.Unlock()
 
 	if !bge.running {
-		return fmt.Errorf("not started yet")
+		return errBGENotStarted
 	}
 
-	bge.gauge.Update(0)
 	bge.gauge = newGauge(bge.scope, bs)
 
 	return nil
@@ -115,7 +120,7 @@ func (bge *BootstrapGaugeEmitter) Close() error {
 	defer bge.Unlock()
 
 	if !bge.running {
-		return fmt.Errorf("not started yet")
+		return errBGENotStarted
 	}
 
 	bge.running = false
