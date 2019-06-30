@@ -672,6 +672,11 @@ func Run(runOpts RunOptions) {
 			zap.Error(err),
 		)
 	}
+	defer func() {
+		if err := bsGauge.Close(); err != nil {
+			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
+		}
+	}()
 
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
@@ -779,14 +784,8 @@ func Run(runOpts RunOptions) {
 	closeTimeout := serverGracefulCloseTimeout
 	select {
 	case <-closedCh:
-		if err := bsGauge.Close(); err != nil {
-			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
-		}
 		logger.Info("server closed")
 	case <-time.After(closeTimeout):
-		if err := bsGauge.Close(); err != nil {
-			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
-		}
 		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
 	}
 }
