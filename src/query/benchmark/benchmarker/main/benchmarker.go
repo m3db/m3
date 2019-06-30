@@ -31,10 +31,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/m3db/m3/src/query/benchmark/common"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 )

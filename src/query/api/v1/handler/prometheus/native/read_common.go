@@ -78,6 +78,12 @@ func read(
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
 	resultChan := result.ResultChan()
+	defer func() {
+		for range resultChan {
+			// NB: drain result channel in case of early termination.
+		}
+	}()
+
 	firstElement := false
 	var numSteps, numSeries int
 	// TODO(nikunj): Stream blocks to client

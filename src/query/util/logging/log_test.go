@@ -29,8 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -41,8 +39,9 @@ func TestContextWithID(t *testing.T) {
 	ctx := context.TODO()
 	assert.Equal(t, undefinedID, ReadContextID(ctx))
 
+	InitWithCores(nil)
 	id := "cool id"
-	ctx = NewContextWithID(ctx, id, instrument.NewOptions())
+	ctx = NewContextWithID(ctx, id)
 	assert.Equal(t, id, ReadContextID(ctx))
 }
 
@@ -70,34 +69,14 @@ func (h panicHandler) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	panic("beef")
 }
 
-type cleanupFn func()
-
-func setup(t *testing.T, ctxLogger bool) (
-	*os.File,
-	*os.File,
-	*http.Request,
-	instrument.Options,
-	cleanupFn,
-) {
-	success := false
-
+func setup(t *testing.T, ctxLogger bool) (*os.File, *os.File, *http.Request) {
 	stdout, err := ioutil.TempFile("", "temp-log-file-out")
 	require.NoError(t, err, "Couldn't create a temporary out file for test.")
-	defer func() {
-		if success {
-			return
-		}
-		os.Remove(stdout.Name())
-	}()
+	defer os.Remove(stdout.Name())
 
 	stderr, err := ioutil.TempFile("", "temp-log-file-err")
 	require.NoError(t, err, "Couldn't create a temporary err file for test.")
-	defer func() {
-		if success {
-			return
-		}
-		os.Remove(stderr.Name())
-	}()
+	defer os.Remove(stderr.Name())
 
 	cfg := zap.NewDevelopmentConfig()
 	cfg.OutputPaths = []string{stdout.Name()}
@@ -105,9 +84,6 @@ func setup(t *testing.T, ctxLogger bool) (
 
 	templogger, err := cfg.Build()
 	require.NoError(t, err)
-
-	instrumentOpts := instrument.NewOptions().
-		SetLogger(templogger)
 
 	req, err := http.NewRequest("GET", "cool", nil)
 	require.NoError(t, err)
@@ -120,26 +96,23 @@ func setup(t *testing.T, ctxLogger bool) (
 
 		templogger = templogger.WithOptions(zap.AddStacktrace(highPriority))
 		ctx := context.WithValue(context.TODO(), loggerKey, templogger)
-		ctx = NewContext(ctx, instrumentOpts, zap.String("foo", "bar"))
+		ctx = NewContext(ctx, zap.String("foo", "bar"))
 		req = req.WithContext(ctx)
+	} else {
+		core := templogger.Core()
+		InitWithCores([]zapcore.Core{core})
 	}
 
-	// Success to true to avoid removing log files
-	success = true
-	cleanup := func() {
-		os.Remove(stdout.Name())
-		os.Remove(stderr.Name())
-	}
-	return stdout, stderr, req, instrumentOpts, cleanup
+	return stdout, stderr, req
 }
 
 func TestPanicErrorResponder(t *testing.T) {
-	stdout, stderr, req, instrumentOpts, cleanup := setup(t, true)
-	defer cleanup()
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
-	deadbeef := WithPanicErrorResponder(panicHandler{},
-		instrumentOpts)
+	deadbeef := WithPanicErrorResponder(panicHandler{})
 	deadbeef.ServeHTTP(writer, req)
 
 	assert.Equal(t, 500, writer.status)
@@ -167,7 +140,7 @@ func TestPanicErrorResponder(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 4, count)
+	assert.Equal(t, 3, count)
 
 	// `log_test` should appear in the output twice, once for the call in the
 	// deadbeef method, and once for the ServeHttp call.
@@ -214,7 +187,7 @@ func assertPanicLogsWritten(t *testing.T, stdout, stderr *os.File) {
 		}
 	}
 
-	assert.Equal(t, 5, count)
+	assert.Equal(t, 4, count)
 
 	// `log_test` should appear in the output twice, once for the call in the
 	// deadbeef method, and once for the ServeHttp call.
@@ -229,16 +202,16 @@ func assertPanicLogsWritten(t *testing.T, stdout, stderr *os.File) {
 }
 
 func TestPanicErrorResponderOnlyIfNotWrittenRequest(t *testing.T) {
-	stdout, stderr, req, instrumentOpts, cleanup := setup(t, true)
-	defer cleanup()
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
 	deadbeef := WithPanicErrorResponder(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("foo"))
 			panic("err")
-		}),
-		instrumentOpts)
+		}))
 	deadbeef.ServeHTTP(writer, req)
 
 	assert.Equal(t, 0, writer.status)
@@ -250,16 +223,16 @@ func TestPanicErrorResponderOnlyIfNotWrittenRequest(t *testing.T) {
 }
 
 func TestPanicErrorResponderOnlyIfNotWrittenHeader(t *testing.T) {
-	stdout, stderr, req, instrumentOpts, cleanup := setup(t, true)
-	defer cleanup()
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
 	deadbeef := WithPanicErrorResponder(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(404)
 			panic("err")
-		}),
-		instrumentOpts)
+		}))
 	deadbeef.ServeHTTP(writer, req)
 
 	assert.Equal(t, 404, writer.status)
@@ -278,13 +251,12 @@ func (h delayHandler) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 }
 
 func TestWithResponseTimeLogging(t *testing.T) {
-	stdout, stderr, req, instrumentOpts, cleanup := setup(t, false)
-	defer cleanup()
+	slowHandler := withResponseTimeLogging(delayHandler{delay: time.Second})
+	fastHandler := withResponseTimeLogging(delayHandler{delay: time.Duration(0)})
 
-	slowHandler := withResponseTimeLogging(delayHandler{delay: time.Second},
-		instrumentOpts)
-	fastHandler := withResponseTimeLogging(delayHandler{delay: time.Duration(0)},
-		instrumentOpts)
+	stdout, stderr, req := setup(t, false)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
 
@@ -308,16 +280,16 @@ func TestWithResponseTimeLogging(t *testing.T) {
 }
 
 func TestWithResponseTimeAndPanicErrorLoggingFunc(t *testing.T) {
-	stdout, stderr, req, instrumentOpts, cleanup := setup(t, true)
-	defer cleanup()
+	stdout, stderr, req := setup(t, true)
+	defer os.Remove(stdout.Name())
+	defer os.Remove(stderr.Name())
 
 	writer := &httpWriter{written: make([]string, 0, 10)}
 	slowPanic := WithResponseTimeAndPanicErrorLoggingFunc(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(time.Second)
 			panic("err")
-		}),
-		instrumentOpts)
+		}))
 
 	slowPanic.ServeHTTP(writer, req)
 
