@@ -69,6 +69,9 @@ func newGauge(scope tally.Scope, bs []string) tally.Gauge {
 
 // Start starts a goroutine that continuously emits the value of the Gauge.
 func (bge *BootstrapGaugeEmitter) Start() error {
+	bge.Lock()
+	defer bge.Unlock()
+
 	if bge.running {
 		return fmt.Errorf("already running")
 	}
@@ -93,12 +96,12 @@ func (bge *BootstrapGaugeEmitter) Start() error {
 // bootstrappers while setting the old Gauge to 0 first. This will emit
 // new metric with the same metric name but different tags.
 func (bge *BootstrapGaugeEmitter) UpdateBootstrappers(bs []string) error {
+	bge.Lock()
+	defer bge.Unlock()
+
 	if !bge.running {
 		return fmt.Errorf("not started yet")
 	}
-
-	bge.Lock()
-	defer bge.Unlock()
 
 	bge.gauge.Update(0)
 	bge.gauge = newGauge(bge.scope, bs)
@@ -108,12 +111,12 @@ func (bge *BootstrapGaugeEmitter) UpdateBootstrappers(bs []string) error {
 
 // Close stops emitting the Gauge.
 func (bge *BootstrapGaugeEmitter) Close() error {
+	bge.Lock()
+	defer bge.Unlock()
+
 	if !bge.running {
 		return fmt.Errorf("not started yet")
 	}
-
-	bge.Lock()
-	defer bge.Unlock()
 
 	bge.running = false
 	close(bge.doneCh)

@@ -42,6 +42,8 @@ var bootstrappers = [][]string{
 		"commitlog",
 		"peers",
 	},
+	[]string{"", "", "", ""},
+	[]string{},
 }
 
 func TestBootstrapGaugeEmitter(t *testing.T) {
@@ -62,6 +64,14 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 			require.Error(t, err)
 			err = bge.Close()
 			require.Error(t, err)
+
+			err = bge.Start()
+			require.NoError(t, err)
+			require.True(t, bge.running)
+
+			err = bge.Close()
+			require.NoError(t, err)
+			require.False(t, bge.running)
 		}
 	})
 
