@@ -50,16 +50,17 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 	t.Run("TestNewBootstrapGaugeEmitter", func(t *testing.T) {
 		scope := tally.NewTestScope("testScope", nil)
 		for _, bs := range bootstrappers {
-			g := newGauge(scope, bs)
-			require.NotNil(t, g)
 
-			bge := NewBootstrapGaugeEmitter(scope)
+			bge := NewStringListEmitter(scope, "bootstrapper_bootstrappers", "bootstrapper")
 			require.NotNil(t, bge)
 			require.Nil(t, bge.gauge)
 
+			g := bge.newGauge(scope, bs)
+			require.NotNil(t, g)
+
 			require.False(t, bge.running)
 
-			err := bge.UpdateBootstrappers(bs)
+			err := bge.UpdateStringList(bs)
 			require.Error(t, err)
 			require.Nil(t, bge.gauge)
 
@@ -83,7 +84,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 	t.Run("TestEmitting", func(t *testing.T) {
 		scope := tally.NewTestScope("testScope", nil)
 		bs0 := bootstrappers[0]
-		bge := NewBootstrapGaugeEmitter(scope)
+		bge := NewStringListEmitter(scope, "bootstrapper_bootstrappers", "bootstrapper")
 		require.NotNil(t, bge)
 		require.Nil(t, bge.gauge)
 
@@ -106,7 +107,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 
 		// Update to new
 		bs1 := bootstrappers[1]
-		err = bge.UpdateBootstrappers(bs1)
+		err = bge.UpdateStringList(bs1)
 		require.NoError(t, err)
 		require.True(t, bge.running, "state of bootstrapGaugeEmitter after update")
 
@@ -126,7 +127,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 		}
 
 		// Update back to old
-		err = bge.UpdateBootstrappers(bs0)
+		err = bge.UpdateStringList(bs0)
 		require.NoError(t, err)
 		require.True(t, bge.running, "state of bootstrapGaugeEmitter after update")
 
