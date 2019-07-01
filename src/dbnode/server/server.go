@@ -499,8 +499,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HashingSeed:    cfg.Hashing.Seed,
+			InstrumentOpts:   iopts,
+			HashingSeed:      cfg.Hashing.Seed,
+			NewDirectoryMode: newDirectoryMode,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))

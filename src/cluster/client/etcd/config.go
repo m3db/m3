@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/client"
@@ -95,6 +96,7 @@ type Configuration struct {
 	ETCDClusters      []ClusterConfig        `yaml:"etcdClusters"`
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
+	NewDirectoryMode  os.FileMode            `yaml:"newDirectoryMode"`
 }
 
 // NewClient creates a new config service client.
@@ -111,7 +113,8 @@ func (cfg Configuration) NewOptions() Options {
 		SetCacheDir(cfg.CacheDir).
 		SetClusters(cfg.etcdClusters()).
 		SetServicesOptions(cfg.SDConfig.NewOptions()).
-		SetWatchWithRevision(cfg.WatchWithRevision)
+		SetWatchWithRevision(cfg.WatchWithRevision).
+		SetNewDirectoryMode(cfg.NewDirectoryMode)
 }
 
 func (cfg Configuration) etcdClusters() []Cluster {

@@ -103,7 +103,7 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 	store.wm = wm
 
 	if store.cacheFile != "" {
-		if err := store.initCache(); err != nil {
+		if err := store.initCache(opts.NewDirectoryMode()); err != nil {
 			store.logger.Warn("could not load cache from file", zap.String("file", store.cacheFile), zap.Error(err))
 		} else {
 			store.logger.Info("successfully loaded cache from file", zap.String("file", store.cacheFile))
@@ -617,11 +617,11 @@ func (c *client) writeCacheToFile() error {
 	return nil
 }
 
-func (c *client) createCacheDir() error {
+func (c *client) createCacheDir(fm os.FileMode) error {
 	path := path.Dir(c.opts.CacheFileFn()(c.opts.Prefix()))
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(path, 0755); err != nil {
+			if err := os.MkdirAll(path, fm); err != nil {
 				c.m.diskWriteError.Inc(1)
 				c.logger.Warn("error creating cache directory",
 					zap.String("path", path),
@@ -638,11 +638,16 @@ func (c *client) createCacheDir() error {
 			return fmt.Errorf("unable to create cache directory: %s", path)
 		}
 	}
+	c.logger.Info("successfully created new cache dir",
+		zap.String("path", path),
+		zap.Int("mode", int(fm)),
+	)
+
 	return nil
 }
 
-func (c *client) initCache() error {
-	if err := c.createCacheDir(); err != nil {
+func (c *client) initCache(fm os.FileMode) error {
+	if err := c.createCacheDir(fm); err != nil {
 		c.m.diskWriteError.Inc(1)
 		return fmt.Errorf("error creating cache directory: %s", err)
 	}
