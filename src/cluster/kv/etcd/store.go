@@ -619,25 +619,14 @@ func (c *client) writeCacheToFile() error {
 
 func (c *client) createCacheDir(fm os.FileMode) error {
 	path := path.Dir(c.opts.CacheFileFn()(c.opts.Prefix()))
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(path, fm); err != nil {
-				c.m.diskWriteError.Inc(1)
-				c.logger.Warn("error creating cache directory",
-					zap.String("path", path),
-					zap.Error(err),
-				)
-				return fmt.Errorf("unable to create cache directory: %s", path)
-			}
-		} else {
-			c.m.diskReadError.Inc(1)
-			c.logger.Warn("error reading filesystem",
-				zap.String("path", path),
-				zap.Error(err),
-			)
-			return fmt.Errorf("unable to create cache directory: %s", path)
-		}
+	if err := os.MkdirAll(path, fm); err != nil {
+		c.m.diskWriteError.Inc(1)
+		c.logger.Warn("error creating cache directory",
+			zap.String("path", path),
+			zap.Error(err),
+		)
 	}
+
 	c.logger.Info("successfully created new cache dir",
 		zap.String("path", path),
 		zap.Int("mode", int(fm)),
