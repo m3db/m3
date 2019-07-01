@@ -29,6 +29,9 @@ metrics:
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
+  
+  tagOptions:
+  idScheme: quoted
 
 clusters:
    - namespaces:
