@@ -30,7 +30,7 @@ metrics:
   samplingRate: 1.0
   extended: none
   
-  tagOptions:
+tagOptions:
   idScheme: quoted
 
 clusters:
