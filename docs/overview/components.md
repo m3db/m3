@@ -2,7 +2,7 @@
 
 ## M3 Coordinator
 
-M3 Coordinator is a service that coordinates reads and writes between upstream systems, such as Prometheus, and M3DB. It is a bridge that users can deploy to access the benefits of M3DB such as long term storage and multi-DC setup with other monitoring systems, such as Prometheus. See [this presentation](https://schd.ws/hosted_files/cloudnativeeu2017/73/Integrating%20Long-Term%20Storage%20with%20Prometheus%20-%20CloudNativeCon%20Berlin%2C%20March%2030%2C%202017.pdf) for more on long term storage in Prometheus.
+M3 Coordinator is a service that coordinates reads and writes between upstream systems, such as Prometheus, and M3DB. It is a bridge that users can deploy to access the benefits of M3DB such as long term storage and multi-DC setup with other monitoring systems, such as Prometheus. See [this presentation](https://www.youtube.com/watch?v=MuHkckZg5L0) for more on long term storage in Prometheus.
 
 ## M3DB
 
@@ -10,7 +10,7 @@ M3DB is a distributed time series database that provides scalable storage and a 
 
 ## M3 Query
 
-M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the [query engine documentation](../../query_engine/).
+M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the [query engine documentation](../query_engine/).
 
 ## M3 Aggregator
 
