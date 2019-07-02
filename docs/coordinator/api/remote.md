@@ -1,6 +1,6 @@
 # API
 
-**Please note:** This documentation is a work in progress and more detail is required.
+The M3 Coordinator implements the Prometheus Remote Read and Write HTTP endpoints, they also can be used however as general purpose metrics write and read APIs. Any metrics that are written to the remote write API can be queried using PromQL through the query APIs as well as being able to be read back by the Prometheus Remote Read endpoint.
 
 ## Remote Write
 
@@ -28,11 +28,11 @@ docs/common/headers_optional_read_write.md
 
 ### Data Params
 
-Binary [snappy compressed](https://en.wikipedia.org/wiki/Snappy_(compression)) Prometheus [WriteRequest protobuf message](https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L22).
+Binary [snappy compressed](https://en.wikipedia.org/wiki/Snappy_(compression)) Prometheus [WriteRequest protobuf message](https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L22-L24).
 
 ### Sample Call
 
-There is no trivial way to Snappy compress and marshal a Prometheus WriteRequest protobuf message using just shell, so this example uses a specific command line utility instead. 
+There isn't a straightforward way to Snappy compress and marshal a Prometheus WriteRequest protobuf message using just shell, so this example uses a specific command line utility instead. 
 
 This sample call is made using `promremotecli` which is a command line tool that uses a [Go client](https://github.com/m3db/prometheus_remote_client_golang) to Prometheus Remote endpoints. For more information visit the [GitHub repository](https://github.com/m3db/prometheus_remote_client_golang).
 
@@ -63,6 +63,36 @@ promremotecli_log 2019/06/25 04:13:56 writing to http://host.docker.internal:720
 {"success":true,"statusCode":200}
 promremotecli_log 2019/06/25 04:13:56 write success
 
-# You can also use the following docker image for paranoia about the image being published:
+# If you are paranoid about image tags being hijacked/replaced with nefarious code, you can use this SHA256 tag:
 # quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
 ```
+
+For more details on querying data in PromQL that was written using this endpoint, see the [query API documentation](../../query_engine/api/).
+
+## Remote Read
+
+Read Prometheus metrics from M3.
+
+### URL
+
+`/api/v1/prom/remote/read`
+
+### Method
+
+`POST`
+
+### URL Params
+
+None.
+
+### Header Params
+
+#### Optional
+
+--8<--
+docs/common/headers_optional_read_write.md
+--8<--
+
+### Data Params
+
+Binary [snappy compressed](https://en.wikipedia.org/wiki/Snappy_(compression)) Prometheus [WriteRequest protobuf message](https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L26-L28).

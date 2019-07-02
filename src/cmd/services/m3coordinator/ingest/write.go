@@ -34,6 +34,13 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var (
+	unaggregatedStoragePolicy   = policy.NewStoragePolicy(0, xtime.Unit(0), 0)
+	unaggregatedStoragePolicies = []policy.StoragePolicy{
+		unaggregatedStoragePolicy,
+	}
+)
+
 // DownsampleAndWriteIter is an interface that can be implemented to use
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
@@ -243,15 +250,13 @@ func (d *downsamplerAndWriter) writeToStorage(
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) error {
-	overrideStoragePolicies, ok := d.writeOverrideStoragePolicies(overrides)
+	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
 		return d.store.Write(ctx, &storage.WriteQuery{
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
-			Attributes: storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
-			},
+			Attributes: storageAttriutesFromPolicy(unaggregatedStoragePolicy),
 		})
 	}
 
@@ -261,7 +266,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 		errLock  sync.Mutex
 	)
 
-	for _, p := range overrideStoragePolicies {
+	for _, p := range storagePolicies {
 		p := p // Capture for goroutine.
 
 		wg.Add(1)
@@ -270,12 +275,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
-				Attributes: storage.Attributes{
-					// Assume all overridden storage policies are for aggregated namespaces.
-					MetricsType: storage.AggregatedMetricsType,
-					Resolution:  p.Resolution().Window,
-					Retention:   p.Retention().Duration(),
-				},
+				Attributes: storageAttriutesFromPolicy(p),
 			})
 			if err != nil {
 				errLock.Lock()
@@ -310,29 +310,14 @@ func (d *downsamplerAndWriter) WriteBatch(
 		// Write unaggregated. Spin up all the background goroutines that make
 		// network requests before we do the synchronous work of writing to the
 		// downsampler.
-		overrideStoragePolicies, ok := d.writeOverrideStoragePolicies(overrides)
+		storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
+		if !ok {
+			storagePolicies = unaggregatedStoragePolicies
+		}
+
 		for iter.Next() {
 			tags, datapoints, unit := iter.Current()
-			if !ok {
-				wg.Add(1)
-				d.workerPool.Go(func() {
-					err := d.store.Write(ctx, &storage.WriteQuery{
-						Tags:       tags,
-						Datapoints: datapoints,
-						Unit:       unit,
-						Attributes: storage.Attributes{
-							MetricsType: storage.UnaggregatedMetricsType,
-						},
-					})
-					if err != nil {
-						addError(err)
-					}
-					wg.Done()
-				})
-				continue
-			}
-
-			for _, p := range overrideStoragePolicies {
+			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
 				d.workerPool.Go(func() {
@@ -340,12 +325,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 						Tags:       tags,
 						Datapoints: datapoints,
 						Unit:       unit,
-						Attributes: storage.Attributes{
-							// Assume all overridden storage policies are for aggregated namespaces.
-							MetricsType: storage.AggregatedMetricsType,
-							Resolution:  p.Resolution().Window,
-							Retention:   p.Retention().Duration(),
-						},
+						Attributes: storageAttriutesFromPolicy(p),
 					})
 					if err != nil {
 						addError(err)
@@ -423,4 +403,21 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
 	return d.store
+}
+
+func storageAttriutesFromPolicy(
+	p policy.StoragePolicy,
+) storage.Attributes {
+	attributes := storage.Attributes{
+		MetricsType: storage.UnaggregatedMetricsType,
+	}
+	if p != unaggregatedStoragePolicy {
+		attributes = storage.Attributes{
+			// Assume all overridden storage policies are for aggregated namespaces.
+			MetricsType: storage.AggregatedMetricsType,
+			Resolution:  p.Resolution().Window,
+			Retention:   p.Retention().Duration(),
+		}
+	}
+	return attributes
 }
