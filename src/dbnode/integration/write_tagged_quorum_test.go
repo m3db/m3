@@ -37,9 +37,9 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func TestWriteTaggedNormalQuorumOnlyOneUp(t *testing.T) {
@@ -295,7 +295,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	assert.NoError(t, err)
 
 	now := s.getNowFn()
-	res, err := s.db.QueryIDs(ctx, nsCtx.ID, index.Query{reQuery}, index.QueryOptions{
+	res, err := s.db.QueryIDs(ctx, nsCtx.ID, index.Query{Query: reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-2 * time.Minute),
 		EndExclusive:   now.Add(2 * time.Minute),
 	})

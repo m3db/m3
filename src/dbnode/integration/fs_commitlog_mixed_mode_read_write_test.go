@@ -351,8 +351,6 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		seriesMap[t] = seriesSlice
 	}
 	return seriesMap
-
-	return nil
 }
 
 // before returns a slice of the dataPointsInTimeOrder that are before the
