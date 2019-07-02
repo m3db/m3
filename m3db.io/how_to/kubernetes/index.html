@@ -1275,7 +1275,7 @@
                 <h1 id="m3db-on-kubernetes">M3DB on Kubernetes</h1>
 <p><strong>Please note:</strong> If possible <em><a href="https://operator.m3db.io/">PLEASE USE THE OPERATOR</a></em> to deploy to Kubernetes if you
 can. It is a considerly more streamlined setup.</p>
-<p>The <a href="https://operator.m3db.io/">operator</a> leverages <a href="https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/">custom resource definitions</a>
+<p>The <a href="https://operator.m3db.io/">operator</a> leverages <a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/">custom resource definitions</a>
 (CRDs) to automatically handle operations such as managing cluster topology.</p>
 <p>The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
 as a guide to running M3 on Kubernetes, if and only if you have significant custom requirements not satisified by
@@ -1285,7 +1285,7 @@ the operator.</p>
 volumes of writes can be sensitive to spikes in disk latency. Additionally the random seeks into files when loading cold
 files benefit from lower random read latency.</p>
 <p>Because of this, the included manifests reference a
-<a href="https://v1-10.docs.kubernetes.io/docs/concepts/storage/storage-classes/">StorageClass</a> named <code>fast</code>. Manifests are
+<a href="https://kubernetes.io/docs/concepts/storage/storage-classes/">StorageClass</a> named <code>fast</code>. Manifests are
 provided to provide such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.</p>
 <p>If you do not already have a StorageClass named <code>fast</code>, create one using one of the provided manifests:
 <div class="highlight"><pre><span></span># AWS EBS (class io1)
@@ -1300,7 +1300,7 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-f
 <p>If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them
 manifests.</p>
 <h3 id="kernel-configuration">Kernel Configuration</h3>
-<p>We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the <a href="../../operational_guide/kernel_configuration">kernel</a> docs
+<p>We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the <a href="../../operational_guide/kernel_configuration/">kernel</a> docs
 for more.</p>
 <h2 id="deploying">Deploying</h2>
 <p>Apply the following manifest to create your cluster:
@@ -1308,13 +1308,13 @@ for more.</p>
 </pre></div></p>
 <p>Applying this bundle will create the following resources:</p>
 <ol>
-<li>An <code>m3db</code> <a href="https://v1-10.docs.kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/">Namespace</a> for
+<li>An <code>m3db</code> <a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/">Namespace</a> for
    all M3DB-related resources.</li>
 <li>A 3-node etcd cluster in the form of a
-   <a href="https://v1-10.docs.kubernetes.io/docs/concepts/workloads/controllers/statefulset/">StatefulSet</a> backed by persistent
+   <a href="https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/">StatefulSet</a> backed by persistent
    remote SSDs. This cluster stores the DB topology and other runtime configuration data.</li>
 <li>A 3-node M3DB cluster in the form of a StatefulSet.</li>
-<li><a href="https://v1-10.docs.kubernetes.io/docs/concepts/services-networking/dns-pod-service/#services">Headless services</a> for
+<li><a href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#services">Headless services</a> for
    the etcd and m3db StatefulSets to provide stable DNS hostnames per-pod.</li>
 </ol>
 <p>Wait until all created pods are listed as ready:
@@ -1521,9 +1521,9 @@ remote_write:
 <h2 id="scheduling">Scheduling</h2>
 <p>In some cases, you might prefer M3DB to run on certain nodes in your cluster. For example: if your cluster is comprised
 of different instance types and some have more memory than others then you'd like M3DB to run on those nodes if
-possible. To accommodate this, the pods created by the StatefulSets use <a href="https://v1-10.docs.kubernetes.io/docs/concepts/configuration/assign-pod-node/">pod
+possible. To accommodate this, the pods created by the StatefulSets use <a href="https://kubernetes.io/docs/concepts/configuration/assign-pod-node/">pod
 affinities</a> and
-<a href="https://v1-10.docs.kubernetes.io/docs/concepts/configuration/taint-and-toleration/">tolerations</a> to prefer to run on
+<a href="https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/">tolerations</a> to prefer to run on
 certain nodes. Specifically:</p>
 <ol>
 <li>The pods tolerate the taint <code>"dedicated-m3db"</code> to run on nodes that are specifically dedicated to m3db if you so
