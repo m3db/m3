@@ -22,11 +22,14 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -75,15 +78,48 @@ func main() {
 				link := node.LinkData
 				url := strings.TrimSpace(string(link.Destination))
 
-				parse, ok := docs.ParseRepoPathURL(url)
-				if !ok {
-					break
+				resolvedPath := ""
+				if parse, ok := docs.ParseRepoPathURL(url); ok {
+					// Internal relative local repo path
+					resolvedPath = parse.RepoPath
+				} else if httpOrHTTPS(url) {
+					// External link
+					resolvedPath = url
+				} else {
+					// Otherwise should be a direct relative link
+					// (not repo URL prefixed)
+					if v := strings.Index(url, "#"); v != -1 {
+						// Remove links to subsections of docs
+						url = url[:v]
+					}
+					resolvedPath = path.Join(path.Dir(filePath), url)
 				}
 
-				if _, err := os.Stat(parse.RepoPath); err != nil {
-					return abort(fmt.Errorf(
-						"could not stat repo path: link=%s, path=%s, err=%v",
-						url, parse.RepoPath, err))
+				checking := checkedLink{
+					Document:     filePath,
+					URL:          url,
+					ResolvedPath: resolvedPath,
+				}
+				if httpOrHTTPS(resolvedPath) {
+					// Check external link using HEAD request
+					client := &http.Client{
+						Transport: &http.Transport{
+							// Some sites have invalid certs, like some kubernetes docs
+							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+						},
+					}
+					resp, err := client.Head(resolvedPath)
+					if err == nil && resp.StatusCode/100 != 2 {
+						err = fmt.Errorf("expected 2xx status code: status=%v", resp.StatusCode)
+					}
+					if err != nil {
+						return abort(checkedLinkError(checking, err))
+					}
+				} else {
+					// Check relative path
+					if _, err := os.Stat(resolvedPath); err != nil {
+						return abort(checkedLinkError(checking, err))
+					}
 				}
 
 				// Valid
@@ -99,4 +135,21 @@ func main() {
 	}
 
 	log.Printf("validated docs (repoPathsValidated=%d)\n", repoPathsValidated)
+}
+
+func httpOrHTTPS(url string) bool {
+	return strings.HasPrefix(strings.ToLower(url), "http://") ||
+		strings.HasPrefix(strings.ToLower(url), "https://")
+}
+
+type checkedLink struct {
+	Document     string
+	URL          string
+	ResolvedPath string
+}
+
+func checkedLinkError(l checkedLink, err error) error {
+	return fmt.Errorf(
+		"could not validate URL link: document=%s, link=%s, resolved_path=%s, err=%v",
+		l.Document, l.URL, l.ResolvedPath, err)
 }
