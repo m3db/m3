@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -162,27 +162,27 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
 	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
 	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
+		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
 	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
 	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
+		expected:   []generate.Series{barSeries, bazSeries},
 	})
 }
