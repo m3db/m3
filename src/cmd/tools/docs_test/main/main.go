@@ -82,7 +82,7 @@ func main() {
 				if parse, ok := docs.ParseRepoPathURL(url); ok {
 					// Internal relative local repo path
 					resolvedPath = parse.RepoPath
-				} else if httpOrHTTPS(url) {
+				} else if isHTTPOrHTTPS(url) {
 					// External link
 					resolvedPath = url
 				} else {
@@ -95,12 +95,12 @@ func main() {
 					resolvedPath = path.Join(path.Dir(filePath), url)
 				}
 
-				checking := checkedLink{
-					Document:     filePath,
-					URL:          url,
-					ResolvedPath: resolvedPath,
+				checked := checkedLink{
+					document:     filePath,
+					url:          url,
+					resolvedPath: resolvedPath,
 				}
-				if httpOrHTTPS(resolvedPath) {
+				if isHTTPOrHTTPS(resolvedPath) {
 					// Check external link using HEAD request
 					client := &http.Client{
 						Transport: &http.Transport{
@@ -113,12 +113,12 @@ func main() {
 						err = fmt.Errorf("expected 2xx status code: status=%v", resp.StatusCode)
 					}
 					if err != nil {
-						return abort(checkedLinkError(checking, err))
+						return abort(checkedLinkError(checked, err))
 					}
 				} else {
 					// Check relative path
 					if _, err := os.Stat(resolvedPath); err != nil {
-						return abort(checkedLinkError(checking, err))
+						return abort(checkedLinkError(checked, err))
 					}
 				}
 
@@ -137,19 +137,19 @@ func main() {
 	log.Printf("validated docs (repoPathsValidated=%d)\n", repoPathsValidated)
 }
 
-func httpOrHTTPS(url string) bool {
+func isHTTPOrHTTPS(url string) bool {
 	return strings.HasPrefix(strings.ToLower(url), "http://") ||
 		strings.HasPrefix(strings.ToLower(url), "https://")
 }
 
 type checkedLink struct {
-	Document     string
-	URL          string
-	ResolvedPath string
+	document     string
+	url          string
+	resolvedPath string
 }
 
 func checkedLinkError(l checkedLink, err error) error {
 	return fmt.Errorf(
 		"could not validate URL link: document=%s, link=%s, resolved_path=%s, err=%v",
-		l.Document, l.URL, l.ResolvedPath, err)
+		l.document, l.url, l.resolvedPath, err)
 }
