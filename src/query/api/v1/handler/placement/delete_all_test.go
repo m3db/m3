@@ -26,8 +26,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -39,12 +40,11 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	runForAllAllowedServices(func(serviceName string) {
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
-			handler = NewDeleteAllHandler(handlerOpts)
-		)
+		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+		handlerOpts, err := NewHandlerOptions(
+			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+		require.NoError(t, err)
+		handler := NewDeleteAllHandler(handlerOpts)
 
 		// Test delete success
 		w := httptest.NewRecorder()

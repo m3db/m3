@@ -18,9 +18,9 @@ To do so, you will need the m3coordinator binary:
 
     $ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 make services
 
-Once you have the binary, you can run the following to make the Docker image:
+Once you have the binary, you can run the following in the root of the project to make the Docker image:
 
-    $ docker build -t m3coordinator -f docker/Dockerfile .
+    $ docker build -t m3coordinator -f docker/m3coordinator/Dockerfile .
 
 Finally, you can spin up the two containers using `docker-compose` within the `docker/` directory:
 

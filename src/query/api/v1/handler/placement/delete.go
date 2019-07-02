@@ -75,7 +75,7 @@ func NewDeleteHandler(opts HandlerOptions) *DeleteHandler {
 func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
 		id     = mux.Vars(r)[placementIDVar]
 	)
 
@@ -88,10 +88,10 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	var (
 		force = r.FormValue(placementForceVar) == "true"
 		opts  = handler.NewServiceOptions(
-			serviceName, r.Header, h.M3AggServiceOptions)
+			serviceName, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn(), nil)
+	service, algo, err := ServiceWithAlgo(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return

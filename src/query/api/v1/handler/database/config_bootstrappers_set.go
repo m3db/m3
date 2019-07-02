@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -45,21 +46,24 @@ const (
 )
 
 type configSetBootstrappersHandler struct {
-	client clusterclient.Client
+	client         clusterclient.Client
+	instrumentOpts instrument.Options
 }
 
 // NewConfigSetBootstrappersHandler returns a new instance of a database create handler.
 func NewConfigSetBootstrappersHandler(
 	client clusterclient.Client,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &configSetBootstrappersHandler{
-		client: client,
+		client:         client,
+		instrumentOpts: instrumentOpts,
 	}
 }
 
 func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	value, rErr := h.parseRequest(r)
 	if rErr != nil {

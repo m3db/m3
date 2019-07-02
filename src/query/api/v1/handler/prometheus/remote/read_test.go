@@ -34,12 +34,14 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/ts"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -58,18 +60,20 @@ var (
 
 func newEngine(
 	s storage.Storage,
-	scope tally.Scope,
 	lookbackDuration time.Duration,
 	enforcer qcost.ChainedEnforcer,
+	instrumentOpts instrument.Options,
 ) executor.Engine {
-	engineOpts := executor.NewEngineOpts().SetStore(s).SetCostScope(scope).
-		SetLookbackDuration(lookbackDuration).SetGlobalEnforcer(enforcer)
+	engineOpts := executor.NewEngineOpts().
+		SetStore(s).
+		SetLookbackDuration(lookbackDuration).
+		SetGlobalEnforcer(enforcer).
+		SetInstrumentOptions(instrumentOpts)
 
 	return executor.NewEngine(engineOpts)
 }
 
 func setupServer(t *testing.T) *httptest.Server {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	// No calls expected on session object
 	lstore, session := m3.NewStorageAndSession(t, ctrl)
@@ -84,27 +88,29 @@ func setupServer(t *testing.T) *httptest.Server {
 
 func readHandler(store storage.Storage, timeoutOpts *prometheus.TimeoutOpts) *PromReadHandler {
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
-	engine := newEngine(store, tally.NewTestScope("test", nil), defaultLookbackDuration, nil)
+	engine := newEngine(store, defaultLookbackDuration, nil,
+		instrument.NewOptions())
 	return &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     promReadTestMetrics,
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
+		instrumentOpts:      instrument.NewOptions(),
 	}
 }
 
 func TestPromReadParsing(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
-	engine := newEngine(storage, tally.NewTestScope("test", nil), defaultLookbackDuration, nil)
+	engine := newEngine(storage, defaultLookbackDuration, nil,
+		instrument.NewOptions())
 	promRead := &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     promReadTestMetrics,
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
 	}
-	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
+	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
@@ -112,11 +118,11 @@ func TestPromReadParsing(t *testing.T) {
 }
 
 func TestPromFetchTimeoutParsing(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
-	engine := newEngine(storage, tally.NewTestScope("test", nil), defaultLookbackDuration, nil)
+	engine := newEngine(storage, defaultLookbackDuration, nil,
+		instrument.NewOptions())
 	promRead := &PromReadHandler{
 		engine:          engine,
 		promReadMetrics: promReadTestMetrics,
@@ -126,24 +132,22 @@ func TestPromFetchTimeoutParsing(t *testing.T) {
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
 	}
 
-	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
+	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	dur, err := prometheus.ParseRequestTimeout(req, promRead.timeoutOpts.FetchTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, 2*time.Minute, dur)
 }
 
 func TestPromReadParsingBad(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	promRead := readHandler(storage, timeoutOpts)
-	req, _ := http.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
+	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
 	_, err := promRead.parseRequest(req)
 	require.NotNil(t, err, "unable to parse request")
 }
 
 func TestPromReadStorageWithFetchError(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -158,8 +162,6 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 }
 
 func TestQueryMatchMustBeEqual(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	req := test.GeneratePromReadRequest()
 	matchers, err := storage.PromMatchersToM3(req.Queries[0].Matchers)
 	require.NoError(t, err)
@@ -195,7 +197,6 @@ func TestQueryKillOnTimeout(t *testing.T) {
 }
 
 func TestReadErrorMetricsCount(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -208,19 +209,93 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
 	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
-	engine := newEngine(storage, scope, defaultLookbackDuration, nil)
+	engine := newEngine(storage, defaultLookbackDuration, nil,
+		instrument.NewOptions())
 	promRead := &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     readMetrics,
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
+		instrumentOpts:      instrument.NewOptions(),
 	}
 
-	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
+	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	promRead.ServeHTTP(httptest.NewRecorder(), req)
 	foundMetric := xclock.WaitUntil(func() bool {
 		found := reporter.Counters()["fetch.errors"]
 		return found == 1
 	}, 5*time.Second)
 	require.True(t, foundMetric)
+}
+
+func TestMultipleRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Now()
+	promNow := storage.TimeToPromTimestamp(now)
+
+	vals := ts.NewMockValues(ctrl)
+	vals.EXPECT().Len().Return(1).AnyTimes()
+	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
+	vals.EXPECT().Datapoints().Return(dp).AnyTimes()
+
+	tags := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
+
+	valsTwo := ts.NewMockValues(ctrl)
+	valsTwo.EXPECT().Len().Return(1).AnyTimes()
+	dpTwo := ts.Datapoints{{Timestamp: now, Value: 2}}
+	valsTwo.EXPECT().Datapoints().Return(dpTwo).AnyTimes()
+	tagsTwo := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
+
+	r := &storage.FetchResult{
+		SeriesList: ts.SeriesList{
+			ts.NewSeries([]byte("a"), vals, tags),
+		},
+	}
+
+	rTwo := &storage.FetchResult{
+		SeriesList: ts.SeriesList{
+			ts.NewSeries([]byte("c"), valsTwo, tagsTwo),
+		},
+	}
+
+	req := &prompb.ReadRequest{
+		Queries: []*prompb.Query{
+			{StartTimestampMs: 10},
+			{StartTimestampMs: 20},
+		},
+	}
+
+	q, err := storage.PromReadQueryToM3(req.Queries[0])
+	require.NoError(t, err)
+	qTwo, err := storage.PromReadQueryToM3(req.Queries[1])
+	require.NoError(t, err)
+
+	engine := executor.NewMockEngine(ctrl)
+	engine.EXPECT().
+		Execute(gomock.Any(), q, gomock.Any()).Return(r, nil)
+	engine.EXPECT().
+		Execute(gomock.Any(), qTwo, gomock.Any()).Return(rTwo, nil)
+
+	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
+	result, err := h.read(context.TODO(), nil, req, 0, 100)
+	require.NoError(t, err)
+	expected := &prompb.QueryResult{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
+				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+			},
+			&prompb.TimeSeries{
+				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 2}},
+			},
+		},
+	}
+
+	assert.Equal(t, expected.Timeseries[0], result[0].Timeseries[0])
+	assert.Equal(t, expected.Timeseries[1], result[1].Timeseries[0])
 }

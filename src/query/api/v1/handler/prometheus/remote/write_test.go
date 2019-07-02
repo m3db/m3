@@ -37,9 +37,9 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -50,11 +50,9 @@ func TestPromWriteParsing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logging.InitWithCores(nil)
-
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, tally.NoopScope)
+		models.NewTagOptions(), time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -71,15 +69,13 @@ func TestPromWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logging.InitWithCores(nil)
-
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	mockDownsamplerAndWriter.
 		EXPECT().
 		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any())
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, tally.NoopScope)
+		models.NewTagOptions(), time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -93,19 +89,19 @@ func TestPromWrite(t *testing.T) {
 }
 
 func TestPromWriteError(t *testing.T) {
-	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	multiErr := xerrors.NewMultiError().Add(errors.New("an error"))
 	batchErr := ingest.BatchError(multiErr)
 
-	ctrl := gomock.NewController(t)
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	mockDownsamplerAndWriter.EXPECT().
 		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(batchErr)
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, tally.NoopScope)
+		models.NewTagOptions(), time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -124,19 +120,19 @@ func TestPromWriteError(t *testing.T) {
 }
 
 func TestWriteErrorMetricCount(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
-	mockDownsamplerAndWriter.
-		EXPECT().
-		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any())
 
 	scope := tally.NewTestScope("",
 		map[string]string{"test": "error-metric-test"})
 
+	iopts := instrument.NewOptions().
+		SetMetricsScope(scope)
+
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, scope)
+		models.NewTagOptions(), time.Now, iopts)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, nil)
@@ -150,9 +146,9 @@ func TestWriteErrorMetricCount(t *testing.T) {
 }
 
 func TestWriteDatapointDelayMetric(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	mockDownsamplerAndWriter.
 		EXPECT().
@@ -162,7 +158,7 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 		map[string]string{"test": "delay-metric-test"})
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, scope)
+		models.NewTagOptions(), time.Now, instrument.NewOptions().SetMetricsScope(scope))
 	require.NoError(t, err)
 
 	writeHandler, ok := handler.(*PromWriteHandler)
@@ -210,8 +206,6 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logging.InitWithCores(nil)
-
 	expectedIngestWriteOptions := ingest.WriteOptions{
 		DownsampleOverride:     true,
 		DownsampleMappingRules: nil,
@@ -225,7 +219,7 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 		WriteBatch(gomock.Any(), gomock.Any(), expectedIngestWriteOptions)
 
 	writeHandler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, tally.NoopScope)
+		models.NewTagOptions(), time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -244,8 +238,6 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logging.InitWithCores(nil)
-
 	expectedIngestWriteOptions := ingest.WriteOptions{
 		DownsampleOverride:     true,
 		DownsampleMappingRules: nil,
@@ -261,7 +253,7 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 		WriteBatch(gomock.Any(), gomock.Any(), expectedIngestWriteOptions)
 
 	writeHandler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, tally.NoopScope)
+		models.NewTagOptions(), time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()

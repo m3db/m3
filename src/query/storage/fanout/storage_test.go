@@ -35,8 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -71,14 +71,7 @@ type fetchResponse struct {
 	err    error
 }
 
-func setup() {
-	logging.InitWithCores(nil)
-	logger := logging.WithContext(context.TODO())
-	defer logger.Sync()
-}
-
 func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) storage.Storage {
-	setup()
 	if len(response) == 0 {
 		response = []*fetchResponse{{err: fmt.Errorf("unable to get response")}}
 	}
@@ -100,12 +93,12 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 		store1, store2,
 	}
 
-	store := NewStorage(stores, filterFunc(output), filterFunc(output), filterCompleteTagsFunc(output))
+	store := NewStorage(stores, filterFunc(output), filterFunc(output),
+		filterCompleteTagsFunc(output), instrument.NewOptions())
 	return store
 }
 
 func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage {
-	setup()
 	ctrl := gomock.NewController(t)
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
@@ -128,7 +121,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	stores := []storage.Storage{
 		store1, store2,
 	}
-	store := NewStorage(stores, filterFunc(output), filterFunc(output), filterCompleteTagsFunc(output))
+	store := NewStorage(stores, filterFunc(output), filterFunc(output),
+		filterCompleteTagsFunc(output), instrument.NewOptions())
 	return store
 }
 

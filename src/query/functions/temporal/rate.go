@@ -57,7 +57,7 @@ func (r rateProcessor) Init(op baseOp, controller *transform.Controller, opts tr
 	return &rateNode{
 		op:         op,
 		controller: controller,
-		timeSpec:   opts.TimeSpec,
+		timeSpec:   opts.TimeSpec(),
 		isRate:     r.isRate,
 		isCounter:  r.isCounter,
 		rateFn:     r.rateFn,

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	m3ts "github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 )
@@ -46,6 +47,7 @@ type m3WrappedStore struct {
 	m3               storage.Storage
 	enforcer         cost.ChainedEnforcer
 	queryContextOpts models.QueryContextOptions
+	instrumentOpts   instrument.Options
 }
 
 // NewM3WrappedStorage creates a graphite storage wrapper around an m3query
@@ -54,6 +56,7 @@ func NewM3WrappedStorage(
 	m3storage storage.Storage,
 	enforcer cost.ChainedEnforcer,
 	queryContextOpts models.QueryContextOptions,
+	instrumentOpts instrument.Options,
 ) Storage {
 	if enforcer == nil {
 		enforcer = cost.NoopChainedEnforcer()
@@ -63,6 +66,7 @@ func NewM3WrappedStorage(
 		m3:               m3storage,
 		enforcer:         enforcer,
 		queryContextOpts: queryContextOpts,
+		instrumentOpts:   instrumentOpts,
 	}
 }
 
@@ -157,7 +161,7 @@ func (s *m3WrappedStore) FetchByQuery(
 	if err != nil {
 		// NB: error here implies the query cannot be translated; empty set expected
 		// rather than propagating an error.
-		logger := logging.WithContext(ctx.RequestContext())
+		logger := logging.WithContext(ctx.RequestContext(), s.instrumentOpts)
 		logger.Info("could not translate query, returning empty results",
 			zap.String("query", query))
 		return &FetchResult{

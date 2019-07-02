@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -315,13 +316,13 @@ func testRate(t *testing.T, testCases []testRateCase) {
 
 			baseOp, err := NewRateOp([]interface{}{5 * time.Minute}, tt.opType)
 			require.NoError(t, err)
-			node := baseOp.Node(c, transform.Options{
+			node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 				TimeSpec: transform.TimeSpec{
 					Start: boundStart.Add(-2 * bounds.Duration),
 					End:   bounds.End(),
 					Step:  time.Minute,
 				},
-			})
+			}))
 			bNode := node.(*baseNode)
 			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block3)
 			require.NoError(t, err)

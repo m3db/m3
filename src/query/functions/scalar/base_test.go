@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,13 +45,13 @@ func TestScalarTime(t *testing.T) {
 
 	start := bounds.Start
 	step := bounds.StepSize
-	node := baseOp.Node(c, transform.Options{
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
 			Start: start,
 			End:   bounds.End(),
 			Step:  step,
 		},
-	})
+	}))
 	err := node.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 1)

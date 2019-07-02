@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
 )
 
@@ -71,6 +72,9 @@ var (
 type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+
+	// Logging configuration.
+	Logging xlog.Configuration `yaml:"logging"`
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
 	Tracing opentracing.TracingConfiguration `yaml:"tracing"`

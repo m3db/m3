@@ -58,7 +58,7 @@ func NewEngine(
 	}
 
 	return &engine{
-		metrics: newEngineMetrics(engineOpts.CostScope()),
+		metrics: newEngineMetrics(engineOpts.InstrumentOptions().MetricsScope()),
 		opts:    engineOpts,
 	}
 }
@@ -113,68 +113,55 @@ func (e *engine) Execute(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	opts *QueryOptions,
-	results chan *storage.QueryResult,
-) {
-	defer close(results)
-
+) (*storage.FetchResult, error) {
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
-
-	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
-	if err != nil {
-		results <- &storage.QueryResult{Err: err}
-		return
-	}
-
-	results <- &storage.QueryResult{FetchResult: result}
+	return e.opts.Store().Fetch(ctx, query, fetchOpts)
 }
 
-// nolint: unparam
 func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
 	opts *QueryOptions,
 	params models.RequestParams,
-	results chan Query,
-) {
-	defer close(results)
-
+) (Result, error) {
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
-	req := newRequest(e, params)
+	req := newRequest(e, params, e.opts.InstrumentOptions())
 
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	pp, err := req.plan(ctx, nodes, edges)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	state, err := req.generateExecutionState(ctx, pp)
-	// free up resources
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
+	// free up resources
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "executing")
 	defer sp.Finish()
 
 	result := state.resultNode
-	results <- Query{Result: result}
-
-	queryCtx := models.NewQueryContext(ctx, e.opts.CostScope(), perQueryEnforcer,
+	scope := e.opts.InstrumentOptions().MetricsScope()
+	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
 		opts.QueryContextOptions)
-	if err := state.Execute(queryCtx); err != nil {
-		result.abort(err)
-	} else {
-		result.done()
-	}
+
+	go func() {
+		if err := state.Execute(queryCtx); err != nil {
+			result.abort(err)
+		} else {
+			result.done()
+		}
+	}()
+
+	return result, nil
 }
 
 func (e *engine) Close() error {

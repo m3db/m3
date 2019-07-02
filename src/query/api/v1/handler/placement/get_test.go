@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -44,8 +44,6 @@ import (
 )
 
 func SetupPlacementTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *placement.MockService) {
-	logging.InitWithCores(nil)
-
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 
@@ -62,8 +60,6 @@ func SetupPlacementTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClie
 }
 
 func setupPlacementTest(t *testing.T, ctrl *gomock.Controller, initPlacement placement.Placement) *client.MockClient {
-	logging.InitWithCores(nil)
-
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 
@@ -90,12 +86,11 @@ func TestPlacementGetHandler(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
-			handler = NewGetHandler(handlerOpts)
-		)
+		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+		handlerOpts, err := NewHandlerOptions(
+			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+		require.NoError(t, err)
+		handler := NewGetHandler(handlerOpts)
 
 		// Test successful get
 		w := httptest.NewRecorder()

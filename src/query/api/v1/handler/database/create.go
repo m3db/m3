@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -134,6 +135,7 @@ type createHandler struct {
 	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
 	embeddedDbCfg          *dbconfig.DBConfiguration
+	instrumentOpts         instrument.Options
 }
 
 // NewCreateHandler returns a new instance of a database create handler.
@@ -141,25 +143,28 @@ func NewCreateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
-) http.Handler {
-	placementHandlerOptions := placement.HandlerOptions{
-		ClusterClient: client,
-		Config:        cfg,
+	instrumentOpts instrument.Options,
+) (http.Handler, error) {
+	placementHandlerOptions, err := placement.NewHandlerOptions(client,
+		cfg, nil, instrumentOpts)
+	if err != nil {
+		return nil, err
 	}
 	return &createHandler{
 		placementInitHandler:   placement.NewInitHandler(placementHandlerOptions),
 		placementGetHandler:    placement.NewGetHandler(placementHandlerOptions),
-		namespaceAddHandler:    namespace.NewAddHandler(client),
-		namespaceGetHandler:    namespace.NewGetHandler(client),
-		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
+		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts),
+		namespaceGetHandler:    namespace.NewGetHandler(client, instrumentOpts),
+		namespaceDeleteHandler: namespace.NewDeleteHandler(client, instrumentOpts),
 		embeddedDbCfg:          embeddedDbCfg,
-	}
+		instrumentOpts:         instrumentOpts,
+	}, nil
 }
 
 func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
 
 	currPlacement, _, err := h.placementGetHandler.Get(handler.M3DBServiceName, nil)

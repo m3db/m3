@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
@@ -111,7 +111,8 @@ func checkRemoteFetch(t *testing.T, r *storage.FetchResult) {
 }
 
 func startServer(t *testing.T, ctrl *gomock.Controller, store m3.Storage) net.Listener {
-	server := NewGRPCServer(store, models.QueryContextOptions{}, poolsWrapper)
+	server := NewGRPCServer(store, models.QueryContextOptions{},
+		poolsWrapper, instrument.NewOptions())
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -124,8 +125,6 @@ func startServer(t *testing.T, ctrl *gomock.Controller, store m3.Storage) net.Li
 }
 
 func createCtxReadOpts(t *testing.T) (context.Context, *storage.FetchQuery, *storage.FetchOptions) {
-	logging.InitWithCores(nil)
-
 	ctx := context.Background()
 	read, _, _ := createStorageFetchQuery(t)
 	readOpts := storage.NewFetchOptions()

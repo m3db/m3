@@ -37,8 +37,8 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -90,7 +90,6 @@ func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
 }
 
 func searchServer(t *testing.T) *SearchHandler {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 
 	mockTaggedIDsIter := generateTagIters(ctrl)
@@ -100,7 +99,8 @@ func searchServer(t *testing.T) *SearchHandler {
 		Return(mockTaggedIDsIter, false, nil).AnyTimes()
 
 	search := NewSearchHandler(storage,
-		NewFetchOptionsBuilder(FetchOptionsBuilderOptions{}))
+		NewFetchOptionsBuilder(FetchOptionsBuilderOptions{}),
+		instrument.NewOptions())
 	h, ok := search.(*SearchHandler)
 	require.True(t, ok)
 	return h

@@ -50,6 +50,9 @@ var (
 	errSeekersDontExist                              = errors.New("seekers don't exist")
 	errCantCloseSeekerManagerWhileSeekersAreBorrowed = errors.New("cant close seeker manager while seekers are borrowed")
 	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
+	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
+	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
+	errOutOfOrderUpdateOpenLease                     = errors.New("received update open lease volumes out of order")
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -57,6 +60,7 @@ type openAnyUnopenSeekersFn func(*seekersByTime) error
 type newOpenSeekerFn func(
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 ) (DataFileSetSeeker, error)
 
 type seekerManagerStatus int
@@ -79,6 +83,7 @@ type seekerManager struct {
 	filePathPrefix string
 
 	status                 seekerManagerStatus
+	isUpdatingLease        bool
 	seekersByShardIdx      []*seekersByTime
 	namespace              ident.ID
 	namespaceMetadata      namespace.Metadata
@@ -103,6 +108,7 @@ type seekersAndBloom struct {
 	wg          *sync.WaitGroup
 	seekers     []borrowableSeeker
 	bloomFilter *ManagedConcurrentBloomFilter
+	volume      int
 }
 
 // borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
@@ -115,7 +121,12 @@ type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
-	seekers  map[xtime.UnixNano]seekersAndBloom
+	seekers  map[xtime.UnixNano]rotatableSeekers
+}
+
+type rotatableSeekers struct {
+	active   seekersAndBloom
+	inactive seekersAndBloom
 }
 
 type seekerManagerPendingClose struct {
@@ -201,14 +212,14 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error) {
 	byTime := m.seekersByTime(shard)
 
-	// Try fast RLock() first
+	// Try fast RLock() first.
 	byTime.RLock()
 	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, ok := byTime.seekers[startNano]
+	seekers, ok := byTime.seekers[startNano]
 	byTime.RUnlock()
 
-	if ok && seekersAndBloom.wg == nil {
-		return seekersAndBloom.bloomFilter, nil
+	if ok && seekers.active.wg == nil {
+		return seekers.active.bloomFilter, nil
 	}
 
 	byTime.Lock()
@@ -254,12 +265,11 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFil
 
 func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error {
 	byTime := m.seekersByTime(shard)
-
 	byTime.Lock()
 	defer byTime.Unlock()
 
 	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, ok := byTime.seekers[startNano]
+	seekers, ok := byTime.seekers[startNano]
 	// Should never happen - This either means that the caller (DataBlockRetriever) is trying to return seekers
 	// that it never requested, OR its trying to return seekers after the openCloseLoop has already
 	// determined that they were all no longer in use and safe to close. Either way it indicates there is
@@ -268,33 +278,263 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 		return errSeekersDontExist
 	}
 
-	found := false
-	for i, compareSeeker := range seekersAndBloom.seekers {
-		if seeker == compareSeeker.seeker {
-			found = true
-			compareSeeker.isBorrowed = false
-			seekersAndBloom.seekers[i] = compareSeeker
-			break
-		}
+	returned, err := m.returnSeekerWithLock(seekers, seeker)
+	if err != nil {
+		return err
 	}
+
 	// Should never happen with a well behaved caller. Either they are trying to return a seeker
 	// that we're not managing, or they provided the wrong shard/start.
-	if !found {
+	if !returned {
 		return errReturnedUnmanagedSeeker
 	}
 
 	return nil
 }
 
-// Implements block.Leaser.
+// returnSeekerWithLock encapsulates all the logic for returning a seeker, including distinguishing between active
+// and inactive seekers. For more details on this read the comment above the UpdateOpenLease() method.
+func (m *seekerManager) returnSeekerWithLock(seekers rotatableSeekers, seeker ConcurrentDataFileSetSeeker) (bool, error) {
+	// Check if the seeker being returned is an active seeker first.
+	for i, compareSeeker := range seekers.active.seekers {
+		if seeker == compareSeeker.seeker {
+			compareSeeker.isBorrowed = false
+			seekers.active.seekers[i] = compareSeeker
+			return true, nil
+		}
+	}
+
+	// If no match was found in the active seekers, it's possible that an inactive seeker is being returned.
+	for i, compareSeeker := range seekers.inactive.seekers {
+		if seeker == compareSeeker.seeker {
+			compareSeeker.isBorrowed = false
+			seekers.inactive.seekers[i] = compareSeeker
+
+			// The goroutine that returns the last outstanding inactive seeker is responsible for notifying any
+			// goroutines waiting for all inactive seekers to be returned and clearing out the inactive seekers
+			// state entirely.
+			allAreReturned := true
+			for _, inactiveSeeker := range seekers.inactive.seekers {
+				if inactiveSeeker.isBorrowed {
+					allAreReturned = false
+					break
+				}
+			}
+
+			if !allAreReturned {
+				return true, nil
+			}
+
+			// All the inactive seekers have been returned so it's safe to signal and clear them out.
+			multiErr := xerrors.NewMultiError()
+			for _, inactiveSeeker := range seekers.inactive.seekers {
+				multiErr = multiErr.Add(inactiveSeeker.seeker.Close())
+			}
+
+			// Clear out inactive state.
+			allInactiveSeekersClosedWg := seekers.inactive.wg
+			seekers.inactive = seekersAndBloom{}
+			if allInactiveSeekersClosedWg != nil {
+				// Signal completion regardless of any errors encountered while closing.
+				allInactiveSeekersClosedWg.Done()
+			}
+
+			return true, multiErr.FinalError()
+		}
+	}
+
+	return false, nil
+}
+
+// UpdateOpenLease() implements block.Leaser. The contract of this API is that once the function
+// returns successfully any resources associated with the previous lease should have been
+// released (in this case the Seeker / files for the previous volume) and the resources associated
+// with the new lease should have been acquired (the seeker for the provided volume).
+//
+// Practically speaking, the goal of this function is to open a new seeker for the latest volume and
+// then "hot-swap" it so that by the time this function returns there are no more outstanding reads
+// using the old seekers, all the old seekers have been closed, and all subsequent reads will use the
+// seekers associated with the latest volume.
+//
+// The bulk of the complexity of this function is caused by the desire to avoid the hot-swap from
+// causing any latency spikes. To accomplish this, the following is performed:
+//
+//   1. Open the new seeker outside the context of any locks.
+//   2. Acquire a lock on the seekers that need to be swapped and rotate the existing "active" seekers
+//      to be "inactive" and set the newly opened seekers as "active". This operation is extremely cheap
+//      and ensures that all subsequent reads will use the seekers for the latest volume instead of the
+//      previous. In addition, this phase also creates a waitgroup for the inactive seekers that will be
+//      be used to "wait" for all of the existing seekers that are currently borrowed to be returned.
+//   3. Release the lock so that reads can continue uninterrupted and call waitgroup.Wait() to wait for all
+//      the currently borrowed "inactive" seekers (if any) to be returned.
+//   4. Every call to Return() for an "inactive" seeker will check if it's the last borrowed inactive seeker,
+//      and if so, will close all the inactive seekers and call wg.Done() which will notify the goroutine
+//      running the UpdateOpenlease() function that all inactive seekers have been returned and closed at
+//      which point the function will return sucessfully.
 func (m *seekerManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) (block.UpdateOpenLeaseResult, error) {
-	// TODO(rartoul): This is a no-op for now until the logic for swapping out seekers is written.
-	// Also make sure that this function is a proper no-op if the SeekerManager state has been
-	// been switched to closed.
-	return block.NoOpenLease, nil
+	noop, err := m.startUpdateOpenLease(descriptor)
+	if err != nil {
+		return 0, err
+	}
+	if noop {
+		return block.NoOpenLease, nil
+	}
+	defer func() {
+		m.Lock()
+		// Was already set to true by startUpdateOpenLease().
+		m.isUpdatingLease = false
+		m.Unlock()
+	}()
+
+	wg, updateLeaseResult, err := m.updateOpenLeaseHotSwapSeekers(descriptor, state)
+	if err != nil {
+		return 0, err
+	}
+	if wg != nil {
+		// Wait for all the inactive seekers to be returned and closed because the contract
+		// of this API is that the Leaser (SeekerManager) should have relinquished any resources
+		// associated with the old lease by the time this function returns.
+		wg.Wait()
+	}
+
+	return updateLeaseResult, nil
+}
+
+func (m *seekerManager) startUpdateOpenLease(descriptor block.LeaseDescriptor) (bool, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	if m.status != seekerManagerOpen {
+		return false, errUpdateOpenLeaseSeekerManagerNotOpen
+	}
+	if m.isUpdatingLease {
+		// This guard is a little overly aggressive. In practice, the algorithm remains correct even in the presence
+		// of concurrent UpdateOpenLease() calls as long as they are for different shard/blockStart combinations.
+		// However, the calling code currently has no need to call this method concurrently at all so use the
+		// simpler check for now.
+		return false, errConcurrentUpdateOpenLeaseNotAllowed
+	}
+	if !m.namespace.Equal(descriptor.Namespace) {
+		return true, nil
+	}
+
+	m.isUpdatingLease = true
+
+	return false, nil
+}
+
+// updateOpenLeaseHotSwapSeekers encapsulates all of the logic for swapping the existing seekers with the new ones
+// as dictated by the call to UpdateOpenLease(). For details of the algorithm review the comment above the
+// UpdateOpenLease() method.
+func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+) (*sync.WaitGroup, block.UpdateOpenLeaseResult, error) {
+	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var (
+		byTime                = m.seekersByTime(descriptor.Shard)
+		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
+		updateOpenLeaseResult = block.NoOpenLease
+	)
+	seekers, ok := m.acquireByTimeLockWaitGroupAware(blockStartNano, byTime)
+	defer byTime.Unlock()
+	if !ok {
+		// No existing seekers, so just set the newly created ones and be done.
+		seekers.active = newActiveSeekers
+		byTime.seekers[blockStartNano] = seekers
+		return nil, updateOpenLeaseResult, nil
+	}
+
+	// Existing seekers exist.
+	updateOpenLeaseResult = block.UpdateOpenLease
+	if seekers.active.volume > state.Volume {
+		// Ignore any close errors because its not relevant from the callers perspective.
+		m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
+		return nil, 0, errOutOfOrderUpdateOpenLease
+	}
+
+	seekers.inactive = seekers.active
+	seekers.active = newActiveSeekers
+
+	// If any of the previous seekers are still borrowed this function will need to wait for
+	// them to be returned.
+	anySeekersAreBorrowed := false
+	for _, seeker := range seekers.inactive.seekers {
+		if seeker.isBorrowed {
+			anySeekersAreBorrowed = true
+			break
+		}
+	}
+
+	var wg *sync.WaitGroup
+	if anySeekersAreBorrowed {
+		// If any of the seekers are borrowed setup a waitgroup which will be used to
+		// signal when they've all been returned (the last seeker that is returned via
+		// the Return() API will call wg.Done()).
+		wg = &sync.WaitGroup{}
+		wg.Add(1)
+		seekers.inactive.wg = wg
+	}
+	byTime.seekers[blockStartNano] = seekers
+
+	return wg, updateOpenLeaseResult, nil
+}
+
+func (m *seekerManager) acquireByTimeLockWaitGroupAware(
+	blockStart xtime.UnixNano,
+	byTime *seekersByTime,
+) (seekers rotatableSeekers, ok bool) {
+	// It's possible that another goroutine is currently trying to open seekers for this blockStart. If so, this
+	// goroutine will need to wait for the other goroutine to finish before proceeding. The check is performed in
+	// a loop because each iteration relinquishes the lock temporarily. Once the lock is reacquired the same
+	// conditions need to be checked again until this Goroutine finds that either:
+	//
+	//   a) Seekers are already present for this blockStart in which case this function can return while holding the
+	//      lock.
+	// or
+	//   b) Seeks are not present for this blockStart and no other goroutines are currently trying to open them, in
+	//      which case this function can also return while holding the lock.
+	for {
+		byTime.Lock()
+		seekers, ok = byTime.seekers[blockStart]
+
+		if !ok || seekers.active.wg == nil {
+			// Exit the loop still holding the lock.
+			return seekers, ok
+		}
+
+		// If another goroutine is currently trying to open seekers for this block start
+		// then wait for that operation to complete.
+		wg := seekers.active.wg
+		byTime.Unlock()
+		wg.Wait()
+	}
+}
+
+// closeSeekersAndLogError is a helper function that closes all the seekers in a slice of borrowableSeeker
+// and emits a log if any errors occurred.
+func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor, seekers []borrowableSeeker) {
+	var multiErr = xerrors.NewMultiError()
+	for _, seeker := range seekers {
+		multiErr = multiErr.Add(seeker.seeker.Close())
+	}
+	if multiErr.FinalError() != nil {
+		// Log the error but don't return it since its not relevant from
+		// the callers perspective.
+		m.logger.Error(
+			"error closing seeker in update open lease",
+			zap.Error(multiErr.FinalError()),
+			zap.String("namespace", descriptor.Namespace.String()),
+			zap.Int("shard", int(descriptor.Shard)),
+			zap.Time("blockStart", descriptor.BlockStart))
+	}
 }
 
 // getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
@@ -308,46 +548,89 @@ func (m *seekerManager) UpdateOpenLease(
 // and then notify the waiting goroutines that we've finished.
 func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
 	seekers, ok := byTime.seekers[start]
-	if ok && seekers.wg == nil {
+	if ok && seekers.active.wg == nil {
 		// Seekers are already open
-		return seekers, nil
+		return seekers.active, nil
 	}
 
-	if seekers.wg != nil {
+	if seekers.active.wg != nil {
 		// Seekers are being initialized / opened, wait for the that to complete
 		byTime.Unlock()
-		seekers.wg.Wait()
+		seekers.active.wg.Wait()
 		byTime.Lock()
 		// Need to do the lookup again recursively to see the new state
 		return m.getOrOpenSeekersWithLock(start, byTime)
 	}
 
-	// Seekers need to be opened
-	borrowableSeekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
+	// Seekers need to be opened.
 	// We're going to release the lock temporarily, so we initialize a WaitGroup
 	// that other routines which would have otherwise attempted to also open this
 	// same seeker can use instead to wait for us to finish.
 	wg := &sync.WaitGroup{}
-	seekers.wg = wg
-	seekers.wg.Add(1)
+	seekers.active.wg = wg
+	seekers.active.wg.Add(1)
 	byTime.seekers[start] = seekers
 	byTime.Unlock()
-	// Open first one - Do this outside the context of the lock because opening
-	// a seeker can be an expensive operation (validating index files)
-	seeker, err := m.newOpenSeekerFn(byTime.shard, start.ToTime())
-	// Immediately re-lock once the seeker is open regardless of errors because
-	// thats the contract of this function
-	byTime.Lock()
-	// Call done after we re-acquire the lock so that callers who were waiting
-	// won't get the lock before us.
-	wg.Done()
 
+	activeSeekers, err := m.openLatestSeekersWithActiveWaitGroup(start, seekers, byTime)
+	// Lock must be held when function returns.
+	byTime.Lock()
+	// Signal to other waiting goroutines that this goroutine is done attempting to open
+	// the seekers. This is done *after* acquiring the lock so that other goroutines that
+	// were waiting won't acquire the lock before this goroutine does.
+	wg.Done()
 	if err != nil {
-		// Delete the seekersByTime struct so that the process can be restarted if necessary
+		// Delete the seekersByTime struct so that the process can be restarted by the next
+		// goroutine (since this one errored out).
 		delete(byTime.seekers, start)
 		return seekersAndBloom{}, err
 	}
 
+	seekers.active = activeSeekers
+	byTime.seekers[start] = seekers
+	return activeSeekers, nil
+}
+
+// openLatestSeekersWithActiveWaitGroup opens the latest seekers for the provided block start. Similar
+// to the withLock() convention, the caller of this function is expected to be the owner of the waitgroup
+// that is being used to signal that seekers have completed opening.
+func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
+	start xtime.UnixNano,
+	seekers rotatableSeekers,
+	byTime *seekersByTime,
+) (seekersAndBloom, error) {
+	// Open first one - Do this outside the context of the lock because opening
+	// a seeker can be an expensive operation (validating index files).
+	blm := m.blockRetrieverOpts.BlockLeaseManager()
+	blockStart := start.ToTime()
+	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace,
+		Shard:      byTime.shard,
+		BlockStart: blockStart,
+	})
+	if err != nil {
+		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
+	}
+
+	return m.newSeekersAndBloom(byTime.shard, blockStart, state.Volume)
+}
+
+func (m *seekerManager) newSeekersAndBloom(shard uint32, blockStart time.Time, volume int) (seekersAndBloom, error) {
+	seeker, err := m.newOpenSeekerFn(shard, blockStart, volume)
+	if err != nil {
+		return seekersAndBloom{}, err
+	}
+
+	newSeekersAndBloom, err := m.seekersAndBloomFromSeeker(seeker, volume)
+	if err != nil {
+		return seekersAndBloom{}, err
+	}
+
+	return newSeekersAndBloom, nil
+}
+
+func (m *seekerManager) seekersAndBloomFromSeeker(seeker DataFileSetSeeker, volume int) (seekersAndBloom, error) {
+	borrowableSeekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
 	borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: seeker})
 	// Clone remaining seekers from the original - No need to release the lock, cloning is cheap.
 	for i := 0; i < m.fetchConcurrency-1; i++ {
@@ -359,20 +642,16 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 				// Don't leak successfully opened seekers
 				multiErr = multiErr.Add(seeker.seeker.Close())
 			}
-			// Delete the seekersByTime struct so that the process can be restarted if necessary
-			delete(byTime.seekers, start)
 			return seekersAndBloom{}, multiErr.FinalError()
 		}
 		borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: clone})
 	}
 
-	seekers.wg = nil
-	seekers.seekers = borrowableSeekers
-	// Doesn't matter which seeker we pick to grab the bloom filter from, they all share the same underlying one.
-	// Use index 0 because its guaranteed to be there.
-	seekers.bloomFilter = borrowableSeekers[0].seeker.ConcurrentIDBloomFilter()
-	byTime.seekers[start] = seekers
-	return seekers, nil
+	return seekersAndBloom{
+		seekers:     borrowableSeekers,
+		bloomFilter: borrowableSeekers[0].seeker.ConcurrentIDBloomFilter(),
+		volume:      volume,
+	}, nil
 }
 
 func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
@@ -396,18 +675,10 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 ) (DataFileSetSeeker, error) {
-	blm := m.blockRetrieverOpts.BlockLeaseManager()
-	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
-		Namespace:  m.namespace,
-		Shard:      shard,
-		BlockStart: blockStart,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("err opening latest lease: %v", err)
-	}
-
-	exists, err := DataFileSetExists(m.filePathPrefix, m.namespace, shard, blockStart, state.Volume)
+	exists, err := DataFileSetExists(
+		m.filePathPrefix, m.namespace, shard, blockStart, volume)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +706,7 @@ func (m *seekerManager) newOpenSeeker(
 	seeker.setUnreadBuffer(m.unreadBuf.value)
 
 	resources := m.getSeekerResources()
-	err = seeker.Open(m.namespace, shard, blockStart, state.Volume, resources)
+	err = seeker.Open(m.namespace, shard, blockStart, volume, resources)
 	m.putSeekerResources(resources)
 	if err != nil {
 		return nil, err
@@ -476,7 +747,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		}
 		seekersByShardIdx[i] = &seekersByTime{
 			shard:   uint32(i),
-			seekers: make(map[xtime.UnixNano]seekersAndBloom),
+			seekers: make(map[xtime.UnixNano]rotatableSeekers),
 		}
 	}
 
@@ -498,8 +769,18 @@ func (m *seekerManager) Close() error {
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
 	for _, byTime := range m.seekersByShardIdx {
 		byTime.Lock()
-		for _, seekersByTime := range byTime.seekers {
-			for _, seeker := range seekersByTime.seekers {
+		for _, seekersForBlock := range byTime.seekers {
+			// Ensure active seekers are all returned.
+			for _, seeker := range seekersForBlock.active.seekers {
+				if seeker.isBorrowed {
+					byTime.Unlock()
+					m.Unlock()
+					return errCantCloseSeekerManagerWhileSeekersAreBorrowed
+				}
+			}
+
+			// Ensure inactive seekers are all returned.
+			for _, seeker := range seekersForBlock.inactive.seekers {
 				if seeker.isBorrowed {
 					byTime.Unlock()
 					m.Unlock()
@@ -609,9 +890,19 @@ func (m *seekerManager) openCloseLoop() {
 				byTime := m.seekersByShardIdx[elem.shard]
 				blockStartNano := xtime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
-				seekersAndBloom := byTime.seekers[blockStartNano]
+				seekers := byTime.seekers[blockStartNano]
 				allSeekersAreReturned := true
-				for _, seeker := range seekersAndBloom.seekers {
+
+				// Ensure no active seekers are still borrowed.
+				for _, seeker := range seekers.active.seekers {
+					if seeker.isBorrowed {
+						allSeekersAreReturned = false
+						break
+					}
+				}
+
+				// Ensure no ianctive seekers are still borrowed.
+				for _, seeker := range seekers.inactive.seekers {
 					if seeker.isBorrowed {
 						allSeekersAreReturned = false
 						break
@@ -621,7 +912,8 @@ func (m *seekerManager) openCloseLoop() {
 				// some of them are clones of the original and can't be used once
 				// the parent is closed (because they share underlying resources)
 				if allSeekersAreReturned {
-					closing = append(closing, seekersAndBloom.seekers...)
+					closing = append(closing, seekers.active.seekers...)
+					closing = append(closing, seekers.inactive.seekers...)
 					delete(byTime.seekers, blockStartNano)
 				}
 				byTime.Unlock()
@@ -646,8 +938,19 @@ func (m *seekerManager) openCloseLoop() {
 	m.Lock()
 	for _, byTime := range m.seekersByShardIdx {
 		byTime.Lock()
-		for _, seekersByTime := range byTime.seekers {
-			for _, seeker := range seekersByTime.seekers {
+		for _, seekersForBlock := range byTime.seekers {
+			// Close the active seekers.
+			for _, seeker := range seekersForBlock.active.seekers {
+				// We don't need to check if the seeker is borrowed here because we don't allow the
+				// SeekerManager to be closed if any seekers are still outstanding.
+				err := seeker.seeker.Close()
+				if err != nil {
+					m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
+				}
+			}
+
+			// Close the inactive seekers.
+			for _, seeker := range seekersForBlock.inactive.seekers {
 				// We don't need to check if the seeker is borrowed here because we don't allow the
 				// SeekerManager to be closed if any seekers are still outstanding.
 				err := seeker.seeker.Close()

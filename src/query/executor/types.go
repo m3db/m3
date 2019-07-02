@@ -28,8 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
-
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Engine executes a Query.
@@ -39,8 +38,7 @@ type Engine interface {
 		ctx context.Context,
 		query *storage.FetchQuery,
 		opts *QueryOptions,
-		results chan *storage.QueryResult,
-	)
+	) (*storage.FetchResult, error)
 
 	// ExecuteExpr runs the query DAG and closes the results channel once done.
 	ExecuteExpr(
@@ -48,8 +46,7 @@ type Engine interface {
 		parser parser.Parser,
 		opts *QueryOptions,
 		params models.RequestParams,
-		results chan Query,
-	)
+	) (Result, error)
 
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error
@@ -57,10 +54,12 @@ type Engine interface {
 
 // EngineOptions are used to create an engine.
 type EngineOptions interface {
-	// CostScopte returns the scope used for metrics.
-	CostScope() tally.Scope
-	// SetCostScope sets the scope used for metrics.
-	SetCostScope(tally.Scope) EngineOptions
+	// InstrumentOptions returns the instrument options and scope used
+	// for metrics.
+	InstrumentOptions() instrument.Options
+	// SetInstrumentOptions sets the instrument options and scope used
+	// for metrics.
+	SetInstrumentOptions(instrument.Options) EngineOptions
 
 	// GlobalEnforcer returns the query cost enforcer.
 	GlobalEnforcer() qcost.ChainedEnforcer

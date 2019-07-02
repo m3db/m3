@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -71,6 +72,7 @@ type PromWriteHandler struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	tagOptions           models.TagOptions
 	nowFn                clock.NowFn
+	instrumentOpts       instrument.Options
 	metrics              promWriteMetrics
 }
 
@@ -79,7 +81,7 @@ func NewPromWriteHandler(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
 	nowFn clock.NowFn,
-	scope tally.Scope,
+	instrumentOpts instrument.Options,
 ) (http.Handler, error) {
 	if downsamplerAndWriter == nil {
 		return nil, errNoDownsamplerAndWriter
@@ -91,7 +93,7 @@ func NewPromWriteHandler(
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(scope)
+	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope())
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +103,7 @@ func NewPromWriteHandler(
 		tagOptions:           tagOptions,
 		nowFn:                nowFn,
 		metrics:              metrics,
+		instrumentOpts:       instrumentOpts,
 	}, nil
 }
 
@@ -212,7 +215,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.metrics.writeErrorsServer.Inc(1)
 		}
 
-		logger := logging.WithContext(r.Context())
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Int("httpResponseStatusCode", status),

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
@@ -45,6 +46,7 @@ func read(
 	tagOpts models.TagOptions,
 	w http.ResponseWriter,
 	params models.RequestParams,
+	instrumentOpts instrument.Options,
 ) ([]*ts.Series, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
@@ -59,7 +61,7 @@ func read(
 	)
 
 	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w)
+	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
 
 	// TODO: Capture timing
 	parser, err := promql.Parse(params.Query, tagOpts)
@@ -67,54 +69,50 @@ func read(
 		return nil, err
 	}
 
-	// Results is closed by execute
-	results := make(chan executor.Query)
-	go engine.ExecuteExpr(ctx, parser, opts, params, results)
+	result, err := engine.ExecuteExpr(ctx, parser, opts, params)
+	if err != nil {
+		return nil, err
+	}
+
 	// Block slices are sorted by start time
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
-	var processErr error
-	for result := range results {
-		if result.Err != nil {
-			processErr = result.Err
-			break
+	resultChan := result.ResultChan()
+	defer func() {
+		for range resultChan {
+			// NB: drain result channel in case of early termination.
+		}
+	}()
+
+	firstElement := false
+	var numSteps, numSeries int
+	// TODO(nikunj): Stream blocks to client
+	for blkResult := range resultChan {
+		if err := blkResult.Err; err != nil {
+			return nil, err
 		}
 
-		resultChan := result.Result.ResultChan()
-		firstElement := false
-		var numSteps, numSeries int
-		// TODO(nikunj): Stream blocks to client
-		for blkResult := range resultChan {
-			if blkResult.Err != nil {
-				processErr = blkResult.Err
-				break
-			}
-
-			b := blkResult.Block
-			if !firstElement {
-				firstElement = true
-				firstStepIter, err := b.StepIter()
-				if err != nil {
-					processErr = err
-					break
-				}
-
-				firstSeriesIter, err := b.SeriesIter()
-				if err != nil {
-					processErr = err
-					break
-				}
-
-				numSteps = firstStepIter.StepCount()
-				numSeries = firstSeriesIter.SeriesCount()
-			}
-
-			// Insert blocks sorted by start time
-			sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
+		b := blkResult.Block
+		if !firstElement {
+			firstElement = true
+			firstStepIter, err := b.StepIter()
 			if err != nil {
-				processErr = err
-				break
+				return nil, err
 			}
+
+			firstSeriesIter, err := b.SeriesIter()
+			if err != nil {
+				return nil, err
+			}
+
+			numSteps = firstStepIter.StepCount()
+			numSeries = firstSeriesIter.SeriesCount()
+		}
+
+		// Insert blocks sorted by start time
+		sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -126,26 +124,7 @@ func read(
 		}
 	}()
 
-	if processErr != nil {
-		// Drain anything remaining
-		drainResultChan(results)
-		return nil, processErr
-	}
-
 	return sortedBlocksToSeriesList(sortedBlockList)
-}
-
-func drainResultChan(resultsChan chan executor.Query) {
-	for result := range resultsChan {
-		// Ignore errors during drain
-		if result.Err != nil {
-			continue
-		}
-
-		for range result.Result.ResultChan() {
-			// drain out
-		}
-	}
 }
 
 func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {

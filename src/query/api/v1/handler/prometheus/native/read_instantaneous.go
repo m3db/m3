@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -51,6 +51,7 @@ type PromReadInstantHandler struct {
 	fetchOptionsBuilder handler.FetchOptionsBuilder
 	tagOpts             models.TagOptions
 	timeoutOpts         *prometheus.TimeoutOpts
+	instrumentOpts      instrument.Options
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
@@ -59,21 +60,23 @@ func NewPromReadInstantHandler(
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
+	instrumentOpts instrument.Options,
 ) *PromReadInstantHandler {
 	return &PromReadInstantHandler{
 		engine:              engine,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		tagOpts:             tagOpts,
 		timeoutOpts:         timeoutOpts,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
 func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
-	params, rErr := parseInstantaneousParams(r, h.timeoutOpts)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
+	params, rErr := parseInstantaneousParams(r, h.timeoutOpts, h.instrumentOpts)
 	if rErr != nil {
-		httperrors.ErrorWithReqInfo(w, r, rErr.Code(), rErr)
+		xhttp.Error(w, rErr, rErr.Code())
 		return
 	}
 
@@ -99,10 +102,10 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		queryOpts.QueryContextOptions.RestrictFetchTimeseries = restrict
 	}
 
-	result, err := read(ctx, h.engine, queryOpts, h.tagOpts, w, params)
+	result, err := read(ctx, h.engine, queryOpts, h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 

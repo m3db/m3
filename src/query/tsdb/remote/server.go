@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -46,6 +47,7 @@ type grpcServer struct {
 	once             sync.Once
 	pools            encoding.IteratorPools
 	poolErr          error
+	instrumentOpts   instrument.Options
 }
 
 // NewGRPCServer builds a grpc server which must be started later.
@@ -53,12 +55,14 @@ func NewGRPCServer(
 	store m3.Storage,
 	queryContextOpts models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
+	instrumentOpts instrument.Options,
 ) *grpc.Server {
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
 		storage:          store,
 		queryContextOpts: queryContextOpts,
 		poolWrapper:      poolWrapper,
+		instrumentOpts:   instrumentOpts,
 	}
 
 	rpc.RegisterQueryServer(server, grpcServer)
@@ -78,8 +82,8 @@ func (s *grpcServer) Fetch(
 	message *rpc.FetchRequest,
 	stream rpc.Query_FetchServer,
 ) error {
-	ctx := retrieveMetadata(stream.Context())
-	logger := logging.WithContext(ctx)
+	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
+	logger := logging.WithContext(ctx, s.instrumentOpts)
 	storeQuery, fetchOpts, err := decodeFetchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode fetch query", zap.Error(err))
@@ -124,8 +128,8 @@ func (s *grpcServer) Search(
 ) error {
 	var err error
 
-	ctx := retrieveMetadata(stream.Context())
-	logger := logging.WithContext(ctx)
+	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
+	logger := logging.WithContext(ctx, s.instrumentOpts)
 	searchQuery, err := decodeSearchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode search query", zap.Error(err))
@@ -170,8 +174,8 @@ func (s *grpcServer) CompleteTags(
 ) error {
 	var err error
 
-	ctx := retrieveMetadata(stream.Context())
-	logger := logging.WithContext(ctx)
+	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
+	logger := logging.WithContext(ctx, s.instrumentOpts)
 	completeTagsQuery, err := decodeCompleteTagsRequest(message)
 	if err != nil {
 		logger.Error("unable to decode complete tags query", zap.Error(err))

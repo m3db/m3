@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"fmt"
 	"net/http"
 	"path"
 
@@ -31,11 +32,11 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
-	"fmt"
 )
 
 var (
@@ -44,7 +45,6 @@ var (
 
 	// SchemaDeployHTTPMethod is the HTTP method used to append to this resource.
 	SchemaDeployHTTPMethod = http.MethodPost
-
 )
 
 // SchemaHandler is the handler for namespace schema upserts.
@@ -54,13 +54,19 @@ type SchemaHandler Handler
 var newAdminService = kvadmin.NewAdminService
 
 // NewSchemaHandler returns a new instance of SchemaHandler.
-func NewSchemaHandler(client clusterclient.Client) *SchemaHandler {
-	return &SchemaHandler{client: client}
+func NewSchemaHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *SchemaHandler {
+	return &SchemaHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *SchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
@@ -126,13 +132,19 @@ func (h *SchemaHandler) Add(addReq *admin.NamespaceSchemaAddRequest, opts handle
 type SchemaResetHandler Handler
 
 // NewSchemaResetHandler returns a new instance of SchemaHandler.
-func NewSchemaResetHandler(client clusterclient.Client) *SchemaResetHandler {
-	return &SchemaResetHandler{client: client}
+func NewSchemaResetHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *SchemaResetHandler {
+	return &SchemaResetHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *SchemaResetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {

@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/mock/gomock"
@@ -50,7 +50,7 @@ func TestTopicGetHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewGetHandler(nil, config.Configuration{})
+	handler := NewGetHandler(nil, config.Configuration{}, instrument.NewOptions())
 	handler.serviceFn = testServiceFn(mockService)
 
 	// Test successful get
@@ -110,7 +110,5 @@ func testServiceFn(s topic.Service) serviceFn {
 }
 
 func setupTest(t *testing.T, ctrl *gomock.Controller) *topic.MockService {
-	logging.InitWithCores(nil)
-	s := topic.NewMockService(ctrl)
-	return s
+	return topic.NewMockService(ctrl)
 }
