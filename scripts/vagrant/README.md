@@ -41,14 +41,7 @@ BOX="google/gce" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCA
 
 # Running
 
-Once you have your vagrant box provisioned you can setup the Kubernetes cluster with:
-```bash
-your_env_vars... vagrant ssh
-cd provision
-./setup_kube.sh
-```
-
-This should setup your cluster and also turn on a write load that can be scaled up from a single replica (for 10,000 writes/sec) with:
+Once setup you can turn on a write load (for a single replica is 10,000 writes/sec):
 ```bash
 kubectl scale --replicas=1 deployment/promremotebench
 ```
