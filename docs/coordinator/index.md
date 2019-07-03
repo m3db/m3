@@ -1,4 +1,4 @@
-# M3 Coordinator, API for metrics write/read and M3 management 
+# M3 Coordinator, API for reading/writing metrics and M3 management
 
 M3 Coordinator is a service that coordinates reads and writes between upstream systems, such as Prometheus, and downstream systems, such as M3DB. 
 

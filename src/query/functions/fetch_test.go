@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -133,7 +132,7 @@ func TestFetchWithRestrictFetch(t *testing.T) {
 	ctx := models.NewQueryContext(context.Background(),
 		tally.NoopScope, cost.NoopChainedEnforcer(),
 		models.QueryContextOptions{
-			RestrictFetchTimeseries: &models.RestrictFetchTimeseriesQueryContextOptions{
+			RestrictFetchType: &models.RestrictFetchTypeQueryContextOptions{
 				MetricsType:   uint(storage.AggregatedMetricsType),
 				StoragePolicy: policy.MustParseStoragePolicy("10s:42d"),
 			},

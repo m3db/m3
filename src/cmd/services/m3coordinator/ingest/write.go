@@ -256,7 +256,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
-			Attributes: storageAttriutesFromPolicy(unaggregatedStoragePolicy),
+			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
 	}
 
@@ -275,7 +275,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
-				Attributes: storageAttriutesFromPolicy(p),
+				Attributes: storageAttributesFromPolicy(p),
 			})
 			if err != nil {
 				errLock.Lock()
@@ -325,7 +325,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 						Tags:       tags,
 						Datapoints: datapoints,
 						Unit:       unit,
-						Attributes: storageAttriutesFromPolicy(p),
+						Attributes: storageAttributesFromPolicy(p),
 					})
 					if err != nil {
 						addError(err)
@@ -405,7 +405,7 @@ func (d *downsamplerAndWriter) Storage() storage.Storage {
 	return d.store
 }
 
-func storageAttriutesFromPolicy(
+func storageAttributesFromPolicy(
 	p policy.StoragePolicy,
 ) storage.Attributes {
 	attributes := storage.Attributes{

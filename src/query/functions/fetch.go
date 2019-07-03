@@ -108,7 +108,7 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	opts.Scope = queryCtx.Scope
 	opts.Enforcer = queryCtx.Enforcer
 
-	if v := ctxOpts.RestrictFetchTimeseries; v != nil {
+	if v := ctxOpts.RestrictFetchType; v != nil {
 		restrict := storage.RestrictFetchOptions{
 			MetricsType:   storage.MetricsType(v.MetricsType),
 			StoragePolicy: v.StoragePolicy,

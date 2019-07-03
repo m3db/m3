@@ -92,7 +92,13 @@ func main() {
 						// Remove links to subsections of docs
 						url = url[:v]
 					}
-					resolvedPath = path.Join(path.Dir(filePath), url)
+					if len(url) > 0 && url[0] == '/' {
+						// This is an absolute link to within the docs directory
+						resolvedPath = path.Join(docsDir, url[1:])
+					} else {
+						// We assume this is a relative path from the current doc
+						resolvedPath = path.Join(path.Dir(filePath), url)
+					}
 				}
 
 				checked := checkedLink{

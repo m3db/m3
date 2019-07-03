@@ -145,11 +145,11 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
 	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
-		restrict := &models.RestrictFetchTimeseriesQueryContextOptions{
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
 			MetricsType:   uint(restrictOpts.MetricsType),
 			StoragePolicy: restrictOpts.StoragePolicy,
 		}
-		queryOpts.QueryContextOptions.RestrictFetchTimeseries = restrict
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
 	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts)

@@ -74,7 +74,7 @@ pages:
   - "Coordinator":
     - "Introduction": "coordinator/index.md"
     - "API":
-      - "Prometheus Remote Read/Write": "coordinator/api/remote.md"
+      - "Prometheus Remote Write/Read": "coordinator/api/remote.md"
   - "Query Engine":
     - "Introduction": "query_engine/index.md"
     - "API":
