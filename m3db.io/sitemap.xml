@@ -50,6 +50,22 @@
     
         
     <url>
+     <loc>/coordinator/</loc>
+     <lastmod>2019-07-03</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
+     <loc></loc>
+     <lastmod></lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    
+
+    
+        
+    <url>
      <loc>/query_engine/</loc>
      <lastmod>2019-07-03</lastmod>
      <changefreq>daily</changefreq>
