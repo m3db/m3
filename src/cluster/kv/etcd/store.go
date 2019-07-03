@@ -625,6 +625,7 @@ func (c *client) createCacheDir(fm os.FileMode) error {
 			zap.String("path", path),
 			zap.Error(err),
 		)
+		return err
 	}
 
 	c.logger.Info("successfully created new cache dir",
