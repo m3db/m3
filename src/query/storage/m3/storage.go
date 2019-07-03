@@ -255,10 +255,11 @@ func (s *m3storage) fetchCompressed(
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
 		s.nowFn(),
-		s.clusters,
 		query.Start,
 		query.End,
+		s.clusters,
 		options.FanoutOptions,
+		options.RestrictFetchOptions,
 	)
 	if err != nil {
 		return nil, err

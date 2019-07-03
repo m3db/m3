@@ -24,16 +24,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/storage"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestFetchOptionsBuilder(t *testing.T) {
 	tests := []struct {
-		name          string
-		defaultLimit  int
-		headers       map[string]string
-		expectedLimit int
-		expectedErr   bool
+		name             string
+		defaultLimit     int
+		headers          map[string]string
+		expectedLimit    int
+		expectedRestrict *storage.RestrictFetchOptions
+		expectedErr      bool
 	}{
 		{
 			name:          "default limit with no headers",
@@ -57,6 +61,48 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			},
 			expectedErr: true,
 		},
+		{
+			name: "unaggregated metrics type",
+			headers: map[string]string{
+				MetricsTypeHeader: storage.UnaggregatedMetricsType.String(),
+			},
+			expectedRestrict: &storage.RestrictFetchOptions{
+				MetricsType: storage.UnaggregatedMetricsType,
+			},
+		},
+		{
+			name: "aggregated metrics type",
+			headers: map[string]string{
+				MetricsTypeHeader:          storage.AggregatedMetricsType.String(),
+				MetricsStoragePolicyHeader: "1m:14d",
+			},
+			expectedRestrict: &storage.RestrictFetchOptions{
+				MetricsType:   storage.AggregatedMetricsType,
+				StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+			},
+		},
+		{
+			name: "unaggregated metrics type with storage policy",
+			headers: map[string]string{
+				MetricsTypeHeader:          storage.UnaggregatedMetricsType.String(),
+				MetricsStoragePolicyHeader: "1m:14d",
+			},
+			expectedErr: true,
+		},
+		{
+			name: "aggregated metrics type without storage policy",
+			headers: map[string]string{
+				MetricsTypeHeader: storage.AggregatedMetricsType.String(),
+			},
+			expectedErr: true,
+		},
+		{
+			name: "unrecognized metrics type",
+			headers: map[string]string{
+				MetricsTypeHeader: "foo",
+			},
+			expectedErr: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -75,6 +121,12 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			if !test.expectedErr {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.Limit)
+				if test.expectedRestrict == nil {
+					require.Nil(t, opts.RestrictFetchOptions)
+				} else {
+					require.NotNil(t, opts.RestrictFetchOptions)
+					require.Equal(t, *test.expectedRestrict, *opts.RestrictFetchOptions)
+				}
 			} else {
 				require.Error(t, err)
 			}

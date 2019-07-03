@@ -88,15 +88,15 @@ func (mr *MockDownsamplerAndWriterMockRecorder) Write(arg0, arg1, arg2, arg3, ar
 }
 
 // WriteBatch mocks base method
-func (m *MockDownsamplerAndWriter) WriteBatch(arg0 context.Context, arg1 DownsampleAndWriteIter) BatchError {
+func (m *MockDownsamplerAndWriter) WriteBatch(arg0 context.Context, arg1 DownsampleAndWriteIter, arg2 WriteOptions) BatchError {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatch", arg0, arg1)
+	ret := m.ctrl.Call(m, "WriteBatch", arg0, arg1, arg2)
 	ret0, _ := ret[0].(BatchError)
 	return ret0
 }
 
 // WriteBatch indicates an expected call of WriteBatch
-func (mr *MockDownsamplerAndWriterMockRecorder) WriteBatch(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDownsamplerAndWriterMockRecorder) WriteBatch(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).WriteBatch), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).WriteBatch), arg0, arg1, arg2)
 }

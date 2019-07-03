@@ -140,7 +140,7 @@ func (c *grpcClient) fetchRaw(
 		return nil, err
 	}
 
-	request, err := encodeFetchRequest(query)
+	request, err := encodeFetchRequest(query, options)
 	if err != nil {
 		return nil, err
 	}

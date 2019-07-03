@@ -94,6 +94,13 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
+	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
 
 	result, err := read(ctx, h.engine, queryOpts, h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {

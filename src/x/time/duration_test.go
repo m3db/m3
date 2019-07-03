@@ -76,12 +76,12 @@ func TestParseExtendedDurationErrors(t *testing.T) {
 		text string
 		err  string
 	}{
-		{"4", "invalid duration 4, no unit"},
+		{"4", "could not parse duration: duration='4', err='no unit'"},
 		{"", "duration empty"},
-		{"4minutes", "invalid duration 4minutes, invalid unit minutes"},
-		{"4d3", "invalid duration 4d3, no unit"},
-		{"--4d", "invalid duration -4d, no value specified"},
-		{",3490", "invalid duration ,3490, no value specified"},
+		{"4minutes", "could not parse duration: duration='4minutes', err_unknown_unit='minutes'"},
+		{"4d3", "could not parse duration: duration='4d3', err='no unit'"},
+		{"--4d", "could not parse duration: duration='-4d', err='no value'"},
+		{",3490", "could not parse duration: duration=',3490', err='no value'"},
 	}
 
 	for _, test := range tests {

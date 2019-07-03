@@ -21,10 +21,13 @@
 package functions
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -37,6 +40,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestFetch(t *testing.T) {
@@ -115,4 +119,32 @@ func TestOffsetFetch(t *testing.T) {
 
 	err := node.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
+}
+
+func TestFetchWithRestrictFetch(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	b := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	mockStorage := mock.NewMockStorage()
+	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
+	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
+
+	ctx := models.NewQueryContext(context.Background(),
+		tally.NoopScope, cost.NoopChainedEnforcer(),
+		models.QueryContextOptions{
+			RestrictFetchType: &models.RestrictFetchTypeQueryContextOptions{
+				MetricsType:   uint(storage.AggregatedMetricsType),
+				StoragePolicy: policy.MustParseStoragePolicy("10s:42d"),
+			},
+		})
+	err := source.Execute(ctx)
+	require.NoError(t, err)
+	expected := values
+	assert.Len(t, sink.Values, 2)
+	assert.Equal(t, expected, sink.Values)
+
+	fetchOpts := mockStorage.LastFetchOptions()
+	require.NotNil(t, fetchOpts.RestrictFetchOptions)
+	assert.Equal(t, storage.AggregatedMetricsType, storage.MetricsType(fetchOpts.RestrictFetchOptions.MetricsType))
+	assert.Equal(t, "10s:42d", fetchOpts.RestrictFetchOptions.StoragePolicy.String())
 }
