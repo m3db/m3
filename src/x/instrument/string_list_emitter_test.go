@@ -146,6 +146,26 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 			}
 		}
 
+		// Update back to old again -- test emitting same metric twice
+		err = bge.UpdateStringList(bs0)
+		require.NoError(t, err)
+		require.True(t, bge.running, "state of bootstrapGaugeEmitter after emitting same metric twice")
+
+		gauges = scope.Snapshot().Gauges()
+		require.Equal(t, 2, len(gauges), "length of gauges after updating")
+		for i, id := range []string{
+			fmt.Sprintf("testScope.bootstrapper_bootstrappers+bootstrapper0=%s,bootstrapper1=%s,bootstrapper2=%s,bootstrapper3=%s", bs0[0], bs0[1], bs0[2], bs0[3]),
+			fmt.Sprintf("testScope.bootstrapper_bootstrappers+bootstrapper0=%s,bootstrapper1=%s,bootstrapper2=%s,bootstrapper3=%s", bs1[0], bs1[1], bs1[2], bs1[3]),
+		} {
+			g, ok := gauges[id]
+			require.True(t, ok)
+			if i == 0 {
+				require.Equal(t, float64(1), g.Value(), "first gauge value of after emitting same metric twice")
+			} else {
+				require.Equal(t, float64(0), g.Value(), "second gauge value of after emitting same metric twice")
+			}
+		}
+
 		// Close
 		err = bge.Close()
 		require.NoError(t, err)
