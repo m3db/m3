@@ -144,7 +144,7 @@ m3sd:
 
 	t.Run("TestOptionsNewDirectoryMode", func(t *testing.T) {
 		opts := cfg.NewOptions()
-		require.Equal(t, os.FileMode(0755), opts.NewDirectoryMode())
+		require.Equal(t, defaultDirectoryMode, opts.NewDirectoryMode())
 
 		const testConfigWithDir = `
 env: env1
