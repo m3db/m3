@@ -96,7 +96,7 @@ type Configuration struct {
 	ETCDClusters      []ClusterConfig        `yaml:"etcdClusters"`
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
-	NewDirectoryMode  os.FileMode            `yaml:"newDirectoryMode"`
+	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
 }
 
 // NewClient creates a new config service client.
@@ -106,15 +106,22 @@ func (cfg Configuration) NewClient(iopts instrument.Options) (client.Client, err
 
 // NewOptions returns a new Options.
 func (cfg Configuration) NewOptions() Options {
-	return NewOptions().
+	opts := NewOptions().
 		SetZone(cfg.Zone).
 		SetEnv(cfg.Env).
 		SetService(cfg.Service).
 		SetCacheDir(cfg.CacheDir).
 		SetClusters(cfg.etcdClusters()).
 		SetServicesOptions(cfg.SDConfig.NewOptions()).
-		SetWatchWithRevision(cfg.WatchWithRevision).
-		SetNewDirectoryMode(cfg.NewDirectoryMode)
+		SetWatchWithRevision(cfg.WatchWithRevision)
+
+	if v := cfg.NewDirectoryMode; v != nil {
+		opts = opts.SetNewDirectoryMode(*v)
+	} else {
+		opts = opts.SetNewDirectoryMode(defaultDirectoryMode)
+	}
+
+	return opts
 }
 
 func (cfg Configuration) etcdClusters() []Cluster {
