@@ -128,7 +128,7 @@ func TestIndexBlockFlush(t *testing.T) {
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
-		idx.NewTermQuery([]byte("shared"), []byte("shared"))}
+		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	// ensure all data is present
 	log.Info("querying period0 results")

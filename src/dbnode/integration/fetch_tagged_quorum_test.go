@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
@@ -291,7 +291,7 @@ func makeTestFetchTagged(
 
 		startTime := nodes[0].getNowFn()
 		return s.FetchTagged(testNamespaces[0],
-			index.Query{q},
+			index.Query{Query: q},
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
 				EndExclusive:   startTime.Add(time.Minute),

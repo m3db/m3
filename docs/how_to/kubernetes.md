@@ -3,7 +3,7 @@
 **Please note:** If possible _[PLEASE USE THE OPERATOR](https://operator.m3db.io/)_ to deploy to Kubernetes if you
 can. It is a considerly more streamlined setup.
 
-The [operator](https://operator.m3db.io/) leverages [custom resource definitions](https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/)
+The [operator](https://operator.m3db.io/) leverages [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
 (CRDs) to automatically handle operations such as managing cluster topology.
 
 The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered
@@ -17,7 +17,7 @@ volumes of writes can be sensitive to spikes in disk latency. Additionally the r
 files benefit from lower random read latency.
 
 Because of this, the included manifests reference a
-[StorageClass](https://v1-10.docs.kubernetes.io/docs/concepts/storage/storage-classes/) named `fast`. Manifests are
+[StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/) named `fast`. Manifests are
 provided to provide such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.
 
 If you do not already have a StorageClass named `fast`, create one using one of the provided manifests:
@@ -49,13 +49,13 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/bundle.ya
 
 Applying this bundle will create the following resources:
 
-1. An `m3db` [Namespace](https://v1-10.docs.kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/) for
+1. An `m3db` [Namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/) for
    all M3DB-related resources.
 2. A 3-node etcd cluster in the form of a
-   [StatefulSet](https://v1-10.docs.kubernetes.io/docs/concepts/workloads/controllers/statefulset/) backed by persistent
+   [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) backed by persistent
    remote SSDs. This cluster stores the DB topology and other runtime configuration data.
 3. A 3-node M3DB cluster in the form of a StatefulSet.
-4. [Headless services](https://v1-10.docs.kubernetes.io/docs/concepts/services-networking/dns-pod-service/#services) for
+4. [Headless services](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#services) for
    the etcd and m3db StatefulSets to provide stable DNS hostnames per-pod.
 
 Wait until all created pods are listed as ready:
@@ -287,12 +287,12 @@ remote_write:
 In some cases, you might prefer M3DB to run on certain nodes in your cluster. For example: if your cluster is comprised
 of different instance types and some have more memory than others then you'd like M3DB to run on those nodes if
 possible. To accommodate this, the pods created by the StatefulSets use [pod
-affinities](https://v1-10.docs.kubernetes.io/docs/concepts/configuration/assign-pod-node/) and
-[tolerations](https://v1-10.docs.kubernetes.io/docs/concepts/configuration/taint-and-toleration/) to prefer to run on
+affinities](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/) and
+[tolerations](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/) to prefer to run on
 certain nodes. Specifically:
 
 1. The pods tolerate the taint `"dedicated-m3db"` to run on nodes that are specifically dedicated to m3db if you so
    choose.
 2. Via `nodeAffinity` the pods prefer to run on nodes with the label `m3db.io/dedicated-m3db="true"`.
 
-[kernel]: ../operational_guide/kernel_configuration
+[kernel]: ../operational_guide/kernel_configuration.md
