@@ -86,7 +86,7 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 		updateInputConfig(inputData)
 	}
 	seriesMaps := generate.BlocksByStart(inputData)
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps,0))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())

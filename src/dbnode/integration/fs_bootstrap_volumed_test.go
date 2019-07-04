@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,38 +27,46 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
+func TestFilesystemBootstrapVolumed(t *testing.T) {
+	testFilesystemBootstrap(t, nil, nil)
+}
+
+func TestProtoFilesystemBootstrapVolumed(t *testing.T) {
+	testFilesystemBootstrap(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testFilesystemBootstrapVolumed(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	var (
 		blockSize = 2 * time.Hour
-		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * blockSize).SetBlockSize(blockSize)
-		idxOpts   = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(2 * blockSize)
-		nOpts     = namespace.NewOptions().SetRetentionOptions(rOpts).SetIndexOptions(idxOpts)
+		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour).SetBlockSize(blockSize)
 	)
-	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(rOpts))
 	require.NoError(t, err)
-	ns2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(rOpts))
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+		ns2 = opts.Namespaces()[1]
+	}
 
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
@@ -91,51 +99,31 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	// Write test data
 	now := setup.getNowFn()
-
-	fooSeries := generate.Series{
-		ID:   ident.StringID("foo"),
-		Tags: ident.NewTags(ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")),
+	inputData1 := []generate.BlockConfig{
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	}
-
-	barSeries := generate.Series{
-		ID:   ident.StringID("bar"),
-		Tags: ident.NewTags(ident.StringTag("city", "new_jersey")),
+	inputData2 := []generate.BlockConfig{
+		{IDs: []string{"cold1", "cold2"}, NumPoints: 70, Start: now.Add(-blockSize)},
+		{IDs: []string{"cold1", "cold3"}, NumPoints: 20, Start: now},
 	}
-
-	bazSeries := generate.Series{
-		ID:   ident.StringID("baz"),
-		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
+	inputData3 := []generate.BlockConfig{
+		{IDs: []string{"cold4", "cold5", "cold6"}, NumPoints: 30, Start: now.Add(-2 * blockSize)},
 	}
-
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{
-			IDs:       []string{fooSeries.ID.String()},
-			Tags:      fooSeries.Tags,
-			NumPoints: 100,
-			Start:     now.Add(-blockSize),
-		},
-		{
-			IDs:       []string{barSeries.ID.String()},
-			Tags:      barSeries.Tags,
-			NumPoints: 100,
-			Start:     now.Add(-blockSize),
-		},
-		{
-			IDs:       []string{fooSeries.ID.String()},
-			Tags:      fooSeries.Tags,
-			NumPoints: 50,
-			Start:     now,
-		},
-		{
-			IDs:       []string{bazSeries.ID.String()},
-			Tags:      bazSeries.Tags,
-			NumPoints: 50,
-			Start:     now,
-		},
-	})
-
-	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps,0))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, nil,0))
+	allInputData := append(inputData1, inputData2...)
+	allInputData = append(allInputData, inputData3...)
+	if updateInputConfig != nil {
+		updateInputConfig(allInputData)
+	}
+	seriesMaps1 := generate.BlocksByStart(inputData1)
+	seriesMaps2 := generate.BlocksByStart(inputData2)
+	seriesMaps3 := generate.BlocksByStart(inputData3)
+	allSeriesMaps := generate.BlocksByStart(allInputData)
+	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps1, 0))
+	// Write non-zero volumes to disk to simulate a past cold flush.
+	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps2, 1))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps3, 3))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()
@@ -149,43 +137,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	// Verify data matches what we expect
-	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
+	// Verify in-memory data match what we expect
+	verifySeriesMaps(t, setup, testNamespaces[0], allSeriesMaps)
 	verifySeriesMaps(t, setup, testNamespaces[1], nil)
-
-	// Issue some index queries
-	session, err := setup.m3dbClient.DefaultSession()
-	require.NoError(t, err)
-
-	start := now.Add(-rOpts.RetentionPeriod())
-	end := now.Add(blockSize)
-	queryOpts := index.QueryOptions{StartInclusive: start, EndExclusive: end}
-
-	// Match all new_*r*
-	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
-	require.NoError(t, err)
-	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
-	require.NoError(t, err)
-	defer iter.Finalize()
-
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
-		exhaustive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
-	})
-
-	// Match all *e*e*
-	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
-	require.NoError(t, err)
-	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{Query: regexpQuery}, queryOpts)
-	require.NoError(t, err)
-	defer iter.Finalize()
-
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
-		exhaustive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
-	})
 }

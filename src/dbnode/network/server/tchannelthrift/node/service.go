@@ -517,6 +517,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	datapoints, err := s.readDatapoints(ctx, db, nsID, tsID, start, end,
 		req.ResultTimeType)
 	if err != nil {
+		fmt.Printf("j>> nuu: %+v\n", err)
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
@@ -562,6 +563,7 @@ func (s *service) readDatapoints(
 	}
 
 	if err := multiIt.Err(); err != nil {
+		fmt.Printf("j>> %+v\n", "??")
 		return nil, err
 	}
 

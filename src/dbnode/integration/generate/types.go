@@ -26,18 +26,19 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	ns "github.com/m3db/m3/src/dbnode/namespace"
 )
 
+// AnnotationGenerator generates the next annotation.
 type AnnotationGenerator interface {
 	Next() []byte
 }
 
-// BlockConfig represents the configuration to generate a SeriesBlock
+// BlockConfig represents the configuration to generate a SeriesBlock.
 type BlockConfig struct {
 	IDs       []string
 	Tags      ident.Tags
@@ -46,46 +47,53 @@ type BlockConfig struct {
 	AnnGen    AnnotationGenerator
 }
 
+// UpdateBlockConfig is a function used o update BlockConfigs.
 type UpdateBlockConfig func([]BlockConfig)
 
+// TestValue is a test datapoint and an annotation.
 type TestValue struct {
 	ts.Datapoint
 	ts.Annotation
 }
 
-// Series represents a generated series of data
+// Series represents a generated series of data.
 type Series struct {
 	ID   ident.ID
 	Tags ident.Tags
 	Data []TestValue
 }
 
-// SeriesDataPoint represents a single data point of a generated series of data
+// SeriesDataPoint represents a single data point of a generated series of data.
 type SeriesDataPoint struct {
 	Value TestValue
 	ID    ident.ID
 }
 
-// SeriesDataPointsByTime are a sorted list of SeriesDataPoints
+// SeriesDataPointsByTime are a sorted list of SeriesDataPoints.
 type SeriesDataPointsByTime []SeriesDataPoint
 
-// SeriesBlock is a collection of Series'
+// SeriesBlock is a collection of Series.
 type SeriesBlock []Series
 
-// SeriesBlocksByStart is a map of time -> SeriesBlock
+// SeriesBlocksByStart is a map of time -> SeriesBlock.
 type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 
-// Writer writes generated data to disk
+// Writer writes generated data to disk.
 type Writer interface {
 	// WriteData writes the data as data files.
 	WriteData(
-		nsCtx ns.Context, shards sharding.ShardSet, data SeriesBlocksByStart) error
+		nsCtx ns.Context,
+		shards sharding.ShardSet,
+		data SeriesBlocksByStart,
+		volume int,
+	) error
 
 	// WriteSnapshot writes the data as snapshot files.
 	WriteSnapshot(
 		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
+		volume int,
 		snapshotInterval time.Duration,
 	) error
 
@@ -94,6 +102,7 @@ type Writer interface {
 		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
+		volume int,
 		pred WriteDatapointPredicate,
 	) error
 
@@ -102,71 +111,72 @@ type Writer interface {
 		nsCtx ns.Context,
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
+		volume int,
 		pred WriteDatapointPredicate,
 		snapshotInterval time.Duration,
 	) error
 }
 
-// Options represent the parameters needed for the Writer
+// Options represent the parameters needed for the Writer.
 type Options interface {
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetRetentionPeriod sets how long we intend to keep data in memory
+	// SetRetentionPeriod sets how long we intend to keep data in memory.
 	SetRetentionPeriod(value time.Duration) Options
 
-	// RetentionPeriod returns how long we intend to keep data in memory
+	// RetentionPeriod returns how long we intend to keep data in memory.
 	RetentionPeriod() time.Duration
 
-	// SetBlockSize sets the blockSize
+	// SetBlockSize sets the blockSize.
 	SetBlockSize(value time.Duration) Options
 
-	// BlockSize returns the blockSize
+	// BlockSize returns the blockSize.
 	BlockSize() time.Duration
 
-	// SetFilePathPrefix sets the file path prefix for sharded TSDB files
+	// SetFilePathPrefix sets the file path prefix for sharded TSDB files.
 	SetFilePathPrefix(value string) Options
 
-	// FilePathPrefix returns the file path prefix for sharded TSDB files
+	// FilePathPrefix returns the file path prefix for sharded TSDB files.
 	FilePathPrefix() string
 
-	// SetNewFileMode sets the new file mode
+	// SetNewFileMode sets the new file mode.
 	SetNewFileMode(value os.FileMode) Options
 
-	// NewFileMode returns the new file mode
+	// NewFileMode returns the new file mode.
 	NewFileMode() os.FileMode
 
-	// SetNewDirectoryMode sets the new directory mode
+	// SetNewDirectoryMode sets the new directory mode.
 	SetNewDirectoryMode(value os.FileMode) Options
 
-	// NewDirectoryMode returns the new directory mode
+	// NewDirectoryMode returns the new directory mode.
 	NewDirectoryMode() os.FileMode
 
-	// SetWriterBufferSize sets the buffer size for writing TSDB files
+	// SetWriterBufferSize sets the buffer size for writing TSDB files.
 	SetWriterBufferSize(value int) Options
 
-	// WriterBufferSize returns the buffer size for writing TSDB files
+	// WriterBufferSize returns the buffer size for writing TSDB files.
 	WriterBufferSize() int
 
-	// SetWriteEmptyShards sets whether writes are done even for empty start periods
+	// SetWriteEmptyShards sets whether writes are done even for empty start periods.
 	SetWriteEmptyShards(bool) Options
 
-	// WriteEmptyShards returns whether writes are done even for empty start periods
+	// WriteEmptyShards returns whether writes are done even for empty start periods.
 	WriteEmptyShards() bool
 
-	// SetWriteSnapshot sets whether writes are written as snapshot files
+	// SetWriteSnapshot sets whether writes are written as snapshot files.
 	SetWriteSnapshot(bool) Options
 
-	// WriteSnapshots returns whether writes are written as snapshot files
+	// WriteSnapshots returns whether writes are written as snapshot files.
 	WriteSnapshot() bool
 
-	// SetEncoderPool sets the contextPool
+	// SetEncoderPool sets the contextPool.
 	SetEncoderPool(value encoding.EncoderPool) Options
 
-	// EncoderPool returns the contextPool
+	// EncoderPool returns the contextPool.
 	EncoderPool() encoding.EncoderPool
 }
 

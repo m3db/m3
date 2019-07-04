@@ -205,6 +205,7 @@ func writeSnapshotsWithPredicate(
 	s *testSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
+	volume int,
 	namespace namespace.Metadata,
 	specifiedTS *time.Time,
 	pred generate.WriteDatapointPredicate,
@@ -212,6 +213,6 @@ func writeSnapshotsWithPredicate(
 ) {
 	// Write out snapshots
 	err := writeTestSnapshotsToDiskWithPredicate(
-		namespace, s, data, pred, snapshotInterval)
+		namespace, s, data, volume,pred, snapshotInterval)
 	require.NoError(t, err)
 }
