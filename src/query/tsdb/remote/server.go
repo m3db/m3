@@ -133,6 +133,7 @@ func (s *grpcServer) Fetch(
 		err = stream.Send(response)
 		if err != nil {
 			logger.Error("unable to send fetch result", zap.Error(err))
+			return err
 		}
 
 		size = min(size, len(results))
@@ -184,6 +185,7 @@ func (s *grpcServer) Search(
 		err = stream.Send(response)
 		if err != nil {
 			logger.Error("unable to send search result", zap.Error(err))
+			return err
 		}
 
 		size = min(size, len(results))
@@ -230,9 +232,10 @@ func (s *grpcServer) CompleteTags(
 			return err
 		}
 
-		err = stream.SendMsg(response)
+		err = stream.Send(response)
 		if err != nil {
 			logger.Error("unable to send complete tags result", zap.Error(err))
+			return err
 		}
 	}
 
