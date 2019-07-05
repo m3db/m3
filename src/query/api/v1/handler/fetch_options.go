@@ -143,15 +143,15 @@ func ParseStep(r *http.Request) (time.Duration, bool, error) {
 	if step == "" {
 		return 0, false, nil
 	}
-	value, err := parseStep(r)
+	value, err := parseStep(r, StepParam)
 	if err != nil {
 		return 0, false, err
 	}
 	return value, true, err
 }
 
-func parseStep(r *http.Request) (time.Duration, error) {
-	step, err := ParseDuration(r, StepParam)
+func parseStep(r *http.Request, key string) (time.Duration, error) {
+	step, err := ParseDuration(r, key)
 	if err != nil {
 		return 0, err
 	}
@@ -170,7 +170,7 @@ func ParseLookbackDuration(r *http.Request) (time.Duration, bool, error) {
 
 	if lookback == StepParam {
 		// Use the step size as lookback.
-		step, err := parseStep(r)
+		step, err := parseStep(r, StepParam)
 		if err != nil {
 			return 0, false, err
 		}
@@ -178,7 +178,7 @@ func ParseLookbackDuration(r *http.Request) (time.Duration, bool, error) {
 	}
 
 	// Otherwise it is specified as duration value.
-	value, err := ParseDuration(r, LookbackParam)
+	value, err := parseStep(r, LookbackParam)
 	if err != nil {
 		return 0, false, err
 	}
