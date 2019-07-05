@@ -20,3 +20,7 @@ GO111MODULE="on" go get sigs.k8s.io/kind@v0.4.0
 # Link Kind (so GOPATH does not have to be set, not guaranteed always)
 mkdir -p ${HOME}/bin
 mv ${HOME}/go/bin/kind ${HOME}/bin
+
+# Setup kubectl to use the kind config
+echo '' >> ${HOME}/.bashrc
+echo 'export KUBECONFIG=${HOME}/.kube/kind-config-kind' >> ${HOME}/.bashrc

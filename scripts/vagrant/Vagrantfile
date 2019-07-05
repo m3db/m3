@@ -58,12 +58,4 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     cd provision && ./setup_unprivileged.sh
   SHELL
-
-  config.vm.provision "shell", privileged: false, inline: <<-SHELL
-    cd provision && ./setup_kube.sh
-  SHELL
-
-  config.vm.provision "shell", privileged: false, inline: <<-SHELL
-    cd provision && tmux new -d -s tunnels ./run_tunnels.sh 
-  SHELL
 end

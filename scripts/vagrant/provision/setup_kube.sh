@@ -3,6 +3,7 @@
 set -xe
 
 # Expects the following installed:
+# - docker
 # - kubectl
 # - kind
 # - curl
@@ -26,8 +27,18 @@ kubectl apply -f ./manifests/etcd-single.yaml
 # Deploy operator
 kubectl apply -f ./manifests/operator.yaml
 
-# Create test cluster
-kubectl apply -f ./manifests/m3db-single.yaml
+# Create test cluster (sometimes the CRD not recognized, repeat attempts)
+set +x
+echo "Creating test cluster "
+while true; do
+    if kubectl apply -f ./manifests/m3db-single.yaml; then
+        printf "\n"
+        break
+    fi
+    sleep 1
+    printf "."
+done
+set -x
 
 # Comment out the set +x and consequent set -x to debug the wait script
 set +x
@@ -48,9 +59,9 @@ kubectl apply -f ./manifests/prometheus-operator.yaml
 # Manifests for Operator (prom, grafana, etc)
 kubectl apply -f ./manifests/kube-prometheus
 # ServiceMonitor CRD for M3DB monitoring
-kubectl apply -f ./manifests/prometheus-servicemonitor-dbnode.yml
+kubectl apply -f ./manifests/prometheus-servicemonitor-dbnode.yaml
 # ServiceMonitor CRD for M3Coordinator monitoring
-kubectl apply -f ./manifests/prometheus-servicemonitor-coordinator.yml
+kubectl apply -f ./manifests/prometheus-servicemonitor-coordinator.yaml
 
 # Ready load generator (but don't scale up yet)
 kubectl apply -f ./manifests/promremotebench-zero.yaml
