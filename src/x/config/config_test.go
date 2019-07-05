@@ -21,12 +21,12 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const (
@@ -66,11 +66,27 @@ type commitlogPolicyConfiguration struct {
 	DeprecatedBlockSize int    `yaml:"blockSize"`
 }
 
-type nestedConfiguration struct {
+type configurationDeprecated struct {
+	ListenAddress string   `yaml:"listen_address" validate:"nonzero"`
+	BufferSpace   int      `yaml:"buffer_space" validate:"min=255"`
+	Servers       []string `validate:"nonzero"`
+	DeprecatedFoo string   `yaml:"foo"`
+	DeprecatedBar int      `yaml:"bar"`
+}
+
+type nestedConfigurationDeprecated struct {
 	ListenAddress string                       `yaml:"listen_address" validate:"nonzero"`
 	BufferSpace   int                          `yaml:"buffer_space" validate:"min=255"`
 	Servers       []string                     `validate:"nonzero"`
 	CommitLog     commitlogPolicyConfiguration `yaml:"commitlog"`
+}
+
+type nestedConfigurationMultipleDeprecated struct {
+	ListenAddress      string                       `yaml:"listen_address" validate:"nonzero"`
+	BufferSpace        int                          `yaml:"buffer_space" validate:"min=255"`
+	Servers            []string                     `validate:"nonzero"`
+	CommitLog          commitlogPolicyConfiguration `yaml:"commitlog"`
+	DeprecatedMultiple configurationDeprecated      `yaml:"multiple"`
 }
 
 func TestLoadFile(t *testing.T) {
@@ -228,27 +244,128 @@ func TestLoadFilesValidateOnce(t *testing.T) {
 }
 
 func TestDeprecationCheck(t *testing.T) {
-	nestedConfig := `
+	t.Run("StandardConfig", func(t *testing.T) {
+		// OK
+		var cfg configuration
+		fname := writeFile(t, goodConfig)
+		defer os.Remove(fname)
+
+		err := LoadFile(&cfg, fname, Options{})
+		require.NoError(t, err)
+
+		df := []string{}
+		ss := deprecationCheck(cfg, df)
+		require.Len(t, ss, 0)
+
+		// Deprecated
+		badConfig := `
 listen_address: localhost:4385
 buffer_space: 1024
 servers:
+  - server1:8090
+  - server2:8010
+foo: ok
+bar: 42
+`
+		var cfg2 configurationDeprecated
+		fname2 := writeFile(t, badConfig)
+		defer os.Remove(fname2)
+
+		err = LoadFile(&cfg2, fname2, Options{})
+		require.NoError(t, err)
+
+		actual := deprecationCheck(cfg2, df)
+		require.Len(t, actual, 2)
+		expect := []string{"DeprecatedFoo", "DeprecatedBar"}
+		require.Equal(t, expect, actual)
+	})
+
+	t.Run("NestedConfig", func(t *testing.T) {
+		// Single Deprecation
+		var cfg nestedConfigurationDeprecated
+		nc := `
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+  - server1:8090
+  - server2:8010
+commitlog:
+  flushMaxBytes: 42
+  flushEvery: second
+  blockSize: 23
+`
+		fname := writeFile(t, nc)
+		defer os.Remove(fname)
+
+		err := LoadFile(&cfg, fname, Options{})
+		require.NoError(t, err)
+
+		df := []string{}
+		actual := deprecationCheck(cfg, df)
+		require.Len(t, actual, 1)
+		expect := []string{"DeprecatedBlockSize"}
+		require.Equal(t, expect, actual)
+
+		// Multiple deprecation
+		var cfg2 nestedConfigurationMultipleDeprecated
+		nc = `
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+  - server1:8090
+  - server2:8010
+commitlog:
+  flushMaxBytes: 42
+  flushEvery: second
+  blockSize: 23
+multiple:
+  listen_address: localhost:4385
+  buffer_space: 1024
+  servers:
     - server1:8090
     - server2:8010
-commitlog:
-    flushMaxBytes: 42
-    flushEvery: second
-    blockSize: 23
+  foo: ok
+  bar: 42
 `
-	var cfg nestedConfiguration
 
-	fname := writeFile(t, nestedConfig)
-	defer os.Remove(fname)
+		fname2 := writeFile(t, nc)
+		defer os.Remove(fname2)
 
-	err := LoadFile(&cfg, fname, Options{})
-	require.NoError(t, err)
+		err = LoadFile(&cfg2, fname2, Options{})
+		require.NoError(t, err)
 
-	logger := zap.NewNop().Sugar()
-	DeprecationCheck(cfg, logger)
+		df = []string{}
+		actual = deprecationCheck(cfg2, df)
+		require.Len(t, actual, 4)
+		expect = []string{
+			"DeprecatedBlockSize",
+			"DeprecatedMultiple",
+			"DeprecatedFoo",
+			"DeprecatedBar",
+		}
+		require.True(
+			t,
+			slicesCotainSameStrings(expect, actual),
+			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual),
+		)
+	})
+}
+
+func slicesCotainSameStrings(s1, s2 []string) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+
+	m := make(map[string]bool, len(s1))
+	for _, v := range s1 {
+		m[v] = true
+	}
+	for _, v := range s2 {
+		if _, ok := m[v]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func writeFile(t *testing.T, contents string) string {

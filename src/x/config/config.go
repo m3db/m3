@@ -32,6 +32,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+const (
+	deprecatedPrefix = "Deprecated"
+)
+
 var errNoFilesToLoad = errors.New("attempt to load config with no files")
 
 // Options is an options set used when parsing config.
@@ -71,19 +75,27 @@ func LoadFiles(config interface{}, files []string, opts Options) error {
 	return validator.Validate(config)
 }
 
-// DeprecationCheck checks the config for deprecated fields and emits a warning
-// if any are found.
-func DeprecationCheck(cfg interface{}, logger *zap.SugaredLogger) {
+// deprecationCheck checks the config for deprecated fields and returns any in
+// slice of strings.
+func deprecationCheck(cfg interface{}, df []string) []string {
 	n := reflect.TypeOf(cfg).NumField()
 	for i := 0; i < n; i++ {
 		v := reflect.ValueOf(cfg).Field(i)
 		if v.Kind() == reflect.Struct {
-			DeprecationCheck(v.Interface(), logger)
+			df = deprecationCheck(v.Interface(), df)
 		}
 		name := reflect.TypeOf(cfg).Field(i).Name
-		if strings.HasPrefix(name, "Deprecated") {
-			logger.Warn("using deprecated configuration field", zap.String("field", name))
+		if strings.HasPrefix(name, deprecatedPrefix) {
+			df = append(df, name)
 		}
+	}
+	return df
+}
 
+// WarnOnDeprecation emits a warning for every deprecated field
+func WarnOnDeprecation(cfg interface{}, logger *zap.Logger) {
+	deprecatedFields := []string{}
+	for _, v := range deprecationCheck(cfg, deprecatedFields) {
+		logger.Warn("using deprecated configuration field", zap.String("field", v))
 	}
 }
