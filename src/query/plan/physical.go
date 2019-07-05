@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/storage"
 )
 
 // PhysicalPlan represents the physical plan
@@ -49,7 +48,7 @@ type ResultOp struct {
 // NewPhysicalPlan is used to generate a physical plan. Its responsibilities include creating consolidation nodes, result nodes,
 // pushing down predicates, changing the ordering for nodes
 // nolint: unparam
-func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.RequestParams, lookbackDuration time.Duration) (PhysicalPlan, error) {
+func NewPhysicalPlan(lp LogicalPlan, params models.RequestParams) (PhysicalPlan, error) {
 	// generate a new physical plan after cloning the logical plan so that any changes here do not update the logical plan
 	cloned := lp.Clone()
 	p := PhysicalPlan{
@@ -63,7 +62,7 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 		},
 		Debug:            params.Debug,
 		BlockType:        params.BlockType,
-		LookbackDuration: lookbackDuration,
+		LookbackDuration: params.LookbackDuration,
 	}
 
 	pl, err := p.createResultNode()

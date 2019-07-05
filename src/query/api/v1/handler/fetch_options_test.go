@@ -21,22 +21,34 @@
 package handler
 
 import (
+	"fmt"
+	"math"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFetchOptionsBuilder(t *testing.T) {
+	type expectedLookback struct {
+		value time.Duration
+	}
+
 	tests := []struct {
 		name             string
 		defaultLimit     int
 		headers          map[string]string
+		query            string
 		expectedLimit    int
 		expectedRestrict *storage.RestrictFetchOptions
+		expectedLookback *expectedLookback
 		expectedErr      bool
 	}{
 		{
@@ -103,6 +115,25 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			},
 			expectedErr: true,
 		},
+		{
+			name:  "can set lookback duration",
+			query: "lookback=10s",
+			expectedLookback: &expectedLookback{
+				value: 10 * time.Second,
+			},
+		},
+		{
+			name:  "can set lookback duration based on step",
+			query: "lookback=step&step=10s",
+			expectedLookback: &expectedLookback{
+				value: 10 * time.Second,
+			},
+		},
+		{
+			name:        "bad lookback returns error",
+			query:       "lookback=foo",
+			expectedErr: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -111,7 +142,11 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				Limit: test.defaultLimit,
 			})
 
-			req := httptest.NewRequest("GET", "/foo", nil)
+			url := "/foo"
+			if test.query != "" {
+				url += "?" + test.query
+			}
+			req := httptest.NewRequest("GET", url, nil)
 			for k, v := range test.headers {
 				req.Header.Add(k, v)
 			}
@@ -127,9 +162,100 @@ func TestFetchOptionsBuilder(t *testing.T) {
 					require.NotNil(t, opts.RestrictFetchOptions)
 					require.Equal(t, *test.expectedRestrict, *opts.RestrictFetchOptions)
 				}
+				if test.expectedLookback == nil {
+					require.Nil(t, opts.LookbackDuration)
+				} else {
+					require.NotNil(t, opts.LookbackDuration)
+					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
+				}
 			} else {
 				require.Error(t, err)
 			}
 		})
 	}
+}
+
+func TestInvalidStep(t *testing.T) {
+	req := httptest.NewRequest("GET", "/foo", nil)
+	vals := make(url.Values)
+	vals.Del(StepParam)
+	vals.Add(StepParam, "-10.50s")
+	req.URL.RawQuery = vals.Encode()
+	_, _, err := ParseStep(req)
+	require.NotNil(t, err, "unable to parse request")
+}
+
+func TestParseLookbackDuration(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/foo", nil)
+	_, ok, err := ParseLookbackDuration(r)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=step", nil)
+	v, ok, err := ParseLookbackDuration(r)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, time.Minute, v)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=120s", nil)
+	v, ok, err = ParseLookbackDuration(r)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, 2*time.Minute, v)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=foobar", nil)
+	_, _, err = ParseLookbackDuration(r)
+	require.Error(t, err)
+}
+
+func TestParseDuration(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=10s", nil)
+	require.NoError(t, err)
+	v, err := ParseDuration(r, StepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 10*time.Second, v)
+}
+
+func TestParseFloatDuration(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=10.50m", nil)
+	require.NoError(t, err)
+	v, err := ParseDuration(r, StepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 10*time.Minute+30*time.Second, v)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=10.00m", nil)
+	require.NoError(t, err)
+	v, err = ParseDuration(r, StepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 10*time.Minute, v)
+}
+
+func TestParseDurationParsesIntAsSeconds(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=30", nil)
+	require.NoError(t, err)
+	v, err := ParseDuration(r, StepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Second, v)
+}
+
+func TestParseDurationParsesFloatAsSeconds(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=30.00", nil)
+	require.NoError(t, err)
+	v, err := ParseDuration(r, StepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Second, v)
+}
+
+func TestParseDurationError(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=bar10", nil)
+	require.NoError(t, err)
+	_, err = ParseDuration(r, StepParam)
+	assert.Error(t, err)
+}
+
+func TestParseDurationOverflowError(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/foo?step=%f", float64(math.MaxInt64)), nil)
+	require.NoError(t, err)
+	_, err = ParseDuration(r, StepParam)
+	assert.Error(t, err)
 }

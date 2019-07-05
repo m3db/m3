@@ -99,6 +99,10 @@ type FetchOptions struct {
 	// RestrictFetchOptions restricts the fetch to a specific set of
 	// conditions.
 	RestrictFetchOptions *RestrictFetchOptions
+	// Step is the configured step size.
+	Step time.Duration
+	// LookbackDuration if set overrides the default lookback duration.
+	LookbackDuration *time.Duration
 	// Enforcer is used to enforce resource limits on the number of datapoints
 	// used by a given query. Limits are imposed at time of decompression.
 	Enforcer cost.ChainedEnforcer
@@ -145,6 +149,41 @@ func NewFetchOptions() *FetchOptions {
 		Enforcer: cost.NoopChainedEnforcer(),
 		Scope:    tally.NoopScope,
 	}
+}
+
+// LookbackDurationOrDefault returns either the default lookback duration or
+// overridden lookback duration if set.
+func (o *FetchOptions) LookbackDurationOrDefault(
+	defaultValue time.Duration,
+) time.Duration {
+	if o.LookbackDuration == nil {
+		return defaultValue
+	}
+	return *o.LookbackDuration
+}
+
+// QueryFetchOptions returns fetch options for a given query.
+func (o *FetchOptions) QueryFetchOptions(
+	queryCtx *models.QueryContext,
+	blockType models.FetchedBlockType,
+) (*FetchOptions, error) {
+	r := o.Clone()
+	if r.Limit <= 0 {
+		r.Limit = queryCtx.Options.LimitMaxTimeseries
+	}
+	if r.RestrictFetchOptions == nil && queryCtx.Options.RestrictFetchType != nil {
+		v := queryCtx.Options.RestrictFetchType
+		restrict := RestrictFetchOptions{
+			MetricsType:   MetricsType(v.MetricsType),
+			StoragePolicy: v.StoragePolicy,
+		}
+		if err := restrict.Validate(); err != nil {
+			return nil, err
+		}
+
+		r.RestrictFetchOptions = &restrict
+	}
+	return r, nil
 }
 
 // Clone will clone and return the fetch options.

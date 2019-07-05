@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,9 @@ func Options(
 	t *testing.T,
 	p transform.OptionsParams,
 ) transform.Options {
+	if p.FetchOptions == nil {
+		p.FetchOptions = storage.NewFetchOptions()
+	}
 	if p.InstrumentOptions == nil {
 		p.InstrumentOptions = instrument.NewOptions()
 	}

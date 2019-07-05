@@ -49,6 +49,7 @@ enum MatcherType {
 message FetchOptions {
 	int64 limit                   = 1;
 	RestrictFetchOptions restrict = 2;
+	int64 lookbackDuration        = 3;
 }
 
 message RestrictFetchOptions {

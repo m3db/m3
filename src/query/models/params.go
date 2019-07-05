@@ -59,17 +59,16 @@ type RequestParams struct {
 	End   time.Time
 	// Now captures the current time and fixes it throughout the request, we
 	// may let people override it in the future.
-	Now        time.Time
-	Timeout    time.Duration
-	Step       time.Duration
-	Query      string
-	Debug      bool
-	KeepNans   bool
-	IncludeEnd bool
-	BlockType  FetchedBlockType
-	FormatType FormatType
-	// LookbackDuration if not nil overrides the config lookback duration.
-	LookbackDuration *time.Duration
+	Now              time.Time
+	Timeout          time.Duration
+	Step             time.Duration
+	Query            string
+	Debug            bool
+	KeepNans         bool
+	IncludeEnd       bool
+	BlockType        FetchedBlockType
+	FormatType       FormatType
+	LookbackDuration time.Duration
 }
 
 // ExclusiveEnd returns the end exclusive.

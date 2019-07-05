@@ -23,7 +23,6 @@ package native
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -31,11 +30,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -59,15 +61,26 @@ func defaultParams() url.Values {
 	vals.Add(queryParam, promQuery)
 	vals.Add(startParam, now.Format(time.RFC3339))
 	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
-	vals.Add(stepParam, (time.Duration(10) * time.Second).String())
+	vals.Add(handler.StepParam, (time.Duration(10) * time.Second).String())
 	return vals
+}
+
+func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError) {
+	fetchOpts, err := handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}).
+		NewFetchOptions(req)
+	if err != nil {
+		return models.RequestParams{}, err
+	}
+
+	return parseParams(req, executor.NewEngineOptions(), timeoutOpts,
+		fetchOpts, instrument.NewOptions())
 }
 
 func TestParamParsing(t *testing.T) {
 	req := httptest.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, err := parseParams(req, timeoutOpts, instrument.NewOptions())
+	r, err := testParseParams(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
@@ -91,8 +104,7 @@ func TestInvalidStart(t *testing.T) {
 	vals := defaultParams()
 	vals.Del(startParam)
 	req.URL.RawQuery = vals.Encode()
-	_, err := parseParams(req, timeoutOpts,
-		instrument.NewOptions())
+	_, err := testParseParams(req)
 	require.NotNil(t, err, "unable to parse request")
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
@@ -103,75 +115,10 @@ func TestInvalidTarget(t *testing.T) {
 	vals.Del(queryParam)
 	req.URL.RawQuery = vals.Encode()
 
-	p, err := parseParams(req, timeoutOpts,
-		instrument.NewOptions())
+	p, err := testParseParams(req)
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
 	require.Equal(t, err.Code(), http.StatusBadRequest)
-}
-
-func TestInvalidStep(t *testing.T) {
-	req := httptest.NewRequest("GET", PromReadURL, nil)
-	vals := defaultParams()
-	vals.Del(stepParam)
-	vals.Add(stepParam, "-10.50s")
-	req.URL.RawQuery = vals.Encode()
-	_, err := parseParams(req, timeoutOpts,
-		instrument.NewOptions())
-	require.NotNil(t, err, "unable to parse request")
-	require.Equal(t, err.Code(), http.StatusBadRequest)
-}
-
-func TestParseDuration(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, "/foo?step=10s", nil)
-	require.NoError(t, err)
-	v, err := parseDuration(r, stepParam)
-	require.NoError(t, err)
-	assert.Equal(t, 10*time.Second, v)
-}
-
-func TestParseFloatDuration(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, "/foo?step=10.50m", nil)
-	require.NoError(t, err)
-	v, err := parseDuration(r, stepParam)
-	require.NoError(t, err)
-	assert.Equal(t, 10*time.Minute+30*time.Second, v)
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?step=10.00m", nil)
-	require.NoError(t, err)
-	v, err = parseDuration(r, stepParam)
-	require.NoError(t, err)
-	assert.Equal(t, 10*time.Minute, v)
-}
-
-func TestParseDurationParsesIntAsSeconds(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, "/foo?step=30", nil)
-	require.NoError(t, err)
-	v, err := parseDuration(r, stepParam)
-	require.NoError(t, err)
-	assert.Equal(t, 30*time.Second, v)
-}
-
-func TestParseDurationParsesFloatAsSeconds(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, "/foo?step=30.00", nil)
-	require.NoError(t, err)
-	v, err := parseDuration(r, stepParam)
-	require.NoError(t, err)
-	assert.Equal(t, 30*time.Second, v)
-}
-
-func TestParseDurationError(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, "/foo?step=bar10", nil)
-	require.NoError(t, err)
-	_, err = parseDuration(r, stepParam)
-	assert.Error(t, err)
-}
-
-func TestParseDurationOverflowError(t *testing.T) {
-	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/foo?step=%f", float64(math.MaxInt64)), nil)
-	require.NoError(t, err)
-	_, err = parseDuration(r, stepParam)
-	assert.Error(t, err)
 }
 
 func TestParseBlockType(t *testing.T) {
@@ -198,29 +145,6 @@ func TestParseBlockType(t *testing.T) {
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=bar", nil)
 	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
 		instrument.NewOptions()))
-}
-
-func TestParseLookbackDuration(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/foo", nil)
-	_, ok, err := parseLookbackDuration(r, time.Minute)
-	require.NoError(t, err)
-	require.False(t, ok)
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=step", nil)
-	v, ok, err := parseLookbackDuration(r, time.Minute)
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, time.Minute, v)
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=120s", nil)
-	v, ok, err = parseLookbackDuration(r, time.Minute)
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, 2*time.Minute, v)
-
-	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=foobar", nil)
-	_, _, err = parseLookbackDuration(r, time.Minute)
-	require.Error(t, err)
 }
 
 func TestRenderResultsJSON(t *testing.T) {

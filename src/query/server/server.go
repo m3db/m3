@@ -266,7 +266,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
 	}
 
-	engineOpts := executor.NewEngineOpts().
+	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
 		SetLookbackDuration(*cfg.LookbackDuration).
 		SetGlobalEnforcer(perQueryEnforcer).

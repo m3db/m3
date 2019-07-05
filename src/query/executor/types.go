@@ -38,6 +38,7 @@ type Engine interface {
 		ctx context.Context,
 		query *storage.FetchQuery,
 		opts *QueryOptions,
+		fetchOpts *storage.FetchOptions,
 	) (*storage.FetchResult, error)
 
 	// ExecuteExpr runs the query DAG and closes the results channel once done.
@@ -45,8 +46,12 @@ type Engine interface {
 		ctx context.Context,
 		parser parser.Parser,
 		opts *QueryOptions,
+		fetchOpts *storage.FetchOptions,
 		params models.RequestParams,
 	) (Result, error)
+
+	// Options returns the currently configured options.
+	Options() EngineOptions
 
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error

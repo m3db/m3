@@ -29,10 +29,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
@@ -48,16 +51,11 @@ const (
 	startParam        = "start"
 	timeParam         = "time"
 	queryParam        = "query"
-	stepParam         = "step"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
 	blockTypeParam    = "block-type"
-	lookbackParam     = "lookback"
 
 	formatErrStr = "error parsing param: %s, error: %v"
-
-	maxInt64 = float64(math.MaxInt64)
-	minInt64 = float64(math.MinInt64)
 )
 
 func parseTime(r *http.Request, key string) (time.Time, error) {
@@ -68,38 +66,12 @@ func parseTime(r *http.Request, key string) (time.Time, error) {
 	return time.Time{}, errors.ErrNotFound
 }
 
-// nolint: unparam
-func parseDuration(r *http.Request, key string) (time.Duration, error) {
-	str := strings.TrimSpace(r.FormValue(key))
-	if str == "" {
-		return 0, errors.ErrNotFound
-	}
-
-	value, durationErr := time.ParseDuration(str)
-	if durationErr == nil {
-		return value, nil
-	}
-
-	// Try parsing as a float value specifying seconds, the Prometheus default
-	seconds, floatErr := strconv.ParseFloat(str, 64)
-	if floatErr == nil {
-		ts := seconds * float64(time.Second)
-		if ts > maxInt64 || ts < minInt64 {
-			return 0, fmt.Errorf("cannot parse step='%s': as_float_err="+
-				"int64 overflow after float conversion", str)
-		}
-
-		return time.Duration(ts), nil
-	}
-
-	return 0, fmt.Errorf("cannot parse step='%s': as_duration_err=%s, as_float_err=%s",
-		str, durationErr, floatErr)
-}
-
 // parseParams parses all params from the GET request
 func parseParams(
 	r *http.Request,
+	engineOpts executor.EngineOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
+	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
 ) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
@@ -124,15 +96,12 @@ func parseParams(
 	}
 	params.End = end
 
-	step, err := parseDuration(r, stepParam)
-	if err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
-	}
+	step := fetchOpts.Step
 	if step <= 0 {
 		err := fmt.Errorf("expected postive step size, instead got: %d", step)
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, handler.StepParam, err), http.StatusBadRequest)
 	}
-	params.Step = step
+	params.Step = fetchOpts.Step
 
 	query, err := parseQuery(r)
 	if err != nil {
@@ -159,12 +128,9 @@ func parseParams(
 		params.FormatType = models.FormatM3QL
 	}
 
-	lookback, ok, err := parseLookbackDuration(r, step)
-	if err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, lookbackParam, err), http.StatusBadRequest)
-	}
-	if ok {
-		params.LookbackDuration = &lookback
+	params.LookbackDuration = engineOpts.LookbackDuration()
+	if v := fetchOpts.LookbackDuration; v != nil {
+		params.LookbackDuration = *v
 	}
 
 	return params, nil
@@ -262,26 +228,6 @@ func parseQuery(r *http.Request) (string, error) {
 	}
 
 	return queries[0], nil
-}
-
-func parseLookbackDuration(r *http.Request, step time.Duration) (time.Duration, bool, error) {
-	lookback := r.FormValue(lookbackParam)
-	if lookback == "" {
-		return 0, false, nil
-	}
-
-	if lookback == stepParam {
-		// Use the step size as lookback.
-		return step, true, nil
-
-	}
-	// Otherwise it is specified as duration value.
-	value, err := parseDuration(r, lookbackParam)
-	if err != nil {
-		return 0, false, err
-	}
-
-	return value, true, nil
 }
 
 func filterNaNSeries(
