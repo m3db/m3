@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -56,10 +57,14 @@ const (
 	blockTypeParam    = "block-type"
 
 	formatErrStr = "error parsing param: %s, error: %v"
+	nowTimeValue = "now"
 )
 
-func parseTime(r *http.Request, key string) (time.Time, error) {
+func parseTime(r *http.Request, key string, now time.Time) (time.Time, error) {
 	if t := r.FormValue(key); t != "" {
+		if t == nowTimeValue {
+			return now, nil
+		}
 		return util.ParseTimeString(t)
 	}
 
@@ -74,8 +79,15 @@ func parseParams(
 	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
 ) (models.RequestParams, *xhttp.ParseError) {
-	params := models.RequestParams{
-		Now: time.Now(),
+	var params models.RequestParams
+
+	params.Now = time.Now()
+	if v := r.FormValue(timeParam); v != "" {
+		var err error
+		params.Now, err = parseTime(r, timeParam, params.Now)
+		if err != nil {
+			return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+		}
 	}
 
 	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
@@ -84,13 +96,13 @@ func parseParams(
 	}
 	params.Timeout = t
 
-	start, err := parseTime(r, startParam)
+	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
 	}
 	params.Start = start
 
-	end, err := parseTime(r, endParam)
+	end, err := parseTime(r, endParam, params.Now)
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
 	}
@@ -180,39 +192,26 @@ func parseBlockType(r *http.Request, instrumentOpts instrument.Options) models.F
 // parseInstantaneousParams parses all params from the GET request
 func parseInstantaneousParams(
 	r *http.Request,
+	engineOpts executor.EngineOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
+	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
 ) (models.RequestParams, *xhttp.ParseError) {
-	params := models.RequestParams{
-		Now:        time.Now(),
-		Step:       time.Second,
-		IncludeEnd: true,
+	if fetchOpts.Step == 0 {
+		fetchOpts.Step = time.Second
 	}
+	if r.Form == nil {
+		r.Form = make(url.Values)
+	}
+	r.Form.Set(startParam, nowTimeValue)
+	r.Form.Set(endParam, nowTimeValue)
 
-	t, err := prometheus.ParseRequestTimeout(r, timeoutOpts.FetchTimeout)
+	params, err := parseParams(r, engineOpts, timeoutOpts,
+		fetchOpts, instrumentOpts)
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	params.Timeout = t
-	instant := time.Now()
-	if t := r.FormValue(timeParam); t != "" {
-		instant, err = util.ParseTimeString(t)
-		if err != nil {
-			return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
-		}
-	}
-
-	params.Start = instant
-	params.End = instant
-
-	query, err := parseQuery(r)
-	if err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
-	}
-	params.Query = query
-	params.Debug = parseDebugFlag(r, instrumentOpts)
-	params.BlockType = parseBlockType(r, instrumentOpts)
 	return params, nil
 }
 

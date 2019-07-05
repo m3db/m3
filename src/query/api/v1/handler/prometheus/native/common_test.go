@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
@@ -93,8 +94,8 @@ func TestInstantaneousParamParsing(t *testing.T) {
 	params.Add(timeParam, now.Format(time.RFC3339))
 	req.URL.RawQuery = params.Encode()
 
-	r, err := parseInstantaneousParams(req, timeoutOpts,
-		instrument.NewOptions())
+	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),
+		timeoutOpts, storage.NewFetchOptions(), instrument.NewOptions())
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }

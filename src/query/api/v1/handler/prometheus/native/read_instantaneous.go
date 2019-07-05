@@ -74,7 +74,15 @@ func NewPromReadInstantHandler(
 func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-	params, rErr := parseInstantaneousParams(r, h.timeoutOpts, h.instrumentOpts)
+
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	params, rErr := parseInstantaneousParams(r, h.engine.Options(),
+		h.timeoutOpts, fetchOpts, h.instrumentOpts)
 	if rErr != nil {
 		xhttp.Error(w, rErr, rErr.Code())
 		return
@@ -82,12 +90,6 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	if params.Debug {
 		logger.Info("request params", zap.Any("params", params))
-	}
-
-	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
 	}
 
 	queryOpts := &executor.QueryOptions{
