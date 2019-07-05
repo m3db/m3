@@ -43,8 +43,14 @@ done
 set -x
 
 # Deploy monitoring with Prometheus
-kubectl apply -f ./manifests/prometheus-operator.yaml
-kubectl apply -f ./manifests/kube-prometheus-manifests
+# Promethues Operator
+kubectl apply -f ./manifests/prometheus-operator.yaml 
+# Manifests for Operator (prom, grafana, etc)
+kubectl apply -f ./manifests/kube-prometheus
+# ServiceMonitor CRD for M3DB monitoring
+kubectl apply -f ./manifests/prometheus-servicemonitor-dbnode.yml
+# ServiceMonitor CRD for M3Coordinator monitoring
+kubectl apply -f ./manifests/prometheus-servicemonitor-coordinator.yml
 
 # Ready load generator (but don't scale up yet)
 kubectl apply -f ./manifests/promremotebench-zero.yaml
