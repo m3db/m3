@@ -188,13 +188,16 @@ function test_query_lookback_duration {
   # Test changing the lookback duration
   echo "Test lookback causes steps to return 5 values (5m/60s = 5)"
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=60s&lookback=5m"
-  prometheus_query_native query_range "$METRIC_NAME_TEST_RESTRICT_WRITE" "$params_range" \
-    "unaggregated" "" "${jq_path_range}" "5"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="5" \
+    retry_with_backoff prometheus_query_native
 
   echo "Test lookback causes steps to return 1 value (60s/60s = 1)"
-  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=60s&lookback=60s"
-  prometheus_query_native query_range "$METRIC_NAME_TEST_RESTRICT_WRITE" "$params_range" \
-    "unaggregated" "" "$jq_path_range" "1"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="1" \
+    retry_with_backoff prometheus_query_native
 }
 
 # Run all tests
