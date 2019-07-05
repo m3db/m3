@@ -134,6 +134,16 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			query:       "lookback=foo",
 			expectedErr: true,
 		},
+		{
+			name:        "loookback step but step is bad",
+			query:       "lookback=step&step=invalid",
+			expectedErr: true,
+		},
+		{
+			name:        "lookback step but step is negative",
+			query:       "lookback=step&step=-1",
+			expectedErr: true,
+		},
 	}
 
 	for _, test := range tests {
