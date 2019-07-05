@@ -200,6 +200,29 @@ func TestParseBlockType(t *testing.T) {
 		instrument.NewOptions()))
 }
 
+func TestParseLookbackDuration(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/foo", nil)
+	_, ok, err := parseLookbackDuration(r, time.Minute)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=step", nil)
+	v, ok, err := parseLookbackDuration(r, time.Minute)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, time.Minute, v)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=120s", nil)
+	v, ok, err = parseLookbackDuration(r, time.Minute)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, 2*time.Minute, v)
+
+	r = httptest.NewRequest(http.MethodGet, "/foo?step=60s&lookback=foobar", nil)
+	_, _, err = parseLookbackDuration(r, time.Minute)
+	require.Error(t, err)
+}
+
 func TestRenderResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)

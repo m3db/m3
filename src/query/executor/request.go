@@ -113,7 +113,13 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 			Info("logical plan", zap.String("plan", lp.String()))
 	}
 
-	pp, err := plan.NewPhysicalPlan(lp, r.engine.opts.Store(), r.params, r.engine.opts.LookbackDuration())
+	lookback := r.engine.opts.LookbackDuration()
+	if r.params.LookbackDuration != nil {
+		// Allow lookback duration to be overriden per request.
+		lookback = *r.params.LookbackDuration
+	}
+
+	pp, err := plan.NewPhysicalPlan(lp, r.engine.opts.Store(), r.params, lookback)
 	if err != nil {
 		return plan.PhysicalPlan{}, err
 	}

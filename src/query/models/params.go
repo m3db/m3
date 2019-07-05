@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-// FormatType describes what format to return the data in
+// FormatType describes what format to return the data in.
 type FormatType int
 
 const (
@@ -53,11 +53,12 @@ const (
 	TypeDecodedBlock
 )
 
-// RequestParams represents the params from the request
+// RequestParams represents the params from the request.
 type RequestParams struct {
 	Start time.Time
 	End   time.Time
-	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
+	// Now captures the current time and fixes it throughout the request, we
+	// may let people override it in the future.
 	Now        time.Time
 	Timeout    time.Duration
 	Step       time.Duration
@@ -67,9 +68,11 @@ type RequestParams struct {
 	IncludeEnd bool
 	BlockType  FetchedBlockType
 	FormatType FormatType
+	// LookbackDuration if not nil overrides the config lookback duration.
+	LookbackDuration *time.Duration
 }
 
-// ExclusiveEnd returns the end exclusive
+// ExclusiveEnd returns the end exclusive.
 func (r RequestParams) ExclusiveEnd() time.Time {
 	if r.IncludeEnd {
 		return r.End.Add(r.Step)

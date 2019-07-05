@@ -52,6 +52,7 @@ const (
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
 	blockTypeParam    = "block-type"
+	lookbackParam     = "lookback"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 
@@ -158,6 +159,14 @@ func parseParams(
 		params.FormatType = models.FormatM3QL
 	}
 
+	lookback, ok, err := parseLookbackDuration(r, step)
+	if err != nil {
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, lookbackParam, err), http.StatusBadRequest)
+	}
+	if ok {
+		params.LookbackDuration = &lookback
+	}
+
 	return params, nil
 }
 
@@ -253,6 +262,26 @@ func parseQuery(r *http.Request) (string, error) {
 	}
 
 	return queries[0], nil
+}
+
+func parseLookbackDuration(r *http.Request, step time.Duration) (time.Duration, bool, error) {
+	lookback := r.FormValue(lookbackParam)
+	if lookback == "" {
+		return 0, false, nil
+	}
+
+	if lookback == stepParam {
+		// Use the step size as lookback.
+		return step, true, nil
+
+	}
+	// Otherwise it is specified as duration value.
+	value, err := parseDuration(r, lookbackParam)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return value, true, nil
 }
 
 func filterNaNSeries(
