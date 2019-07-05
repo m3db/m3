@@ -21,7 +21,7 @@
 package binary
 
 import (
-	"sort"
+	"math"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -38,23 +38,22 @@ func makeUnlessBlock(
 	controller *transform.Controller,
 	matching *VectorMatching,
 ) (block.Block, error) {
+	lMeta, lSeriesMetas := lIter.Meta(), lIter.SeriesMeta()
+	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
+
+	rMeta, rSeriesMetas := rIter.Meta(), rIter.SeriesMeta()
+	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
+
 	// NB: need to flatten metadata for cases where
 	// e.g. lhs: common tags {a:b}, series tags: {c:d}, {e:f}
 	// e.g. rhs: common tags {c:d}, series tags: {a:b}, {e:f}
 	// If not flattened before calculating distinct values,
 	// both series on lhs would be added
-	lSeriesMeta := utils.FlattenMetadata(lIter.Meta(), lIter.SeriesMeta())
-	rSeriesMeta := utils.FlattenMetadata(rIter.Meta(), rIter.SeriesMeta())
-	lIds := distinctLeft(matching, lSeriesMeta, rSeriesMeta)
-	stepCount := len(lIds)
-	distinctSeriesMeta := make([]block.SeriesMeta, 0, stepCount)
-	for _, idx := range lIds {
-		distinctSeriesMeta = append(distinctSeriesMeta, lSeriesMeta[idx])
-	}
-	meta := lIter.Meta()
-	commonTags, dedupedSeriesMetas := utils.DedupeMetadata(distinctSeriesMeta)
-	meta.Tags = commonTags
-	builder, err := controller.BlockBuilder(queryCtx, meta, dedupedSeriesMetas)
+	lSeriesMetas = utils.FlattenMetadata(lMeta, lSeriesMetas)
+	rSeriesMetas = utils.FlattenMetadata(rMeta, rSeriesMetas)
+	indices := matchingIndices(matching, lSeriesMetas, rSeriesMetas)
+
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMetas)
 	if err != nil {
 		return nil, err
 	}
@@ -63,15 +62,46 @@ func makeUnlessBlock(
 		return nil, err
 	}
 
-	if err = appendValuesAtIndices(lIds, lIter, builder); err != nil {
+	for index := 0; lIter.Next(); index++ {
+		if !rIter.Next() {
+			return nil, errRExhausted
+		}
+
+		lStep := lIter.Current()
+		lValues := lStep.Values()
+		rStep := rIter.Current()
+		rValues := rStep.Values()
+		for iterIndex, valueIndex := range indices {
+			if valueIndex >= 0 {
+				if !math.IsNaN(rValues[iterIndex]) {
+					lValues[valueIndex] = math.NaN()
+				}
+			}
+		}
+
+		if err := builder.AppendValues(index, lValues); err != nil {
+			return nil, err
+		}
+	}
+
+	if err = lIter.Err(); err != nil {
+		return nil, err
+	}
+
+	if rIter.Next() {
+		return nil, errLExhausted
+	}
+
+	if err = rIter.Err(); err != nil {
 		return nil, err
 	}
 
 	return builder.Build(), nil
 }
 
-// distinctLeft returns slices for unique indices on the lhs which do not exist in rhs
-func distinctLeft(
+// matchingIndices returns slices for unique indices on the lhs which do not
+// exist in rhs.
+func matchingIndices(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) []int {
@@ -82,24 +112,16 @@ func distinctLeft(
 		leftSigs[idFunction(meta.Tags)] = idx
 	}
 
-	for _, rs := range rhs {
-		// If there's no matching entry in the left-hand side Vector, add the sample.
+	rhsIndices := make([]int, len(rhs))
+	for i, rs := range rhs {
+		// If this series matches a series on the lhs, add it's index.
 		id := idFunction(rs.Tags)
-		if _, ok := leftSigs[id]; ok {
-			// Set left index to -1 as it should be excluded from the output
-			leftSigs[id] = -1
+		if lhsIndex, ok := leftSigs[id]; ok {
+			rhsIndices[i] = lhsIndex
+		} else {
+			rhsIndices[i] = -1
 		}
 	}
 
-	uniqueLeft := make([]int, 0, initIndexSliceLength)
-	for _, v := range leftSigs {
-		if v > -1 {
-			uniqueLeft = append(uniqueLeft, v)
-		}
-	}
-	// NB (arnikola): Since these values are inserted from ranging over a map, they
-	// are not in order
-	// TODO (arnikola): if this ends up being slow, insert in a sorted fashion.
-	sort.Ints(uniqueLeft)
-	return uniqueLeft
+	return rhsIndices
 }

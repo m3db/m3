@@ -28,8 +28,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
-// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
+// AndType uses values from left hand side for which there is a value in right
+// hand side with exactly matching label sets. Other elements are replaced by
+// NaNs. The metric name and values are carried over from the left-hand side.
 const AndType = "and"
 
 func makeAndBlock(
@@ -38,9 +39,13 @@ func makeAndBlock(
 	controller *transform.Controller,
 	matching *VectorMatching,
 ) (block.Block, error) {
-	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
+	lMeta, lSeriesMetas := lIter.Meta(), lIter.SeriesMeta()
+	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
 
-	builder, err := controller.BlockBuilder(queryCtx, lMeta, rSeriesMeta)
+	rMeta, rSeriesMetas := rIter.Meta(), rIter.SeriesMeta()
+	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
+
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMetas)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +54,7 @@ func makeAndBlock(
 		return nil, err
 	}
 
-	intersection := andIntersect(matching, lIter.SeriesMeta(), rIter.SeriesMeta())
+	intersection := andIntersect(matching, lSeriesMetas, rSeriesMetas)
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
 		lStep := lIter.Current()
 		lValues := lStep.Values()
@@ -82,8 +87,8 @@ func makeAndBlock(
 	return builder.Build(), nil
 }
 
-// intersect returns the slice of rhs indices if there is a match with
-// a corresponding lhs index. If no match is found, it returns -1
+// intersect returns the slice of rhs indices that have a match with
+// a corresponding lhs index; if they do not match, this is set to -1.
 func andIntersect(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
@@ -97,7 +102,6 @@ func andIntersect(
 
 	matches := make([]int, len(lhs))
 	for i, ls := range lhs {
-		// If there's a matching entry in the right-hand side Vector, add the sample.
 		if idx, ok := rightSigs[idFunction(ls.Tags)]; ok {
 			matches[i] = idx
 		} else {
