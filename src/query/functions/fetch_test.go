@@ -49,7 +49,8 @@ func TestFetch(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
-	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
+	source := (&FetchOp{}).Node(c, mockStorage,
+		transformtest.Options(t, transform.OptionsParams{}))
 	err := source.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
 	expected := values
@@ -127,7 +128,8 @@ func TestFetchWithRestrictFetch(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
-	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
+	source := (&FetchOp{}).Node(c, mockStorage,
+		transformtest.Options(t, transform.OptionsParams{}))
 
 	ctx := models.NewQueryContext(context.Background(),
 		tally.NoopScope, cost.NoopChainedEnforcer(),

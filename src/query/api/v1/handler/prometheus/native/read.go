@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -152,7 +153,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts)
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts, fetchOpts)
 	if respErr != nil {
 		xhttp.Error(w, respErr.Err, respErr.Code)
 		return
@@ -178,11 +179,12 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	r *http.Request,
 	engine executor.Engine,
 	opts *executor.QueryOptions,
+	fetchOpts *storage.FetchOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
-	params, rErr := parseParams(r, h.timeoutOps, h.instrumentOpts)
+	params, rErr := parseParams(r, engine.Options(), h.timeoutOps, fetchOpts, h.instrumentOpts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
@@ -197,7 +199,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, opts, h.tagOpts, w, params, h.instrumentOpts)
+	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))

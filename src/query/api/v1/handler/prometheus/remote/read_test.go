@@ -64,7 +64,7 @@ func newEngine(
 	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) executor.Engine {
-	engineOpts := executor.NewEngineOpts().
+	engineOpts := executor.NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
 		SetGlobalEnforcer(enforcer).
@@ -149,15 +149,15 @@ func TestPromReadParsingBad(t *testing.T) {
 
 func TestPromReadStorageWithFetchError(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	storage, session := m3.NewStorageAndSession(t, ctrl)
+	store, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, true, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
 		Return(nil, nil)
-	promRead := readHandler(storage, timeoutOpts)
+	promRead := readHandler(store, timeoutOpts)
 	req := test.GeneratePromReadRequest()
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(),
-		req, time.Hour, 100)
+		req, time.Hour, storage.NewFetchOptions())
 	require.NotNil(t, err, "unable to read from storage")
 }
 
@@ -276,12 +276,12 @@ func TestMultipleRead(t *testing.T) {
 
 	engine := executor.NewMockEngine(ctrl)
 	engine.EXPECT().
-		Execute(gomock.Any(), q, gomock.Any()).Return(r, nil)
+		Execute(gomock.Any(), q, gomock.Any(), gomock.Any()).Return(r, nil)
 	engine.EXPECT().
-		Execute(gomock.Any(), qTwo, gomock.Any()).Return(rTwo, nil)
+		Execute(gomock.Any(), qTwo, gomock.Any(), gomock.Any()).Return(rTwo, nil)
 
 	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
-	result, err := h.read(context.TODO(), nil, req, 0, 100)
+	result, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{

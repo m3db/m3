@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -43,6 +44,7 @@ func read(
 	reqCtx context.Context,
 	engine executor.Engine,
 	opts *executor.QueryOptions,
+	fetchOpts *storage.FetchOptions,
 	tagOpts models.TagOptions,
 	w http.ResponseWriter,
 	params models.RequestParams,
@@ -69,7 +71,7 @@ func read(
 		return nil, err
 	}
 
-	result, err := engine.ExecuteExpr(ctx, parser, opts, params)
+	result, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
 		return nil, err
 	}

@@ -35,8 +35,8 @@ type engineOptions struct {
 	lookbackDuration time.Duration
 }
 
-// NewEngineOpts returns a new instance of options used to create an engine.
-func NewEngineOpts() EngineOptions {
+// NewEngineOptions returns a new instance of options used to create an engine.
+func NewEngineOptions() EngineOptions {
 	return &engineOptions{}
 }
 

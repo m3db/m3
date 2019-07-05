@@ -301,7 +301,7 @@ type MismatchesJSON struct {
 func newServer() (*httptest.Server, *PromDebugHandler) {
 	mockStorage := mock.NewMockStorage()
 	instrumentOpts := instrument.NewOptions()
-	engineOpts := executor.NewEngineOpts().
+	engineOpts := executor.NewEngineOptions().
 		SetStore(mockStorage).
 		SetLookbackDuration(defaultLookbackDuration).
 		SetGlobalEnforcer(cost.NoopChainedEnforcer()).
@@ -317,6 +317,7 @@ func newServer() (*httptest.Server, *PromDebugHandler) {
 			true,
 			instrumentOpts,
 		),
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		defaultLookbackDuration,
 		instrumentOpts)
 

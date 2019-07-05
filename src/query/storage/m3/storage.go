@@ -155,7 +155,10 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	opts := s.opts
+	// Override options with whatever is the current specified lookback duration.
+	opts := s.opts.SetLookbackDuration(
+		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
+
 	// If using decoded block, return the legacy path.
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
@@ -163,7 +166,7 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration(), options.Enforcer)
+		return storage.FetchResultToBlockResult(fetchResult, query, opts.LookbackDuration(), options.Enforcer)
 	}
 
 	// If using multiblock, update options to reflect this.
