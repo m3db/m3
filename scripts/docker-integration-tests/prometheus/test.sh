@@ -179,6 +179,24 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
+function test_query_lookback_duration {
+  now=$(date +"%s")
+  hour_ago=$(expr $now - 3600) 
+  step="30s"
+  jq_path_range=".data.result[0].values[] | length"
+  
+  # Test changing the lookback duration
+  echo "Test lookback causes steps to return 5 values (5m/60s = 5)"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=60s&lookback=5m"
+  prometheus_query_native query_range "$METRIC_NAME_TEST_RESTRICT_WRITE" "$params_range" \
+    "unaggregated" "" "${jq_path_range}" "5"
+
+  echo "Test lookback causes steps to return 1 value (60s/60s = 1)"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=60s&lookback=60s"
+  prometheus_query_native query_range "$METRIC_NAME_TEST_RESTRICT_WRITE" "$params_range" \
+    "unaggregated" "" "$jq_path_range" "1"
+}
+
 # Run all tests
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
@@ -186,3 +204,4 @@ test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_query_lookback_duration
