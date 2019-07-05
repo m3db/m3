@@ -68,7 +68,7 @@ func newEngine(
 	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) executor.Engine {
-	engineOpts := executor.NewEngineOpts().
+	engineOpts := executor.NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
 		SetGlobalEnforcer(enforcer).

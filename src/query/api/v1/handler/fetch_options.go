@@ -199,7 +199,7 @@ func ParseDuration(r *http.Request, key string) (time.Duration, error) {
 		return value, nil
 	}
 
-	// Try parsing as a float value specifying seconds, the Prometheus default
+	// Try parsing as a float value specifying seconds, the Prometheus default.
 	seconds, floatErr := strconv.ParseFloat(str, 64)
 	if floatErr == nil {
 		ts := seconds * float64(time.Second)
