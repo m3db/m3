@@ -180,21 +180,24 @@ function test_query_restrict_metrics_type {
 }
 
 function test_query_lookback_duration {
-  now=$(date +"%s")
-  hour_ago=$(expr $now - 3600) 
+  # We use hour ago and hour future to make sure the lookback sliding window 
+  # is well into the future to allow for maximum points to be repeated 
+  # if the lookback is longer than the step
+  hour_future=$(expr $now - 3600)
+  hour_ago=$(expr $now - 3600)
   jq_path_range=".data.result[0].values | length"
   
   # Test setting specific lookback duration
   echo "Test lookback causes steps to return 6 values (lookback 30s / step 5s = 6)"
-  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=5s&lookback=30s"
+  params_range="start=${hour_ago}"'&'"end=${hour_future}"'&'"step=5s&lookback=30s"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
     metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="6" \
     retry_with_backoff prometheus_query_native
 
   # Test setting the lookback aligned with the step size result in single value
-  echo "Test lookback causes steps to return 1 value (lookback 30s / step 30s = 1)"
-  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s&lookback=step"
+  echo "Test lookback causes steps to return 1 value (lookback 5s / step 30s = 1)"
+  params_range="start=${hour_ago}"'&'"end=${hour_future}"'&'"step=5s&lookback=step"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
     metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="1" \
