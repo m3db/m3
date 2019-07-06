@@ -183,7 +183,8 @@ function test_query_lookback_duration {
   # We use hour ago and hour future to make sure the lookback sliding window 
   # is well into the future to allow for maximum points to be repeated 
   # if the lookback is longer than the step
-  hour_future=$(expr $now - 3600)
+  now=$(date +"%s")
+  hour_future=$(expr $now + 3600)
   hour_ago=$(expr $now - 3600)
   jq_path_range=".data.result[0].values | length"
   
