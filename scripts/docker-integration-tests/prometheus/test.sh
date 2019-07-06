@@ -196,7 +196,7 @@ function test_query_lookback_duration {
     retry_with_backoff prometheus_query_native
 
   # Test setting the lookback aligned with the step size result in single value
-  echo "Test lookback causes steps to return 1 value (lookback 5s / step 30s = 1)"
+  echo "Test lookback causes steps to return 1 value (lookback 5s / step 5s = 1)"
   params_range="start=${hour_ago}"'&'"end=${hour_future}"'&'"step=5s&lookback=step"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
