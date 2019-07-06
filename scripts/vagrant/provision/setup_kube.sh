@@ -35,7 +35,7 @@ while true; do
         printf "\n"
         break
     fi
-    sleep 1
+    sleep 2
     printf "."
 done
 set -x
@@ -48,7 +48,7 @@ while true; do
         printf "\n"
         break
     fi
-    sleep 1
+    sleep 2
     printf "."
 done
 set -x
@@ -56,8 +56,20 @@ set -x
 # Deploy monitoring with Prometheus
 # Promethues Operator
 kubectl apply -f ./manifests/prometheus-operator.yaml 
+
 # Manifests for Operator (prom, grafana, etc)
-kubectl apply -f ./manifests/kube-prometheus
+set +x
+echo "Applying Prometheus operator manifests"
+while true; do
+    if kubectl apply -f ./manifests/kube-prometheus; then
+        printf "\n"
+        break
+    fi
+    sleep 2
+    printf "."
+done
+set -x
+
 # ServiceMonitor CRD for M3DB monitoring
 kubectl apply -f ./manifests/prometheus-servicemonitor-dbnode.yaml
 # ServiceMonitor CRD for M3Coordinator monitoring

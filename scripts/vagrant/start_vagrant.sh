@@ -36,6 +36,6 @@ vagrant ssh -c 'cd provision && ./setup_kube.sh'
 
 # Run tunnels
 echo "Tunnelling"
-echo "Grafana available at http://localhost:3000"
+echo "Grafana available at http://localhost:3333"
 vagrant ssh -c "cd provision && ./run_tunnels.sh" --\
-    -L 3000:localhost:3000
+    -L 3333:localhost:3000
