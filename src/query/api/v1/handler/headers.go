@@ -49,9 +49,6 @@ const (
 	// metrics type.
 	MetricsStoragePolicyHeader = "M3-Storage-Policy"
 
-	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
-	UnaggregatedStoragePolicy = "unaggregated"
-
 	// DefaultServiceEnvironment is the default service ID environment.
 	DefaultServiceEnvironment = "default_env"
 	// DefaultServiceZone is the default service ID zone.

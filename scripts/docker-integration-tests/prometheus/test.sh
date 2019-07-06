@@ -150,7 +150,7 @@ function test_query_restrict_metrics_type {
   hour_ago=$(expr $now - 3600) 
   step="30s"
   params_instant=""
-  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=${step}"
   jq_path_instant=".data.result[0].value[1]"
   jq_path_range=".data.result[0].values[][1]"
   
@@ -182,18 +182,19 @@ function test_query_restrict_metrics_type {
 function test_query_lookback_duration {
   now=$(date +"%s")
   hour_ago=$(expr $now - 3600) 
-  step="30s"
-  jq_path_range=".data.result[0].values[] | length"
+  jq_path_range=".data.result[0].values | length"
   
-  # Test changing the lookback duration
-  echo "Test lookback causes steps to return 5 values (5m/60s = 5)"
-  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=60s&lookback=5m"
+  # Test setting specific lookback duration
+  echo "Test lookback causes steps to return 6 values (lookback 30s / step 5s = 6)"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=5s&lookback=30s"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
-    metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="5" \
+    metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="6" \
     retry_with_backoff prometheus_query_native
 
-  echo "Test lookback causes steps to return 1 value (60s/60s = 1)"
+  # Test setting the lookback aligned with the step size result in single value
+  echo "Test lookback causes steps to return 1 value (lookback 30s / step 30s = 1)"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s&lookback=step"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
     metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="1" \
