@@ -174,6 +174,8 @@ func TestEncodeFetchMessage(t *testing.T) {
 		MetricsType:   storage.AggregatedMetricsType,
 		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
 	}
+	lookback := time.Minute
+	fetchOpts.LookbackDuration = &lookback
 
 	grpcQ, err := encodeFetchRequest(rQ, fetchOpts)
 	require.NoError(t, err)
@@ -196,6 +198,7 @@ func TestEncodeFetchMessage(t *testing.T) {
 	expectedStoragePolicyProto, err := fetchOpts.RestrictFetchOptions.StoragePolicy.Proto()
 	require.NoError(t, err)
 	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.MetricsStoragePolicy)
+	assert.Equal(t, lookback, time.Duration(grpcQ.Options.LookbackDuration))
 }
 
 func TestEncodeDecodeFetchQuery(t *testing.T) {
@@ -206,6 +209,9 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 		MetricsType:   storage.AggregatedMetricsType,
 		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
 	}
+	lookback := time.Minute
+	fetchOpts.LookbackDuration = &lookback
+
 	gq, err := encodeFetchRequest(rQ, fetchOpts)
 	require.NoError(t, err)
 	reverted, revertedOpts, err := decodeFetchRequest(gq)
@@ -217,6 +223,8 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 		revertedOpts.RestrictFetchOptions.MetricsType)
 	require.Equal(t, fetchOpts.RestrictFetchOptions.StoragePolicy.String(),
 		revertedOpts.RestrictFetchOptions.StoragePolicy.String())
+	require.NotNil(t, revertedOpts.LookbackDuration)
+	require.Equal(t, lookback, *revertedOpts.LookbackDuration)
 
 	// Encode again
 	gqr, err := encodeFetchRequest(reverted, revertedOpts)

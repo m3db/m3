@@ -26,6 +26,7 @@ Query using PromQL and returns JSON datapoints compatible with the Prometheus Gr
 #### Optional
 
 - `debug=[bool]`
+- `lookback=[string|time duration]`: This sets the per request lookback duration to something other than the default set in config, can either be a time duration or the string "step" which sets the lookback to the same as the `step` request parameter.
 
 ### Header Params
 

@@ -46,7 +46,7 @@ func newEngine(
 	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) Engine {
-	engineOpts := NewEngineOpts().
+	engineOpts := NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
 		SetGlobalEnforcer(enforcer).
@@ -65,7 +65,7 @@ func TestEngine_Execute(t *testing.T) {
 	// Results is closed by execute
 	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
 	_, err := engine.Execute(context.TODO(),
-		&storage.FetchQuery{}, &QueryOptions{})
+		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
 	assert.NotNil(t, err)
 }
 
@@ -85,7 +85,7 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 	engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,
 		mockParent, instrument.NewOptions())
 	_, err = engine.ExecuteExpr(context.TODO(), parser,
-		&QueryOptions{}, models.RequestParams{
+		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),
 			End:   time.Now(),
 			Step:  time.Second,

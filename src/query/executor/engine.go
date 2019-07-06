@@ -113,9 +113,8 @@ func (e *engine) Execute(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
 	return e.opts.Store().Fetch(ctx, query, fetchOpts)
 }
 
@@ -123,11 +122,12 @@ func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
 	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
 ) (Result, error) {
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
-	req := newRequest(e, params, e.opts.InstrumentOptions())
+	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
 
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
@@ -162,6 +162,10 @@ func (e *engine) ExecuteExpr(
 	}()
 
 	return result, nil
+}
+
+func (e *engine) Options() EngineOptions {
+	return e.opts
 }
 
 func (e *engine) Close() error {

@@ -204,6 +204,9 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 		}
 		result.Restrict = restrict
 	}
+	if v := options.LookbackDuration; v != nil {
+		result.LookbackDuration = int64(*v)
+	}
 	return result, nil
 }
 
@@ -322,6 +325,11 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 			return nil, err
 		}
 		result.RestrictFetchOptions = &restrict
+	}
+
+	if v := rpcFetchOptions.LookbackDuration; v > 0 {
+		duration := time.Duration(v)
+		result.LookbackDuration = &duration
 	}
 
 	return result, nil
