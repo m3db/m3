@@ -92,6 +92,7 @@ type reader struct {
 	expectedDigestOfDigest    uint32
 	expectedBloomFilterDigest uint32
 	shard                     uint32
+	volume                    int
 	open                      bool
 }
 
@@ -128,11 +129,11 @@ func NewReader(
 
 func (r *reader) Open(opts DataReaderOpenOptions) error {
 	var (
-		namespace     = opts.Identifier.Namespace
-		shard         = opts.Identifier.Shard
-		blockStart    = opts.Identifier.BlockStart
-		snapshotIndex = opts.Identifier.VolumeIndex
-		err           error
+		namespace   = opts.Identifier.Namespace
+		shard       = opts.Identifier.Shard
+		blockStart  = opts.Identifier.BlockStart
+		volumeIndex = opts.Identifier.VolumeIndex
+		err         error
 	)
 
 	var (
@@ -144,23 +145,33 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		indexFilepath       string
 		dataFilepath        string
 	)
+
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, infoFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, indexFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, dataFileSuffix)
+		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
-		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
+
+		isLegacy := false
+		if volumeIndex == 0 {
+			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+			if err != nil {
+				return err
+			}
+		}
+
+		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -246,6 +257,7 @@ func (r *reader) Status() DataFileSetReaderStatus {
 		Open:       r.open,
 		Namespace:  r.namespace,
 		Shard:      r.shard,
+		Volume:     r.volume,
 		BlockStart: r.start,
 	}
 }
@@ -283,6 +295,7 @@ func (r *reader) readInfo(size int) error {
 		return err
 	}
 	r.start = xtime.FromNanoseconds(info.BlockStart)
+	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
@@ -495,27 +508,6 @@ func (r *reader) Close() error {
 	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
-}
-
-func readCheckpointFile(filePath string, digestBuf digest.Buffer) (uint32, error) {
-	exists, err := CompleteCheckpointFileExists(filePath)
-	if err != nil {
-		return 0, err
-	}
-	if !exists {
-		return 0, ErrCheckpointFileNotFound
-	}
-	fd, err := os.Open(filePath)
-	if err != nil {
-		return 0, err
-	}
-	defer fd.Close()
-	digest, err := digestBuf.ReadDigestFromFile(fd)
-	if err != nil {
-		return 0, err
-	}
-
-	return digest, nil
 }
 
 // indexEntriesByOffsetAsc implements sort.Sort

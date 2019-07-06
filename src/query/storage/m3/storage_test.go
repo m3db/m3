@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/sync"
 	bytetest "github.com/m3db/m3/src/x/test"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -119,11 +120,13 @@ func setup(
 }
 
 func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
-	writePool, err := sync.NewPooledWorkerPool(10, sync.NewPooledWorkerPoolOptions())
+	writePool, err := sync.NewPooledWorkerPool(10,
+		sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute)
+	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute,
+		instrument.NewOptions())
 	require.NoError(t, err)
 	return storage
 }
@@ -148,25 +151,22 @@ func newFetchReq() *storage.FetchQuery {
 	}
 }
 
-func newWriteQuery() *storage.WriteQuery {
-	tags := models.EmptyTags().AddTags([]models.Tag{
-		{Name: []byte("foo"), Value: []byte("bar")},
-		{Name: []byte("biz"), Value: []byte("baz")},
+func newWriteQuery() storage.WriteQuery {
+	writeQuery := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags: ident.NewTagsIterator(ident.NewTags(
+			ident.Tag{Name: ident.StringID("foo"), Value: ident.StringID("bar")},
+			ident.Tag{Name: ident.StringID("biz"), Value: ident.StringID("baz")},
+		)),
+		Unit: xtime.Millisecond,
+		Attributes: storage.Attributes{
+			MetricsType: storage.UnaggregatedMetricsType,
+		},
 	})
-
-	datapoints := ts.Datapoints{{
-		Timestamp: time.Now(),
-		Value:     1.0,
-	},
-		{
-			Timestamp: time.Now().Add(-10 * time.Second),
-			Value:     2.0,
-		}}
-	return &storage.WriteQuery{
-		Tags:       tags,
-		Unit:       xtime.Millisecond,
-		Datapoints: datapoints,
-	}
+	writeQuery.AppendDatapoint(ts.Datapoint{
+		Timestamp: time.Now().Add(-10 * time.Second),
+		Value:     2.0,
+	})
+	return writeQuery
 }
 
 func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
@@ -181,7 +181,7 @@ func TestLocalWriteEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store := setupLocalWrite(t, ctrl)
-	err := store.Write(context.TODO(), nil)
+	err := store.Write(context.TODO(), storage.WriteQuery{})
 	assert.Error(t, err)
 }
 

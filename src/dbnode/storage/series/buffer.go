@@ -196,7 +196,10 @@ func (t *OptimizedTimes) Contains(target xtime.UnixNano) bool {
 
 // ForEach runs the given function for each time in this OptimizedTimes.
 func (t *OptimizedTimes) ForEach(fn func(t xtime.UnixNano)) {
-	for _, tNano := range t.arr {
+	for i, tNano := range t.arr {
+		if i >= t.arrIdx {
+			break
+		}
 		fn(tNano)
 	}
 	for _, tNano := range t.slice {

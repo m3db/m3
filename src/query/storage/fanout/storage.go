@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 )
@@ -40,6 +41,7 @@ type fanoutStorage struct {
 	fetchFilter        filter.Storage
 	writeFilter        filter.Storage
 	completeTagsFilter filter.StorageCompleteTags
+	instrumentOpts     instrument.Options
 }
 
 // NewStorage creates a new fanout Storage instance.
@@ -48,12 +50,14 @@ func NewStorage(
 	fetchFilter filter.Storage,
 	writeFilter filter.Storage,
 	completeTagsFilter filter.StorageCompleteTags,
+	instrumentOpts instrument.Options,
 ) storage.Storage {
 	return &fanoutStorage{
 		stores:             stores,
 		fetchFilter:        fetchFilter,
 		writeFilter:        writeFilter,
 		completeTagsFilter: completeTagsFilter,
+		instrumentOpts:     instrumentOpts,
 	}
 }
 
@@ -220,8 +224,9 @@ func (s *fanoutStorage) Close() error {
 	for idx, store := range s.stores {
 		// Keep going on error to close all storages
 		if err := store.Close(); err != nil {
-			logging.WithContext(context.Background()).Error("unable to close storage",
-				zap.Int("store", int(store.Type())), zap.Int("index", idx))
+			logging.WithContext(context.Background(), s.instrumentOpts).
+				Error("unable to close storage",
+					zap.Int("store", int(store.Type())), zap.Int("index", idx))
 			lastErr = err
 		}
 	}

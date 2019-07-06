@@ -1,0 +1,24 @@
+# ServiceMonitor to scrape metrics from all M3 coordinator nodes when 
+# using the prometheus operator.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: m3coordinator-monitor
+    monitor-for: m3
+  name: m3coordinator-monitor
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 10s
+    metricRelabelings:
+    - sourceLabels:
+      - pod
+      targetLabel: instance
+    port: coord-debug
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      app: m3coordinator

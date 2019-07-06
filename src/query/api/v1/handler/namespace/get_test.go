@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -37,8 +37,6 @@ import (
 )
 
 func setupNamespaceTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *kv.MockStore) {
-	logging.InitWithCores(nil)
-
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 
@@ -55,7 +53,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	getHandler := NewGetHandler(mockClient)
+	getHandler := NewGetHandler(mockClient, instrument.NewOptions())
 
 	// Test no namespace
 	w := httptest.NewRecorder()
@@ -115,7 +113,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	getHandler := NewGetHandler(mockClient)
+	getHandler := NewGetHandler(mockClient, instrument.NewOptions())
 
 	// Test namespace present
 	w := httptest.NewRecorder()

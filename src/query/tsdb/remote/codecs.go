@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"google.golang.org/grpc/metadata"
 )
@@ -147,8 +148,14 @@ func decodeRawTs(r *rpc.DecompressedSeries) ts.Datapoints {
 // encodeFetchRequest encodes fetch request into rpc FetchRequest
 func encodeFetchRequest(
 	query *storage.FetchQuery,
+	options *storage.FetchOptions,
 ) (*rpc.FetchRequest, error) {
 	matchers, err := encodeTagMatchers(query.TagMatchers)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := encodeFetchOptions(options)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +166,7 @@ func encodeFetchRequest(
 		Matchers: &rpc.FetchRequest_TagMatchers{
 			TagMatchers: matchers,
 		},
+		Options: opts,
 	}, nil
 }
 
@@ -180,6 +188,26 @@ func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) 
 	return &rpc.TagMatchers{
 		TagMatchers: matchers,
 	}, nil
+}
+
+func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error) {
+	if options == nil {
+		return nil, nil
+	}
+	result := &rpc.FetchOptions{
+		Limit: int64(options.Limit),
+	}
+	if v := options.RestrictFetchOptions; v != nil {
+		restrict, err := v.Proto()
+		if err != nil {
+			return nil, err
+		}
+		result.Restrict = restrict
+	}
+	if v := options.LookbackDuration; v != nil {
+		result.LookbackDuration = int64(*v)
+	}
+	return result, nil
 }
 
 func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
@@ -231,7 +259,10 @@ func convertHeaderToMetaWithID(headers http.Header, requestID string) metadata.M
 }
 
 // creates a context with propagated request metadata as well as requestID
-func retrieveMetadata(streamCtx context.Context) context.Context {
+func retrieveMetadata(
+	streamCtx context.Context,
+	instrumentOpts instrument.Options,
+) context.Context {
 	md, ok := metadata.FromIncomingContext(streamCtx)
 	id := "unknown"
 	if ok {
@@ -241,22 +272,27 @@ func retrieveMetadata(streamCtx context.Context) context.Context {
 		}
 	}
 
-	return logging.NewContextWithID(streamCtx, id)
+	return logging.NewContextWithID(streamCtx, id, instrumentOpts)
 }
 
 func decodeFetchRequest(
 	req *rpc.FetchRequest,
-) (*storage.FetchQuery, error) {
+) (*storage.FetchQuery, *storage.FetchOptions, error) {
 	tags, err := decodeTagMatchers(req.GetTagMatchers())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	opts, err := decodeFetchOptions(req.GetOptions())
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return &storage.FetchQuery{
 		TagMatchers: tags,
 		Start:       toTime(req.Start),
 		End:         toTime(req.End),
-	}, nil
+	}, opts, nil
 }
 
 func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
@@ -273,4 +309,28 @@ func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 	}
 
 	return models.Matchers(matchers), nil
+}
+
+func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOptions, error) {
+	result := storage.NewFetchOptions()
+	if rpcFetchOptions == nil {
+		return result, nil
+	}
+
+	result.Limit = int(rpcFetchOptions.Limit)
+
+	if v := rpcFetchOptions.Restrict; v != nil {
+		restrict, err := storage.NewRestrictFetchOptionsFromProto(v)
+		if err != nil {
+			return nil, err
+		}
+		result.RestrictFetchOptions = &restrict
+	}
+
+	if v := rpcFetchOptions.LookbackDuration; v > 0 {
+		duration := time.Duration(v)
+		result.LookbackDuration = &duration
+	}
+
+	return result, nil
 }

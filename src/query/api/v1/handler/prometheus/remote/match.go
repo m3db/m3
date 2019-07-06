@@ -29,7 +29,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -49,6 +50,7 @@ type PromSeriesMatchHandler struct {
 	storage             storage.Storage
 	tagOptions          models.TagOptions
 	fetchOptionsBuilder handler.FetchOptionsBuilder
+	instrumentOpts      instrument.Options
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
@@ -56,17 +58,19 @@ func NewPromSeriesMatchHandler(
 	storage storage.Storage,
 	tagOptions models.TagOptions,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &PromSeriesMatchHandler{
 		tagOptions:          tagOptions,
 		storage:             storage,
 		fetchOptionsBuilder: fetchOptionsBuilder,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
 func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 

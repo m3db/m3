@@ -114,7 +114,7 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 
 	meta := iter.Meta()
 	bounds := meta.Bounds
-	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec.Start)
+	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec().Start)
 	if bounds.Duration == 0 {
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
@@ -123,7 +123,7 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 		return fmt.Errorf("block start cannot be before query start, bounds: %v, queryStart: %v", bounds, queryStartBounds)
 	}
 
-	queryEndBounds := bounds.Nearest(c.transformOpts.TimeSpec.End.Add(-1 * bounds.StepSize))
+	queryEndBounds := bounds.Nearest(c.transformOpts.TimeSpec().End.Add(-1 * bounds.StepSize))
 	if bounds.Start.After(queryEndBounds.Start) {
 		return fmt.Errorf("block start cannot be after query end, bounds: %v, query end: %v", bounds, queryEndBounds)
 	}
@@ -390,7 +390,8 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 
 		if prevProcessed >= dependentBlocks {
 			if err := c.cache.remove(i); err != nil {
-				logging.WithContext(context.TODO()).Warn("unable to remove key from cache", zap.Int("index", i))
+				logging.WithContext(context.TODO(), c.transformOpts.InstrumentOptions()).
+					Warn("unable to remove key from cache", zap.Int("index", i))
 			}
 		}
 
@@ -445,7 +446,7 @@ func (c *blockCache) init(bounds models.Bounds) {
 		return
 	}
 
-	timeSpec := c.transformOpts.TimeSpec
+	timeSpec := c.transformOpts.TimeSpec()
 	c.startBounds = bounds.Nearest(timeSpec.Start)
 	c.endBounds = bounds.Nearest(timeSpec.End.Add(-1 * bounds.StepSize))
 	numBlocks := c.endBounds.End().Sub(c.startBounds.Start) / bounds.Duration

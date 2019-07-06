@@ -47,6 +47,8 @@ markdown_extensions:
   - pymdownx.magiclink
   - pymdownx.mark
   - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
   - pymdownx.superfences
   - pymdownx.tasklist:
       custom_checkbox: true
@@ -69,7 +71,11 @@ pages:
       - "Commit Logs": "m3db/architecture/commitlogs.md"
       - "Peer Streaming": "m3db/architecture/peer_streaming.md"
       - "Caching": "m3db/architecture/caching.md"
-  - "Query Engine and Coordinator":
+  - "Coordinator":
+    - "Introduction": "coordinator/index.md"
+    - "API":
+      - "Prometheus Remote Write/Read": "coordinator/api/remote.md"
+  - "Query Engine":
     - "Introduction": "query_engine/index.md"
     - "API":
       - "Query": "query_engine/api/index.md"
@@ -88,6 +94,7 @@ pages:
     - "M3Query": "how_to/query.md"
     - "Use M3DB as a general purpose time series database": "how_to/use_as_tsdb.md"
   - "Operational Guides":
+    - "Overview": "operational_guide/index.md"
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"

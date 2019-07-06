@@ -21,28 +21,42 @@
 package index
 
 import (
+	stdlibctx "context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	opentracing "github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+)
+
+var (
+	defaultQuery = Query{
+		Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+
+	emptyLogFields = []opentracinglog.Field{}
 )
 
 func newTestNSMetadata(t require.TestingT) namespace.Metadata {
@@ -345,8 +359,8 @@ func TestBlockQueryAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -365,8 +379,8 @@ func TestBlockQueryExecutorError(t *testing.T) {
 		return nil, fmt.Errorf("random-err")
 	}
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -387,8 +401,8 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -423,8 +437,8 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg3.EXPECT().Reader().Return(nil, randErr)
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -449,8 +463,8 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 		exec.EXPECT().Execute(gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
 		exec.EXPECT().Close(),
 	)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -481,9 +495,9 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		dIter.EXPECT().Close(),
 		exec.EXPECT().Close(),
 	)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{},
-		NewQueryResults(nil, QueryResultsOptions{}, testOpts))
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts), emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -517,8 +531,8 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -556,8 +570,8 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, results)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -587,8 +601,8 @@ func TestBlockMockQueryExecutorExecIterExecCloseErr(t *testing.T) {
 		exec.EXPECT().Close().Return(fmt.Errorf("randomerr")),
 	)
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, results)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -621,8 +635,8 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	)
 	limit := 1
 	results := NewQueryResults(nil, QueryResultsOptions{SizeLimit: 1}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -664,8 +678,8 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	limit := 2
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -710,8 +724,8 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -757,8 +771,8 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -1167,9 +1181,16 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1186,6 +1207,11 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		ident.NewTagsIterator(t2)))
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertQueryLimit(t *testing.T) {
@@ -1238,8 +1264,8 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{Limit: limit}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 	require.Equal(t, 1, results.Size())
@@ -1316,9 +1342,16 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1335,6 +1368,11 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		ident.NewTagsIterator(t2)))
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
@@ -1380,9 +1418,16 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1399,6 +1444,11 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
 		ident.NewTagsIterator(t2)))
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockWriteBackgroundCompact(t *testing.T) {
@@ -1517,8 +1567,8 @@ func TestBlockAggregateAfterClose(t *testing.T) {
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(resource.NewCancellableLifetime(),
-		QueryOptions{}, nil)
+	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(),
+		QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1556,7 +1606,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
 		iter.EXPECT().Close().Return(nil),
 	)
-	_, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results)
+	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1586,6 +1636,12 @@ func TestBlockAggregate(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	gomock.InOrder(
 		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
@@ -1600,7 +1656,7 @@ func TestBlockAggregate(t *testing.T) {
 		iter.EXPECT().Err().Return(nil),
 		iter.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -1608,6 +1664,11 @@ func TestBlockAggregate(t *testing.T) {
 		"f1": []string{"t1", "t2", "t3"},
 		"f2": []string{"t1"},
 	}, results)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -1646,6 +1707,12 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	gomock.InOrder(
 		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
@@ -1654,13 +1721,18 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		iter.EXPECT().Err().Return(nil),
 		iter.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 1}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
 		"f1": []string{"t1"},
 	}, results)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertAggregate(t *testing.T) {
@@ -1728,7 +1800,13 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		SizeLimit: 10,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
-	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+
+	ctx := context.NewContext()
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -1741,7 +1819,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:        AggregateTagNamesAndValues,
 		FieldFilter: AggregateFieldFilter{[]byte("bar")},
 	}, testOpts)
-	exhaustive, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -1753,10 +1831,17 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:        AggregateTagNamesAndValues,
 		FieldFilter: AggregateFieldFilter{[]byte("random")},
 	}, testOpts)
-	exhaustive, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{}, results)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 4)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[2].OperationName)
 }
 
 func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {

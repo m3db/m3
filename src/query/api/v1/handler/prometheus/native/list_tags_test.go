@@ -29,10 +29,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -78,8 +78,6 @@ var _ gomock.Matcher = &listTagsMatcher{}
 func b(s string) []byte { return []byte(s) }
 
 func TestListTags(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -101,7 +99,7 @@ func TestListTags(t *testing.T) {
 
 	handler := NewListTagsHandler(store,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		nowFn)
+		nowFn, instrument.NewOptions())
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{now: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
@@ -123,8 +121,6 @@ func TestListTags(t *testing.T) {
 }
 
 func TestListErrorTags(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -137,7 +133,7 @@ func TestListErrorTags(t *testing.T) {
 
 	handler := NewListTagsHandler(store,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		nowFn)
+		nowFn, instrument.NewOptions())
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{now: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).

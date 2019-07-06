@@ -26,13 +26,74 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/pkg/errors"
 )
 
-// Options to create transform nodes
+var (
+	errNoFetchOptionsSet      = errors.New("no fetch options set")
+	errNoInstrumentOptionsSet = errors.New("no instrument options set")
+)
+
+// Options to create transform nodes.
 type Options struct {
-	TimeSpec  TimeSpec
-	Debug     bool
-	BlockType models.FetchedBlockType
+	fetchOpts         *storage.FetchOptions
+	timeSpec          TimeSpec
+	debug             bool
+	blockType         models.FetchedBlockType
+	instrumentOptions instrument.Options
+}
+
+// OptionsParams are the params used to create Options.
+type OptionsParams struct {
+	FetchOptions      *storage.FetchOptions
+	TimeSpec          TimeSpec
+	Debug             bool
+	BlockType         models.FetchedBlockType
+	InstrumentOptions instrument.Options
+}
+
+// NewOptions enforces that fields are set when options is created.
+func NewOptions(p OptionsParams) (Options, error) {
+	if p.FetchOptions == nil {
+		return Options{}, errNoFetchOptionsSet
+	}
+	if p.InstrumentOptions == nil {
+		return Options{}, errNoInstrumentOptionsSet
+	}
+	return Options{
+		fetchOpts:         p.FetchOptions,
+		timeSpec:          p.TimeSpec,
+		debug:             p.Debug,
+		blockType:         p.BlockType,
+		instrumentOptions: p.InstrumentOptions,
+	}, nil
+}
+
+// FetchOptions returns the FetchOptions option.
+func (o Options) FetchOptions() *storage.FetchOptions {
+	return o.fetchOpts
+}
+
+// TimeSpec returns the TimeSpec option.
+func (o Options) TimeSpec() TimeSpec {
+	return o.timeSpec
+}
+
+// Debug returns the Debug option.
+func (o Options) Debug() bool {
+	return o.debug
+}
+
+// BlockType returns the BlockType option.
+func (o Options) BlockType() models.FetchedBlockType {
+	return o.blockType
+}
+
+// InstrumentOptions returns the InstrumentOptions option.
+func (o Options) InstrumentOptions() instrument.Options {
+	return o.instrumentOptions
 }
 
 // OpNode represents the execution node

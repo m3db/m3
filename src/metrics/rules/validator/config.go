@@ -48,6 +48,7 @@ type Configuration struct {
 	MetricTypes                      metricTypesValidationConfiguration `yaml:"metricTypes"`
 	Policies                         policiesValidationConfiguration    `yaml:"policies"`
 	TagNameInvalidChars              string                             `yaml:"tagNameInvalidChars"`
+	FilterInvalidTagNames            []string                           `yaml:"filterInvalidTagNames"`
 	MetricNameInvalidChars           string                             `yaml:"metricNameInvalidChars"`
 }
 
@@ -71,7 +72,8 @@ func (c Configuration) newValidatorOptions(
 		SetRequiredRollupTags(c.RequiredRollupTags).
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
 		SetTagNameInvalidChars(toRunes(c.TagNameInvalidChars)).
-		SetMetricNameInvalidChars(toRunes(c.MetricNameInvalidChars))
+		SetMetricNameInvalidChars(toRunes(c.MetricNameInvalidChars)).
+		SetFilterInvalidTagNames(c.FilterInvalidTagNames)
 	if c.MetricTypes.MultiAggregationTypesEnabledFor != nil {
 		opts = opts.SetMultiAggregationTypesEnabledFor(*c.MetricTypes.MultiAggregationTypesEnabledFor)
 	}

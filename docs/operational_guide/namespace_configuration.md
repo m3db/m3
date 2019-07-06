@@ -106,7 +106,7 @@ Can be modified without creating a new namespace: `yes`
 
 ### snapshotEnabled
 
-This controls whether M3DB will periodically write out [snapshot files](../architecture/commitlogs.md) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
+This controls whether M3DB will periodically write out [snapshot files](../m3db/architecture/commitlogs.md) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
 
 Can be modified without creating a new namespace: `yes`
 
@@ -124,7 +124,7 @@ Can be modified without creating a new namespace: `yes`
 
 #### blockSize
 
-This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../../m3db/architecture/engine.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
+This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../m3db/architecture/storage.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
 
 Can be modified without creating a new namespace: `no`
 

@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -76,11 +76,12 @@ type databaseNamespaceReaderManager interface {
 	close()
 }
 
-type fsFileSetExistsAtFn func(
+type fsFileSetExistsFn func(
 	prefix string,
 	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 ) (bool, error)
 
 type fsNewReaderFn func(
@@ -91,8 +92,8 @@ type fsNewReaderFn func(
 type namespaceReaderManager struct {
 	sync.Mutex
 
-	filesetExistsAtFn fsFileSetExistsAtFn
-	newReaderFn       fsNewReaderFn
+	filesetExistsFn fsFileSetExistsFn
+	newReaderFn     fsNewReaderFn
 
 	namespace namespace.Metadata
 	fsOpts    fs.Options
@@ -109,6 +110,7 @@ type namespaceReaderManager struct {
 type cachedOpenReaderKey struct {
 	shard      uint32
 	blockStart xtime.UnixNano
+	volume     int
 	position   readerPosition
 }
 
@@ -149,14 +151,14 @@ func newNamespaceReaderManager(
 	opts Options,
 ) databaseNamespaceReaderManager {
 	return &namespaceReaderManager{
-		filesetExistsAtFn: fs.DataFileSetExistsAt,
-		newReaderFn:       fs.NewReader,
-		namespace:         namespace,
-		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
-		bytesPool:         opts.BytesPool(),
-		logger:            opts.InstrumentOptions().Logger(),
-		openReaders:       make(map[cachedOpenReaderKey]cachedReader),
-		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
+		filesetExistsFn: fs.DataFileSetExists,
+		newReaderFn:     fs.NewReader,
+		namespace:       namespace,
+		fsOpts:          opts.CommitLogOptions().FilesystemOptions(),
+		bytesPool:       opts.BytesPool(),
+		logger:          opts.InstrumentOptions().Logger(),
+		openReaders:     make(map[cachedOpenReaderKey]cachedReader),
+		metrics:         newNamespaceReaderManagerMetrics(namespaceScope),
 	}
 }
 
@@ -164,8 +166,10 @@ func (m *namespaceReaderManager) filesetExistsAt(
 	shard uint32,
 	blockStart time.Time,
 ) (bool, error) {
-	return m.filesetExistsAtFn(m.fsOpts.FilePathPrefix(),
-		m.namespace.ID(), shard, blockStart)
+	// TODO(juchan): get the actual volume here.
+	vol := 0
+	return m.filesetExistsFn(m.fsOpts.FilePathPrefix(),
+		m.namespace.ID(), shard, blockStart, vol)
 }
 
 type cachedReaderForKeyResult struct {
@@ -251,11 +255,14 @@ func (m *namespaceReaderManager) get(
 	// We have a closed reader from the cache (either a cached closed
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
+	// TODO(juchan): get the actual volume here.
+	vol := 0
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  m.namespace.ID(),
-			Shard:      shard,
-			BlockStart: blockStart,
+			Namespace:   m.namespace.ID(),
+			Shard:       shard,
+			BlockStart:  blockStart,
+			VolumeIndex: vol,
 		},
 	}
 	if err := reader.Open(openOpts); err != nil {
@@ -303,6 +310,7 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
 	key := cachedOpenReaderKey{
 		shard:      status.Shard,
 		blockStart: xtime.ToUnixNano(status.BlockStart),
+		volume:     status.Volume,
 		position: readerPosition{
 			dataIdx:     reader.EntriesRead(),
 			metadataIdx: reader.MetadataRead(),

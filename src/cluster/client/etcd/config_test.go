@@ -63,6 +63,7 @@ etcdClusters:
       period: 10s
       jitter: 5s
       timeout: 1s
+    autoSyncInterval: 60s
   - zone: z2
     endpoints:
       - etcd3:2379
@@ -100,6 +101,7 @@ m3sd:
 				Jitter:  5 * time.Second,
 				Timeout: time.Second,
 			},
+			AutoSyncInterval: time.Second * 60,
 		},
 		ClusterConfig{
 			Zone:      "z2",
@@ -129,6 +131,7 @@ m3sd:
 	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriod())
 	require.Equal(t, 5*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
 	require.Equal(t, time.Second, keepAliveOpts.KeepAliveTimeout())
+	require.Equal(t, 60*time.Second, cluster1.AutoSyncInterval())
 
 	cluster2, exists := opts.ClusterForZone("z2")
 	require.True(t, exists)

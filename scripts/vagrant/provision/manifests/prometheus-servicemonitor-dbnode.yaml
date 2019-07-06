@@ -1,0 +1,29 @@
+# ServiceMonitor to scrape metrics from all M3DB pods when using the prometheus
+# operator.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: m3dbnode
+    monitor-for: m3
+  name: m3dbnode
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 10s
+    metricRelabelings:
+    - sourceLabels:
+      - pod
+      targetLabel: instance
+    port: debug
+    relabelings:
+    - sourceLabels:
+      - __meta_kubernetes_service_label_operator_m3db_io_cluster
+      targetLabel: cluster
+    scrapeTimeout: 5s
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      operator.m3db.io/app: m3db

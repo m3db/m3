@@ -281,8 +281,9 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		return nil, err
 	}
 	cfg := clientv3.Config{
-		Endpoints: cluster.Endpoints(),
-		TLS:       tls,
+		Endpoints:        cluster.Endpoints(),
+		TLS:              tls,
+		AutoSyncInterval: cluster.AutoSyncInterval(),
 	}
 
 	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {

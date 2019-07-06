@@ -34,6 +34,7 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -127,7 +128,7 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewSchemaHandler(mockClient)
+	addHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -157,7 +158,7 @@ func TestSchemaDeploy(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	schemaHandler := NewSchemaHandler(mockClient)
+	schemaHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	mockAdminSvc := kvadmin.NewMockNamespaceMetadataAdminService(ctrl)
@@ -198,7 +199,7 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	schemaHandler := NewSchemaHandler(mockClient)
+	schemaHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	jsonInput := `
@@ -250,7 +251,7 @@ func TestSchemaReset(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	schemaHandler := NewSchemaResetHandler(mockClient)
+	schemaHandler := NewSchemaResetHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	mockAdminSvc := kvadmin.NewMockNamespaceMetadataAdminService(ctrl)

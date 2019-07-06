@@ -32,7 +32,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/util/logging"
 	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,8 +76,6 @@ func (v vectorResultValues) parse() (time.Time, int, error) {
 }
 
 func TestPromReadInstantHandler(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
@@ -143,8 +140,6 @@ func TestPromReadInstantHandler(t *testing.T) {
 }
 
 func TestPromReadInstantHandlerStorageError(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	setup := newTestSetup()
 	promReadInstant := setup.Handlers.InstantRead
 

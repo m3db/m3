@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -51,6 +51,7 @@ type PromReadInstantHandler struct {
 	fetchOptionsBuilder handler.FetchOptionsBuilder
 	tagOpts             models.TagOptions
 	timeoutOpts         *prometheus.TimeoutOpts
+	instrumentOpts      instrument.Options
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
@@ -59,27 +60,20 @@ func NewPromReadInstantHandler(
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	timeoutOpts *prometheus.TimeoutOpts,
+	instrumentOpts instrument.Options,
 ) *PromReadInstantHandler {
 	return &PromReadInstantHandler{
 		engine:              engine,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		tagOpts:             tagOpts,
 		timeoutOpts:         timeoutOpts,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
 func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
-	params, rErr := parseInstantaneousParams(r, h.timeoutOpts)
-	if rErr != nil {
-		httperrors.ErrorWithReqInfo(w, r, rErr.Code(), rErr)
-		return
-	}
-
-	if params.Debug {
-		logger.Info("request params", zap.Any("params", params))
-	}
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
@@ -87,15 +81,33 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	params, rErr := parseInstantaneousParams(r, h.engine.Options(),
+		h.timeoutOpts, fetchOpts, h.instrumentOpts)
+	if rErr != nil {
+		xhttp.Error(w, rErr, rErr.Code())
+		return
+	}
+
+	if params.Debug {
+		logger.Info("request params", zap.Any("params", params))
+	}
+
 	queryOpts := &executor.QueryOptions{
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
+	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
 
-	result, err := read(ctx, h.engine, queryOpts, h.tagOpts, w, params)
+	result, err := read(ctx, h.engine, queryOpts, fetchOpts, h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		httperrors.ErrorWithReqInfo(w, r, http.StatusInternalServerError, err)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 

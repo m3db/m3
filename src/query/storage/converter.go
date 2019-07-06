@@ -156,12 +156,19 @@ func TimeToPromTimestamp(timestamp time.Time) int64 {
 // TODO(rartoul): We should pool all of these intermediary datastructures, or
 // at least the []*prompb.Sample (as thats the most heavily allocated object)
 // since we have full control over the lifecycle.
-func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
+func FetchResultToPromResult(
+	result *FetchResult,
+	keepEmpty bool,
+) *prompb.QueryResult {
 	// Perform bulk allocation upfront then convert to pointers afterwards
 	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
 	// if modifying.
 	timeseries := make([]prompb.TimeSeries, 0, len(result.SeriesList))
 	for _, series := range result.SeriesList {
+		if !keepEmpty && series.Len() == 0 {
+			continue
+		}
+
 		promTs := SeriesToPromTS(series)
 		timeseries = append(timeseries, promTs)
 	}

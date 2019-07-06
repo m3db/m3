@@ -81,7 +81,8 @@ func ParseExtendedDuration(s string) (time.Duration, error) {
 
 	for i < len(s) {
 		if !isDigit(s[i]) {
-			return 0, fmt.Errorf("invalid duration %s, no value specified", s)
+			return 0, fmt.Errorf(
+				"could not parse duration: duration='%s', err='no value'", s)
 		}
 
 		// Consume [0-9]+
@@ -94,7 +95,8 @@ func ParseExtendedDuration(s string) (time.Duration, error) {
 
 		// Consume [^0-9]+ and convert into a unit
 		if i == len(s) {
-			return 0, fmt.Errorf("invalid duration %s, no unit", s)
+			return 0, fmt.Errorf(
+				"could not parse duration: duration='%s', err='no unit'", s)
 		}
 
 		unitStart := i
@@ -105,7 +107,8 @@ func ParseExtendedDuration(s string) (time.Duration, error) {
 		unitText := s[unitStart:i]
 		unit, unitExists := durationUnits[unitText]
 		if !unitExists {
-			return 0, fmt.Errorf("invalid duration %s, invalid unit %s", s, unitText)
+			return 0, fmt.Errorf(
+				"could not parse duration: duration='%s', err_unknown_unit='%s'", s, unitText)
 		}
 
 		d += time.Duration(n) * unit

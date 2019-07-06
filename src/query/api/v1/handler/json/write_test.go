@@ -31,7 +31,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -59,12 +59,11 @@ func generateJSONWriteRequest() string {
 }
 
 func TestJSONWriteParsing(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	jsonWrite := &WriteJSONHandler{store: nil}
+	jsonWrite := NewWriteJSONHandler(nil,
+		instrument.NewOptions()).(*WriteJSONHandler)
 
 	jsonReq := generateJSONWriteRequest()
-	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
+	req := httptest.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
 
 	r, err := jsonWrite.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
@@ -73,9 +72,9 @@ func TestJSONWriteParsing(t *testing.T) {
 }
 
 func TestJSONWrite(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
@@ -84,7 +83,8 @@ func TestJSONWrite(t *testing.T) {
 	session.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 
-	jsonWrite := &WriteJSONHandler{store: storage}
+	jsonWrite := NewWriteJSONHandler(storage,
+		instrument.NewOptions()).(*WriteJSONHandler)
 
 	jsonReq := generateJSONWriteRequest()
 	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,
@@ -102,11 +102,11 @@ func TestJSONWrite(t *testing.T) {
 }
 
 func TestJSONWriteError(t *testing.T) {
-	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	expectedErr := fmt.Errorf("an error")
 
-	ctrl := gomock.NewController(t)
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
@@ -116,7 +116,8 @@ func TestJSONWriteError(t *testing.T) {
 	session.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 
-	jsonWrite := &WriteJSONHandler{store: storage}
+	jsonWrite := NewWriteJSONHandler(storage,
+		instrument.NewOptions()).(*WriteJSONHandler)
 
 	jsonReq := generateJSONWriteRequest()
 	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,

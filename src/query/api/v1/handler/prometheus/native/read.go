@@ -31,9 +31,10 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -69,6 +70,7 @@ type PromReadHandler struct {
 	promReadMetrics     promReadMetrics
 	timeoutOps          *prometheus.TimeoutOpts
 	keepNans            bool
+	instrumentOpts      instrument.Options
 }
 
 type promReadMetrics struct {
@@ -111,18 +113,19 @@ func NewPromReadHandler(
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
-	scope tally.Scope,
 	timeoutOpts *prometheus.TimeoutOpts,
 	keepNans bool,
+	instrumentOpts instrument.Options,
 ) *PromReadHandler {
 	h := &PromReadHandler{
 		engine:              engine,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		tagOpts:             tagOpts,
 		limitsCfg:           limitsCfg,
-		promReadMetrics:     newPromReadMetrics(scope),
+		promReadMetrics:     newPromReadMetrics(instrumentOpts.MetricsScope()),
 		timeoutOps:          timeoutOpts,
 		keepNans:            keepNans,
+		instrumentOpts:      instrumentOpts,
 	}
 
 	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
@@ -142,10 +145,17 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
+	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts)
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts, fetchOpts)
 	if respErr != nil {
-		httperrors.ErrorWithReqInfo(w, r, respErr.Code, respErr.Err)
+		xhttp.Error(w, respErr.Err, respErr.Code)
 		return
 	}
 
@@ -169,11 +179,12 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	r *http.Request,
 	engine executor.Engine,
 	opts *executor.QueryOptions,
+	fetchOpts *storage.FetchOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
-	params, rErr := parseParams(r, h.timeoutOps)
+	params, rErr := parseParams(r, engine.Options(), h.timeoutOps, fetchOpts, h.instrumentOpts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
@@ -188,7 +199,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, opts, h.tagOpts, w, params)
+	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))

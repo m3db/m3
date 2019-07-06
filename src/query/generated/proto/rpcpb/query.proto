@@ -4,6 +4,8 @@ package rpc;
 
 option go_package = "rpcpb";
 
+import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
+
 service Query {
 	rpc Fetch(FetchRequest)               returns (stream FetchResponse);
 
@@ -17,6 +19,7 @@ message FetchRequest {
 	oneof matchers {
 		TagMatchers tagMatchers = 3;
 	}
+	FetchOptions options = 4;
 }
 
 message TagMatchers {
@@ -41,6 +44,23 @@ enum MatcherType {
 	// ALL supercedes other matcher types
 	// and does no filtering.
 	ALL       = 6;
+}
+
+message FetchOptions {
+	int64 limit                   = 1;
+	RestrictFetchOptions restrict = 2;
+	int64 lookbackDuration        = 3;
+}
+
+message RestrictFetchOptions {
+	MetricsType metricsType                     = 1;
+	policypb.StoragePolicy metricsStoragePolicy = 2;
+}
+
+enum MetricsType {
+	UNKNOWN_METRICS_TYPE      = 0;
+	UNAGGREGATED_METRICS_TYPE = 1;
+	AGGREGATED_METRICS_TYPE   = 2;
 }
 
 message FetchResponse {

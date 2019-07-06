@@ -17,6 +17,9 @@ listenAddress:
   type: "config"
   value: "0.0.0.0:7201"
 
+logging:
+  level: info
+
 metrics:
   scope:
     prefix: "coordinator"
@@ -26,6 +29,9 @@ metrics:
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
+  
+tagOptions:
+  idScheme: quoted
 
 clusters:
    - namespaces:

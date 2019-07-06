@@ -22,18 +22,24 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/x/ident"
-
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errNoRestrictFetchOptionsProtoMsg = errors.New("no restrict fetch options proto message")
 )
 
 // Type describes the type of storage
@@ -91,6 +97,13 @@ type FetchOptions struct {
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
 	FanoutOptions *FanoutOptions
+	// RestrictFetchOptions restricts the fetch to a specific set of
+	// conditions.
+	RestrictFetchOptions *RestrictFetchOptions
+	// Step is the configured step size.
+	Step time.Duration
+	// LookbackDuration if set overrides the default lookback duration.
+	LookbackDuration *time.Duration
 	// Enforcer is used to enforce resource limits on the number of datapoints
 	// used by a given query. Limits are imposed at time of decompression.
 	Enforcer cost.ChainedEnforcer
@@ -139,10 +152,144 @@ func NewFetchOptions() *FetchOptions {
 	}
 }
 
+// LookbackDurationOrDefault returns either the default lookback duration or
+// overridden lookback duration if set.
+func (o *FetchOptions) LookbackDurationOrDefault(
+	defaultValue time.Duration,
+) time.Duration {
+	if o.LookbackDuration == nil {
+		return defaultValue
+	}
+	return *o.LookbackDuration
+}
+
+// QueryFetchOptions returns fetch options for a given query.
+func (o *FetchOptions) QueryFetchOptions(
+	queryCtx *models.QueryContext,
+	blockType models.FetchedBlockType,
+) (*FetchOptions, error) {
+	r := o.Clone()
+	if r.Limit <= 0 {
+		r.Limit = queryCtx.Options.LimitMaxTimeseries
+	}
+	if r.RestrictFetchOptions == nil && queryCtx.Options.RestrictFetchType != nil {
+		v := queryCtx.Options.RestrictFetchType
+		restrict := RestrictFetchOptions{
+			MetricsType:   MetricsType(v.MetricsType),
+			StoragePolicy: v.StoragePolicy,
+		}
+		if err := restrict.Validate(); err != nil {
+			return nil, err
+		}
+
+		r.RestrictFetchOptions = &restrict
+	}
+	return r, nil
+}
+
 // Clone will clone and return the fetch options.
 func (o *FetchOptions) Clone() *FetchOptions {
 	result := *o
 	return &result
+}
+
+// RestrictFetchOptions restricts the fetch to a specific set of conditions.
+type RestrictFetchOptions struct {
+	// MetricsType restricts the type of metrics being returned.
+	MetricsType MetricsType
+	// StoragePolicy is required if metrics type is not unaggregated
+	// to specify which storage policy metrics should be returned from.
+	StoragePolicy policy.StoragePolicy
+}
+
+// NewRestrictFetchOptionsFromProto returns a restrict fetch options from
+// protobuf message.
+func NewRestrictFetchOptionsFromProto(
+	p *rpcpb.RestrictFetchOptions,
+) (RestrictFetchOptions, error) {
+	var result RestrictFetchOptions
+
+	if p == nil {
+		return result, errNoRestrictFetchOptionsProtoMsg
+	}
+
+	switch p.MetricsType {
+	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
+		result.MetricsType = UnaggregatedMetricsType
+	case rpcpb.MetricsType_AGGREGATED_METRICS_TYPE:
+		result.MetricsType = AggregatedMetricsType
+	}
+
+	if p.MetricsStoragePolicy != nil {
+		storagePolicy, err := policy.NewStoragePolicyFromProto(
+			p.MetricsStoragePolicy)
+		if err != nil {
+			return result, err
+		}
+
+		result.StoragePolicy = storagePolicy
+	}
+
+	// Validate the resulting options.
+	if err := result.Validate(); err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
+// Validate will validate the restrict fetch options.
+func (o RestrictFetchOptions) Validate() error {
+	switch o.MetricsType {
+	case UnaggregatedMetricsType:
+		if o.StoragePolicy != policy.EmptyStoragePolicy {
+			return fmt.Errorf(
+				"expected no storage policy for unaggregated metrics type, "+
+					"instead got: %v", o.StoragePolicy.String())
+		}
+	case AggregatedMetricsType:
+		if v := o.StoragePolicy.Resolution().Window; v <= 0 {
+			return fmt.Errorf(
+				"expected positive resolution window, instead got: %v", v)
+		}
+		if v := o.StoragePolicy.Resolution().Precision; v <= 0 {
+			return fmt.Errorf(
+				"expected positive resolution precision, instead got: %v", v)
+		}
+		if v := o.StoragePolicy.Retention().Duration(); v <= 0 {
+			return fmt.Errorf(
+				"expected positive retention, instead got: %v", v)
+		}
+	default:
+		return fmt.Errorf(
+			"unknown metrics type: %v", o.MetricsType)
+	}
+	return nil
+}
+
+// Proto returns the protobuf message that corresponds to RestrictFetchOptions.
+func (o RestrictFetchOptions) Proto() (*rpcpb.RestrictFetchOptions, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+
+	result := &rpcpb.RestrictFetchOptions{}
+
+	switch o.MetricsType {
+	case UnaggregatedMetricsType:
+		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
+	case AggregatedMetricsType:
+		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
+
+		storagePolicyProto, err := o.StoragePolicy.Proto()
+		if err != nil {
+			return nil, err
+		}
+
+		result.MetricsStoragePolicy = storagePolicyProto
+	}
+
+	return result, nil
 }
 
 // Querier handles queries against a storage.
@@ -345,8 +492,10 @@ type QueryResult struct {
 type MetricsType uint
 
 const (
+	// UnknownMetricsType is the unknown metrics type and is invalid.
+	UnknownMetricsType MetricsType = iota
 	// UnaggregatedMetricsType is an unaggregated metrics type.
-	UnaggregatedMetricsType MetricsType = iota
+	UnaggregatedMetricsType
 	// AggregatedMetricsType is an aggregated metrics type.
 	AggregatedMetricsType
 

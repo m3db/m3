@@ -494,6 +494,11 @@ type databaseShard interface {
 	// CleanupExpiredFileSets removes expired fileset files.
 	CleanupExpiredFileSets(earliestToRetain time.Time) error
 
+	// CleanupCompactedFileSets removes fileset files that have been compacted,
+	// meaning that there exists a more recent, superset, fully persisted
+	// fileset for that block.
+	CleanupCompactedFileSets() error
+
 	// Repair repairs the shard data for a given time.
 	Repair(
 		ctx context.Context,

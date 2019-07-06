@@ -37,8 +37,12 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -59,6 +63,17 @@ const (
 	defaultWriteBytesIDLength = 1024
 )
 
+func (t queryFanoutType) String() string {
+	switch t {
+	case namespaceCoversAllQueryRange:
+		return "coversAllQueryRange"
+	case namespaceCoversPartialQueryRange:
+		return "coversPartialQueryRange"
+	default:
+		return "unknown"
+	}
+}
+
 type m3storage struct {
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
@@ -66,6 +81,7 @@ type m3storage struct {
 	writeBytesPool  *writeBytesPool
 	opts            m3db.Options
 	nowFn           func() time.Time
+	logger          *zap.Logger
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -76,6 +92,7 @@ func NewStorage(
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	lookbackDuration time.Duration,
+	instrumentOpts instrument.Options,
 ) (Storage, error) {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
@@ -89,6 +106,7 @@ func NewStorage(
 		writeBytesPool:  newWriteBytesPool(),
 		opts:            opts,
 		nowFn:           time.Now,
+		logger:          instrumentOpts.Logger(),
 	}, nil
 }
 
@@ -141,7 +159,10 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	opts := s.opts
+	// Override options with whatever is the current specified lookback duration.
+	opts := s.opts.SetLookbackDuration(
+		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
+
 	// If using decoded block, return the legacy path.
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
@@ -149,7 +170,7 @@ func (s *m3storage) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, s.opts.LookbackDuration(), options.Enforcer)
+		return storage.FetchResultToBlockResult(fetchResult, query, opts.LookbackDuration(), options.Enforcer)
 	}
 
 	// If using multiblock, update options to reflect this.
@@ -241,14 +262,29 @@ func (s *m3storage) fetchCompressed(
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
 		s.nowFn(),
-		s.clusters,
 		query.Start,
 		query.End,
+		s.clusters,
 		options.FanoutOptions,
+		options.RestrictFetchOptions,
 	)
-
 	if err != nil {
 		return nil, err
+	}
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"query resolved cluster namespace, will use most granular per result")
+	if debugLog != nil {
+		for _, n := range namespaces {
+			debugLog.Write(zap.String("query", query.Raw),
+				zap.Time("start", query.Start),
+				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()))
+		}
 	}
 
 	var (

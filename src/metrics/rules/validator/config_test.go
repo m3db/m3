@@ -94,6 +94,8 @@ requiredRollupTags:
   - tag2
 maxTransformationDerivativeOrder: 2
 maxRollupLevels: 1
+filterInvalidTagNames:
+- foobar
 metricTypes:
   typeTag: type
   allowed:
@@ -236,6 +238,8 @@ policies:
 			require.False(t, opts.IsAllowedNonFirstLevelAggregationTypeFor(input.metricType, aggregationType))
 		}
 	}
+
+	require.Error(t, opts.CheckFilterTagNameValid("foobar"))
 }
 
 func TestNamespaceValidatorConfigurationStatic(t *testing.T) {
