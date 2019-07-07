@@ -276,16 +276,19 @@ func newTagsIter(
 	}
 }
 
+func (i tagsIter) Restart() tagsIter {
+	r := i
+	r.idx = -1
+	r.it.Restart()
+	return r
+}
+
 func (i tagsIter) Index() int {
 	return i.idx
 }
 
 func (i tagsIter) Len() int {
 	return i.numTags
-}
-
-func (i tagsIter) Duplicate() tagsIter {
-	return newTagsIter(i.t, i.it.Duplicate())
 }
 
 func (i tagsIter) Next() (tagsIter, Tag, bool) {
@@ -338,6 +341,8 @@ func tagsID(dst []byte, t tagsIter, opts TagOptions) []byte {
 // legacyID returns a legacy ID, note: must check it.Err() after if using iterator.
 func legacyID(dst []byte, t tagsIter) []byte {
 	dst = dst[:0]
+
+	t = t.Restart()
 	for t, tag, next := t.Next(); next; t, tag, next = t.Next() {
 		dst = append(dst, tag.Name...)
 		dst = append(dst, eq)
@@ -362,8 +367,8 @@ func quotedID(dst []byte, t tagsIter) []byte {
 		escape       tagEscaping
 	)
 
-	child := t.Duplicate()
-	for child, tt, next := child.Next(); next; child, tt, next = child.Next() {
+	t = t.Restart()
+	for child, tt, next := t.Next(); next; child, tt, next = t.Next() {
 		l, escape = serializedLength(tt.Name, tt.Value)
 		idLen += l
 		if escape.escapeName || escape.escapeValue {
@@ -374,7 +379,9 @@ func quotedID(dst []byte, t tagsIter) []byte {
 			needEscaping[child.Index()] = escape
 		}
 	}
-	child.Close()
+
+	// Restart iteration.
+	t = t.Restart()
 
 	tagLength := 2 * t.Len()
 	idLen += tagLength + 1 // account for separators and brackets
@@ -474,9 +481,11 @@ func writeAtIndex(id, name, value []byte, escape tagEscaping, idx int) int {
 }
 
 func prependMetaID(dst []byte, t tagsIter) []byte {
-	child := t.Duplicate()
-	length, metaLengths := prependMetaLen(child)
-	child.Close()
+	t = t.Restart()
+	length, metaLengths := prependMetaLen(t)
+
+	// Restart for iteration.
+	t = t.Restart()
 
 	// Ensure has capacity
 	dst = resizeOrGrow(dst, length)
@@ -513,9 +522,11 @@ func prependMetaLen(t tagsIter) (int, []int) {
 }
 
 func graphiteID(dst []byte, t tagsIter) []byte {
-	child := t.Duplicate()
-	length := graphiteIDLen(child)
-	child.Close()
+	t = t.Restart()
+	length := graphiteIDLen(t)
+
+	// Restart iteration.
+	t = t.Restart()
 
 	// Ensure has capacity
 	dst = resizeOrGrow(dst, length)

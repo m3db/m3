@@ -86,7 +86,7 @@ func (w *writeState) close() {
 		enc.Finalize()
 	}
 
-	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
+	w.op, w.majority, w.enqueued, w.pending, w.success = nil, 0, 0, 0, 0
 	w.nsID, w.tsID, w.tagEncoder = nil, nil, nil
 
 	for i := range w.errors {

@@ -276,18 +276,15 @@ func (d *downsamplerAndWriter) writeToStorage(
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
-		// Duplicate so others can iterate in order.
-		duplicate := tags.Duplicate()
-
+		tags.Restart()
 		write := storage.NewWriteQuery(storage.WriteQueryOptions{
-			Tags:       duplicate,
+			Tags:       tags,
 			TagOptions: tagOptions,
+			Datapoints: datapoints,
 			Unit:       unit,
 			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
-		write.AppendDatapoints(datapoints)
 		err := d.store.Write(ctx, write)
-		duplicate.Close()
 		return err
 	}
 
@@ -308,10 +305,10 @@ func (d *downsamplerAndWriter) writeToStorage(
 			write := storage.NewWriteQuery(storage.WriteQueryOptions{
 				Tags:       duplicate,
 				TagOptions: tagOptions,
+				Datapoints: datapoints,
 				Unit:       unit,
 				Attributes: storageAttributesFromPolicy(p),
 			})
-			write.AppendDatapoints(datapoints)
 			if err := d.store.Write(ctx, write); err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
@@ -497,10 +494,10 @@ func (i *writeQueryIter) Current() storage.WriteQuery {
 	write := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Tags:       tags,
 		TagOptions: i.iter.TagOptions(),
+		Datapoints: datapoints,
 		Unit:       unit,
 		Attributes: i.attr,
 	})
-	write.AppendDatapoints(datapoints)
 	return write
 }
 

@@ -96,6 +96,7 @@ func NewIngester(
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
+			op.datapoints = op.constDatapoints[:]
 			return &op
 		},
 	)
@@ -136,13 +137,15 @@ type ingestOp struct {
 	attemptFn retry.Fn
 	ingestFn  func()
 
-	c           context.Context
-	id          []byte
-	metricNanos int64
-	value       float64
-	sp          policy.StoragePolicy
-	callback    m3msg.Callbackable
-	q           storage.WriteQuery
+	c               context.Context
+	id              []byte
+	metricNanos     int64
+	value           float64
+	sp              policy.StoragePolicy
+	callback        m3msg.Callbackable
+	q               storage.WriteQuery
+	constDatapoints [1]ts.Datapoint
+	datapoints      []ts.Datapoint
 }
 
 func (op *ingestOp) sample() bool {
@@ -188,6 +191,7 @@ func (op *ingestOp) resetWriteQuery() error {
 	op.q = storage.NewWriteQuery(storage.WriteQueryOptions{
 		Tags:       op.it,
 		TagOptions: op.itOpts,
+		Datapoints: op.datapoints,
 		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
 		Attributes: storage.Attributes{
 			MetricsType: storage.AggregatedMetricsType,
@@ -195,9 +199,9 @@ func (op *ingestOp) resetWriteQuery() error {
 			Retention:   op.sp.Retention().Duration(),
 		},
 	})
-	op.q.AppendDatapoint(ts.Datapoint{
+	op.constDatapoints[0] = ts.Datapoint{
 		Timestamp: time.Unix(0, op.metricNanos),
 		Value:     op.value,
-	})
+	}
 	return nil
 }

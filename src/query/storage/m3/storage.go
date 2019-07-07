@@ -101,7 +101,6 @@ func NewStorage(
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
-	// opts.IteratorPools().ID().Binar
 	return &m3storage{
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,

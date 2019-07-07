@@ -90,9 +90,9 @@ func newTagEncoder(
 	}
 }
 
-func (e *encoder) Encode(srcTags ident.TagIterator) error {
-	tags := srcTags.Duplicate()
-	defer tags.Close()
+func (e *encoder) Encode(tags ident.TagIterator) error {
+	tags.Restart()
+	defer tags.Restart()
 
 	numTags := tags.Remaining()
 	if err := e.writeHeader(numTags); err != nil {

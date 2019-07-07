@@ -199,16 +199,18 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		write := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags:       tagsIter,
 			TagOptions: tagsOpts,
-			Unit:       convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
+			Datapoints: ts.Datapoints{
+				ts.Datapoint{
+					Timestamp: time.Unix(0, mp.TimeNanos),
+					Value:     mp.Value,
+				},
+			},
+			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
 			Attributes: storage.Attributes{
 				MetricsType: storage.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),
 				Resolution:  mp.StoragePolicy.Resolution().Window,
 			},
-		})
-		write.AppendDatapoint(ts.Datapoint{
-			Timestamp: time.Unix(0, mp.TimeNanos),
-			Value:     mp.Value,
 		})
 		if err := w.handler.storage.Write(w.ctx, write); err != nil {
 			logger.Error("downsampler flush error failed write", zap.Error(err))

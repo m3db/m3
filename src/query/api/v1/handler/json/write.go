@@ -120,17 +120,18 @@ func (h *WriteJSONHandler) newStorageWriteQuery(req *WriteQuery) (storage.WriteQ
 	write := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Tags:       ident.NewTagsIterator(tags),
 		TagOptions: h.tagOptions,
+		Datapoints: ts.Datapoints{
+			ts.Datapoint{
+				Timestamp: parsedTime,
+				Value:     req.Value,
+			},
+		},
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
 		Attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,
 		},
 	})
-	write.AppendDatapoint(ts.Datapoint{
-		Timestamp: parsedTime,
-		Value:     req.Value,
-	})
-
 	return write, nil
 }
 
