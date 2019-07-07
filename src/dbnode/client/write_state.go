@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	reuseWriteBytesTooLong = 8192
+	reuseWriteBytesTooLong = 2 << 13 // 16k
 )
 
 // writeOp represents a generic write operation
