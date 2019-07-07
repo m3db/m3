@@ -39,23 +39,26 @@ import (
 )
 
 func TestFilesystemBootstrapVolumed(t *testing.T) {
-	testFilesystemBootstrap(t, nil, nil)
+	testFilesystemBootstrapVolumed(t, nil, nil)
 }
 
 func TestProtoFilesystemBootstrapVolumed(t *testing.T) {
-	testFilesystemBootstrap(t, setProtoTestOptions, setProtoTestInputConfig)
+	testFilesystemBootstrapVolumed(t, setProtoTestOptions, setProtoTestInputConfig)
 }
 
 func testFilesystemBootstrapVolumed(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow() // Just skip if we're doing a short run.
 	}
 
 	var (
 		blockSize = 2 * time.Hour
-		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour).SetBlockSize(blockSize)
+		rOpts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour).SetBlockSize(blockSize)
 	)
-	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(rOpts))
+	ns1, err := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().
+			SetRetentionOptions(rOpts).
+			SetColdWritesEnabled(true))
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(rOpts))
 	require.NoError(t, err)
@@ -68,7 +71,7 @@ func testFilesystemBootstrapVolumed(t *testing.T, setTestOpts setTestOptions, up
 		ns2 = opts.Namespaces()[1]
 	}
 
-	// Test setup
+	// Test setup.
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
@@ -97,7 +100,7 @@ func testFilesystemBootstrapVolumed(t *testing.T, setTestOpts setTestOptions, up
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
 
-	// Write test data
+	// Write test data.
 	now := setup.getNowFn()
 	inputData1 := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
@@ -125,19 +128,19 @@ func testFilesystemBootstrapVolumed(t *testing.T, setTestOpts setTestOptions, up
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps3, 3))
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
-	// Start the server with filesystem bootstrapper
+	// Start the server with filesystem bootstrapper.
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
 	require.NoError(t, setup.startServer())
 	log.Debug("server is now up")
 
-	// Stop the server
+	// Stop the server.
 	defer func() {
 		require.NoError(t, setup.stopServer())
 		log.Debug("server is now down")
 	}()
 
-	// Verify in-memory data match what we expect
+	// Verify in-memory data match what we expect.
 	verifySeriesMaps(t, setup, testNamespaces[0], allSeriesMaps)
 	verifySeriesMaps(t, setup, testNamespaces[1], nil)
 }

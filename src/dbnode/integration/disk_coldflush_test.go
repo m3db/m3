@@ -125,7 +125,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilFileSetFilesFlushed(filePathPrefix, expectedDataFiles, maxWaitTime))
+	require.NoError(t, waitUntilFileSetFilesExist(filePathPrefix, expectedDataFiles, maxWaitTime))
 
 	// Verify on-disk data match what we expect.
 	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, nsID, seriesMaps)
@@ -135,8 +135,9 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		{IDs: []string{"cold1", "cold2", "cold3"}, NumPoints: 30, Start: start},
 		{IDs: []string{"cold1", "cold3"}, NumPoints: 20, Start: start.Add(blockSize)},
 	}
+	// Set "now" to start + 3 * blockSize so that the above are cold writes.
+	testSetup.setNowFn(start.Add(blockSize * 3))
 	for _, input := range coldData {
-		// Leave "now" at start + 2 * blockSize so that these are cold writes.
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = append(seriesMaps[xtime.ToUnixNano(input.Start)], testData...)
 		require.NoError(t, testSetup.writeBatch(nsID, testData))
@@ -152,8 +153,8 @@ func TestDiskColdFlushSimple(t *testing.T) {
 			VolumeIndex: 0,
 		},
 		fs.FileSetFileIdentifier{
-			// warm2, start (first volume 0)
-			// cold3, start (then volume 1)
+			// warm2, start (creating volume 0)
+			// cold3, start (creating volume 1)
 			Namespace:   nsID,
 			Shard:       11,
 			BlockStart:  start,
@@ -210,7 +211,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, waitUntilFileSetFilesFlushed(filePathPrefix, expectedDataFiles, maxWaitTime))
+	require.NoError(t, waitUntilFileSetFilesExist(filePathPrefix, expectedDataFiles, maxWaitTime))
 
 	// Verify on-disk data match what we expect
 	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, nsID, seriesMaps)

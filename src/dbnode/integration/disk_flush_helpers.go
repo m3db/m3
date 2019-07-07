@@ -141,9 +141,27 @@ func waitUntilDataFilesFlushed(
 	return errDiskFlushTimedOut
 }
 
-func waitUntilFileSetFilesFlushed(
+func waitUntilFileSetFilesExist(
 	filePathPrefix string,
 	files []fs.FileSetFileIdentifier,
+	timeout time.Duration,
+) error {
+	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, true, timeout)
+}
+
+func waitUntilFileSetFilesNotExist(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	timeout time.Duration,
+) error {
+	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, false, timeout)
+}
+
+func waitUntilFileSetFilesExistOrNot(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	// Either wait for all files to exist of for all files to not exist.
+	checkForExistence bool,
 	timeout time.Duration,
 ) error {
 	dataFlushed := func() bool {
@@ -154,7 +172,11 @@ func waitUntilFileSetFilesFlushed(
 				panic(err)
 			}
 
-			if !exists {
+			if checkForExistence && !exists {
+				return false
+			}
+
+			if !checkForExistence && exists {
 				return false
 			}
 		}

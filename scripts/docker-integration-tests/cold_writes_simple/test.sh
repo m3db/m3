@@ -91,7 +91,7 @@ echo "Waiting until shards are marked as available"
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
-echo "Write data before now minus buffer past"
+echo "Write data for 'now - 2 * bufferPast'"
 curl -vvvsS -X POST 0.0.0.0:9003/write -d '{
   "namespace": "unagg",
   "id": "foo",
@@ -114,6 +114,54 @@ if [ "$queryResult" -lt 1 ]; then
   exit 1
 else
   echo "Result found"
+fi
+
+echo "Write data for 'now - 2 * blockSize'"
+curl -vvvsS -X POST 0.0.0.0:9003/write -d '{
+  "namespace": "unagg",
+  "id": "foo",
+  "datapoint": {
+    "timestamp":'"$(($(date +"%s") - 60 * 60 * 4))"',
+    "value": 98.7654321
+  }
+}'
+
+echo "Wait until cold writes are flushed"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  '[ -n "$(docker exec -it "${CONTAINER_NAME}" find /var/lib/m3db/data/ -name "*1-checkpoint.db")" ]'
+
+echo "Restart DB to test reading cold writes from disk"
+docker restart "${CONTAINER_NAME}"
+
+echo "Wait for DB to be up"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  'curl -vvvsSf 0.0.0.0:9002/bootstrappedinplacementornoplacement'
+
+echo "Wait for coordinator API to be up"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  'curl -vvvsSf 0.0.0.0:7201/health'
+
+echo "Sleep until bootstrapped"
+ATTEMPTS=7 TIMEOUT=2 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
+
+echo "Waiting until shards are marked as available"
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
+
+echo "Read data (not using index)"
+queryResult=$(curl -sSf -X POST 0.0.0.0:9003/fetch -d '{
+  "namespace": "unagg",
+  "id": "foo",
+  "rangeStart": 0,
+  "rangeEnd":'"$(date +"%s")"'
+}' | jq '.datapoints | length')
+
+if [ "$queryResult" -lt 2 ]; then
+  echo "Found fewer than expected results"
+  exit 1
+else
+  echo "Expected result found"
 fi
 
 echo "Deleting placement"
