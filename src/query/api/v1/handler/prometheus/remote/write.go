@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -456,19 +455,19 @@ type tagIterator struct {
 	numTags    int
 	idx        int
 	labels     []*prompb.Label
-	nameBytes  checked.Bytes
-	valueBytes checked.Bytes
+	nameBytes  *reuseableBytesID
+	valueBytes *reuseableBytesID
 	tag        ident.Tag
 }
 
 func newTagIterator() *tagIterator {
 	i := &tagIterator{
-		nameBytes:  checked.NewBytes(nil, nil),
-		valueBytes: checked.NewBytes(nil, nil),
+		nameBytes:  &reuseableBytesID{},
+		valueBytes: &reuseableBytesID{},
 	}
 	i.tag = ident.Tag{
-		Name:  ident.BinaryID(i.nameBytes),
-		Value: ident.BinaryID(i.valueBytes),
+		Name:  i.nameBytes,
+		Value: i.valueBytes,
 	}
 	i.Reset(nil)
 	return i
@@ -478,8 +477,8 @@ func (i *tagIterator) Reset(labels []*prompb.Label) {
 	i.numTags = len(labels)
 	i.idx = -1
 	i.labels = labels
-	i.nameBytes.Reset(nil)
-	i.valueBytes.Reset(nil)
+	i.nameBytes.reset(nil)
+	i.valueBytes.reset(nil)
 }
 
 func (i *tagIterator) Next() bool {
@@ -488,8 +487,8 @@ func (i *tagIterator) Next() bool {
 	if !next {
 		return false
 	}
-	i.nameBytes.Reset(i.labels[i.idx].Name)
-	i.valueBytes.Reset(i.labels[i.idx].Value)
+	i.nameBytes.reset(i.labels[i.idx].Name)
+	i.valueBytes.reset(i.labels[i.idx].Value)
 	return true
 }
 
@@ -544,6 +543,41 @@ func (l labelsByName) Less(i, j int) bool {
 
 func (l labelsByName) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
+}
+
+var _ ident.ID = &reuseableBytesID{}
+
+type reuseableBytesID struct {
+	bytes []byte
+}
+
+func (i *reuseableBytesID) reset(bytes []byte) {
+	i.bytes = bytes
+}
+
+func (i *reuseableBytesID) Bytes() []byte {
+	return i.bytes
+}
+
+func (i *reuseableBytesID) Equal(value ident.ID) bool {
+	return bytes.Equal(i.bytes, value.Bytes())
+}
+
+func (i *reuseableBytesID) NoFinalize() {
+}
+
+func (i *reuseableBytesID) IsNoFinalize() bool {
+	// Labels as IDs are always not able to be finalized as this ID is reused
+	// with reset.
+	return false
+}
+
+func (i *reuseableBytesID) Finalize() {
+	// Noop.
+}
+
+func (i *reuseableBytesID) String() string {
+	return string(i.bytes)
 }
 
 type writeBytesPool struct {
