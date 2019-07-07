@@ -84,6 +84,7 @@ func (w *writeState) close() {
 	w.tsID.Finalize()
 
 	if enc := w.encodedTags; enc != nil {
+		enc.DecRef()
 		enc.Finalize()
 	}
 

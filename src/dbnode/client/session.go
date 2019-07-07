@@ -1174,6 +1174,7 @@ func (s *session) writeAttemptWithRLock(
 		}
 		dataBytes := data.Bytes()
 		encodedTags = s.pools.id.BytesPool().Get(len(dataBytes))
+		encodedTags.IncRef()
 		encodedTags.AppendAll(dataBytes)
 	}
 

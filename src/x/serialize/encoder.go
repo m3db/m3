@@ -233,10 +233,6 @@ func (e *encoder) EncodeMetricTags(
 	return nil
 }
 
-func (e *encoder) Bytes() []byte {
-	return e.checkedBytes.Bytes()
-}
-
 func (e *encoder) Data() (checked.Bytes, bool) {
 	if e.checkedBytes.NumRef() == 0 {
 		return nil, false
