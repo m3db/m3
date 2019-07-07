@@ -1152,13 +1152,6 @@ func (s *session) writeAttemptWithRLock(
 		enqueued int32
 	)
 
-	// NB(prateek): We retain an individual copy of the namespace, ID per
-	// writeState, as each writeState tracks the lifecycle of it's resources in
-	// use in the various queues. Tracking per writeAttempt isn't sufficient as
-	// we may enqueue multiple writeStates concurrently depending on retries
-	// and consistency level checks.
-	nsID := s.cloneFinalizable(namespace)
-	tsID := s.cloneFinalizable(id)
 	var encodedTags checked.Bytes
 	if wType == taggedWriteAttemptType {
 		if res.tagEncoder == nil {
@@ -1168,23 +1161,40 @@ func (s *session) writeAttemptWithRLock(
 		if err := res.tagEncoder.Encode(inputTags); err != nil {
 			return nil, res, err
 		}
-		data, ok := res.tagEncoder.Data()
+		var ok bool
+		encodedTags, ok = res.tagEncoder.Data()
 		if !ok {
 			return nil, res, errUnableToEncodeTags
 		}
-		dataBytes := data.Bytes()
-		encodedTags = s.pools.id.BytesPool().Get(len(dataBytes))
-		encodedTags.IncRef()
-		encodedTags.AppendAll(dataBytes)
+	}
+
+	state := s.pools.writeState.Get()
+	state.consistencyLevel = s.state.writeLevel
+	state.topoMap = s.state.topoMap
+	state.incRef()
+
+	// NB(prateek): We retain an individual copy of the namespace, ID per
+	// writeState, as each writeState tracks the lifecycle of it's resources in
+	// use in the various queues. Tracking per writeAttempt isn't sufficient as
+	// we may enqueue multiple writeStates concurrently depending on retries
+	// and consistency level checks.
+	// NB(r): Using the state to pool these bytes to avoid extra pooling
+	// overhead and the need to finely tune the bytes pool sizes.
+	// (There is protection for these getting too long in the write state
+	// itself by checking the length against reuseWriteBytesTooLong const).
+	state.setNamespaceID(namespace.Bytes())
+	state.setID(id.Bytes())
+	if encodedTags != nil {
+		state.setEncodedTags(encodedTags.Bytes())
 	}
 
 	var op writeOp
 	switch wType {
 	case untaggedWriteAttemptType:
 		wop := s.pools.writeOperation.Get()
-		wop.namespace = nsID
-		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Bytes()
+		wop.namespace = state.nsIdentID
+		wop.shardID = s.state.topoMap.ShardSet().Lookup(state.tsIdentID)
+		wop.request.ID = state.tsID
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1192,10 +1202,10 @@ func (s *session) writeAttemptWithRLock(
 		op = wop
 	case taggedWriteAttemptType:
 		wop := s.pools.writeTaggedOperation.Get()
-		wop.namespace = nsID
-		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Bytes()
-		wop.request.EncodedTags = encodedTags.Bytes()
+		wop.namespace = state.nsIdentID
+		wop.shardID = s.state.topoMap.ShardSet().Lookup(state.tsIdentID)
+		wop.request.ID = state.tsID
+		wop.request.EncodedTags = state.encodedTags
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1206,22 +1216,18 @@ func (s *session) writeAttemptWithRLock(
 		return nil, res, errUnknownWriteAttemptType
 	}
 
-	state := s.pools.writeState.Get()
-	state.consistencyLevel = s.state.writeLevel
-	state.topoMap = s.state.topoMap
-	state.incRef()
-
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	state.nsID, state.tsID, state.encodedTags = nsID, tsID, encodedTags
 	op.SetCompletionFn(state.completionFn)
 
-	if err := s.state.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
-		// Count pending write requests before we enqueue the completion fns,
-		// which rely on the count when executing
-		state.pending++
-		state.queues = append(state.queues, s.state.queues[idx])
-	}); err != nil {
+	err := s.state.topoMap.RouteForEach(state.tsIdentID,
+		func(idx int, host topology.Host) {
+			// Count pending write requests before we enqueue the completion fns,
+			// which rely on the count when executing
+			state.pending++
+			state.queues = append(state.queues, s.state.queues[idx])
+		})
+	if err != nil {
 		state.decRef()
 		return nil, res, err
 	}
@@ -3161,13 +3167,6 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	}
 
 	return nil
-}
-
-func (s *session) cloneFinalizable(id ident.ID) ident.ID {
-	if id.IsNoFinalize() {
-		return id
-	}
-	return s.pools.id.Clone(id)
 }
 
 type reason int

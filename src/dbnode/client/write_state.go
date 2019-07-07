@@ -26,11 +26,14 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+)
+
+const (
+	reuseWriteBytesTooLong = 8192
 )
 
 // writeOp represents a generic write operation
@@ -52,9 +55,11 @@ type writeState struct {
 	consistencyLevel            topology.ConsistencyLevel
 	topoMap                     topology.Map
 	op                          writeOp
-	nsID                        ident.ID
-	tsID                        ident.ID
-	encodedTags                 checked.Bytes
+	nsID                        []byte
+	nsIdentID                   *ident.ReuseableBytesID
+	tsID                        []byte
+	tsIdentID                   *ident.ReuseableBytesID
+	encodedTags                 []byte
 	majority, enqueued, pending int32
 	success                     int32
 	errors                      []error
@@ -71,6 +76,8 @@ func newWriteState(
 	w := &writeState{
 		pool:           pool,
 		tagEncoderPool: encoderPool,
+		nsIdentID:      ident.NewReuseableBytesID(),
+		tsIdentID:      ident.NewReuseableBytesID(),
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -80,13 +87,11 @@ func newWriteState(
 func (w *writeState) close() {
 	w.op.Close()
 
-	w.nsID.Finalize()
-	w.tsID.Finalize()
-
-	if enc := w.encodedTags; enc != nil {
-		enc.DecRef()
-		enc.Finalize()
-	}
+	w.nsID = tryReuseBytes(w.nsID)
+	w.nsIdentID.Reset(nil)
+	w.tsID = tryReuseBytes(w.tsID)
+	w.tsIdentID.Reset(nil)
+	w.encodedTags = tryReuseBytes(w.encodedTags)
 
 	w.op, w.majority, w.enqueued, w.pending, w.success = nil, 0, 0, 0, 0
 	w.nsID, w.tsID, w.encodedTags = nil, nil, nil
@@ -105,6 +110,20 @@ func (w *writeState) close() {
 		return
 	}
 	w.pool.Put(w)
+}
+
+func (w *writeState) setNamespaceID(nsID []byte) {
+	w.nsID = append(w.nsID[:0], nsID...)
+	w.nsIdentID.Reset(w.nsID)
+}
+
+func (w *writeState) setID(id []byte) {
+	w.tsID = append(w.tsID[:0], id...)
+	w.tsIdentID.Reset(w.tsID)
+}
+
+func (w *writeState) setEncodedTags(encodedTags []byte) {
+	w.encodedTags = append(w.encodedTags[:0], encodedTags...)
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
@@ -161,6 +180,14 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 	w.Unlock()
 	w.decRef()
+}
+
+func tryReuseBytes(b []byte) []byte {
+	if len(b) >= reuseWriteBytesTooLong {
+		return nil
+	}
+	// The size will get reset when used.
+	return b
 }
 
 type writeStatePool struct {
