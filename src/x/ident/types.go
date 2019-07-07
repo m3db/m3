@@ -216,6 +216,10 @@ type TagIterator interface {
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int
 
+	// Restart will restart the iterator to the beginning, useful instead of
+	// duplicate when you can sequentially used the iterator.
+	Restart()
+
 	// Dupe returns an independent duplicate of the iterator.
 	Duplicate() TagIterator
 }

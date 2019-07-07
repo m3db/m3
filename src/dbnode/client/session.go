@@ -926,6 +926,137 @@ func (s *session) WriteTagged(
 	return err
 }
 
+func (s *session) WriteTaggedBatch(
+	iter WriteTaggedIter,
+) error {
+	w := s.pools.writeAttempt.Get()
+	w.args.attemptType = taggedWriteBatchAttemptType
+	w.args.iterTagged = iter
+	err := s.writeRetrier.Attempt(w.attemptFn)
+	s.pools.writeAttempt.Put(w)
+	return err
+}
+
+func (s *session) writeBatchAttempt(
+	iter WriteTaggedIter,
+) error {
+	startWriteAttempt := s.nowFn()
+
+	s.state.RLock()
+	if s.state.status != statusOpen {
+		s.state.RUnlock()
+		return errSessionStatusNotOpen
+	}
+
+	for iter.Next() {
+		// Make sure default state is not set unless successfully enqueued.
+		iter.SetState(nil)
+
+		currResult := iter.Result()
+		if currResult.Success {
+			// If already successfully written, then continue.
+			continue
+		}
+		if currResult.Err != nil {
+			if !xerrors.IsRetryableError(currResult.Err) ||
+				IsBadRequestError(currResult.Err) {
+				// Do not retry non-retriable or bad request errors.
+				continue
+			}
+		}
+
+		entry := iter.Current()
+
+		t := entry.Timestamp
+		unit := entry.Unit
+
+		timeType, timeTypeErr := convert.ToTimeType(unit)
+		if timeTypeErr != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: xerrors.NewNonRetryableError(timeTypeErr),
+			})
+			continue
+		}
+
+		timestamp, timestampErr := convert.ToValue(t, timeType)
+		if timestampErr != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: xerrors.NewNonRetryableError(timestampErr),
+			})
+			continue
+		}
+
+		nsID := entry.Namespace
+		id := entry.ID
+		inputTags := entry.Tags
+		value := entry.Value
+		annotation := entry.Annotation
+
+		state, _, _, err := s.writeAttemptWithRLock(
+			taggedWriteAttemptType, nsID, id, inputTags, timestamp, value, timeType, annotation)
+		if err != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: err,
+			})
+			continue
+		}
+
+		iter.SetState(state)
+	}
+	s.state.RUnlock()
+
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	iter.Restart()
+	for iter.Next() {
+		curr := iter.State()
+		if curr == nil {
+			// Not an in progress result.
+			continue
+		}
+
+		// Ensure no state for future iterations.
+		iter.SetState(nil)
+
+		state := curr.(*writeState)
+		majority, enqueued := state.majority, state.enqueued
+
+		// it's safe to Wait() here, as we still hold the lock on state, after it's
+		// returned from writeAttemptWithRLock.
+		state.Wait()
+
+		err := s.writeConsistencyResult(state.consistencyLevel, majority, enqueued,
+			enqueued-state.pending, int32(len(state.errors)), state.errors)
+
+		s.recordWriteMetrics(err, int32(len(state.errors)), startWriteAttempt)
+
+		// must Unlock before decRef'ing, as the latter releases the writeState back into a
+		// pool if ref count == 0.
+		state.Unlock()
+		state.decRef()
+
+		if err != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: err,
+			})
+		} else {
+			iter.SetResult(WriteTaggedIterResult{
+				Success: true,
+			})
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	// TODO: Return an error if any returned an error (so batch retried).
+	// Also make sure if all were bad request error, or if all
+	// were non-retryable to return a non-retryable type error.
+	return nil
+}
+
 func (s *session) writeAttempt(
 	wType writeAttemptType,
 	nsID, id ident.ID,
@@ -1079,6 +1210,8 @@ func (s *session) writeAttemptWithRLock(
 		}
 		enqueued++
 	}
+
+	state.enqueued = enqueued
 
 	// NB(prateek): the current go-routine still holds a lock on the
 	// returned writeState object.

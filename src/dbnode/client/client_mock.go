@@ -130,6 +130,147 @@ func (mr *MockClientMockRecorder) DefaultSessionActive() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultSessionActive", reflect.TypeOf((*MockClient)(nil).DefaultSessionActive))
 }
 
+// MockWriteTaggedIter is a mock of WriteTaggedIter interface
+type MockWriteTaggedIter struct {
+	ctrl     *gomock.Controller
+	recorder *MockWriteTaggedIterMockRecorder
+}
+
+// MockWriteTaggedIterMockRecorder is the mock recorder for MockWriteTaggedIter
+type MockWriteTaggedIterMockRecorder struct {
+	mock *MockWriteTaggedIter
+}
+
+// NewMockWriteTaggedIter creates a new mock instance
+func NewMockWriteTaggedIter(ctrl *gomock.Controller) *MockWriteTaggedIter {
+	mock := &MockWriteTaggedIter{ctrl: ctrl}
+	mock.recorder = &MockWriteTaggedIterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockWriteTaggedIter) EXPECT() *MockWriteTaggedIterMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockWriteTaggedIter) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockWriteTaggedIterMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockWriteTaggedIter)(nil).Next))
+}
+
+// Current mocks base method
+func (m *MockWriteTaggedIter) Current() WriteTaggedIterEntry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].(WriteTaggedIterEntry)
+	return ret0
+}
+
+// Current indicates an expected call of Current
+func (mr *MockWriteTaggedIterMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockWriteTaggedIter)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockWriteTaggedIter) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockWriteTaggedIterMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockWriteTaggedIter)(nil).Err))
+}
+
+// Result mocks base method
+func (m *MockWriteTaggedIter) Result() WriteTaggedIterResult {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Result")
+	ret0, _ := ret[0].(WriteTaggedIterResult)
+	return ret0
+}
+
+// Result indicates an expected call of Result
+func (mr *MockWriteTaggedIterMockRecorder) Result() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Result", reflect.TypeOf((*MockWriteTaggedIter)(nil).Result))
+}
+
+// State mocks base method
+func (m *MockWriteTaggedIter) State() interface{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "State")
+	ret0, _ := ret[0].(interface{})
+	return ret0
+}
+
+// State indicates an expected call of State
+func (mr *MockWriteTaggedIterMockRecorder) State() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockWriteTaggedIter)(nil).State))
+}
+
+// SetResult mocks base method
+func (m *MockWriteTaggedIter) SetResult(result WriteTaggedIterResult) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetResult", result)
+}
+
+// SetResult indicates an expected call of SetResult
+func (mr *MockWriteTaggedIterMockRecorder) SetResult(result interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetResult", reflect.TypeOf((*MockWriteTaggedIter)(nil).SetResult), result)
+}
+
+// SetState mocks base method
+func (m *MockWriteTaggedIter) SetState(state interface{}) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetState", state)
+}
+
+// SetState indicates an expected call of SetState
+func (mr *MockWriteTaggedIterMockRecorder) SetState(state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockWriteTaggedIter)(nil).SetState), state)
+}
+
+// Restart mocks base method
+func (m *MockWriteTaggedIter) Restart() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Restart")
+}
+
+// Restart indicates an expected call of Restart
+func (mr *MockWriteTaggedIterMockRecorder) Restart() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockWriteTaggedIter)(nil).Restart))
+}
+
+// Close mocks base method
+func (m *MockWriteTaggedIter) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockWriteTaggedIterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockWriteTaggedIter)(nil).Close))
+}
+
 // MockSession is a mock of Session interface
 type MockSession struct {
 	ctrl     *gomock.Controller
@@ -179,6 +320,20 @@ func (m *MockSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator
 func (mr *MockSessionMockRecorder) WriteTagged(namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockSession)(nil).WriteTagged), namespace, id, tags, t, value, unit, annotation)
+}
+
+// WriteTaggedBatch mocks base method
+func (m *MockSession) WriteTaggedBatch(iter WriteTaggedIter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", iter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockSessionMockRecorder) WriteTaggedBatch(iter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockSession)(nil).WriteTaggedBatch), iter)
 }
 
 // Fetch mocks base method
@@ -767,6 +922,20 @@ func (m *MockAdminSession) WriteTagged(namespace, id ident.ID, tags ident.TagIte
 func (mr *MockAdminSessionMockRecorder) WriteTagged(namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockAdminSession)(nil).WriteTagged), namespace, id, tags, t, value, unit, annotation)
+}
+
+// WriteTaggedBatch mocks base method
+func (m *MockAdminSession) WriteTaggedBatch(iter WriteTaggedIter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", iter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockAdminSessionMockRecorder) WriteTaggedBatch(iter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockAdminSession)(nil).WriteTaggedBatch), iter)
 }
 
 // Fetch mocks base method
@@ -3764,6 +3933,20 @@ func (m *MockclientSession) WriteTagged(namespace, id ident.ID, tags ident.TagIt
 func (mr *MockclientSessionMockRecorder) WriteTagged(namespace, id, tags, t, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockclientSession)(nil).WriteTagged), namespace, id, tags, t, value, unit, annotation)
+}
+
+// WriteTaggedBatch mocks base method
+func (m *MockclientSession) WriteTaggedBatch(iter WriteTaggedIter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", iter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockclientSessionMockRecorder) WriteTaggedBatch(iter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockclientSession)(nil).WriteTaggedBatch), iter)
 }
 
 // Fetch mocks base method

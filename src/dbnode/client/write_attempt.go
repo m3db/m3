@@ -37,6 +37,7 @@ const (
 	unknownWriteAttemptType writeAttemptType = iota
 	untaggedWriteAttemptType
 	taggedWriteAttemptType
+	taggedWriteBatchAttemptType
 )
 
 var writeAttemptArgsZeroed writeAttemptArgs
@@ -57,6 +58,7 @@ type writeAttemptArgs struct {
 	value       float64
 	annotation  []byte
 	unit        xtime.Unit
+	iterTagged  WriteTaggedIter
 	attemptType writeAttemptType
 }
 
@@ -65,9 +67,14 @@ func (w *writeAttempt) reset() {
 }
 
 func (w *writeAttempt) perform() error {
-	err := w.session.writeAttempt(w.args.attemptType,
-		w.args.namespace, w.args.id, w.args.tags, w.args.t,
-		w.args.value, w.args.unit, w.args.annotation)
+	var err error
+	if w.args.attemptType == taggedWriteBatchAttemptType {
+		err = w.session.writeBatchAttempt(w.args.iterTagged)
+	} else {
+		err = w.session.writeAttempt(w.args.attemptType,
+			w.args.namespace, w.args.id, w.args.tags, w.args.t,
+			w.args.value, w.args.unit, w.args.annotation)
+	}
 
 	if IsBadRequestError(err) {
 		// Do not retry bad request errors

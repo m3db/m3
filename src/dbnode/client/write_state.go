@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/serialize"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 // writeOp represents a generic write operation
@@ -48,15 +48,15 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel  topology.ConsistencyLevel
-	topoMap           topology.Map
-	op                writeOp
-	nsID              ident.ID
-	tsID              ident.ID
-	tagEncoder        serialize.TagEncoder
-	majority, pending int32
-	success           int32
-	errors            []error
+	consistencyLevel            topology.ConsistencyLevel
+	topoMap                     topology.Map
+	op                          writeOp
+	nsID                        ident.ID
+	tsID                        ident.ID
+	tagEncoder                  serialize.TagEncoder
+	majority, enqueued, pending int32
+	success                     int32
+	errors                      []error
 
 	queues         []hostQueue
 	tagEncoderPool serialize.TagEncoderPool

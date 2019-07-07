@@ -109,6 +109,7 @@ func ToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
 	case xtime.Nanosecond:
 		return rpc.TimeType_UNIX_NANOSECONDS, nil
 	}
+	panic("unknown unit somehow")
 	return 0, errUnknownUnit
 }
 
@@ -496,6 +497,13 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 		rawRequest: w.rawRequest,
 		currentIdx: -1,
 	}
+}
+
+func (w *writeTaggedIter) Restart() {
+	rawRequest := w.rawRequest
+	*w = writeTaggedIter{}
+	w.rawRequest = rawRequest
+	w.currentIdx = -1
 }
 
 // FromRPCQuery will create a m3ninx index query from an RPC query.

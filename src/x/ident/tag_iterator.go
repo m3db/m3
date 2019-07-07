@@ -141,6 +141,10 @@ func (i *tagSliceIter) Reset(tags Tags) {
 	i.currentTag = Tag{}
 }
 
+func (i *tagSliceIter) Restart() {
+	i.Reset(Tags{values: i.backingSlice})
+}
+
 // EmptyTagIterator returns an iterator over no tags.
 var EmptyTagIterator TagIterator = emptyTagIterator{}
 
@@ -153,4 +157,5 @@ func (e emptyTagIterator) Err() error             { return nil }
 func (e emptyTagIterator) Close()                 {}
 func (e emptyTagIterator) Len() int               { return 0 }
 func (e emptyTagIterator) Remaining() int         { return 0 }
+func (e emptyTagIterator) Restart()               {}
 func (e emptyTagIterator) Duplicate() TagIterator { return EmptyTagIterator }

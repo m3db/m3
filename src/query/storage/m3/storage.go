@@ -22,6 +22,7 @@ package m3
 
 import (
 	"context"
+	"errors"
 	goerrors "errors"
 	"fmt"
 	"sync"
@@ -36,6 +37,8 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -517,6 +520,10 @@ func (s *m3storage) Write(
 	default:
 	}
 
+	if err := query.Validate(); err != nil {
+		return err
+	}
+
 	duplicate := query.Tags().Duplicate()
 	idBytes, err := models.TagsIDIdentTagIterator(s.writeBytesPool.Get(),
 		duplicate, query.TagOptions())
@@ -569,14 +576,6 @@ func (s *m3storage) Write(
 	return multiErr.lastError()
 }
 
-func (s *m3storage) Type() storage.Type {
-	return storage.TypeLocalDC
-}
-
-func (s *m3storage) Close() error {
-	return nil
-}
-
 func (s *m3storage) writeSingle(
 	ctx context.Context,
 	datapoint ts.Datapoint,
@@ -586,21 +585,246 @@ func (s *m3storage) writeSingle(
 	annotation []byte,
 	attributes storage.Attributes,
 ) error {
+	resolver := namespaceResolver{clusters: s.clusters}
+	namespace, err := resolver.resolveNamespace(attributes)
+	if err != nil {
+		return err
+	}
+
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+	return session.WriteTagged(namespaceID, identID, iterator,
+		datapoint.Timestamp, datapoint.Value, unit, annotation)
+}
+
+func (s *m3storage) WriteBatch(
+	ctx context.Context,
+	iter storage.WriteQueryIter,
+) error {
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// TODO(r): parallelize writes to different clusters, this may have
+	// implications however on the iterator passed in here since it
+	// requires sequential access and is not expected to perform locking.
+	// (Maybe add a Get(idx) and ResultAt(idx) SetStateAt(idx), etc to all
+	// iterators so the top level one can be used in parallel?)
+	// In reality the unaggregated storage policy or a single storage
+	// policy is used on the write endpoint so this isn't a huge deal.
+	multiErr := xerrors.NewMultiError()
+	taggedIter := newWriteTaggedIter(iter)
+	resolver := namespaceResolver{clusters: s.clusters}
+	for _, attr := range iter.UniqueAttributes() {
+		namespace, err := resolver.resolveNamespace(attr)
+		if err != nil {
+			return err
+		}
+
+		taggedIter.Reset(attr, namespace)
+
+		session := namespace.Session()
+		if err := session.WriteTaggedBatch(taggedIter); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+var _ client.WriteTaggedIter = &writeTaggedIter{}
+
+type writeTaggedIter struct {
+	writes              storage.WriteQueryIter
+	attr                storage.Attributes
+	namespace           ClusterNamespace
+	namespaceID         ident.ID
+	idBuff              []byte
+	idReuseCheckedBytes checked.Bytes
+	idReuse             ident.ID
+
+	datapointsForIDIndex int
+
+	curr client.WriteTaggedIterEntry
+	err  error
+}
+
+func newWriteTaggedIter(
+	writes storage.WriteQueryIter,
+) *writeTaggedIter {
+	idReuseCheckedBytes := checked.NewBytes(nil, nil)
+	return &writeTaggedIter{
+		writes:              writes,
+		idReuseCheckedBytes: idReuseCheckedBytes,
+		idReuse:             ident.BinaryID(idReuseCheckedBytes),
+	}
+}
+
+func (i *writeTaggedIter) Reset(
+	attr storage.Attributes,
+	namespace ClusterNamespace,
+) {
+	i.writes.Restart()
+	i.attr = attr
+	i.namespace = namespace
+	i.namespaceID = namespace.NamespaceID()
+	i.datapointsForIDIndex = -1
+}
+
+func (i *writeTaggedIter) Next() bool {
+	if i.err != nil {
+		return false
+	}
+
+	var progressed bool
+	if i.datapointsForIDIndex != -1 {
+		progressed, i.err = i.setNextDatapoint()
+		if i.err != nil {
+			return false
+		}
+		if progressed {
+			return true
+		}
+	}
+
+	for i.writes.Next() {
+		attr := i.writes.CurrentAttributes()
+		if attr == i.attr {
+			progressed, i.err = i.setCurrent()
+			if i.err != nil {
+				return false
+			}
+			if progressed {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (i *writeTaggedIter) setCurrent() (bool, error) {
+	// Progressed to next write, set the datapoint index to -1.
+	i.datapointsForIDIndex = -1
+
+	var (
+		curr = i.writes.Current()
+		err  error
+	)
+	tags := curr.Tags()
+	tags.Restart()
+	i.idBuff, err = models.TagsIDIdentTagIterator(i.idBuff,
+		tags, curr.TagOptions())
+	if err != nil {
+		return false, err
+	}
+
+	// Set the ID bytes.
+	i.idReuseCheckedBytes.Reset(i.idBuff)
+
+	// Progress to next datapoint.
+	return i.setNextDatapoint()
+}
+
+func (i *writeTaggedIter) setNextDatapoint() (bool, error) {
+	var (
+		curr       = i.writes.Current()
+		datapoints = curr.Datapoints()
+	)
+	i.datapointsForIDIndex++
+	if i.datapointsForIDIndex >= len(datapoints) {
+		return false, nil
+	}
+
+	datapoint := datapoints[i.datapointsForIDIndex]
+
+	// Reuse the tags.
+	tags := curr.Tags()
+	tags.Restart()
+	i.curr = client.WriteTaggedIterEntry{
+		Namespace:  i.namespaceID,
+		ID:         i.idReuse,
+		Tags:       tags,
+		Timestamp:  datapoint.Timestamp,
+		Value:      datapoint.Value,
+		Unit:       curr.Unit(),
+		Annotation: curr.Annotation(),
+	}
+	return true, nil
+}
+
+func (i *writeTaggedIter) Current() client.WriteTaggedIterEntry {
+	return i.curr
+}
+
+func (i *writeTaggedIter) Err() error {
+	return i.err
+}
+
+func (i *writeTaggedIter) Result() client.WriteTaggedIterResult {
+	result := i.writes.DatapointResult(i.datapointsForIDIndex)
+	return client.WriteTaggedIterResult{
+		Success: result.Success,
+		Err:     result.Err,
+	}
+}
+
+func (i *writeTaggedIter) State() interface{} {
+	return i.writes.DatapointState(i.datapointsForIDIndex)
+}
+
+func (i *writeTaggedIter) SetResult(result client.WriteTaggedIterResult) {
+	i.writes.SetDatapointResult(i.datapointsForIDIndex, storage.WriteQueryResult{
+		Success: result.Success,
+		Err:     result.Err,
+	})
+}
+
+func (i *writeTaggedIter) SetState(state interface{}) {
+	i.writes.SetDatapointState(i.datapointsForIDIndex, state)
+}
+
+func (i *writeTaggedIter) Restart() {
+	i.Reset(i.attr, i.namespace)
+}
+
+func (i *writeTaggedIter) Close() {
+	// Should not actually be closed.
+	i.err = errors.New("should not be closed")
+}
+
+func (s *m3storage) Type() storage.Type {
+	return storage.TypeLocalDC
+}
+
+func (s *m3storage) Close() error {
+	return nil
+}
+
+type namespaceResolver struct {
+	clusters Clusters
+}
+
+func (r namespaceResolver) resolveNamespace(
+	attributes storage.Attributes,
+) (ClusterNamespace, error) {
 	var (
 		namespace ClusterNamespace
 		err       error
 	)
-
 	switch attributes.MetricsType {
 	case storage.UnaggregatedMetricsType:
-		namespace = s.clusters.UnaggregatedClusterNamespace()
+		namespace = r.clusters.UnaggregatedClusterNamespace()
 	case storage.AggregatedMetricsType:
 		attrs := RetentionResolution{
 			Retention:  attributes.Retention,
 			Resolution: attributes.Resolution,
 		}
 		var exists bool
-		namespace, exists = s.clusters.AggregatedClusterNamespace(attrs)
+		namespace, exists = r.clusters.AggregatedClusterNamespace(attrs)
 		if !exists {
 			err = fmt.Errorf("no configured cluster namespace for: retention=%s, resolution=%s",
 				attrs.Retention.String(), attrs.Resolution.String())
@@ -610,14 +834,8 @@ func (s *m3storage) writeSingle(
 		err = fmt.Errorf("invalid write request metrics type: %s (%d)",
 			metricsType.String(), uint(metricsType))
 	}
-	if err != nil {
-		return err
-	}
 
-	namespaceID := namespace.NamespaceID()
-	session := namespace.Session()
-	return session.WriteTagged(namespaceID, identID, iterator,
-		datapoint.Timestamp, datapoint.Value, unit, annotation)
+	return namespace, err
 }
 
 type writeBytesPool struct {

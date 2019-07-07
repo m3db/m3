@@ -184,3 +184,10 @@ func (s *debugStorage) Write(
 ) error {
 	return errors.New("write not implemented")
 }
+
+func (s *debugStorage) WriteBatch(
+	ctx context.Context,
+	iter storage.WriteQueryIter,
+) error {
+	return errors.New("write batch not implemented")
+}

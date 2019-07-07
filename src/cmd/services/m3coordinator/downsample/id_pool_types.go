@@ -26,9 +26,9 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/metrics/metric/id"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/prometheus/common/model"
 )
@@ -174,6 +174,10 @@ func (p *rollupIDProvider) Duplicate() ident.TagIterator {
 	duplicate := p.pool.Get()
 	duplicate.reset(p.tagPairs)
 	return duplicate
+}
+
+func (p *rollupIDProvider) Restart() {
+	p.reset(p.tagPairs)
 }
 
 type rollupIDProviderPool struct {

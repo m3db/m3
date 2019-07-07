@@ -265,3 +265,15 @@ func (mr *MockTagIteratorMockRecorder) Remaining() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remaining", reflect.TypeOf((*MockTagIterator)(nil).Remaining))
 }
+
+// Restart mocks base method
+func (m *MockTagIterator) Restart() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Restart")
+}
+
+// Restart indicates an expected call of Restart
+func (mr *MockTagIteratorMockRecorder) Restart() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockTagIterator)(nil).Restart))
+}

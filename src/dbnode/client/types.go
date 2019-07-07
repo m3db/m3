@@ -26,11 +26,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -58,6 +58,38 @@ type Client interface {
 	DefaultSessionActive() bool
 }
 
+type WriteTaggedIter interface {
+	Next() bool
+
+	Current() WriteTaggedIterEntry
+
+	Err() error
+
+	Result() WriteTaggedIterResult
+	State() interface{}
+
+	SetResult(result WriteTaggedIterResult)
+	SetState(state interface{})
+
+	Restart()
+	Close()
+}
+
+type WriteTaggedIterResult struct {
+	Success bool
+	Err     error
+}
+
+type WriteTaggedIterEntry struct {
+	Namespace  ident.ID
+	ID         ident.ID
+	Tags       ident.TagIterator
+	Timestamp  time.Time
+	Value      float64
+	Unit       xtime.Unit
+	Annotation []byte
+}
+
 // Session can write and read to a cluster.
 type Session interface {
 	// Write value to the database for an ID.
@@ -65,6 +97,9 @@ type Session interface {
 
 	// WriteTagged value to the database for an ID and given tags.
 	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+
+	// WriteTaggedBatch value to the database for an ID and given tags.
+	WriteTaggedBatch(iter WriteTaggedIter) error
 
 	// Fetch values from the database for an ID.
 	Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)

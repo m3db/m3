@@ -191,3 +191,17 @@ func (mr *MockStorageMockRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockStorage)(nil).Write), arg0, arg1)
 }
+
+// WriteBatch mocks base method
+func (m *MockStorage) WriteBatch(arg0 context.Context, arg1 storage.WriteQueryIter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatch", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch
+func (mr *MockStorageMockRecorder) WriteBatch(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockStorage)(nil).WriteBatch), arg0, arg1)
+}

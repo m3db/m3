@@ -117,6 +117,16 @@ func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterato
 	return s.session.WriteTagged(namespace, id, tags, t, value, unit, annotation)
 }
 
+func (s *AsyncSession) WriteTaggedBatch(iter client.WriteTaggedIter) error {
+	s.RLock()
+	defer s.RUnlock()
+	if s.err != nil {
+		return s.err
+	}
+
+	return s.session.WriteTaggedBatch(iter)
+}
+
 // Fetch fetches values from the database for an ID.
 func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive,
 	endExclusive time.Time) (encoding.SeriesIterator, error) {

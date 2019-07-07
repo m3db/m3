@@ -29,5 +29,7 @@ fi
 # Run tunnels
 echo "Tunnelling"
 echo "Grafana available at http://localhost:3333"
+echo "Coordinator available at http://localhost:7201"
 vagrant ssh -c "./provision/run_tunnels.sh" --\
-    -L 3333:localhost:3000
+    -L 3333:localhost:3000 \
+    -L 7201:localhost:7201

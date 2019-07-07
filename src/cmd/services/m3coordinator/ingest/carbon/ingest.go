@@ -310,6 +310,16 @@ func NewTagIterator(name []byte) ident.TagIterator {
 	}
 }
 
+func (i *tagIterator) Restart() {
+	name := i.name
+	numTags := i.numTags
+	*i = tagIterator{}
+	i.numTags = numTags
+	i.idx = -1
+	i.name = name
+	i.bytes = name
+}
+
 func (i *tagIterator) Next() bool {
 	i.idx++
 	if i.idx >= i.numTags || i.err != nil || len(i.bytes) == 0 {

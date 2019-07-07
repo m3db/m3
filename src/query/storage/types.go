@@ -40,6 +40,8 @@ import (
 
 var (
 	errNoRestrictFetchOptionsProtoMsg = errors.New("no restrict fetch options proto message")
+	errWriteQueryNoTags               = errors.New("write query with no tags")
+	errWriteQueryNoTagOptions         = errors.New("write query with no tag options")
 )
 
 // Type describes the type of storage
@@ -357,6 +359,17 @@ func NewWriteQuery(opts WriteQueryOptions) WriteQuery {
 	}
 }
 
+// Validate validates a write query.
+func (q *WriteQuery) Validate() error {
+	if q.tags == nil {
+		return errWriteQueryNoTags
+	}
+	if q.tagOptions == nil {
+		return errWriteQueryNoTagOptions
+	}
+	return nil
+}
+
 // AppendDatapoint appends a datapoint to the write query,
 // using the internal preallocated buffer when possible.
 func (q *WriteQuery) AppendDatapoint(dp ts.Datapoint) {
@@ -468,6 +481,35 @@ type CompleteTagsResultBuilder interface {
 type Appender interface {
 	// Write value to the database for an ID
 	Write(ctx context.Context, query WriteQuery) error
+	WriteBatch(ctx context.Context, iter WriteQueryIter) error
+}
+
+type WriteQueryIter interface {
+	// UniqueAttributes returns the unique attributes contained
+	// by the iterator.
+	UniqueAttributes() []Attributes
+
+	Next() bool
+
+	Current() WriteQuery
+	CurrentAttributes() Attributes
+
+	Err() error
+
+	DatapointResult(datapointIdx int) WriteQueryResult
+	DatapointState(datapointIdx int) interface{}
+
+	SetDatapointResult(datapointIdx int, result WriteQueryResult)
+	SetDatapointState(datapointIdx int, state interface{})
+
+	Restart()
+
+	Close()
+}
+
+type WriteQueryResult struct {
+	Success bool
+	Err     error
 }
 
 // SearchResults is the result from a search

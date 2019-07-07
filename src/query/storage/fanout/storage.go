@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -213,6 +214,31 @@ func (s *fanoutStorage) Write(ctx context.Context, query storage.WriteQuery) err
 	}
 
 	return execution.ExecuteParallel(ctx, requests)
+}
+
+func (s *fanoutStorage) WriteBatch(ctx context.Context, iter storage.WriteQueryIter) error {
+	stores := filterStores(s.stores, s.writeFilter)
+	multiErr := xerrors.NewMultiError()
+	for _, store := range stores {
+		// TODO(r): parallelize writes to different stores, this may have
+		// implications however on the iterator passed in here since it
+		// requires sequential access and is not expected to perform locking.
+		// (Maybe add a Get(idx) and ResultAt(idx) SetStateAt(idx), etc to all
+		// iterators so the top level one can be used in parallel?)
+		// In reality the unaggregated storage policy or a single storage
+		// policy is used on the write endpoint so this isn't a huge deal.
+		iter.Restart()
+		err := store.WriteBatch(ctx, iter)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	return multiErr.FinalError()
 }
 
 func (s *fanoutStorage) Type() storage.Type {

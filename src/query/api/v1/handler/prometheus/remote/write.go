@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -324,63 +325,97 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter := newPromTSIter(r.Timeseries, h.tagOptions)
-	err := h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
-	iter.Close()
-	return err
+	iter := NewTimeSeriesIter(r.Timeseries, h.tagOptions)
+	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
-func newPromTSIter(
-	timeseries []*prompb.TimeSeries,
+var _ ingest.DownsampleAndWriteIter = &promTSIter{}
+
+type promTSIter struct {
+	idx        int
+	timeseries []*prompb.TimeSeries
+	results    [][]writeState
+	tagOpts    models.TagOptions
+
+	datapoints ts.Datapoints
+	tagIter    *tagIterator
+}
+
+type writeState struct {
+	result storage.WriteQueryResult
+	state  interface{}
+}
+
+// NewTimeSeriesIter is used to create a downsample and write iterator
+// from a list of Prometheus protobuf time series.
+func NewTimeSeriesIter(
+	series []*prompb.TimeSeries,
 	tagOpts models.TagOptions,
-) *promTSIter {
+) ingest.DownsampleAndWriteIter {
 	// Calculate number of datapoints
 	numDatapoints := 0
-	for _, promTS := range timeseries {
+	for _, promTS := range series {
 		numDatapoints += len(promTS.Samples)
 	}
 
 	// Construct the tags and datapoints up front so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
-		tags                 = make([]ident.TagIterator, len(timeseries))
-		preallocTagIterators = make([]tagIterator, len(timeseries))
-		datapoints           = make([]ts.Datapoints, len(timeseries))
-		preallocDatapoints   = make(ts.Datapoints, numDatapoints)
+		results         = make([][]writeState, len(series))
+		preallocResults = make([]writeState, numDatapoints)
 	)
-	for i, promTS := range timeseries {
-		// First grab reference to the prealloced tag iterators, reset to labels.
-		iter := &(preallocTagIterators[i])
-		iter.Reset(promTS.Labels, nil)
-		tags[i] = iter
+	for i, promTS := range series {
+		// Grab reference to prealloc results, reset to samples.
+		ref := preallocResults[:len(promTS.Samples)]
+		results[i] = ref
 
-		// Grab reference to prealloc datapoints, reset to samples.
-		ref := preallocDatapoints[:len(promTS.Samples)]
-		for j := range promTS.Samples {
-			ref[j] = ts.Datapoint{
-				Timestamp: storage.PromTimestampToTime(promTS.Samples[j].Timestamp),
-				Value:     promTS.Samples[j].Value,
-			}
-		}
-		datapoints[i] = ref
+		// Make sure labels are ordered.
+		sort.Sort(labelsByName(promTS.Labels))
 
-		// Move the prealloc datapoints slice along.
-		preallocDatapoints = preallocDatapoints[len(promTS.Samples):]
+		// Move the prealloc results slice along.
+		preallocResults = preallocResults[len(promTS.Samples):]
 	}
 
 	return &promTSIter{
 		idx:        -1,
+		timeseries: series,
+		results:    results,
 		tagOpts:    tagOpts,
-		tags:       tags,
-		datapoints: datapoints,
+		tagIter:    newTagIterator(),
+		datapoints: nil,
 	}
 }
 
-type promTSIter struct {
-	idx        int
-	tagOpts    models.TagOptions
-	tags       []ident.TagIterator
-	datapoints []ts.Datapoints
+func (i *promTSIter) Restart() {
+	i.idx = -1
+	i.tagIter.Restart()
+	i.datapoints = i.datapoints[:0]
+}
+
+func (i *promTSIter) DatapointResult(
+	datapointIdx int,
+) storage.WriteQueryResult {
+	return i.results[i.idx][datapointIdx].result
+}
+
+func (i *promTSIter) DatapointState(
+	datapointIdx int,
+) interface{} {
+	return i.results[i.idx][datapointIdx].state
+}
+
+func (i *promTSIter) SetDatapointResult(
+	datapointIdx int,
+	result storage.WriteQueryResult,
+) {
+	i.results[i.idx][datapointIdx].result = result
+}
+
+func (i *promTSIter) SetDatapointState(
+	datapointIdx int,
+	state interface{},
+) {
+	i.results[i.idx][datapointIdx].state = state
 }
 
 func (i *promTSIter) TagOptions() models.TagOptions {
@@ -389,50 +424,62 @@ func (i *promTSIter) TagOptions() models.TagOptions {
 
 func (i *promTSIter) Next() bool {
 	i.idx++
-	return i.idx < len(i.tags)
+	next := i.idx < len(i.timeseries)
+	if !next {
+		return false
+	}
+
+	i.tagIter.Reset(i.timeseries[i.idx].Labels)
+	i.datapoints = i.datapoints[:0]
+	for _, dp := range i.timeseries[i.idx].Samples {
+		i.datapoints = append(i.datapoints, ts.Datapoint{
+			Timestamp: storage.PromTimestampToTime(dp.Timestamp),
+			Value:     dp.Value,
+		})
+	}
+	return true
 }
 
 func (i *promTSIter) Current() (ident.TagIterator, ts.Datapoints, xtime.Unit) {
-	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
+	if len(i.timeseries) == 0 || i.idx < 0 || i.idx >= len(i.timeseries) {
 		return nil, nil, 0
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond
+	return i.tagIter, i.datapoints, xtime.Millisecond
 }
 
-func (i *promTSIter) Reset() error {
-	i.idx = -1
+func (i *promTSIter) Err() error {
 	return nil
-}
-
-func (i *promTSIter) Error() error {
-	return nil
-}
-
-func (i *promTSIter) Close() {
-	for _, iter := range i.tags {
-		iter.Close()
-	}
-	*i = promTSIter{}
 }
 
 type tagIterator struct {
-	numTags int
-	idx     int
-	labels  []*prompb.Label
-	name    *idAndCheckedBytes
-	value   *idAndCheckedBytes
-	pool    *sync.Pool
+	numTags    int
+	idx        int
+	labels     []*prompb.Label
+	nameBytes  checked.Bytes
+	valueBytes checked.Bytes
+	tag        ident.Tag
 }
 
-func (i *tagIterator) Reset(labels []*prompb.Label, pool *sync.Pool) {
-	*i = tagIterator{}
+func newTagIterator() *tagIterator {
+	i := &tagIterator{
+		nameBytes:  checked.NewBytes(nil, nil),
+		valueBytes: checked.NewBytes(nil, nil),
+	}
+	i.tag = ident.Tag{
+		Name:  ident.BinaryID(i.nameBytes),
+		Value: ident.BinaryID(i.valueBytes),
+	}
+	i.Reset(nil)
+	return i
+}
+
+func (i *tagIterator) Reset(labels []*prompb.Label) {
 	i.numTags = len(labels)
 	i.idx = -1
 	i.labels = labels
-	i.name = getIDAndCheckedBytes()
-	i.value = getIDAndCheckedBytes()
-	i.pool = pool
+	i.nameBytes.Reset(nil)
+	i.valueBytes.Reset(nil)
 }
 
 func (i *tagIterator) Next() bool {
@@ -441,16 +488,13 @@ func (i *tagIterator) Next() bool {
 	if !next {
 		return false
 	}
-	i.name.checkedBytes.Reset(i.labels[i.idx].Name)
-	i.value.checkedBytes.Reset(i.labels[i.idx].Value)
+	i.nameBytes.Reset(i.labels[i.idx].Name)
+	i.valueBytes.Reset(i.labels[i.idx].Value)
 	return true
 }
 
 func (i *tagIterator) Current() ident.Tag {
-	return ident.Tag{
-		Name:  i.name.id,
-		Value: i.value.id,
-	}
+	return i.tag
 }
 
 func (i *tagIterator) CurrentIndex() int {
@@ -462,12 +506,7 @@ func (i *tagIterator) Err() error {
 }
 
 func (i *tagIterator) Close() {
-	putIDAndCheckedBytes(i.name)
-	putIDAndCheckedBytes(i.value)
-	if i.pool == nil {
-		return
-	}
-	i.pool.Put(i)
+	i.Reset(nil)
 }
 
 func (i *tagIterator) Len() int {
@@ -482,47 +521,29 @@ func (i *tagIterator) Remaining() int {
 }
 
 func (i *tagIterator) Duplicate() ident.TagIterator {
-	result := getIterDuplicate()
-	result.Reset(i.labels, iterDuplicatesPool)
+	result := newTagIterator()
+	result.Reset(i.labels)
 	return result
 }
 
-type idAndCheckedBytes struct {
-	id           ident.ID
-	checkedBytes checked.Bytes
+func (i *tagIterator) Restart() {
+	i.Reset(i.labels)
 }
 
-var idAndCheckedBytesPool = &sync.Pool{
-	New: func() interface{} {
-		checkedBytes := checked.NewBytes(nil, nil)
-		return &idAndCheckedBytes{
-			id:           ident.BinaryID(checkedBytes),
-			checkedBytes: checkedBytes,
-		}
-	},
+var _ sort.Interface = labelsByName(nil)
+
+type labelsByName []*prompb.Label
+
+func (l labelsByName) Len() int {
+	return len(l)
 }
 
-func getIDAndCheckedBytes() *idAndCheckedBytes {
-	return idAndCheckedBytesPool.Get().(*idAndCheckedBytes)
+func (l labelsByName) Less(i, j int) bool {
+	return bytes.Compare(l[i].Name, l[j].Name) < 0
 }
 
-func putIDAndCheckedBytes(v *idAndCheckedBytes) {
-	idAndCheckedBytesPool.Put(v)
-}
-
-var iterDuplicatesPool = &sync.Pool{
-	New: func() interface{} {
-		return &tagIterator{}
-	},
-}
-
-func getIterDuplicate() *tagIterator {
-	return iterDuplicatesPool.Get().(*tagIterator)
-}
-
-func putIterDuplicate(v *tagIterator) {
-	*v = tagIterator{}
-	iterDuplicatesPool.Put(v)
+func (l labelsByName) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }
 
 type writeBytesPool struct {
