@@ -29,7 +29,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -64,20 +64,17 @@ type writeState struct {
 	success                     int32
 	errors                      []error
 
-	queues         []hostQueue
-	tagEncoderPool serialize.TagEncoderPool
-	pool           *writeStatePool
+	queues []hostQueue
+	pool   *writeStatePool
 }
 
 func newWriteState(
-	encoderPool serialize.TagEncoderPool,
 	pool *writeStatePool,
 ) *writeState {
 	w := &writeState{
-		pool:           pool,
-		tagEncoderPool: encoderPool,
-		nsIdentID:      ident.NewReuseableBytesID(),
-		tsIdentID:      ident.NewReuseableBytesID(),
+		pool:      pool,
+		nsIdentID: ident.NewReuseableBytesID(),
+		tsIdentID: ident.NewReuseableBytesID(),
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -191,31 +188,35 @@ func tryReuseBytes(b []byte) []byte {
 }
 
 type writeStatePool struct {
-	pool           pool.ObjectPool
-	tagEncoderPool serialize.TagEncoderPool
+	pool pool.ObjectPool
+	// todo: remove
+	gets tally.Counter
+	puts tally.Counter
 }
 
 func newWriteStatePool(
-	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
-		pool:           p,
-		tagEncoderPool: tagEncoderPool,
+		pool: p,
+		gets: opts.InstrumentOptions().MetricsScope().Counter("pooling-write-state-gets"),
+		puts: opts.InstrumentOptions().MetricsScope().Counter("pooling-write-state-puts"),
 	}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		return newWriteState(p.tagEncoderPool, p)
+		return newWriteState(p)
 	})
 }
 
 func (p *writeStatePool) Get() *writeState {
+	p.gets.Inc(1)
 	return p.pool.Get().(*writeState)
 }
 
 func (p *writeStatePool) Put(w *writeState) {
+	p.puts.Inc(1)
 	p.pool.Put(w)
 }

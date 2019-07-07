@@ -52,12 +52,12 @@ type customFieldMarshaller interface {
 }
 
 type customMarshaller struct {
-	buf *buffer
+	buf *Buffer
 }
 
 func newCustomMarshaller() customFieldMarshaller {
 	return &customMarshaller{
-		buf: newCodedBuffer(nil),
+		buf: NewBuffer(nil),
 	}
 }
 
@@ -67,8 +67,8 @@ func (m *customMarshaller) encFloat64(tag int32, x float64) {
 		return
 	}
 
-	m.buf.encodeTagAndWireType(tag, proto.WireFixed64)
-	m.buf.encodeFixed64(math.Float64bits(x))
+	m.buf.EncodeTagAndWireType(tag, proto.WireFixed64)
+	m.buf.EncodeFixed64(math.Float64bits(x))
 }
 
 func (m *customMarshaller) encFloat32(tag int32, x float32) {
@@ -77,8 +77,8 @@ func (m *customMarshaller) encFloat32(tag int32, x float32) {
 		return
 	}
 
-	m.buf.encodeTagAndWireType(tag, proto.WireFixed32)
-	m.buf.encodeFixed32(math.Float32bits(x))
+	m.buf.EncodeTagAndWireType(tag, proto.WireFixed32)
+	m.buf.EncodeFixed32(math.Float32bits(x))
 }
 
 func (m *customMarshaller) encBool(tag int32, x bool) {
@@ -99,8 +99,8 @@ func (m *customMarshaller) encSInt32(tag int32, x int32) {
 }
 
 func (m *customMarshaller) encSFixedInt32(tag int32, x int32) {
-	m.buf.encodeTagAndWireType(tag, proto.WireFixed32)
-	m.buf.encodeFixed32(uint32(x))
+	m.buf.EncodeTagAndWireType(tag, proto.WireFixed32)
+	m.buf.EncodeFixed32(uint32(x))
 }
 
 func (m *customMarshaller) encUInt32(tag int32, x uint32) {
@@ -116,8 +116,8 @@ func (m *customMarshaller) encSInt64(tag int32, x int64) {
 }
 
 func (m *customMarshaller) encSFixedInt64(tag int32, x int64) {
-	m.buf.encodeTagAndWireType(tag, proto.WireFixed64)
-	m.buf.encodeFixed64(uint64(x))
+	m.buf.EncodeTagAndWireType(tag, proto.WireFixed64)
+	m.buf.EncodeFixed64(uint64(x))
 }
 
 func (m *customMarshaller) encUInt64(tag int32, x uint64) {
@@ -126,8 +126,8 @@ func (m *customMarshaller) encUInt64(tag int32, x uint64) {
 		return
 	}
 
-	m.buf.encodeTagAndWireType(tag, proto.WireVarint)
-	m.buf.encodeVarint(x)
+	m.buf.EncodeTagAndWireType(tag, proto.WireVarint)
+	m.buf.EncodeVarint(x)
 }
 
 func (m *customMarshaller) encBytes(tag int32, x []byte) {
@@ -136,8 +136,8 @@ func (m *customMarshaller) encBytes(tag int32, x []byte) {
 		return
 	}
 
-	m.buf.encodeTagAndWireType(tag, proto.WireBytes)
-	m.buf.encodeRawBytes(x)
+	m.buf.EncodeTagAndWireType(tag, proto.WireBytes)
+	m.buf.EncodeRawBytes(x)
 }
 
 func (m *customMarshaller) encPartialProto(x []byte) {
@@ -153,5 +153,5 @@ func (m *customMarshaller) reset() {
 	if b != nil {
 		b = b[:0]
 	}
-	m.buf.reset(b)
+	m.buf.Reset(b)
 }

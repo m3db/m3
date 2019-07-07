@@ -77,7 +77,6 @@ type PromWriteHandler struct {
 	tagOptions           models.TagOptions
 	nowFn                clock.NowFn
 	writeBytesPool       *writeBytesPool
-	bufferPool           *bufferPool
 	instrumentOpts       instrument.Options
 	metrics              promWriteMetrics
 }
@@ -109,7 +108,6 @@ func NewPromWriteHandler(
 		tagOptions:           tagOptions,
 		nowFn:                nowFn,
 		writeBytesPool:       newWriteBytesPool(),
-		bufferPool:           newBufferPool(),
 		metrics:              metrics,
 		instrumentOpts:       instrumentOpts,
 	}, nil
@@ -296,17 +294,15 @@ func (h *PromWriteHandler) parseRequest(
 	}
 
 	var (
-		dst  = h.writeBytesPool.Get()
-		buff = h.bufferPool.Get()
-		req  = &prompb.WriteRequest{}
-		err  *xhttp.ParseError
+		dst = h.writeBytesPool.Get()
+		req = &prompb.WriteRequest{}
+		err *xhttp.ParseError
 	)
 	defer func() {
 		h.writeBytesPool.Put(dst)
-		h.bufferPool.Put(buff)
 	}()
 
-	dst, err = prometheus.ParsePromCompressedRequest(dst, buff, r)
+	dst, err = prometheus.ParsePromCompressedRequest(dst, r)
 	if err != nil {
 		return nil, ingest.WriteOptions{}, err
 	}
@@ -602,25 +598,26 @@ func (p *writeBytesPool) Put(v []byte) {
 	p.pool.Put(v)
 }
 
-type bufferPool struct {
-	pool sync.Pool
-}
+// TODO remove? not needed
+// type bufferPool struct {
+// 	pool sync.Pool
+// }
 
-func newBufferPool() *bufferPool {
-	return &bufferPool{
-		pool: sync.Pool{
-			New: func() interface{} {
-				return bytes.NewBuffer(nil)
-			},
-		},
-	}
-}
+// func newBufferPool() *bufferPool {
+// 	return &bufferPool{
+// 		pool: sync.Pool{
+// 			New: func() interface{} {
+// 				return bytes.NewBuffer(nil)
+// 			},
+// 		},
+// 	}
+// }
 
-func (p *bufferPool) Get() *bytes.Buffer {
-	return p.pool.Get().(*bytes.Buffer)
-}
+// func (p *bufferPool) Get() *bytes.Buffer {
+// 	return p.pool.Get().(*bytes.Buffer)
+// }
 
-func (p *bufferPool) Put(v *bytes.Buffer) {
-	v.Reset()
-	p.pool.Put(v)
-}
+// func (p *bufferPool) Put(v *bytes.Buffer) {
+// 	v.Reset()
+// 	p.pool.Put(v)
+// }

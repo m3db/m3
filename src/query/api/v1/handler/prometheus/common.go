@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/errors"
@@ -48,7 +49,12 @@ const (
 )
 
 var (
-	roleName = []byte("role")
+	roleName   = []byte("role")
+	readerPool = sync.Pool{
+		New: func() interface{} {
+			return snappy.NewReader(nil)
+		},
+	}
 )
 
 // TimeoutOpts stores options related to various timeout configurations.
@@ -57,16 +63,24 @@ type TimeoutOpts struct {
 }
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
-func ParsePromCompressedRequest(dst []byte, buff *bytes.Buffer, r *http.Request) ([]byte, *xhttp.ParseError) {
+func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
-	defer body.Close()
 
-	buff.Reset()
-	_, err := io.Copy(buff, body)
+	reader := readerPool.Get().(*snappy.Reader)
+	reader.Reset(body)
+
+	defer func() {
+		body.Close()
+		readerPool.Put(reader)
+	}()
+
+	buff := bytes.NewBuffer(dst[:0])
+
+	_, err := io.Copy(buff, reader)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
@@ -75,12 +89,7 @@ func ParsePromCompressedRequest(dst []byte, buff *bytes.Buffer, r *http.Request)
 		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
 	}
 
-	dst, err = snappy.Decode(dst, buff.Bytes())
-	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return dst, nil
+	return buff.Bytes(), nil
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.

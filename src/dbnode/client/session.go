@@ -503,7 +503,7 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.pools.writeState = newWriteStatePool(s.pools.tagEncoder, writeStatePoolOpts)
+	s.pools.writeState = newWriteStatePool(writeStatePoolOpts)
 	s.pools.writeState.Init()
 
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().

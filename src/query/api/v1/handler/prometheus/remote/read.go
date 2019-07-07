@@ -21,7 +21,6 @@
 package remote
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"sync"
@@ -160,7 +159,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *PromReadHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.ReadRequest, *xhttp.ParseError) {
-	reqBuf, err := prometheus.ParsePromCompressedRequest(nil, bytes.NewBuffer(nil), r)
+	reqBuf, err := prometheus.ParsePromCompressedRequest(nil, r)
 	if err != nil {
 		return nil, err
 	}

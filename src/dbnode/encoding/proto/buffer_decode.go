@@ -35,28 +35,28 @@ var (
 	errOverflow = errors.New("proto: integer overflow")
 )
 
-// A reader/writer type that assists with decoding protobuf's binary representation.
+// Buffer is a reader/writer type that assists with decoding protobuf's binary representation.
 // This code is largely a fork of proto.Buffer, which cannot be used because it has no exported
 // field or method that provides access to its underlying reader index.
-type buffer struct {
+type Buffer struct {
 	buf   []byte
 	index int
 }
 
-func newCodedBuffer(buf []byte) *buffer {
-	return &buffer{buf: buf}
+func NewBuffer(buf []byte) *Buffer {
+	return &Buffer{buf: buf}
 }
 
-func (cb *buffer) reset(b []byte) {
+func (cb *Buffer) Reset(b []byte) {
 	cb.buf = b
 	cb.index = 0
 }
 
-func (cb *buffer) eof() bool {
+func (cb *Buffer) EOF() bool {
 	return cb.index >= len(cb.buf)
 }
 
-func (cb *buffer) skip(count int) (int, bool) {
+func (cb *Buffer) Skip(count int) (int, bool) {
 	newIndex := cb.index + count
 	if newIndex > len(cb.buf) {
 		return 0, false
@@ -65,7 +65,7 @@ func (cb *buffer) skip(count int) (int, bool) {
 	return 0, true
 }
 
-func (cb *buffer) decodeVarintSlow() (x uint64, err error) {
+func (cb *Buffer) DecodeVarintSlow() (x uint64, err error) {
 	i := cb.index
 	l := len(cb.buf)
 
@@ -92,7 +92,7 @@ func (cb *buffer) decodeVarintSlow() (x uint64, err error) {
 // This is the format for the
 // int32, int64, uint32, uint64, bool, and enum
 // protocol buffer types.
-func (cb *buffer) decodeVarint() (uint64, error) {
+func (cb *Buffer) DecodeVarint() (uint64, error) {
 	i := cb.index
 	buf := cb.buf
 
@@ -102,7 +102,7 @@ func (cb *buffer) decodeVarint() (uint64, error) {
 		cb.index++
 		return uint64(buf[i]), nil
 	} else if len(buf)-i < 10 {
-		return cb.decodeVarintSlow()
+		return cb.DecodeVarintSlow()
 	}
 
 	var b uint64
@@ -189,9 +189,9 @@ done:
 	return x, nil
 }
 
-func (cb *buffer) decodeTagAndWireType() (tag int32, wireType int8, err error) {
+func (cb *Buffer) DecodeTagAndWireType() (tag int32, wireType int8, err error) {
 	var v uint64
-	v, err = cb.decodeVarint()
+	v, err = cb.DecodeVarint()
 	if err != nil {
 		return
 	}
@@ -210,7 +210,7 @@ func (cb *buffer) decodeTagAndWireType() (tag int32, wireType int8, err error) {
 // DecodeFixed64 reads a 64-bit integer from the Buffer.
 // This is the format for the
 // fixed64, sfixed64, and double protocol buffer types.
-func (cb *buffer) decodeFixed64() (x uint64, err error) {
+func (cb *Buffer) DecodeFixed64() (x uint64, err error) {
 	// x, err already 0
 	i := cb.index + 8
 	if i < 0 || i > len(cb.buf) {
@@ -233,7 +233,7 @@ func (cb *buffer) decodeFixed64() (x uint64, err error) {
 // DecodeFixed32 reads a 32-bit integer from the Buffer.
 // This is the format for the
 // fixed32, sfixed32, and float protocol buffer types.
-func (cb *buffer) decodeFixed32() (x uint64, err error) {
+func (cb *Buffer) DecodeFixed32() (x uint64, err error) {
 	// x, err already 0
 	i := cb.index + 4
 	if i < 0 || i > len(cb.buf) {
@@ -263,8 +263,8 @@ func decodeZigZag64(v uint64) int64 {
 // DecodeRawBytes reads a count-delimited byte buffer from the Buffer.
 // This is the format used for the bytes protocol buffer
 // type and for embedded messages.
-func (cb *buffer) decodeRawBytes(alloc bool) (buf []byte, err error) {
-	n, err := cb.decodeVarint()
+func (cb *Buffer) DecodeRawBytes(alloc bool) (buf []byte, err error) {
+	n, err := cb.DecodeVarint()
 	if err != nil {
 		return nil, err
 	}
