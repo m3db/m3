@@ -82,7 +82,7 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 	dst = buff.Bytes()
 	decodedLen, err := snappy.DecodedLen(dst)
 	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
+		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload header: %v", err), http.StatusBadRequest)
 	}
 
 	// We are going to use a single buffer to decode into
@@ -94,7 +94,9 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 		desiredCapacity *= 2
 	}
 	if cap(dst) < desiredCapacity {
-		dst = make([]byte, desiredCapacity)
+		newDst := make([]byte, len(dst), desiredCapacity)
+		copy(newDst, dst)
+		dst = newDst
 	}
 
 	dstBeforeCopy := dst
