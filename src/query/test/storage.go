@@ -86,6 +86,14 @@ func (s *slowStorage) Write(
 	return s.storage.Write(ctx, query)
 }
 
+func (s *slowStorage) WriteBatch(
+	ctx context.Context,
+	iter storage.WriteQueryIter,
+) error {
+	time.Sleep(s.delay)
+	return s.storage.WriteBatch(ctx, iter)
+}
+
 func (s *slowStorage) Type() storage.Type {
 	return storage.TypeMultiDC
 }

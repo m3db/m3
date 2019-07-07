@@ -36,27 +36,27 @@ import (
 
 func TestPromCompressedReadSuccess(t *testing.T) {
 	req, _ := http.NewRequest("POST", "dummy", test.GeneratePromReadBody(t))
-	_, err := ParsePromCompressedRequest(req)
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.NoError(t, err)
 }
 
 func TestPromCompressedReadNoBody(t *testing.T) {
 	req, _ := http.NewRequest("POST", "dummy", nil)
-	_, err := ParsePromCompressedRequest(req)
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestPromCompressedReadEmptyBody(t *testing.T) {
 	req, _ := http.NewRequest("POST", "dummy", bytes.NewReader([]byte{}))
-	_, err := ParsePromCompressedRequest(req)
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestPromCompressedReadInvalidEncoding(t *testing.T) {
 	req, _ := http.NewRequest("POST", "dummy", bytes.NewReader([]byte{'a'}))
-	_, err := ParsePromCompressedRequest(req)
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }

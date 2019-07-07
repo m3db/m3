@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/errors"
@@ -49,12 +48,7 @@ const (
 )
 
 var (
-	roleName   = []byte("role")
-	readerPool = sync.Pool{
-		New: func() interface{} {
-			return snappy.NewReader(nil)
-		},
-	}
+	roleName = []byte("role")
 )
 
 // TimeoutOpts stores options related to various timeout configurations.
@@ -64,23 +58,19 @@ type TimeoutOpts struct {
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
 func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.ParseError) {
+	reusingBuffers := cap(dst) > 0
+
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	reader := readerPool.Get().(*snappy.Reader)
-	reader.Reset(body)
-
-	defer func() {
-		body.Close()
-		readerPool.Put(reader)
-	}()
+	defer body.Close()
 
 	buff := bytes.NewBuffer(dst[:0])
 
-	_, err := io.Copy(buff, reader)
+	_, err := io.Copy(buff, body)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
@@ -89,7 +79,39 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
 	}
 
-	return buff.Bytes(), nil
+	dst = buff.Bytes()
+	decodedLen, err := snappy.DecodedLen(dst)
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
+	}
+
+	// We are going to use a single buffer to decode into
+	// then resize, we also want about 2x the size of that
+	// so that callers reusing buffers are more
+	// likely to reuse buffers with enough length to hold everything.
+	desiredCapacity := len(dst) + decodedLen
+	if reusingBuffers {
+		desiredCapacity *= 2
+	}
+	if cap(dst) < desiredCapacity {
+		dst = make([]byte, desiredCapacity)
+	}
+
+	dstBeforeCopy := dst
+	dstLenBeforeCopy := len(dst)
+	dst, err = snappy.Decode(dst[dstLenBeforeCopy:cap(dst)], dst[:dstLenBeforeCopy])
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
+	}
+
+	// Copy result to beginning of buffer so when passed back
+	// to this function, we get the correct start of the buffer.
+	n := copy(dstBeforeCopy, dst)
+	if n != decodedLen {
+		return nil, xhttp.NewParseError(fmt.Errorf("result not as long as expected"), http.StatusInternalServerError)
+	}
+
+	return dstBeforeCopy[:n], nil
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.
