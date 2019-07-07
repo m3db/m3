@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // ID represents an immutable identifier to allow use of byte slice pooling
@@ -164,6 +165,9 @@ type Pool interface {
 
 	// CloneTags replicates a given set of Tags into a pooled Tags.
 	CloneTags(tags Tags) Tags
+
+	// BytesPool returns the underlying bytes pool.
+	BytesPool() pool.CheckedBytesPool
 }
 
 // Iterator represents an iterator over `ID` instances. It is not thread-safe.

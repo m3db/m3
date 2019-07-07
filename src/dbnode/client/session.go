@@ -108,7 +108,7 @@ var (
 	errSessionHasNoHostQueueForHost = newHostNotAvailableError(errors.New("session has no host queue for host"))
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
-	errUnableToEncodeTags = errors.New("unable to include tags")
+	errUnableToEncodeTags = errors.New("unable to encode tags")
 )
 
 // sessionState is volatile state that is protected by a
@@ -940,7 +940,11 @@ func (s *session) WriteTaggedBatch(
 func (s *session) writeBatchAttempt(
 	iter WriteTaggedIter,
 ) error {
-	startWriteAttempt := s.nowFn()
+	var (
+		startWriteAttempt = s.nowFn()
+		currResources     writeAttemptResources
+	)
+	defer currResources.finalize()
 
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -992,8 +996,10 @@ func (s *session) writeBatchAttempt(
 		value := entry.Value
 		annotation := entry.Annotation
 
-		state, _, _, err := s.writeAttemptWithRLock(
-			taggedWriteAttemptType, nsID, id, inputTags, timestamp, value, timeType, annotation)
+		state, res, err := s.writeAttemptWithRLock(
+			taggedWriteAttemptType, nsID, id, inputTags,
+			timestamp, value, timeType, annotation, currResources)
+		currResources = res
 		if err != nil {
 			iter.SetResult(WriteTaggedIterResult{
 				Err: err,
@@ -1084,8 +1090,14 @@ func (s *session) writeAttempt(
 		return errSessionStatusNotOpen
 	}
 
-	state, majority, enqueued, err := s.writeAttemptWithRLock(
-		wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
+	state, res, err := s.writeAttemptWithRLock(
+		wType, nsID, id, inputTags,
+		timestamp, value, timeType, annotation,
+		writeAttemptResources{})
+	defer res.finalize()
+
+	majority, enqueued := state.majority, state.enqueued
+
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1109,6 +1121,19 @@ func (s *session) writeAttempt(
 	return err
 }
 
+// writeAttemptResources is a set of re-useable resources between calls to
+// writeAttempteWithRLock, useful when processing batches to reduce
+// pool overhead.
+type writeAttemptResources struct {
+	tagEncoder serialize.TagEncoder
+}
+
+func (r writeAttemptResources) finalize() {
+	if r.tagEncoder != nil {
+		r.tagEncoder.Finalize()
+	}
+}
+
 // NB(prateek): the returned writeState, if valid, still holds the lock. Its ownership
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
@@ -1120,7 +1145,8 @@ func (s *session) writeAttemptWithRLock(
 	value float64,
 	timeType rpc.TimeType,
 	annotation []byte,
-) (*writeState, int32, int32, error) {
+	res writeAttemptResources,
+) (*writeState, writeAttemptResources, error) {
 	var (
 		majority = int32(s.state.majority)
 		enqueued int32
@@ -1133,15 +1159,22 @@ func (s *session) writeAttemptWithRLock(
 	// and consistency level checks.
 	nsID := s.cloneFinalizable(namespace)
 	tsID := s.cloneFinalizable(id)
-	var tagEncoder serialize.TagEncoder
+	var encodedTags checked.Bytes
 	if wType == taggedWriteAttemptType {
-		tagEncoder = s.pools.tagEncoder.Get()
-		// TODO(r): if inputTags is already a set of TagDecoder (do a type check)
-		// then just copy the bytes
-		if err := tagEncoder.Encode(inputTags); err != nil {
-			tagEncoder.Finalize()
-			return nil, 0, 0, err
+		if res.tagEncoder == nil {
+			res.tagEncoder = s.pools.tagEncoder.Get()
 		}
+		res.tagEncoder.Reset()
+		if err := res.tagEncoder.Encode(inputTags); err != nil {
+			return nil, res, err
+		}
+		data, ok := res.tagEncoder.Data()
+		if !ok {
+			return nil, res, errUnableToEncodeTags
+		}
+		dataBytes := data.Bytes()
+		encodedTags = s.pools.id.BytesPool().Get(len(dataBytes))
+		encodedTags.AppendAll(dataBytes)
 	}
 
 	var op writeOp
@@ -1161,11 +1194,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
 		wop.request.ID = tsID.Bytes()
-		encodedTagBytes, ok := tagEncoder.Data()
-		if !ok {
-			return nil, 0, 0, errUnableToEncodeTags
-		}
-		wop.request.EncodedTags = encodedTagBytes.Bytes()
+		wop.request.EncodedTags = encodedTags.Bytes()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1173,7 +1202,7 @@ func (s *session) writeAttemptWithRLock(
 		op = wop
 	default:
 		// should never happen
-		return nil, 0, 0, errUnknownWriteAttemptType
+		return nil, res, errUnknownWriteAttemptType
 	}
 
 	state := s.pools.writeState.Get()
@@ -1183,7 +1212,7 @@ func (s *session) writeAttemptWithRLock(
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	state.nsID, state.tsID, state.tagEncoder = nsID, tsID, tagEncoder
+	state.nsID, state.tsID, state.encodedTags = nsID, tsID, encodedTags
 	op.SetCompletionFn(state.completionFn)
 
 	if err := s.state.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
@@ -1193,7 +1222,7 @@ func (s *session) writeAttemptWithRLock(
 		state.queues = append(state.queues, s.state.queues[idx])
 	}); err != nil {
 		state.decRef()
-		return nil, 0, 0, err
+		return nil, res, err
 	}
 
 	state.Lock()
@@ -1206,7 +1235,7 @@ func (s *session) writeAttemptWithRLock(
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
 			s.log.Error("[invariant violated] failed to enqueue write", zap.Error(err))
-			return nil, 0, 0, err
+			return nil, res, err
 		}
 		enqueued++
 	}
@@ -1215,7 +1244,7 @@ func (s *session) writeAttemptWithRLock(
 
 	// NB(prateek): the current go-routine still holds a lock on the
 	// returned writeState object.
-	return state, majority, enqueued, nil
+	return state, res, nil
 }
 
 func (s *session) Fetch(
