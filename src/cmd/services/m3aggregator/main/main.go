@@ -71,6 +71,8 @@ func main() {
 	}
 	defer logger.Sync()
 
+	xconfig.WarnOnDeprecation(cfg, logger)
+
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatal("error creating metrics root scope", zap.Error(err))

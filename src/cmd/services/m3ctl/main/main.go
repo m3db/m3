@@ -71,6 +71,8 @@ func main() {
 	}
 	defer rawLogger.Sync()
 
+	xconfig.WarnOnDeprecation(cfg, rawLogger)
+
 	logger := rawLogger.Sugar()
 	envPort := os.Getenv(portEnvVar)
 	if envPort != "" {
