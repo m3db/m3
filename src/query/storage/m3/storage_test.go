@@ -171,12 +171,16 @@ func newWriteQuery(opts writeQueryOptions) storage.WriteQuery {
 			ident.Tag{Name: ident.StringID("foo"), Value: ident.StringID("bar")},
 			ident.Tag{Name: ident.StringID("biz"), Value: ident.StringID("baz")},
 		)),
+		TagOptions: models.NewTagOptions().
+			SetIDSchemeType(models.TypeQuoted),
+		Datapoints: ts.Datapoints{
+			ts.Datapoint{
+				Timestamp: time.Now().Add(-10 * time.Second),
+				Value:     2.0,
+			},
+		},
 		Unit:       xtime.Millisecond,
 		Attributes: attrs,
-	})
-	writeQuery.AppendDatapoint(ts.Datapoint{
-		Timestamp: time.Now().Add(-10 * time.Second),
-		Value:     2.0,
 	})
 	return writeQuery
 }

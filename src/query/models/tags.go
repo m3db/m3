@@ -368,15 +368,15 @@ func quotedID(dst []byte, t tagsIter) []byte {
 	)
 
 	t = t.Restart()
-	for child, tt, next := t.Next(); next; child, tt, next = t.Next() {
+	for t, tt, next := t.Next(); next; t, tt, next = t.Next() {
 		l, escape = serializedLength(tt.Name, tt.Value)
 		idLen += l
 		if escape.escapeName || escape.escapeValue {
 			if needEscaping == nil {
-				needEscaping = make([]tagEscaping, child.Len())
+				needEscaping = make([]tagEscaping, t.Len())
 			}
 
-			needEscaping[child.Index()] = escape
+			needEscaping[t.Index()] = escape
 		}
 	}
 
