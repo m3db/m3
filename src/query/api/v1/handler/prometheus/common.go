@@ -101,14 +101,16 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 
 	dstBeforeCopy := dst
 	dstLenBeforeCopy := len(dst)
-	dst, err = snappy.Decode(dst[dstLenBeforeCopy:cap(dst)], dst[:dstLenBeforeCopy])
+	target := dst[dstLenBeforeCopy : dstLenBeforeCopy+decodedLen]
+
+	target, err = snappy.Decode(target, dst[:dstLenBeforeCopy])
 	if err != nil {
 		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
 	}
 
 	// Copy result to beginning of buffer so when passed back
 	// to this function, we get the correct start of the buffer.
-	n := copy(dstBeforeCopy, dst)
+	n := copy(dstBeforeCopy, target)
 	if n != decodedLen {
 		return nil, xhttp.NewParseError(fmt.Errorf("result not as long as expected"), http.StatusInternalServerError)
 	}
