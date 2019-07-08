@@ -329,6 +329,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	require.Equal(t, numVolumes-1, s.FlushState(start).ColdVersion)
 }
 
+<<<<<<< HEAD
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
 // and call CacheShardIndices if a BlockRetrieverManager is present.
 func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
@@ -366,6 +367,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 }
 
+=======
+>>>>>>> Properly bootstrap cold flush version; add unit test
 func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
