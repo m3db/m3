@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -74,7 +75,7 @@ func TestParseWriteRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure same as input except with labels sorted.
-	expected := &WriteRequest{
+	expected, err := json.Marshal(&WriteRequest{
 		Series: []WriteSeries{
 			WriteSeries{
 				Labels: []Label{
@@ -105,7 +106,11 @@ func TestParseWriteRequest(t *testing.T) {
 				},
 			},
 		},
-	}
+	})
+	require.NoError(t, err)
 
-	require.Equal(t, *expected, *req)
+	actual, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	require.Equal(t, expected, actual)
 }

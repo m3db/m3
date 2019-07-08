@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"container/heap"
 	"context"
 	"errors"
 	"fmt"
@@ -502,48 +503,63 @@ func (i *tagIterator) Restart() {
 	i.Reset(i.labels)
 }
 
+const (
+	maxWriteByteBuffers = 1024
+)
+
 type writeBytesPool struct {
-	pool sync.Pool
+	sync.Mutex
+	heap *bytesHeap
 }
 
 func newWriteBytesPool() *writeBytesPool {
-	return &writeBytesPool{
-		pool: sync.Pool{
-			New: func() interface{} {
-				return []byte(nil)
-			},
-		},
-	}
+	p := &writeBytesPool{heap: &bytesHeap{}}
+	heap.Init(p.heap)
+	return p
 }
 
 func (p *writeBytesPool) Get() []byte {
-	return p.pool.Get().([]byte)[:0]
+	var result []byte
+	p.Lock()
+	count := p.heap.Len()
+	if count > 0 {
+		// Always return the largest.
+		largest := heap.Remove(p.heap, count-1)
+		result = largest.([]byte)
+	}
+	p.Unlock()
+	return result
 }
 
 func (p *writeBytesPool) Put(v []byte) {
-	p.pool.Put(v)
+	p.Lock()
+	heap.Push(p.heap, v)
+	count := p.heap.Len()
+	if count > maxWriteByteBuffers {
+		// Remove two at once, largest and smallest
+		// to keep the "middle" sized buffers.
+		heap.Remove(p.heap, count-1)
+		heap.Pop(p.heap)
+	}
+	p.Unlock()
 }
 
-// TODO remove? not needed
-// type bufferPool struct {
-// 	pool sync.Pool
-// }
+type bytesHeap [][]byte
 
-// func newBufferPool() *bufferPool {
-// 	return &bufferPool{
-// 		pool: sync.Pool{
-// 			New: func() interface{} {
-// 				return bytes.NewBuffer(nil)
-// 			},
-// 		},
-// 	}
-// }
+func (h bytesHeap) Len() int           { return len(h) }
+func (h bytesHeap) Less(i, j int) bool { return len(h[i]) < len(h[j]) }
+func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
-// func (p *bufferPool) Get() *bytes.Buffer {
-// 	return p.pool.Get().(*bytes.Buffer)
-// }
+func (h *bytesHeap) Push(x interface{}) {
+	// Push and Pop use pointer receivers because they modify the slice's length,
+	// not just its contents.
+	*h = append(*h, x.([]byte))
+}
 
-// func (p *bufferPool) Put(v *bytes.Buffer) {
-// 	v.Reset()
-// 	p.pool.Put(v)
-// }
+func (h *bytesHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
