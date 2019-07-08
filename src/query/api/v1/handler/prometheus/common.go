@@ -21,7 +21,9 @@
 package prometheus
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,8 +60,6 @@ type TimeoutOpts struct {
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
 func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.ParseError) {
-	reusingBuffers := cap(dst) > 0
-
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
@@ -68,40 +68,50 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 
 	defer body.Close()
 
-	buff := bytes.NewBuffer(dst[:0])
+	encodedLen := int(r.ContentLength)
+	if r.ContentLength <= 0 {
+		err := fmt.Errorf("content length not set")
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
 
-	_, err := io.Copy(buff, body)
+	// Work out total size before read.
+	reader := bufio.NewReaderSize(body, 8)
+	uvarint, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	decodedLen := int(uvarint)
+
+	totalLen := decodedLen + encodedLen
+	if cap(dst) < totalLen {
+		dst = make([]byte, totalLen, int(1.5*float64(totalLen)))
+	} else {
+		dst = dst[:totalLen]
+	}
+
+	target := dst[decodedLen : decodedLen+encodedLen]
+
+	// Put the size back in front and any unbuffered data.
+	n := binary.PutUvarint(target, uvarint)
+	for reader.Buffered() > 0 {
+		b, err := reader.ReadByte()
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+		target[n] = b
+		n++
+	}
+
+	buff := bytes.NewBuffer(target[n:n])
+	copied, err := io.Copy(buff, body)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
-	if buff.Len() == 0 {
-		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
-	}
-
-	dst = buff.Bytes()
-	decodedLen, err := snappy.DecodedLen(dst)
-	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload header: %v", err), http.StatusBadRequest)
-	}
-
-	// We are going to use a single buffer to decode into
-	// then resize, we also want about 2x the size of that
-	// so that callers reusing buffers are more
-	// likely to reuse buffers with enough length to hold everything.
-	encodedLen := len(dst)
-	desiredCapacity := encodedLen + decodedLen
-	if reusingBuffers {
-		desiredCapacity *= 2
-	}
-	if cap(dst) >= desiredCapacity {
-		// Just move current bytes to the end.
-		copy(dst[decodedLen:decodedLen+encodedLen], dst[:encodedLen])
-	} else {
-		// Need a new buffer, create then copy.
-		newDst := make([]byte, 0, desiredCapacity)
-		copy(newDst[decodedLen:decodedLen+encodedLen], dst[:encodedLen])
-		dst = newDst
+	totalRead := n + int(copied)
+	if totalRead != encodedLen {
+		return nil, xhttp.NewParseError(fmt.Errorf("request body not expected length"), http.StatusBadRequest)
 	}
 
 	dst, err = snappy.Decode(dst[:decodedLen], dst[decodedLen:decodedLen+encodedLen])
