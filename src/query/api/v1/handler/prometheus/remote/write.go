@@ -72,7 +72,7 @@ type PromWriteHandler struct {
 	nowFn                clock.NowFn
 	parser               *Parser
 	instrumentOpts       instrument.Options
-	metrics              promWriteMetrics
+	metrics              PromWriteMetrics
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -92,7 +92,7 @@ func NewPromWriteHandler(
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope())
+	metrics, err := NewPromWriteMetrics(instrumentOpts.MetricsScope())
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func NewPromWriteHandler(
 	}, nil
 }
 
-type promWriteMetrics struct {
+type PromWriteMetrics struct {
 	writeSuccess         tally.Counter
 	writeErrorsServer    tally.Counter
 	writeErrorsClient    tally.Counter
@@ -115,36 +115,36 @@ type promWriteMetrics struct {
 	ingestLatencyBuckets tally.DurationBuckets
 }
 
-func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
+func NewPromWriteMetrics(scope tally.Scope) (PromWriteMetrics, error) {
 	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo60mBuckets, err := tally.LinearDurationBuckets(0, 5*time.Minute, 12)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 	upTo60mBuckets = upTo60mBuckets[1:] // Remove the first 0s to get 5 min aligned buckets
 
 	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 19)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
 
@@ -155,7 +155,7 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
-	return promWriteMetrics{
+	return PromWriteMetrics{
 		writeSuccess:         scope.SubScope("write").Counter("success"),
 		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
 		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
@@ -176,17 +176,6 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Process write request.
 	batchErr := h.write(r.Context(), req, opts)
-
-	// Record ingestion delay latency
-	// TODO: restore this
-	// now := h.nowFn()
-	// for _, series := range req.Series {
-	// 	for _, sample := range series.Samples {
-	// 		age := now.Sub(storage.PromTimestampToTime(sample.TimeUnixMillis))
-	// 		h.metrics.ingestLatency.RecordDuration(age)
-	// 	}
-	// }
-
 	if batchErr != nil {
 		var (
 			errs              = batchErr.Errors()
@@ -304,7 +293,7 @@ func (h *PromWriteHandler) write(
 	req *WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter := NewTimeSeriesIter(req, h.tagOptions)
+	iter := NewTimeSeriesIter(req, h.tagOptions, h.metrics)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
@@ -319,6 +308,8 @@ type promTSIter struct {
 
 	datapoints ts.Datapoints
 	tagIter    *tagIterator
+
+	metrics PromWriteMetrics
 }
 
 // NewTimeSeriesIter is used to create a downsample and write iterator
@@ -326,6 +317,7 @@ type promTSIter struct {
 func NewTimeSeriesIter(
 	req *WriteRequest,
 	tagOpts models.TagOptions,
+	metrics PromWriteMetrics,
 ) ingest.DownsampleAndWriteIter {
 	return &promTSIter{
 		idx:        -1,
@@ -333,6 +325,7 @@ func NewTimeSeriesIter(
 		tagOpts:    tagOpts,
 		tagIter:    newTagIterator(),
 		datapoints: nil,
+		metrics:    metrics,
 	}
 }
 
@@ -358,6 +351,11 @@ func (i *promTSIter) SetDatapointResult(
 	datapointIdx int,
 	result storage.WriteQueryResult,
 ) {
+	// Track result.
+	_, dps, _ := i.Current()
+	latency := time.Now().Sub(dps[datapointIdx].Timestamp)
+	i.metrics.ingestLatency.RecordDuration(latency)
+
 	i.req.SetDatapointResult(datapointIdx, result)
 }
 
