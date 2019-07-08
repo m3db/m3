@@ -21,9 +21,11 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +48,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -823,11 +826,20 @@ func TestLocalWriteBatch(t *testing.T) {
 		numDatapoints += len(s.Samples)
 	}
 
+	// Marshal.
 	data, err := proto.Marshal(input)
 	require.NoError(t, err)
 
-	req, err := remote.ParseWriteRequest(data)
+	// Snappy encode.
+	encoded := snappy.Encode(nil, data)
+
+	httpReq := httptest.NewRequest("POST", "/write", bytes.NewReader(encoded))
+	httpReq.ContentLength = int64(len(encoded))
+
+	req, err := remote.NewParser().ParseWriteRequest(httpReq)
 	require.NoError(t, err)
+
+	defer req.Finalize()
 
 	tagOpts := models.NewTagOptions().
 		SetIDSchemeType(models.TypeQuoted)
@@ -906,6 +918,10 @@ func TestLocalWriteBatch(t *testing.T) {
 						assert.Nil(t, curr.Annotation)
 					}
 				}
+
+				// Check iter error.
+				require.NoError(t, iter.Err())
+
 				// Should iterate through all samples.
 				require.Equal(t, numDatapoints, i)
 			}

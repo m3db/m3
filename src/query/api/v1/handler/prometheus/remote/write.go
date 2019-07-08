@@ -21,20 +21,17 @@
 package remote
 
 import (
-	"container/heap"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -73,7 +70,7 @@ type PromWriteHandler struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	tagOptions           models.TagOptions
 	nowFn                clock.NowFn
-	writeBytesPool       *writeBytesPool
+	parser               *Parser
 	instrumentOpts       instrument.Options
 	metrics              promWriteMetrics
 }
@@ -104,7 +101,7 @@ func NewPromWriteHandler(
 		downsamplerAndWriter: downsamplerAndWriter,
 		tagOptions:           tagOptions,
 		nowFn:                nowFn,
-		writeBytesPool:       newWriteBytesPool(),
+		parser:               NewParser(),
 		metrics:              metrics,
 		instrumentOpts:       instrumentOpts,
 	}, nil
@@ -168,34 +165,27 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	buff := h.writeBytesPool.Get()
-
-	resultBuff, req, opts, rErr := h.parseRequest(buff, r)
-
-	// NB(r): Need to hold onto bytes until finished call since
-	// the parsed write request holds onto bytes from the buffer.
-	defer h.writeBytesPool.Put(resultBuff)
-
+	req, opts, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	// Ensure that write request returned to pool.
 	defer req.Finalize()
 
 	// Process write request.
 	batchErr := h.write(r.Context(), req, opts)
 
 	// Record ingestion delay latency
-	now := h.nowFn()
-	for _, series := range req.Series {
-		for _, sample := range series.Samples {
-			age := now.Sub(storage.PromTimestampToTime(sample.TimeUnixMillis))
-			h.metrics.ingestLatency.RecordDuration(age)
-		}
-	}
+	// TODO: restore this
+	// now := h.nowFn()
+	// for _, series := range req.Series {
+	// 	for _, sample := range series.Samples {
+	// 		age := now.Sub(storage.PromTimestampToTime(sample.TimeUnixMillis))
+	// 		h.metrics.ingestLatency.RecordDuration(age)
+	// 	}
+	// }
 
 	if batchErr != nil {
 		var (
@@ -259,16 +249,15 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PromWriteHandler) parseRequest(
-	buff []byte,
 	r *http.Request,
-) ([]byte, *WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
+) (*WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(handler.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storage.ParseMetricsType(v)
 		if err != nil {
-			return nil, nil, ingest.WriteOptions{},
+			return nil, ingest.WriteOptions{},
 				xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
@@ -283,14 +272,14 @@ func (h *PromWriteHandler) parseRequest(
 		case storage.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
 				err := errUnaggregatedStoragePolicySet
-				return nil, nil, ingest.WriteOptions{},
+				return nil, ingest.WriteOptions{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
 			}
 		default:
 			parsed, err := policy.ParseStoragePolicy(strPolicy)
 			if err != nil {
 				err = fmt.Errorf("could not parse storage policy: %v", err)
-				return nil, nil, ingest.WriteOptions{},
+				return nil, ingest.WriteOptions{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
 			}
 
@@ -302,19 +291,12 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
-	var parseErr *xhttp.ParseError
-	buff, parseErr = prometheus.ParsePromCompressedRequest(buff, r)
-	if parseErr != nil {
-		return nil, nil, ingest.WriteOptions{}, parseErr
-	}
-
-	req, err := ParseWriteRequest(buff)
+	req, err := h.parser.ParseWriteRequest(r)
 	if err != nil {
-		return nil, nil, ingest.WriteOptions{},
-			xhttp.NewParseError(err, http.StatusInternalServerError)
+		return nil, ingest.WriteOptions{}, err
 	}
 
-	return buff, req, opts, nil
+	return req, opts, nil
 }
 
 func (h *PromWriteHandler) write(
@@ -333,13 +315,10 @@ type promTSIter struct {
 	req     *WriteRequest
 	tagOpts models.TagOptions
 
+	currCalled bool
+
 	datapoints ts.Datapoints
 	tagIter    *tagIterator
-}
-
-type writeState struct {
-	result storage.WriteQueryResult
-	state  interface{}
 }
 
 // NewTimeSeriesIter is used to create a downsample and write iterator
@@ -359,34 +338,34 @@ func NewTimeSeriesIter(
 
 func (i *promTSIter) Restart() {
 	i.idx = -1
-	i.tagIter.Restart()
-	i.datapoints = i.datapoints[:0]
+	i.req.IterRestart()
+	i.currCalled = false
 }
 
 func (i *promTSIter) DatapointResult(
 	datapointIdx int,
 ) storage.WriteQueryResult {
-	return i.req.Series[i.idx].Samples[datapointIdx].Result
+	return i.req.DatapointResult(datapointIdx)
 }
 
 func (i *promTSIter) DatapointState(
 	datapointIdx int,
 ) interface{} {
-	return i.req.Series[i.idx].Samples[datapointIdx].State
+	return i.req.DatapointState(datapointIdx)
 }
 
 func (i *promTSIter) SetDatapointResult(
 	datapointIdx int,
 	result storage.WriteQueryResult,
 ) {
-	i.req.Series[i.idx].Samples[datapointIdx].Result = result
+	i.req.SetDatapointResult(datapointIdx, result)
 }
 
 func (i *promTSIter) SetDatapointState(
 	datapointIdx int,
 	state interface{},
 ) {
-	i.req.Series[i.idx].Samples[datapointIdx].State = state
+	i.req.SetDatapointState(datapointIdx, state)
 }
 
 func (i *promTSIter) TagOptions() models.TagOptions {
@@ -394,33 +373,42 @@ func (i *promTSIter) TagOptions() models.TagOptions {
 }
 
 func (i *promTSIter) Next() bool {
-	i.idx++
-	next := i.idx < len(i.req.Series)
-	if !next {
+	if i.Err() != nil {
 		return false
 	}
 
-	i.tagIter.Reset(i.req.Series[i.idx].Labels)
-	i.datapoints = i.datapoints[:0]
-	for _, dp := range i.req.Series[i.idx].Samples {
-		i.datapoints = append(i.datapoints, ts.Datapoint{
-			Timestamp: storage.PromTimestampToTime(dp.TimeUnixMillis),
-			Value:     dp.Value,
-		})
+	i.idx++
+	if !i.req.IterNext() {
+		return false
 	}
+
+	i.currCalled = false
 	return true
 }
 
 func (i *promTSIter) Current() (ident.TagIterator, ts.Datapoints, xtime.Unit) {
-	if len(i.req.Series) == 0 || i.idx < 0 || i.idx >= len(i.req.Series) {
+	if i.idx < 0 || i.idx >= i.req.Len() {
 		return nil, nil, 0
+	}
+
+	if !i.currCalled {
+		labels, samples := i.req.IterCurr()
+		i.tagIter.Reset(labels)
+		i.datapoints = i.datapoints[:0]
+		for _, s := range samples {
+			i.datapoints = append(i.datapoints, ts.Datapoint{
+				Timestamp: storage.PromTimestampToTime(s.TimeUnixMillis),
+				Value:     s.Value,
+			})
+		}
+		i.currCalled = true
 	}
 
 	return i.tagIter, i.datapoints, xtime.Millisecond
 }
 
 func (i *promTSIter) Err() error {
-	return nil
+	return i.req.IterErr()
 }
 
 type tagIterator struct {
@@ -499,65 +487,4 @@ func (i *tagIterator) Duplicate() ident.TagIterator {
 
 func (i *tagIterator) Restart() {
 	i.Reset(i.labels)
-}
-
-const (
-	maxWriteByteBuffers = 4096
-)
-
-type writeBytesPool struct {
-	sync.Mutex
-	heap *bytesHeap
-}
-
-func newWriteBytesPool() *writeBytesPool {
-	p := &writeBytesPool{heap: &bytesHeap{}}
-	heap.Init(p.heap)
-	return p
-}
-
-func (p *writeBytesPool) Get() []byte {
-	var result []byte
-	p.Lock()
-	count := p.heap.Len()
-	if count > 0 {
-		// Always return the largest.
-		largest := heap.Remove(p.heap, count-1)
-		result = largest.([]byte)
-	}
-	p.Unlock()
-	return result[:0]
-}
-
-func (p *writeBytesPool) Put(v []byte) {
-	p.Lock()
-	heap.Push(p.heap, v)
-	count := p.heap.Len()
-	if count > maxWriteByteBuffers {
-		// Remove two at once, largest and smallest
-		// to keep the "middle" sized buffers.
-		heap.Remove(p.heap, count-1)
-		heap.Pop(p.heap)
-	}
-	p.Unlock()
-}
-
-type bytesHeap [][]byte
-
-func (h bytesHeap) Len() int           { return len(h) }
-func (h bytesHeap) Less(i, j int) bool { return cap(h[i]) < cap(h[j]) }
-func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-func (h *bytesHeap) Push(x interface{}) {
-	// Push and Pop use pointer receivers because they modify the slice's length,
-	// not just its contents.
-	*h = append(*h, x.([]byte))
-}
-
-func (h *bytesHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
 }

@@ -21,7 +21,6 @@
 package prometheus
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -75,12 +74,13 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 	}
 
 	// Work out total size before read.
-	reader := bufio.NewReaderSize(body, 8)
-	uvarint, err := binary.ReadUvarint(reader)
-	if err != nil {
+	uvarintBuff := make([]byte, 8)
+	if _, err := io.ReadFull(body, uvarintBuff); err != nil {
+		err = fmt.Errorf("could not read header: %v", err)
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
+	uvarint, _ := binary.Uvarint(uvarintBuff)
 	decodedLen := int(uvarint)
 
 	totalLen := decodedLen + encodedLen
@@ -91,30 +91,12 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 	}
 
 	target := dst[decodedLen : decodedLen+encodedLen]
-
-	// Put the size back in front and any unbuffered data.
-	n := binary.PutUvarint(target, uvarint)
-	for reader.Buffered() > 0 {
-		b, err := reader.ReadByte()
-		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
-		}
-		target[n] = b
-		n++
-	}
-
-	buff := bytes.NewBuffer(target[n:n])
-	copied, err := io.Copy(buff, body)
-	if err != nil {
+	copy(target[:len(uvarintBuff)], uvarintBuff)
+	if _, err := io.ReadFull(body, target[len(uvarintBuff):]); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
-	totalRead := n + int(copied)
-	if totalRead != encodedLen {
-		return nil, xhttp.NewParseError(fmt.Errorf("request body not expected length"), http.StatusBadRequest)
-	}
-
-	dst, err = snappy.Decode(dst[:decodedLen], dst[decodedLen:decodedLen+encodedLen])
+	dst, err := snappy.Decode(dst[:decodedLen], dst[decodedLen:decodedLen+encodedLen])
 	if err != nil {
 		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
 	}

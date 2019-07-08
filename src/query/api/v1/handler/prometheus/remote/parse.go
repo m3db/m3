@@ -22,26 +22,576 @@ package remote
 
 import (
 	"bytes"
+	"container/heap"
+	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/storage"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	protobuf "github.com/golang/protobuf/proto"
 )
 
-type WriteRequest struct {
-	Series []WriteSeries
+const (
+	maxParseByteBuffers = 4096
+	writeStateBatchSize = 128
+)
 
-	pooledBatch pooledBatch
+var errUnexpectedEOF = errors.New("unexpected EOF")
+
+type Parser struct {
+	bytesPool *parseBytesPool
+	statePool *writeStateBatchPool
+}
+
+func NewParser() *Parser {
+	return &Parser{
+		bytesPool: newParseBytesPool(),
+		statePool: newWriteStateBatchPool(),
+	}
+}
+
+func (p *Parser) ParseWriteRequest(
+	r *http.Request,
+) (*WriteRequest, *xhttp.ParseError) {
+	parseBuff := p.bytesPool.Get()
+	data, parseErr := prometheus.ParsePromCompressedRequest(parseBuff, r)
+	if parseErr != nil {
+		p.bytesPool.Put(parseBuff)
+		return nil, parseErr
+	}
+
+	req, err := newWriteRequest(p, data)
+	if err != nil {
+		p.bytesPool.Put(data)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	numBatches := req.stats.numSeries / writeStateBatchSize
+	if req.stats.numSeries%writeStateBatchSize != 0 {
+		// Need an extra batch (thanks to integer division).
+		numBatches++
+	}
+
+	req.states = make([]*writeStateBatch, 0, numBatches)
+	for i := 0; i < numBatches; i++ {
+		req.states = append(req.states, p.statePool.Get())
+	}
+
+	return req, nil
+}
+
+type WriteRequest struct {
+	stats writeRequestStats
+
+	data   []byte
+	states []*writeStateBatch
+
+	// iterator state
+	idx            int
+	samplesOffset  int
+	iterErr        error
+	currSeriesData []byte
+	currLabels     []Label
+	currSamples    []Sample
+
+	rootBuff       *proto.Buffer
+	innerBuff      *proto.Buffer
+	innerInnerBuff *proto.Buffer
+	rewriteBuff    *proto.Buffer
+	rewriteBytes   []byte
+
+	parser *Parser
+}
+
+type writeRequestStats struct {
+	numSeries, numLabels, numSamples int
+}
+
+func newWriteRequest(
+	parser *Parser,
+	data []byte,
+) (*WriteRequest, error) {
+	w := &WriteRequest{
+		data:           data,
+		idx:            -1,
+		rootBuff:       proto.NewBuffer(nil),
+		innerBuff:      proto.NewBuffer(nil),
+		innerInnerBuff: proto.NewBuffer(nil),
+		rewriteBuff:    proto.NewBuffer(nil),
+		parser:         parser,
+	}
+	var err error
+	w.stats, err = w.parse()
+	if err != nil {
+		return nil, err
+	}
+	w.IterRestart()
+	return w, nil
+}
+
+type statePos struct {
+	batchIdx int
+	elemIdx  int
+}
+
+func (r *WriteRequest) statePos(relativeSampleIdx int) statePos {
+	sampleIdx := r.samplesOffset - len(r.currSamples) + relativeSampleIdx
+	return statePos{
+		batchIdx: sampleIdx / writeStateBatchSize,
+		elemIdx:  sampleIdx % writeStateBatchSize,
+	}
+}
+
+func (r *WriteRequest) DatapointResult(
+	datapointIdx int,
+) storage.WriteQueryResult {
+	pos := r.statePos(datapointIdx)
+	return r.states[pos.batchIdx].values[pos.elemIdx].result
+}
+
+func (r *WriteRequest) DatapointState(
+	datapointIdx int,
+) interface{} {
+	pos := r.statePos(datapointIdx)
+	return r.states[pos.batchIdx].values[pos.elemIdx].state
+}
+
+func (r *WriteRequest) SetDatapointResult(
+	datapointIdx int,
+	result storage.WriteQueryResult,
+) {
+	pos := r.statePos(datapointIdx)
+	r.states[pos.batchIdx].values[pos.elemIdx].result = result
+}
+
+func (r *WriteRequest) SetDatapointState(
+	datapointIdx int,
+	state interface{},
+) {
+	pos := r.statePos(datapointIdx)
+	r.states[pos.batchIdx].values[pos.elemIdx].state = state
+}
+
+func (r *WriteRequest) Len() int {
+	return r.stats.numSeries
+}
+
+func (r *WriteRequest) IterRestart() {
+	r.idx = -1
+	r.samplesOffset = 0
+	r.rootBuff.Reset(r.data)
+	r.innerBuff.Reset(nil)
+	r.innerInnerBuff.Reset(nil)
+}
+
+func (r *WriteRequest) IterCurr() ([]Label, []Sample) {
+	return r.currLabels, r.currSamples
+}
+
+func (r *WriteRequest) IterErr() error {
+	return r.iterErr
+}
+
+func (r *WriteRequest) IterNext() bool {
+	if r.iterErr != nil {
+		return false
+	}
+
+	r.idx++
+	next := r.idx < r.stats.numSeries
+	if !next {
+		return false
+	}
+
+	if r.rootBuff.EOF() {
+		r.iterErr = errUnexpectedEOF
+		return false
+	}
+
+	fieldNum, wireType, err := r.rootBuff.DecodeTagAndWireType()
+	if err != nil {
+		r.iterErr = fmt.Errorf(
+			"decoded write request message error: %v", err)
+		return false
+	}
+
+	if fieldNum != 1 {
+		r.iterErr = fmt.Errorf(
+			"expecting time series field: actual=%d", fieldNum)
+		return false
+	}
+	if wireType != protobuf.WireBytes {
+		r.iterErr = fmt.Errorf(
+			"expecting time series message wire type: actual=%d", wireType)
+		return false
+	}
+
+	inner, err := r.rootBuff.DecodeRawBytes(false)
+	if err != nil {
+		r.iterErr = fmt.Errorf(
+			"decode time series message error: %v", err)
+		return false
+	}
+
+	r.currSeriesData = inner
+	r.currLabels = r.currLabels[:0]
+	r.currSamples = r.currSamples[:0]
+
+	r.innerBuff.Reset(inner)
+	for !r.innerBuff.EOF() {
+		fieldNum, wireType, err := r.innerBuff.DecodeTagAndWireType()
+		if err != nil {
+			r.iterErr = fmt.Errorf(
+				"decoded time series message field error: %v", err)
+			return false
+		}
+
+		switch fieldNum {
+		case 1:
+			// Decode label.
+			if wireType != protobuf.WireBytes {
+				r.iterErr = fmt.Errorf(
+					"expecting label message wire type: actual=%d", wireType)
+				return false
+			}
+
+			innerInner, err := r.innerBuff.DecodeRawBytes(false)
+			if err != nil {
+				r.iterErr = fmt.Errorf(
+					"decode label message error: %v", err)
+				return false
+			}
+
+			var label Label
+
+			r.innerInnerBuff.Reset(innerInner)
+			for !r.innerInnerBuff.EOF() {
+				fieldNum, wireType, err := r.innerInnerBuff.DecodeTagAndWireType()
+				if err != nil {
+					r.iterErr = fmt.Errorf(
+						"decoded label message field error: %v", err)
+					return false
+				}
+
+				switch fieldNum {
+				case 1:
+					if wireType != protobuf.WireBytes {
+						r.iterErr = fmt.Errorf(
+							"expecting label name message wire type: actual=%d", wireType)
+						return false
+					}
+
+					label.Name, err = r.innerInnerBuff.DecodeRawBytes(false)
+					if err != nil {
+						r.iterErr = fmt.Errorf(
+							"decode label name message error: %v", err)
+						return false
+					}
+				case 2:
+					if wireType != protobuf.WireBytes {
+						r.iterErr = fmt.Errorf(
+							"expecting label value message wire type: actual=%d", wireType)
+						return false
+					}
+
+					label.Value, err = r.innerInnerBuff.DecodeRawBytes(false)
+					if err != nil {
+						r.iterErr = fmt.Errorf(
+							"decode label value message error: %v", err)
+						return false
+					}
+				default:
+					r.iterErr = fmt.Errorf(
+						"decode label unknown field: %d", fieldNum)
+					return false
+				}
+			}
+
+			r.currLabels = append(r.currLabels, label)
+		case 2:
+			// Decode sample.
+			if wireType != protobuf.WireBytes {
+				r.iterErr = fmt.Errorf(
+					"expecting sample message wire type: actual=%d", wireType)
+				return false
+			}
+
+			innerInner, err := r.innerBuff.DecodeRawBytes(false)
+			if err != nil {
+				r.iterErr = fmt.Errorf(
+					"decode sample message error: %v", err)
+				return false
+			}
+
+			var sample Sample
+
+			r.innerInnerBuff.Reset(innerInner)
+			for !r.innerInnerBuff.EOF() {
+				fieldNum, wireType, err := r.innerInnerBuff.DecodeTagAndWireType()
+				if err != nil {
+					r.iterErr = fmt.Errorf(
+						"decoded sample message field error: %v", err)
+					return false
+				}
+
+				switch fieldNum {
+				case 1:
+					if wireType != protobuf.WireFixed64 {
+						r.iterErr = fmt.Errorf(
+							"expecting sample value int64 wire type: actual=%d", wireType)
+						return false
+					}
+
+					var valueBits uint64
+					valueBits, err = r.innerInnerBuff.DecodeFixed64()
+					if err != nil {
+						r.iterErr = fmt.Errorf(
+							"decode sample value message error: %v", err)
+						return false
+					}
+
+					sample.Value = math.Float64frombits(valueBits)
+
+				case 2:
+					if wireType != protobuf.WireVarint {
+						r.iterErr = fmt.Errorf(
+							"expecting sample timestamp varint wire type: actual=%d", wireType)
+						return false
+					}
+
+					var ts uint64
+					ts, err = r.innerInnerBuff.DecodeVarint()
+					if err != nil {
+						r.iterErr = fmt.Errorf(
+							"decode sample timestamp message error: %v", err)
+						return false
+					}
+
+					sample.TimeUnixMillis = int64(ts)
+				default:
+					r.iterErr = fmt.Errorf(
+						"decode sample unknown field: %d", fieldNum)
+					return false
+				}
+			}
+
+			r.currSamples = append(r.currSamples, sample)
+		default:
+			r.iterErr = fmt.Errorf(
+				"decode time series unknown field: %d", fieldNum)
+			return false
+		}
+	}
+
+	r.samplesOffset += len(r.currSamples)
+	return true
+}
+
+func (r *WriteRequest) parse() (writeRequestStats, error) {
+	// Inline all for fastest upfront parsing.
+	var (
+		stats          writeRequestStats
+		rootBuff       = r.rootBuff
+		innerBuff      = r.innerBuff
+		innerInnerBuff = r.innerInnerBuff
+	)
+
+	rootBuff.Reset(r.data)
+	for !rootBuff.EOF() {
+		fieldNum, wireType, err := rootBuff.DecodeTagAndWireType()
+		if err != nil {
+			return stats, err
+		}
+
+		if fieldNum != 1 {
+			return stats, fmt.Errorf("expecting only time series field")
+		}
+		if wireType != protobuf.WireBytes {
+			return stats, fmt.Errorf("expecting series message wire type")
+		}
+
+		inner, err := rootBuff.DecodeRawBytes(false)
+		if err != nil {
+			return stats, err
+		}
+
+		stats.numSeries++
+
+		// We are going to check the labels are in order and reorder if not.
+		var (
+			lastLabel        Label
+			labelsOutOfOrder bool
+			seriesBuff       = inner
+		)
+		r.currLabels = r.currLabels[:0]
+		r.currSamples = r.currSamples[:0]
+
+		innerBuff.Reset(inner)
+		for !innerBuff.EOF() {
+			fieldNum, wireType, err := innerBuff.DecodeTagAndWireType()
+			if err != nil {
+				return stats, err
+			}
+
+			switch fieldNum {
+			case 1:
+				// Decode label.
+				if wireType != protobuf.WireBytes {
+					return stats, fmt.Errorf("expecting label message wire type")
+				}
+
+				innerInner, err := innerBuff.DecodeRawBytes(false)
+				if err != nil {
+					return stats, err
+				}
+
+				label := Label{
+					messageBytes: innerInner,
+				}
+				stats.numLabels++
+
+				innerInnerBuff.Reset(innerInner)
+				for !innerInnerBuff.EOF() {
+					fieldNum, wireType, err := innerInnerBuff.DecodeTagAndWireType()
+					if err != nil {
+						return stats, err
+					}
+
+					switch fieldNum {
+					case 1:
+						if wireType != protobuf.WireBytes {
+							return stats, fmt.Errorf("expecting label name bytes wire type")
+						}
+
+						label.Name, err = r.innerInnerBuff.DecodeRawBytes(false)
+						if err != nil {
+							return stats, err
+						}
+					case 2:
+						if wireType != protobuf.WireBytes {
+							return stats, fmt.Errorf("expecting label name bytes wire type")
+						}
+
+						label.Value, err = r.innerInnerBuff.DecodeRawBytes(false)
+						if err != nil {
+							return stats, err
+						}
+					default:
+						return stats, fmt.Errorf("unknown label field: %v", fieldNum)
+					}
+				}
+
+				// Check if out of order and track if so.
+				if len(r.currLabels) > 0 &&
+					!labelsOutOfOrder &&
+					bytes.Compare(label.Name, lastLabel.Name) < 0 {
+					labelsOutOfOrder = true
+				}
+				lastLabel = label
+
+				r.currLabels = append(r.currLabels, label)
+			case 2:
+				// Decode sample.
+				if wireType != protobuf.WireBytes {
+					return stats, fmt.Errorf("expecting label message wire type")
+				}
+
+				innerInner, err := innerBuff.DecodeRawBytes(false)
+				if err != nil {
+					return stats, err
+				}
+
+				sample := Sample{
+					messageBytes: innerInner,
+				}
+				stats.numSamples++
+
+				innerInnerBuff.Reset(innerInner)
+				for !innerInnerBuff.EOF() {
+					fieldNum, wireType, err := innerInnerBuff.DecodeTagAndWireType()
+					if err != nil {
+						return stats, err
+					}
+
+					switch fieldNum {
+					case 1:
+						if wireType != protobuf.WireFixed64 {
+							return stats, fmt.Errorf("expecting sample value wire type")
+						}
+
+						_, err = innerInnerBuff.DecodeFixed64()
+						if err != nil {
+							return stats, err
+						}
+					case 2:
+						if wireType != protobuf.WireVarint {
+							return stats, fmt.Errorf("expecting sample timestamp wire type")
+						}
+
+						_, err = innerInnerBuff.DecodeVarint()
+						if err != nil {
+							return stats, err
+						}
+					default:
+						return stats, fmt.Errorf("unknown sample field: %v", fieldNum)
+					}
+				}
+
+				r.currSamples = append(r.currSamples, sample)
+			default:
+				return stats, fmt.Errorf("unknown series field: %v", fieldNum)
+			}
+		}
+
+		if labelsOutOfOrder {
+			// Need to reorder the labels, order them then write out all the submessages.
+			sort.Sort(labelsByName(r.currLabels))
+
+			// Need to rewrite this series message, but can't use direct ref to
+			// bytes or will overwrite the very thing we are writing out.
+			writeBuff := r.rewriteBuff
+			writeBuff.ResetEncode()
+
+			// Write out labels.
+			for i := range r.currLabels {
+				writeBuff.EncodeTagAndWireType(1, protobuf.WireBytes)
+				writeBuff.EncodeRawBytes(r.currLabels[i].messageBytes)
+			}
+
+			// Write out samples.
+			for i := range r.currSamples {
+				writeBuff.EncodeTagAndWireType(2, protobuf.WireBytes)
+				writeBuff.EncodeRawBytes(r.currSamples[i].messageBytes)
+			}
+
+			msgLen := len(seriesBuff)
+			if n := copy(seriesBuff, writeBuff.Bytes()); n != msgLen {
+				return stats, fmt.Errorf(
+					"could not reorder labels: expected_msg_len=%d, actual_msg_len",
+					msgLen, n)
+			}
+		}
+	}
+
+	return stats, nil
 }
 
 func (p *WriteRequest) Finalize() {
-	parsePutPooled(p.pooledBatch)
-	p.pooledBatch = pooledBatch{}
+	// Return data to pools.
+	p.parser.bytesPool.Put(p.data)
+	for _, batch := range p.states {
+		p.parser.statePool.Put(batch)
+	}
+
+	// Zero refs.
+	*p = WriteRequest{}
 }
 
 type WriteSeries struct {
@@ -52,6 +602,8 @@ type WriteSeries struct {
 type Label struct {
 	Name  []byte
 	Value []byte
+
+	messageBytes []byte
 }
 
 type Sample struct {
@@ -60,383 +612,8 @@ type Sample struct {
 
 	Result storage.WriteQueryResult
 	State  interface{}
-}
 
-func ParseWriteRequest(data []byte) (*WriteRequest, error) {
-	req := &WriteRequest{}
-
-	numSeries := 0
-	numLabels := 0
-	numSamples := 0
-	buff := proto.NewBuffer(data)
-	innerBuff := proto.NewBuffer(nil)
-	innerInnerBuff := proto.NewBuffer(nil)
-	for !buff.EOF() {
-		fieldNum, wireType, err := buff.DecodeTagAndWireType()
-		if err != nil {
-			return nil, err
-		}
-
-		if fieldNum != 1 {
-			return nil, fmt.Errorf("expecting only time series field")
-		}
-		if wireType != protobuf.WireBytes {
-			return nil, fmt.Errorf("expecting series message wire type")
-		}
-
-		inner, err := buff.DecodeRawBytes(false)
-		if err != nil {
-			return nil, err
-		}
-
-		numSeries++
-
-		innerBuff.Reset(inner)
-		for !innerBuff.EOF() {
-			fieldNum, wireType, err := innerBuff.DecodeTagAndWireType()
-			if err != nil {
-				return nil, err
-			}
-
-			switch fieldNum {
-			case 1:
-				// Decode label.
-				if wireType != protobuf.WireBytes {
-					return nil, fmt.Errorf("expecting label message wire type")
-				}
-
-				innerInner, err := innerBuff.DecodeRawBytes(false)
-				if err != nil {
-					return nil, err
-				}
-
-				numLabels++
-
-				innerInnerBuff.Reset(innerInner)
-				for !innerInnerBuff.EOF() {
-					fieldNum, wireType, err := innerInnerBuff.DecodeTagAndWireType()
-					if err != nil {
-						return nil, err
-					}
-
-					switch fieldNum {
-					case 1:
-						if wireType != protobuf.WireBytes {
-							return nil, fmt.Errorf("expecting label name bytes wire type")
-						}
-
-						_, err = innerInnerBuff.DecodeRawBytes(false)
-						if err != nil {
-							return nil, err
-						}
-					case 2:
-						if wireType != protobuf.WireBytes {
-							return nil, fmt.Errorf("expecting label name bytes wire type")
-						}
-
-						_, err = innerInnerBuff.DecodeRawBytes(false)
-						if err != nil {
-							return nil, err
-						}
-					default:
-						return nil, fmt.Errorf("unknown label field: %v", fieldNum)
-					}
-				}
-			case 2:
-				// Decode sample.
-				if wireType != protobuf.WireBytes {
-					return nil, fmt.Errorf("expecting label message wire type")
-				}
-
-				innerInner, err := innerBuff.DecodeRawBytes(false)
-				if err != nil {
-					return nil, err
-				}
-
-				numSamples++
-
-				innerInnerBuff.Reset(innerInner)
-				for !innerInnerBuff.EOF() {
-					fieldNum, wireType, err := innerInnerBuff.DecodeTagAndWireType()
-					if err != nil {
-						return nil, err
-					}
-
-					switch fieldNum {
-					case 1:
-						if wireType != protobuf.WireFixed64 {
-							return nil, fmt.Errorf("expecting sample value wire type")
-						}
-
-						_, err = innerInnerBuff.DecodeFixed64()
-						if err != nil {
-							return nil, err
-						}
-					case 2:
-						if wireType != protobuf.WireVarint {
-							return nil, fmt.Errorf("expecting sample timestamp wire type")
-						}
-
-						_, err = innerInnerBuff.DecodeVarint()
-						if err != nil {
-							return nil, err
-						}
-					default:
-						return nil, fmt.Errorf("unknown sample field: %v", fieldNum)
-					}
-				}
-			default:
-				return nil, fmt.Errorf("unknown series field: %v", fieldNum)
-			}
-		}
-	}
-
-	req.pooledBatch = parseGetPooled(numSeries, numLabels, numSamples)
-
-	req.Series = req.pooledBatch.series[:0]
-	labelsPtr := req.pooledBatch.labels[:numLabels]
-	samplesPtr := req.pooledBatch.samples[:numSamples]
-
-	buff.Reset(data)
-	for !buff.EOF() {
-		fieldNum, wireType, err := buff.DecodeTagAndWireType()
-		if err != nil {
-			return nil, err
-		}
-
-		if fieldNum != 1 {
-			return nil, fmt.Errorf("expecting only time series field")
-		}
-		if wireType != protobuf.WireBytes {
-			return nil, fmt.Errorf("expecting series message wire type")
-		}
-
-		var (
-			labels  = labelsPtr[:0]
-			samples = samplesPtr[:0]
-		)
-
-		inner, err := buff.DecodeRawBytes(false)
-		if err != nil {
-			return nil, err
-		}
-
-		innerBuff.Reset(inner)
-		for !innerBuff.EOF() {
-			fieldNum, wireType, err := innerBuff.DecodeTagAndWireType()
-			if err != nil {
-				return nil, err
-			}
-
-			switch fieldNum {
-			case 1:
-				// Decode label.
-				if wireType != protobuf.WireBytes {
-					return nil, fmt.Errorf("expecting label message wire type")
-				}
-
-				var label Label
-
-				innerInner, err := innerBuff.DecodeRawBytes(false)
-				if err != nil {
-					return nil, err
-				}
-
-				innerInnerBuff.Reset(innerInner)
-				for !innerInnerBuff.EOF() {
-					fieldNum, wireType, err := innerInnerBuff.DecodeTagAndWireType()
-					if err != nil {
-						return nil, err
-					}
-
-					switch fieldNum {
-					case 1:
-						if wireType != protobuf.WireBytes {
-							return nil, fmt.Errorf("expecting label name bytes wire type")
-						}
-
-						label.Name, err = innerInnerBuff.DecodeRawBytes(false)
-						if err != nil {
-							return nil, err
-						}
-					case 2:
-						if wireType != protobuf.WireBytes {
-							return nil, fmt.Errorf("expecting label name bytes wire type")
-						}
-
-						label.Value, err = innerInnerBuff.DecodeRawBytes(false)
-						if err != nil {
-							return nil, err
-						}
-					default:
-						return nil, fmt.Errorf("unknown label field: %v", fieldNum)
-					}
-				}
-
-				labels = append(labels, label)
-			case 2:
-				// Decode sample.
-				if wireType != protobuf.WireBytes {
-					return nil, fmt.Errorf("expecting label message wire type")
-				}
-
-				var sample Sample
-
-				innerInner, err := innerBuff.DecodeRawBytes(false)
-				if err != nil {
-					return nil, err
-				}
-
-				innerInnerBuff.Reset(innerInner)
-				for !innerInnerBuff.EOF() {
-					fieldNum, wireType, err := innerInnerBuff.DecodeTagAndWireType()
-					if err != nil {
-						return nil, err
-					}
-
-					switch fieldNum {
-					case 1:
-						if wireType != protobuf.WireFixed64 {
-							return nil, fmt.Errorf("expecting sample value wire type")
-						}
-
-						var valueBits uint64
-						valueBits, err = innerInnerBuff.DecodeFixed64()
-						if err != nil {
-							return nil, err
-						}
-
-						sample.Value = math.Float64frombits(valueBits)
-					case 2:
-						if wireType != protobuf.WireVarint {
-							return nil, fmt.Errorf("expecting sample timestamp wire type")
-						}
-
-						var value uint64
-						value, err = innerInnerBuff.DecodeVarint()
-						if err != nil {
-							return nil, err
-						}
-
-						sample.TimeUnixMillis = int64(value)
-					default:
-						return nil, fmt.Errorf("unknown sample field: %v", fieldNum)
-					}
-				}
-
-				samples = append(samples, sample)
-			default:
-				return nil, fmt.Errorf("unknown series field: %v", fieldNum)
-			}
-		}
-
-		// Make sure series are sorted by name.
-		sort.Sort(labelsByName(labels))
-
-		// Extend series as necessary (get underlying refs to
-		// existing labels/samples slices).
-		index := len(req.Series)
-		req.Series = req.Series[:index+1]
-		req.Series[index].Labels = labels
-		req.Series[index].Samples = samples
-
-		// Forward the label and sample ptrs
-		labelsPtr = labelsPtr[len(labels):]
-		samplesPtr = samplesPtr[len(samples):]
-	}
-
-	return req, nil
-}
-
-type pooledBatch struct {
-	series  []WriteSeries
-	labels  []Label
-	samples []Sample
-}
-
-var (
-	pooled = &struct {
-		sync.Mutex
-		series  [][]WriteSeries
-		labels  [][]Label
-		samples [][]Sample
-	}{}
-)
-
-func parseGetPooled(series, labels, samples int) pooledBatch {
-	var result pooledBatch
-
-	pooled.Lock()
-	for i, slice := range pooled.series {
-		if cap(slice) >= series {
-			result.series = slice[:0]
-			if len(pooled.series) == 1 {
-				pooled.series[0] = nil
-				pooled.series = pooled.series[:0]
-			} else {
-				pooled.series[i] = pooled.series[len(pooled.series)-1]
-				pooled.series[len(pooled.series)-1] = nil
-				pooled.series = pooled.series[:len(pooled.series)-1]
-			}
-			break
-		}
-	}
-	for i, slice := range pooled.labels {
-		if cap(slice) >= labels {
-			result.labels = slice[:0]
-			if len(pooled.labels) == 1 {
-				pooled.labels[0] = nil
-				pooled.labels = pooled.labels[:0]
-			} else {
-				pooled.labels[i] = pooled.labels[len(pooled.labels)-1]
-				pooled.labels[len(pooled.labels)-1] = nil
-				pooled.labels = pooled.labels[:len(pooled.labels)-1]
-			}
-			break
-		}
-	}
-	for i, slice := range pooled.samples {
-		if cap(slice) >= samples {
-			result.samples = slice[:0]
-			if len(pooled.samples) == 1 {
-				pooled.samples[0] = nil
-				pooled.samples = pooled.samples[:0]
-			} else {
-				pooled.samples[i] = pooled.samples[len(pooled.samples)-1]
-				pooled.samples[len(pooled.samples)-1] = nil
-				pooled.samples = pooled.samples[:len(pooled.samples)-1]
-			}
-			break
-		}
-	}
-	pooled.Unlock()
-
-	growthRoom := 1.5
-	if result.series == nil {
-		result.series = make([]WriteSeries, 0, int(growthRoom*float64(series)))
-	}
-	if result.labels == nil {
-		result.labels = make([]Label, 0, int(growthRoom*float64(labels)))
-	}
-	if result.samples == nil {
-		result.samples = make([]Sample, 0, int(growthRoom*float64(samples)))
-	}
-
-	return result
-}
-
-func parsePutPooled(result pooledBatch) {
-	pooled.Lock()
-	if cap(result.series) > 0 {
-		pooled.series = append(pooled.series, result.series)
-	}
-	if cap(result.labels) > 0 {
-		pooled.labels = append(pooled.labels, result.labels)
-	}
-	if cap(result.samples) > 0 {
-		pooled.samples = append(pooled.samples, result.samples)
-	}
-	pooled.Unlock()
+	messageBytes []byte
 }
 
 var _ sort.Interface = labelsByName(nil)
@@ -453,4 +630,101 @@ func (l labelsByName) Less(i, j int) bool {
 
 func (l labelsByName) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
+}
+
+type writeState struct {
+	result storage.WriteQueryResult
+	state  interface{}
+}
+
+type writeStateBatch struct {
+	values [writeStateBatchSize]writeState
+}
+
+func newWriteStateBatch() *writeStateBatch {
+	return &writeStateBatch{}
+}
+
+type writeStateBatchPool struct {
+	pool sync.Pool
+}
+
+func newWriteStateBatchPool() *writeStateBatchPool {
+	return &writeStateBatchPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return newWriteStateBatch()
+			},
+		},
+	}
+}
+
+func (p *writeStateBatchPool) Get() *writeStateBatch {
+	return p.pool.Get().(*writeStateBatch)
+}
+
+func (p *writeStateBatchPool) Put(v *writeStateBatch) {
+	// Memset optimization.
+	empty := writeState{}
+	for i := range v.values {
+		v.values[i] = empty
+	}
+	p.pool.Put(v)
+}
+
+type parseBytesPool struct {
+	sync.Mutex
+	heap *bytesHeap
+}
+
+func newParseBytesPool() *parseBytesPool {
+	p := &parseBytesPool{heap: &bytesHeap{}}
+	heap.Init(p.heap)
+	return p
+}
+
+func (p *parseBytesPool) Get() []byte {
+	var result []byte
+	p.Lock()
+	count := p.heap.Len()
+	if count > 0 {
+		// Always return the largest.
+		largest := heap.Remove(p.heap, count-1)
+		result = largest.([]byte)
+	}
+	p.Unlock()
+	return result[:0]
+}
+
+func (p *parseBytesPool) Put(v []byte) {
+	p.Lock()
+	heap.Push(p.heap, v)
+	count := p.heap.Len()
+	if count > maxParseByteBuffers {
+		// Remove two at once, largest and smallest
+		// to keep the "middle" sized buffers.
+		heap.Remove(p.heap, count-1)
+		heap.Pop(p.heap)
+	}
+	p.Unlock()
+}
+
+type bytesHeap [][]byte
+
+func (h bytesHeap) Len() int           { return len(h) }
+func (h bytesHeap) Less(i, j int) bool { return cap(h[i]) < cap(h[j]) }
+func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *bytesHeap) Push(x interface{}) {
+	// Push and Pop use pointer receivers because they modify the slice's length,
+	// not just its contents.
+	*h = append(*h, x.([]byte))
+}
+
+func (h *bytesHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
 }

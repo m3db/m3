@@ -23,6 +23,14 @@
 
 package proto
 
+func (cb *Buffer) ResetEncode() {
+	cb.buf = cb.buf[:0]
+}
+
+func (cb *Buffer) Bytes() []byte {
+	return cb.buf
+}
+
 func (cb *Buffer) EncodeTagAndWireType(tag int32, wireType int8) {
 	v := uint64((int64(tag) << 3) | int64(wireType))
 	cb.EncodeVarint(v)

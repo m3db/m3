@@ -56,6 +56,10 @@ func (cb *Buffer) EOF() bool {
 	return cb.index >= len(cb.buf)
 }
 
+func (cb *Buffer) DecodeOffset() int {
+	return cb.index
+}
+
 func (cb *Buffer) Skip(count int) (int, bool) {
 	newIndex := cb.index + count
 	if newIndex > len(cb.buf) {
