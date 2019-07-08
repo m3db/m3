@@ -272,7 +272,8 @@ func (s *m3storage) fetchCompressed(
 		"query resolved cluster namespace, will use most granular per result")
 	if debugLog != nil {
 		for _, n := range namespaces {
-			debugLog.Write(zap.String("query", query.Raw),
+			debugLog.Write(zap.String("type", "fetch"),
+				zap.String("query", query.Raw),
 				zap.Time("start", query.Start),
 				zap.Time("end", query.End),
 				zap.String("fanoutType", fanout.String()),
@@ -376,11 +377,50 @@ func (s *m3storage) CompleteTags(
 	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
 
 	var (
-		namespaces      = s.clusters.ClusterNamespaces()
 		accumulatedTags = storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 		multiErr        syncMultiErrs
 		wg              sync.WaitGroup
 	)
+
+	// NB(r): Since we don't use a single index we fan out to each
+	// cluster that can completely fulfill this range and then prefer the
+	// highest resolution (most fine grained) results.
+	// This needs to be optimized, however this is a start.
+	fanout, namespaces, err := resolveClusterNamespacesForQuery(
+		s.nowFn(),
+		query.Start,
+		query.End,
+		s.clusters,
+		options.FanoutOptions,
+		options.RestrictFetchOptions,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"query resolved cluster namespace, will use most granular per result")
+	if debugLog != nil {
+		filters := make([]string, len(query.FilterNameTags))
+		for i, t := range query.FilterNameTags {
+			filters[i] = string(t)
+		}
+
+		for _, n := range namespaces {
+			debugLog.Write(zap.Bool("nameOnly", query.CompleteNameOnly),
+				zap.Strings("filterNames", filters),
+				zap.String("matchers", query.TagMatchers.String()),
+				zap.Time("start", query.Start),
+				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()),
+				zap.Bool("remote", options.Remote),
+			)
+		}
+	}
 
 	if len(namespaces) == 0 {
 		return nil, errNoNamespacesConfigured
@@ -476,11 +516,44 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	var (
-		m3opts     = storage.FetchOptionsToM3Options(options, query)
-		namespaces = s.clusters.ClusterNamespaces()
-		result     = NewMultiFetchTagsResult()
-		wg         sync.WaitGroup
+		m3opts = storage.FetchOptionsToM3Options(options, query)
+		result = NewMultiFetchTagsResult()
+		wg     sync.WaitGroup
 	)
+
+	// NB(r): Since we don't use a single index we fan out to each
+	// cluster that can completely fulfill this range and then prefer the
+	// highest resolution (most fine grained) results.
+	// This needs to be optimized, however this is a start.
+	fanout, namespaces, err := resolveClusterNamespacesForQuery(
+		s.nowFn(),
+		query.Start,
+		query.End,
+		s.clusters,
+		options.FanoutOptions,
+		options.RestrictFetchOptions,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"query resolved cluster namespace, will use most granular per result")
+	if debugLog != nil {
+		for _, n := range namespaces {
+			debugLog.Write(zap.String("type", "search"),
+				zap.String("query", query.Raw),
+				zap.Time("start", query.Start),
+				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()),
+				zap.Bool("remote", options.Remote),
+			)
+		}
+	}
 
 	if len(namespaces) == 0 {
 		return nil, noop, errNoNamespacesConfigured

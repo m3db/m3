@@ -73,12 +73,13 @@ func newMockStorage(
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
 		) (encoding.SeriesIterators, m3.Cleanup, error) {
-			if opts.cleanup == nil {
-				opts.cleanup = func() error { return nil }
+			var cleanup = func() error { return nil }
+			if opts.cleanup != nil {
+				cleanup = opts.cleanup
 			}
 
 			if opts.err != nil {
-				return nil, opts.cleanup, opts.err
+				return nil, cleanup, opts.err
 			}
 
 			if opts.fetchCompressedSleep > 0 {
@@ -95,7 +96,7 @@ func newMockStorage(
 				)
 			}
 
-			return iters, opts.cleanup, nil
+			return iters, cleanup, nil
 		}).
 		AnyTimes()
 	return store

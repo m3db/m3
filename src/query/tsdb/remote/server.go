@@ -158,8 +158,8 @@ func (s *grpcServer) Search(
 
 	// TODO(r): Allow propagation of limit from RPC request
 	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Remote = true
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-
 	results, cleanup, err := s.storage.SearchCompressed(ctx, searchQuery,
 		fetchOpts)
 	defer cleanup()
@@ -209,8 +209,8 @@ func (s *grpcServer) CompleteTags(
 
 	// TODO(r): Allow propagation of limit from RPC request
 	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Remote = true
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-
 	completed, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
