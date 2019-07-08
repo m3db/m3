@@ -528,7 +528,7 @@ func (p *writeBytesPool) Get() []byte {
 		result = largest.([]byte)
 	}
 	p.Unlock()
-	return result
+	return result[:0]
 }
 
 func (p *writeBytesPool) Put(v []byte) {
@@ -547,7 +547,7 @@ func (p *writeBytesPool) Put(v []byte) {
 type bytesHeap [][]byte
 
 func (h bytesHeap) Len() int           { return len(h) }
-func (h bytesHeap) Less(i, j int) bool { return len(h[i]) < len(h[j]) }
+func (h bytesHeap) Less(i, j int) bool { return cap(h[i]) < cap(h[j]) }
 func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *bytesHeap) Push(x interface{}) {
