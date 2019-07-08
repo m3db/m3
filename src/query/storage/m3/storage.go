@@ -377,23 +377,12 @@ func (s *m3storage) CompleteTags(
 	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
 
 	var (
+		namespaces      = s.clusters.ClusterNamespaces()
 		accumulatedTags = storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 		multiErr        syncMultiErrs
 		wg              sync.WaitGroup
 	)
 
-	// NB(r): Since we don't use a single index we fan out to each
-	// cluster that can completely fulfill this range and then prefer the
-	// highest resolution (most fine grained) results.
-	// This needs to be optimized, however this is a start.
-	fanout, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
-		s.clusters,
-		options.FanoutOptions,
-		options.RestrictFetchOptions,
-	)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +401,6 @@ func (s *m3storage) CompleteTags(
 				zap.String("matchers", query.TagMatchers.String()),
 				zap.Time("start", query.Start),
 				zap.Time("end", query.End),
-				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
 				zap.String("retention", n.Options().Attributes().Retention.String()),
@@ -516,26 +504,11 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	var (
-		m3opts = storage.FetchOptionsToM3Options(options, query)
-		result = NewMultiFetchTagsResult()
-		wg     sync.WaitGroup
+		namespaces = s.clusters.ClusterNamespaces()
+		m3opts     = storage.FetchOptionsToM3Options(options, query)
+		result     = NewMultiFetchTagsResult()
+		wg         sync.WaitGroup
 	)
-
-	// NB(r): Since we don't use a single index we fan out to each
-	// cluster that can completely fulfill this range and then prefer the
-	// highest resolution (most fine grained) results.
-	// This needs to be optimized, however this is a start.
-	fanout, namespaces, err := resolveClusterNamespacesForQuery(
-		s.nowFn(),
-		query.Start,
-		query.End,
-		s.clusters,
-		options.FanoutOptions,
-		options.RestrictFetchOptions,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
 
 	debugLog := s.logger.Check(zapcore.DebugLevel,
 		"query resolved cluster namespace, will use most granular per result")
@@ -545,7 +518,6 @@ func (s *m3storage) SearchCompressed(
 				zap.String("query", query.Raw),
 				zap.Time("start", query.Start),
 				zap.Time("end", query.End),
-				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
 				zap.String("retention", n.Options().Attributes().Retention.String()),
