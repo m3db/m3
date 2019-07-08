@@ -144,10 +144,10 @@ Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each step throu
 iterator exposes a slice of underlying BlockReaders. Each BlockReader contains the
 run time encoded bytes that represent the series.
 
-SeriesIterator also has a TagIterator representing the tags associated with it
+SeriesIterator also has a TagIterator representing the tags associated with it.
 
 This function transforms a SeriesIterator into a protobuf representation to be able
-to send it across the wire without needing to expand the series
+to send it across the wire without needing to expand the series.
 */
 func compressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
@@ -195,7 +195,7 @@ func compressedSeriesFromSeriesIterator(
 	}, nil
 }
 
-// encodeToCompressedSeries encodes SeriesIterators to compressed fetch response
+// encodeToCompressedSeries encodes SeriesIterators to compressed series.
 func encodeToCompressedSeries(
 	iterators encoding.SeriesIterators,
 	iterPools encoding.IteratorPools,
@@ -310,7 +310,7 @@ func blockReadersFromCompressedSegments(
 /*
 Creates a SeriesIterator from a compressed protobuf. This is the reverse of
 CompressedSeriesFromSeriesIterator, and takes an optional iteratorPool
-argument that allows reuse of the underlying iterator pools from the m3db session
+argument that allows reuse of the underlying iterator pools from the m3db session.
 */
 func seriesIteratorFromCompressedSeries(
 	timeSeries *rpc.M3CompressedSeries,
@@ -319,7 +319,8 @@ func seriesIteratorFromCompressedSeries(
 ) (encoding.SeriesIterator, error) {
 	initialize.Do(initializeVars)
 
-	// Attempt to decompress compressed tags first as this is the only scenario that is expected to fail
+	// NB: Attempt to decompress compressed tags first as this is the only scenario
+	// that is expected to fail.
 	tagIter, err := tagIteratorFromSeries(timeSeries, iteratorPools)
 	if err != nil {
 		return nil, err
@@ -390,7 +391,8 @@ func seriesIteratorFromCompressedSeries(
 	return seriesIter, nil
 }
 
-// decodeCompressedFetchResponse decodes compressed fetch response to seriesIterators
+// decodeCompressedFetchResponse decodes compressed fetch
+// response to seriesIterators.
 func decodeCompressedFetchResponse(
 	fetchResult *rpc.FetchResponse,
 	iteratorPools encoding.IteratorPools,

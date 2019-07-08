@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	seriesID        = test.SeriesID
+	seriesID        = "series"
 	seriesNamespace = test.SeriesNamespace
 
 	testTags = test.TestTags
@@ -52,7 +52,7 @@ var (
 )
 
 func buildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
-	it, err := test.BuildTestSeriesIterator()
+	it, err := test.BuildTestSeriesIterator(seriesID)
 	assert.NoError(t, err)
 	return it
 }

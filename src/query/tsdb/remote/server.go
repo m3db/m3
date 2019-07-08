@@ -126,7 +126,8 @@ func (s *grpcServer) Fetch(
 	}
 
 	size := min(defaultBatch, len(results))
-	for ; len(results) >= size; results = results[size:] {
+	for ; len(results) > 0; results = results[size:] {
+		size = min(size, len(results))
 		response := &rpc.FetchResponse{
 			Series: results[:size],
 		}
@@ -136,8 +137,6 @@ func (s *grpcServer) Fetch(
 			logger.Error("unable to send fetch result", zap.Error(err))
 			return err
 		}
-
-		size = min(size, len(results))
 	}
 
 	return nil
@@ -176,8 +175,9 @@ func (s *grpcServer) Search(
 	}
 
 	size := min(defaultBatch, len(results))
-	for ; len(results) > size; results = results[size:] {
-		response, err := encodeToCompressedSearchResult(results, pools)
+	for ; len(results) > 0; results = results[size:] {
+		size = min(size, len(results))
+		response, err := encodeToCompressedSearchResult(results[:size], pools)
 		if err != nil {
 			logger.Error("unable to encode search result", zap.Error(err))
 			return err
@@ -188,8 +188,6 @@ func (s *grpcServer) Search(
 			logger.Error("unable to send search result", zap.Error(err))
 			return err
 		}
-
-		size = min(size, len(results))
 	}
 
 	return nil
@@ -221,10 +219,11 @@ func (s *grpcServer) CompleteTags(
 
 	tags := completed.CompletedTags
 	size := min(defaultBatch, len(tags))
-	for ; len(tags) > size; tags = tags[size:] {
+	for ; len(tags) > 0; tags = tags[size:] {
+		size = min(size, len(tags))
 		results := &storage.CompleteTagsResult{
 			CompleteNameOnly: completed.CompleteNameOnly,
-			CompletedTags:    tags,
+			CompletedTags:    tags[:size],
 		}
 
 		response, err := encodeToCompressedCompleteTagsResult(results)
