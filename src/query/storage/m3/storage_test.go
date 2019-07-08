@@ -45,6 +45,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -784,46 +785,54 @@ func TestLocalWriteBatch(t *testing.T) {
 	now := time.Now().Truncate(time.Millisecond)
 	nowMillis := now.UnixNano() / int64(time.Millisecond)
 
-	series := []*prompb.TimeSeries{
-		&prompb.TimeSeries{
-			Labels: []*prompb.Label{
-				&prompb.Label{Name: b("foo"), Value: b("bar")},
-				&prompb.Label{Name: b("bar"), Value: b("baz")},
-			},
-			Samples: []*prompb.Sample{
-				&prompb.Sample{
-					Value:     42.0,
-					Timestamp: nowMillis,
+	input := &prompb.WriteRequest{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels: []*prompb.Label{
+					&prompb.Label{Name: b("foo"), Value: b("bar")},
+					&prompb.Label{Name: b("bar"), Value: b("baz")},
 				},
-				&prompb.Sample{
-					Value:     84.0,
-					Timestamp: nowMillis,
+				Samples: []*prompb.Sample{
+					&prompb.Sample{
+						Value:     42.0,
+						Timestamp: nowMillis,
+					},
+					&prompb.Sample{
+						Value:     84.0,
+						Timestamp: nowMillis,
+					},
 				},
 			},
-		},
-		&prompb.TimeSeries{
-			Labels: []*prompb.Label{
-				&prompb.Label{Name: b("qux"), Value: b("qar")},
-				&prompb.Label{Name: b("qar"), Value: b("qaz")},
-			},
-			Samples: []*prompb.Sample{
-				&prompb.Sample{
-					Value:     123.0,
-					Timestamp: nowMillis,
+			&prompb.TimeSeries{
+				Labels: []*prompb.Label{
+					&prompb.Label{Name: b("qux"), Value: b("qar")},
+					&prompb.Label{Name: b("qar"), Value: b("qaz")},
+				},
+				Samples: []*prompb.Sample{
+					&prompb.Sample{
+						Value:     123.0,
+						Timestamp: nowMillis,
+					},
 				},
 			},
 		},
 	}
 
 	numDatapoints := 0
-	for _, s := range series {
+	for _, s := range input.Timeseries {
 		numDatapoints += len(s.Samples)
 	}
+
+	data, err := proto.Marshal(input)
+	require.NoError(t, err)
+
+	req, err := remote.ParseWriteRequest(data)
+	require.NoError(t, err)
 
 	tagOpts := models.NewTagOptions().
 		SetIDSchemeType(models.TypeQuoted)
 
-	seriesIter := remote.NewTimeSeriesIter(series, tagOpts)
+	seriesIter := remote.NewTimeSeriesIter(req, tagOpts)
 
 	attr := storage.Attributes{
 		MetricsType: storage.UnaggregatedMetricsType,

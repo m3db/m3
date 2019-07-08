@@ -21,12 +21,10 @@
 package remote
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -36,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -48,7 +45,6 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -171,20 +167,33 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	req, opts, rErr := h.parseRequest(r)
+	buff := h.writeBytesPool.Get()
+	// NB(r): Need to hold onto bytes until finished call since
+	// the parsed write request holds onto bytes from the buffer.
+	defer h.writeBytesPool.Put(buff)
+
+	resultBuff, req, opts, rErr := h.parseRequest(buff, r)
+
+	// Restore buff var so always put back correctly.
+	buff = resultBuff
+
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
+	// Ensure that write request returned to pool.
+	defer req.Finalize()
+
+	// Process write request.
 	batchErr := h.write(r.Context(), req, opts)
 
 	// Record ingestion delay latency
 	now := h.nowFn()
-	for _, series := range req.Timeseries {
+	for _, series := range req.Series {
 		for _, sample := range series.Samples {
-			age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
+			age := now.Sub(storage.PromTimestampToTime(sample.TimeUnixMillis))
 			h.metrics.ingestLatency.RecordDuration(age)
 		}
 	}
@@ -251,15 +260,16 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PromWriteHandler) parseRequest(
+	buff []byte,
 	r *http.Request,
-) (*prompb.WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
+) ([]byte, *WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(handler.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storage.ParseMetricsType(v)
 		if err != nil {
-			return nil, ingest.WriteOptions{},
+			return nil, nil, ingest.WriteOptions{},
 				xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
@@ -274,14 +284,14 @@ func (h *PromWriteHandler) parseRequest(
 		case storage.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
 				err := errUnaggregatedStoragePolicySet
-				return nil, ingest.WriteOptions{},
+				return nil, nil, ingest.WriteOptions{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
 			}
 		default:
 			parsed, err := policy.ParseStoragePolicy(strPolicy)
 			if err != nil {
 				err = fmt.Errorf("could not parse storage policy: %v", err)
-				return nil, ingest.WriteOptions{},
+				return nil, nil, ingest.WriteOptions{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
 			}
 
@@ -293,44 +303,36 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
-	var (
-		dst = h.writeBytesPool.Get()
-		req = &prompb.WriteRequest{}
-		err *xhttp.ParseError
-	)
-	defer func() {
-		h.writeBytesPool.Put(dst)
-	}()
+	var parseErr *xhttp.ParseError
+	buff, parseErr = prometheus.ParsePromCompressedRequest(buff, r)
+	if parseErr != nil {
+		return nil, nil, ingest.WriteOptions{}, parseErr
+	}
 
-	dst, err = prometheus.ParsePromCompressedRequest(dst, r)
+	req, err := ParseWriteRequest(buff)
 	if err != nil {
-		return nil, ingest.WriteOptions{}, err
+		return nil, nil, ingest.WriteOptions{},
+			xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
-	if err := proto.Unmarshal(dst, req); err != nil {
-		return nil, ingest.WriteOptions{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return req, opts, nil
+	return buff, req, opts, nil
 }
 
 func (h *PromWriteHandler) write(
 	ctx context.Context,
-	r *prompb.WriteRequest,
+	req *WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter := NewTimeSeriesIter(r.Timeseries, h.tagOptions)
+	iter := NewTimeSeriesIter(req, h.tagOptions)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
 var _ ingest.DownsampleAndWriteIter = &promTSIter{}
 
 type promTSIter struct {
-	idx        int
-	timeseries []*prompb.TimeSeries
-	results    [][]writeState
-	tagOpts    models.TagOptions
+	idx     int
+	req     *WriteRequest
+	tagOpts models.TagOptions
 
 	datapoints ts.Datapoints
 	tagIter    *tagIterator
@@ -344,37 +346,12 @@ type writeState struct {
 // NewTimeSeriesIter is used to create a downsample and write iterator
 // from a list of Prometheus protobuf time series.
 func NewTimeSeriesIter(
-	series []*prompb.TimeSeries,
+	req *WriteRequest,
 	tagOpts models.TagOptions,
 ) ingest.DownsampleAndWriteIter {
-	// Calculate number of datapoints
-	numDatapoints := 0
-	for _, promTS := range series {
-		numDatapoints += len(promTS.Samples)
-	}
-
-	// Construct the tags and datapoints up front so that if the iterator
-	// is reset, we don't have to generate them twice.
-	var (
-		results         = make([][]writeState, len(series))
-		preallocResults = make([]writeState, numDatapoints)
-	)
-	for i, promTS := range series {
-		// Grab reference to prealloc results, reset to samples.
-		ref := preallocResults[:len(promTS.Samples)]
-		results[i] = ref
-
-		// Make sure labels are ordered.
-		sort.Sort(labelsByName(promTS.Labels))
-
-		// Move the prealloc results slice along.
-		preallocResults = preallocResults[len(promTS.Samples):]
-	}
-
 	return &promTSIter{
 		idx:        -1,
-		timeseries: series,
-		results:    results,
+		req:        req,
 		tagOpts:    tagOpts,
 		tagIter:    newTagIterator(),
 		datapoints: nil,
@@ -390,27 +367,27 @@ func (i *promTSIter) Restart() {
 func (i *promTSIter) DatapointResult(
 	datapointIdx int,
 ) storage.WriteQueryResult {
-	return i.results[i.idx][datapointIdx].result
+	return i.req.Series[i.idx].Samples[datapointIdx].Result
 }
 
 func (i *promTSIter) DatapointState(
 	datapointIdx int,
 ) interface{} {
-	return i.results[i.idx][datapointIdx].state
+	return i.req.Series[i.idx].Samples[datapointIdx].State
 }
 
 func (i *promTSIter) SetDatapointResult(
 	datapointIdx int,
 	result storage.WriteQueryResult,
 ) {
-	i.results[i.idx][datapointIdx].result = result
+	i.req.Series[i.idx].Samples[datapointIdx].Result = result
 }
 
 func (i *promTSIter) SetDatapointState(
 	datapointIdx int,
 	state interface{},
 ) {
-	i.results[i.idx][datapointIdx].state = state
+	i.req.Series[i.idx].Samples[datapointIdx].State = state
 }
 
 func (i *promTSIter) TagOptions() models.TagOptions {
@@ -419,16 +396,16 @@ func (i *promTSIter) TagOptions() models.TagOptions {
 
 func (i *promTSIter) Next() bool {
 	i.idx++
-	next := i.idx < len(i.timeseries)
+	next := i.idx < len(i.req.Series)
 	if !next {
 		return false
 	}
 
-	i.tagIter.Reset(i.timeseries[i.idx].Labels)
+	i.tagIter.Reset(i.req.Series[i.idx].Labels)
 	i.datapoints = i.datapoints[:0]
-	for _, dp := range i.timeseries[i.idx].Samples {
+	for _, dp := range i.req.Series[i.idx].Samples {
 		i.datapoints = append(i.datapoints, ts.Datapoint{
-			Timestamp: storage.PromTimestampToTime(dp.Timestamp),
+			Timestamp: storage.PromTimestampToTime(dp.TimeUnixMillis),
 			Value:     dp.Value,
 		})
 	}
@@ -436,7 +413,7 @@ func (i *promTSIter) Next() bool {
 }
 
 func (i *promTSIter) Current() (ident.TagIterator, ts.Datapoints, xtime.Unit) {
-	if len(i.timeseries) == 0 || i.idx < 0 || i.idx >= len(i.timeseries) {
+	if len(i.req.Series) == 0 || i.idx < 0 || i.idx >= len(i.req.Series) {
 		return nil, nil, 0
 	}
 
@@ -450,16 +427,16 @@ func (i *promTSIter) Err() error {
 type tagIterator struct {
 	numTags    int
 	idx        int
-	labels     []*prompb.Label
-	nameBytes  *reuseableBytesID
-	valueBytes *reuseableBytesID
+	labels     []Label
+	nameBytes  *ident.ReuseableBytesID
+	valueBytes *ident.ReuseableBytesID
 	tag        ident.Tag
 }
 
 func newTagIterator() *tagIterator {
 	i := &tagIterator{
-		nameBytes:  &reuseableBytesID{},
-		valueBytes: &reuseableBytesID{},
+		nameBytes:  ident.NewReuseableBytesID(),
+		valueBytes: ident.NewReuseableBytesID(),
 	}
 	i.tag = ident.Tag{
 		Name:  i.nameBytes,
@@ -469,12 +446,12 @@ func newTagIterator() *tagIterator {
 	return i
 }
 
-func (i *tagIterator) Reset(labels []*prompb.Label) {
+func (i *tagIterator) Reset(labels []Label) {
 	i.numTags = len(labels)
 	i.idx = -1
 	i.labels = labels
-	i.nameBytes.reset(nil)
-	i.valueBytes.reset(nil)
+	i.nameBytes.Reset(nil)
+	i.valueBytes.Reset(nil)
 }
 
 func (i *tagIterator) Next() bool {
@@ -483,8 +460,8 @@ func (i *tagIterator) Next() bool {
 	if !next {
 		return false
 	}
-	i.nameBytes.reset(i.labels[i.idx].Name)
-	i.valueBytes.reset(i.labels[i.idx].Value)
+	i.nameBytes.Reset(i.labels[i.idx].Name)
+	i.valueBytes.Reset(i.labels[i.idx].Value)
 	return true
 }
 
@@ -523,57 +500,6 @@ func (i *tagIterator) Duplicate() ident.TagIterator {
 
 func (i *tagIterator) Restart() {
 	i.Reset(i.labels)
-}
-
-var _ sort.Interface = labelsByName(nil)
-
-type labelsByName []*prompb.Label
-
-func (l labelsByName) Len() int {
-	return len(l)
-}
-
-func (l labelsByName) Less(i, j int) bool {
-	return bytes.Compare(l[i].Name, l[j].Name) < 0
-}
-
-func (l labelsByName) Swap(i, j int) {
-	l[i], l[j] = l[j], l[i]
-}
-
-var _ ident.ID = &reuseableBytesID{}
-
-type reuseableBytesID struct {
-	bytes []byte
-}
-
-func (i *reuseableBytesID) reset(bytes []byte) {
-	i.bytes = bytes
-}
-
-func (i *reuseableBytesID) Bytes() []byte {
-	return i.bytes
-}
-
-func (i *reuseableBytesID) Equal(value ident.ID) bool {
-	return bytes.Equal(i.bytes, value.Bytes())
-}
-
-func (i *reuseableBytesID) NoFinalize() {
-}
-
-func (i *reuseableBytesID) IsNoFinalize() bool {
-	// Labels as IDs are always not able to be finalized as this ID is reused
-	// with reset.
-	return false
-}
-
-func (i *reuseableBytesID) Finalize() {
-	// Noop.
-}
-
-func (i *reuseableBytesID) String() string {
-	return string(i.bytes)
 }
 
 type writeBytesPool struct {

@@ -59,9 +59,9 @@ func TestPromWriteParsing(t *testing.T) {
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 
-	r, opts, err := handler.(*PromWriteHandler).parseRequest(req)
+	_, r, opts, err := handler.(*PromWriteHandler).parseRequest(nil, req)
 	require.Nil(t, err, "unable to parse request")
-	require.Equal(t, len(r.Timeseries), 2)
+	require.Equal(t, len(r.Series), 2)
 	require.Equal(t, ingest.WriteOptions{}, opts)
 }
 

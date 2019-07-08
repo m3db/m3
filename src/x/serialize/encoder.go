@@ -66,8 +66,10 @@ type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
 var defaultNewCheckedBytesFn = checked.NewBytes
 
 type encoder struct {
-	buf          *bytes.Buffer
-	checkedBytes checked.Bytes
+	buf            *bytes.Buffer
+	checkedBytes   checked.Bytes
+	bufUInt16Const [2]byte
+	bufUInt16      []byte
 
 	headerWritten bool
 
@@ -82,12 +84,14 @@ func newTagEncoder(
 ) TagEncoder {
 	b := make([]byte, 0, opts.InitialCapacity())
 	cb := newFn(nil, nil)
-	return &encoder{
+	e := &encoder{
 		buf:          bytes.NewBuffer(b),
 		checkedBytes: cb,
 		opts:         opts,
 		pool:         pool,
 	}
+	e.bufUInt16 = e.bufUInt16Const[:]
+	return e
 }
 
 func (e *encoder) Encode(tags ident.TagIterator) error {
@@ -141,7 +145,8 @@ func (e *encoder) writeHeader(numTags int) error {
 		return err
 	}
 
-	if _, err := e.buf.Write(encodeUInt16(uint16(numTags))); err != nil {
+	numTagsBytes := encodeUInt16Buf(e.bufUInt16, uint16(numTags))
+	if _, err := e.buf.Write(numTagsBytes); err != nil {
 		e.buf.Reset()
 		return err
 	}
@@ -277,7 +282,8 @@ func (e *encoder) encodeID(d []byte) error {
 	}
 
 	ld := uint16(len(d))
-	if _, err := e.buf.Write(encodeUInt16(ld)); err != nil {
+	ldBytes := encodeUInt16Buf(e.bufUInt16, ld)
+	if _, err := e.buf.Write(ldBytes); err != nil {
 		return err
 	}
 
@@ -288,10 +294,14 @@ func (e *encoder) encodeID(d []byte) error {
 	return nil
 }
 
+func encodeUInt16Buf(bytes []byte, v uint16) []byte {
+	byteOrder.PutUint16(bytes, v)
+	return bytes
+}
+
 func encodeUInt16(v uint16) []byte {
-	var bytes [2]byte
-	byteOrder.PutUint16(bytes[:], v)
-	return bytes[:]
+	// NB(r): Using a [2]byte on the stack here was still escaping.
+	return encodeUInt16Buf(make([]byte, 2), v)
 }
 
 func decodeUInt16(b []byte) uint16 {
