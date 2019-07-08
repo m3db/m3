@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	reuseWriteBytesTooLong = 2 << 13 // 16k
+	reuseWriteBytesTooLong = 4096
 )
 
 // writeOp represents a generic write operation
@@ -91,7 +91,6 @@ func (w *writeState) close() {
 	w.encodedTags = tryReuseBytes(w.encodedTags)
 
 	w.op, w.majority, w.enqueued, w.pending, w.success = nil, 0, 0, 0, 0
-	w.nsID, w.tsID, w.encodedTags = nil, nil, nil
 
 	for i := range w.errors {
 		w.errors[i] = nil

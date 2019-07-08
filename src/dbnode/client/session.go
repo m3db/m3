@@ -81,6 +81,9 @@ const (
 	resultTypeMetadata  resultTypeEnum = "metadata"
 	resultTypeBootstrap                = "bootstrap"
 	resultTypeRaw                      = "raw"
+
+	refillWritePoolLow  = 0.1
+	refillWritePoolHigh = 0.2
 )
 
 var (
@@ -480,6 +483,8 @@ func (s *session) Open() error {
 	// is already that Open will take some time
 	writeOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
+		SetRefillLowWatermark(refillWritePoolLow).
+		SetRefillHighWatermark(refillWritePoolHigh).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-pool"),
 		))
@@ -488,6 +493,8 @@ func (s *session) Open() error {
 
 	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteTaggedOpPoolSize()).
+		SetRefillLowWatermark(refillWritePoolLow).
+		SetRefillHighWatermark(refillWritePoolHigh).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
@@ -500,6 +507,8 @@ func (s *session) Open() error {
 	}
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(writeStatePoolSize).
+		SetRefillLowWatermark(refillWritePoolLow).
+		SetRefillHighWatermark(refillWritePoolHigh).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))

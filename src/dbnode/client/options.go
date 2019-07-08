@@ -134,10 +134,10 @@ const (
 	defaultSeriesIteratorPoolSize = 65536
 
 	// defaultTagEncoderPoolSize is the default size of the tag encoder pool.
-	defaultTagEncoderPoolSize = defaultWriteTaggedOpPoolSize
+	defaultTagEncoderPoolSize = 4096
 
 	// defaultTagDecoderPoolSize is the default size of the tag decoder pool.
-	defaultTagDecoderPoolSize = defaultFetchBatchOpPoolSize
+	defaultTagDecoderPoolSize = 4096
 
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
 	// from a single peer
