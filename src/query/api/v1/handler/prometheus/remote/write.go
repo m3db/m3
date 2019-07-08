@@ -169,14 +169,12 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	buff := h.writeBytesPool.Get()
-	// NB(r): Need to hold onto bytes until finished call since
-	// the parsed write request holds onto bytes from the buffer.
-	defer h.writeBytesPool.Put(buff)
 
 	resultBuff, req, opts, rErr := h.parseRequest(buff, r)
 
-	// Restore buff var so always put back correctly.
-	buff = resultBuff
+	// NB(r): Need to hold onto bytes until finished call since
+	// the parsed write request holds onto bytes from the buffer.
+	defer h.writeBytesPool.Put(resultBuff)
 
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
