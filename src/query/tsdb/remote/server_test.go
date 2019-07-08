@@ -57,6 +57,7 @@ type mockStorageOptions struct {
 	err                  error
 	iters                encoding.SeriesIterators
 	fetchCompressedSleep time.Duration
+	cleanup              func() error
 }
 
 func newMockStorage(
@@ -72,10 +73,12 @@ func newMockStorage(
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
 		) (encoding.SeriesIterators, m3.Cleanup, error) {
-			noopCleanup := func() error { return nil }
+			if opts.cleanup == nil {
+				opts.cleanup = func() error { return nil }
+			}
 
 			if opts.err != nil {
-				return nil, noopCleanup, opts.err
+				return nil, opts.cleanup, opts.err
 			}
 
 			if opts.fetchCompressedSleep > 0 {
@@ -92,7 +95,7 @@ func newMockStorage(
 				)
 			}
 
-			return iters, noopCleanup, nil
+			return iters, opts.cleanup, nil
 		}).
 		AnyTimes()
 	return store
@@ -332,7 +335,7 @@ func validateBlockResult(t *testing.T, r block.Result) {
 	require.NoError(t, err)
 }
 
-func TestBatchedRpc(t *testing.T) {
+func TestBatchedFetch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -341,9 +344,10 @@ func TestBatchedRpc(t *testing.T) {
 		defaultBatch + 1, defaultBatch*2 + 1}
 	for _, size := range sizes {
 		var (
-			msg   = fmt.Sprintf("batch size: %d", size)
-			iters = make([]encoding.SeriesIterator, 0, size)
-			ids   = make([]string, 0, size)
+			msg     = fmt.Sprintf("batch size: %d", size)
+			iters   = make([]encoding.SeriesIterator, 0, size)
+			ids     = make([]string, 0, size)
+			cleaned = false
 		)
 
 		for i := 0; i < size; i++ {
@@ -356,6 +360,11 @@ func TestBatchedRpc(t *testing.T) {
 
 		store := newMockStorage(t, ctrl, mockStorageOptions{
 			iters: encoding.NewSeriesIterators(iters, nil),
+			cleanup: func() error {
+				require.False(t, cleaned, msg)
+				cleaned = true
+				return nil
+			},
 		})
 
 		listener := startServer(t, ctrl, store)
@@ -377,6 +386,8 @@ func TestBatchedRpc(t *testing.T) {
 
 			require.Equal(t, expectedValues(), values, msg)
 		}
+
+		require.True(t, cleaned, msg)
 	}
 }
 
