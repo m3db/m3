@@ -107,6 +107,7 @@ type ScalarParams interface {
 func GenerateExecutionState(
 	pplan plan.PhysicalPlan,
 	storage storage.Storage,
+	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
 ) (*ExecutionState, error) {
 	result := pplan.ResultStep
@@ -121,6 +122,7 @@ func GenerateExecutionState(
 	}
 
 	options, err := transform.NewOptions(transform.OptionsParams{
+		FetchOptions:      fetchOpts,
 		TimeSpec:          pplan.TimeSpec,
 		Debug:             pplan.Debug,
 		BlockType:         pplan.BlockType,

@@ -251,7 +251,7 @@ func (h *Handler) RegisterRoutes() error {
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
 		wrapped(validator.NewPromDebugHandler(nativePromReadHandler,
-			*h.config.LookbackDuration, h.instrumentOpts)).ServeHTTP,
+			h.fetchOptionsBuilder, *h.config.LookbackDuration, h.instrumentOpts)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints

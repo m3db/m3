@@ -113,67 +113,59 @@ func (e *engine) Execute(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	opts *QueryOptions,
-	results chan *storage.QueryResult,
-) {
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
-
-	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
-	if err != nil {
-		results <- &storage.QueryResult{Err: err}
-		return
-	}
-
-	results <- &storage.QueryResult{FetchResult: result}
+	fetchOpts *storage.FetchOptions,
+) (*storage.FetchResult, error) {
+	return e.opts.Store().Fetch(ctx, query, fetchOpts)
 }
 
-// nolint: unparam
 func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
 	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
-	results chan Query,
-) {
-	defer close(results)
-
+) (Result, error) {
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
-	req := newRequest(e, params, e.opts.InstrumentOptions())
+	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
 
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	pp, err := req.plan(ctx, nodes, edges)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	state, err := req.generateExecutionState(ctx, pp)
-	// free up resources
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
+	// free up resources
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "executing")
 	defer sp.Finish()
 
 	result := state.resultNode
-	results <- Query{Result: result}
-
 	scope := e.opts.InstrumentOptions().MetricsScope()
 	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
 		opts.QueryContextOptions)
-	if err := state.Execute(queryCtx); err != nil {
-		result.abort(err)
-	} else {
-		result.done()
-	}
+
+	go func() {
+		if err := state.Execute(queryCtx); err != nil {
+			result.abort(err)
+		} else {
+			result.done()
+		}
+	}()
+
+	return result, nil
+}
+
+func (e *engine) Options() EngineOptions {
+	return e.opts
 }
 
 func (e *engine) Close() error {

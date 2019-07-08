@@ -120,6 +120,9 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		},
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
+		Attributes: storage.Attributes{
+			MetricsType: storage.UnaggregatedMetricsType,
+		},
 	}, nil
 }
 

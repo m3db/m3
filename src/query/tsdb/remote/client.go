@@ -140,7 +140,7 @@ func (c *grpcClient) fetchRaw(
 		return nil, err
 	}
 
-	request, err := encodeFetchRequest(query)
+	request, err := encodeFetchRequest(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,9 @@ func (c *grpcClient) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	opts := c.opts
+	// Override options with whatever is the current specified lookback duration.
+	opts := c.opts.SetLookbackDuration(
+		options.LookbackDurationOrDefault(c.opts.LookbackDuration()))
 
 	// If using decoded block, return the legacy path.
 	if options.BlockType == models.TypeDecodedBlock {
@@ -202,7 +204,7 @@ func (c *grpcClient) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, c.opts.LookbackDuration(), options.Enforcer)
+		return storage.FetchResultToBlockResult(fetchResult, query, opts.LookbackDuration(), options.Enforcer)
 	}
 
 	raw, err := c.fetchRaw(ctx, query, options)

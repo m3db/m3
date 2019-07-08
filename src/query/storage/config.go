@@ -22,6 +22,16 @@ package storage
 
 import "fmt"
 
+// ParseMetricsType parses a metric type.
+func ParseMetricsType(str string) (MetricsType, error) {
+	for _, valid := range validMetricsTypes {
+		if str == valid.String() {
+			return valid, nil
+		}
+	}
+	return 0, fmt.Errorf("unrecognized metrics type: %v", str)
+}
+
 // ValidateMetricsType validates a stored metrics type.
 func ValidateMetricsType(v MetricsType) error {
 	for _, valid := range validMetricsTypes {
@@ -39,11 +49,9 @@ func (v *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	for _, valid := range validMetricsTypes {
-		if str == valid.String() {
-			*v = valid
-			return nil
-		}
+	if value, err := ParseMetricsType(str); err == nil {
+		*v = value
+		return nil
 	}
 	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
 		str, validMetricsTypes)

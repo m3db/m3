@@ -59,21 +59,24 @@ const (
 // PromDebugHandler represents a handler for prometheus debug endpoint, which allows users
 // to compare Prometheus results vs m3 query results.
 type PromDebugHandler struct {
-	readHandler      *native.PromReadHandler
-	lookbackDuration time.Duration
-	instrumentOpts   instrument.Options
+	readHandler         *native.PromReadHandler
+	fetchOptionsBuilder handler.FetchOptionsBuilder
+	lookbackDuration    time.Duration
+	instrumentOpts      instrument.Options
 }
 
 // NewPromDebugHandler returns a new instance of handler.
 func NewPromDebugHandler(
 	h *native.PromReadHandler,
+	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	lookbackDuration time.Duration,
 	instrumentOpts instrument.Options,
 ) *PromDebugHandler {
 	return &PromDebugHandler{
-		readHandler:      h,
-		lookbackDuration: lookbackDuration,
-		instrumentOpts:   instrumentOpts,
+		readHandler:         h,
+		fetchOptionsBuilder: fetchOptionsBuilder,
+		lookbackDuration:    lookbackDuration,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
@@ -109,7 +112,14 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engineOpts := executor.NewEngineOpts().
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if err != nil {
+		logger.Error("unable to build fetch options", zap.Error(err))
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	engineOpts := executor.NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(h.lookbackDuration).
 		SetGlobalEnforcer(nil).
@@ -117,7 +127,8 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			SetMetricsScope(h.instrumentOpts.MetricsScope().SubScope("debug_engine")))
 
 	engine := executor.NewEngine(engineOpts)
-	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine, &executor.QueryOptions{})
+	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine,
+		&executor.QueryOptions{}, fetchOpts)
 	if respErr != nil {
 		logger.Error("unable to read data", zap.Error(respErr.Err))
 		xhttp.Error(w, respErr.Err, respErr.Code)

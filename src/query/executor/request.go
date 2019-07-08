@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/opentracing"
@@ -67,17 +68,20 @@ func (s State) durationString() string {
 type Request struct {
 	engine         *engine
 	params         models.RequestParams
+	fetchOpts      *storage.FetchOptions
 	instrumentOpts instrument.Options
 }
 
 func newRequest(
 	engine *engine,
 	params models.RequestParams,
+	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
 ) *Request {
 	return &Request{
 		engine:         engine,
 		params:         params,
+		fetchOpts:      fetchOpts,
 		instrumentOpts: instrumentOpts,
 	}
 }
@@ -113,7 +117,7 @@ func (r *Request) plan(ctx context.Context, nodes parser.Nodes, edges parser.Edg
 			Info("logical plan", zap.String("plan", lp.String()))
 	}
 
-	pp, err := plan.NewPhysicalPlan(lp, r.engine.opts.Store(), r.params, r.engine.opts.LookbackDuration())
+	pp, err := plan.NewPhysicalPlan(lp, r.params)
 	if err != nil {
 		return plan.PhysicalPlan{}, err
 	}
@@ -132,7 +136,7 @@ func (r *Request) generateExecutionState(ctx context.Context, pp plan.PhysicalPl
 	defer sp.Finish()
 
 	state, err := GenerateExecutionState(pp, r.engine.opts.Store(),
-		r.instrumentOpts)
+		r.fetchOpts, r.instrumentOpts)
 	// free up resources
 	if err != nil {
 		return nil, err

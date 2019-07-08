@@ -57,6 +57,7 @@ type FetchNode struct {
 	controller     *transform.Controller
 	storage        storage.Storage
 	timespec       transform.TimeSpec
+	fetchOpts      *storage.FetchOptions
 	instrumentOpts instrument.Options
 }
 
@@ -84,6 +85,7 @@ func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage,
 		op:             o,
 		controller:     controller,
 		storage:        storage,
+		fetchOpts:      options.FetchOptions(),
 		timespec:       options.TimeSpec(),
 		debug:          options.Debug(),
 		blockType:      options.BlockType(),
@@ -101,11 +103,11 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
 
-	opts := storage.NewFetchOptions()
-	opts.Limit = queryCtx.Options.LimitMaxTimeseries
-	opts.BlockType = n.blockType
-	opts.Scope = queryCtx.Scope
-	opts.Enforcer = queryCtx.Enforcer
+	opts, err := n.fetchOpts.QueryFetchOptions(queryCtx, n.blockType)
+	if err != nil {
+		return block.Result{}, err
+	}
+
 	offset := n.op.Offset
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime.Add(-1 * offset),

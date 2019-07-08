@@ -94,16 +94,17 @@ func (s *grpcServer) Fetch(
 ) error {
 	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
 	logger := logging.WithContext(ctx, s.instrumentOpts)
-	storeQuery, err := decodeFetchRequest(message)
+	storeQuery, fetchOpts, err := decodeFetchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode fetch query", zap.Error(err))
 		return err
 	}
 
-	// TODO(r): Allow propagation of limit from RPC request
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 	fetchOpts.Remote = true
+	if fetchOpts.Limit == 0 {
+		// Allow default to be set if not explicitly passed.
+		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+	}
 
 	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()

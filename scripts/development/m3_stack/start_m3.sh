@@ -68,11 +68,9 @@ else
     echo "Not running aggregator pipeline"
 fi
 
-
-echo "Sleeping to wait for nodes to initialize"
-sleep 10
-
-echo "Nodes online"
+echo "Wait for coordinator API to be up"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  'curl -vvvsSf localhost:7201/health'
 
 echo "Initializing namespaces"
 curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{

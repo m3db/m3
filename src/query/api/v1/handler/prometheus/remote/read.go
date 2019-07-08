@@ -121,7 +121,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.read(ctx, w, req, timeout, fetchOpts.Limit)
+	result, err := h.read(ctx, w, req, timeout, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -177,7 +177,7 @@ func (h *PromReadHandler) read(
 	w http.ResponseWriter,
 	r *prompb.ReadRequest,
 	timeout time.Duration,
-	limit int,
+	fetchOpts *storage.FetchOptions,
 ) ([]*prompb.QueryResult, error) {
 	var (
 		queryCount  = len(r.Queries)
@@ -185,7 +185,7 @@ func (h *PromReadHandler) read(
 		cancelFuncs = make([]context.CancelFunc, queryCount)
 		queryOpts   = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
-				LimitMaxTimeseries: limit,
+				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
 
 		wg           sync.WaitGroup
@@ -208,21 +208,17 @@ func (h *PromReadHandler) read(
 				return
 			}
 
-			results := make(chan *storage.QueryResult)
-
 			// Detect clients closing connections
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			go h.engine.Execute(ctx, query, queryOpts, results)
-
-			result := <-results
-			if err := result.Err; err != nil {
+			result, err := h.engine.Execute(ctx, query, queryOpts, fetchOpts)
+			if err != nil {
 				multiErrLock.Lock()
 				multiErr = multiErr.Add(err)
 				multiErrLock.Unlock()
 				return
 			}
 
-			promRes := storage.FetchResultToPromResult(result.FetchResult, h.keepEmpty)
+			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
 			promResults[i] = promRes
 		}()
 	}

@@ -46,7 +46,7 @@ func newEngine(
 	enforcer qcost.ChainedEnforcer,
 	instrumentOpts instrument.Options,
 ) Engine {
-	engineOpts := NewEngineOpts().
+	engineOpts := NewEngineOptions().
 		SetStore(s).
 		SetLookbackDuration(lookbackDuration).
 		SetGlobalEnforcer(enforcer).
@@ -58,46 +58,38 @@ func newEngine(
 func TestEngine_Execute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
+		gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
 	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &QueryOptions{}, results)
-	res := <-results
-	assert.NotNil(t, res.Err)
+	_, err := engine.Execute(context.TODO(),
+		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
+	assert.NotNil(t, err)
 }
 
 func TestEngine_ExecuteExpr(t *testing.T) {
-	t.Run("releases and reports on completion", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
-		mockEnforcer.EXPECT().Close().Times(1)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		mockParent := cost.NewMockChainedEnforcer(ctrl)
-		mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
+	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
+	mockEnforcer.EXPECT().Close().Times(1)
 
-		parser, err := promql.Parse("foo", models.NewTagOptions())
-		require.NoError(t, err)
+	mockParent := cost.NewMockChainedEnforcer(ctrl)
+	mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
 
-		results := make(chan Query)
-		engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,
-			mockParent, instrument.NewOptions())
-		go engine.ExecuteExpr(context.TODO(), parser, &QueryOptions{}, models.RequestParams{
+	parser, err := promql.Parse("foo", models.NewTagOptions())
+	require.NoError(t, err)
+
+	engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,
+		mockParent, instrument.NewOptions())
+	_, err = engine.ExecuteExpr(context.TODO(), parser,
+		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),
 			End:   time.Now(),
 			Step:  time.Second,
-		}, results)
+		})
 
-		// drain the channel
-		var resSl []Query
-		for r := range results {
-			resSl = append(resSl, r)
-		}
-		require.Len(t, resSl, 1)
-
-		res := resSl[0]
-		require.NoError(t, res.Err)
-	})
+	require.NoError(t, err)
 }
