@@ -89,33 +89,27 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 	// then resize, we also want about 2x the size of that
 	// so that callers reusing buffers are more
 	// likely to reuse buffers with enough length to hold everything.
-	desiredCapacity := len(dst) + decodedLen
+	encodedLen := len(dst)
+	desiredCapacity := encodedLen + decodedLen
 	if reusingBuffers {
 		desiredCapacity *= 2
 	}
-	if cap(dst) < desiredCapacity {
-		newDst := make([]byte, len(dst), desiredCapacity)
-		copy(newDst, dst)
+	if cap(dst) >= desiredCapacity {
+		// Just move current bytes to the end.
+		copy(dst[decodedLen:decodedLen+encodedLen], dst[:encodedLen])
+	} else {
+		// Need a new buffer, create then copy.
+		newDst := make([]byte, 0, desiredCapacity)
+		copy(newDst[decodedLen:decodedLen+encodedLen], dst[:encodedLen])
 		dst = newDst
 	}
 
-	dstBeforeCopy := dst
-	dstLenBeforeCopy := len(dst)
-	target := dst[dstLenBeforeCopy : dstLenBeforeCopy+decodedLen]
-
-	target, err = snappy.Decode(target, dst[:dstLenBeforeCopy])
+	dst, err = snappy.Decode(dst[:decodedLen], dst[decodedLen:decodedLen+encodedLen])
 	if err != nil {
 		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
 	}
 
-	// Copy result to beginning of buffer so when passed back
-	// to this function, we get the correct start of the buffer.
-	n := copy(dstBeforeCopy, target)
-	if n != decodedLen {
-		return nil, xhttp.NewParseError(fmt.Errorf("result not as long as expected"), http.StatusInternalServerError)
-	}
-
-	return dstBeforeCopy[:n], nil
+	return dst, nil
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.
