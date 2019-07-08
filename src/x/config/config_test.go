@@ -345,13 +345,13 @@ multiple:
 		}
 		require.True(
 			t,
-			slicesCotainSameStrings(expect, actual),
+			slicesContainSameStrings(expect, actual),
 			fmt.Sprintf("expect %#v should be equal actual %#v", expect, actual),
 		)
 	})
 }
 
-func slicesCotainSameStrings(s1, s2 []string) bool {
+func slicesContainSameStrings(s1, s2 []string) bool {
 	if len(s1) != len(s2) {
 		return false
 	}
