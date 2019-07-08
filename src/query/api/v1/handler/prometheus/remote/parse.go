@@ -574,7 +574,7 @@ func (r *WriteRequest) parse() (writeRequestStats, error) {
 			msgLen := len(seriesBuff)
 			if n := copy(seriesBuff, writeBuff.Bytes()); n != msgLen {
 				return stats, fmt.Errorf(
-					"could not reorder labels: expected_msg_len=%d, actual_msg_len",
+					"could not reorder labels: expected_msg_len=%d, actual_msg_len=%d",
 					msgLen, n)
 			}
 		}
@@ -689,7 +689,7 @@ func (p *parseBytesPool) Get() []byte {
 	count := p.heap.Len()
 	if count > 0 {
 		// Always return the largest.
-		largest := heap.Remove(p.heap, count-1)
+		largest := heap.Pop(p.heap)
 		result = largest.([]byte)
 	}
 	p.Unlock()
@@ -701,10 +701,8 @@ func (p *parseBytesPool) Put(v []byte) {
 	heap.Push(p.heap, v)
 	count := p.heap.Len()
 	if count > maxParseByteBuffers {
-		// Remove two at once, largest and smallest
-		// to keep the "middle" sized buffers.
+		// Remove the smallest buffer.
 		heap.Remove(p.heap, count-1)
-		heap.Pop(p.heap)
 	}
 	p.Unlock()
 }
@@ -712,7 +710,7 @@ func (p *parseBytesPool) Put(v []byte) {
 type bytesHeap [][]byte
 
 func (h bytesHeap) Len() int           { return len(h) }
-func (h bytesHeap) Less(i, j int) bool { return cap(h[i]) < cap(h[j]) }
+func (h bytesHeap) Less(i, j int) bool { return cap(h[i]) > cap(h[j]) }
 func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *bytesHeap) Push(x interface{}) {
