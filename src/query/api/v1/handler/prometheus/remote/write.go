@@ -504,7 +504,7 @@ func (i *tagIterator) Restart() {
 }
 
 const (
-	maxWriteByteBuffers = 1024
+	maxWriteByteBuffers = 4096
 )
 
 type writeBytesPool struct {
