@@ -40,21 +40,25 @@ import (
 
 const (
 	maxParseByteBuffers = 4096
+	maxWriteRequestPool = 4096
 	writeStateBatchSize = 128
 )
 
 var errUnexpectedEOF = errors.New("unexpected EOF")
 
 type Parser struct {
-	bytesPool *parseBytesPool
-	statePool *writeStateBatchPool
+	bytesPool   *parseBytesPool
+	statePool   *writeStateBatchPool
+	requestPool *writeRequestPool
 }
 
 func NewParser() *Parser {
-	return &Parser{
+	p := &Parser{
 		bytesPool: newParseBytesPool(),
 		statePool: newWriteStateBatchPool(),
 	}
+	p.requestPool = newWriteRequestPool(p)
+	return p
 }
 
 func (p *Parser) ParseWriteRequest(
@@ -67,21 +71,11 @@ func (p *Parser) ParseWriteRequest(
 		return nil, parseErr
 	}
 
-	req, err := newWriteRequest(p, data)
+	req := p.requestPool.getWriteRequest()
+	err := req.reset(data)
 	if err != nil {
 		p.bytesPool.Put(data)
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
-	numBatches := req.stats.numSeries / writeStateBatchSize
-	if req.stats.numSeries%writeStateBatchSize != 0 {
-		// Need an extra batch (thanks to integer division).
-		numBatches++
-	}
-
-	req.states = make([]*writeStateBatch, 0, numBatches)
-	for i := 0; i < numBatches; i++ {
-		req.states = append(req.states, p.statePool.Get())
 	}
 
 	return req, nil
@@ -94,18 +88,20 @@ type WriteRequest struct {
 	states []*writeStateBatch
 
 	// iterator state
-	idx            int
-	samplesOffset  int
-	iterErr        error
-	currSeriesData []byte
-	currLabels     []Label
-	currSamples    []Sample
+	idx           int
+	samplesOffset int
+	iterErr       error
+	currLabels    []Label
+	currSamples   []Sample
 
 	rootBuff       *proto.Buffer
 	innerBuff      *proto.Buffer
 	innerInnerBuff *proto.Buffer
 	rewriteBuff    *proto.Buffer
-	rewriteBytes   []byte
+
+	// sorter (to avoid allocs to interface)
+	sorter      sort.Interface
+	labelSorter *labelSorter
 
 	parser *Parser
 }
@@ -114,26 +110,41 @@ type writeRequestStats struct {
 	numSeries, numLabels, numSamples int
 }
 
-func newWriteRequest(
-	parser *Parser,
-	data []byte,
-) (*WriteRequest, error) {
-	w := &WriteRequest{
-		data:           data,
-		idx:            -1,
+func newWriteRequest(parser *Parser) *WriteRequest {
+	r := &WriteRequest{
 		rootBuff:       proto.NewBuffer(nil),
 		innerBuff:      proto.NewBuffer(nil),
 		innerInnerBuff: proto.NewBuffer(nil),
 		rewriteBuff:    proto.NewBuffer(nil),
 		parser:         parser,
+		labelSorter:    &labelSorter{},
 	}
+	r.sorter = r.labelSorter
+	return r
+}
+
+func (r *WriteRequest) reset(data []byte) error {
+	r.data = data
+
 	var err error
-	w.stats, err = w.parse()
+	r.stats, err = r.parse()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	w.IterRestart()
-	return w, nil
+
+	numBatches := r.stats.numSeries / writeStateBatchSize
+	if r.stats.numSeries%writeStateBatchSize != 0 {
+		// Need an extra batch (thanks to integer division).
+		numBatches++
+	}
+
+	r.states = r.states[:0]
+	for i := 0; i < numBatches; i++ {
+		r.states = append(r.states, r.parser.statePool.Get())
+	}
+
+	r.IterRestart()
+	return nil
 }
 
 type statePos struct {
@@ -240,7 +251,6 @@ func (r *WriteRequest) IterNext() bool {
 		return false
 	}
 
-	r.currSeriesData = inner
 	r.currLabels = r.currLabels[:0]
 	r.currSamples = r.currSamples[:0]
 
@@ -489,10 +499,10 @@ func (r *WriteRequest) parse() (writeRequestStats, error) {
 				}
 
 				// Check if out of order and track if so.
-				if len(r.currLabels) > 0 &&
-					!labelsOutOfOrder &&
-					bytes.Compare(label.Name, lastLabel.Name) < 0 {
-					labelsOutOfOrder = true
+				if len(r.currLabels) > 0 {
+					if !labelsOutOfOrder && bytes.Compare(label.Name, lastLabel.Name) < 0 {
+						labelsOutOfOrder = true
+					}
 				}
 				lastLabel = label
 
@@ -552,7 +562,9 @@ func (r *WriteRequest) parse() (writeRequestStats, error) {
 
 		if labelsOutOfOrder {
 			// Need to reorder the labels, order them then write out all the submessages.
-			sort.Sort(labelsByName(r.currLabels))
+			r.labelSorter.values = r.currLabels
+			// Call the already bound interface (avoiding alloc).
+			sort.Sort(r.sorter)
 
 			// Need to rewrite this series message, but can't use direct ref to
 			// bytes or will overwrite the very thing we are writing out.
@@ -583,15 +595,42 @@ func (r *WriteRequest) parse() (writeRequestStats, error) {
 	return stats, nil
 }
 
-func (p *WriteRequest) Finalize() {
+func (r *WriteRequest) Finalize() {
 	// Return data to pools.
-	p.parser.bytesPool.Put(p.data)
-	for _, batch := range p.states {
-		p.parser.statePool.Put(batch)
+	r.parser.bytesPool.Put(r.data)
+	for _, batch := range r.states {
+		r.parser.statePool.Put(batch)
 	}
 
-	// Zero refs.
-	*p = WriteRequest{}
+	// Nil out refs.
+	r.data = nil
+
+	for i := range r.states {
+		r.states[i] = nil
+	}
+	r.states = r.states[:0]
+
+	emptyLabel := Label{}
+	for i := range r.currLabels {
+		r.currLabels[i] = emptyLabel
+	}
+	r.currLabels = r.currLabels[:0]
+
+	emptySample := Sample{}
+	for i := range r.currSamples {
+		r.currSamples[i] = emptySample
+	}
+	r.currSamples = r.currSamples[:0]
+
+	r.rootBuff.Reset(nil)
+	r.innerBuff.Reset(nil)
+	r.innerInnerBuff.Reset(nil)
+	// Retain rewriteBuff
+
+	// This is set to pre-existing slices, not reused.
+	r.labelSorter.values = nil
+
+	r.parser.requestPool.putWriteRequest(r)
 }
 
 type WriteSeries struct {
@@ -616,20 +655,22 @@ type Sample struct {
 	messageBytes []byte
 }
 
-var _ sort.Interface = labelsByName(nil)
+var _ sort.Interface = &labelSorter{}
 
-type labelsByName []Label
-
-func (l labelsByName) Len() int {
-	return len(l)
+type labelSorter struct {
+	values []Label
 }
 
-func (l labelsByName) Less(i, j int) bool {
-	return bytes.Compare(l[i].Name, l[j].Name) < 0
+func (l *labelSorter) Len() int {
+	return len(l.values)
 }
 
-func (l labelsByName) Swap(i, j int) {
-	l[i], l[j] = l[j], l[i]
+func (l *labelSorter) Less(i, j int) bool {
+	return bytes.Compare(l.values[i].Name, l.values[j].Name) < 0
+}
+
+func (l *labelSorter) Swap(i, j int) {
+	l.values[i], l.values[j] = l.values[j], l.values[i]
 }
 
 type writeState struct {
@@ -670,6 +711,43 @@ func (p *writeStateBatchPool) Put(v *writeStateBatch) {
 		v.values[i] = empty
 	}
 	p.pool.Put(v)
+}
+
+type writeRequestPool struct {
+	sync.Mutex
+	parser *Parser
+	values []*WriteRequest
+}
+
+func newWriteRequestPool(parser *Parser) *writeRequestPool {
+	return &writeRequestPool{
+		parser: parser,
+		values: make([]*WriteRequest, 0, maxWriteRequestPool),
+	}
+}
+
+func (p *writeRequestPool) getWriteRequest() *WriteRequest {
+	var v *WriteRequest
+	p.Lock()
+	index := len(p.values) - 1
+	if index >= 0 {
+		v = p.values[index]
+		p.values[index] = nil
+		p.values = p.values[:index]
+	}
+	p.Unlock()
+	if v == nil {
+		v = newWriteRequest(p.parser)
+	}
+	return v
+}
+
+func (p *writeRequestPool) putWriteRequest(v *WriteRequest) {
+	p.Lock()
+	if len(p.values) < maxWriteRequestPool {
+		p.values = append(p.values, v)
+	}
+	p.Unlock()
 }
 
 type parseBytesPool struct {

@@ -31,18 +31,18 @@ var (
 
 type fetchTaggedOp struct {
 	refCounter
-	request      rpc.FetchTaggedRequest
-	completionFn completionFn
+	request    rpc.FetchTaggedRequest
+	opCallback opCallback
 
 	pool fetchTaggedOpPool
 }
 
-func (f *fetchTaggedOp) Size() int                  { return 1 }
-func (f *fetchTaggedOp) CompletionFn() completionFn { return f.completionFn }
+func (f *fetchTaggedOp) Size() int              { return 1 }
+func (f *fetchTaggedOp) OpCallback() opCallback { return f.opCallback }
 
-func (f *fetchTaggedOp) update(req rpc.FetchTaggedRequest, fn completionFn) {
+func (f *fetchTaggedOp) update(req rpc.FetchTaggedRequest, cb opCallback) {
 	f.request = req
-	f.completionFn = fn
+	f.opCallback = cb
 }
 
 func (f *fetchTaggedOp) requestLimit(defaultValue int) int {
@@ -53,7 +53,7 @@ func (f *fetchTaggedOp) requestLimit(defaultValue int) int {
 }
 
 func (f *fetchTaggedOp) close() {
-	f.completionFn = nil
+	f.opCallback = nil
 	f.request = fetchTaggedOpRequestZeroed
 	// return to pool
 	if f.pool == nil {

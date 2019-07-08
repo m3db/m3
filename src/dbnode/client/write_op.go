@@ -34,12 +34,12 @@ var (
 )
 
 type writeOperation struct {
-	namespace    ident.ID
-	shardID      uint32
-	request      rpc.WriteBatchRawRequestElement
-	datapoint    rpc.Datapoint
-	completionFn completionFn
-	pool         *writeOperationPool
+	namespace  ident.ID
+	shardID    uint32
+	request    rpc.WriteBatchRawRequestElement
+	datapoint  rpc.Datapoint
+	opCallback opCallback
+	pool       *writeOperationPool
 }
 
 func (w *writeOperation) reset() {
@@ -60,12 +60,16 @@ func (w *writeOperation) Size() int {
 	return 1
 }
 
-func (w *writeOperation) CompletionFn() completionFn {
-	return w.completionFn
+func (w *writeOperation) OpCallback() opCallback {
+	return w.opCallback
 }
 
-func (w *writeOperation) SetCompletionFn(fn completionFn) {
-	w.completionFn = fn
+func (w *writeOperation) SetOpCallback(cb opCallback) {
+	w.opCallback = cb
+}
+
+func (w *writeOperation) OpComplete(result interface{}, err error) {
+	w.opCallback.OpComplete(result, err)
 }
 
 func (w *writeOperation) ShardID() uint32 {

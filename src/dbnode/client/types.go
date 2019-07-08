@@ -674,8 +674,8 @@ type op interface {
 	// Size returns the effective size of inner operations.
 	Size() int
 
-	// CompletionFn gets the completion function for the operation.
-	CompletionFn() completionFn
+	// OpCallback gets the callback for the operation.
+	OpCallback() opCallback
 }
 
 type enqueueChannel interface {

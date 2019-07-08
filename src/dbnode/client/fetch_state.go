@@ -27,11 +27,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type fetchStateType byte
@@ -130,7 +130,7 @@ func (f *fetchState) ResetAggregate(
 	f.tagResultAccumulator.Reset(startTime, endTime, topoMap, majority, consistencyLevel)
 }
 
-func (f *fetchState) completionFn(
+func (f *fetchState) OpComplete(
 	result interface{},
 	resultErr error,
 ) {

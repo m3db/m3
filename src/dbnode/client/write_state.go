@@ -42,9 +42,13 @@ type writeOp interface {
 
 	ShardID() uint32
 
-	SetCompletionFn(fn completionFn)
+	SetOpCallback(cb opCallback)
 
 	Close()
+}
+
+type opCallback interface {
+	OpComplete(result interface{}, err error)
 }
 
 type writeState struct {
@@ -64,6 +68,8 @@ type writeState struct {
 	success                     int32
 	errors                      []error
 
+	opCallback opCallback
+
 	queues []hostQueue
 	pool   *writeStatePool
 }
@@ -78,6 +84,7 @@ func newWriteState(
 	}
 	w.destructorFn = w.close
 	w.L = w
+	w.opCallback = w
 	return w
 }
 
@@ -122,7 +129,7 @@ func (w *writeState) setEncodedTags(encodedTags []byte) {
 	w.encodedTags = append(w.encodedTags[:0], encodedTags...)
 }
 
-func (w *writeState) completionFn(result interface{}, err error) {
+func (w *writeState) OpComplete(result interface{}, err error) {
 	hostID := result.(topology.Host).ID()
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 

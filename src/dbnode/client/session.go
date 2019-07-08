@@ -951,9 +951,9 @@ func (s *session) writeBatchAttempt(
 ) error {
 	var (
 		startWriteAttempt = s.nowFn()
-		currResources     writeAttemptResources
+		tagEncoder        = s.pools.tagEncoder.Get()
 	)
-	defer currResources.finalize()
+	defer tagEncoder.Finalize()
 
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -1005,10 +1005,9 @@ func (s *session) writeBatchAttempt(
 		value := entry.Value
 		annotation := entry.Annotation
 
-		state, res, err := s.writeAttemptWithRLock(
+		state, err := s.writeAttemptWithRLock(
 			taggedWriteAttemptType, nsID, id, inputTags,
-			timestamp, value, timeType, annotation, currResources)
-		currResources = res
+			timestamp, value, timeType, annotation, tagEncoder)
 		if err != nil {
 			iter.SetResult(WriteTaggedIterResult{
 				Err: err,
@@ -1099,11 +1098,16 @@ func (s *session) writeAttempt(
 		return errSessionStatusNotOpen
 	}
 
-	state, res, err := s.writeAttemptWithRLock(
+	var tagEncoder serialize.TagEncoder
+	if wType == taggedWriteAttemptType {
+		tagEncoder = s.pools.TagEncoder().Get()
+		defer tagEncoder.Finalize()
+	}
+
+	state, err := s.writeAttemptWithRLock(
 		wType, nsID, id, inputTags,
 		timestamp, value, timeType, annotation,
-		writeAttemptResources{})
-	defer res.finalize()
+		tagEncoder)
 
 	majority, enqueued := state.majority, state.enqueued
 
@@ -1154,8 +1158,8 @@ func (s *session) writeAttemptWithRLock(
 	value float64,
 	timeType rpc.TimeType,
 	annotation []byte,
-	res writeAttemptResources,
-) (*writeState, writeAttemptResources, error) {
+	tagEncoder serialize.TagEncoder,
+) (*writeState, error) {
 	var (
 		majority = int32(s.state.majority)
 		enqueued int32
@@ -1163,17 +1167,14 @@ func (s *session) writeAttemptWithRLock(
 
 	var encodedTags checked.Bytes
 	if wType == taggedWriteAttemptType {
-		if res.tagEncoder == nil {
-			res.tagEncoder = s.pools.tagEncoder.Get()
-		}
-		res.tagEncoder.Reset()
-		if err := res.tagEncoder.Encode(inputTags); err != nil {
-			return nil, res, err
+		tagEncoder.Reset()
+		if err := tagEncoder.Encode(inputTags); err != nil {
+			return nil, err
 		}
 		var ok bool
-		encodedTags, ok = res.tagEncoder.Data()
+		encodedTags, ok = tagEncoder.Data()
 		if !ok {
-			return nil, res, errUnableToEncodeTags
+			return nil, errUnableToEncodeTags
 		}
 	}
 
@@ -1222,12 +1223,12 @@ func (s *session) writeAttemptWithRLock(
 		op = wop
 	default:
 		// should never happen
-		return nil, res, errUnknownWriteAttemptType
+		return nil, errUnknownWriteAttemptType
 	}
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	op.SetCompletionFn(state.completionFn)
+	op.SetOpCallback(state.opCallback)
 
 	err := s.state.topoMap.RouteForEach(state.tsIdentID,
 		func(idx int, host topology.Host) {
@@ -1238,20 +1239,22 @@ func (s *session) writeAttemptWithRLock(
 		})
 	if err != nil {
 		state.decRef()
-		return nil, res, err
+		return nil, err
 	}
 
 	state.Lock()
 	for i := range state.queues {
 		state.incRef()
-		if err := state.queues[i].Enqueue(state.op); err != nil {
+
+		// NB(r): Use op instead of state.op as it already has correct iface.
+		if err := state.queues[i].Enqueue(op); err != nil {
 			state.Unlock()
 			state.decRef()
 
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
 			s.log.Error("[invariant violated] failed to enqueue write", zap.Error(err))
-			return nil, res, err
+			return nil, err
 		}
 		enqueued++
 	}
@@ -1260,7 +1263,7 @@ func (s *session) writeAttemptWithRLock(
 
 	// NB(prateek): the current go-routine still holds a lock on the
 	// returned writeState object.
-	return state, res, nil
+	return state, nil
 }
 
 func (s *session) Fetch(
@@ -1527,7 +1530,7 @@ func (s *session) newFetchStateWithRLock(
 		fetchOp := s.pools.fetchTaggedOp.Get()
 		fetchOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = fetchOp.decRef // release the ref for the current go-routine
-		fetchOp.update(opts.fetchTaggedRequest, fetchState.completionFn)
+		fetchOp.update(opts.fetchTaggedRequest, fetchState)
 		fetchState.ResetFetchTagged(opts.startInclusive, opts.endExclusive,
 			fetchOp, topoMap, s.state.majority, s.state.readLevel)
 		op = fetchOp
@@ -1536,7 +1539,7 @@ func (s *session) newFetchStateWithRLock(
 		aggOp := s.pools.aggregateOp.Get()
 		aggOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = aggOp.decRef // release the ref for the current go-routine
-		aggOp.update(opts.aggregateRequest, fetchState.completionFn)
+		aggOp.update(opts.aggregateRequest, fetchState)
 		fetchState.ResetAggregate(opts.startInclusive, opts.endExclusive,
 			aggOp, topoMap, s.state.majority, s.state.readLevel)
 		op = aggOp
@@ -1801,7 +1804,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			// Append IDWithNamespace to this request
-			f.append(namespace.Bytes(), tsID.Bytes(), completionFn)
+			f.append(namespace.Bytes(), tsID.Bytes(), opCallbackFn(completionFn))
 		}); err != nil {
 			routeErr = err
 			break
@@ -1952,7 +1955,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 
 	t := &truncateOp{}
 	t.request.NameSpace = namespace.Bytes()
-	t.completionFn = func(result interface{}, err error) {
+	t.opCallback = opCallbackFn(func(result interface{}, err error) {
 		if err != nil {
 			resultErrLock.Lock()
 			resultErr = resultErr.Add(err)
@@ -1962,7 +1965,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 			atomic.AddInt64(&truncated, res.NumSeries)
 		}
 		wg.Done()
-	}
+	})
 
 	s.state.RLock()
 	for idx := range s.state.queues {

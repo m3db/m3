@@ -25,8 +25,8 @@ import (
 )
 
 type truncateOp struct {
-	request      rpc.TruncateRequest
-	completionFn completionFn
+	request    rpc.TruncateRequest
+	opCallback opCallback
 }
 
 func (t *truncateOp) Size() int {
@@ -34,6 +34,6 @@ func (t *truncateOp) Size() int {
 	return 1
 }
 
-func (t *truncateOp) CompletionFn() completionFn {
-	return t.completionFn
+func (t *truncateOp) OpCallback() opCallback {
+	return t.opCallback
 }

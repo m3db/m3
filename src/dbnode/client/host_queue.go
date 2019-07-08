@@ -103,13 +103,13 @@ func newHostQueue(
 	opArrayPool.Init()
 
 	return &queue{
-		opts:                                       opts,
-		nowFn:                                      opts.ClockOptions().NowFn(),
-		host:                                       host,
-		connPool:                                   newConnectionPool(host, opts),
-		writeBatchRawRequestPool:                   hostQueueOpts.writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
+		opts:                                 opts,
+		nowFn:                                opts.ClockOptions().NowFn(),
+		host:                                 host,
+		connPool:                             newConnectionPool(host, opts),
+		writeBatchRawRequestPool:             hostQueueOpts.writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool: hostQueueOpts.writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:       hostQueueOpts.writeTaggedBatchRawRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
 		workerPool:   workerPool,
 		size:         size,
@@ -237,8 +237,8 @@ func (q *queue) drain() {
 				idx := currTaggedWriteOpsByNamespace.indexOf(namespace)
 				if idx == -1 {
 					value := namespaceWriteTaggedBatchOps{
-						namespace:                                  namespace,
-						opsArrayPool:                               q.opsArrayPool,
+						namespace:    namespace,
+						opsArrayPool: q.opsArrayPool,
 						writeTaggedBatchRawRequestElementArrayPool: q.writeTaggedBatchRawRequestElementArrayPool,
 					}
 					idx = len(currTaggedWriteOpsByNamespace)
@@ -262,8 +262,8 @@ func (q *queue) drain() {
 			case *truncateOp:
 				q.asyncTruncate(v)
 			default:
-				completionFn := ops[i].CompletionFn()
-				completionFn(nil, errQueueUnknownOperation(q.host.ID()))
+				cb := ops[i].OpCallback()
+				cb.OpComplete(nil, errQueueUnknownOperation(q.host.ID()))
 			}
 		}
 
@@ -346,14 +346,14 @@ func (q *queue) asyncTaggedWrite(
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.CompletionFn()(q.host, batchErr.Err)
+				op.OpCallback().OpComplete(q.host, batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].CompletionFn()(q.host, nil)
+					ops[i].OpCallback().OpComplete(q.host, nil)
 				}
 			}
 			cleanup()
@@ -410,14 +410,14 @@ func (q *queue) asyncWrite(
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.CompletionFn()(q.host, batchErr.Err)
+				op.OpCallback().OpComplete(q.host, batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].CompletionFn()(q.host, nil)
+					ops[i].OpCallback().OpComplete(q.host, nil)
 				}
 			}
 			cleanup()
@@ -486,7 +486,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			op.OpCallback().OpComplete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
@@ -494,12 +494,12 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
-			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			op.OpCallback().OpComplete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
 
-		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+		op.OpCallback().OpComplete(fetchTaggedResultAccumulatorOpts{
 			host:     q.host,
 			response: result,
 		}, err)
@@ -519,7 +519,7 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
+			op.OpCallback().OpComplete(aggregateResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
@@ -527,12 +527,12 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
 		result, err := client.AggregateRaw(ctx, &op.request)
 		if err != nil {
-			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
+			op.OpCallback().OpComplete(aggregateResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
 
-		op.CompletionFn()(aggregateResultAccumulatorOpts{
+		op.OpCallback().OpComplete(aggregateResultAccumulatorOpts{
 			host:     q.host,
 			response: result,
 		}, err)
@@ -549,16 +549,16 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			op.completionFn(nil, err)
+			op.OpCallback().OpComplete(nil, err)
 			cleanup()
 			return
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.TruncateRequestTimeout())
 		if res, err := client.Truncate(ctx, &op.request); err != nil {
-			op.completionFn(nil, err)
+			op.OpCallback().OpComplete(nil, err)
 		} else {
-			op.completionFn(res, nil)
+			op.OpCallback().OpComplete(res, nil)
 		}
 
 		cleanup()
