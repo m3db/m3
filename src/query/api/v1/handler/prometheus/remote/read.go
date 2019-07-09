@@ -159,7 +159,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *PromReadHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.ReadRequest, *xhttp.ParseError) {
-	reqBuf, err := prometheus.ParsePromCompressedRequest(nil, r)
+	reqBuf, err := prometheus.ParsePromCompressedRequest(r,
+		prometheus.ParsePromCompressedRequestOptions{})
 	if err != nil {
 		return nil, err
 	}
