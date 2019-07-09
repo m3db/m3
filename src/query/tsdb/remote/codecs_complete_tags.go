@@ -28,22 +28,19 @@ import (
 
 func decodeTagNamesOnly(
 	response *rpc.TagNames,
-) *storage.CompleteTagsResult {
+) []storage.CompletedTag {
 	names := response.GetNames()
 	tags := make([]storage.CompletedTag, len(names))
 	for i, name := range names {
 		tags[i] = storage.CompletedTag{Name: name}
 	}
 
-	return &storage.CompleteTagsResult{
-		CompleteNameOnly: true,
-		CompletedTags:    tags,
-	}
+	return tags
 }
 
 func decodeTagProperties(
 	response *rpc.TagValues,
-) *storage.CompleteTagsResult {
+) []storage.CompletedTag {
 	values := response.GetValues()
 	tags := make([]storage.CompletedTag, len(values))
 	for i, value := range values {
@@ -53,20 +50,26 @@ func decodeTagProperties(
 		}
 	}
 
-	return &storage.CompleteTagsResult{
-		CompleteNameOnly: false,
-		CompletedTags:    tags,
-	}
+	return tags
 }
 
 func decodeCompleteTagsResponse(
 	response *rpc.CompleteTagsResponse,
-) (*storage.CompleteTagsResult, error) {
+	completeNameOnly bool,
+) ([]storage.CompletedTag, error) {
 	if names := response.GetNamesOnly(); names != nil {
+		if !completeNameOnly {
+			return nil, errors.ErrInconsistentCompleteTagsType
+		}
+
 		return decodeTagNamesOnly(names), nil
 	}
 
 	if props := response.GetDefault(); props != nil {
+		if completeNameOnly {
+			return nil, errors.ErrInconsistentCompleteTagsType
+		}
+
 		return decodeTagProperties(props), nil
 	}
 

@@ -92,7 +92,7 @@ func resolveScalarArgumentWithNesting(expr pql.Expr, nesting int) (float64, int,
 
 	case *pql.Call:
 		// TODO: once these functions exist, use those constants here
-		// If the function called is `scalar`, evaluate inside and insure a scalar
+		// If the function called is `scalar`, evaluate inside and ensure a scalar
 		if n.Func.Name == "scalar" {
 			return resolveScalarArgumentWithNesting(n.Args[0], nesting+1)
 		} else if n.Func.Name == "vector" {
