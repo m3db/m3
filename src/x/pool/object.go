@@ -89,6 +89,14 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 }
 
 func (p *objectPool) Init(alloc Allocator) {
+	p.init(alloc, false)
+}
+
+func (p *objectPool) InitLazy(alloc Allocator) {
+	p.init(alloc, true)
+}
+
+func (p *objectPool) init(alloc Allocator, lazy bool) {
 	if !atomic.CompareAndSwapInt32(&p.initialized, 0, 1) {
 		fn := p.opts.OnPoolAccessErrorFn()
 		fn(errPoolAlreadyInitialized)
@@ -97,8 +105,10 @@ func (p *objectPool) Init(alloc Allocator) {
 
 	p.alloc = alloc
 
-	for i := 0; i < cap(p.values); i++ {
-		p.values <- p.alloc()
+	if !lazy {
+		for i := 0; i < cap(p.values); i++ {
+			p.values <- p.alloc()
+		}
 	}
 
 	p.setGauges()
@@ -128,20 +138,24 @@ func (p *objectPool) Get() interface{} {
 	return v
 }
 
-func (p *objectPool) Put(obj interface{}) {
+func (p *objectPool) Put(obj interface{}) bool {
+	returned := false
 	if atomic.LoadInt32(&p.initialized) != 1 {
 		fn := p.opts.OnPoolAccessErrorFn()
 		fn(errPoolPutBeforeInitialized)
-		return
+		return returned
 	}
 
 	select {
 	case p.values <- obj:
+		returned = true
 	default:
 		p.metrics.putOnFull.Inc(1)
 	}
 
 	p.trySetGauges()
+
+	return returned
 }
 
 func (p *objectPool) trySetGauges() {

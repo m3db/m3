@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	goruntime "runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -316,7 +317,7 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	s.pools.checkedBytesWrapper.Init()
 
-	s.pools.writeBatchBytesPool = newWriteBatchBytesPool(scope)
+	s.pools.writeBatchBytesPool = newWriteBatchBytesPool(opts.InstrumentOptions())
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.state.bootstrapLevel = opts.BootstrapConsistencyLevel()
@@ -955,7 +956,8 @@ func (s *session) writeBatchAttempt(
 ) error {
 	var (
 		startWriteAttempt = s.nowFn()
-		buff              = s.pools.writeBatchBytesPool.Get()
+		poolKey           = startWriteAttempt.UnixNano()
+		buff              = s.pools.writeBatchBytesPool.Get(poolKey)
 		tagEncoder        = s.pools.tagEncoder.Get()
 	)
 	buff.incRef()
@@ -1089,12 +1091,15 @@ func (s *session) writeAttempt(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	startWriteAttempt := s.nowFn()
+	poolKey := startWriteAttempt.UnixNano()
+
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.TagEncoder().Get()
 	}
 
-	buff := s.pools.writeBatchBytesPool.Get()
+	buff := s.pools.writeBatchBytesPool.Get(poolKey)
 	buff.incRef()
 	defer func() {
 		buff.decRef()
@@ -1102,8 +1107,6 @@ func (s *session) writeAttempt(
 			tagEncoder.Finalize()
 		}
 	}()
-
-	startWriteAttempt := s.nowFn()
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -4091,11 +4094,15 @@ func minDuration(x, y time.Duration) time.Duration {
 	return y
 }
 
-// const maxWriteBatchBytesBuffers = 2048
+const (
+	maxWriteBatchBytesBuffers = 2 << 16 // ~130k
+	writeBatchByteBufferSize  = 2 << 10 // 2kb
+)
 
 type writeBatchBytesPool struct {
 	sync.Mutex
-	values    []*writeBatchBytes
+	pools     []pool.ObjectPool
+	numPools  int64
 	gets      tally.Counter
 	getsEmpty tally.Counter
 	puts      tally.Counter
@@ -4104,119 +4111,117 @@ type writeBatchBytesPool struct {
 
 type writeBatchBytes struct {
 	refCounter
-	buffer   []byte
-	mmapd    []byte
-	mmapUsed int
-	pool     *writeBatchBytesPool
+	mmapd   []byte
+	used    int
+	last    *writeBatchBytes
+	curr    *writeBatchBytes
+	poolKey int64
+	pool    *writeBatchBytesPool
 }
 
-func newWriteBatchBytes(pool *writeBatchBytesPool) *writeBatchBytes {
-	b := &writeBatchBytes{pool: pool}
+func newWriteBatchBytes(pool *writeBatchBytesPool) (*writeBatchBytes, error) {
+	bytes, err := mmap.Bytes(int64(writeBatchByteBufferSize), mmap.Options{
+		Read:  true,
+		Write: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	b := &writeBatchBytes{
+		mmapd: bytes.Result,
+		pool:  pool,
+	}
 	b.destructorFn = b.finalize
-	return b
+	return b, nil
+}
+
+func (b *writeBatchBytes) reset(poolKey int64) {
+	// Point to no other buffers and set current to itself.
+	b.used = 0
+	b.last = nil
+	b.curr = b
+	b.poolKey = poolKey
 }
 
 // copy will copy to buffer and return the subslice copied.
 func (b *writeBatchBytes) copy(data []byte) []byte {
-	if b.mmapd != nil {
-		if len(data) > len(b.mmapd)-b.mmapUsed {
-			// more than remaining, swap out for real buffer
-			b.buffer = append(b.buffer[:0], b.mmapd[:b.mmapUsed]...)
-			b.buffer = append(b.buffer, data...)
-
-			b.mmapd = nil
-			b.mmapUsed = 0
-
-			return b.buffer[len(b.buffer)-len(data):]
-		} else {
-			target := b.mmapd[b.mmapUsed : b.mmapUsed+len(data)]
-			copy(target, data)
-			b.mmapUsed += len(data)
-			return target
-		}
+	size := len(data)
+	if size > writeBatchByteBufferSize {
+		// Too big to be pooled.
+		return append([]byte(nil), data...)
 	}
 
-	b.buffer = append(b.buffer, data...)
-	return b.buffer[len(b.buffer)-len(data):]
+	if size > len(b.curr.mmapd)-b.curr.used {
+		// Need to get the next page, used next pool key
+		// to rotate through the buffers without calling
+		// time.Now again.
+		buffNew := b.pool.Get(b.poolKey + 1)
+		buffNew.last = b.curr
+		b.curr = buffNew
+	}
+
+	// Append to current mmap.
+	start := b.curr.used
+	end := b.curr.used + size
+	target := b.curr.mmapd[start:end]
+	copy(target, data)
+	b.curr.used += size
+	return target
 }
 
 func (b *writeBatchBytes) finalize() {
-	if b.mmapd == nil {
-		// We know how much we use this buffer, replace with mmap as an estimate.
-		r, err := mmap.Bytes(int64(2*float64(len(b.buffer))), mmap.Options{
-			Read:  true,
-			Write: true,
-		})
-		if err == nil {
-			b.mmapd = r.Result
-			b.mmapUsed = 0
-			b.buffer = nil // free buffer
-		}
-	}
+	ptr := b.curr
+	for ptr != nil {
+		curr := ptr
 
-	if b.mmapd == nil {
-		b.buffer = b.buffer[:0]
-	}
+		// Progress pointer backwards.
+		ptr = curr.last
 
-	b.pool.Put(b)
+		// Reset and return current.
+		curr.reset(curr.poolKey)
+		b.pool.Put(curr.poolKey, curr)
+	}
 }
 
-func newWriteBatchBytesPool(scope tally.Scope) *writeBatchBytesPool {
-	scope = scope.SubScope("write-batch-bytes-pool")
+func newWriteBatchBytesPool(
+	instrumentOpts instrument.Options,
+) *writeBatchBytesPool {
+	shards := goruntime.NumCPU()
+
+	opts := pool.NewObjectPoolOptions().
+		SetSize(maxWriteBatchBytesBuffers / shards).
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.
+				MetricsScope().SubScope("write-batch-bytes-pool")))
+
 	p := &writeBatchBytesPool{
-		gets:      scope.Counter("gets"),
-		getsEmpty: scope.Counter("get-on-empty"),
-		puts:      scope.Counter("puts"),
-		total:     scope.Gauge("total"),
+		numPools: int64(shards),
 	}
+
+	for i := 0; i < shards; i++ {
+		pool := pool.NewObjectPool(opts)
+		pool.InitLazy(func() interface{} {
+			b, err := newWriteBatchBytes(p)
+			if err != nil {
+				panic(err)
+			}
+			return b
+		})
+		p.pools = append(p.pools, pool)
+	}
+
 	return p
 }
 
-func (p *writeBatchBytesPool) Get() *writeBatchBytes {
-	var result *writeBatchBytes
-	p.Lock()
-	n := len(p.values)
-	if n > 0 {
-		index := n - 1
-		result = p.values[index]
-		// p.values[index] = nil
-		// was this causing issues?
-		p.values = p.values[:index]
+func (p *writeBatchBytesPool) Get(poolKey int64) *writeBatchBytes {
+	v := p.pools[poolKey%p.numPools].Get().(*writeBatchBytes)
+	v.reset(poolKey)
+	return v
+}
 
+func (p *writeBatchBytesPool) Put(poolKey int64, v *writeBatchBytes) {
+	if !p.pools[poolKey%p.numPools].Put(v) {
+		// Need to unmmap.
+		mmap.Munmap(v.mmapd)
 	}
-	p.Unlock()
-	if result == nil {
-		result = newWriteBatchBytes(p)
-		p.getsEmpty.Inc(1)
-	}
-	p.gets.Inc(1)
-	p.total.Update(float64(n))
-	return result
-}
-
-func (p *writeBatchBytesPool) Put(v *writeBatchBytes) {
-	p.Lock()
-	p.values = append(p.values, v)
-	p.Unlock()
-	p.puts.Inc(1)
-}
-
-type bytesHeap []*writeBatchBytes
-
-func (h bytesHeap) Len() int           { return len(h) }
-func (h bytesHeap) Less(i, j int) bool { return cap(h[i].buffer) > cap(h[j].buffer) }
-func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-func (h *bytesHeap) Push(x interface{}) {
-	// Push and Pop use pointer receivers because they modify the slice's length,
-	// not just its contents.
-	*h = append(*h, x.(*writeBatchBytes))
-}
-
-func (h *bytesHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
 }
