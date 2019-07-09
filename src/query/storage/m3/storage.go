@@ -387,10 +387,6 @@ func (s *m3storage) CompleteTags(
 		wg              sync.WaitGroup
 	)
 
-	if err != nil {
-		return nil, err
-	}
-
 	debugLog := s.logger.Check(zapcore.DebugLevel,
 		"completing tags")
 	if debugLog != nil {
