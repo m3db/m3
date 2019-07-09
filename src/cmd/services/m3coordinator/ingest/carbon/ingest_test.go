@@ -28,11 +28,14 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"os"
 	"reflect"
 	"sort"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -354,6 +357,113 @@ func TestGenerateTagsFromName(t *testing.T) {
 			assert.Equal(t, []byte(tc.id), tags.ID())
 		}
 		require.Equal(t, tc.expectedTags, tags.Tags)
+	}
+}
+
+func TestIngesterConcurrentDownsampling(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	concurrency := 8
+
+	// Lots of frequent aggregation.
+	aggregateWindow := 100 * time.Millisecond
+	aggregateAllowedLateness := 2 * time.Second
+
+	workerPool, err := xsync.NewPooledWorkerPool(concurrency,
+		xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+
+	workerPool.Init()
+
+	testDownsampler, err := downsample.NewTestDownsampler(
+		downsample.TestDownsamplerOptions{
+			AutoMappingRules: []downsample.MappingRule{
+				downsample.MappingRule{
+					Aggregations: []aggregation.Type{aggregation.Sum},
+					Policies: policy.StoragePolicies{
+						policy.MustParseStoragePolicy(aggregateWindow.String() + ":1h"),
+					},
+				},
+			},
+			BufferPastLimits: []downsample.BufferPastLimitConfiguration{
+				downsample.BufferPastLimitConfiguration{
+					Resolution: 0,
+					BufferPast: aggregateAllowedLateness,
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(
+		testDownsampler.Storage, testDownsampler.Downsampler, workerPool)
+
+	scope := tally.NewTestScope("", nil)
+	testOpts := testOptions
+	testOpts.InstrumentOptions = testOpts.InstrumentOptions.
+		SetMetricsScope(scope)
+	ingester, err := NewIngester(downsamplerAndWriter, testRulesMatchAll, testOpts)
+	require.NoError(t, err)
+
+	uniqueMetricsPerConn := 1024
+	closeCh := make(chan struct{})
+	for i := 0; i < concurrency; i++ {
+		i := i
+		go func() {
+			for {
+				time.Sleep(aggregateWindow / 2)
+				ts := time.Now().Unix()
+
+				packet := bytes.NewBuffer(nil)
+				for j := 0; j < uniqueMetricsPerConn; j++ {
+					_, err := packet.WriteString(fmt.Sprintf(
+						"foo.conn%d.%d %d %d\n", i, j, rand.Int(), ts))
+					require.NoError(t, err)
+				}
+
+				byteConn := &byteConn{b: packet}
+				ingester.Handle(byteConn)
+
+				select {
+				case <-closeCh:
+					return
+				default:
+				}
+			}
+		}()
+	}
+
+	debugTest := os.Getenv("DEBUG_TEST") == "true"
+
+	needWrites := uniqueMetricsPerConn * concurrency
+	check := time.Now()
+	for {
+		writes := testDownsampler.Storage.Writes()
+		if debugTest && time.Since(check) > time.Second {
+			fmt.Printf("num writes: need=%d, actual=%d\n", needWrites, len(writes))
+			check = time.Now()
+		}
+
+		if len(writes) >= needWrites {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	close(closeCh)
+
+	if debugTest {
+		writes := testDownsampler.Storage.Writes()
+		fmt.Printf("done: writes=%d\n", len(writes))
+
+		snap := scope.Snapshot()
+		for k, v := range snap.Counters() {
+			fmt.Printf("counter %s = %v\n", k, v.Value())
+		}
+		for k, v := range snap.Gauges() {
+			fmt.Printf("gauge %s = %v\n", k, v.Value())
+		}
 	}
 }
 

@@ -27,30 +27,22 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/client"
-	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
-	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
-	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/mock"
-	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
-	"go.uber.org/zap"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var (
@@ -65,22 +57,25 @@ const (
 )
 
 func TestDownsamplerAggregationWithAutoMappingRules(t *testing.T) {
-	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []MappingRule{
+	testDownsampler, err := NewTestDownsampler(TestDownsamplerOptions{
+		AutoMappingRules: []MappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
 func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
-	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{})
-	rulesStore := testDownsampler.rulesStore
+	testDownsampler, err := NewTestDownsampler(TestDownsamplerOptions{})
+	require.NoError(t, err)
+
+	rulesStore := testDownsampler.RulesStore
 
 	// Create rules
 	nss, err := rulesStore.ReadNamespaces()
@@ -103,12 +98,12 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	err = rulesStore.WriteAll(nss, rs)
 	require.NoError(t, err)
 
-	logger := testDownsampler.instrumentOpts.Logger().
+	logger := testDownsampler.InstrumentOpts.Logger().
 		With(zap.String("test", t.Name()))
 
 	// Wait for mapping rule to appear
 	logger.Info("waiting for mapping rules to propagate")
-	matcher := testDownsampler.matcher
+	matcher := testDownsampler.Matcher
 	testMatchID := newTestID(t, map[string]string{
 		"__name__": "foo",
 		"app":      "test123",
@@ -128,23 +123,24 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 }
 
 func TestDownsamplerAggregationWithTimedSamples(t *testing.T) {
-	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		timedSamples: true,
-		autoMappingRules: []MappingRule{
+	testDownsampler, err := NewTestDownsampler(TestDownsamplerOptions{
+		TimedSamples: true,
+		AutoMappingRules: []MappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
 func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
-	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		sampleAppenderOpts: &SampleAppenderOptions{
+	testDownsampler, err := NewTestDownsampler(TestDownsamplerOptions{
+		SampleAppenderOpts: &SampleAppenderOptions{
 			Override: true,
 			OverrideRules: SamplesAppenderOverrideRules{
 				MappingRules: []MappingRule{
@@ -157,17 +153,18 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 				},
 			},
 		},
-		expectedAdjusted: map[string]float64{
+		ExpectedAdjusted: map[string]float64{
 			"gauge0":   5.0,
 			"counter0": 2.0,
 		},
-		autoMappingRules: []MappingRule{
+		AutoMappingRules: []MappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -181,15 +178,16 @@ func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 	remoteClientMock := client.NewMockClient(ctrl)
 	remoteClientMock.EXPECT().Init().Return(nil)
 
-	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []MappingRule{
+	testDownsampler, err := NewTestDownsampler(TestDownsamplerOptions{
+		AutoMappingRules: []MappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
 			},
 		},
-		remoteClientMock: remoteClientMock,
+		RemoteClientMock: remoteClientMock,
 	})
+	require.NoError(t, err)
 
 	// Test expected output
 	testDownsamplerRemoteAggregation(t, testDownsampler)
@@ -229,11 +227,11 @@ func testGaugeMetrics() []testGaugeMetric {
 
 func testDownsamplerAggregation(
 	t *testing.T,
-	testDownsampler testDownsampler,
+	testDownsampler TestDownsampler,
 ) {
-	testOpts := testDownsampler.testOpts
+	testOpts := testDownsampler.TestOpts
 
-	logger := testDownsampler.instrumentOpts.Logger().
+	logger := testDownsampler.InstrumentOpts.Logger().
 		With(zap.String("test", t.Name()))
 
 	testCounterMetrics := testCounterMetrics()
@@ -246,7 +244,7 @@ func testDownsamplerAggregation(
 	// Wait for writes
 	logger.Info("wait for test metrics to appear")
 	for {
-		writes := testDownsampler.storage.Writes()
+		writes := testDownsampler.Storage.Writes()
 		if len(writes) == len(testCounterMetrics)+len(testGaugeMetrics) {
 			break
 		}
@@ -255,11 +253,11 @@ func testDownsamplerAggregation(
 
 	// Verify writes
 	logger.Info("verify test metrics")
-	writes := testDownsampler.storage.Writes()
+	writes := testDownsampler.Storage.Writes()
 	for _, metric := range testCounterMetrics {
 		name := metric.tags["__name__"]
 		expected := metric.expected
-		if v, ok := testOpts.expectedAdjusted[name]; ok {
+		if v, ok := testOpts.ExpectedAdjusted[name]; ok {
 			expected = int64(v)
 		}
 
@@ -271,7 +269,7 @@ func testDownsamplerAggregation(
 	for _, metric := range testGaugeMetrics {
 		name := metric.tags["__name__"]
 		expected := metric.expected
-		if v, ok := testOpts.expectedAdjusted[name]; ok {
+		if v, ok := testOpts.ExpectedAdjusted[name]; ok {
 			expected = v
 		}
 
@@ -284,14 +282,14 @@ func testDownsamplerAggregation(
 
 func testDownsamplerRemoteAggregation(
 	t *testing.T,
-	testDownsampler testDownsampler,
+	testDownsampler TestDownsampler,
 ) {
-	testOpts := testDownsampler.testOpts
+	testOpts := testDownsampler.TestOpts
 
 	testCounterMetrics, expectTestCounterMetrics := testCounterMetrics(), testCounterMetrics()
 	testGaugeMetrics, expectTestGaugeMetrics := testGaugeMetrics(), testGaugeMetrics()
 
-	remoteClientMock := testOpts.remoteClientMock
+	remoteClientMock := testOpts.RemoteClientMock
 	require.NotNil(t, remoteClientMock)
 
 	// Expect ingestion
@@ -378,15 +376,15 @@ func testDownsamplerRemoteAggregation(
 
 func testDownsamplerAggregationIngest(
 	t *testing.T,
-	testDownsampler testDownsampler,
+	testDownsampler TestDownsampler,
 	testCounterMetrics []testCounterMetric,
 	testGaugeMetrics []testGaugeMetric,
 ) {
-	downsampler := testDownsampler.downsampler
+	downsampler := testDownsampler.Downsampler
 
-	testOpts := testDownsampler.testOpts
+	testOpts := testDownsampler.TestOpts
 
-	logger := testDownsampler.instrumentOpts.Logger().
+	logger := testDownsampler.InstrumentOpts.Logger().
 		With(zap.String("test", t.Name()))
 
 	logger.Info("write test metrics")
@@ -395,8 +393,8 @@ func testDownsamplerAggregationIngest(
 	defer appender.Finalize()
 
 	var opts SampleAppenderOptions
-	if testOpts.sampleAppenderOpts != nil {
-		opts = *testOpts.sampleAppenderOpts
+	if testOpts.SampleAppenderOpts != nil {
+		opts = *testOpts.SampleAppenderOpts
 	}
 	for _, metric := range testCounterMetrics {
 		appender.Reset()
@@ -408,7 +406,7 @@ func testDownsamplerAggregationIngest(
 		require.NoError(t, err)
 
 		for _, sample := range metric.samples {
-			if testOpts.timedSamples {
+			if testOpts.TimedSamples {
 				err = samplesAppender.AppendCounterTimedSample(time.Now(), sample)
 			} else {
 				err = samplesAppender.AppendCounterSample(sample)
@@ -426,7 +424,7 @@ func testDownsamplerAggregationIngest(
 		require.NoError(t, err)
 
 		for _, sample := range metric.samples {
-			if testOpts.timedSamples {
+			if testOpts.TimedSamples {
 				err = samplesAppender.AppendGaugeTimedSample(time.Now(), sample)
 			} else {
 				err = samplesAppender.AppendGaugeSample(sample)
@@ -443,103 +441,6 @@ func tagsToStringMap(tags models.Tags) map[string]string {
 	}
 
 	return stringMap
-}
-
-type testDownsampler struct {
-	opts           DownsamplerOptions
-	testOpts       testDownsamplerOptions
-	downsampler    Downsampler
-	matcher        matcher.Matcher
-	storage        mock.Storage
-	rulesStore     rules.Store
-	instrumentOpts instrument.Options
-}
-
-type testDownsamplerOptions struct {
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
-
-	// Options for the test
-	autoMappingRules   []MappingRule
-	timedSamples       bool
-	sampleAppenderOpts *SampleAppenderOptions
-	remoteClientMock   *client.MockClient
-
-	// Expected values overrides
-	expectedAdjusted map[string]float64
-}
-
-func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
-	storage := mock.NewMockStorage()
-	rulesKVStore := mem.NewStore()
-
-	clockOpts := clock.NewOptions()
-	if opts.clockOpts != nil {
-		clockOpts = opts.clockOpts
-	}
-
-	instrumentOpts := instrument.NewOptions()
-	if opts.instrumentOpts != nil {
-		instrumentOpts = opts.instrumentOpts
-	}
-
-	matcherOpts := matcher.NewOptions()
-
-	// Initialize the namespaces
-	_, err := rulesKVStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
-	require.NoError(t, err)
-
-	rulesetKeyFmt := matcherOpts.RuleSetKeyFn()([]byte("%s"))
-	rulesStoreOpts := ruleskv.NewStoreOptions(matcherOpts.NamespacesKey(),
-		rulesetKeyFmt, nil)
-	rulesStore := ruleskv.NewStore(rulesKVStore, rulesStoreOpts)
-
-	tagEncoderOptions := serialize.NewTagEncoderOptions()
-	tagDecoderOptions := serialize.NewTagDecoderOptions()
-	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("tag-encoder-pool")))
-	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("tag-decoder-pool")))
-
-	var cfg Configuration
-	if opts.remoteClientMock != nil {
-		// Optionally set an override to use remote aggregation
-		// with a mock client
-		cfg.RemoteAggregator = &RemoteAggregatorConfiguration{
-			clientOverride: opts.remoteClientMock,
-		}
-	}
-
-	instance, err := cfg.NewDownsampler(DownsamplerOptions{
-		Storage:               storage,
-		ClusterClient:         clusterclient.NewMockClient(gomock.NewController(t)),
-		RulesKVStore:          rulesKVStore,
-		AutoMappingRules:      opts.autoMappingRules,
-		ClockOptions:          clockOpts,
-		InstrumentOptions:     instrumentOpts,
-		TagEncoderOptions:     tagEncoderOptions,
-		TagDecoderOptions:     tagDecoderOptions,
-		TagEncoderPoolOptions: tagEncoderPoolOptions,
-		TagDecoderPoolOptions: tagDecoderPoolOptions,
-	})
-	require.NoError(t, err)
-
-	downcast, ok := instance.(*downsampler)
-	require.True(t, ok)
-
-	return testDownsampler{
-		opts:           downcast.opts,
-		testOpts:       opts,
-		downsampler:    instance,
-		matcher:        downcast.agg.matcher,
-		storage:        storage,
-		rulesStore:     rulesStore,
-		instrumentOpts: instrumentOpts,
-	}
 }
 
 func newTestID(t *testing.T, tags map[string]string) id.ID {

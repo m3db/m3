@@ -69,3 +69,21 @@ func (r Reporter) Errorf(format string, args ...interface{}) {
 func (r Reporter) Fatalf(format string, args ...interface{}) {
 	panic(fmt.Sprintf(format, args...))
 }
+
+// PanicReporter always panics, even on error.
+type PanicReporter struct {
+}
+
+// ensure Reporter implements gomock.TestReporter.
+var _ gomock.TestReporter = PanicReporter{}
+
+// Errorf is equivalent testing.T.Errorf.
+func (r PanicReporter) Errorf(format string, args ...interface{}) {
+	panic(fmt.Sprintf(format, args...))
+}
+
+// Fatalf crashes the program with a panic to allow users to diagnose
+// missing expects.
+func (r PanicReporter) Fatalf(format string, args ...interface{}) {
+	panic(fmt.Sprintf(format, args...))
+}
