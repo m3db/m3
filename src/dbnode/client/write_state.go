@@ -72,7 +72,7 @@ type writeState struct {
 
 	opCallback opCallback
 
-	routeForEachFn topology.RouteForEachFn
+	routeQueuesForEachFn topology.RouteForEachFn
 
 	queues []hostQueue
 	pool   *writeStatePool
@@ -91,7 +91,7 @@ func newWriteState(
 	w.destructorFn = w.close
 	w.L = w
 	w.opCallback = w
-	w.routeForEachFn = w.routeForEach
+	w.routeQueuesForEachFn = w.routeQueuesForEach
 	return w
 }
 
@@ -124,7 +124,7 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) routeQueues() error {
-	return w.topoMap.RouteForEach(w.tsIdentID, w.routeForEachFn)
+	return w.topoMap.RouteForEach(w.tsIdentID, w.routeQueuesForEachFn)
 }
 
 func (w *writeState) routeQueuesForEach(idx int, host topology.Host) {
