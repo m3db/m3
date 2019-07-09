@@ -4093,10 +4093,11 @@ func minDuration(x, y time.Duration) time.Duration {
 
 type writeBatchBytesPool struct {
 	sync.Mutex
-	values []*writeBatchBytes
-	gets   tally.Counter
-	puts   tally.Counter
-	total  tally.Gauge
+	values    []*writeBatchBytes
+	gets      tally.Counter
+	getsEmpty tally.Counter
+	puts      tally.Counter
+	total     tally.Gauge
 }
 
 type writeBatchBytes struct {
@@ -4125,9 +4126,10 @@ func (b *writeBatchBytes) finalize() {
 func newWriteBatchBytesPool(scope tally.Scope) *writeBatchBytesPool {
 	scope = scope.SubScope("write-batch-bytes-pool")
 	p := &writeBatchBytesPool{
-		gets:  scope.Counter("gets"),
-		puts:  scope.Counter("puts"),
-		total: scope.Gauge("total"),
+		gets:      scope.Counter("gets"),
+		getsEmpty: scope.Counter("get-on-empty"),
+		puts:      scope.Counter("puts"),
+		total:     scope.Gauge("total"),
 	}
 	return p
 }
@@ -4139,13 +4141,15 @@ func (p *writeBatchBytesPool) Get() *writeBatchBytes {
 	if n > 0 {
 		index := n - 1
 		result = p.values[index]
-		p.values[index] = nil
+		// p.values[index] = nil
+		// was this causing issues?
 		p.values = p.values[:index]
 
 	}
 	p.Unlock()
 	if result == nil {
 		result = newWriteBatchBytes(p)
+		p.getsEmpty.Inc(1)
 	}
 	p.gets.Inc(1)
 	p.total.Update(float64(n))
