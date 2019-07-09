@@ -4090,7 +4090,7 @@ func minDuration(x, y time.Duration) time.Duration {
 	return y
 }
 
-const maxWriteBatchBytesBuffers = 2048
+// const maxWriteBatchBytesBuffers = 2048
 
 type writeBatchBytesPool struct {
 	sync.Mutex
@@ -4145,10 +4145,10 @@ func (p *writeBatchBytesPool) Get() *writeBatchBytes {
 func (p *writeBatchBytesPool) Put(v *writeBatchBytes) {
 	p.Lock()
 	heap.Push(p.heap, v)
-	for n := p.heap.Len(); n > maxWriteBatchBytesBuffers; n = p.heap.Len() {
-		// Remove the smallest buffer.
-		heap.Remove(p.heap, n-1)
-	}
+	// for n := p.heap.Len(); n > maxWriteBatchBytesBuffers; n = p.heap.Len() {
+	// 	// Remove the smallest buffer.
+	// 	heap.Remove(p.heap, n-1)
+	// }
 	p.Unlock()
 }
 
