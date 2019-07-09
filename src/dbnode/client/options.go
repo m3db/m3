@@ -85,10 +85,10 @@ const (
 	defaultIdentifierPoolSize = 8192
 
 	// defaultWriteOpPoolSize is the default write op pool size
-	defaultWriteOpPoolSize = 2 << 17 // ~262k
+	defaultWriteOpPoolSize = 2 << 16 // ~130k
 
 	// defaultWriteTaggedOpPoolSize is the default write tagged op pool size
-	defaultWriteTaggedOpPoolSize = 2 << 17 // ~262k
+	defaultWriteTaggedOpPoolSize = 2 << 16 // ~130k
 
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192

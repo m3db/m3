@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -313,6 +314,8 @@ func newSession(opts Options) (clientSession, error) {
 			scope.SubScope("client-checked-bytes-wrapper-pool")))
 	s.pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	s.pools.checkedBytesWrapper.Init()
+
+	s.pools.writeBatchBytesPool = newWriteBatchBytesPool()
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.state.bootstrapLevel = opts.BootstrapConsistencyLevel()
@@ -951,9 +954,14 @@ func (s *session) writeBatchAttempt(
 ) error {
 	var (
 		startWriteAttempt = s.nowFn()
+		buff              = s.pools.writeBatchBytesPool.Get()
 		tagEncoder        = s.pools.tagEncoder.Get()
 	)
-	defer tagEncoder.Finalize()
+	buff.incRef()
+	defer func() {
+		tagEncoder.Finalize()
+		buff.decRef()
+	}()
 
 	s.state.RLock()
 	if s.state.status != statusOpen {
@@ -1007,7 +1015,7 @@ func (s *session) writeBatchAttempt(
 
 		state, err := s.writeAttemptWithRLock(
 			taggedWriteAttemptType, nsID, id, inputTags,
-			timestamp, value, timeType, annotation, tagEncoder)
+			timestamp, value, timeType, annotation, tagEncoder, buff)
 		if err != nil {
 			iter.SetResult(WriteTaggedIterResult{
 				Err: err,
@@ -1080,6 +1088,20 @@ func (s *session) writeAttempt(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	var tagEncoder serialize.TagEncoder
+	if wType == taggedWriteAttemptType {
+		tagEncoder = s.pools.TagEncoder().Get()
+	}
+
+	buff := s.pools.writeBatchBytesPool.Get()
+	buff.incRef()
+	defer func() {
+		buff.decRef()
+		if tagEncoder != nil {
+			tagEncoder.Finalize()
+		}
+	}()
+
 	startWriteAttempt := s.nowFn()
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
@@ -1098,16 +1120,10 @@ func (s *session) writeAttempt(
 		return errSessionStatusNotOpen
 	}
 
-	var tagEncoder serialize.TagEncoder
-	if wType == taggedWriteAttemptType {
-		tagEncoder = s.pools.TagEncoder().Get()
-		defer tagEncoder.Finalize()
-	}
-
 	state, err := s.writeAttemptWithRLock(
 		wType, nsID, id, inputTags,
 		timestamp, value, timeType, annotation,
-		tagEncoder)
+		tagEncoder, buff)
 
 	majority, enqueued := state.majority, state.enqueued
 
@@ -1134,19 +1150,6 @@ func (s *session) writeAttempt(
 	return err
 }
 
-// writeAttemptResources is a set of re-useable resources between calls to
-// writeAttempteWithRLock, useful when processing batches to reduce
-// pool overhead.
-type writeAttemptResources struct {
-	tagEncoder serialize.TagEncoder
-}
-
-func (r writeAttemptResources) finalize() {
-	if r.tagEncoder != nil {
-		r.tagEncoder.Finalize()
-	}
-}
-
 // NB(prateek): the returned writeState, if valid, still holds the lock. Its ownership
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
@@ -1159,6 +1162,7 @@ func (s *session) writeAttemptWithRLock(
 	timeType rpc.TimeType,
 	annotation []byte,
 	tagEncoder serialize.TagEncoder,
+	buff *writeBatchBytes,
 ) (*writeState, error) {
 	var (
 		majority = int32(s.state.majority)
@@ -1183,6 +1187,10 @@ func (s *session) writeAttemptWithRLock(
 	state.topoMap = s.state.topoMap
 	state.incRef()
 
+	// We are setting a ref count that will be dec ref by the state
+	// when it is done.
+	buff.incRef()
+
 	// NB(prateek): We retain an individual copy of the namespace, ID per
 	// writeState, as each writeState tracks the lifecycle of it's resources in
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
@@ -1192,11 +1200,11 @@ func (s *session) writeAttemptWithRLock(
 	// overhead and the need to finely tune the bytes pool sizes.
 	// (There is protection for these getting too long in the write state
 	// itself by checking the length against reuseWriteBytesTooLong const).
-	state.setNamespaceID(namespace.Bytes())
-	state.setID(id.Bytes())
-	if encodedTags != nil {
-		state.setEncodedTags(encodedTags.Bytes())
-	}
+	namespaceBytes := buff.copy(namespace.Bytes())
+	idBytes := buff.copy(id.Bytes())
+
+	state.setNamespaceID(namespaceBytes)
+	state.setID(idBytes)
 
 	var op writeOp
 	switch wType {
@@ -1204,7 +1212,7 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.pools.writeOperation.Get()
 		wop.namespace = state.nsIdentID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(state.tsIdentID)
-		wop.request.ID = state.tsID
+		wop.request.ID = idBytes
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1214,8 +1222,8 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.pools.writeTaggedOperation.Get()
 		wop.namespace = state.nsIdentID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(state.tsIdentID)
-		wop.request.ID = state.tsID
-		wop.request.EncodedTags = state.encodedTags
+		wop.request.ID = idBytes
+		wop.request.EncodedTags = buff.copy(encodedTags.Bytes())
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1227,7 +1235,7 @@ func (s *session) writeAttemptWithRLock(
 	}
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
-	state.op, state.majority = op, majority
+	state.op, state.majority, state.batchBuff = op, majority, buff
 	op.SetOpCallback(state.opCallback)
 
 	err := s.state.topoMap.RouteForEach(state.tsIdentID,
@@ -4080,4 +4088,86 @@ func minDuration(x, y time.Duration) time.Duration {
 		return x
 	}
 	return y
+}
+
+const maxWriteBatchBytesBuffers = 2048
+
+type writeBatchBytesPool struct {
+	sync.Mutex
+	heap *bytesHeap
+}
+
+type writeBatchBytes struct {
+	refCounter
+	buffer []byte
+	pool   *writeBatchBytesPool
+}
+
+func newWriteBatchBytes(pool *writeBatchBytesPool) *writeBatchBytes {
+	b := &writeBatchBytes{pool: pool}
+	b.destructorFn = b.finalize
+	return b
+}
+
+// copy will copy to buffer and return the subslice copied.
+func (b *writeBatchBytes) copy(data []byte) []byte {
+	b.buffer = append(b.buffer, data...)
+	return b.buffer[len(b.buffer)-len(data):]
+}
+
+func (b *writeBatchBytes) finalize() {
+	b.buffer = b.buffer[:0]
+	b.pool.Put(b)
+}
+
+func newWriteBatchBytesPool() *writeBatchBytesPool {
+	p := &writeBatchBytesPool{heap: &bytesHeap{}}
+	heap.Init(p.heap)
+	return p
+}
+
+func (p *writeBatchBytesPool) Get() *writeBatchBytes {
+	var result *writeBatchBytes
+	p.Lock()
+	n := p.heap.Len()
+	if n > 0 {
+		// Always return the largest.
+		largest := heap.Pop(p.heap)
+		result = largest.(*writeBatchBytes)
+	}
+	p.Unlock()
+	if result == nil {
+		result = newWriteBatchBytes(p)
+	}
+	return result
+}
+
+func (p *writeBatchBytesPool) Put(v *writeBatchBytes) {
+	p.Lock()
+	heap.Push(p.heap, v)
+	for n := p.heap.Len(); n > maxWriteBatchBytesBuffers; n = p.heap.Len() {
+		// Remove the smallest buffer.
+		heap.Remove(p.heap, n-1)
+	}
+	p.Unlock()
+}
+
+type bytesHeap []*writeBatchBytes
+
+func (h bytesHeap) Len() int           { return len(h) }
+func (h bytesHeap) Less(i, j int) bool { return cap(h[i].buffer) > cap(h[j].buffer) }
+func (h bytesHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+func (h *bytesHeap) Push(x interface{}) {
+	// Push and Pop use pointer receivers because they modify the slice's length,
+	// not just its contents.
+	*h = append(*h, x.(*writeBatchBytes))
+}
+
+func (h *bytesHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
 }

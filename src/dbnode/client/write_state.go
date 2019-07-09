@@ -56,17 +56,19 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel            topology.ConsistencyLevel
-	topoMap                     topology.Map
-	op                          writeOp
-	nsID                        []byte
-	nsIdentID                   *ident.ReuseableBytesID
-	tsID                        []byte
-	tsIdentID                   *ident.ReuseableBytesID
-	encodedTags                 []byte
+	consistencyLevel topology.ConsistencyLevel
+	topoMap          topology.Map
+	op               writeOp
+	nsBackingIdentID *ident.ReuseableBytesID
+	// nsIdentID is to save iface cast each time take ref to above.
+	nsIdentID        ident.ID
+	tsBackingIdentID *ident.ReuseableBytesID
+	// tsIdentID is to save iface cast each time take ref to above.
+	tsIdentID                   ident.ID
 	majority, enqueued, pending int32
 	success                     int32
 	errors                      []error
+	batchBuff                   *writeBatchBytes
 
 	opCallback opCallback
 
@@ -78,10 +80,12 @@ func newWriteState(
 	pool *writeStatePool,
 ) *writeState {
 	w := &writeState{
-		pool:      pool,
-		nsIdentID: ident.NewReuseableBytesID(),
-		tsIdentID: ident.NewReuseableBytesID(),
+		pool:             pool,
+		nsBackingIdentID: ident.NewReuseableBytesID(),
+		tsBackingIdentID: ident.NewReuseableBytesID(),
 	}
+	w.nsIdentID = w.nsBackingIdentID
+	w.tsIdentID = w.tsBackingIdentID
 	w.destructorFn = w.close
 	w.L = w
 	w.opCallback = w
@@ -91,13 +95,14 @@ func newWriteState(
 func (w *writeState) close() {
 	w.op.Close()
 
-	w.nsID = tryReuseBytes(w.nsID)
-	w.nsIdentID.Reset(nil)
-	w.tsID = tryReuseBytes(w.tsID)
-	w.tsIdentID.Reset(nil)
-	w.encodedTags = tryReuseBytes(w.encodedTags)
+	w.nsBackingIdentID.Reset(nil)
+	w.tsBackingIdentID.Reset(nil)
+	if w.batchBuff != nil {
+		w.batchBuff.decRef()
+	}
 
 	w.op, w.majority, w.enqueued, w.pending, w.success = nil, 0, 0, 0, 0
+	w.batchBuff = nil
 
 	for i := range w.errors {
 		w.errors[i] = nil
@@ -116,17 +121,11 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) setNamespaceID(nsID []byte) {
-	w.nsID = append(w.nsID[:0], nsID...)
-	w.nsIdentID.Reset(w.nsID)
+	w.nsBackingIdentID.Reset(nsID)
 }
 
 func (w *writeState) setID(id []byte) {
-	w.tsID = append(w.tsID[:0], id...)
-	w.tsIdentID.Reset(w.tsID)
-}
-
-func (w *writeState) setEncodedTags(encodedTags []byte) {
-	w.encodedTags = append(w.encodedTags[:0], encodedTags...)
+	w.tsBackingIdentID.Reset(id)
 }
 
 func (w *writeState) OpComplete(result interface{}, err error) {
