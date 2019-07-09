@@ -771,26 +771,35 @@ func newParseBytesPool() *parseBytesPool {
 func (p *parseBytesPool) Get(l int) []byte {
 	var result []byte
 	p.Lock()
-	count := p.heap.Len()
-	if count > 0 {
+	n := p.heap.Len()
+	if n > 0 {
 		// Always return the largest.
 		largest := heap.Pop(p.heap)
 		result = largest.([]byte)
+		if cap(result) < l {
+			// If not big enough, just return immediately.
+			heap.Push(p.heap, result)
+		}
 	}
 	p.Unlock()
 
 	if cap(result) < l {
+		// Add a growth factor so it's more likely
+		// it can be reused.
+		allocLen := int64(1.5 * float64(l))
+
 		// Need to allocate, use mmap to hide the memory.
-		r, err := mmap.Bytes(int64(l), mmap.Options{
+		r, err := mmap.Bytes(allocLen, mmap.Options{
 			Read:  true,
 			Write: true,
 		})
 		if err != nil {
-			result = make([]byte, 0, l)
+			result = make([]byte, 0, allocLen)
 		} else {
 			result = r.Result
 		}
 	}
+
 	return result[:l]
 }
 
@@ -798,10 +807,9 @@ func (p *parseBytesPool) Put(v []byte) {
 	var removed []byte
 	p.Lock()
 	heap.Push(p.heap, v)
-	count := p.heap.Len()
-	if count > maxParseByteBuffers {
+	for n := p.heap.Len(); n > maxParseByteBuffers; n = p.heap.Len() {
 		// Remove the smallest buffer.
-		removed = heap.Remove(p.heap, count-1).([]byte)
+		removed = heap.Remove(p.heap, n-1).([]byte)
 	}
 	p.Unlock()
 	if removed != nil {
