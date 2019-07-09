@@ -72,6 +72,8 @@ type writeState struct {
 
 	opCallback opCallback
 
+	routeForEachFn topology.RouteForEachFn
+
 	queues []hostQueue
 	pool   *writeStatePool
 }
@@ -89,6 +91,7 @@ func newWriteState(
 	w.destructorFn = w.close
 	w.L = w
 	w.opCallback = w
+	w.routeForEachFn = w.routeForEach
 	return w
 }
 
@@ -118,6 +121,17 @@ func (w *writeState) close() {
 		return
 	}
 	w.pool.Put(w)
+}
+
+func (w *writeState) routeQueues() error {
+	return w.topoMap.RouteForEach(w.tsIdentID, w.routeForEachFn)
+}
+
+func (w *writeState) routeQueuesForEach(idx int, host topology.Host) {
+	// Count pending write requests before we enqueue the completion fns,
+	// which rely on the count when executing
+	w.pending++
+	w.queues = append(w.queues, w.queues[idx])
 }
 
 func (w *writeState) setNamespaceID(nsID []byte) {

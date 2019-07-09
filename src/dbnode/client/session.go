@@ -85,8 +85,8 @@ const (
 	resultTypeBootstrap                = "bootstrap"
 	resultTypeRaw                      = "raw"
 
-	refillWritePoolLow  = 0.1
-	refillWritePoolHigh = 0.2
+	refillWritePoolLow  = 0.0
+	refillWritePoolHigh = 0.0
 )
 
 var (
@@ -1242,13 +1242,8 @@ func (s *session) writeAttemptWithRLock(
 	state.op, state.majority, state.batchBuff = op, majority, buff
 	op.SetOpCallback(state.opCallback)
 
-	err := s.state.topoMap.RouteForEach(state.tsIdentID,
-		func(idx int, host topology.Host) {
-			// Count pending write requests before we enqueue the completion fns,
-			// which rely on the count when executing
-			state.pending++
-			state.queues = append(state.queues, s.state.queues[idx])
-		})
+	// NB(r): Must have called state setID first to route to correct queues.
+	err := state.routeQueues()
 	if err != nil {
 		state.decRef()
 		return nil, err
