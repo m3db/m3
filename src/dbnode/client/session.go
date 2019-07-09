@@ -22,7 +22,6 @@ package client
 
 import (
 	"bytes"
-	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -315,7 +314,7 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	s.pools.checkedBytesWrapper.Init()
 
-	s.pools.writeBatchBytesPool = newWriteBatchBytesPool()
+	s.pools.writeBatchBytesPool = newWriteBatchBytesPool(scope)
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.state.bootstrapLevel = opts.BootstrapConsistencyLevel()
@@ -4094,7 +4093,10 @@ func minDuration(x, y time.Duration) time.Duration {
 
 type writeBatchBytesPool struct {
 	sync.Mutex
-	heap *bytesHeap
+	values []*writeBatchBytes
+	gets   tally.Counter
+	puts   tally.Counter
+	total  tally.Gauge
 }
 
 type writeBatchBytes struct {
@@ -4120,36 +4122,41 @@ func (b *writeBatchBytes) finalize() {
 	b.pool.Put(b)
 }
 
-func newWriteBatchBytesPool() *writeBatchBytesPool {
-	p := &writeBatchBytesPool{heap: &bytesHeap{}}
-	heap.Init(p.heap)
+func newWriteBatchBytesPool(scope tally.Scope) *writeBatchBytesPool {
+	scope = scope.SubScope("write-batch-bytes-pool")
+	p := &writeBatchBytesPool{
+		gets:  scope.Counter("gets"),
+		puts:  scope.Counter("puts"),
+		total: scope.Gauge("total"),
+	}
 	return p
 }
 
 func (p *writeBatchBytesPool) Get() *writeBatchBytes {
 	var result *writeBatchBytes
 	p.Lock()
-	n := p.heap.Len()
+	n := len(p.values)
 	if n > 0 {
-		// Always return the largest.
-		largest := heap.Pop(p.heap)
-		result = largest.(*writeBatchBytes)
+		index := n - 1
+		result = p.values[index]
+		p.values[index] = nil
+		p.values = p.values[:index]
+
 	}
 	p.Unlock()
 	if result == nil {
 		result = newWriteBatchBytes(p)
 	}
+	p.gets.Inc(1)
+	p.total.Update(float64(n))
 	return result
 }
 
 func (p *writeBatchBytesPool) Put(v *writeBatchBytes) {
 	p.Lock()
-	heap.Push(p.heap, v)
-	// for n := p.heap.Len(); n > maxWriteBatchBytesBuffers; n = p.heap.Len() {
-	// 	// Remove the smallest buffer.
-	// 	heap.Remove(p.heap, n-1)
-	// }
+	p.values = append(p.values, v)
 	p.Unlock()
+	p.puts.Inc(1)
 }
 
 type bytesHeap []*writeBatchBytes
