@@ -149,6 +149,8 @@ func Run(runOpts RunOptions) {
 	}
 	defer logger.Sync()
 
+	xconfig.WarnOnDeprecation(cfg, logger)
+
 	// Raise fd limits to nr_open system limit
 	result, err := xos.RaiseProcessNoFileToNROpen()
 	if err != nil {

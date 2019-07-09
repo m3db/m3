@@ -142,6 +142,8 @@ func Run(runOpts RunOptions) {
 
 	defer logger.Sync()
 
+	xconfig.WarnOnDeprecation(cfg, logger)
+
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
