@@ -31,6 +31,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/x/mmap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
@@ -4102,8 +4104,10 @@ type writeBatchBytesPool struct {
 
 type writeBatchBytes struct {
 	refCounter
-	buffer []byte
-	pool   *writeBatchBytesPool
+	buffer   []byte
+	mmapd    []byte
+	mmapUsed int
+	pool     *writeBatchBytesPool
 }
 
 func newWriteBatchBytes(pool *writeBatchBytesPool) *writeBatchBytes {
@@ -4114,12 +4118,46 @@ func newWriteBatchBytes(pool *writeBatchBytesPool) *writeBatchBytes {
 
 // copy will copy to buffer and return the subslice copied.
 func (b *writeBatchBytes) copy(data []byte) []byte {
+	if b.mmapd != nil {
+		if len(data) > len(b.mmapd)-b.mmapUsed {
+			// more than remaining, swap out for real buffer
+			b.buffer = append(b.buffer[:0], b.mmapd[:b.mmapUsed]...)
+			b.buffer = append(b.buffer, data...)
+
+			b.mmapd = nil
+			b.mmapUsed = 0
+
+			return b.buffer[len(b.buffer)-len(data):]
+		} else {
+			target := b.mmapd[b.mmapUsed : b.mmapUsed+len(data)]
+			copy(target, data)
+			b.mmapUsed += len(data)
+			return target
+		}
+	}
+
 	b.buffer = append(b.buffer, data...)
 	return b.buffer[len(b.buffer)-len(data):]
 }
 
 func (b *writeBatchBytes) finalize() {
-	b.buffer = b.buffer[:0]
+	if b.mmapd == nil {
+		// We know how much we use this buffer, replace with mmap as an estimate.
+		r, err := mmap.Bytes(int64(2*float64(len(b.buffer))), mmap.Options{
+			Read:  true,
+			Write: true,
+		})
+		if err == nil {
+			b.mmapd = r.Result
+			b.mmapUsed = 0
+			b.buffer = nil // free buffer
+		}
+	}
+
+	if b.mmapd == nil {
+		b.buffer = b.buffer[:0]
+	}
+
 	b.pool.Put(b)
 }
 
