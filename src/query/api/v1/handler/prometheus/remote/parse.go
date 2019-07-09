@@ -30,6 +30,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/m3db/m3/src/x/mmap"
+
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/storage"
@@ -39,8 +41,8 @@ import (
 )
 
 const (
-	maxParseByteBuffers = 4096
-	maxWriteRequestPool = 4096
+	maxParseByteBuffers = 2048
+	maxWriteRequestPool = 2048
 	writeStateBatchSize = 128
 )
 
@@ -64,10 +66,11 @@ func NewParser() *Parser {
 func (p *Parser) ParseWriteRequest(
 	r *http.Request,
 ) (*WriteRequest, *xhttp.ParseError) {
-	parseBuff := p.bytesPool.Get()
-	data, parseErr := prometheus.ParsePromCompressedRequest(parseBuff, r)
+	opts := prometheus.ParsePromCompressedRequestOptions{
+		Alloc: p,
+	}
+	data, parseErr := prometheus.ParsePromCompressedRequest(r, opts)
 	if parseErr != nil {
-		p.bytesPool.Put(parseBuff)
 		return nil, parseErr
 	}
 
@@ -79,6 +82,10 @@ func (p *Parser) ParseWriteRequest(
 	}
 
 	return req, nil
+}
+
+func (p *Parser) AllocBytes(l int) []byte {
+	return p.bytesPool.Get(l)
 }
 
 type WriteRequest struct {
@@ -761,7 +768,7 @@ func newParseBytesPool() *parseBytesPool {
 	return p
 }
 
-func (p *parseBytesPool) Get() []byte {
+func (p *parseBytesPool) Get(l int) []byte {
 	var result []byte
 	p.Lock()
 	count := p.heap.Len()
@@ -771,18 +778,35 @@ func (p *parseBytesPool) Get() []byte {
 		result = largest.([]byte)
 	}
 	p.Unlock()
-	return result[:0]
+
+	if cap(result) < l {
+		// Need to allocate, use mmap to hide the memory.
+		r, err := mmap.Bytes(int64(l), mmap.Options{
+			Read:  true,
+			Write: true,
+		})
+		if err != nil {
+			result = make([]byte, 0, l)
+		} else {
+			result = r.Result
+		}
+	}
+	return result[:l]
 }
 
 func (p *parseBytesPool) Put(v []byte) {
+	var removed []byte
 	p.Lock()
 	heap.Push(p.heap, v)
 	count := p.heap.Len()
 	if count > maxParseByteBuffers {
 		// Remove the smallest buffer.
-		heap.Remove(p.heap, count-1)
+		removed = heap.Remove(p.heap, count-1).([]byte)
 	}
 	p.Unlock()
+	if removed != nil {
+		mmap.Munmap(removed)
+	}
 }
 
 type bytesHeap [][]byte

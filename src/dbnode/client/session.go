@@ -1246,7 +1246,8 @@ func (s *session) writeAttemptWithRLock(
 	for i := range state.queues {
 		state.incRef()
 
-		// NB(r): Use op instead of state.op as it already has correct iface.
+		// NB(r): Use op instead of state.op as it already has correct iface
+		// (less allocations).
 		if err := state.queues[i].Enqueue(op); err != nil {
 			state.Unlock()
 			state.decRef()

@@ -57,8 +57,22 @@ type TimeoutOpts struct {
 	FetchTimeout time.Duration
 }
 
+// ParsePromCompressedRequestOptions is a set of options for parsing
+// a prom compressed request.
+type ParsePromCompressedRequestOptions struct {
+	Alloc BytesAllocator
+}
+
+// BytesAllocator is a bytes allocator.
+type BytesAllocator interface {
+	AllocBytes(l int) []byte
+}
+
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
-func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.ParseError) {
+func ParsePromCompressedRequest(
+	r *http.Request,
+	opts ParsePromCompressedRequestOptions,
+) ([]byte, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
@@ -84,10 +98,12 @@ func ParsePromCompressedRequest(dst []byte, r *http.Request) ([]byte, *xhttp.Par
 	decodedLen := int(uvarint)
 
 	totalLen := decodedLen + encodedLen
-	if cap(dst) < totalLen {
-		dst = make([]byte, totalLen, int(1.5*float64(totalLen)))
+
+	var dst []byte
+	if opts.Alloc != nil {
+		dst = opts.Alloc.AllocBytes(totalLen)
 	} else {
-		dst = dst[:totalLen]
+		dst = make([]byte, totalLen)
 	}
 
 	target := dst[decodedLen : decodedLen+encodedLen]
