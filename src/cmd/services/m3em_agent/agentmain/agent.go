@@ -65,6 +65,8 @@ func Run() {
 		logger.Fatal("unable to read configuration file", zap.Error(err))
 	}
 
+	xconfig.WarnOnDeprecation(conf, logger)
+
 	// pprof server
 	go func() {
 		if err := http.ListenAndServe(conf.Server.DebugAddress, nil); err != nil {
