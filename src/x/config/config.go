@@ -24,9 +24,16 @@ package config
 import (
 	"errors"
 	"io/ioutil"
+	"reflect"
+	"strings"
 
+	"go.uber.org/zap"
 	validator "gopkg.in/validator.v2"
 	yaml "gopkg.in/yaml.v2"
+)
+
+const (
+	deprecatedPrefix = "Deprecated"
 )
 
 var errNoFilesToLoad = errors.New("attempt to load config with no files")
@@ -66,4 +73,29 @@ func LoadFiles(config interface{}, files []string, opts Options) error {
 		return nil
 	}
 	return validator.Validate(config)
+}
+
+// deprecationCheck checks the config for deprecated fields and returns any in
+// slice of strings.
+func deprecationCheck(cfg interface{}, df []string) []string {
+	n := reflect.TypeOf(cfg).NumField()
+	for i := 0; i < n; i++ {
+		v := reflect.ValueOf(cfg).Field(i)
+		if v.Kind() == reflect.Struct {
+			df = deprecationCheck(v.Interface(), df)
+		}
+		name := reflect.TypeOf(cfg).Field(i).Name
+		if strings.HasPrefix(name, deprecatedPrefix) {
+			df = append(df, name)
+		}
+	}
+	return df
+}
+
+// WarnOnDeprecation emits a warning for every deprecated field
+func WarnOnDeprecation(cfg interface{}, logger *zap.Logger) {
+	deprecatedFields := []string{}
+	for _, v := range deprecationCheck(cfg, deprecatedFields) {
+		logger.Warn("using deprecated configuration field", zap.String("field", v))
+	}
 }

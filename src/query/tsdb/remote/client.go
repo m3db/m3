@@ -42,7 +42,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Client is the grpc client
+// Client is the remote GRPC client.
 type Client interface {
 	storage.Querier
 	Close() error
@@ -63,7 +63,7 @@ type grpcClient struct {
 
 const initResultSize = 10
 
-// NewGRPCClient creates grpc client.
+// NewGRPCClient creates a new remote GRPC client.
 func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
@@ -78,7 +78,10 @@ func NewGRPCClient(
 
 	resolver := newStaticResolver(addresses)
 	balancer := grpc.RoundRobin(resolver)
-	dialOptions := []grpc.DialOption{grpc.WithBalancer(balancer), grpc.WithInsecure()}
+	dialOptions := []grpc.DialOption{
+		grpc.WithBalancer(balancer),
+		grpc.WithInsecure(),
+	}
 	dialOptions = append(dialOptions, additionalDialOpts...)
 	cc, err := grpc.Dial("", dialOptions...)
 	if err != nil {
@@ -102,7 +105,6 @@ func NewGRPCClient(
 	}, nil
 }
 
-// Fetch reads from remote client storage.
 func (c *grpcClient) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -187,7 +189,6 @@ func (c *grpcClient) fetchRaw(
 	), nil
 }
 
-// TODO: change to iterator block logic
 func (c *grpcClient) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -204,7 +205,8 @@ func (c *grpcClient) FetchBlocks(
 			return block.Result{}, err
 		}
 
-		return storage.FetchResultToBlockResult(fetchResult, query, opts.LookbackDuration(), options.Enforcer)
+		return storage.FetchResultToBlockResult(fetchResult, query,
+			opts.LookbackDuration(), options.Enforcer)
 	}
 
 	raw, err := c.fetchRaw(ctx, query, options)
@@ -301,7 +303,6 @@ func (c *grpcClient) SearchSeries(
 	}, nil
 }
 
-// CompleteTags returns autocompleted tags
 func (c *grpcClient) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
@@ -322,8 +323,8 @@ func (c *grpcClient) CompleteTags(
 		return nil, err
 	}
 
+	tags := make([]storage.CompletedTag, 0, initResultSize)
 	defer completeTagsClient.CloseSend()
-	var accumulatedTags storage.CompleteTagsResultBuilder
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
@@ -335,33 +336,24 @@ func (c *grpcClient) CompleteTags(
 		received, err := completeTagsClient.Recv()
 		if err == io.EOF {
 			break
+		} else if err != nil {
+			return nil, err
 		}
 
+		result, err := decodeCompleteTagsResponse(received, query.CompleteNameOnly)
 		if err != nil {
 			return nil, err
 		}
 
-		result, err := decodeCompleteTagsResponse(received)
-		if err != nil {
-			return nil, err
-		}
-
-		if accumulatedTags == nil {
-			accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
-		}
-
-		err = accumulatedTags.Add(result)
-		if err != nil {
-			return nil, err
-		}
+		tags = append(tags, result...)
 	}
 
-	// Sort tags in the result post-merge.
-	built := accumulatedTags.Build()
-	return &built, nil
+	return &storage.CompleteTagsResult{
+		CompleteNameOnly: query.CompleteNameOnly,
+		CompletedTags:    tags,
+	}, nil
 }
 
-// Close closes the underlying connection
 func (c *grpcClient) Close() error {
 	return c.connection.Close()
 }
