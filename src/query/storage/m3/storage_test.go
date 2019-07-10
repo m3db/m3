@@ -21,15 +21,20 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/seriesiter"
@@ -42,6 +47,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -151,28 +158,35 @@ func newFetchReq() *storage.FetchQuery {
 	}
 }
 
-func newWriteQuery() *storage.WriteQuery {
-	tags := models.EmptyTags().AddTags([]models.Tag{
-		{Name: []byte("foo"), Value: []byte("bar")},
-		{Name: []byte("biz"), Value: []byte("baz")},
-	})
+type writeQueryOptions struct {
+	attributes *storage.Attributes
+}
 
-	datapoints := ts.Datapoints{{
-		Timestamp: time.Now(),
-		Value:     1.0,
-	},
-		{
-			Timestamp: time.Now().Add(-10 * time.Second),
-			Value:     2.0,
-		}}
-	return &storage.WriteQuery{
-		Tags:       tags,
-		Unit:       xtime.Millisecond,
-		Datapoints: datapoints,
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
-		},
+func newWriteQuery(opts writeQueryOptions) storage.WriteQuery {
+	attrs := storage.Attributes{
+		MetricsType: storage.UnaggregatedMetricsType,
 	}
+	if v := opts.attributes; v != nil {
+		attrs = *v
+	}
+
+	writeQuery := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags: ident.NewTagsIterator(ident.NewTags(
+			ident.Tag{Name: ident.StringID("foo"), Value: ident.StringID("bar")},
+			ident.Tag{Name: ident.StringID("biz"), Value: ident.StringID("baz")},
+		)),
+		TagOptions: models.NewTagOptions().
+			SetIDSchemeType(models.TypeQuoted),
+		Datapoints: ts.Datapoints{
+			ts.Datapoint{
+				Timestamp: time.Now().Add(-10 * time.Second),
+				Value:     2.0,
+			},
+		},
+		Unit:       xtime.Millisecond,
+		Attributes: attrs,
+	})
+	return writeQuery
 }
 
 func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
@@ -187,7 +201,7 @@ func TestLocalWriteEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store := setupLocalWrite(t, ctrl)
-	err := store.Write(context.TODO(), nil)
+	err := store.Write(context.TODO(), storage.WriteQuery{})
 	assert.Error(t, err)
 }
 
@@ -195,7 +209,7 @@ func TestLocalWriteSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store := setupLocalWrite(t, ctrl)
-	writeQuery := newWriteQuery()
+	writeQuery := newWriteQuery(writeQueryOptions{})
 	err := store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
 	assert.NoError(t, store.Close())
@@ -205,13 +219,14 @@ func TestLocalWriteAggregatedNoClusterNamespaceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)
-	writeQuery := newWriteQuery()
-	// Use unsupported retention/resolution
-	writeQuery.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
-		Retention:   1234,
-		Resolution:  5678,
-	}
+	writeQuery := newWriteQuery(writeQueryOptions{
+		// Use unsupported retention/resolution
+		attributes: &storage.Attributes{
+			MetricsType: storage.AggregatedMetricsType,
+			Retention:   1234,
+			Resolution:  5678,
+		},
+	})
 	err := store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "no configured cluster namespace"),
@@ -222,12 +237,13 @@ func TestLocalWriteAggregatedInvalidMetricsTypeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)
-	writeQuery := newWriteQuery()
-	// Use unsupported retention/resolution
-	writeQuery.Attributes = storage.Attributes{
-		MetricsType: storage.MetricsType(math.MaxUint64),
-		Retention:   30 * 24 * time.Hour,
-	}
+	writeQuery := newWriteQuery(writeQueryOptions{
+		// Use unsupported retention/resolution
+		attributes: &storage.Attributes{
+			MetricsType: storage.MetricsType(math.MaxUint64),
+			Retention:   30 * 24 * time.Hour,
+		},
+	})
 	err := store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "invalid write request"),
@@ -239,16 +255,19 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
 
-	writeQuery := newWriteQuery()
-	writeQuery.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
-		Retention:   30 * 24 * time.Hour,
-		Resolution:  time.Minute,
-	}
+	writeQuery := newWriteQuery(writeQueryOptions{
+		attributes: &storage.Attributes{
+			MetricsType: storage.AggregatedMetricsType,
+			Retention:   30 * 24 * time.Hour,
+			Resolution:  time.Minute,
+		},
+	})
 
 	session := sessions.aggregated1MonthRetention1MinuteResolution
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(len(writeQuery.Datapoints))
+	session.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(len(writeQuery.Datapoints()))
 
 	err := store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
@@ -749,4 +768,170 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	n, v := result.CompletedTags[0].Name, result.CompletedTags[0].Values[0]
 	assert.False(t, bytetest.ByteSlicesBackedBySameData(name.Bytes(), n))
 	assert.False(t, bytetest.ByteSlicesBackedBySameData(value.Bytes(), v))
+}
+
+func TestLocalWriteBatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	unagg := client.NewMockSession(ctrl)
+	nsID := ident.StringID("metrics_unaggregated")
+	clusters, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: nsID,
+		Session:     unagg,
+		Retention:   test1MonthRetention,
+	})
+	require.NoError(t, err)
+
+	store := newTestStorage(t, clusters)
+
+	now := time.Now().Truncate(time.Millisecond)
+	nowMillis := now.UnixNano() / int64(time.Millisecond)
+
+	input := &prompb.WriteRequest{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels: []*prompb.Label{
+					&prompb.Label{Name: b("foo"), Value: b("bar")},
+					&prompb.Label{Name: b("bar"), Value: b("baz")},
+				},
+				Samples: []*prompb.Sample{
+					&prompb.Sample{
+						Value:     42.0,
+						Timestamp: nowMillis,
+					},
+					&prompb.Sample{
+						Value:     84.0,
+						Timestamp: nowMillis,
+					},
+				},
+			},
+			&prompb.TimeSeries{
+				Labels: []*prompb.Label{
+					&prompb.Label{Name: b("qux"), Value: b("qar")},
+					&prompb.Label{Name: b("qar"), Value: b("qaz")},
+				},
+				Samples: []*prompb.Sample{
+					&prompb.Sample{
+						Value:     123.0,
+						Timestamp: nowMillis,
+					},
+				},
+			},
+		},
+	}
+
+	numDatapoints := 0
+	for _, s := range input.Timeseries {
+		numDatapoints += len(s.Samples)
+	}
+
+	// Marshal.
+	data, err := proto.Marshal(input)
+	require.NoError(t, err)
+
+	// Snappy encode.
+	encoded := snappy.Encode(nil, data)
+
+	httpReq := httptest.NewRequest("POST", "/write", bytes.NewReader(encoded))
+	httpReq.ContentLength = int64(len(encoded))
+
+	req, err := remote.NewParser().ParseWriteRequest(httpReq)
+	require.NoError(t, err)
+
+	defer req.Finalize()
+
+	tagOpts := models.NewTagOptions().
+		SetIDSchemeType(models.TypeQuoted)
+
+	seriesIter := remote.NewTimeSeriesIter(req, tagOpts)
+
+	attr := storage.Attributes{
+		MetricsType: storage.UnaggregatedMetricsType,
+	}
+
+	writeIter := ingest.NewWriteQueryIter(seriesIter)
+	writeIter.Reset(attr)
+
+	unagg.EXPECT().
+		WriteTaggedBatch(gomock.Any()).
+		DoAndReturn(func(iter client.WriteTaggedIter) error {
+			// Simulate the client iteration.
+			for restarts := 0; restarts < 2; restarts++ {
+				if restarts > 0 {
+					// Shouldn't need to restart the first time.
+					iter.Restart()
+				}
+
+				i := 0
+				for ; iter.Next(); i++ {
+					state := iter.State()
+
+					if restarts == 0 {
+						assert.Nil(t, state)
+						iter.SetState(i)
+					} else {
+						assert.Equal(t, i, state.(int))
+					}
+
+					curr := iter.Current()
+
+					switch i {
+					case 0:
+						assert.Equal(t, nsID.String(), curr.Namespace.String())
+						assert.Equal(t, `{bar="baz",foo="bar"}`, curr.ID.String())
+						assert.True(t, ident.NewTagIterMatcher(
+							ident.MustNewTagStringsIterator(
+								"bar", "baz", "foo", "bar")).Matches(curr.Tags))
+						assert.True(t, now.Equal(curr.Timestamp),
+							fmt.Sprintf("expected=%s, actual=%s",
+								now.String(),
+								curr.Timestamp.String()))
+						assert.Equal(t, 42.0, curr.Value)
+						assert.Equal(t, xtime.Millisecond, curr.Unit)
+						assert.Nil(t, curr.Annotation)
+					case 1:
+						assert.Equal(t, nsID.String(), curr.Namespace.String())
+						assert.Equal(t, `{bar="baz",foo="bar"}`, curr.ID.String())
+						assert.True(t, ident.NewTagIterMatcher(
+							ident.MustNewTagStringsIterator(
+								"bar", "baz", "foo", "bar")).Matches(curr.Tags))
+						assert.True(t, now.Equal(curr.Timestamp),
+							fmt.Sprintf("expected=%s, actual=%s",
+								now.String(),
+								curr.Timestamp.String()))
+						assert.Equal(t, 84.0, curr.Value)
+						assert.Equal(t, xtime.Millisecond, curr.Unit)
+						assert.Nil(t, curr.Annotation)
+					case 2:
+						assert.Equal(t, nsID.String(), curr.Namespace.String())
+						assert.Equal(t, `{qar="qaz",qux="qar"}`, curr.ID.String())
+						assert.True(t, ident.NewTagIterMatcher(
+							ident.MustNewTagStringsIterator(
+								"qar", "qaz", "qux", "qar")).Matches(curr.Tags))
+						assert.True(t, now.Equal(curr.Timestamp),
+							fmt.Sprintf("expected=%s, actual=%s",
+								now.String(),
+								curr.Timestamp.String()))
+						assert.Equal(t, 123.0, curr.Value)
+						assert.Equal(t, xtime.Millisecond, curr.Unit)
+						assert.Nil(t, curr.Annotation)
+					}
+				}
+
+				// Check iter error.
+				require.NoError(t, iter.Err())
+
+				// Should iterate through all samples.
+				require.Equal(t, numDatapoints, i)
+			}
+
+			return nil
+		})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err = store.WriteBatch(ctx, writeIter)
+	require.NoError(t, err)
 }

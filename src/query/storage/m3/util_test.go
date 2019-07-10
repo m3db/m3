@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package m3
 
-import (
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-)
-
-type truncateOp struct {
-	request    rpc.TruncateRequest
-	opCallback opCallback
-}
-
-func (t *truncateOp) Size() int {
-	// Truncate is always a single op
-	return 1
-}
-
-func (t *truncateOp) OpCallback() opCallback {
-	return t.opCallback
+func b(s string) []byte {
+	return []byte(s)
 }

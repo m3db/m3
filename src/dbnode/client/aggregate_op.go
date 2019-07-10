@@ -31,18 +31,18 @@ var (
 
 type aggregateOp struct {
 	refCounter
-	request      rpc.AggregateQueryRawRequest
-	completionFn completionFn
+	request    rpc.AggregateQueryRawRequest
+	opCallback opCallback
 
 	pool aggregateOpPool
 }
 
-func (f *aggregateOp) Size() int                  { return 1 }
-func (f *aggregateOp) CompletionFn() completionFn { return f.completionFn }
+func (f *aggregateOp) Size() int              { return 1 }
+func (f *aggregateOp) OpCallback() opCallback { return f.opCallback }
 
-func (f *aggregateOp) update(req rpc.AggregateQueryRawRequest, fn completionFn) {
+func (f *aggregateOp) update(req rpc.AggregateQueryRawRequest, cb opCallback) {
 	f.request = req
-	f.completionFn = fn
+	f.opCallback = cb
 }
 
 func (f *aggregateOp) requestLimit(defaultValue int) int {
@@ -53,7 +53,7 @@ func (f *aggregateOp) requestLimit(defaultValue int) int {
 }
 
 func (f *aggregateOp) close() {
-	f.completionFn = nil
+	f.opCallback = nil
 	f.request = aggregateOpRequestZeroed
 	// return to pool
 	if f.pool == nil {

@@ -51,7 +51,7 @@ type customUnmarshallerOptions struct {
 
 type customUnmarshaller struct {
 	schema       *desc.MessageDescriptor
-	decodeBuf    *buffer
+	decodeBuf    *Buffer
 	customValues sortedCustomFieldValues
 
 	nonCustomValues sortedMarshalledFields
@@ -62,7 +62,7 @@ type customUnmarshaller struct {
 
 func newCustomFieldUnmarshaller(opts customUnmarshallerOptions) customFieldUnmarshaller {
 	return &customUnmarshaller{
-		decodeBuf: newCodedBuffer(nil),
+		decodeBuf: NewBuffer(nil),
 		opts:      opts,
 	}
 }
@@ -86,9 +86,9 @@ func (u *customUnmarshaller) unmarshal() error {
 		areCustomValuesSorted    = true
 		areNonCustomValuesSorted = true
 	)
-	for !u.decodeBuf.eof() {
+	for !u.decodeBuf.EOF() {
 		tagAndWireTypeStartOffset := u.decodeBuf.index
-		fieldNum, wireType, err := u.decodeBuf.decodeTagAndWireType()
+		fieldNum, wireType, err := u.decodeBuf.DecodeTagAndWireType()
 		if err != nil {
 			return err
 		}
@@ -179,7 +179,7 @@ func (u *customUnmarshaller) unmarshal() error {
 		u.customValues = append(u.customValues, value)
 	}
 
-	u.decodeBuf.reset(u.decodeBuf.buf)
+	u.decodeBuf.Reset(u.decodeBuf.buf)
 
 	// Avoid resorting if possible.
 	if !areCustomValuesSorted {
@@ -229,7 +229,7 @@ func (u *customUnmarshaller) skip(wireType int8) (int, error) {
 			bytesSkipped             = 0
 			offsetBeforeDecodeVarInt = u.decodeBuf.index
 		)
-		_, err := u.decodeBuf.decodeVarint()
+		_, err := u.decodeBuf.DecodeVarint()
 		if err != nil {
 			return 0, err
 		}
@@ -243,7 +243,7 @@ func (u *customUnmarshaller) skip(wireType int8) (int, error) {
 		)
 		// Bytes aren't copied because they're just being skipped over so
 		// copying would be wasteful.
-		_, err := u.decodeBuf.decodeRawBytes(false)
+		_, err := u.decodeBuf.DecodeRawBytes(false)
 		if err != nil {
 			return 0, err
 		}
@@ -264,21 +264,21 @@ func (u *customUnmarshaller) skip(wireType int8) (int, error) {
 func (u *customUnmarshaller) unmarshalCustomField(fd *desc.FieldDescriptor, wireType int8) (unmarshalValue, error) {
 	switch wireType {
 	case proto.WireFixed32:
-		num, err := u.decodeBuf.decodeFixed32()
+		num, err := u.decodeBuf.DecodeFixed32()
 		if err != nil {
 			return zeroValue, err
 		}
 		return unmarshalSimpleField(fd, num)
 
 	case proto.WireFixed64:
-		num, err := u.decodeBuf.decodeFixed64()
+		num, err := u.decodeBuf.DecodeFixed64()
 		if err != nil {
 			return zeroValue, err
 		}
 		return unmarshalSimpleField(fd, num)
 
 	case proto.WireVarint:
-		num, err := u.decodeBuf.decodeVarint()
+		num, err := u.decodeBuf.DecodeVarint()
 		if err != nil {
 			return zeroValue, err
 		}
@@ -299,7 +299,7 @@ func (u *customUnmarshaller) unmarshalCustomField(fd *desc.FieldDescriptor, wire
 		// Don't bother copying the bytes now because the encoder has exclusive ownership
 		// of them until the call to Encode() completes and they will get "copied" anyways
 		// once they're written into the OStream.
-		raw, err := u.decodeBuf.decodeRawBytes(false)
+		raw, err := u.decodeBuf.DecodeRawBytes(false)
 		if err != nil {
 			return zeroValue, err
 		}
@@ -381,7 +381,7 @@ func (u *customUnmarshaller) resetAndUnmarshal(schema *desc.MessageDescriptor, b
 	u.schema = schema
 	u.numNonCustom = 0
 	u.resetCustomAndNonCustomValues()
-	u.decodeBuf.reset(buf)
+	u.decodeBuf.Reset(buf)
 	return u.unmarshal()
 }
 

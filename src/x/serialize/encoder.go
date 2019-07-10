@@ -66,8 +66,12 @@ type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
 var defaultNewCheckedBytesFn = checked.NewBytes
 
 type encoder struct {
-	buf          *bytes.Buffer
-	checkedBytes checked.Bytes
+	buf            *bytes.Buffer
+	checkedBytes   checked.Bytes
+	bufUInt16Const [2]byte
+	bufUInt16      []byte
+
+	headerWritten bool
 
 	opts TagEncoderOptions
 	pool TagEncoderPool
@@ -80,23 +84,57 @@ func newTagEncoder(
 ) TagEncoder {
 	b := make([]byte, 0, opts.InitialCapacity())
 	cb := newFn(nil, nil)
-	return &encoder{
+	e := &encoder{
 		buf:          bytes.NewBuffer(b),
 		checkedBytes: cb,
 		opts:         opts,
 		pool:         pool,
 	}
+	e.bufUInt16 = e.bufUInt16Const[:]
+	return e
 }
 
-func (e *encoder) Encode(srcTags ident.TagIterator) error {
+func (e *encoder) Encode(tags ident.TagIterator) error {
+	tags.Restart()
+	defer tags.Restart()
+
+	numTags := tags.Remaining()
+	if err := e.writeHeader(numTags); err != nil {
+		return err
+	}
+
+	encoded := 0
+	for tags.Next() {
+		tag := tags.Current()
+		err := e.encodeTag(tag.Name.Bytes(), tag.Value.Bytes())
+		if err != nil {
+			e.buf.Reset()
+			return err
+		}
+		encoded++
+	}
+	if encoded != numTags {
+		e.buf.Reset()
+		return fmt.Errorf("iterator returned %d tags but expected %d",
+			encoded, numTags)
+	}
+
+	if err := tags.Err(); err != nil {
+		e.buf.Reset()
+		return err
+	}
+
+	e.checkedBytes.IncRef()
+	e.checkedBytes.Reset(e.buf.Bytes())
+
+	return nil
+}
+
+func (e *encoder) writeHeader(numTags int) error {
 	if e.checkedBytes.NumRef() > 0 {
 		return errTagEncoderInUse
 	}
 
-	tags := srcTags.Duplicate()
-	defer tags.Close()
-
-	numTags := tags.Remaining()
 	max := int(e.opts.TagSerializationLimits().MaxNumberTags())
 	if numTags > max {
 		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, max)
@@ -107,14 +145,83 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 		return err
 	}
 
-	if _, err := e.buf.Write(encodeUInt16(uint16(numTags))); err != nil {
+	numTagsBytes := encodeUInt16Buf(e.bufUInt16, uint16(numTags))
+	if _, err := e.buf.Write(numTagsBytes); err != nil {
 		e.buf.Reset()
 		return err
 	}
 
+	return nil
+}
+
+func (e *encoder) EncodeMetricTags(
+	tags MetricTagsIterator,
+	opts EncodeMetricTagsOptions,
+) error {
+	numTags := tags.NumTags()
+	for _, append := range opts.AppendTags.Values() {
+		_, exists := tags.TagValue(append.Name.Bytes())
+		if !exists {
+			numTags++
+		}
+	}
+	for _, exclude := range opts.ExcludeTags {
+		_, exists := tags.TagValue(exclude.Bytes())
+		if exists {
+			numTags--
+		}
+	}
+
+	if err := e.writeHeader(numTags); err != nil {
+		return err
+	}
+
+	appendTags := opts.AppendTags.Values()
+	appendTagIdx := 0
+
 	for tags.Next() {
-		tag := tags.Current()
-		if err := e.encodeTag(tag); err != nil {
+		name, value := tags.Current()
+
+		skip := false
+		if appendTagIdx < len(appendTags) {
+			// Need to check if need to append tag.
+			append := appendTags[appendTagIdx]
+			cmp := bytes.Compare(append.Name.Bytes(), name)
+			if cmp <= 0 {
+				if cmp == 0 {
+					// Skip this after we encode the append tag which overrides
+					// the current encoded tag.
+					skip = true
+				}
+				err := e.encodeTag(append.Name.Bytes(), append.Value.Bytes())
+				if err != nil {
+					e.buf.Reset()
+					return err
+				}
+			}
+		}
+
+		for _, exclude := range opts.ExcludeTags {
+			if bytes.Equal(name, exclude.Bytes()) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		if err := e.encodeTag(name, value); err != nil {
+			e.buf.Reset()
+			return err
+		}
+	}
+
+	// Append remaining tags.
+	for i := appendTagIdx; i < len(appendTags); i++ {
+		append := appendTags[appendTagIdx]
+		err := e.encodeTag(append.Name.Bytes(), append.Value.Bytes())
+		if err != nil {
 			e.buf.Reset()
 			return err
 		}
@@ -156,28 +263,27 @@ func (e *encoder) Finalize() {
 	p.Put(e)
 }
 
-func (e *encoder) encodeTag(t ident.Tag) error {
-	if len(t.Name.Bytes()) == 0 {
+func (e *encoder) encodeTag(name, value []byte) error {
+	if len(name) == 0 {
 		return errEmptyTagNameLiteral
 	}
 
-	if err := e.encodeID(t.Name); err != nil {
+	if err := e.encodeID(name); err != nil {
 		return err
 	}
 
-	return e.encodeID(t.Value)
+	return e.encodeID(value)
 }
 
-func (e *encoder) encodeID(i ident.ID) error {
-	d := i.Bytes()
-
+func (e *encoder) encodeID(d []byte) error {
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
 	if len(d) >= max {
 		return errTagLiteralTooLong
 	}
 
 	ld := uint16(len(d))
-	if _, err := e.buf.Write(encodeUInt16(ld)); err != nil {
+	ldBytes := encodeUInt16Buf(e.bufUInt16, ld)
+	if _, err := e.buf.Write(ldBytes); err != nil {
 		return err
 	}
 
@@ -188,10 +294,14 @@ func (e *encoder) encodeID(i ident.ID) error {
 	return nil
 }
 
+func encodeUInt16Buf(bytes []byte, v uint16) []byte {
+	byteOrder.PutUint16(bytes, v)
+	return bytes
+}
+
 func encodeUInt16(v uint16) []byte {
-	var bytes [2]byte
-	byteOrder.PutUint16(bytes[:], v)
-	return bytes[:]
+	// NB(r): Using a [2]byte on the stack here was still escaping.
+	return encodeUInt16Buf(make([]byte, 2), v)
 }
 
 func decodeUInt16(b []byte) uint16 {

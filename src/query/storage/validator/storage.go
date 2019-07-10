@@ -180,7 +180,14 @@ func (s *debugStorage) Close() error {
 
 func (s *debugStorage) Write(
 	ctx context.Context,
-	query *storage.WriteQuery,
+	query storage.WriteQuery,
 ) error {
 	return errors.New("write not implemented")
+}
+
+func (s *debugStorage) WriteBatch(
+	ctx context.Context,
+	iter storage.WriteQueryIter,
+) error {
+	return errors.New("write batch not implemented")
 }

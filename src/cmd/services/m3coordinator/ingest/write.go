@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -44,10 +45,21 @@ var (
 // DownsampleAndWriteIter is an interface that can be implemented to use
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
+	TagOptions() models.TagOptions
+
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, xtime.Unit)
-	Reset() error
-	Error() error
+
+	Current() (ident.TagIterator, ts.Datapoints, xtime.Unit)
+
+	Err() error
+
+	DatapointResult(datapointIdx int) storage.WriteQueryResult
+	DatapointState(datapointIdx int) interface{}
+
+	SetDatapointResult(datapointIdx int, result storage.WriteQueryResult)
+	SetDatapointState(datapointIdx int, state interface{})
+
+	Restart()
 }
 
 // DownsamplerAndWriter is the interface for the downsamplerAndWriter which
@@ -55,7 +67,8 @@ type DownsampleAndWriteIter interface {
 type DownsamplerAndWriter interface {
 	Write(
 		ctx context.Context,
-		tags models.Tags,
+		tags ident.TagIterator,
+		tagOptions models.TagOptions,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
 		overrides WriteOptions,
@@ -110,21 +123,22 @@ func NewDownsamplerAndWriter(
 
 func (d *downsamplerAndWriter) Write(
 	ctx context.Context,
-	tags models.Tags,
+	tags ident.TagIterator,
+	tagOptions models.TagOptions,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) error {
 	multiErr := xerrors.NewMultiError()
 	if d.shouldDownsample(overrides) {
-		err := d.writeToDownsampler(tags, datapoints, unit, overrides)
+		err := d.writeToDownsampler(tags, tagOptions, datapoints, unit, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 
 	if d.shouldWrite(overrides) {
-		err := d.writeToStorage(ctx, tags, datapoints, unit, overrides)
+		err := d.writeToStorage(ctx, tags, tagOptions, datapoints, unit, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -189,7 +203,8 @@ func (d *downsamplerAndWriter) downsampleOverrideRules(
 }
 
 func (d *downsamplerAndWriter) writeToDownsampler(
-	tags models.Tags,
+	tags ident.TagIterator,
+	tagOptions models.TagOptions,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
@@ -203,11 +218,7 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 
 	defer appender.Finalize()
 
-	for _, tag := range tags.Tags {
-		appender.AddTag(tag.Name, tag.Value)
-	}
-
-	if tags.Opts.IDSchemeType() == models.TypeGraphite {
+	if tagOptions.IDSchemeType() == models.TypeGraphite {
 		// NB(r): This is gross, but if this is a graphite metric then
 		// we are going to set a special tag that means the downsampler
 		// will write a graphite ID. This should really be plumbed
@@ -216,6 +227,18 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 		// back the context is lost currently.
 		appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
 			downsample.GraphiteIDSchemeTagValue)
+	}
+
+	// Duplicate so other iterators can cleanly iterate.
+	duplicate := tags.Duplicate()
+	for duplicate.Next() {
+		tag := duplicate.Current()
+		appender.AddTag(tag.Name.Bytes(), tag.Value.Bytes())
+	}
+	err = duplicate.Err()
+	duplicate.Close()
+	if err != nil {
+		return err
 	}
 
 	var appenderOpts downsample.SampleAppenderOptions
@@ -245,19 +268,24 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 
 func (d *downsamplerAndWriter) writeToStorage(
 	ctx context.Context,
-	tags models.Tags,
+	tags ident.TagIterator,
+	tagOptions models.TagOptions,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
-		return d.store.Write(ctx, &storage.WriteQuery{
+		tags.Restart()
+		write := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags:       tags,
+			TagOptions: tagOptions,
 			Datapoints: datapoints,
 			Unit:       unit,
 			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
+		err := d.store.Write(ctx, write)
+		return err
 	}
 
 	var (
@@ -271,17 +299,22 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
-			err := d.store.Write(ctx, &storage.WriteQuery{
-				Tags:       tags,
+			// Duplicate so others can iterate in order.
+			duplicate := tags.Duplicate()
+
+			write := storage.NewWriteQuery(storage.WriteQueryOptions{
+				Tags:       duplicate,
+				TagOptions: tagOptions,
 				Datapoints: datapoints,
 				Unit:       unit,
 				Attributes: storageAttributesFromPolicy(p),
 			})
-			if err != nil {
+			if err := d.store.Write(ctx, write); err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
 				errLock.Unlock()
 			}
+			duplicate.Close()
 			wg.Done()
 		})
 	}
@@ -307,43 +340,27 @@ func (d *downsamplerAndWriter) WriteBatch(
 	)
 
 	if d.shouldWrite(overrides) {
-		// Write unaggregated. Spin up all the background goroutines that make
-		// network requests before we do the synchronous work of writing to the
-		// downsampler.
+		// Write to underlying storage for each policy.
+		// TODO(r): Parallelize writing each policy at once, this is difficult
+		// though as right now the iterator expect sequential access.
+		// In reality the unaggregated storage policy or a single storage
+		// policy is selected so this isn't a huge deal.
 		storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 		if !ok {
 			storagePolicies = unaggregatedStoragePolicies
 		}
 
-		for iter.Next() {
-			tags, datapoints, unit := iter.Current()
-			for _, p := range storagePolicies {
-				p := p // Capture for lambda.
-				wg.Add(1)
-				d.workerPool.Go(func() {
-					err := d.store.Write(ctx, &storage.WriteQuery{
-						Tags:       tags,
-						Datapoints: datapoints,
-						Unit:       unit,
-						Attributes: storageAttributesFromPolicy(p),
-					})
-					if err != nil {
-						addError(err)
-					}
-					wg.Done()
-				})
+		writeIter := NewWriteQueryIter(iter)
+		for _, p := range storagePolicies {
+			writeIter.Reset(storageAttributesFromPolicy(p))
+			if err := d.store.WriteBatch(ctx, writeIter); err != nil {
+				addError(err)
 			}
 		}
 	}
 
-	// Iter does not need to be synchronized because even though we use it to spawn
-	// many goroutines above, the iteration is always synchronous.
-	resetErr := iter.Reset()
-	if resetErr != nil {
-		addError(resetErr)
-	}
-
-	if d.shouldDownsample(overrides) && resetErr == nil {
+	if d.shouldDownsample(overrides) {
+		iter.Restart()
 		if err := d.writeAggregatedBatch(iter, overrides); err != nil {
 			addError(err)
 		}
@@ -371,8 +388,15 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	for iter.Next() {
 		appender.Reset()
 		tags, datapoints, _ := iter.Current()
-		for _, tag := range tags.Tags {
-			appender.AddTag(tag.Name, tag.Value)
+
+		// Duplicate so other iterators can cleanly iterate.
+		tags.Restart()
+		for tags.Next() {
+			tag := tags.Current()
+			appender.AddTag(tag.Name.Bytes(), tag.Value.Bytes())
+		}
+		if err := tags.Err(); err != nil {
+			return err
 		}
 
 		var opts downsample.SampleAppenderOptions
@@ -398,7 +422,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 	}
 
-	return iter.Error()
+	return iter.Err()
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
@@ -420,4 +444,91 @@ func storageAttributesFromPolicy(
 		}
 	}
 	return attributes
+}
+
+var _ WriteQueryIter = &writeQueryIter{}
+
+// WriteQueryIter is a storage write query iterator with
+// reset methods.
+type WriteQueryIter interface {
+	storage.WriteQueryIter
+	Reset(attr storage.Attributes)
+}
+
+type writeQueryIter struct {
+	iter  DownsampleAndWriteIter
+	attr  storage.Attributes
+	attrs [1]storage.Attributes
+	slice []storage.Attributes
+}
+
+// NewWriteQueryIter is used to create a storage write query iterator
+// from a downsample and write iterator.
+func NewWriteQueryIter(
+	iter DownsampleAndWriteIter,
+) WriteQueryIter {
+	return &writeQueryIter{
+		iter: iter,
+	}
+}
+
+func (i *writeQueryIter) Reset(attr storage.Attributes) {
+	i.attr = attr
+	i.attrs[0] = attr
+	i.slice = i.attrs[:]
+}
+
+func (i *writeQueryIter) UniqueAttributes() []storage.Attributes {
+	return i.slice
+}
+
+func (i *writeQueryIter) Next() bool {
+	return i.iter.Next()
+}
+
+func (i *writeQueryIter) Current() storage.WriteQuery {
+	tags, datapoints, unit := i.iter.Current()
+
+	// Reset tags for reuse.
+	tags.Restart()
+	write := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags:       tags,
+		TagOptions: i.iter.TagOptions(),
+		Datapoints: datapoints,
+		Unit:       unit,
+		Attributes: i.attr,
+	})
+	return write
+}
+
+func (i *writeQueryIter) CurrentAttributes() storage.Attributes {
+	return i.attr
+}
+
+func (i *writeQueryIter) Err() error {
+	return i.iter.Err()
+}
+
+func (i *writeQueryIter) DatapointResult(datapointIdx int) storage.WriteQueryResult {
+	return i.iter.DatapointResult(datapointIdx)
+}
+
+func (i *writeQueryIter) DatapointState(datapointIdx int) interface{} {
+	return i.iter.DatapointState(datapointIdx)
+}
+
+func (i *writeQueryIter) SetDatapointResult(datapointIdx int, result storage.WriteQueryResult) {
+	i.iter.SetDatapointResult(datapointIdx, result)
+}
+
+func (i *writeQueryIter) SetDatapointState(datapointIdx int, state interface{}) {
+	i.iter.SetDatapointState(datapointIdx, state)
+}
+
+func (i *writeQueryIter) Restart() {
+	i.iter.Restart()
+}
+
+func (i *writeQueryIter) Close() {
+	// Noop.
 }

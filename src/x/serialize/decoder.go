@@ -98,6 +98,18 @@ func (d *decoder) Reset(b checked.Bytes) {
 	d.remaining = int(length)
 }
 
+func (d *decoder) Restart() {
+	// Take ref to the checked data before calling reset to avoid
+	// it being collected when resetForReuse is called.
+	data := d.checkedData
+	data.IncRef()
+
+	d.Reset(data)
+
+	// After reset we don't need this extra ref anymore.
+	data.DecRef()
+}
+
 func (d *decoder) Next() bool {
 	d.releaseCurrent()
 	d.nextCalls++

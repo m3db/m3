@@ -26,10 +26,14 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/serialize"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/uber-go/tally"
+)
+
+const (
+	reuseWriteBytesTooLong = 4096
 )
 
 // writeOp represents a generic write operation
@@ -38,9 +42,13 @@ type writeOp interface {
 
 	ShardID() uint32
 
-	SetCompletionFn(fn completionFn)
+	SetOpCallback(cb opCallback)
 
 	Close()
+}
+
+type opCallback interface {
+	OpComplete(result interface{}, err error)
 }
 
 type writeState struct {
@@ -48,46 +56,56 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel  topology.ConsistencyLevel
-	topoMap           topology.Map
-	op                writeOp
-	nsID              ident.ID
-	tsID              ident.ID
-	tagEncoder        serialize.TagEncoder
-	majority, pending int32
-	success           int32
-	errors            []error
+	consistencyLevel topology.ConsistencyLevel
+	topoMap          topology.Map
+	op               writeOp
+	nsBackingIdentID *ident.ReuseableBytesID
+	// nsIdentID is to save iface cast each time take ref to above.
+	nsIdentID        ident.ID
+	tsBackingIdentID *ident.ReuseableBytesID
+	// tsIdentID is to save iface cast each time take ref to above.
+	tsIdentID                   ident.ID
+	majority, enqueued, pending int32
+	success                     int32
+	errors                      []error
+	batchBuff                   *writeBatchBytes
 
-	queues         []hostQueue
-	tagEncoderPool serialize.TagEncoderPool
-	pool           *writeStatePool
+	opCallback opCallback
+
+	routeQueuesForEachFn topology.RouteForEachFn
+
+	queues []hostQueue
+	pool   *writeStatePool
 }
 
 func newWriteState(
-	encoderPool serialize.TagEncoderPool,
 	pool *writeStatePool,
 ) *writeState {
 	w := &writeState{
-		pool:           pool,
-		tagEncoderPool: encoderPool,
+		pool:             pool,
+		nsBackingIdentID: ident.NewReuseableBytesID(),
+		tsBackingIdentID: ident.NewReuseableBytesID(),
 	}
+	w.nsIdentID = w.nsBackingIdentID
+	w.tsIdentID = w.tsBackingIdentID
 	w.destructorFn = w.close
 	w.L = w
+	w.opCallback = w
+	w.routeQueuesForEachFn = w.routeQueuesForEach
 	return w
 }
 
 func (w *writeState) close() {
 	w.op.Close()
 
-	w.nsID.Finalize()
-	w.tsID.Finalize()
-
-	if enc := w.tagEncoder; enc != nil {
-		enc.Finalize()
+	w.nsBackingIdentID.Reset(nil)
+	w.tsBackingIdentID.Reset(nil)
+	if w.batchBuff != nil {
+		w.batchBuff.decRef()
 	}
 
-	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
-	w.nsID, w.tsID, w.tagEncoder = nil, nil, nil
+	w.op, w.majority, w.enqueued, w.pending, w.success = nil, 0, 0, 0, 0
+	w.batchBuff = nil
 
 	for i := range w.errors {
 		w.errors[i] = nil
@@ -105,7 +123,26 @@ func (w *writeState) close() {
 	w.pool.Put(w)
 }
 
-func (w *writeState) completionFn(result interface{}, err error) {
+func (w *writeState) routeQueues() error {
+	return w.topoMap.RouteForEach(w.tsIdentID, w.routeQueuesForEachFn)
+}
+
+func (w *writeState) routeQueuesForEach(idx int, host topology.Host) {
+	// Count pending write requests before we enqueue the completion fns,
+	// which rely on the count when executing
+	w.pending++
+	w.queues = append(w.queues, w.queues[idx])
+}
+
+func (w *writeState) setNamespaceID(nsID []byte) {
+	w.nsBackingIdentID.Reset(nsID)
+}
+
+func (w *writeState) setID(id []byte) {
+	w.tsBackingIdentID.Reset(id)
+}
+
+func (w *writeState) OpComplete(result interface{}, err error) {
 	hostID := result.(topology.Host).ID()
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 
@@ -161,32 +198,44 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	w.decRef()
 }
 
+func tryReuseBytes(b []byte) []byte {
+	if len(b) >= reuseWriteBytesTooLong {
+		return nil
+	}
+	// The size will get reset when used.
+	return b
+}
+
 type writeStatePool struct {
-	pool           pool.ObjectPool
-	tagEncoderPool serialize.TagEncoderPool
+	pool pool.ObjectPool
+	// todo: remove
+	gets tally.Counter
+	puts tally.Counter
 }
 
 func newWriteStatePool(
-	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
-		pool:           p,
-		tagEncoderPool: tagEncoderPool,
+		pool: p,
+		gets: opts.InstrumentOptions().MetricsScope().Counter("pooling-write-state-gets"),
+		puts: opts.InstrumentOptions().MetricsScope().Counter("pooling-write-state-puts"),
 	}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		return newWriteState(p.tagEncoderPool, p)
+		return newWriteState(p)
 	})
 }
 
 func (p *writeStatePool) Get() *writeState {
+	p.gets.Inc(1)
 	return p.pool.Get().(*writeState)
 }
 
 func (p *writeStatePool) Put(w *writeState) {
+	p.puts.Inc(1)
 	p.pool.Put(w)
 }

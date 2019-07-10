@@ -22,8 +22,11 @@ package prometheus
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -31,38 +34,60 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 
+	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPromCompressedReadSuccess(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", test.GeneratePromReadBody(t))
-	_, err := ParsePromCompressedRequest(req)
+	req := httptest.NewRequest("POST", "/dummy", test.GeneratePromReadBody(t))
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.NoError(t, err)
 }
 
+func TestPromCompressedReadReuseBuffersSuccess(t *testing.T) {
+	var buff []byte
+	chunkSize := 16
+	for i := 0; i < 100; i++ {
+		genBuff := bytes.NewBuffer(nil)
+		for j := 0; j < i+1; j++ {
+			_, err := io.CopyN(genBuff, rand.Reader, int64(j*chunkSize))
+			require.NoError(t, err)
+		}
+
+		data := snappy.Encode(nil, genBuff.Bytes())
+
+		req := httptest.NewRequest("POST", "/dummy", bytes.NewReader(data))
+
+		var err error
+		buff, err = ParsePromCompressedRequest(buff, req)
+		assert.NoError(t, err)
+	}
+}
+
 func TestPromCompressedReadNoBody(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", nil)
-	_, err := ParsePromCompressedRequest(req)
+	req := httptest.NewRequest("POST", "/dummy", nil)
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestPromCompressedReadEmptyBody(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", bytes.NewReader([]byte{}))
-	_, err := ParsePromCompressedRequest(req)
+	req := httptest.NewRequest("POST", "/dummy", bytes.NewReader([]byte{}))
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestPromCompressedReadInvalidEncoding(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", bytes.NewReader([]byte{'a'}))
-	_, err := ParsePromCompressedRequest(req)
+	req := httptest.NewRequest("POST", "/dummy", bytes.NewReader([]byte{'a'}))
+	_, err := ParsePromCompressedRequest(nil, req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestTimeoutParse(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", nil)
+	req := httptest.NewRequest("POST", "/dummy", nil)
 	req.Header.Add("timeout", "1ms")
 
 	timeout, err := ParseRequestTimeout(req, time.Second)

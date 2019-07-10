@@ -25,11 +25,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	goruntime "runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/m3db/m3/src/x/mmap"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -81,6 +84,9 @@ const (
 	resultTypeMetadata  resultTypeEnum = "metadata"
 	resultTypeBootstrap                = "bootstrap"
 	resultTypeRaw                      = "raw"
+
+	refillWritePoolLow  = 0.0
+	refillWritePoolHigh = 0.0
 )
 
 var (
@@ -108,7 +114,7 @@ var (
 	errSessionHasNoHostQueueForHost = newHostNotAvailableError(errors.New("session has no host queue for host"))
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
-	errUnableToEncodeTags = errors.New("unable to include tags")
+	errUnableToEncodeTags = errors.New("unable to encode tags")
 )
 
 // sessionState is volatile state that is protected by a
@@ -311,6 +317,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	s.pools.checkedBytesWrapper.Init()
 
+	s.pools.writeBatchBytesPool = newWriteBatchBytesPool(opts.InstrumentOptions())
+
 	if opts, ok := opts.(AdminOptions); ok {
 		s.state.bootstrapLevel = opts.BootstrapConsistencyLevel()
 		s.origin = opts.Origin()
@@ -480,6 +488,8 @@ func (s *session) Open() error {
 	// is already that Open will take some time
 	writeOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
+		SetRefillLowWatermark(refillWritePoolLow).
+		SetRefillHighWatermark(refillWritePoolHigh).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-pool"),
 		))
@@ -488,6 +498,8 @@ func (s *session) Open() error {
 
 	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteTaggedOpPoolSize()).
+		SetRefillLowWatermark(refillWritePoolLow).
+		SetRefillHighWatermark(refillWritePoolHigh).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
@@ -500,10 +512,12 @@ func (s *session) Open() error {
 	}
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(writeStatePoolSize).
+		SetRefillLowWatermark(refillWritePoolLow).
+		SetRefillHighWatermark(refillWritePoolHigh).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.pools.writeState = newWriteStatePool(s.pools.tagEncoder, writeStatePoolOpts)
+	s.pools.writeState = newWriteStatePool(writeStatePoolOpts)
 	s.pools.writeState.Init()
 
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
@@ -926,6 +940,148 @@ func (s *session) WriteTagged(
 	return err
 }
 
+func (s *session) WriteTaggedBatch(
+	iter WriteTaggedIter,
+) error {
+	w := s.pools.writeAttempt.Get()
+	w.args.attemptType = taggedWriteBatchAttemptType
+	w.args.iterTagged = iter
+	err := s.writeRetrier.Attempt(w.attemptFn)
+	s.pools.writeAttempt.Put(w)
+	return err
+}
+
+func (s *session) writeBatchAttempt(
+	iter WriteTaggedIter,
+) error {
+	var (
+		startWriteAttempt = s.nowFn()
+		poolKey           = startWriteAttempt.UnixNano()
+		buff              = s.pools.writeBatchBytesPool.Get(poolKey)
+		tagEncoder        = s.pools.tagEncoder.Get()
+	)
+	buff.incRef()
+	defer func() {
+		tagEncoder.Finalize()
+		buff.decRef()
+	}()
+
+	s.state.RLock()
+	if s.state.status != statusOpen {
+		s.state.RUnlock()
+		return errSessionStatusNotOpen
+	}
+
+	for iter.Next() {
+		// Make sure default state is not set unless successfully enqueued.
+		iter.SetState(nil)
+
+		currResult := iter.Result()
+		if currResult.Success {
+			// If already successfully written, then continue.
+			continue
+		}
+		if currResult.Err != nil {
+			if !xerrors.IsRetryableError(currResult.Err) ||
+				IsBadRequestError(currResult.Err) {
+				// Do not retry non-retriable or bad request errors.
+				continue
+			}
+		}
+
+		entry := iter.Current()
+
+		t := entry.Timestamp
+		unit := entry.Unit
+
+		timeType, timeTypeErr := convert.ToTimeType(unit)
+		if timeTypeErr != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: xerrors.NewNonRetryableError(timeTypeErr),
+			})
+			continue
+		}
+
+		timestamp, timestampErr := convert.ToValue(t, timeType)
+		if timestampErr != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: xerrors.NewNonRetryableError(timestampErr),
+			})
+			continue
+		}
+
+		nsID := entry.Namespace
+		id := entry.ID
+		inputTags := entry.Tags
+		value := entry.Value
+		annotation := entry.Annotation
+
+		state, err := s.writeAttemptWithRLock(
+			taggedWriteAttemptType, nsID, id, inputTags,
+			timestamp, value, timeType, annotation, tagEncoder, buff)
+		if err != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: err,
+			})
+			continue
+		}
+
+		iter.SetState(state)
+	}
+	s.state.RUnlock()
+
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	iter.Restart()
+	for iter.Next() {
+		curr := iter.State()
+		if curr == nil {
+			// Not an in progress result.
+			continue
+		}
+
+		// Ensure no state for future iterations.
+		iter.SetState(nil)
+
+		state := curr.(*writeState)
+		majority, enqueued := state.majority, state.enqueued
+
+		// it's safe to Wait() here, as we still hold the lock on state, after it's
+		// returned from writeAttemptWithRLock.
+		state.Wait()
+
+		err := s.writeConsistencyResult(state.consistencyLevel, majority, enqueued,
+			enqueued-state.pending, int32(len(state.errors)), state.errors)
+
+		s.recordWriteMetrics(err, int32(len(state.errors)), startWriteAttempt)
+
+		// must Unlock before decRef'ing, as the latter releases the writeState back into a
+		// pool if ref count == 0.
+		state.Unlock()
+		state.decRef()
+
+		if err != nil {
+			iter.SetResult(WriteTaggedIterResult{
+				Err: err,
+			})
+		} else {
+			iter.SetResult(WriteTaggedIterResult{
+				Success: true,
+			})
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	// TODO: Return an error if any returned an error (so batch retried).
+	// Also make sure if all were bad request error, or if all
+	// were non-retryable to return a non-retryable type error.
+	return nil
+}
+
 func (s *session) writeAttempt(
 	wType writeAttemptType,
 	nsID, id ident.ID,
@@ -936,6 +1092,21 @@ func (s *session) writeAttempt(
 	annotation []byte,
 ) error {
 	startWriteAttempt := s.nowFn()
+	poolKey := startWriteAttempt.UnixNano()
+
+	var tagEncoder serialize.TagEncoder
+	if wType == taggedWriteAttemptType {
+		tagEncoder = s.pools.TagEncoder().Get()
+	}
+
+	buff := s.pools.writeBatchBytesPool.Get(poolKey)
+	buff.incRef()
+	defer func() {
+		buff.decRef()
+		if tagEncoder != nil {
+			tagEncoder.Finalize()
+		}
+	}()
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -953,8 +1124,13 @@ func (s *session) writeAttempt(
 		return errSessionStatusNotOpen
 	}
 
-	state, majority, enqueued, err := s.writeAttemptWithRLock(
-		wType, nsID, id, inputTags, timestamp, value, timeType, annotation)
+	state, err := s.writeAttemptWithRLock(
+		wType, nsID, id, inputTags,
+		timestamp, value, timeType, annotation,
+		tagEncoder, buff)
+
+	majority, enqueued := state.majority, state.enqueued
+
 	s.state.RUnlock()
 
 	if err != nil {
@@ -989,58 +1165,25 @@ func (s *session) writeAttemptWithRLock(
 	value float64,
 	timeType rpc.TimeType,
 	annotation []byte,
-) (*writeState, int32, int32, error) {
+	tagEncoder serialize.TagEncoder,
+	buff *writeBatchBytes,
+) (*writeState, error) {
 	var (
 		majority = int32(s.state.majority)
 		enqueued int32
 	)
 
-	// NB(prateek): We retain an individual copy of the namespace, ID per
-	// writeState, as each writeState tracks the lifecycle of it's resources in
-	// use in the various queues. Tracking per writeAttempt isn't sufficient as
-	// we may enqueue multiple writeStates concurrently depending on retries
-	// and consistency level checks.
-	nsID := s.cloneFinalizable(namespace)
-	tsID := s.cloneFinalizable(id)
-	var tagEncoder serialize.TagEncoder
+	var encodedTags checked.Bytes
 	if wType == taggedWriteAttemptType {
-		tagEncoder = s.pools.tagEncoder.Get()
+		tagEncoder.Reset()
 		if err := tagEncoder.Encode(inputTags); err != nil {
-			tagEncoder.Finalize()
-			return nil, 0, 0, err
+			return nil, err
 		}
-	}
-
-	var op writeOp
-	switch wType {
-	case untaggedWriteAttemptType:
-		wop := s.pools.writeOperation.Get()
-		wop.namespace = nsID
-		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Bytes()
-		wop.request.Datapoint.Value = value
-		wop.request.Datapoint.Timestamp = timestamp
-		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = annotation
-		op = wop
-	case taggedWriteAttemptType:
-		wop := s.pools.writeTaggedOperation.Get()
-		wop.namespace = nsID
-		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Bytes()
-		encodedTagBytes, ok := tagEncoder.Data()
+		var ok bool
+		encodedTags, ok = tagEncoder.Data()
 		if !ok {
-			return nil, 0, 0, errUnableToEncodeTags
+			return nil, errUnableToEncodeTags
 		}
-		wop.request.EncodedTags = encodedTagBytes.Bytes()
-		wop.request.Datapoint.Value = value
-		wop.request.Datapoint.Timestamp = timestamp
-		wop.request.Datapoint.TimestampTimeType = timeType
-		wop.request.Datapoint.Annotation = annotation
-		op = wop
-	default:
-		// should never happen
-		return nil, 0, 0, errUnknownWriteAttemptType
 	}
 
 	state := s.pools.writeState.Get()
@@ -1048,39 +1191,87 @@ func (s *session) writeAttemptWithRLock(
 	state.topoMap = s.state.topoMap
 	state.incRef()
 
-	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
-	state.op, state.majority = op, majority
-	state.nsID, state.tsID, state.tagEncoder = nsID, tsID, tagEncoder
-	op.SetCompletionFn(state.completionFn)
+	// We are setting a ref count that will be dec ref by the state
+	// when it is done.
+	buff.incRef()
 
-	if err := s.state.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
-		// Count pending write requests before we enqueue the completion fns,
-		// which rely on the count when executing
-		state.pending++
-		state.queues = append(state.queues, s.state.queues[idx])
-	}); err != nil {
+	// NB(prateek): We retain an individual copy of the namespace, ID per
+	// writeState, as each writeState tracks the lifecycle of it's resources in
+	// use in the various queues. Tracking per writeAttempt isn't sufficient as
+	// we may enqueue multiple writeStates concurrently depending on retries
+	// and consistency level checks.
+	// NB(r): Using the state to pool these bytes to avoid extra pooling
+	// overhead and the need to finely tune the bytes pool sizes.
+	// (There is protection for these getting too long in the write state
+	// itself by checking the length against reuseWriteBytesTooLong const).
+	namespaceBytes := buff.copy(namespace.Bytes())
+	idBytes := buff.copy(id.Bytes())
+
+	state.setNamespaceID(namespaceBytes)
+	state.setID(idBytes)
+
+	var op writeOp
+	switch wType {
+	case untaggedWriteAttemptType:
+		wop := s.pools.writeOperation.Get()
+		wop.namespace = state.nsIdentID
+		wop.shardID = s.state.topoMap.ShardSet().Lookup(state.tsIdentID)
+		wop.request.ID = idBytes
+		wop.request.Datapoint.Value = value
+		wop.request.Datapoint.Timestamp = timestamp
+		wop.request.Datapoint.TimestampTimeType = timeType
+		wop.request.Datapoint.Annotation = annotation
+		op = wop
+	case taggedWriteAttemptType:
+		wop := s.pools.writeTaggedOperation.Get()
+		wop.namespace = state.nsIdentID
+		wop.shardID = s.state.topoMap.ShardSet().Lookup(state.tsIdentID)
+		wop.request.ID = idBytes
+		wop.request.EncodedTags = buff.copy(encodedTags.Bytes())
+		wop.request.Datapoint.Value = value
+		wop.request.Datapoint.Timestamp = timestamp
+		wop.request.Datapoint.TimestampTimeType = timeType
+		wop.request.Datapoint.Annotation = annotation
+		op = wop
+	default:
+		// should never happen
+		return nil, errUnknownWriteAttemptType
+	}
+
+	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
+	state.op, state.majority, state.batchBuff = op, majority, buff
+	op.SetOpCallback(state.opCallback)
+
+	// NB(r): Must have called state setID first to route to correct queues.
+	err := state.routeQueues()
+	if err != nil {
 		state.decRef()
-		return nil, 0, 0, err
+		return nil, err
 	}
 
 	state.Lock()
 	for i := range state.queues {
 		state.incRef()
-		if err := state.queues[i].Enqueue(state.op); err != nil {
+
+		// NB(r): Use op instead of state.op as it already has correct iface
+		// (less allocations).
+		if err := state.queues[i].Enqueue(op); err != nil {
 			state.Unlock()
 			state.decRef()
 
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
 			s.log.Error("[invariant violated] failed to enqueue write", zap.Error(err))
-			return nil, 0, 0, err
+			return nil, err
 		}
 		enqueued++
 	}
 
+	state.enqueued = enqueued
+
 	// NB(prateek): the current go-routine still holds a lock on the
 	// returned writeState object.
-	return state, majority, enqueued, nil
+	return state, nil
 }
 
 func (s *session) Fetch(
@@ -1347,7 +1538,7 @@ func (s *session) newFetchStateWithRLock(
 		fetchOp := s.pools.fetchTaggedOp.Get()
 		fetchOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = fetchOp.decRef // release the ref for the current go-routine
-		fetchOp.update(opts.fetchTaggedRequest, fetchState.completionFn)
+		fetchOp.update(opts.fetchTaggedRequest, fetchState)
 		fetchState.ResetFetchTagged(opts.startInclusive, opts.endExclusive,
 			fetchOp, topoMap, s.state.majority, s.state.readLevel)
 		op = fetchOp
@@ -1356,7 +1547,7 @@ func (s *session) newFetchStateWithRLock(
 		aggOp := s.pools.aggregateOp.Get()
 		aggOp.incRef()        // indicate current go-routine has a reference to the op
 		closer = aggOp.decRef // release the ref for the current go-routine
-		aggOp.update(opts.aggregateRequest, fetchState.completionFn)
+		aggOp.update(opts.aggregateRequest, fetchState)
 		fetchState.ResetAggregate(opts.startInclusive, opts.endExclusive,
 			aggOp, topoMap, s.state.majority, s.state.readLevel)
 		op = aggOp
@@ -1621,7 +1812,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			// Append IDWithNamespace to this request
-			f.append(namespace.Bytes(), tsID.Bytes(), completionFn)
+			f.append(namespace.Bytes(), tsID.Bytes(), opCallbackFn(completionFn))
 		}); err != nil {
 			routeErr = err
 			break
@@ -1772,7 +1963,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 
 	t := &truncateOp{}
 	t.request.NameSpace = namespace.Bytes()
-	t.completionFn = func(result interface{}, err error) {
+	t.opCallback = opCallbackFn(func(result interface{}, err error) {
 		if err != nil {
 			resultErrLock.Lock()
 			resultErr = resultErr.Add(err)
@@ -1782,7 +1973,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 			atomic.AddInt64(&truncated, res.NumSeries)
 		}
 		wg.Done()
-	}
+	})
 
 	s.state.RLock()
 	for idx := range s.state.queues {
@@ -2998,13 +3189,6 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	return nil
 }
 
-func (s *session) cloneFinalizable(id ident.ID) ident.ID {
-	if id.IsNoFinalize() {
-		return id
-	}
-	return s.pools.id.Clone(id)
-}
-
 type reason int
 
 const (
@@ -3903,4 +4087,136 @@ func minDuration(x, y time.Duration) time.Duration {
 		return x
 	}
 	return y
+}
+
+const (
+	maxWriteBatchBytesBuffers = 2 << 16 // ~130k
+	writeBatchByteBufferSize  = 2 << 10 // 2kb
+)
+
+type writeBatchBytesPool struct {
+	sync.Mutex
+	pools     []pool.ObjectPool
+	numPools  int64
+	gets      tally.Counter
+	getsEmpty tally.Counter
+	puts      tally.Counter
+	total     tally.Gauge
+}
+
+type writeBatchBytes struct {
+	refCounter
+	mmapd   []byte
+	used    int
+	last    *writeBatchBytes
+	curr    *writeBatchBytes
+	poolKey int64
+	pool    *writeBatchBytesPool
+}
+
+func newWriteBatchBytes(pool *writeBatchBytesPool) (*writeBatchBytes, error) {
+	bytes, err := mmap.Bytes(int64(writeBatchByteBufferSize), mmap.Options{
+		Read:  true,
+		Write: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	b := &writeBatchBytes{
+		mmapd: bytes.Result,
+		pool:  pool,
+	}
+	b.destructorFn = b.finalize
+	return b, nil
+}
+
+func (b *writeBatchBytes) reset(poolKey int64) {
+	// Point to no other buffers and set current to itself.
+	b.used = 0
+	b.last = nil
+	b.curr = b
+	b.poolKey = poolKey
+}
+
+// copy will copy to buffer and return the subslice copied.
+func (b *writeBatchBytes) copy(data []byte) []byte {
+	size := len(data)
+	if size > writeBatchByteBufferSize {
+		// Too big to be pooled.
+		return append([]byte(nil), data...)
+	}
+
+	if size > len(b.curr.mmapd)-b.curr.used {
+		// Need to get the next page, used next pool key
+		// to rotate through the buffers without calling
+		// time.Now again.
+		buffNew := b.pool.Get(b.poolKey + 1)
+		buffNew.last = b.curr
+		b.curr = buffNew
+	}
+
+	// Append to current mmap.
+	start := b.curr.used
+	end := b.curr.used + size
+	target := b.curr.mmapd[start:end]
+	copy(target, data)
+	b.curr.used += size
+	return target
+}
+
+func (b *writeBatchBytes) finalize() {
+	ptr := b.curr
+	for ptr != nil {
+		curr := ptr
+
+		// Progress pointer backwards.
+		ptr = curr.last
+
+		// Reset and return current.
+		curr.reset(curr.poolKey)
+		b.pool.Put(curr.poolKey, curr)
+	}
+}
+
+func newWriteBatchBytesPool(
+	instrumentOpts instrument.Options,
+) *writeBatchBytesPool {
+	shards := goruntime.NumCPU()
+
+	opts := pool.NewObjectPoolOptions().
+		SetSize(maxWriteBatchBytesBuffers / shards).
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.
+				MetricsScope().SubScope("write-batch-bytes-pool")))
+
+	p := &writeBatchBytesPool{
+		numPools: int64(shards),
+	}
+
+	for i := 0; i < shards; i++ {
+		pool := pool.NewObjectPool(opts)
+		pool.InitLazy(func() interface{} {
+			b, err := newWriteBatchBytes(p)
+			if err != nil {
+				panic(err)
+			}
+			return b
+		})
+		p.pools = append(p.pools, pool)
+	}
+
+	return p
+}
+
+func (p *writeBatchBytesPool) Get(poolKey int64) *writeBatchBytes {
+	v := p.pools[poolKey%p.numPools].Get().(*writeBatchBytes)
+	v.reset(poolKey)
+	return v
+}
+
+func (p *writeBatchBytesPool) Put(poolKey int64, v *writeBatchBytes) {
+	if !p.pools[poolKey%p.numPools].Put(v) {
+		// Need to unmmap.
+		mmap.Munmap(v.mmapd)
+	}
 }

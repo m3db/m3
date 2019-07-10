@@ -28,9 +28,9 @@ import (
 
 type fetchBatchOp struct {
 	checked.RefCount
-	request       rpc.FetchBatchRawRequest
-	completionFns []completionFn
-	finalizer     fetchBatchOpFinalizer
+	request     rpc.FetchBatchRawRequest
+	opCallbacks []opCallback
+	finalizer   fetchBatchOpFinalizer
 }
 
 func (f *fetchBatchOp) reset() {
@@ -42,18 +42,18 @@ func (f *fetchBatchOp) reset() {
 		f.request.Ids[i] = nil
 	}
 	f.request.Ids = f.request.Ids[:0]
-	for i := range f.completionFns {
-		f.completionFns[i] = nil
+	for i := range f.opCallbacks {
+		f.opCallbacks[i] = nil
 	}
-	f.completionFns = f.completionFns[:0]
+	f.opCallbacks = f.opCallbacks[:0]
 	f.DecWrites()
 }
 
-func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
+func (f *fetchBatchOp) append(namespace, id []byte, cb opCallback) {
 	f.IncWrites()
 	f.request.NameSpace = namespace
 	f.request.Ids = append(f.request.Ids, id)
-	f.completionFns = append(f.completionFns, completionFn)
+	f.opCallbacks = append(f.opCallbacks, cb)
 	f.DecWrites()
 }
 
@@ -64,21 +64,25 @@ func (f *fetchBatchOp) Size() int {
 	return value
 }
 
-func (f *fetchBatchOp) CompletionFn() completionFn {
-	return f.completeAll
+func (f *fetchBatchOp) OpCallback() opCallback {
+	return f
+}
+
+func (f *fetchBatchOp) OpComplete(result interface{}, err error) {
+	f.completeAll(result, err)
 }
 
 func (f *fetchBatchOp) completeAll(result interface{}, err error) {
-	for idx := range f.completionFns {
-		f.completionFns[idx](result, err)
+	for idx := range f.opCallbacks {
+		f.opCallbacks[idx].OpComplete(result, err)
 	}
 }
 
 func (f *fetchBatchOp) complete(idx int, result interface{}, err error) {
 	f.IncReads()
-	fn := f.completionFns[idx]
+	cb := f.opCallbacks[idx]
 	f.DecReads()
-	fn(result, err)
+	cb.OpComplete(result, err)
 }
 
 type fetchBatchOpFinalizer struct {
@@ -104,7 +108,7 @@ func (p *fetchBatchOpPool) Init() {
 	p.pool.Init(func() interface{} {
 		f := &fetchBatchOp{}
 		f.request.Ids = make([][]byte, 0, p.capacity)
-		f.completionFns = make([]completionFn, 0, p.capacity)
+		f.opCallbacks = make([]opCallback, 0, p.capacity)
 		f.finalizer.ref = f
 		f.finalizer.pool = p
 		f.SetFinalizer(&f.finalizer)
@@ -122,7 +126,7 @@ func (p *fetchBatchOpPool) Get() *fetchBatchOp {
 
 func (p *fetchBatchOpPool) Put(f *fetchBatchOp) {
 	f.IncRef()
-	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
+	if cap(f.request.Ids) != p.capacity || cap(f.opCallbacks) != p.capacity {
 		// Grew outside capacity, do not return to pool
 		f.DecRef()
 		return

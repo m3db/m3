@@ -21,12 +21,13 @@
 package ingestm3msg
 
 import (
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
@@ -43,9 +44,10 @@ type Configuration struct {
 // NewIngester creates an ingester with an appender.
 func (cfg Configuration) NewIngester(
 	appender storage.Appender,
+	tagOptions models.TagOptions,
 	instrumentOptions instrument.Options,
 ) (*Ingester, error) {
-	opts, err := cfg.newOptions(appender, instrumentOptions)
+	opts, err := cfg.newOptions(appender, tagOptions, instrumentOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +56,7 @@ func (cfg Configuration) NewIngester(
 
 func (cfg Configuration) newOptions(
 	appender storage.Appender,
+	tagOptions models.TagOptions,
 	instrumentOptions instrument.Options,
 ) (Options, error) {
 	scope := instrumentOptions.MetricsScope().Tagged(
@@ -91,6 +94,7 @@ func (cfg Configuration) newOptions(
 		Workers:           workers,
 		PoolOptions:       cfg.OpPool.NewObjectPoolOptions(instrumentOptions),
 		TagDecoderPool:    tagDecoderPool,
+		TagOptions:        tagOptions,
 		RetryOptions:      cfg.Retry.NewOptions(scope),
 		Sampler:           sampler,
 		InstrumentOptions: instrumentOptions,

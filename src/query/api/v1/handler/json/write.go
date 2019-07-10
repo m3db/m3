@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -50,16 +51,19 @@ const (
 // WriteJSONHandler represents a handler for the write json endpoint
 type WriteJSONHandler struct {
 	store          storage.Storage
+	tagOptions     models.TagOptions
 	instrumentOpts instrument.Options
 }
 
 // NewWriteJSONHandler returns a new instance of handler.
 func NewWriteJSONHandler(
 	store storage.Storage,
+	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &WriteJSONHandler{
 		store:          store,
+		tagOptions:     tagOptions,
 		instrumentOpts: instrumentOpts,
 	}
 }
@@ -81,7 +85,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeQuery, err := newStorageWriteQuery(req)
+	writeQuery, err := h.newStorageWriteQuery(req)
 	if err != nil {
 		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("parsing error",
@@ -99,21 +103,25 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
+func (h *WriteJSONHandler) newStorageWriteQuery(req *WriteQuery) (storage.WriteQuery, error) {
 	parsedTime, err := util.ParseTimeString(req.Timestamp)
 	if err != nil {
-		return nil, err
+		return storage.WriteQuery{}, err
 	}
 
-	tags := models.NewTags(len(req.Tags), nil)
+	var tags ident.Tags
 	for n, v := range req.Tags {
-		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
+		tags.Append(ident.Tag{
+			Name:  ident.StringID(n),
+			Value: ident.StringID(v),
+		})
 	}
 
-	return &storage.WriteQuery{
-		Tags: tags,
+	write := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags:       ident.NewTagsIterator(tags),
+		TagOptions: h.tagOptions,
 		Datapoints: ts.Datapoints{
-			{
+			ts.Datapoint{
 				Timestamp: parsedTime,
 				Value:     req.Value,
 			},
@@ -123,7 +131,8 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		Attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,
 		},
-	}, nil
+	})
+	return write, nil
 }
 
 func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {

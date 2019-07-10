@@ -36,6 +36,11 @@ scrape_configs:
     static_configs:
       - targets: ['m3db_seed:9004', 'm3db_data01:9004', 'm3db_data02:9004']
 
+  # Local coordinator metrics, will only be up if using m3coordinator_local
+  - job_name: 'm3coordinator_local'
+    static_configs:
+      - targets: ['host.docker.internal:17203']
+
 remote_read:
   - url: http://m3coordinator01:7201/api/v1/prom/remote/read
 

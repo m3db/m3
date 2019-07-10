@@ -23,9 +23,9 @@ package client
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type sessionPools struct {
@@ -51,6 +51,7 @@ type sessionPools struct {
 	fetchTaggedAttempt          fetchTaggedAttemptPool
 	aggregateAttempt            aggregateAttemptPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
+	writeBatchBytesPool         *writeBatchBytesPool
 }
 
 // NB: ensure sessionPools satisfies the fetchTaggedPools interface.

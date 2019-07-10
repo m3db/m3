@@ -22,9 +22,9 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -57,30 +57,67 @@ type TimeoutOpts struct {
 	FetchTimeout time.Duration
 }
 
+// ParsePromCompressedRequestOptions is a set of options for parsing
+// a prom compressed request.
+type ParsePromCompressedRequestOptions struct {
+	Alloc BytesAllocator
+}
+
+// BytesAllocator is a bytes allocator.
+type BytesAllocator interface {
+	AllocBytes(l int) []byte
+}
+
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
-func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
+func ParsePromCompressedRequest(
+	r *http.Request,
+	opts ParsePromCompressedRequestOptions,
+) ([]byte, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
+
 	defer body.Close()
-	compressed, err := ioutil.ReadAll(body)
 
-	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
-	}
-
-	if len(compressed) == 0 {
-		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
-	}
-
-	reqBuf, err := snappy.Decode(nil, compressed)
-	if err != nil {
+	encodedLen := int(r.ContentLength)
+	if r.ContentLength <= 0 {
+		err := fmt.Errorf("content length not set")
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return reqBuf, nil
+	// Work out total size before read.
+	uvarintBuff := make([]byte, 8)
+	if _, err := io.ReadFull(body, uvarintBuff); err != nil {
+		err = fmt.Errorf("could not read header: %v", err)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	uvarint, _ := binary.Uvarint(uvarintBuff)
+	decodedLen := int(uvarint)
+
+	totalLen := decodedLen + encodedLen
+
+	var dst []byte
+	if opts.Alloc != nil {
+		dst = opts.Alloc.AllocBytes(totalLen)
+	} else {
+		dst = make([]byte, totalLen)
+	}
+
+	target := dst[decodedLen : decodedLen+encodedLen]
+	copy(target[:len(uvarintBuff)], uvarintBuff)
+	if _, err := io.ReadFull(body, target[len(uvarintBuff):]); err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
+	}
+
+	dst, err := snappy.Decode(dst[:decodedLen], dst[decodedLen:decodedLen+encodedLen])
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf("bad snappy payload: %v", err), http.StatusBadRequest)
+	}
+
+	return dst, nil
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.

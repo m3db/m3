@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -39,6 +40,9 @@ import (
 
 var (
 	errNoRestrictFetchOptionsProtoMsg = errors.New("no restrict fetch options proto message")
+	errWriteQueryNoTags               = errors.New("write query with no tags")
+	errWriteQueryNoTagOptions         = errors.New("write query with no tag options")
+	errWriteQueryNoDatapoints         = errors.New("write query with no datapoints")
 )
 
 // Type describes the type of storage
@@ -326,15 +330,89 @@ type Querier interface {
 
 // WriteQuery represents the input timeseries that is written to the db
 type WriteQuery struct {
-	Tags       models.Tags
+	tags       ident.TagIterator
+	tagOptions models.TagOptions
+	datapoints ts.Datapoints
+	unit       xtime.Unit
+	annotation []byte
+	attributes Attributes
+}
+
+// WriteQueryOptions is a set of write query options used when constructing
+// a write query.
+type WriteQueryOptions struct {
+	Tags       ident.TagIterator
+	TagOptions models.TagOptions
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
 	Attributes Attributes
 }
 
-func (q *WriteQuery) String() string {
-	return string(q.Tags.ID())
+// NewWriteQuery creates a new write query, which tries to use the local
+// datapoints slice when possible.
+func NewWriteQuery(opts WriteQueryOptions) WriteQuery {
+	return WriteQuery{
+		tags:       opts.Tags,
+		tagOptions: opts.TagOptions,
+		datapoints: opts.Datapoints,
+		unit:       opts.Unit,
+		annotation: opts.Annotation,
+		attributes: opts.Attributes,
+	}
+}
+
+// Validate validates a write query.
+func (q WriteQuery) Validate() error {
+	if q.tags == nil {
+		return errWriteQueryNoTags
+	}
+	if q.tagOptions == nil {
+		return errWriteQueryNoTagOptions
+	}
+	if len(q.datapoints) == 0 {
+		return errWriteQueryNoDatapoints
+	}
+	return nil
+}
+
+// Datapoints returns the mutable Datapoints of the write query.
+func (q WriteQuery) Datapoints() ts.Datapoints {
+	return q.datapoints
+}
+
+// Tags returns the immutable Tags of the write query.
+func (q WriteQuery) Tags() ident.TagIterator {
+	return q.tags
+}
+
+// TagOptions returns the immutable TagsOptions of the write query.
+func (q WriteQuery) TagOptions() models.TagOptions {
+	return q.tagOptions
+}
+
+// Unit returns the immutable Unit of the write query.
+func (q WriteQuery) Unit() xtime.Unit {
+	return q.unit
+}
+
+// Annotation returns the immutable Annotation of the write query.
+func (q WriteQuery) Annotation() []byte {
+	return q.annotation
+}
+
+// Attributes returns the immutable Attributes of the write query.
+func (q WriteQuery) Attributes() Attributes {
+	return q.attributes
+}
+
+// String returns the ID of the write.
+func (q WriteQuery) String() string {
+	id, err := models.TagsIDIdentTagIterator(nil, q.tags, q.tagOptions)
+	if err != nil {
+		id = []byte(err.Error())
+	}
+	return string(id)
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
@@ -385,7 +463,36 @@ type CompleteTagsResultBuilder interface {
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write value to the database for an ID
-	Write(ctx context.Context, query *WriteQuery) error
+	Write(ctx context.Context, query WriteQuery) error
+	WriteBatch(ctx context.Context, iter WriteQueryIter) error
+}
+
+type WriteQueryIter interface {
+	// UniqueAttributes returns the unique attributes contained
+	// by the iterator.
+	UniqueAttributes() []Attributes
+
+	Next() bool
+
+	Current() WriteQuery
+	CurrentAttributes() Attributes
+
+	Err() error
+
+	DatapointResult(datapointIdx int) WriteQueryResult
+	DatapointState(datapointIdx int) interface{}
+
+	SetDatapointResult(datapointIdx int, result WriteQueryResult)
+	SetDatapointState(datapointIdx int, state interface{})
+
+	Restart()
+
+	Close()
+}
+
+type WriteQueryResult struct {
+	Success bool
+	Err     error
 }
 
 // SearchResults is the result from a search

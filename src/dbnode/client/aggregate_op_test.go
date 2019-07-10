@@ -56,7 +56,7 @@ func TestAggregateOp(t *testing.T) {
 		count++
 	}
 	op.update(rpc.AggregateQueryRawRequest{}, fn)
-	op.CompletionFn()(inter, err)
+	op.OpCallback().OpComplete(inter, err)
 	require.Equal(t, 1, count)
 }
 

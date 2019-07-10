@@ -289,11 +289,16 @@ type tagIter struct {
 var _ ident.TagIterator = &tagIter{}
 
 func newTagIter(d doc.Document, opts Opts) ident.TagIterator {
-	return &tagIter{
-		docFields:  d.Fields,
-		currentIdx: -1,
-		opts:       opts,
-	}
+	t := new(tagIter)
+	t.reset(d.Fields, opts)
+	return t
+}
+
+func (t *tagIter) reset(docFields doc.Fields, opts Opts) {
+	*t = tagIter{}
+	t.docFields = docFields
+	t.currentIdx = -1
+	t.opts = opts
 }
 
 func (t *tagIter) Next() bool {
@@ -375,4 +380,8 @@ func (t *tagIter) Duplicate() ident.TagIterator {
 		dupe.currentTag = t.opts.IdentPool.CloneTag(t.currentTag)
 	}
 	return &dupe
+}
+
+func (t *tagIter) Restart() {
+	t.reset(t.docFields, t.opts)
 }

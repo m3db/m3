@@ -42,22 +42,6 @@ const (
 	initRawFetchAllocSize = 32
 )
 
-// PromWriteTSToM3 converts a prometheus write query to an M3 one
-func PromWriteTSToM3(
-	timeseries *prompb.TimeSeries,
-	opts models.TagOptions,
-) *WriteQuery {
-	tags := PromLabelsToM3Tags(timeseries.Labels, opts)
-	datapoints := PromSamplesToM3Datapoints(timeseries.Samples)
-
-	return &WriteQuery{
-		Tags:       tags,
-		Datapoints: datapoints,
-		Unit:       xTimeUnit,
-		Annotation: nil,
-	}
-}
-
 // The default name for the name and bucket tags in Prometheus metrics.
 // This can be overwritten by setting tagOptions in the config.
 var (

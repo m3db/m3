@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	m3xserver "github.com/m3db/m3/src/x/server"
@@ -245,17 +246,10 @@ func (i *ingester) write(
 	}
 
 	resources.datapoints[0] = ts.Datapoint{Timestamp: timestamp, Value: value}
-	tags, err := GenerateTagsFromNameIntoSlice(resources.name, i.tagOpts, resources.tags)
-	if err != nil {
-		i.logger.Error("err generating tags from carbon",
-			zap.String("name", string(resources.name)), zap.Error(err))
-		i.metrics.malformed.Inc(1)
-		return false
-	}
 
-	err = i.downsamplerAndWriter.Write(
-		ctx, tags, resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
-
+	tags := NewTagIterator(resources.name)
+	err := i.downsamplerAndWriter.Write(ctx, tags, i.tagOpts,
+		resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
 	if err != nil {
 		i.logger.Error("err writing carbon metric",
 			zap.String("name", string(resources.name)), zap.Error(err))
@@ -288,62 +282,64 @@ type carbonIngesterMetrics struct {
 	malformed tally.Counter
 }
 
-// GenerateTagsFromName accepts a carbon metric name and blows it up into a list of
-// key-value pair tags such that an input like:
+var _ ident.TagIterator = &tagIterator{}
+
+type tagIterator struct {
+	numTags int
+	idx     int
+	name    []byte
+	bytes   []byte
+	curr    ident.Tag
+	err     error
+}
+
+// NewTagIterator accepts a carbon metric name and blows it up into a list of
+// key-value pair tags as an iterator such that an input like:
 //      foo.bar.baz
 // becomes
 //      __g0__:foo
 //      __g1__:bar
 //      __g2__:baz
-func GenerateTagsFromName(
-	name []byte,
-	opts models.TagOptions,
-) (models.Tags, error) {
-	return generateTagsFromName(name, opts, nil)
-}
-
-// GenerateTagsFromNameIntoSlice does the same thing as GenerateTagsFromName except
-// it allows the caller to provide the slice into which the tags are appended.
-func GenerateTagsFromNameIntoSlice(
-	name []byte,
-	opts models.TagOptions,
-	tags []models.Tag,
-) (models.Tags, error) {
-	return generateTagsFromName(name, opts, tags)
-}
-
-func generateTagsFromName(
-	name []byte,
-	opts models.TagOptions,
-	tags []models.Tag,
-) (models.Tags, error) {
-	if len(name) == 0 {
-		return models.EmptyTags(), errCannotGenerateTagsFromEmptyName
-	}
-
+func NewTagIterator(name []byte) ident.TagIterator {
 	numTags := bytes.Count(name, carbonSeparatorBytes) + 1
+	return &tagIterator{
+		numTags: numTags,
+		idx:     -1,
+		name:    name,
+		bytes:   name,
+	}
+}
 
-	if cap(tags) >= numTags {
-		tags = tags[:0]
-	} else {
-		tags = make([]models.Tag, 0, numTags)
+func (i *tagIterator) Restart() {
+	name := i.name
+	numTags := i.numTags
+	*i = tagIterator{}
+	i.numTags = numTags
+	i.idx = -1
+	i.name = name
+	i.bytes = name
+}
+
+func (i *tagIterator) Next() bool {
+	i.idx++
+	if i.idx >= i.numTags || i.err != nil || len(i.bytes) == 0 {
+		return false
 	}
 
-	startIdx := 0
-	tagNum := 0
-	for i, charByte := range name {
+	for j, charByte := range i.bytes {
 		if charByte == carbonSeparatorByte {
-			if i+1 < len(name) && name[i+1] == carbonSeparatorByte {
-				return models.EmptyTags(),
-					fmt.Errorf("carbon metric: %s has duplicate separator", string(name))
+			if j+1 < len(i.bytes) && i.bytes[j+1] == carbonSeparatorByte {
+				i.err = fmt.Errorf("carbon metric: %s has duplicate separator",
+					i.name)
+				return false
 			}
 
-			tags = append(tags, models.Tag{
-				Name:  graphite.TagName(tagNum),
-				Value: name[startIdx:i],
-			})
-			startIdx = i + 1
-			tagNum++
+			i.curr = ident.Tag{
+				Name:  ident.BytesID(graphite.TagName(i.idx)),
+				Value: ident.BytesID(i.bytes[:j]),
+			}
+			i.bytes = i.bytes[j+1:]
+			return true
 		}
 	}
 
@@ -356,14 +352,39 @@ func generateTagsFromName(
 	// append baz, however, if the input was:
 	//      foo.bar.baz.
 	// then the foor loop would have appended foo, bar, and baz already.
-	if name[len(name)-1] != carbonSeparatorByte {
-		tags = append(tags, models.Tag{
-			Name:  graphite.TagName(tagNum),
-			Value: name[startIdx:],
-		})
+	i.curr = ident.Tag{
+		Name:  ident.BytesID(graphite.TagName(i.idx)),
+		Value: ident.BytesID(i.bytes[:]),
 	}
+	i.bytes = i.bytes[:0]
+	return true
+}
 
-	return models.Tags{Opts: opts, Tags: tags}, nil
+func (i *tagIterator) Current() ident.Tag {
+	return i.curr
+}
+
+func (i *tagIterator) CurrentIndex() int {
+	return i.idx
+}
+
+func (i *tagIterator) Err() error {
+	return i.err
+}
+
+func (i *tagIterator) Close() {
+}
+
+func (i *tagIterator) Len() int {
+	return i.numTags
+}
+
+func (i *tagIterator) Remaining() int {
+	return i.numTags - i.idx
+}
+
+func (i *tagIterator) Duplicate() ident.TagIterator {
+	return NewTagIterator(i.name)
 }
 
 // Compile all the carbon ingestion rules into regexp so that we can

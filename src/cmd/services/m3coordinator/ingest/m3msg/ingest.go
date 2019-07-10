@@ -24,10 +24,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
-	"github.com/m3db/m3/src/metrics/metric/id"
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
+
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
@@ -49,6 +49,7 @@ type Options struct {
 	Workers           xsync.PooledWorkerPool
 	PoolOptions       pool.ObjectPoolOptions
 	TagDecoderPool    serialize.TagDecoderPool
+	TagOptions        models.TagOptions
 	RetryOptions      retry.Options
 	Sampler           *sampler.Sampler
 	InstrumentOptions instrument.Options
@@ -83,21 +84,19 @@ func NewIngester(
 		func() interface{} {
 			// NB: we don't need a pool for the tag decoder since the ops are
 			// pooled, but currently this is the only way to get tag decoder.
-			tagDecoder := opts.TagDecoderPool.Get()
 			op := ingestOp{
 				s:       opts.Appender,
 				r:       retrier,
-				it:      serialize.NewMetricTagsIterator(tagDecoder, nil),
+				it:      opts.TagDecoderPool.Get(),
+				itOpts:  opts.TagOptions,
 				p:       p,
 				m:       m,
 				logger:  opts.InstrumentOptions.Logger(),
 				sampler: opts.Sampler,
-				q: storage.WriteQuery{
-					Tags: models.NewTags(0, nil),
-				},
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
+			op.datapoints = op.constDatapoints[:]
 			return &op
 		},
 	)
@@ -129,7 +128,8 @@ func (i *Ingester) Ingest(
 type ingestOp struct {
 	s         storage.Appender
 	r         retry.Retrier
-	it        id.SortedTagIterator
+	it        serialize.TagDecoder
+	itOpts    models.TagOptions
 	p         pool.ObjectPool
 	m         ingestMetrics
 	logger    *zap.Logger
@@ -137,13 +137,15 @@ type ingestOp struct {
 	attemptFn retry.Fn
 	ingestFn  func()
 
-	c           context.Context
-	id          []byte
-	metricNanos int64
-	value       float64
-	sp          policy.StoragePolicy
-	callback    m3msg.Callbackable
-	q           storage.WriteQuery
+	c               context.Context
+	id              []byte
+	metricNanos     int64
+	value           float64
+	sp              policy.StoragePolicy
+	callback        m3msg.Callbackable
+	q               storage.WriteQuery
+	constDatapoints [1]ts.Datapoint
+	datapoints      []ts.Datapoint
 }
 
 func (op *ingestOp) sample() bool {
@@ -182,39 +184,24 @@ func (op *ingestOp) ingest() {
 }
 
 func (op *ingestOp) attempt() error {
-	return op.s.Write(op.c, &op.q)
+	return op.s.Write(op.c, op.q)
 }
 
 func (op *ingestOp) resetWriteQuery() error {
-	if err := op.resetTags(); err != nil {
-		return err
+	op.q = storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags:       op.it,
+		TagOptions: op.itOpts,
+		Datapoints: op.datapoints,
+		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
+		Attributes: storage.Attributes{
+			MetricsType: storage.AggregatedMetricsType,
+			Resolution:  op.sp.Resolution().Window,
+			Retention:   op.sp.Retention().Duration(),
+		},
+	})
+	op.constDatapoints[0] = ts.Datapoint{
+		Timestamp: time.Unix(0, op.metricNanos),
+		Value:     op.value,
 	}
-	op.resetDataPoints()
-	op.q.Unit = convert.UnitForM3DB(op.sp.Resolution().Precision)
-	op.q.Attributes.MetricsType = storage.AggregatedMetricsType
-	op.q.Attributes.Resolution = op.sp.Resolution().Window
-	op.q.Attributes.Retention = op.sp.Retention().Duration()
 	return nil
-}
-
-func (op *ingestOp) resetTags() error {
-	op.it.Reset(op.id)
-	op.q.Tags.Tags = op.q.Tags.Tags[:0]
-	for op.it.Next() {
-		name, value := op.it.Current()
-		op.q.Tags = op.q.Tags.AddTagWithoutNormalizing(models.Tag{
-			Name:  name,
-			Value: value,
-		}.Clone())
-	}
-	op.q.Tags.Normalize()
-	return op.it.Err()
-}
-
-func (op *ingestOp) resetDataPoints() {
-	if len(op.q.Datapoints) != 1 {
-		op.q.Datapoints = make(ts.Datapoints, 1)
-	}
-	op.q.Datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
-	op.q.Datapoints[0].Value = op.value
 }

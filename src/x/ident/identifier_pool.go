@@ -224,3 +224,7 @@ func (p *simplePool) CloneTags(t Tags) Tags {
 		pool:   p,
 	}
 }
+
+func (p *simplePool) BytesPool() pool.CheckedBytesPool {
+	return p.bytesPool
+}

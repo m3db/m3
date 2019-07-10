@@ -22,8 +22,16 @@ package client
 
 type completionFn func(result interface{}, err error)
 
+var _ opCallback = opCallbackFn(func(result interface{}, err error) {})
+
+type opCallbackFn completionFn
+
+func (fn opCallbackFn) OpComplete(result interface{}, err error) {
+	fn(result, err)
+}
+
 func callAllCompletionFns(ops []op, result interface{}, err error) {
 	for i := range ops {
-		ops[i].CompletionFn()(result, err)
+		ops[i].OpCallback().OpComplete(result, err)
 	}
 }

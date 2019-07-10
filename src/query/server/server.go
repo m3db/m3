@@ -325,7 +325,8 @@ func Run(runOpts RunOptions) {
 	if cfg.Ingest != nil {
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
-		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
+		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
+			tagOptions, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}

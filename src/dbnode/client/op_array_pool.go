@@ -62,7 +62,7 @@ func newFetchBatchOpArrayArrayPool(
 	opts pool.ObjectPoolOptions,
 	entries, capacity int,
 ) *fetchBatchOpArrayArrayPool {
-	p := pool.NewObjectPool(opts)
+	p := pool.NewObjectPool(opts.SetSize(entries))
 	return &fetchBatchOpArrayArrayPool{
 		pool:     p,
 		entries:  entries,

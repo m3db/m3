@@ -32,19 +32,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -72,8 +70,9 @@ type PromWriteHandler struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	tagOptions           models.TagOptions
 	nowFn                clock.NowFn
+	parser               *Parser
 	instrumentOpts       instrument.Options
-	metrics              promWriteMetrics
+	metrics              PromWriteMetrics
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -93,7 +92,7 @@ func NewPromWriteHandler(
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope())
+	metrics, err := NewPromWriteMetrics(instrumentOpts.MetricsScope())
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +101,13 @@ func NewPromWriteHandler(
 		downsamplerAndWriter: downsamplerAndWriter,
 		tagOptions:           tagOptions,
 		nowFn:                nowFn,
+		parser:               NewParser(),
 		metrics:              metrics,
 		instrumentOpts:       instrumentOpts,
 	}, nil
 }
 
-type promWriteMetrics struct {
+type PromWriteMetrics struct {
 	writeSuccess         tally.Counter
 	writeErrorsServer    tally.Counter
 	writeErrorsClient    tally.Counter
@@ -115,36 +115,36 @@ type promWriteMetrics struct {
 	ingestLatencyBuckets tally.DurationBuckets
 }
 
-func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
+func NewPromWriteMetrics(scope tally.Scope) (PromWriteMetrics, error) {
 	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo60mBuckets, err := tally.LinearDurationBuckets(0, 5*time.Minute, 12)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 	upTo60mBuckets = upTo60mBuckets[1:] // Remove the first 0s to get 5 min aligned buckets
 
 	upTo6hBuckets, err := tally.LinearDurationBuckets(time.Hour, 30*time.Minute, 12)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 
 	upTo24hBuckets, err := tally.LinearDurationBuckets(6*time.Hour, time.Hour, 19)
 	if err != nil {
-		return promWriteMetrics{}, err
+		return PromWriteMetrics{}, err
 	}
 	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
 
@@ -155,7 +155,7 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
-	return promWriteMetrics{
+	return PromWriteMetrics{
 		writeSuccess:         scope.SubScope("write").Counter("success"),
 		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
 		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
@@ -172,17 +172,10 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer req.Finalize()
+
+	// Process write request.
 	batchErr := h.write(r.Context(), req, opts)
-
-	// Record ingestion delay latency
-	now := h.nowFn()
-	for _, series := range req.Timeseries {
-		for _, sample := range series.Samples {
-			age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
-			h.metrics.ingestLatency.RecordDuration(age)
-		}
-	}
-
 	if batchErr != nil {
 		var (
 			errs              = batchErr.Errors()
@@ -246,7 +239,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
-) (*prompb.WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
+) (*WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(handler.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
@@ -287,72 +280,209 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
-	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
+	req, err := h.parser.ParseWriteRequest(r)
 	if err != nil {
 		return nil, ingest.WriteOptions{}, err
 	}
 
-	var req prompb.WriteRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, ingest.WriteOptions{},
-			xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return &req, opts, nil
+	return req, opts, nil
 }
 
 func (h *PromWriteHandler) write(
 	ctx context.Context,
-	r *prompb.WriteRequest,
+	req *WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter := newPromTSIter(r.Timeseries, h.tagOptions)
+	iter := NewTimeSeriesIter(req, h.tagOptions, h.metrics)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
-func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
-	// Construct the tags and datapoints upfront so that if the iterator
-	// is reset, we don't have to generate them twice.
-	var (
-		tags       = make([]models.Tags, 0, len(timeseries))
-		datapoints = make([]ts.Datapoints, 0, len(timeseries))
-	)
-	for _, promTS := range timeseries {
-		tags = append(tags, storage.PromLabelsToM3Tags(promTS.Labels, tagOpts))
-		datapoints = append(datapoints, storage.PromSamplesToM3Datapoints(promTS.Samples))
-	}
+var _ ingest.DownsampleAndWriteIter = &promTSIter{}
 
+type promTSIter struct {
+	idx     int
+	req     *WriteRequest
+	tagOpts models.TagOptions
+
+	currCalled bool
+
+	datapoints ts.Datapoints
+	tagIter    *tagIterator
+
+	metrics PromWriteMetrics
+}
+
+// NewTimeSeriesIter is used to create a downsample and write iterator
+// from a list of Prometheus protobuf time series.
+func NewTimeSeriesIter(
+	req *WriteRequest,
+	tagOpts models.TagOptions,
+	metrics PromWriteMetrics,
+) ingest.DownsampleAndWriteIter {
 	return &promTSIter{
 		idx:        -1,
-		tags:       tags,
-		datapoints: datapoints,
+		req:        req,
+		tagOpts:    tagOpts,
+		tagIter:    newTagIterator(),
+		datapoints: nil,
+		metrics:    metrics,
 	}
 }
 
-type promTSIter struct {
-	idx        int
-	tags       []models.Tags
-	datapoints []ts.Datapoints
+func (i *promTSIter) Restart() {
+	i.idx = -1
+	i.req.IterRestart()
+	i.currCalled = false
+}
+
+func (i *promTSIter) DatapointResult(
+	datapointIdx int,
+) storage.WriteQueryResult {
+	return i.req.DatapointResult(datapointIdx)
+}
+
+func (i *promTSIter) DatapointState(
+	datapointIdx int,
+) interface{} {
+	return i.req.DatapointState(datapointIdx)
+}
+
+func (i *promTSIter) SetDatapointResult(
+	datapointIdx int,
+	result storage.WriteQueryResult,
+) {
+	// Track result.
+	_, dps, _ := i.Current()
+	latency := time.Now().Sub(dps[datapointIdx].Timestamp)
+	i.metrics.ingestLatency.RecordDuration(latency)
+
+	i.req.SetDatapointResult(datapointIdx, result)
+}
+
+func (i *promTSIter) SetDatapointState(
+	datapointIdx int,
+	state interface{},
+) {
+	i.req.SetDatapointState(datapointIdx, state)
+}
+
+func (i *promTSIter) TagOptions() models.TagOptions {
+	return i.tagOpts
 }
 
 func (i *promTSIter) Next() bool {
-	i.idx++
-	return i.idx < len(i.tags)
-}
-
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
-	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0
+	if i.Err() != nil {
+		return false
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond
+	i.idx++
+	if !i.req.IterNext() {
+		return false
+	}
+
+	i.currCalled = false
+	return true
 }
 
-func (i *promTSIter) Reset() error {
+func (i *promTSIter) Current() (ident.TagIterator, ts.Datapoints, xtime.Unit) {
+	if i.idx < 0 || i.idx >= i.req.Len() {
+		return nil, nil, 0
+	}
+
+	if !i.currCalled {
+		labels, samples := i.req.IterCurr()
+		i.tagIter.Reset(labels)
+		i.datapoints = i.datapoints[:0]
+		for _, s := range samples {
+			i.datapoints = append(i.datapoints, ts.Datapoint{
+				Timestamp: storage.PromTimestampToTime(s.TimeUnixMillis),
+				Value:     s.Value,
+			})
+		}
+		i.currCalled = true
+	}
+
+	return i.tagIter, i.datapoints, xtime.Millisecond
+}
+
+func (i *promTSIter) Err() error {
+	return i.req.IterErr()
+}
+
+type tagIterator struct {
+	numTags    int
+	idx        int
+	labels     []Label
+	nameBytes  *ident.ReuseableBytesID
+	valueBytes *ident.ReuseableBytesID
+	tag        ident.Tag
+}
+
+func newTagIterator() *tagIterator {
+	i := &tagIterator{
+		nameBytes:  ident.NewReuseableBytesID(),
+		valueBytes: ident.NewReuseableBytesID(),
+	}
+	i.tag = ident.Tag{
+		Name:  i.nameBytes,
+		Value: i.valueBytes,
+	}
+	i.Reset(nil)
+	return i
+}
+
+func (i *tagIterator) Reset(labels []Label) {
+	i.numTags = len(labels)
 	i.idx = -1
+	i.labels = labels
+	i.nameBytes.Reset(nil)
+	i.valueBytes.Reset(nil)
+}
+
+func (i *tagIterator) Next() bool {
+	i.idx++
+	next := i.idx < i.numTags
+	if !next {
+		return false
+	}
+	i.nameBytes.Reset(i.labels[i.idx].Name)
+	i.valueBytes.Reset(i.labels[i.idx].Value)
+	return true
+}
+
+func (i *tagIterator) Current() ident.Tag {
+	return i.tag
+}
+
+func (i *tagIterator) CurrentIndex() int {
+	return i.idx
+}
+
+func (i *tagIterator) Err() error {
 	return nil
 }
 
-func (i *promTSIter) Error() error {
-	return nil
+func (i *tagIterator) Close() {
+	i.Reset(nil)
+}
+
+func (i *tagIterator) Len() int {
+	return i.numTags
+}
+
+func (i *tagIterator) Remaining() int {
+	if i.idx < 0 {
+		return i.numTags
+	}
+	return i.numTags - i.idx
+}
+
+func (i *tagIterator) Duplicate() ident.TagIterator {
+	result := newTagIterator()
+	result.Reset(i.labels)
+	return result
+}
+
+func (i *tagIterator) Restart() {
+	i.Reset(i.labels)
 }

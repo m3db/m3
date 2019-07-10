@@ -70,7 +70,11 @@ func (s *remoteStorage) CompleteTags(
 	return s.client.CompleteTags(ctx, query, options)
 }
 
-func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+func (s *remoteStorage) Write(ctx context.Context, query storage.WriteQuery) error {
+	return errors.ErrRemoteWriteQuery
+}
+
+func (s *remoteStorage) WriteBatch(ctx context.Context, iter storage.WriteQueryIter) error {
 	return errors.ErrRemoteWriteQuery
 }
 

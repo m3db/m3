@@ -37,11 +37,14 @@ type ObjectPool interface {
 	// Init initializes the pool.
 	Init(alloc Allocator)
 
+	// InitLazy initializes the pool without allocating all results.
+	InitLazy(alloc Allocator)
+
 	// Get provides an object from the pool.
 	Get() interface{}
 
 	// Put returns an object to the pool.
-	Put(obj interface{})
+	Put(obj interface{}) bool
 }
 
 // CheckedObjectPool provides a checked pool for objects.
