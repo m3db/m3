@@ -959,7 +959,11 @@ type aggregatorMetrics struct {
 	gauges         tally.Counter
 	forwarded      tally.Counter
 	timed          tally.Counter
+<<<<<<< HEAD
 	passThrough    tally.Counter
+=======
+	passthrough    tally.Counter
+>>>>>>> 6c316abdb319f9b5630f471e9daa4a4791a85e1a
 	addUntimed     aggregatorAddUntimedMetrics
 	addTimed       aggregatorAddTimedMetrics
 	addForwarded   aggregatorAddForwardedMetrics
