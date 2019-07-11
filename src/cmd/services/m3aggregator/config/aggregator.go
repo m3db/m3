@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	aggruntime "github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -306,7 +307,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
-	opts = opts.SetPassThroughWriter(passThroughWriter)
+	opts = opts.SetPassThroughWriter(writer.NewMutexWriter(passThroughWriter))
 
 	// Set max allowed forwarding delay function.
 	jitterEnabled := flushManagerOpts.JitterEnabled()
