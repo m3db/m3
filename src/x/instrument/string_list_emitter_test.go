@@ -53,7 +53,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 
 			bge := NewStringListEmitter(scope, "bootstrapper_bootstrappers", "bootstrapper")
 			require.NotNil(t, bge)
-			require.Nil(t, bge.gauge)
+			require.NotNil(t, bge.gauge)
 
 			g := bge.newGauge(scope, bs)
 			require.NotNil(t, g)
@@ -62,7 +62,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 
 			err := bge.UpdateStringList(bs)
 			require.Error(t, err)
-			require.Nil(t, bge.gauge)
+			require.NotNil(t, bge.gauge)
 
 			err = bge.Close()
 			require.Error(t, err)
@@ -86,7 +86,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 		bs0 := bootstrappers[0]
 		bge := NewStringListEmitter(scope, "bootstrapper_bootstrappers", "bootstrapper")
 		require.NotNil(t, bge)
-		require.Nil(t, bge.gauge)
+		require.NotNil(t, bge.gauge)
 
 		// Start
 		err := bge.Start(bs0)
@@ -110,6 +110,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 		err = bge.UpdateStringList(bs1)
 		require.NoError(t, err)
 		require.True(t, bge.running, "state of bootstrapGaugeEmitter after update")
+		require.NotNil(t, bge.gauge)
 
 		gauges = scope.Snapshot().Gauges()
 		require.Equal(t, 2, len(gauges), "length of gauges after updating")
@@ -130,6 +131,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 		err = bge.UpdateStringList(bs0)
 		require.NoError(t, err)
 		require.True(t, bge.running, "state of bootstrapGaugeEmitter after update")
+		require.NotNil(t, bge.gauge)
 
 		gauges = scope.Snapshot().Gauges()
 		require.Equal(t, 2, len(gauges), "length of gauges after updating")
@@ -150,6 +152,7 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 		err = bge.UpdateStringList(bs0)
 		require.NoError(t, err)
 		require.True(t, bge.running, "state of bootstrapGaugeEmitter after emitting same metric twice")
+		require.NotNil(t, bge.gauge)
 
 		gauges = scope.Snapshot().Gauges()
 		require.Equal(t, 2, len(gauges), "length of gauges after updating")

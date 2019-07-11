@@ -36,8 +36,8 @@ const (
 )
 
 var (
-	errStringListEmitterAlreadyRunning = errors.New("can't start StringListEmitter: already running")
-	errStringListEmitterNotStarted     = errors.New("StringListEmitter is not running")
+	errStringListEmitterAlreadyRunning = errors.New("string list emitter: already running")
+	errStringListEmitterNotStarted     = errors.New("string list emitter: not running")
 )
 
 // StringListEmitter emits a gauge where its tags indicate the order of a
@@ -56,11 +56,12 @@ type StringListEmitter struct {
 // arguments are used by the Start() and UpdateStringList() function to set
 // the name and tags on the gauge.
 func NewStringListEmitter(scope tally.Scope, name, tagPrefix string) *StringListEmitter {
+	gauge := tally.NoopScope.Gauge("blackhole")
 	return &StringListEmitter{
 		running:   false,
 		doneCh:    make(chan bool, 1),
 		scope:     scope,
-		gauge:     nil,
+		gauge:     gauge,
 		name:      name,
 		tagPrefix: tagPrefix,
 	}
@@ -116,9 +117,7 @@ func (bge *StringListEmitter) UpdateStringList(sl []string) error {
 		return errStringListEmitterNotStarted
 	}
 
-	if bge.gauge != nil {
-		bge.gauge.Update(0)
-	}
+	bge.gauge.Update(0)
 
 	bge.gauge = bge.newGauge(bge.scope, sl)
 
