@@ -98,10 +98,6 @@ func (c *StepLookbackConsolidator) BufferStepCount() int {
 	return len(c.unconsumed)
 }
 
-func (c *StepLookbackConsolidator) BufferReset() {
-	c.unconsumed = c.buffer[:0]
-}
-
 // ConsolidateAndMoveToNext consolidates the current values and moves the
 // consolidator to the next given value, purging stale values.
 func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
