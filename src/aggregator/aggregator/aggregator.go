@@ -242,10 +242,12 @@ func (agg *aggregator) AddPassThrough(
 	metric aggregated.Metric,
 	metadata metadata.TimedMetadata,
 ) error {
+	callStart := agg.nowFn()
 	if agg.state != aggregatorOpen {
 		return errAggregatorNotOpenOrClosed
 	}
 
+	agg.metrics.passThrough.Inc(1)
 	mp := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: id.ChunkedID{
@@ -258,7 +260,14 @@ func (agg *aggregator) AddPassThrough(
 		},
 		StoragePolicy: metadata.StoragePolicy,
 	}
-	return agg.passThroughWriter.Write(mp)
+	if err := agg.passThroughWriter.Write(mp); err != nil {
+		agg.metrics.addPassThrough.ReportError(err)
+		return err
+	}
+
+	callEnd := agg.nowFn()
+	agg.metrics.addPassThrough.ReportSuccess(callEnd.Sub(callStart))
+	return nil
 }
 
 func (agg *aggregator) Resign() error {
@@ -815,10 +824,6 @@ func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(
 
 type aggregatorAddPassThroughMetrics struct {
 	aggregatorAddMetricMetrics
-
-	// todo (fishie9): better error handling and more comprehensive metrics
-	tooFarInTheFuture tally.Counter
-	tooFarInThePast   tally.Counter
 }
 
 func newAggregatorAddPassThroughMetrics(
@@ -827,24 +832,11 @@ func newAggregatorAddPassThroughMetrics(
 ) aggregatorAddPassThroughMetrics {
 	return aggregatorAddPassThroughMetrics{
 		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		tooFarInTheFuture: scope.Tagged(map[string]string{
-			"reason": "too-far-in-the-future",
-		}).Counter("errors"),
-		tooFarInThePast: scope.Tagged(map[string]string{
-			"reason": "too-far-in-the-past",
-		}).Counter("errors"),
 	}
 }
 
 func (m *aggregatorAddPassThroughMetrics) ReportError(err error) {
-	switch err {
-	case errTooFarInTheFuture:
-		m.tooFarInTheFuture.Inc(1)
-	case errTooFarInThePast:
-		m.tooFarInThePast.Inc(1)
-	default:
-		m.aggregatorAddMetricMetrics.ReportError(err)
-	}
+	m.aggregatorAddMetricMetrics.ReportError(err)
 }
 
 type tickMetricsForMetricCategory struct {
