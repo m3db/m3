@@ -108,6 +108,7 @@ func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	if len(c.unconsumed) == 0 {
 		return c.fn(nil)
 	}
+
 	val := c.unconsumed[0]
 	c.unconsumed = c.unconsumed[1:]
 	return val

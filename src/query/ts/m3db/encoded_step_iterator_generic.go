@@ -134,7 +134,6 @@ func (it *encodedStepIterWithCollector) nextParallel(steps int) error {
 		it.wg.Add(1)
 		it.workerPool.Go(func() {
 			var err error
-			collector.BufferReset()
 			for i := 0; i < steps && err == nil; i++ {
 				peek, collector, err = nextForStep(peek, iter, collector,
 					it.bufferTime.Add(time.Duration(i)*it.meta.Bounds.StepSize))
@@ -167,7 +166,7 @@ func (it *encodedStepIterWithCollector) nextSequential(steps int) error {
 			collector = it.seriesCollectors[i]
 			err       error
 		)
-		collector.BufferReset()
+
 		for i := 0; i < steps && err == nil; i++ {
 			peek, collector, err = nextForStep(
 				peek,

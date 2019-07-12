@@ -79,6 +79,11 @@ func (c *StepLookbackAccumulator) BufferStep() {
 	// Update earliest lookback then remove stale values for the next
 	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
+	if len(c.datapoints) == 0 {
+		c.unconsumed = append(c.unconsumed, nil)
+		return
+	}
+
 	accumulated := make([]xts.Datapoint, len(c.datapoints))
 	copy(accumulated, c.datapoints)
 	c.datapoints = c.datapoints[:0]
@@ -89,16 +94,13 @@ func (c *StepLookbackAccumulator) BufferStepCount() int {
 	return len(c.unconsumed)
 }
 
-func (c *StepLookbackAccumulator) BufferReset() {
-	c.unconsumed = c.buffer[:0]
-}
-
 // AccumulateAndMoveToNext consolidates the current values and moves the
 // consolidator to the next given value, purging stale values.
 func (c *StepLookbackAccumulator) AccumulateAndMoveToNext() []xts.Datapoint {
 	if len(c.unconsumed) == 0 {
 		return nil
 	}
+
 	val := c.unconsumed[0]
 	c.unconsumed = c.unconsumed[1:]
 	return val

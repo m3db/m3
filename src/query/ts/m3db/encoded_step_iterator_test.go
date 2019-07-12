@@ -485,19 +485,31 @@ func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 	}
 
 	if os.Getenv("PROFILE_TEST_CPU") == "true" {
-		key := profileTakenKey{profile: "cpu", pools: usePools, iterations: iterations}
+		key := profileTakenKey{
+			profile:    "cpu",
+			pools:      usePools,
+			iterations: iterations,
+		}
 		if v := profilesTaken[key]; v == 2 {
 			p := profile.Start(profile.CPUProfile)
 			defer p.Stop()
 		}
+
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
+
 	if os.Getenv("PROFILE_TEST_MEM") == "true" {
-		key := profileTakenKey{profile: "mem", pools: usePools, iterations: iterations}
+		key := profileTakenKey{
+			profile:    "mem",
+			pools:      usePools,
+			iterations: iterations,
+		}
+
 		if v := profilesTaken[key]; v == 2 {
 			p := profile.Start(profile.MemProfile)
 			defer p.Stop()
 		}
+
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
 
@@ -535,18 +547,18 @@ var (
 // goos: darwin
 // goarch: amd64
 // pkg: github.com/m3db/m3/src/query/ts/m3db
-// BenchmarkNextIteration/10_parallel-12               3000            414176 ns/op
-// BenchmarkNextIteration/100_parallel-12              2000            900668 ns/op
-// BenchmarkNextIteration/200_parallel-12              1000           1259786 ns/op
-// BenchmarkNextIteration/500_parallel-12              1000           2144580 ns/op
-// BenchmarkNextIteration/1000_parallel-12              500           3759071 ns/op
-// BenchmarkNextIteration/2000_parallel-12              200           7026334 ns/op
-// BenchmarkNextIteration/10_sequential-12             2000            665541 ns/op
-// BenchmarkNextIteration/100_sequential-12            1000           1861140 ns/op
-// BenchmarkNextIteration/200_sequential-12             500           2757445 ns/op
-// BenchmarkNextIteration/500_sequential-12             300           4830012 ns/op
-// BenchmarkNextIteration/1000_sequential-12            200           7715052 ns/op
-// BenchmarkNextIteration/2000_sequential-12            100          12864308 ns/op
+// BenchmarkNextIteration/10_parallel-12     3000      414176 ns/op
+// BenchmarkNextIteration/100_parallel-12    2000      900668 ns/op
+// BenchmarkNextIteration/200_parallel-12    1000     1259786 ns/op
+// BenchmarkNextIteration/500_parallel-12    1000     2144580 ns/op
+// BenchmarkNextIteration/1000_parallel-12    500     3759071 ns/op
+// BenchmarkNextIteration/2000_parallel-12    200     7026334 ns/op
+// BenchmarkNextIteration/10_sequential-12   2000      665541 ns/op
+// BenchmarkNextIteration/100_sequential-12  1000     1861140 ns/op
+// BenchmarkNextIteration/200_sequential-12   500     2757445 ns/op
+// BenchmarkNextIteration/500_sequential-12   300     4830012 ns/op
+// BenchmarkNextIteration/1000_sequential-12  200     7715052 ns/op
+// BenchmarkNextIteration/2000_sequential-12  100    12864308 ns/op
 func BenchmarkNextIteration(b *testing.B) {
 	for _, useGoroutineWorkerPools := range []bool{true, false} {
 		for _, s := range []int{10, 100, 200, 500, 1000, 2000} {

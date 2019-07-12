@@ -34,10 +34,13 @@ const (
 // StepCollector is implemented by any accumulators or consolidators working on
 // stepwise iteration.
 type StepCollector interface {
+	// AddPoint adds a datapoint to the current step it's within the valid time
+	// period; otherwise drops it silently, which is fine for consolidation.
 	AddPoint(ts.Datapoint)
+	// BufferStep computes the currently collected step values.
 	BufferStep()
+	// BufferStepCount gives the number of remaining buffer steps.
 	BufferStepCount() int
-	BufferReset()
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.

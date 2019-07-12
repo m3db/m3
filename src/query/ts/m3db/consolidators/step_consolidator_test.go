@@ -21,6 +21,8 @@
 package consolidators
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -42,11 +44,28 @@ func TestConsolidator(t *testing.T) {
 	)
 
 	// NB: lookback limit: start-1
-	actual := consolidator.ConsolidateAndMoveToNext()
-	test.EqualsWithNans(t, nan, actual)
+	consolidator.BufferStep()
 
 	consolidator.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10})
+	consolidator.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(time.Minute),
+		Value:     10,
+	})
+	consolidator.BufferStep()
+	consolidator.BufferStep()
+	consolidator.BufferStep()
+	consolidator.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(2*time.Minute + time.Second*30),
+		Value:     2},
+	)
+	consolidator.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(3*time.Minute + time.Second),
+		Value:     3},
+	)
+	consolidator.BufferStep()
+
+	actual := consolidator.ConsolidateAndMoveToNext()
+	test.EqualsWithNans(t, nan, actual)
 
 	// NB: lookback limit: start
 	actual = consolidator.ConsolidateAndMoveToNext()
@@ -58,10 +77,7 @@ func TestConsolidator(t *testing.T) {
 
 	// NB: lookback limit: start+2 both points outside of the lookback period
 	actual = consolidator.ConsolidateAndMoveToNext()
-	test.EqualsWithNans(t, nan, actual)
-
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2})
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3})
+	assert.True(t, math.IsNaN(actual), fmt.Sprintf("%f should be nan", actual))
 
 	// NB: lookback limit: start+3, both points in lookback period
 	actual = consolidator.ConsolidateAndMoveToNext()

@@ -41,10 +41,22 @@ func TestAccumulator(t *testing.T) {
 
 	// NB: lookback limit: start-1
 	actual := acc.AccumulateAndMoveToNext()
-	assert.Equal(t, []xts.Datapoint{}, actual)
+	assert.Nil(t, actual)
 
 	acc.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
 	acc.AddPoint(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10})
+	acc.BufferStep()
+	acc.BufferStep()
+	acc.BufferStep()
+	acc.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(2*time.Minute + time.Second*30),
+		Value:     2,
+	})
+	acc.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(3*time.Minute + time.Second),
+		Value:     3},
+	)
+	acc.BufferStep()
 
 	// NB: lookback limit: start
 	actual = acc.AccumulateAndMoveToNext()
@@ -52,20 +64,19 @@ func TestAccumulator(t *testing.T) {
 		{Timestamp: start, Value: 1},
 		{Timestamp: start.Add(time.Minute), Value: 10},
 	}, actual)
+
 	// NB: lookback limit: start+1, should be reset
 	actual = acc.AccumulateAndMoveToNext()
-	assert.Equal(t, []xts.Datapoint{}, actual)
+	assert.Nil(t, actual)
 
 	// NB: lookback limit: start+2, should be reset
 	actual = acc.AccumulateAndMoveToNext()
-	assert.Equal(t, []xts.Datapoint{}, actual)
-
-	acc.AddPoint(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2})
-	acc.AddPoint(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3})
+	assert.Nil(t, actual)
 
 	// NB: lookback limit: start+3, both points in lookback period
 	actual = acc.AccumulateAndMoveToNext()
 	assert.Equal(t, []xts.Datapoint{
+		{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2},
 		{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3},
 	}, actual)
 }
