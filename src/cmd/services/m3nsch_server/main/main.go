@@ -36,11 +36,12 @@ import (
 	"github.com/m3db/m3/src/m3nsch/agent"
 	"github.com/m3db/m3/src/m3nsch/datums"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
+	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 
-	"go.uber.org/zap"
 	"github.com/pborman/getopt"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -64,6 +65,8 @@ func main() {
 	if err != nil {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
 	}
+
+	xconfig.WarnOnDeprecation(conf, rawLogger)
 
 	maxProcs := int(float64(runtime.NumCPU()) * conf.Server.CPUFactor)
 	logger.Infof("setting maxProcs = %d", maxProcs)

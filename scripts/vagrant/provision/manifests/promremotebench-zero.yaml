@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promremotebench
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      k8s-app: promremotebench
+  template:
+    metadata:
+      labels:
+        k8s-app: promremotebench
+    spec:
+      containers:
+      - name: promremotebench
+        image: quay.io/m3db/promremotebench:latest
+        env:
+        - name: PROMREMOTEBENCH_TARGET
+          value: "http://m3coordinator-dedicated-test-cluster:7201/api/v1/prom/remote/write"
+        - name: PROMREMOTEBENCH_NUM_HOSTS
+          value: "1000"
+        - name: PROMREMOTEBENCH_INTERVAL
+          value: "10"
+        - name: PROMREMOTEBENCH_BATCH
+          value: "128"

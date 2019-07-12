@@ -50,13 +50,13 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -82,13 +82,13 @@ type Handler struct {
 	clusterClient        clusterclient.Client
 	config               config.Configuration
 	embeddedDbCfg        *dbconfig.DBConfiguration
-	scope                tally.Scope
 	createdAt            time.Time
 	tagOptions           models.TagOptions
 	timeoutOpts          *prometheus.TimeoutOpts
 	enforcer             cost.ChainedEnforcer
 	fetchOptionsBuilder  handler.FetchOptionsBuilder
 	queryContextOptions  models.QueryContextOptions
+	instrumentOpts       instrument.Options
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -108,7 +108,7 @@ func NewHandler(
 	enforcer cost.ChainedEnforcer,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	queryContextOptions models.QueryContextOptions,
-	scope tally.Scope,
+	instrumentOpts instrument.Options,
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
@@ -135,13 +135,13 @@ func NewHandler(
 		clusterClient:        clusterClient,
 		config:               cfg,
 		embeddedDbCfg:        embeddedDbCfg,
-		scope:                scope,
 		createdAt:            time.Now(),
 		tagOptions:           tagOptions,
 		timeoutOpts:          timeoutOpts,
 		enforcer:             enforcer,
 		fetchOptionsBuilder:  fetchOptionsBuilder,
 		queryContextOptions:  queryContextOptions,
+		instrumentOpts:       instrumentOpts,
 	}, nil
 }
 
@@ -166,32 +166,38 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 func (h *Handler) RegisterRoutes() error {
 	// Wrap requests with response time logging as well as panic recovery.
 	var (
-		wrapped   = logging.WithResponseTimeAndPanicErrorLogging
-		panicOnly = logging.WithPanicErrorResponder
-		nowFn     = time.Now
-		keepNans  = h.config.ResultOptions.KeepNans
+		wrapped = func(n http.Handler) http.Handler {
+			return logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts)
+		}
+		panicOnly = func(n http.Handler) http.Handler {
+			return logging.WithPanicErrorResponder(n, h.instrumentOpts)
+		}
+		nowFn    = time.Now
+		keepNans = h.config.ResultOptions.KeepNans
 	)
 
 	h.router.HandleFunc(openapi.URL,
-		wrapped(&openapi.DocHandler{}).ServeHTTP,
+		wrapped(openapi.NewDocHandler(h.instrumentOpts)).ServeHTTP,
 	).Methods(openapi.HTTPMethod)
 	h.router.PathPrefix(openapi.StaticURLPrefix).Handler(wrapped(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
+	remoteSourceInstrumentOpts := h.instrumentOpts.
+		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(remoteSource))
+
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
-		h.fetchOptionsBuilder, h.scope.Tagged(remoteSource), h.timeoutOpts, keepNans)
-	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
-		h.downsamplerAndWriter,
-		h.tagOptions,
-		nowFn,
-		h.scope.Tagged(remoteSource))
+		h.fetchOptionsBuilder, h.timeoutOpts, keepNans, remoteSourceInstrumentOpts)
+	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.downsamplerAndWriter,
+		h.tagOptions, nowFn, remoteSourceInstrumentOpts)
 	if err != nil {
 		return err
 	}
 
+	nativeSourceInstrumentOpts := h.instrumentOpts.
+		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(nativeSource))
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
-		h.scope.Tagged(nativeSource), h.timeoutOpts, keepNans)
+		h.timeoutOpts, keepNans, nativeSourceInstrumentOpts)
 
 	h.router.HandleFunc(remote.PromReadURL,
 		wrapped(promRemoteReadHandler).ServeHTTP,
@@ -204,33 +210,33 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(native.PromReadHTTPMethod)
 	h.router.HandleFunc(native.PromReadInstantURL,
 		wrapped(native.NewPromReadInstantHandler(h.engine, h.fetchOptionsBuilder,
-			h.tagOptions, h.timeoutOpts)).ServeHTTP,
+			h.tagOptions, h.timeoutOpts, h.instrumentOpts)).ServeHTTP,
 	).Methods(native.PromReadInstantHTTPMethod)
 
 	// Native M3 search and write endpoints
 	h.router.HandleFunc(handler.SearchURL,
 		wrapped(handler.NewSearchHandler(h.storage,
-			h.fetchOptionsBuilder)).ServeHTTP,
+			h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 	).Methods(handler.SearchHTTPMethod)
 	h.router.HandleFunc(m3json.WriteJSONURL,
-		wrapped(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
+		wrapped(m3json.NewWriteJSONHandler(h.storage, h.instrumentOpts)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints
 	h.router.HandleFunc(native.CompleteTagsURL,
 		wrapped(native.NewCompleteTagsHandler(h.storage,
-			h.fetchOptionsBuilder)).ServeHTTP,
+			h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 	).Methods(native.CompleteTagsHTTPMethod)
 	h.router.HandleFunc(remote.TagValuesURL,
 		wrapped(remote.NewTagValuesHandler(h.storage, h.fetchOptionsBuilder,
-			nowFn)).ServeHTTP,
+			nowFn, h.instrumentOpts)).ServeHTTP,
 	).Methods(remote.TagValuesHTTPMethod)
 
 	// List tag endpoints
 	for _, method := range native.ListTagsHTTPMethods {
 		h.router.HandleFunc(native.ListTagsURL,
 			wrapped(native.NewListTagsHandler(h.storage, h.fetchOptionsBuilder,
-				nowFn)).ServeHTTP,
+				nowFn, h.instrumentOpts)).ServeHTTP,
 		).Methods(method)
 	}
 
@@ -238,38 +244,46 @@ func (h *Handler) RegisterRoutes() error {
 	for _, method := range remote.PromSeriesMatchHTTPMethods {
 		h.router.HandleFunc(remote.PromSeriesMatchURL,
 			wrapped(remote.NewPromSeriesMatchHandler(h.storage,
-				h.tagOptions, h.fetchOptionsBuilder)).ServeHTTP,
+				h.tagOptions, h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 		).Methods(method)
 	}
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
 		wrapped(validator.NewPromDebugHandler(nativePromReadHandler,
-			h.scope, *h.config.LookbackDuration)).ServeHTTP,
+			h.fetchOptionsBuilder, *h.config.LookbackDuration, h.instrumentOpts)).ServeHTTP,
 	).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
 		wrapped(graphite.NewRenderHandler(h.storage,
-			h.queryContextOptions, h.enforcer)).ServeHTTP,
+			h.queryContextOptions, h.enforcer, h.instrumentOpts)).ServeHTTP,
 	).Methods(graphite.ReadHTTPMethods...)
 
 	h.router.HandleFunc(graphite.FindURL,
 		wrapped(graphite.NewFindHandler(h.storage,
-			h.fetchOptionsBuilder)).ServeHTTP,
+			h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 	).Methods(graphite.FindHTTPMethods...)
 
 	if h.clusterClient != nil {
-		placementOpts := placement.HandlerOptions{
-			ClusterClient:       h.clusterClient,
-			Config:              h.config,
-			M3AggServiceOptions: h.m3AggServiceOptions(),
+		placementOpts, err := placement.NewHandlerOptions(
+			h.clusterClient,
+			h.config,
+			h.m3AggServiceOptions(),
+			h.instrumentOpts)
+		if err != nil {
+			return err
+		}
+
+		err = database.RegisterRoutes(h.router, h.clusterClient,
+			h.config, h.embeddedDbCfg, h.instrumentOpts)
+		if err != nil {
+			return err
 		}
 
 		placement.RegisterRoutes(h.router, placementOpts)
-		namespace.RegisterRoutes(h.router, h.clusterClient)
-		database.RegisterRoutes(h.router, h.clusterClient, h.config, h.embeddedDbCfg)
-		topic.RegisterRoutes(h.router, h.clusterClient, h.config)
+		namespace.RegisterRoutes(h.router, h.clusterClient, h.instrumentOpts)
+		topic.RegisterRoutes(h.router, h.clusterClient, h.config, h.instrumentOpts)
 	}
 
 	h.registerHealthEndpoints()

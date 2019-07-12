@@ -439,7 +439,7 @@ type UpdateOpenLeaseResult uint
 const (
 	// UpdateOpenLease is used to communicate a lease updated successfully.
 	UpdateOpenLease UpdateOpenLeaseResult = iota
-	// NoOpenLease is used to communitcate there is no related open lease.
+	// NoOpenLease is used to communicate there is no related open lease.
 	NoOpenLease
 )
 

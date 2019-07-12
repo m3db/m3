@@ -48,8 +48,8 @@ func multiTagResultsToM3TagProperties(
 	}
 
 	pprops := make([]*rpc.M3TagProperty, len(props))
-	for i, prop := range props {
-		pprops[i] = &prop
+	for i := range props {
+		pprops[i] = &props[i]
 	}
 
 	return &rpc.M3TagProperties{
@@ -57,7 +57,8 @@ func multiTagResultsToM3TagProperties(
 	}, nil
 }
 
-// encodeToCompressedSearchResult encodes SearchResults to a compressed search result
+// encodeToCompressedSearchResult encodes SearchResults to a compressed
+// search result.
 func encodeToCompressedSearchResult(
 	results []m3.MultiTagResult,
 	pools encoding.IteratorPools,

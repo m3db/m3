@@ -32,7 +32,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -59,6 +60,7 @@ type TagValuesHandler struct {
 	storage             storage.Storage
 	fetchOptionsBuilder handler.FetchOptionsBuilder
 	nowFn               clock.NowFn
+	instrumentOpts      instrument.Options
 }
 
 // TagValuesResponse is the response that gets returned to the user
@@ -71,17 +73,19 @@ func NewTagValuesHandler(
 	storage storage.Storage,
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	nowFn clock.NowFn,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &TagValuesHandler{
 		storage:             storage,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		nowFn:               nowFn,
+		instrumentOpts:      instrumentOpts,
 	}
 }
 
 func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 
 	query, err := h.parseTagValuesToQuery(r)

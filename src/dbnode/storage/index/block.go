@@ -27,10 +27,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -45,6 +46,8 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -765,10 +768,33 @@ func (b *block) segmentsWithRLock() []segment.Segment {
 // results datastructure is used to copy it every time documents are added
 // to the results datastructure).
 func (b *block) Query(
+	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
 	results BaseResults,
+	logFields []opentracinglog.Field,
+) (bool, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (b *block) queryWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
+	sp opentracing.Span,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -882,9 +908,30 @@ func (b *block) addQueryResults(
 // for the case when we can skip going to raw documents, and instead rely on
 // pre-aggregated results via the FST underlying the index.
 func (b *block) Aggregate(
+	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	opts QueryOptions,
 	results AggregateResults,
+	logFields []opentracinglog.Field,
+) (bool, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (b *block) aggregateWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	opts QueryOptions,
+	results AggregateResults,
+	sp opentracing.Span,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()

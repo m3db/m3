@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -48,13 +49,18 @@ const (
 
 // WriteJSONHandler represents a handler for the write json endpoint
 type WriteJSONHandler struct {
-	store storage.Storage
+	store          storage.Storage
+	instrumentOpts instrument.Options
 }
 
 // NewWriteJSONHandler returns a new instance of handler.
-func NewWriteJSONHandler(store storage.Storage) http.Handler {
+func NewWriteJSONHandler(
+	store storage.Storage,
+	instrumentOpts instrument.Options,
+) http.Handler {
 	return &WriteJSONHandler{
-		store: store,
+		store:          store,
+		instrumentOpts: instrumentOpts,
 	}
 }
 
@@ -77,7 +83,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	writeQuery, err := newStorageWriteQuery(req)
 	if err != nil {
-		logger := logging.WithContext(r.Context())
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("parsing error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
@@ -85,7 +91,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
-		logger := logging.WithContext(r.Context())
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
@@ -114,6 +120,9 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		},
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
+		Attributes: storage.Attributes{
+			MetricsType: storage.UnaggregatedMetricsType,
+		},
 	}, nil
 }
 

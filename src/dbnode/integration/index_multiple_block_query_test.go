@@ -120,7 +120,7 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
-		idx.NewTermQuery([]byte("shared"), []byte("shared"))}
+		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	log.Info("querying period0 results")
 	period0Results, _, err := session.FetchTagged(

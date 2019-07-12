@@ -23,6 +23,7 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"runtime"
 	"sync"
@@ -37,7 +38,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
@@ -55,6 +57,7 @@ type mockStorageOptions struct {
 	err                  error
 	iters                encoding.SeriesIterators
 	fetchCompressedSleep time.Duration
+	cleanup              func() error
 }
 
 func newMockStorage(
@@ -70,10 +73,13 @@ func newMockStorage(
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
 		) (encoding.SeriesIterators, m3.Cleanup, error) {
-			noopCleanup := func() error { return nil }
+			var cleanup = func() error { return nil }
+			if opts.cleanup != nil {
+				cleanup = opts.cleanup
+			}
 
 			if opts.err != nil {
-				return nil, noopCleanup, opts.err
+				return nil, cleanup, opts.err
 			}
 
 			if opts.fetchCompressedSleep > 0 {
@@ -82,7 +88,7 @@ func newMockStorage(
 
 			iters := opts.iters
 			if iters == nil {
-				it, err := test.BuildTestSeriesIterator()
+				it, err := test.BuildTestSeriesIterator(seriesID)
 				require.NoError(t, err)
 				iters = encoding.NewSeriesIterators(
 					[]encoding.SeriesIterator{it},
@@ -90,7 +96,7 @@ func newMockStorage(
 				)
 			}
 
-			return iters, noopCleanup, nil
+			return iters, cleanup, nil
 		}).
 		AnyTimes()
 	return store
@@ -110,8 +116,10 @@ func checkRemoteFetch(t *testing.T, r *storage.FetchResult) {
 	}
 }
 
-func startServer(t *testing.T, ctrl *gomock.Controller, store m3.Storage) net.Listener {
-	server := NewGRPCServer(store, models.QueryContextOptions{}, poolsWrapper)
+func startServer(t *testing.T, ctrl *gomock.Controller,
+	store m3.Storage) net.Listener {
+	server := NewGRPCServer(store, models.QueryContextOptions{},
+		poolsWrapper, instrument.NewOptions())
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -123,22 +131,23 @@ func startServer(t *testing.T, ctrl *gomock.Controller, store m3.Storage) net.Li
 	return listener
 }
 
-func createCtxReadOpts(t *testing.T) (context.Context, *storage.FetchQuery, *storage.FetchOptions) {
-	logging.InitWithCores(nil)
-
+func createCtxReadOpts(t *testing.T) (context.Context,
+	*storage.FetchQuery, *storage.FetchOptions) {
 	ctx := context.Background()
 	read, _, _ := createStorageFetchQuery(t)
 	readOpts := storage.NewFetchOptions()
 	return ctx, read, readOpts
 }
 
-func checkFetch(ctx context.Context, t *testing.T, client Client, read *storage.FetchQuery, readOpts *storage.FetchOptions) {
+func checkFetch(ctx context.Context, t *testing.T, client Client,
+	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
 	fetch, err := client.Fetch(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
 
-func checkErrorFetch(ctx context.Context, t *testing.T, client Client, read *storage.FetchQuery, readOpts *storage.FetchOptions) {
+func checkErrorFetch(ctx context.Context, t *testing.T, client Client,
+	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
 	fetch, err := client.Fetch(ctx, read, readOpts)
 	assert.Nil(t, fetch)
 	assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
@@ -296,9 +305,9 @@ func TestRoundRobinClientRpc(t *testing.T) {
 		assert.NoError(t, client.Close())
 	}()
 
-	// Host ordering is not always deterministic; retry several times to ensure at least one
-	// call is made to both hosts. Giving 10 attempts per host should remove flakiness while guaranteeing
-	// round robin behaviour
+	// Host ordering is not always deterministic; retry several times to ensure
+	// at least one call is made to both hosts. Giving 10 attempts per host should
+	// remove flakiness while guaranteeing round robin behaviour.
 	attempts := 20
 
 	hitHost, hitErrHost := false, false
@@ -325,4 +334,175 @@ func validateBlockResult(t *testing.T, r block.Result) {
 
 	_, err := r.Blocks[0].SeriesIter()
 	require.NoError(t, err)
+}
+
+func TestBatchedFetch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, read, readOpts := createCtxReadOpts(t)
+	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
+		defaultBatch + 1, defaultBatch*2 + 1}
+	for _, size := range sizes {
+		var (
+			msg     = fmt.Sprintf("batch size: %d", size)
+			iters   = make([]encoding.SeriesIterator, 0, size)
+			ids     = make([]string, 0, size)
+			cleaned = false
+		)
+
+		for i := 0; i < size; i++ {
+			id := fmt.Sprintf("%s_%d", seriesID, i)
+			it, err := test.BuildTestSeriesIterator(id)
+			require.NoError(t, err, msg)
+			iters = append(iters, it)
+			ids = append(ids, id)
+		}
+
+		store := newMockStorage(t, ctrl, mockStorageOptions{
+			iters: encoding.NewSeriesIterators(iters, nil),
+			cleanup: func() error {
+				require.False(t, cleaned, msg)
+				cleaned = true
+				return nil
+			},
+		})
+
+		listener := startServer(t, ctrl, store)
+		client := buildClient(t, []string{listener.Addr().String()})
+		defer func() {
+			assert.NoError(t, client.Close())
+		}()
+
+		fetch, err := client.Fetch(ctx, read, readOpts)
+		require.NoError(t, err, msg)
+		require.Equal(t, size, len(fetch.SeriesList), msg)
+		for i, series := range fetch.SeriesList {
+			require.Equal(t, ids[i], string(series.Name()), msg)
+			datapoints := series.Values().Datapoints()
+			values := make([]float64, 0, len(datapoints))
+			for _, d := range datapoints {
+				values = append(values, d.Value)
+			}
+
+			require.Equal(t, expectedValues(), values, msg)
+		}
+
+		require.True(t, cleaned, msg)
+	}
+}
+
+func TestBatchedSearch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, q, readOpts := createCtxReadOpts(t)
+	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
+		defaultBatch + 1, defaultBatch*2 + 1}
+	for _, size := range sizes {
+		var (
+			msg     = fmt.Sprintf("batch size: %d", size)
+			tags    = make([]m3.MultiTagResult, 0, size)
+			names   = make([]string, 0, size)
+			cleaned = false
+		)
+
+		noopCleanup := func() error {
+			require.False(t, cleaned, msg)
+			cleaned = true
+			return nil
+		}
+
+		for i := 0; i < size; i++ {
+			name := fmt.Sprintf("%s_%d", seriesID, i)
+			tag := m3.MultiTagResult{
+				ID: ident.StringID(name),
+				Iter: ident.NewTagsIterator(ident.NewTags(
+					ident.Tag{
+						Name:  ident.StringID(name),
+						Value: ident.StringID(name),
+					},
+				)),
+			}
+
+			tags = append(tags, tag)
+			names = append(names, name)
+		}
+
+		store := m3.NewMockStorage(ctrl)
+		store.EXPECT().SearchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(tags, noopCleanup, nil)
+
+		listener := startServer(t, ctrl, store)
+		client := buildClient(t, []string{listener.Addr().String()})
+		defer func() {
+			assert.NoError(t, client.Close())
+		}()
+
+		result, err := client.SearchSeries(ctx, q, readOpts)
+		require.NoError(t, err, msg)
+		require.Equal(t, size, len(result.Metrics), msg)
+
+		for i, m := range result.Metrics {
+			n := names[i]
+			require.Equal(t, n, string(m.ID), msg)
+		}
+
+		require.True(t, cleaned, msg)
+	}
+}
+
+func TestBatchedCompleteTags(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, _, readOpts := createCtxReadOpts(t)
+	namesOnly := []bool{true, false}
+	for _, nameOnly := range namesOnly {
+		q := &storage.CompleteTagsQuery{
+			CompleteNameOnly: nameOnly,
+		}
+
+		sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
+			defaultBatch + 1, defaultBatch*2 + 1}
+		for _, size := range sizes {
+			var (
+				msg  = fmt.Sprintf("batch size: %d, name only: %t", size, nameOnly)
+				tags = make([]storage.CompletedTag, 0, size)
+			)
+
+			for i := 0; i < size; i++ {
+				name := fmt.Sprintf("%s_%d", seriesID, i)
+				tag := storage.CompletedTag{
+					Name: []byte(name),
+				}
+
+				if !nameOnly {
+					tag.Values = [][]byte{[]byte("a"), []byte("b")}
+				}
+
+				tags = append(tags, tag)
+			}
+
+			store := m3.NewMockStorage(ctrl)
+			expected := &storage.CompleteTagsResult{
+				CompleteNameOnly: nameOnly,
+				CompletedTags:    tags,
+			}
+
+			store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(expected, nil)
+
+			listener := startServer(t, ctrl, store)
+			client := buildClient(t, []string{listener.Addr().String()})
+			defer func() {
+				assert.NoError(t, client.Close())
+			}()
+
+			result, err := client.CompleteTags(ctx, q, readOpts)
+			require.NoError(t, err, msg)
+			require.Equal(t, size, len(result.CompletedTags), msg)
+			assert.Equal(t, expected, result, msg)
+		}
+	}
 }

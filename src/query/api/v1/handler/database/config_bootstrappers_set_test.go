@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -41,7 +42,8 @@ func TestConfigSetBootstrappersHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockStore, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigSetBootstrappersHandler(mockClient)
+	handler := NewConfigSetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -83,7 +85,8 @@ func TestConfigSetBootstrappersHandlerNoValues(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigSetBootstrappersHandler(mockClient)
+	handler := NewConfigSetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -106,7 +109,8 @@ func TestConfigSetBootstrappersHandlerInvalidValue(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigSetBootstrappersHandler(mockClient)
+	handler := NewConfigSetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	jsonInput := `

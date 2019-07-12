@@ -21,7 +21,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,14 +31,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/query/util/logging"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -846,13 +844,9 @@ func TestNewJaegerTracer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	logging.InitWithCores(nil)
-	ctx := context.Background()
-	zapLogger := logging.WithContext(ctx)
-	defer zapLogger.Sync()
-
-	testScope := tally.NewTestScope("test_scope", map[string]string{"app": "test"})
-	tracer, closer, err := cfg.DB.Tracing.NewTracer("m3dbnode", testScope, zapLogger)
+	instrumentOpts := instrument.NewOptions()
+	tracer, closer, err := cfg.DB.Tracing.NewTracer("m3dbnode",
+		instrumentOpts.MetricsScope(), instrumentOpts.Logger())
 	require.NoError(t, err)
 	defer closer.Close()
 

@@ -38,12 +38,16 @@ import (
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both " +
-		"aggregated and unaggregated namespace lookup disabled")
+	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both" +
+		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured  = goerrors.New("no namespaces configured")
 	errMismatchedFetchedLength = goerrors.New("length of fetched attributes and" +
 		" series iterators does not match")
@@ -57,12 +61,24 @@ const (
 	namespaceCoversPartialQueryRange
 )
 
+func (t queryFanoutType) String() string {
+	switch t {
+	case namespaceCoversAllQueryRange:
+		return "coversAllQueryRange"
+	case namespaceCoversPartialQueryRange:
+		return "coversPartialQueryRange"
+	default:
+		return "unknown"
+	}
+}
+
 type m3storage struct {
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
 	opts            m3db.Options
 	nowFn           func() time.Time
+	logger          *zap.Logger
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -73,6 +89,7 @@ func NewStorage(
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	lookbackDuration time.Duration,
+	instrumentOpts instrument.Options,
 ) (Storage, error) {
 	opts := m3db.NewOptions().
 		SetTagOptions(tagOptions).
@@ -88,6 +105,7 @@ func NewStorage(
 		writeWorkerPool: writeWorkerPool,
 		opts:            opts,
 		nowFn:           time.Now,
+		logger:          instrumentOpts.Logger(),
 	}, nil
 }
 
@@ -140,7 +158,10 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	opts := s.opts
+	// Override options with whatever is the current specified lookback duration.
+	opts := s.opts.SetLookbackDuration(
+		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
+
 	// If using decoded block, return the legacy path.
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
@@ -174,10 +195,11 @@ func (s *m3storage) FetchBlocks(
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	// TODO: mutating this array breaks the abstraction a bit, but it's the least fussy way I can think of to do this
-	// while maintaining the original pooling.
-	// Alternative would be to fetch a new MutableSeriesIterators() instance from the pool, populate it,
-	// and then return the original to the pool, which feels wasteful.
+	// TODO: mutating this array breaks the abstraction a bit, but it's the least
+	// fussy way I can think of to do this while maintaining the original pooling.
+	// Alternative would be to fetch a new MutableSeriesIterators() instance from
+	// the pool, populate it, and then return the original to the pool, which
+	// feels wasteful.
 	iters := raw.Iters()
 	for i, iter := range iters {
 		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
@@ -241,14 +263,32 @@ func (s *m3storage) fetchCompressed(
 	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
 		s.nowFn(),
-		s.clusters,
 		query.Start,
 		query.End,
+		s.clusters,
 		options.FanoutOptions,
+		options.RestrictFetchOptions,
 	)
-
 	if err != nil {
 		return nil, err
+	}
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"query resolved cluster namespace, will use most granular per result")
+	if debugLog != nil {
+		for _, n := range namespaces {
+			debugLog.Write(zap.String("query", query.Raw),
+				zap.String("m3query", m3query.String()),
+				zap.Time("start", query.Start),
+				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()),
+				zap.Bool("remote", options.Remote),
+			)
+		}
 	}
 
 	var (
@@ -305,7 +345,8 @@ func (s *m3storage) SearchSeries(
 
 	metrics := make(models.Metrics, len(tagResult))
 	for i, result := range tagResult {
-		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.opts.TagOptions())
+		m, err := storage.FromM3IdentToMetric(result.ID,
+			result.Iter, s.opts.TagOptions())
 		if err != nil {
 			return nil, err
 		}
@@ -342,11 +383,30 @@ func (s *m3storage) CompleteTags(
 	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
 
 	var (
+		nameOnly        = query.CompleteNameOnly
 		namespaces      = s.clusters.ClusterNamespaces()
-		accumulatedTags = storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+		accumulatedTags = storage.NewCompleteTagsResultBuilder(nameOnly)
 		multiErr        syncMultiErrs
 		wg              sync.WaitGroup
 	)
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"completing tags")
+	if debugLog != nil {
+		filters := make([]string, len(query.FilterNameTags))
+		for i, t := range query.FilterNameTags {
+			filters[i] = string(t)
+		}
+
+		debugLog.Write(zap.Bool("nameOnly", nameOnly),
+			zap.Strings("filterNames", filters),
+			zap.String("matchers", query.TagMatchers.String()),
+			zap.String("m3query", m3query.String()),
+			zap.Time("start", query.Start),
+			zap.Time("end", query.End),
+			zap.Bool("remote", options.Remote),
+		)
+	}
 
 	if len(namespaces) == 0 {
 		return nil, errNoNamespacesConfigured
@@ -442,11 +502,22 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	var (
-		m3opts     = storage.FetchOptionsToM3Options(options, query)
 		namespaces = s.clusters.ClusterNamespaces()
+		m3opts     = storage.FetchOptionsToM3Options(options, query)
 		result     = NewMultiFetchTagsResult()
 		wg         sync.WaitGroup
 	)
+
+	debugLog := s.logger.Check(zapcore.DebugLevel,
+		"searching")
+	if debugLog != nil {
+		debugLog.Write(zap.String("query", query.Raw),
+			zap.String("m3_query", m3query.String()),
+			zap.Time("start", query.Start),
+			zap.Time("end", query.End),
+			zap.Bool("remote", options.Remote),
+		)
+	}
 
 	if len(namespaces) == 0 {
 		return nil, noop, errNoNamespacesConfigured
@@ -559,8 +630,8 @@ func (s *m3storage) writeSingle(
 		var exists bool
 		namespace, exists = s.clusters.AggregatedClusterNamespace(attrs)
 		if !exists {
-			err = fmt.Errorf("no configured cluster namespace for: retention=%s, resolution=%s",
-				attrs.Retention.String(), attrs.Resolution.String())
+			err = fmt.Errorf("no configured cluster namespace for: retention=%s,"+
+				" resolution=%s", attrs.Retention.String(), attrs.Resolution.String())
 		}
 	default:
 		metricsType := attributes.MetricsType

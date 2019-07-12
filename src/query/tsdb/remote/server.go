@@ -31,21 +31,33 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
 const poolTimeout = time.Second * 10
+const defaultBatch = 128
 
 // TODO: add metrics
 type grpcServer struct {
+	poolErr          error
+	batchSize        int
 	storage          m3.Storage
 	queryContextOpts models.QueryContextOptions
 	poolWrapper      *pools.PoolWrapper
 	once             sync.Once
 	pools            encoding.IteratorPools
-	poolErr          error
+	instrumentOpts   instrument.Options
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+
+	return b
 }
 
 // NewGRPCServer builds a grpc server which must be started later.
@@ -53,12 +65,14 @@ func NewGRPCServer(
 	store m3.Storage,
 	queryContextOpts models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
+	instrumentOpts instrument.Options,
 ) *grpc.Server {
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
 		storage:          store,
 		queryContextOpts: queryContextOpts,
 		poolWrapper:      poolWrapper,
+		instrumentOpts:   instrumentOpts,
 	}
 
 	rpc.RegisterQueryServer(server, grpcServer)
@@ -78,17 +92,19 @@ func (s *grpcServer) Fetch(
 	message *rpc.FetchRequest,
 	stream rpc.Query_FetchServer,
 ) error {
-	ctx := retrieveMetadata(stream.Context())
-	logger := logging.WithContext(ctx)
-	storeQuery, err := decodeFetchRequest(message)
+	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
+	logger := logging.WithContext(ctx, s.instrumentOpts)
+	storeQuery, fetchOpts, err := decodeFetchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode fetch query", zap.Error(err))
 		return err
 	}
 
-	// TODO(r): Allow propagation of limit from RPC request
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+	fetchOpts.Remote = true
+	if fetchOpts.Limit == 0 {
+		// Allow default to be set if not explicitly passed.
+		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+	}
 
 	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()
@@ -103,18 +119,27 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	response, err := encodeToCompressedFetchResult(result, pools)
+	results, err := encodeToCompressedSeries(result, pools)
 	if err != nil {
 		logger.Error("unable to compress query", zap.Error(err))
 		return err
 	}
 
-	err = stream.Send(response)
-	if err != nil {
-		logger.Error("unable to send fetch result", zap.Error(err))
+	size := min(defaultBatch, len(results))
+	for ; len(results) > 0; results = results[size:] {
+		size = min(size, len(results))
+		response := &rpc.FetchResponse{
+			Series: results[:size],
+		}
+
+		err = stream.Send(response)
+		if err != nil {
+			logger.Error("unable to send fetch result", zap.Error(err))
+			return err
+		}
 	}
 
-	return err
+	return nil
 }
 
 func (s *grpcServer) Search(
@@ -123,8 +148,8 @@ func (s *grpcServer) Search(
 ) error {
 	var err error
 
-	ctx := retrieveMetadata(stream.Context())
-	logger := logging.WithContext(ctx)
+	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
+	logger := logging.WithContext(ctx, s.instrumentOpts)
 	searchQuery, err := decodeSearchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode search query", zap.Error(err))
@@ -133,8 +158,8 @@ func (s *grpcServer) Search(
 
 	// TODO(r): Allow propagation of limit from RPC request
 	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Remote = true
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-
 	results, cleanup, err := s.storage.SearchCompressed(ctx, searchQuery,
 		fetchOpts)
 	defer cleanup()
@@ -149,18 +174,23 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	response, err := encodeToCompressedSearchResult(results, pools)
-	if err != nil {
-		logger.Error("unable to encode search result", zap.Error(err))
-		return err
+	size := min(defaultBatch, len(results))
+	for ; len(results) > 0; results = results[size:] {
+		size = min(size, len(results))
+		response, err := encodeToCompressedSearchResult(results[:size], pools)
+		if err != nil {
+			logger.Error("unable to encode search result", zap.Error(err))
+			return err
+		}
+
+		err = stream.Send(response)
+		if err != nil {
+			logger.Error("unable to send search result", zap.Error(err))
+			return err
+		}
 	}
 
-	err = stream.SendMsg(response)
-	if err != nil {
-		logger.Error("unable to send search result", zap.Error(err))
-	}
-
-	return err
+	return nil
 }
 
 func (s *grpcServer) CompleteTags(
@@ -169,8 +199,8 @@ func (s *grpcServer) CompleteTags(
 ) error {
 	var err error
 
-	ctx := retrieveMetadata(stream.Context())
-	logger := logging.WithContext(ctx)
+	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
+	logger := logging.WithContext(ctx, s.instrumentOpts)
 	completeTagsQuery, err := decodeCompleteTagsRequest(message)
 	if err != nil {
 		logger.Error("unable to decode complete tags query", zap.Error(err))
@@ -179,24 +209,35 @@ func (s *grpcServer) CompleteTags(
 
 	// TODO(r): Allow propagation of limit from RPC request
 	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.Remote = true
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-
-	results, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
+	completed, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		return err
 	}
 
-	response, err := encodeToCompressedCompleteTagsResult(results)
-	if err != nil {
-		logger.Error("unable to encode complete tags result", zap.Error(err))
-		return err
+	tags := completed.CompletedTags
+	size := min(defaultBatch, len(tags))
+	for ; len(tags) > 0; tags = tags[size:] {
+		size = min(size, len(tags))
+		results := &storage.CompleteTagsResult{
+			CompleteNameOnly: completed.CompleteNameOnly,
+			CompletedTags:    tags[:size],
+		}
+
+		response, err := encodeToCompressedCompleteTagsResult(results)
+		if err != nil {
+			logger.Error("unable to encode complete tags result", zap.Error(err))
+			return err
+		}
+
+		err = stream.Send(response)
+		if err != nil {
+			logger.Error("unable to send complete tags result", zap.Error(err))
+			return err
+		}
 	}
 
-	err = stream.SendMsg(response)
-	if err != nil {
-		logger.Error("unable to send complete tags result", zap.Error(err))
-	}
-
-	return err
+	return nil
 }

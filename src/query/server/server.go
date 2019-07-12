@@ -54,7 +54,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -135,10 +134,15 @@ func Run(runOpts RunOptions) {
 		cfg = runOpts.Config
 	}
 
-	logging.InitWithCores(nil)
-	ctx := context.Background()
-	logger := logging.WithContext(ctx)
+	logger, err := cfg.Logging.BuildLogger()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
+		os.Exit(1)
+	}
+
 	defer logger.Sync()
+
+	xconfig.WarnOnDeprecation(cfg, logger)
 
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
@@ -237,7 +241,8 @@ func Run(runOpts RunOptions) {
 			c = filter.CompleteTagsAllowAll
 		)
 
-		backendStorage = fanout.NewStorage(remotes, r, w, c)
+		backendStorage = fanout.NewStorage(remotes, r, w, c,
+			instrumentOptions)
 		logger.Info("setup grpc backend")
 	} else {
 		// For m3db backend, we need to make connections to the m3db cluster
@@ -263,8 +268,12 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
 	}
 
-	engineOpts := executor.NewEngineOpts().SetStore(backendStorage).SetCostScope(scope.SubScope("engine")).
-		SetLookbackDuration(*cfg.LookbackDuration).SetGlobalEnforcer(perQueryEnforcer)
+	engineOpts := executor.NewEngineOptions().
+		SetStore(backendStorage).
+		SetLookbackDuration(*cfg.LookbackDuration).
+		SetGlobalEnforcer(perQueryEnforcer).
+		SetInstrumentOptions(instrumentOptions.
+			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
 	engine := executor.NewEngine(engineOpts)
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
@@ -273,7 +282,7 @@ func Run(runOpts RunOptions) {
 
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, perQueryEnforcer,
-		fetchOptsBuilder, queryCtxOpts, scope)
+		fetchOptsBuilder, queryCtxOpts, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
@@ -290,7 +299,7 @@ func Run(runOpts RunOptions) {
 	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
-		if err := srv.Shutdown(ctx); err != nil {
+		if err := srv.Shutdown(context.Background()); err != nil {
 			logger.Error("error closing server", zap.Error(err))
 		}
 	}()
@@ -628,14 +637,8 @@ func newStorages(
 		logger  = instrumentOpts.Logger()
 		cleanup = func() error { return nil }
 	)
-
-	localStorage, err := m3.NewStorage(
-		clusters,
-		readWorkerPool,
-		writeWorkerPool,
-		tagOptions,
-		*cfg.LookbackDuration,
-	)
+	localStorage, err := m3.NewStorage(clusters, readWorkerPool,
+		writeWorkerPool, tagOptions, *cfg.LookbackDuration, instrumentOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -645,7 +648,7 @@ func newStorages(
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
 		server, err := startGRPCServer(localStorage, queryContextOptions,
-			poolWrapper, cfg.RPC, logger)
+			poolWrapper, cfg.RPC, instrumentOpts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -715,7 +718,8 @@ func newStorages(
 		completeTagsFilter = filter.CompleteTagsAllowNone
 	}
 
-	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter, completeTagsFilter)
+	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter,
+		completeTagsFilter, instrumentOpts)
 	return fanoutStorage, cleanup, nil
 }
 
@@ -814,11 +818,12 @@ func startGRPCServer(
 	queryContextOptions models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
 	cfg *config.RPCConfiguration,
-	logger *zap.Logger,
+	instrumentOpts instrument.Options,
 ) (*grpc.Server, error) {
+	logger := instrumentOpts.Logger()
 	logger.Info("creating gRPC server")
 	server := tsdbRemote.NewGRPCServer(storage,
-		queryContextOptions, poolWrapper)
+		queryContextOptions, poolWrapper, instrumentOpts)
 	listener, err := net.Listen("tcp", cfg.ListenAddress)
 	if err != nil {
 		return nil, err

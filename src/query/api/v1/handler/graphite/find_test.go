@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -197,15 +197,14 @@ func (r results) Less(i, j int) bool {
 }
 
 func TestFind(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// setup storage and handler
 	store := setupStorage(ctrl)
 	handler := NewFindHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}))
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		instrument.NewOptions())
 
 	// execute the query
 	w := &writer{}
