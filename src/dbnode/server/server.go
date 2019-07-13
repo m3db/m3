@@ -699,7 +699,7 @@ func Run(runOpts RunOptions) {
 
 			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
 				logger.Error("unable to update bootstrap gauge with new bootstrappers",
-					zap.String("bootstrappers", fmt.Sprintf("%#v", bootstrappers)),
+					zap.Strings("bootstrappers", bootstrappers),
 					zap.Error(err),
 				)
 			}
