@@ -84,10 +84,8 @@ func makeOrBlock(
 		for iterIndex, valueIndex := range indices {
 			if valueIndex >= len(lValues) {
 				values[valueIndex] = rValues[iterIndex]
-			} else {
-				if math.IsNaN(values[valueIndex]) {
-					values[valueIndex] = rValues[iterIndex]
-				}
+			} else if math.IsNaN(values[valueIndex]) {
+				values[valueIndex] = rValues[iterIndex]
 			}
 		}
 

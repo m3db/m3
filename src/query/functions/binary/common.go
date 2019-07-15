@@ -33,6 +33,11 @@ var (
 	errLExhausted = errors.New("left iter exhausted while right iter has values")
 )
 
+type indexMatcher struct {
+	lhsIndex int
+	rhsIndex int
+}
+
 // VectorMatchCardinality describes the cardinality relationship
 // of two Vectors in a binary operation.
 type VectorMatchCardinality int

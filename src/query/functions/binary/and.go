@@ -45,7 +45,8 @@ func makeAndBlock(
 	rMeta, rSeriesMetas := rIter.Meta(), rIter.SeriesMeta()
 	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
 
-	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMetas)
+	intersection, metas := andIntersect(matching, lSeriesMetas, rSeriesMetas)
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, metas)
 	if err != nil {
 		return nil, err
 	}
@@ -54,30 +55,40 @@ func makeAndBlock(
 		return nil, err
 	}
 
-	intersection := andIntersect(matching, lSeriesMetas, rSeriesMetas)
-	for index := 0; lIter.Next() && rIter.Next(); index++ {
+	// NB: shortcircuit and return an empty block if no matching series.
+	if len(metas) == 0 {
+		return builder.Build(), nil
+	}
+
+	data := make([]float64, len(metas))
+	for index := 0; lIter.Next(); index++ {
+		if !rIter.Next() {
+			return nil, errRExhausted
+		}
+
 		lStep := lIter.Current()
 		lValues := lStep.Values()
 		rStep := rIter.Current()
 		rValues := rStep.Values()
-		for idx, value := range lValues {
-			rIdx := intersection[idx]
-			if rIdx < 0 || math.IsNaN(rValues[rIdx]) {
-				if err := builder.AppendValue(index, math.NaN()); err != nil {
-					return nil, err
-				}
-
-				continue
+		for i, match := range intersection {
+			if math.IsNaN(rValues[match.rhsIndex]) {
+				data[i] = math.NaN()
+			} else {
+				data[i] = lValues[match.lhsIndex]
 			}
+		}
 
-			if err := builder.AppendValue(index, value); err != nil {
-				return nil, err
-			}
+		if err := builder.AppendValues(index, data); err != nil {
+			return nil, err
 		}
 	}
 
 	if err = lIter.Err(); err != nil {
 		return nil, err
+	}
+
+	if rIter.Next() {
+		return nil, errLExhausted
 	}
 
 	if err = rIter.Err(); err != nil {
@@ -87,12 +98,11 @@ func makeAndBlock(
 	return builder.Build(), nil
 }
 
-// intersect returns the slice of rhs indices that have a match with
-// a corresponding lhs index; if they do not match, this is set to -1.
+// intersect returns the slice of lhs indices matching rhs indices.
 func andIntersect(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
-) []int {
+) ([]indexMatcher, []block.SeriesMeta) {
 	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
@@ -100,14 +110,19 @@ func andIntersect(
 		rightSigs[idFunction(meta.Tags)] = idx
 	}
 
-	matches := make([]int, len(lhs))
-	for i, ls := range lhs {
-		if idx, ok := rightSigs[idFunction(ls.Tags)]; ok {
-			matches[i] = idx
-		} else {
-			matches[i] = -1
+	matchers := make([]indexMatcher, 0, len(lhs))
+	metas := make([]block.SeriesMeta, 0, len(lhs))
+	for lhsIndex, ls := range lhs {
+		if rhsIndex, ok := rightSigs[idFunction(ls.Tags)]; ok {
+			matcher := indexMatcher{
+				lhsIndex: lhsIndex,
+				rhsIndex: rhsIndex,
+			}
+
+			matchers = append(matchers, matcher)
+			metas = append(metas, lhs[lhsIndex])
 		}
 	}
 
-	return matches
+	return matchers[:len(matchers)], metas[:len(metas)]
 }

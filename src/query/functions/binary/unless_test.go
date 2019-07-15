@@ -35,64 +35,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func m(i int) indexMatcher {
+	return mm(i, i)
+}
+
+func mm(l, r int) indexMatcher {
+	return indexMatcher{lhsIndex: l, rhsIndex: r}
+}
+
 var distinctLeftTests = []struct {
-	name      string
-	lhs, rhs  []block.SeriesMeta
-	expectedL []int
+	name     string
+	lhs, rhs []block.SeriesMeta
+	expected []indexMatcher
 }{
 	{
 		"equal tags",
 		generateMetaDataWithTagsInRange(0, 5),
 		generateMetaDataWithTagsInRange(0, 5),
-		[]int{0, 1, 2, 3, 4},
+		[]indexMatcher{m(0), m(1), m(2), m(3), m(4)},
 	},
 	{
 		"empty rhs",
 		generateMetaDataWithTagsInRange(0, 5),
 		[]block.SeriesMeta{},
-		[]int{},
+		[]indexMatcher{},
 	},
 	{
 		"empty lhs",
 		[]block.SeriesMeta{},
 		generateMetaDataWithTagsInRange(0, 5),
-		[]int{-1, -1, -1, -1, -1},
+		[]indexMatcher{},
 	},
 	{
 		"longer lhs",
 		generateMetaDataWithTagsInRange(-1, 6),
 		generateMetaDataWithTagsInRange(0, 5),
-		[]int{1, 2, 3, 4, 5},
+		[]indexMatcher{mm(1, 0), mm(2, 1), mm(3, 2), mm(4, 3), mm(5, 4)},
 	},
 	{
 		"longer rhs",
 		generateMetaDataWithTagsInRange(0, 5),
 		generateMetaDataWithTagsInRange(-1, 6),
-		[]int{-1, 0, 1, 2, 3, 4, -1},
+		[]indexMatcher{mm(0, 1), mm(1, 2), mm(2, 3), mm(3, 4), mm(4, 5)},
 	},
 	{
 		"shorter lhs",
 		generateMetaDataWithTagsInRange(1, 4),
 		generateMetaDataWithTagsInRange(0, 5),
-		[]int{-1, 0, 1, 2, -1},
+		[]indexMatcher{mm(0, 1), mm(1, 2), mm(2, 3)},
 	},
 	{
 		"shorter rhs",
 		generateMetaDataWithTagsInRange(0, 5),
 		generateMetaDataWithTagsInRange(1, 4),
-		[]int{1, 2, 3},
+		[]indexMatcher{mm(1, 0), mm(2, 1), mm(3, 2)},
 	},
 	{
 		"partial overlap",
 		generateMetaDataWithTagsInRange(0, 5),
 		generateMetaDataWithTagsInRange(1, 6),
-		[]int{1, 2, 3, 4, -1},
+		[]indexMatcher{mm(1, 0), mm(2, 1), mm(3, 2), mm(4, 3)},
 	},
 	{
 		"no overlap",
 		generateMetaDataWithTagsInRange(0, 5),
 		generateMetaDataWithTagsInRange(6, 9),
-		[]int{-1, -1, -1},
+		[]indexMatcher{},
 	},
 }
 
@@ -101,7 +109,7 @@ func TestMatchingIndices(t *testing.T) {
 	for _, tt := range distinctLeftTests {
 		t.Run(tt.name, func(t *testing.T) {
 			excluded := matchingIndices(matching, tt.lhs, tt.rhs)
-			assert.Equal(t, tt.expectedL, excluded)
+			assert.Equal(t, tt.expected, excluded)
 		})
 	}
 }

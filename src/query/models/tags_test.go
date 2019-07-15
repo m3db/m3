@@ -27,11 +27,10 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/cespare/xxhash"
-
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/cespare/xxhash"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

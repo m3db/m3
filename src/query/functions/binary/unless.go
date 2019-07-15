@@ -71,11 +71,9 @@ func makeUnlessBlock(
 		lValues := lStep.Values()
 		rStep := rIter.Current()
 		rValues := rStep.Values()
-		for iterIndex, valueIndex := range indices {
-			if valueIndex >= 0 {
-				if !math.IsNaN(rValues[iterIndex]) {
-					lValues[valueIndex] = math.NaN()
-				}
+		for _, indexMatcher := range indices {
+			if !math.IsNaN(rValues[indexMatcher.rhsIndex]) {
+				lValues[indexMatcher.lhsIndex] = math.NaN()
 			}
 		}
 
@@ -99,12 +97,12 @@ func makeUnlessBlock(
 	return builder.Build(), nil
 }
 
-// matchingIndices returns slices for unique indices on the lhs which do not
-// exist in rhs.
+// matchingIndices returns a slice representing which index in the lhs the rhs
+// series maps to. If it does not map to an existing index, this is set to -1.
 func matchingIndices(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
-) []int {
+) []indexMatcher {
 	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
@@ -112,16 +110,19 @@ func matchingIndices(
 		leftSigs[idFunction(meta.Tags)] = idx
 	}
 
-	rhsIndices := make([]int, len(rhs))
+	rhsIndices := make([]indexMatcher, 0, len(rhs))
 	for i, rs := range rhs {
-		// If this series matches a series on the lhs, add it's index.
+		// If this series matches a series on the lhs, add its index.
 		id := idFunction(rs.Tags)
 		if lhsIndex, ok := leftSigs[id]; ok {
-			rhsIndices[i] = lhsIndex
-		} else {
-			rhsIndices[i] = -1
+			matcher := indexMatcher{
+				lhsIndex: lhsIndex,
+				rhsIndex: i,
+			}
+
+			rhsIndices = append(rhsIndices, matcher)
 		}
 	}
 
-	return rhsIndices
+	return rhsIndices[:len(rhsIndices)]
 }

@@ -26,9 +26,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cespare/xxhash"
 	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/query/util/writer"
+
+	"github.com/cespare/xxhash"
 )
 
 // NewTags builds a tags with the given size and tag options.
