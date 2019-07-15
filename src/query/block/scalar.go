@@ -32,17 +32,21 @@ import (
 // allowing them to treat this as a regular block, while at the same time
 // having an option to optimize by accessing the scalar value directly instead
 type Scalar struct {
-	meta Metadata
 	s    ScalarFunc
+	meta Metadata
 }
 
 // NewScalar creates a scalar block containing val over the bounds
-func NewScalar(s ScalarFunc, bounds models.Bounds) Block {
+func NewScalar(
+	s ScalarFunc,
+	bounds models.Bounds,
+	tagOptions models.TagOptions,
+) Block {
 	return &Scalar{
 		s: s,
 		meta: Metadata{
 			Bounds: bounds,
-			Tags:   models.EmptyTags(),
+			Tags:   models.NewTags(0, tagOptions),
 		},
 	}
 }
@@ -113,17 +117,19 @@ type scalarStepIter struct {
 }
 
 // build an empty SeriesMeta
-func buildSeriesMeta() SeriesMeta {
+func buildSeriesMeta(meta Metadata) SeriesMeta {
 	return SeriesMeta{
-		Tags: models.EmptyTags(),
+		Tags: models.NewTags(0, meta.Tags.Opts),
 	}
 }
 
-func (it *scalarStepIter) Close()                   { /* No-op*/ }
-func (it *scalarStepIter) Err() error               { return it.err }
-func (it *scalarStepIter) StepCount() int           { return it.numVals }
-func (it *scalarStepIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
-func (it *scalarStepIter) Meta() Metadata           { return it.meta }
+func (it *scalarStepIter) Close()         { /* No-op*/ }
+func (it *scalarStepIter) Err() error     { return it.err }
+func (it *scalarStepIter) StepCount() int { return it.numVals }
+func (it *scalarStepIter) Meta() Metadata { return it.meta }
+func (it *scalarStepIter) SeriesMeta() []SeriesMeta {
+	return []SeriesMeta{buildSeriesMeta(it.meta)}
+}
 
 func (it *scalarStepIter) Next() bool {
 	if it.err != nil {
@@ -166,11 +172,14 @@ type scalarSeriesIter struct {
 	idx  int
 }
 
-func (it *scalarSeriesIter) Close()                   { /* No-op*/ }
-func (it *scalarSeriesIter) Err() error               { return nil }
-func (it *scalarSeriesIter) SeriesCount() int         { return 1 }
-func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
-func (it *scalarSeriesIter) Meta() Metadata           { return it.meta }
+func (it *scalarSeriesIter) Close()           { /* No-op*/ }
+func (it *scalarSeriesIter) Err() error       { return nil }
+func (it *scalarSeriesIter) SeriesCount() int { return 1 }
+func (it *scalarSeriesIter) Meta() Metadata   { return it.meta }
+func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta {
+	return []SeriesMeta{buildSeriesMeta(it.meta)}
+}
+
 func (it *scalarSeriesIter) Next() bool {
 	it.idx++
 	return it.idx == 0
@@ -178,7 +187,7 @@ func (it *scalarSeriesIter) Next() bool {
 
 func (it *scalarSeriesIter) Current() Series {
 	return Series{
-		Meta:   buildSeriesMeta(),
+		Meta:   buildSeriesMeta(it.meta),
 		values: it.vals,
 	}
 }

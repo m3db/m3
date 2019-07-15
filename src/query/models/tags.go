@@ -23,11 +23,13 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/query/util/writer"
+
+	"github.com/cespare/xxhash"
 )
 
 // NewTags builds a tags with the given size and tag options.
@@ -431,9 +433,16 @@ func (t Tags) Normalize() Tags {
 
 // HashedID returns the hashed ID for the tags.
 func (t Tags) HashedID() uint64 {
-	h := fnv.New64a()
-	h.Write(t.ID())
-	return h.Sum64()
+	return xxhash.Sum64(t.ID())
+}
+
+func (t Tags) String() string {
+	tags := make([]string, len(t.Tags))
+	for i, tt := range t.Tags {
+		tags[i] = tt.String()
+	}
+
+	return strings.Join(tags, ", ")
 }
 
 func (t Tag) String() string {

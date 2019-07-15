@@ -34,7 +34,7 @@ type makeBlockFn func(
 ) (block.Block, error)
 
 // Builds a logical processing function if able. If wrong opType supplied,
-// returns no function and false
+// returns no function and false.
 func buildLogicalFunction(
 	opType string,
 	params NodeParams,
@@ -58,8 +58,10 @@ func createLogicalProcessingStep(
 	params NodeParams,
 	fn makeBlockFn,
 ) processFunc {
-	return func(queryCtx *models.QueryContext, lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processLogical(queryCtx, lhs, rhs, controller, params.VectorMatching, fn)
+	return func(queryCtx *models.QueryContext, lhs, rhs block.Block,
+		controller *transform.Controller) (block.Block, error) {
+		return processLogical(queryCtx, lhs, rhs, controller,
+			params.VectorMatching, fn)
 	}
 }
 

@@ -141,16 +141,20 @@ func getAggOpType(opType promql.ItemType) string {
 	}
 }
 
-// NewScalarOperator creates a new scalar operator.
-func NewScalarOperator(expr *promql.NumberLiteral) (parser.Params, error) {
+func newScalarOperator(
+	expr *promql.NumberLiteral,
+	tagOpts models.TagOptions,
+) (parser.Params, error) {
 	return scalar.NewScalarOp(
 		func(_ time.Time) float64 { return expr.Val },
 		scalar.ScalarType,
+		tagOpts,
 	)
 }
 
 // NewBinaryOperator creates a new binary operator based on the type.
-func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
+func NewBinaryOperator(expr *promql.BinaryExpr,
+	lhs, rhs parser.NodeID) (parser.Params, error) {
 	matching := promMatchingToM3(expr.VectorMatching)
 
 	nodeParams := binary.NodeParams{
@@ -171,13 +175,15 @@ func NewFunctionExpr(
 	name string,
 	argValues []interface{},
 	stringValues []string,
+	tagOptions models.TagOptions,
 ) (parser.Params, bool, error) {
 	var p parser.Params
 	var err error
 
 	switch name {
-	case linear.AbsType, linear.CeilType, linear.ExpType, linear.FloorType, linear.LnType,
-		linear.Log10Type, linear.Log2Type, linear.SqrtType:
+	case linear.AbsType, linear.CeilType, linear.ExpType,
+		linear.FloorType, linear.LnType, linear.Log10Type,
+		linear.Log2Type, linear.SqrtType:
 		p, err = linear.NewMathOp(name)
 		return p, true, err
 
@@ -197,7 +203,8 @@ func NewFunctionExpr(
 		p, err = linear.NewRoundOp(argValues)
 		return p, true, err
 
-	case linear.DayOfMonthType, linear.DayOfWeekType, linear.DaysInMonthType, linear.HourType,
+	case linear.DayOfMonthType, linear.DayOfWeekType,
+		linear.DaysInMonthType, linear.HourType,
 		linear.MinuteType, linear.MonthType, linear.YearType:
 		p, err = linear.NewDateOp(name)
 		return p, true, err
@@ -220,7 +227,8 @@ func NewFunctionExpr(
 		p, err = temporal.NewHoltWintersOp(argValues)
 		return p, true, err
 
-	case temporal.IRateType, temporal.IDeltaType, temporal.RateType, temporal.IncreaseType,
+	case temporal.IRateType, temporal.IDeltaType,
+		temporal.RateType, temporal.IncreaseType,
 		temporal.DeltaType:
 		p, err = temporal.NewRateOp(argValues, name)
 		return p, true, err
@@ -233,19 +241,25 @@ func NewFunctionExpr(
 		p, err = temporal.NewFunctionOp(argValues, name)
 		return p, true, err
 
-	case linear.SortType, linear.SortDescType:
-		return nil, false, err
-
-	case scalar.ScalarType:
-		return nil, false, err
-
 	case unconsolidated.TimestampType:
 		p, err = unconsolidated.NewTimestampOp(name)
 		return p, true, err
 
 	case scalar.TimeType:
-		p, err = scalar.NewScalarOp(func(t time.Time) float64 { return float64(t.Unix()) }, scalar.TimeType)
+		p, err = scalar.NewScalarOp(
+			func(t time.Time) float64 { return float64(t.Unix()) },
+			scalar.TimeType,
+			tagOptions,
+		)
+
 		return p, true, err
+
+	// NB: no-ops.
+	case linear.SortType, linear.SortDescType:
+		return nil, false, err
+
+	case scalar.ScalarType:
+		return nil, false, err
 
 	default:
 		return nil, false, fmt.Errorf("function not supported: %s", name)
@@ -300,7 +314,10 @@ func getUnaryOpType(opType promql.ItemType) (string, error) {
 	case promql.ItemType(itemSUB):
 		return binary.MinusType, nil
 	default:
-		return "", fmt.Errorf("only + and - operators allowed for unary expressions, received: %s", opType.String())
+		return "", fmt.Errorf(
+			"only + and - operators allowed for unary expressions, received: %s",
+			opType.String(),
+		)
 	}
 }
 
@@ -354,7 +371,9 @@ func promTypeToM3(labelType labels.MatchType) (models.MatchType, error) {
 	}
 }
 
-func promVectorCardinalityToM3(card promql.VectorMatchCardinality) binary.VectorMatchCardinality {
+func promVectorCardinalityToM3(
+	card promql.VectorMatchCardinality,
+) binary.VectorMatchCardinality {
 	switch card {
 	case promql.CardOneToOne:
 		return binary.CardOneToOne
@@ -369,7 +388,9 @@ func promVectorCardinalityToM3(card promql.VectorMatchCardinality) binary.Vector
 	panic(fmt.Sprintf("unknown prom cardinality %d", card))
 }
 
-func promMatchingToM3(vectorMatching *promql.VectorMatching) *binary.VectorMatching {
+func promMatchingToM3(
+	vectorMatching *promql.VectorMatching,
+) *binary.VectorMatching {
 	// vectorMatching can be nil iff at least one of the sides is a scalar.
 	if vectorMatching == nil {
 		return nil

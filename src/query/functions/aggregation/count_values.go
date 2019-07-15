@@ -215,7 +215,7 @@ func (n *countValuesNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.
 	}
 
 	// Dedupe common metadatas
-	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas)
+	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas, meta.Tags.Opts)
 	meta.Tags = metaTags
 
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, flattenedMeta)
