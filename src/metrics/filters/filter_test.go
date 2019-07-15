@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -128,7 +129,7 @@ func TestFilters(t *testing.T) {
 	filters := genAndValidateFilters(t, []testPattern{
 		testPattern{pattern: "f[A-z]?*", expectedStr: "StartsWith(Equals(\"f\") then Range(\"A-z\") then AnyChar)"},
 		testPattern{pattern: "*ba[a-z]", expectedStr: "EndsWith(Equals(\"ba\") then Range(\"a-z\"))"},
-		testPattern{pattern: "fo*?ba[!0-9][0-9]{8,9}", expectedStr: "StartsWith(Equals(\"fo\")) && EndsWith(AnyChar then Equals(\"ba\") then Not(Range(\"0-9\")) then Range(\"0-9\") then Range(\"8,9\"))"},
+		testPattern{pattern: "fo*?ba[!0-9][0-9]{8,9}", expectedStr: "StartsWith(Equals(\"fo\")) && EndsWith(AnyChar then Equals(\"ba\") then Not(Range(\"0-9\")) then Range(\"0-9\") then Range(\"9,8\"))"},
 	})
 
 	inputs := []testInput{
@@ -207,8 +208,8 @@ func TestRangeFilters(t *testing.T) {
 		testPattern{pattern: "ba?", expectedStr: "Equals(\"ba\") then AnyChar"},
 		testPattern{pattern: "[!cC]ar", expectedStr: "Not(Range(\"cC\")) then Equals(\"ar\")"},
 		testPattern{pattern: "ba?[0-9][!a-z]9", expectedStr: "Equals(\"ba\") then AnyChar then Range(\"0-9\") then Not(Range(\"a-z\")) then Equals(\"9\")"},
-		testPattern{pattern: "{ba,fo,car}*", expectedStr: "StartsWith(Range(\"ba,fo,car\"))"},
-		testPattern{pattern: "ba{r,t}*[!a-zA-Z]", expectedStr: "StartsWith(Equals(\"ba\") then Range(\"r,t\")) && EndsWith(Not(Range(\"a-z || A-Z\")))"},
+		testPattern{pattern: "{ba,fo,car}*", expectedStr: "StartsWith(Range(\"fo,car,ba\"))"},
+		testPattern{pattern: "ba{r,t}*[!a-zA-Z]", expectedStr: "StartsWith(Equals(\"ba\") then Range(\"t,r\")) && EndsWith(Not(Range(\"a-z || A-Z\")))"},
 		testPattern{pattern: "*{9}", expectedStr: "EndsWith(Range(\"9\"))"},
 	})
 
@@ -349,6 +350,33 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 	validateLookup(t, f, "12test", true, "12")
 	validateLookup(t, f, "12test2", true, "12")
 	validateLookup(t, f, "123book", true, "123")
+}
+
+func TestBacktracking(t *testing.T) {
+	pattern := []byte("msg.{error,errors,success}")
+
+	assertMatches := func(t *testing.T, pattern []byte, input []byte, msgAndArgs ...interface{}) {
+		filter, err := NewFilter(pattern)
+		require.NoError(t, err)
+
+		if filter.Matches(input) {
+			return
+		}
+		assert.Fail(t, fmt.Sprintf("%q should match %q", input, pattern), msgAndArgs...)
+	}
+	for _, str := range []string{
+		"msg.success",
+		"msg.error",
+		"msg.errors",
+	} {
+		t.Run(str, func(t *testing.T) {
+			assertMatches(t, pattern, []byte(str))
+		})
+	}
+
+	t.Run("should backtrack on failure", func(t *testing.T) {
+		assertMatches(t, []byte("{errors,error}sup"), []byte("errorsup"))
+	})
 }
 
 func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool, expectedRemainder string) {
