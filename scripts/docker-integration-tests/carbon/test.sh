@@ -74,6 +74,11 @@ echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
 
+# Test writing and reading IDs with colons in them.
+t=$(date +%s)
+echo "foo.bar:baz.qux 42 $t" | nc 0.0.0.0 7204
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'foo.bar:*.*' 42
+
 t=$(date +%s)
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
@@ -81,6 +86,7 @@ echo "a.biz 0 $t"         | nc 0.0.0.0 7204
 echo "a.biz.cake 0 $t"    | nc 0.0.0.0 7204
 echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
 echo "a.bag 0 $t"         | nc 0.0.0.0 7204
+echo "c:bar.c:baz 0 $t"   | nc 0.0.0.0 7204
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json
@@ -89,3 +95,5 @@ ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b*.caw.* a.b.c.d.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon x none.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.d none.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon *.*.*.*.* none.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:* cbar.json
+ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon c:bar.* cbaz.json
