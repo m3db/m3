@@ -457,7 +457,6 @@ func (l *Lexer) emit(tt TokenType) {
 }
 
 func (l *Lexer) emitToken(tt TokenType, val string) {
-	fmt.Printf("!! emit token: type=%s, value=%s\n", tt.String(), val)
 	l.tokens <- &Token{
 		tokenType: tt,
 		value:     val,
