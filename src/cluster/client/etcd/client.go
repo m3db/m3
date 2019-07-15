@@ -169,7 +169,8 @@ func (c *csclient) newkvOptions(
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
 		SetCacheFileFn(cacheFileFn(opts.Zone())).
-		SetWatchWithRevision(c.opts.WatchWithRevision())
+		SetWatchWithRevision(c.opts.WatchWithRevision()).
+		SetNewDirectoryMode(c.opts.NewDirectoryMode())
 
 	if ns := opts.Namespace(); ns != "" {
 		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(ns))
