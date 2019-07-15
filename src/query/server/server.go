@@ -130,6 +130,7 @@ func Run(runOpts RunOptions) {
 			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
 			os.Exit(1)
 		}
+		fmt.Fprintf(os.Stdout, "using %s config file: %v", serviceName, runOpts.ConfigFile)
 	} else {
 		cfg = runOpts.Config
 	}
