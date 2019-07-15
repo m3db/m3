@@ -23,10 +23,11 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"reflect"
 	"testing"
 	"unsafe"
+
+	"github.com/cespare/xxhash"
 
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -86,10 +87,7 @@ func TestHashedID(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
 	actual := tags.HashedID()
 
-	h := fnv.New64a()
-	h.Write([]byte("t1=v1,t2=v2,t3=v3,t4=v4,"))
-	expected := h.Sum64()
-
+	expected := xxhash.Sum64String("t1=v1,t2=v2,t3=v3,t4=v4,")
 	assert.Equal(t, expected, actual)
 }
 

@@ -23,10 +23,10 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strings"
 
+	"github.com/cespare/xxhash"
 	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/query/util/writer"
 )
@@ -432,9 +432,7 @@ func (t Tags) Normalize() Tags {
 
 // HashedID returns the hashed ID for the tags.
 func (t Tags) HashedID() uint64 {
-	h := fnv.New64a()
-	h.Write(t.ID())
-	return h.Sum64()
+	return xxhash.Sum64(t.ID())
 }
 
 func (t Tags) String() string {
