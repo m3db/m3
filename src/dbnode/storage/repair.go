@@ -541,23 +541,12 @@ func (r shardRepairer) shadowCompare(
 			localDP, localUnit, localAnnotation := localSeriesIter.Current()
 			peerDP, peerUnit, peerAnnotation := peerSeriesIter.Current()
 
-			if !localDP.Timestamp.Equal(peerDP.Timestamp) {
+			if !localDP.Equal(peerDP) {
 				r.logger.Error(
-					"timestamps did not match",
+					"datapoints did not match",
 					zap.Int("index", i),
-					zap.Time("local", localDP.Timestamp),
-					zap.Time("peer", peerDP.Timestamp),
-				)
-				foundMismatch = true
-				break
-			}
-
-			if localDP.Value != peerDP.Value {
-				r.logger.Error(
-					"Values did not match",
-					zap.Int("index", i),
-					zap.Float64("local", localDP.Value),
-					zap.Float64("peer", peerDP.Value),
+					zap.Any("local", localDP),
+					zap.Any("peer", peerDP),
 				)
 				foundMismatch = true
 				break
@@ -565,7 +554,7 @@ func (r shardRepairer) shadowCompare(
 
 			if localUnit != peerUnit {
 				r.logger.Error(
-					"Values did not match",
+					"units did not match",
 					zap.Int("index", i),
 					zap.Int("local", int(localUnit)),
 					zap.Int("peer", int(peerUnit)),
@@ -646,7 +635,7 @@ func (r shardRepairer) shadowCompare(
 				zap.Int("numDPs", i),
 			)
 		} else {
-			r.logger.Info(
+			r.logger.Debug(
 				"All values for series match",
 				zap.String("namespace", nsCtx.ID.String()),
 				zap.Time("start", start),
