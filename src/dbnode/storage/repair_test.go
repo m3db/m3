@@ -219,14 +219,16 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
 
-	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
+	var (
+		rpOpts = testRepairOptions(ctrl).SetAdminClient(mockClient)
+		now    = time.Now()
+		nowFn  = func() time.Time { return now }
+		opts   = DefaultTestOptions()
+		copts  = opts.ClockOptions()
+		iopts  = opts.InstrumentOptions()
+		rtopts = defaultTestRetentionOpts
+	)
 
-	now := time.Now()
-	nowFn := func() time.Time { return now }
-	opts := DefaultTestOptions()
-	copts := opts.ClockOptions()
-	iopts := opts.InstrumentOptions()
-	rtopts := defaultTestRetentionOpts
 	opts = opts.
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
@@ -241,13 +243,13 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 			IncludeChecksums: true,
 			IncludeLastRead:  false,
 		}
-	)
 
-	sizes := []int64{1, 2, 3}
-	checksums := []uint32{4, 5, 6}
-	lastRead := now.Add(-time.Minute)
-	shardID := uint32(0)
-	shard := NewMockdatabaseShard(ctrl)
+		sizes     = []int64{1, 2, 3}
+		checksums = []uint32{4, 5, 6}
+		lastRead  = now.Add(-time.Minute)
+		shardID   = uint32(0)
+		shard     = NewMockdatabaseShard(ctrl)
+	)
 
 	expectedResults := block.NewFetchBlocksMetadataResults()
 	results := block.NewFetchBlockMetadataResults()
@@ -261,9 +263,17 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		sizes[2], &checksums[2], lastRead, nil))
 	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, results))
 
-	any := gomock.Any()
+	var (
+		any             = gomock.Any()
+		nonNilPageToken = PageToken("non-nil-page-token")
+	)
+	// Ensure that the Repair logic will call FetchBlocksMetadataV2 in a loop until
+	// it receives a nil page token.
 	shard.EXPECT().
-		FetchBlocksMetadataV2(any, start, end, any, PageToken{}, fetchOpts).
+		FetchBlocksMetadataV2(any, start, end, any, nil, fetchOpts).
+		Return(nil, nonNilPageToken, nil)
+	shard.EXPECT().
+		FetchBlocksMetadataV2(any, start, end, any, nonNilPageToken, fetchOpts).
 		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
