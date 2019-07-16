@@ -1878,9 +1878,8 @@ func (s *dbShard) Bootstrap(
 		s.setFlushStateColdVersion(at, info.VolumeIndex)
 	}
 
-	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	// May be nil depending on the caching policy.
-	if retrieverMgr != nil {
+	if retrieverMgr := s.opts.DatabaseBlockRetrieverManager(); retrieverMgr!= nil {
 		// Attempt to call CacheShardIndices now that all the shards are bootstrapped. Cannot call
 		// this earlier as block lease verification will fail due to the shards not being bootstrapped
 		// (and as a result no leases can be verified since the flush state is not yet known).
@@ -1896,7 +1895,8 @@ func (s *dbShard) Bootstrap(
 					zap.Uint32("shard", s.ID()),
 					zap.Error(err))
 			} else {
-				s.logger.Debug("Caching shard indices completed successfully")
+				s.logger.Debug("Caching shard indices completed successfully",
+				zap.Uint32("shard", s.ID())))
 			}
 		}
 	}
