@@ -29,54 +29,61 @@ import (
 )
 
 const (
-	defaultRepairConsistencyLevel = topology.ReadConsistencyLevelMajority
-	defaultRepairInterval         = 2 * time.Hour
-	defaultRepairTimeOffset       = 30 * time.Minute
-	defaultRepairTimeJitter       = time.Hour
-	defaultRepairCheckInterval    = time.Minute
-	defaultRepairThrottle         = 90 * time.Second
-	defaultRepairMaxRetries       = 3
-	defaultRepairShardConcurrency = 1
+	defaultRepairConsistencyLevel           = topology.ReadConsistencyLevelMajority
+	defaultRepairInterval                   = 2 * time.Hour
+	defaultRepairTimeOffset                 = 30 * time.Minute
+	defaultRepairTimeJitter                 = time.Hour
+	defaultRepairCheckInterval              = time.Minute
+	defaultRepairThrottle                   = 90 * time.Second
+	defaultRepairMaxRetries                 = 3
+	defaultRepairShardConcurrency           = 1
+	defaultDebugShadowComparisonsEnabled    = false
+	defaultDebugShadowComparisonsPercentage = 1.0
 )
 
 var (
-	errNoAdminClient                = errors.New("no admin client in repair options")
-	errInvalidRepairInterval        = errors.New("invalid repair interval in repair options")
-	errInvalidRepairTimeOffset      = errors.New("invalid repair time offset in repair options")
-	errInvalidRepairTimeJitter      = errors.New("invalid repair time jitter in repair options")
-	errTimeOffsetOrJitterTooBig     = errors.New("repair time offset plus jitter should be no more than repair interval")
-	errInvalidRepairCheckInterval   = errors.New("invalid repair check interval in repair options")
-	errRepairCheckIntervalTooBig    = errors.New("repair check interval too big in repair options")
-	errInvalidRepairThrottle        = errors.New("invalid repair throttle in repair options")
-	errInvalidRepairMaxRetries      = errors.New("invalid repair max retries in repair options")
-	errNoHostBlockMetadataSlicePool = errors.New("no host block metadata pool in repair options")
+	errNoAdminClient                           = errors.New("no admin client in repair options")
+	errInvalidRepairInterval                   = errors.New("invalid repair interval in repair options")
+	errInvalidRepairTimeOffset                 = errors.New("invalid repair time offset in repair options")
+	errInvalidRepairTimeJitter                 = errors.New("invalid repair time jitter in repair options")
+	errTimeOffsetOrJitterTooBig                = errors.New("repair time offset plus jitter should be no more than repair interval")
+	errInvalidRepairCheckInterval              = errors.New("invalid repair check interval in repair options")
+	errRepairCheckIntervalTooBig               = errors.New("repair check interval too big in repair options")
+	errInvalidRepairThrottle                   = errors.New("invalid repair throttle in repair options")
+	errInvalidRepairMaxRetries                 = errors.New("invalid repair max retries in repair options")
+	errNoHostBlockMetadataSlicePool            = errors.New("no host block metadata pool in repair options")
+	errInvalidDebugShadowComparisonsPercentage = errors.New("debug shadow comparisons percentage must be between 0 and 1")
 )
 
 type options struct {
-	adminClient                client.AdminClient
-	repairConsistencyLevel     topology.ReadConsistencyLevel
-	repairShardConcurrency     int
-	repairInterval             time.Duration
-	repairTimeOffset           time.Duration
-	repairTimeJitter           time.Duration
-	repairCheckInterval        time.Duration
-	repairThrottle             time.Duration
-	repairMaxRetries           int
-	hostBlockMetadataSlicePool HostBlockMetadataSlicePool
+	adminClient                      client.AdminClient
+	repairConsistencyLevel           topology.ReadConsistencyLevel
+	repairShardConcurrency           int
+	repairInterval                   time.Duration
+	repairTimeOffset                 time.Duration
+	repairTimeJitter                 time.Duration
+	repairCheckInterval              time.Duration
+	repairThrottle                   time.Duration
+	repairMaxRetries                 int
+	hostBlockMetadataSlicePool       HostBlockMetadataSlicePool
+	debugShadowComparisonsEnabled    bool
+	debugShadowComparisonsPercentage float64
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		repairConsistencyLevel:     defaultRepairConsistencyLevel,
-		repairShardConcurrency:     defaultRepairShardConcurrency,
-		repairInterval:             defaultRepairInterval,
-		repairTimeOffset:           defaultRepairTimeOffset,
-		repairTimeJitter:           defaultRepairTimeJitter,
-		repairCheckInterval:        defaultRepairCheckInterval,
-		repairThrottle:             defaultRepairThrottle,
-		repairMaxRetries:           defaultRepairMaxRetries,
-		hostBlockMetadataSlicePool: NewHostBlockMetadataSlicePool(nil, 0),
+		repairConsistencyLevel:           defaultRepairConsistencyLevel,
+		repairShardConcurrency:           defaultRepairShardConcurrency,
+		repairInterval:                   defaultRepairInterval,
+		repairTimeOffset:                 defaultRepairTimeOffset,
+		repairTimeJitter:                 defaultRepairTimeJitter,
+		repairCheckInterval:              defaultRepairCheckInterval,
+		repairThrottle:                   defaultRepairThrottle,
+		repairMaxRetries:                 defaultRepairMaxRetries,
+		hostBlockMetadataSlicePool:       NewHostBlockMetadataSlicePool(nil, 0),
+		debugShadowComparisonsEnabled:    defaultDebugShadowComparisonsEnabled,
+		debugShadowComparisonsPercentage: defaultDebugShadowComparisonsPercentage,
 	}
 }
 
@@ -180,6 +187,26 @@ func (o *options) HostBlockMetadataSlicePool() HostBlockMetadataSlicePool {
 	return o.hostBlockMetadataSlicePool
 }
 
+func (o *options) SetDebugShadowComparisonsEnabled(value bool) Options {
+	opts := *o
+	opts.debugShadowComparisonsEnabled = value
+	return &opts
+}
+
+func (o *options) DebugShadowComparisonsEnabled() bool {
+	return o.debugShadowComparisonsEnabled
+}
+
+func (o *options) SetDebugShadowComparisonsPercentage(value float64) Options {
+	opts := *o
+	opts.debugShadowComparisonsPercentage = value
+	return &opts
+}
+
+func (o *options) DebugShadowComparisonsPercentage() float64 {
+	return o.debugShadowComparisonsPercentage
+}
+
 func (o *options) Validate() error {
 	if o.adminClient == nil {
 		return errNoAdminClient
@@ -210,6 +237,10 @@ func (o *options) Validate() error {
 	}
 	if o.hostBlockMetadataSlicePool == nil {
 		return errNoHostBlockMetadataSlicePool
+	}
+	if o.debugShadowComparisonsPercentage > 1.0 ||
+		o.debugShadowComparisonsPercentage < 0 {
+		return errInvalidDebugShadowComparisonsPercentage
 	}
 	return nil
 }

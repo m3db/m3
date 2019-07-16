@@ -445,6 +445,8 @@ func TestConfiguration(t *testing.T) {
     jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
+    debugShadowComparisonsEnabled: false
+    debugShadowComparisonsPercentage: 0
   pooling:
     blockAllocSize: 16
     type: simple
