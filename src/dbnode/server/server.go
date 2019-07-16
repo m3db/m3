@@ -667,6 +667,20 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
+
+	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers", "bootstrapper")
+	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
+		logger.Error("unable to start emitting bootstrap gauge",
+			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),
+			zap.Error(err),
+		)
+	}
+	defer func() {
+		if err := bsGauge.Close(); err != nil {
+			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
+		}
+	}()
+
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
@@ -683,6 +697,13 @@ func Run(runOpts RunOptions) {
 			}
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
+
+			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
+				logger.Error("unable to update bootstrap gauge with new bootstrappers",
+					zap.Strings("bootstrappers", bootstrappers),
+					zap.Error(err),
+				)
+			}
 		})
 
 	// Start the cluster services now that the M3DB client is available.
