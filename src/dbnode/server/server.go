@@ -501,8 +501,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HashingSeed:    cfg.Hashing.Seed,
+			InstrumentOpts:   iopts,
+			HashingSeed:      cfg.Hashing.Seed,
+			NewDirectoryMode: newDirectoryMode,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -642,7 +643,13 @@ func Run(runOpts RunOptions) {
 			SetRepairTimeJitter(cfg.Repair.Jitter).
 			SetRepairThrottle(cfg.Repair.Throttle).
 			SetRepairCheckInterval(cfg.Repair.CheckInterval).
-			SetAdminClient(m3dbClient)
+			SetAdminClient(m3dbClient).
+			SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
+
+		if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
+			// Set conditionally to avoid stomping on the default value of 1.0.
+			repairOpts = repairOpts.SetDebugShadowComparisonsPercentage(cfg.Repair.DebugShadowComparisonsPercentage)
+		}
 
 		opts = opts.
 			SetRepairEnabled(cfg.Repair.Enabled).
@@ -666,6 +673,20 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
+
+	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers", "bootstrapper")
+	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
+		logger.Error("unable to start emitting bootstrap gauge",
+			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),
+			zap.Error(err),
+		)
+	}
+	defer func() {
+		if err := bsGauge.Close(); err != nil {
+			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
+		}
+	}()
+
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
@@ -682,6 +703,13 @@ func Run(runOpts RunOptions) {
 			}
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
+
+			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
+				logger.Error("unable to update bootstrap gauge with new bootstrappers",
+					zap.Strings("bootstrappers", bootstrappers),
+					zap.Error(err),
+				)
+			}
 		})
 
 	// Start the cluster services now that the M3DB client is available.

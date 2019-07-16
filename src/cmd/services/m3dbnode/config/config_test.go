@@ -287,6 +287,7 @@ db:
                     - 1.1.1.1:2379
                     - 1.1.1.2:2379
                     - 1.1.1.3:2379
+
       seedNodes:
           listenPeerUrls:
               - http://0.0.0.0:2380
@@ -444,6 +445,8 @@ func TestConfiguration(t *testing.T) {
     jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
+    debugShadowComparisonsEnabled: false
+    debugShadowComparisonsPercentage: 0
   pooling:
     blockAllocSize: 16
     type: simple
@@ -603,6 +606,7 @@ func TestConfiguration(t *testing.T) {
       m3sd:
         initTimeout: null
       watchWithRevision: 0
+      newDirectoryMode: null
     static: null
     seedNodes:
       rootDir: /var/lib/etcd

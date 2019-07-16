@@ -118,8 +118,13 @@ func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-// ProcessBlock performs the aggregation on the input block, and returns the aggregated result.
-func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+// ProcessBlock performs the aggregation on the input block, and returns the
+// aggregated result.
+func (n *baseNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
@@ -134,8 +139,8 @@ func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		[]byte(n.op.opType),
 		seriesMetas,
 	)
-	meta.Tags, metas = utils.DedupeMetadata(metas)
 
+	meta.Tags, metas = utils.DedupeMetadata(metas, meta.Tags.Opts)
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err

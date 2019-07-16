@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -36,11 +37,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/dice"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -109,13 +113,48 @@ func (r shardRepairer) Repair(
 		IncludeSizes:     true,
 		IncludeChecksums: true,
 	}
-	localMetadata, _, err := shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, PageToken{}, opts)
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
-	}
-	ctx.RegisterCloser(localMetadata)
+	var (
+		accumLocalMetadata = block.NewFetchBlocksMetadataResults()
+		pageToken          PageToken
+	)
+	ctx.RegisterCloser(accumLocalMetadata)
 
-	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
+	for {
+		// It's possible for FetchBlocksMetadataV2 to not return all the metadata at once even if
+		// math.MaxInt64 is passed as the limit due to its implementation and the different phases
+		// of the page token. As a result, the only way to ensure that all the metadata has been
+		// fetched is to continue looping until a nil pageToken is returned.
+		var currLocalMetadata block.FetchBlocksMetadataResults
+		currLocalMetadata, pageToken, err = shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, pageToken, opts)
+		if err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
+
+		// Merge.
+		if currLocalMetadata != nil {
+			for _, result := range currLocalMetadata.Results() {
+				accumLocalMetadata.Add(result)
+			}
+		}
+
+		if pageToken == nil {
+			break
+		}
+	}
+
+	if r.rpopts.DebugShadowComparisonsEnabled() {
+		// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
+		// issues with the repair feature. It should not be enabled for production use-cases.
+		err := r.shadowCompare(start, end, accumLocalMetadata, session, shard, nsCtx)
+		if err != nil {
+			r.logger.Error(
+				"Shadow compare failed",
+				zap.Error(err))
+			return repair.MetadataComparisonResult{}, err
+		}
+	}
+
+	localIter := block.NewFilteredBlocksMetadataIter(accumLocalMetadata)
 	err = metadata.AddLocalMetadata(origin, localIter)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
@@ -441,3 +480,183 @@ func (r repairerNoOp) Start()        {}
 func (r repairerNoOp) Stop()         {}
 func (r repairerNoOp) Repair() error { return nil }
 func (r repairerNoOp) Report()       {}
+
+func (r shardRepairer) shadowCompare(
+	start time.Time,
+	end time.Time,
+	localMetadataBlocks block.FetchBlocksMetadataResults,
+	session client.AdminSession,
+	shard databaseShard,
+	nsCtx namespace.Context,
+) error {
+	dice, err := dice.NewDice(r.rpopts.DebugShadowComparisonsPercentage())
+	if err != nil {
+		return fmt.Errorf("err creating shadow comparison dice: %v", err)
+	}
+
+	var localM, peerM *dynamic.Message
+	if nsCtx.Schema != nil {
+		// Only required if a schema (proto feature) is present. Reset between uses.
+		localM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
+		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
+	}
+
+	tmpCtx := context.NewContext()
+	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
+		seriesID := result.ID
+		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
+		if err != nil {
+			return err
+		}
+		defer peerSeriesIter.Close()
+
+		tmpCtx.Reset()
+		defer tmpCtx.BlockingClose()
+		localSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
+		if err != nil {
+			return err
+		}
+		localSeriesSliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(localSeriesDataBlocks)
+		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
+		localSeriesIter.ResetSliceOfSlices(localSeriesSliceOfSlices, nsCtx.Schema)
+
+		var (
+			i             = 0
+			foundMismatch = false
+		)
+		for localSeriesIter.Next() {
+			if !peerSeriesIter.Next() {
+				r.logger.Error(
+					"series had next locally, but not from peers",
+					zap.String("namespace", nsCtx.ID.String()),
+					zap.Time("start", start),
+					zap.Time("end", end),
+					zap.String("series", seriesID.String()),
+					zap.Error(peerSeriesIter.Err()),
+				)
+				foundMismatch = true
+				break
+			}
+
+			localDP, localUnit, localAnnotation := localSeriesIter.Current()
+			peerDP, peerUnit, peerAnnotation := peerSeriesIter.Current()
+
+			if !localDP.Equal(peerDP) {
+				r.logger.Error(
+					"datapoints did not match",
+					zap.Int("index", i),
+					zap.Any("local", localDP),
+					zap.Any("peer", peerDP),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if localUnit != peerUnit {
+				r.logger.Error(
+					"units did not match",
+					zap.Int("index", i),
+					zap.Int("local", int(localUnit)),
+					zap.Int("peer", int(peerUnit)),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if nsCtx.Schema == nil {
+				// Remaining shadow logic is proto-specific.
+				continue
+			}
+
+			err = localM.Unmarshal(localAnnotation)
+			if err != nil {
+				r.logger.Error(
+					"Unable to unmarshal local annotation",
+					zap.Int("index", i),
+					zap.Error(err),
+				)
+				foundMismatch = true
+				break
+			}
+
+			err = peerM.Unmarshal(peerAnnotation)
+			if err != nil {
+				r.logger.Error(
+					"Unable to unmarshal peer annotation",
+					zap.Int("index", i),
+					zap.Error(err),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if !dynamic.Equal(localM, peerM) {
+				r.logger.Error(
+					"Local message does not equal peer message",
+					zap.Int("index", i),
+					zap.String("local", localM.String()),
+					zap.String("peer", peerM.String()),
+				)
+				foundMismatch = true
+				break
+			}
+
+			if !bytes.Equal(localAnnotation, peerAnnotation) {
+				r.logger.Error(
+					"Local message equals peer message, but annotations do not match",
+					zap.Int("index", i),
+					zap.String("local", string(localAnnotation)),
+					zap.String("peer", string(peerAnnotation)),
+				)
+				foundMismatch = true
+				break
+			}
+
+			i++
+		}
+
+		if localSeriesIter.Err() != nil {
+			r.logger.Error(
+				"Local series iterator experienced an error",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("start", start),
+				zap.Time("end", end),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+				zap.Error(localSeriesIter.Err()),
+			)
+		} else if foundMismatch {
+			r.logger.Error(
+				"Found mismatch between series",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("start", start),
+				zap.Time("end", end),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+			)
+		} else {
+			r.logger.Debug(
+				"All values for series match",
+				zap.String("namespace", nsCtx.ID.String()),
+				zap.Time("start", start),
+				zap.Time("end", end),
+				zap.String("series", seriesID.String()),
+				zap.Int("numDPs", i),
+			)
+		}
+
+		return nil
+	}
+
+	for _, result := range localMetadataBlocks.Results() {
+		if !dice.Roll() {
+			continue
+		}
+
+		if err := compareResultFunc(result); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

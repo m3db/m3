@@ -20,8 +20,9 @@
 
 package promql
 
-// ItemType which maps to ItemType in Prometheus. Note that this is temporary and
-// once we decide we want to use this approach then we will just expose the item types in Prometheus code base
+// ItemType which maps to ItemType in Prometheus. Note that this is temporary
+// and once we decide we want to use this approach then we will just expose the
+// item types in Prometheus code base.
 type ItemType int
 
 // nolint
