@@ -876,32 +876,6 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	}
 	wg.Wait()
 
-	retrieverMgr := n.opts.DatabaseBlockRetrieverManager()
-	// May be nil depending on the caching policy.
-	if retrieverMgr != nil {
-		// Attempt to call CacheShardIndices now that all the shards are bootstrapped. Cannot call
-		// this earlier as block lease verification will fail due to the shards not being bootstrapped
-		// (and as a result no leases can be verified since the flush state is not yet known).
-		retriever, err := n.opts.DatabaseBlockRetrieverManager().Retriever(metadata)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		} else {
-			shardIDs := make([]uint32, 0, len(shards))
-			for _, shard := range shards {
-				shardIDs = append(shardIDs, shard.ID())
-			}
-			n.log.Info("Caching shard indices",
-				zap.Int("numShards", len(shardIDs)),
-			)
-			if err := retriever.CacheShardIndices(shardIDs); err != nil {
-				multiErr = multiErr.Add(err)
-				n.log.Error("Caching shard indices error", zap.Error(err))
-			} else {
-				n.log.Info("Caching shard indices completed successfully")
-			}
-		}
-	}
-
 	if n.reverseIndex != nil {
 		err := n.reverseIndex.Bootstrap(bootstrapResult.IndexResult.IndexResults())
 		multiErr = multiErr.Add(err)
