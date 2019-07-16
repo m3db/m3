@@ -169,7 +169,7 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	// path (which sometimes needs to acquire an exclusive lock). In practice
 	// this is fine, it just means that the Retriever could be closed while a
 	// call to CacheShardIndices is still outstanding.
-	return r.seekerMgr.CacheShardIndices(shards)
+	return seekerMgr.CacheShardIndices(shards)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
