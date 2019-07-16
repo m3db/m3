@@ -41,10 +41,13 @@ var (
 )
 
 func TestScalarBlock(t *testing.T) {
-	block := NewScalar(func(_ time.Time) float64 { return val }, bounds)
+	block := NewScalar(
+		func(_ time.Time) float64 { return val },
+		bounds,
+		models.NewTagOptions(),
+	)
 
 	require.IsType(t, block, &Scalar{})
-
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)
 	require.NotNil(t, stepIter)

@@ -38,9 +38,13 @@ func TestFlattenMetadata(t *testing.T) {
 
 	seriesMetas := []block.SeriesMeta{
 		{Name: []byte("foo"),
-			Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("e"), Value: []byte("f")}})},
+			Tags: test.TagSliceToTags([]models.Tag{
+				{Name: []byte("e"), Value: []byte("f")},
+			})},
 		{Name: []byte("bar"),
-			Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("g"), Value: []byte("h")}})},
+			Tags: test.TagSliceToTags([]models.Tag{
+				{Name: []byte("g"), Value: []byte("h")}},
+			)},
 	}
 	flattened := FlattenMetadata(meta, seriesMetas)
 
@@ -74,36 +78,36 @@ var dedupeMetadataTests = []struct {
 	},
 	{
 		"single metas",
-		[]test.StringTags{{{"a", "b"}, {"c", "d"}}},
-		test.StringTags{{"a", "b"}, {"c", "d"}},
+		[]test.StringTags{{{N: "a", V: "b"}, {N: "c", V: "d"}}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}},
 		[]test.StringTags{{}},
 	},
 	{
 		"one common tag, longer first",
-		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"}}},
-		test.StringTags{{"a", "b"}},
-		[]test.StringTags{{{"c", "d"}}, {}},
+		[]test.StringTags{{{N: "a", V: "b"}, {N: "c", V: "d"}}, {{N: "a", V: "b"}}},
+		test.StringTags{{N: "a", V: "b"}},
+		[]test.StringTags{{{N: "c", V: "d"}}, {}},
 	},
 	{
 		"one common tag, longer second",
-		[]test.StringTags{{{"a", "b"}}, {{"a", "b"}, {"c", "d"}}},
-		test.StringTags{{"a", "b"}},
-		[]test.StringTags{{}, {{"c", "d"}}},
+		[]test.StringTags{{{N: "a", V: "b"}}, {{N: "a", V: "b"}, {N: "c", V: "d"}}},
+		test.StringTags{{N: "a", V: "b"}},
+		[]test.StringTags{{}, {{N: "c", V: "d"}}},
 	},
 	{
 		"two common tags",
-		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"},
-			{"c", "d"}}, {{"a", "b"}, {"c", "d"}}},
-		test.StringTags{{"a", "b"}, {"c", "d"}},
+		[]test.StringTags{{{N: "a", V: "b"}, {N: "c", V: "d"}}, {{N: "a", V: "b"},
+			{N: "c", V: "d"}}, {{N: "a", V: "b"}, {N: "c", V: "d"}}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}},
 		[]test.StringTags{{}, {}, {}},
 	},
 	{
 		"no common tags in one series",
-		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"}, {"c", "d"}},
-			{{"a", "b*"}, {"c*", "d"}}},
+		[]test.StringTags{{{N: "a", V: "b"}, {N: "c", V: "d"}}, {{N: "a", V: "b"},
+			{N: "c", V: "d"}}, {{N: "a", V: "b*"}, {N: "c*", V: "d"}}},
 		test.StringTags{},
-		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"},
-			{"c", "d"}}, {{"a", "b*"}, {"c*", "d"}}},
+		[]test.StringTags{{{N: "a", V: "b"}, {N: "c", V: "d"}}, {{N: "a", V: "b"},
+			{N: "c", V: "d"}}, {{N: "a", V: "b*"}, {N: "c*", V: "d"}}},
 	},
 }
 
@@ -118,7 +122,8 @@ func TestDedupeMetadata(t *testing.T) {
 				seriesMetas[i] = block.SeriesMeta{Tags: tags}
 			}
 
-			actual, actualSeriesMetas := DedupeMetadata(seriesMetas)
+			actual, actualSeriesMetas := DedupeMetadata(seriesMetas,
+				models.NewTagOptions())
 			exCommon := test.StringTagsToTags(tt.expectedCommon)
 			assert.Equal(t, exCommon, actual)
 

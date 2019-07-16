@@ -37,8 +37,7 @@ type baseOp struct {
 	params       NodeParams
 }
 
-// NodeParams describes the types of nodes used
-// for binary operations
+// NodeParams describes the types of nodes used for binary operations.
 type NodeParams struct {
 	LNode, RNode         parser.NodeID
 	LIsScalar, RIsScalar bool
@@ -46,18 +45,21 @@ type NodeParams struct {
 	VectorMatching       *VectorMatching
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o baseOp) OpType() string {
 	return o.OperatorType
 }
 
-// String representation
 func (o baseOp) String() string {
-	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(), o.params.LNode, o.params.RNode)
+	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(),
+		o.params.LNode, o.params.RNode)
 }
 
-// Node creates an execution node
-func (o baseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
+// Node creates an execution node.
+func (o baseOp) Node(
+	controller *transform.Controller,
+	_ transform.Options,
+) transform.OpNode {
 	return &baseNode{
 		op:         o,
 		process:    o.processFunc,
@@ -73,7 +75,7 @@ func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 	}
 
 	// For comparison functions, check if returning bool or not and return the
-	// appropriate one
+	// appropriate one.
 	if returnBool {
 		opType += returnBoolSuffix
 	}
@@ -85,7 +87,7 @@ func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 	return nil, errNoMatching
 }
 
-// NewOp creates a new binary operation
+// NewOp creates a new binary operation.
 func NewOp(
 	opType string,
 	params NodeParams,
@@ -120,10 +122,12 @@ func (n *baseNode) Params() parser.Params {
 	return n.op
 }
 
-type processFunc func(*models.QueryContext, block.Block, block.Block, *transform.Controller) (block.Block, error)
+type processFunc func(*models.QueryContext, block.Block,
+	block.Block, *transform.Controller) (block.Block, error)
 
-// Process processes a block
-func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+// Process processes a block.
+func (n *baseNode) Process(queryCtx *models.QueryContext,
+	ID parser.NodeID, b block.Block) error {
 	lhs, rhs, err := n.computeOrCache(ID, b)
 	if err != nil {
 		// Clean up any blocks from cache
@@ -147,7 +151,8 @@ func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	return n.controller.Process(queryCtx, nextBlock)
 }
 
-func (n *baseNode) processWithTracing(queryCtx *models.QueryContext, lhs block.Block, rhs block.Block) (block.Block, error) {
+func (n *baseNode) processWithTracing(queryCtx *models.QueryContext,
+	lhs block.Block, rhs block.Block) (block.Block, error) {
 	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, n.op.OpType())
 	defer sp.Finish()
 	queryCtx = queryCtx.WithContext(ctx)
@@ -155,8 +160,12 @@ func (n *baseNode) processWithTracing(queryCtx *models.QueryContext, lhs block.B
 	return n.process(queryCtx, lhs, rhs, n.controller)
 }
 
-// computeOrCache figures out if both lhs and rhs are available, if not then it caches the incoming block
-func (n *baseNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
+// computeOrCache figures out if both lhs and rhs are available,
+// if not then it caches the incoming block.
+func (n *baseNode) computeOrCache(
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, block.Block, error) {
 	var lhs, rhs block.Block
 	n.mu.Lock()
 	defer n.mu.Unlock()

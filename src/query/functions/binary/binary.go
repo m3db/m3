@@ -29,11 +29,11 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// Function is a function that applies on two floats
+// Function is a function that applies on two floats.
 type Function func(x, y float64) float64
 type singleScalarFunc func(x float64) float64
 
-// processes two logical blocks, performing a logical operation on them
+// processes two logical blocks, performing a logical operation on them.
 func processBinary(
 	queryCtx *models.QueryContext,
 	lhs, rhs block.Block,
@@ -69,14 +69,14 @@ func processBinary(
 
 		// if both lhs and rhs are scalars, can create a new block
 		// by extracting values from lhs and rhs instead of doing
-		// by-value comparisons
+		// by-value comparisons.
 		scalarR, ok := rhs.(*block.Scalar)
 		if !ok {
 			return nil, errRightScalar
 		}
 
 		// NB(arnikola): this is a sanity check, as scalar comparisons
-		// should have previously errored out during the parsing step
+		// should have previously errored out during the parsing step.
 		if !params.ReturnBool && isComparison {
 			return nil, errNoModifierForComparison
 		}
@@ -86,6 +86,7 @@ func processBinary(
 				return fn(lVal, scalarR.Value(t))
 			},
 			lIter.Meta().Bounds,
+			lIter.Meta().Tags.Opts,
 		), nil
 	}
 
@@ -96,7 +97,7 @@ func processBinary(
 		}
 
 		rVal := scalarR.Value(time.Time{})
-		// lhs is a series; use lhs metadata and series meta
+		// lhs is a series; use lhs metadata and series meta.
 		return processSingleBlock(
 			queryCtx,
 			lhs,
@@ -107,7 +108,7 @@ func processBinary(
 		)
 	}
 
-	// both lhs and rhs are series
+	// both lhs and rhs are series.
 	rIter, err := rhs.StepIter()
 	if err != nil {
 		return nil, err
@@ -115,7 +116,7 @@ func processBinary(
 
 	// NB(arnikola): this is a sanity check, as functions between
 	// two series missing vector matching should have previously
-	// errored out during the parsing step
+	// errored out during the parsing step.
 	if params.VectorMatching == nil {
 		return nil, errNoMatching
 	}
@@ -182,8 +183,9 @@ func processBothSeries(
 	lSeriesMeta = utils.FlattenMetadata(lMeta, lSeriesMeta)
 	rSeriesMeta = utils.FlattenMetadata(rMeta, rSeriesMeta)
 
-	takeLeft, correspondingRight, lSeriesMeta := intersect(matching, lSeriesMeta, rSeriesMeta)
-	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta)
+	takeLeft, correspondingRight, lSeriesMeta := intersect(matching,
+		lSeriesMeta, rSeriesMeta)
+	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta, lMeta.Tags.Opts)
 
 	// Use metas from only taken left series
 	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMeta)
@@ -224,7 +226,7 @@ func processBothSeries(
 }
 
 // intersect returns the slice of lhs indices that are shared with rhs,
-// the indices of the corresponding rhs values, and the metas for taken indices
+// the indices of the corresponding rhs values, and the metas for taken indices.
 func intersect(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
