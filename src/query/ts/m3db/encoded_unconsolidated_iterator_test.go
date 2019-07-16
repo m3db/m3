@@ -77,7 +77,7 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 	opts := NewOptions().
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
-
+	require.NoError(t, opts.Validate())
 	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
@@ -121,6 +121,7 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 	opts := NewOptions().
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
+	require.NoError(t, opts.Validate())
 	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()

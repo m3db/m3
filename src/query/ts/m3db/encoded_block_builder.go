@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -42,24 +41,16 @@ type blockAtTime struct {
 type blocksAtTime []blockAtTime
 
 type encodedBlockBuilder struct {
-	lookback        time.Duration
-	blocksAtTime    blocksAtTime
-	tagOptions      models.TagOptions
-	consolidationFn consolidators.ConsolidationFunc
+	blocksAtTime blocksAtTime
+	options      Options
 }
 
 func newEncodedBlockBuilder(
-	opts Options,
+	options Options,
 ) *encodedBlockBuilder {
-	lookback := opts.LookbackDuration()
-	tagOptions := opts.TagOptions()
-	consolidationFn := opts.ConsolidationFunc()
-
 	return &encodedBlockBuilder{
-		lookback:        lookback,
-		blocksAtTime:    make(blocksAtTime, 0, initBlockLength),
-		tagOptions:      tagOptions,
-		consolidationFn: consolidationFn,
+		blocksAtTime: make(blocksAtTime, 0, initBlockLength),
+		options:      options,
 	}
 }
 
@@ -70,7 +61,7 @@ func (b *encodedBlockBuilder) add(
 ) {
 	start := bounds.Start
 	consolidation := consolidationSettings{
-		consolidationFn: consolidators.TakeLast,
+		consolidationFn: b.options.ConsolidationFunc(),
 		currentTime:     start,
 		bounds:          bounds,
 	}
@@ -86,10 +77,9 @@ func (b *encodedBlockBuilder) add(
 
 	block := newEncodedBlock(
 		[]encoding.SeriesIterator{},
-		b.tagOptions,
 		consolidation,
-		b.lookback,
 		lastBlock,
+		b.options,
 	)
 
 	block.seriesBlockIterators = append(block.seriesBlockIterators, iter)

@@ -39,12 +39,11 @@ type consolidationSettings struct {
 type encodedBlock struct {
 	// There is slightly different execution for the last block in the series.
 	lastBlock            bool
-	lookback             time.Duration
 	meta                 block.Metadata
-	tagOptions           models.TagOptions
 	consolidation        consolidationSettings
 	seriesMetas          []block.SeriesMeta
 	seriesBlockIterators []encoding.SeriesIterator
+	options              Options
 }
 
 // NewEncodedBlock builds an encoded block.
@@ -62,10 +61,9 @@ func NewEncodedBlock(
 
 	bl := newEncodedBlock(
 		seriesBlockIterators,
-		opts.TagOptions(),
 		consolidation,
-		opts.LookbackDuration(),
 		lastBlock,
+		opts,
 	)
 	err := bl.generateMetas()
 	if err != nil {
@@ -77,29 +75,26 @@ func NewEncodedBlock(
 
 func newEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
-	tagOptions models.TagOptions,
 	consolidation consolidationSettings,
-	lookback time.Duration,
 	lastBlock bool,
+	options Options,
 ) encodedBlock {
 	return encodedBlock{
 		seriesBlockIterators: seriesBlockIterators,
-		tagOptions:           tagOptions,
 		consolidation:        consolidation,
-		lookback:             lookback,
 		lastBlock:            lastBlock,
+		options:              options,
 	}
 }
 
 func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return &encodedBlockUnconsolidated{
 		lastBlock:            b.lastBlock,
-		lookback:             b.lookback,
 		meta:                 b.meta,
-		tagOptions:           b.tagOptions,
 		consolidation:        b.consolidation,
 		seriesMetas:          b.seriesMetas,
 		seriesBlockIterators: b.seriesBlockIterators,
+		options:              b.options,
 	}, nil
 }
 
@@ -113,8 +108,9 @@ func (b *encodedBlock) Close() error {
 
 func (b *encodedBlock) buildSeriesMeta() error {
 	b.seriesMetas = make([]block.SeriesMeta, len(b.seriesBlockIterators))
+	tagOptions := b.options.TagOptions()
 	for i, iter := range b.seriesBlockIterators {
-		tags, err := storage.FromIdentTagIteratorToTags(iter.Tags(), b.tagOptions)
+		tags, err := storage.FromIdentTagIteratorToTags(iter.Tags(), tagOptions)
 		if err != nil {
 			return err
 		}
@@ -130,7 +126,7 @@ func (b *encodedBlock) buildSeriesMeta() error {
 
 func (b *encodedBlock) buildMeta() {
 	b.meta = block.Metadata{
-		Tags:   models.NewTags(0, b.tagOptions),
+		Tags:   models.NewTags(0, b.options.TagOptions()),
 		Bounds: b.consolidation.bounds,
 	}
 }
@@ -151,10 +147,9 @@ func (b *encodedBlock) WithMetadata(
 ) (block.Block, error) {
 	bl := newEncodedBlock(
 		b.seriesBlockIterators,
-		b.tagOptions,
 		b.consolidation,
-		b.lookback,
 		b.lastBlock,
+		b.options,
 	)
 
 	bl.meta = meta

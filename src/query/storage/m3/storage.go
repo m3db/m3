@@ -95,6 +95,9 @@ func NewStorage(
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast)
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 
 	return &m3storage{
 		clusters:        clusters,
