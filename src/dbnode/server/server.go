@@ -90,6 +90,7 @@ const (
 	serverGracefulCloseTimeout       = 10 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
+	cpuProfileDuration               = 5 * time.Second
 	filePathPrefixLockFile           = ".lock"
 	defaultServiceName               = "m3dbnode"
 )
@@ -291,6 +292,11 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetInstrumentOptions(iopts)
 
 	opentracing.SetGlobalTracer(tracer)
+
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+		cpuProfileDuration,
+		iopts,
+	)
 
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
@@ -566,11 +572,6 @@ func Run(runOpts RunOptions) {
 	if cfg.DebugListenAddress != "" {
 		go func() {
 			mux := http.DefaultServeMux
-			cpuProfileDuration := 1 * time.Second
-			debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
-				cpuProfileDuration,
-				iopts,
-			)
 			if err == nil {
 				if err = debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
