@@ -1879,7 +1879,7 @@ func (s *dbShard) Bootstrap(
 	}
 
 	// May be nil depending on the caching policy.
-	if retrieverMgr := s.opts.DatabaseBlockRetrieverManager(); retrieverMgr!= nil {
+	if retrieverMgr := s.opts.DatabaseBlockRetrieverManager(); retrieverMgr != nil {
 		// Now that this shard has finished bootstrapping attempt to cache all of its seekers. Cannot call
 		// this earlier as block lease verification will fail due to the shards not being bootstrapped
 		// (and as a result no leases can be verified since the flush state is not yet known).
@@ -1896,7 +1896,7 @@ func (s *dbShard) Bootstrap(
 					zap.Error(err))
 			} else {
 				s.logger.Debug("caching shard indices completed successfully",
-				zap.Uint32("shard", s.ID())))
+					zap.Uint32("shard", s.ID()))
 			}
 		}
 	}
