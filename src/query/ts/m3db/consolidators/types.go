@@ -26,10 +26,21 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 )
 
+const (
+	// BufferSteps is the default number of steps to buffer.
+	BufferSteps = 32
+)
+
 // StepCollector is implemented by any accumulators or consolidators working on
 // stepwise iteration.
 type StepCollector interface {
-	AddPointForIterator(ts.Datapoint, int)
+	// AddPoint adds a datapoint to the current step it's within the valid time
+	// period; otherwise drops it silently, which is fine for consolidation.
+	AddPoint(ts.Datapoint)
+	// BufferStep computes the currently collected step values.
+	BufferStep()
+	// BufferStepCount gives the number of remaining buffer steps.
+	BufferStepCount() int
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.

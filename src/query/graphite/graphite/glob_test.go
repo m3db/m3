@@ -41,6 +41,11 @@ func TestGlobToRegexPattern(t *testing.T) {
 			regex:   []byte("barbaz"),
 		},
 		{
+			glob:    "barbaz:quxqaz",
+			isRegex: false,
+			regex:   []byte("barbaz:quxqaz"),
+		},
+		{
 			glob:    "foo\\+bar.'baz<1001>'.qux",
 			isRegex: true,
 			regex:   []byte("foo\\+bar\\.+\\'baz\\<1001\\>\\'\\.+qux"),
@@ -59,6 +64,11 @@ func TestGlobToRegexPattern(t *testing.T) {
 			glob:    "foo{0[3-9],1[0-9],20}",
 			isRegex: true,
 			regex:   []byte("foo(0[3-9]|1[0-9]|20)"),
+		},
+		{
+			glob:    "foo{0[3-9],1[0-9],20}:bar",
+			isRegex: true,
+			regex:   []byte("foo(0[3-9]|1[0-9]|20):bar"),
 		},
 	}
 

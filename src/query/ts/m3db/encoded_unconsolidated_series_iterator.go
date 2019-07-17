@@ -47,7 +47,7 @@ func (b *encodedBlockUnconsolidated) SeriesIter() (
 		meta:             b.meta,
 		seriesMeta:       b.seriesMetas,
 		seriesIters:      b.seriesBlockIterators,
-		lookbackDuration: b.lookback,
+		lookbackDuration: b.options.LookbackDuration(),
 	}, nil
 }
 

@@ -23,6 +23,7 @@ package environment
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -31,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -99,9 +100,10 @@ type ConfigureResults struct {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts instrument.Options
-	HashingSeed    uint32
-	HostID         string
+	InstrumentOpts   instrument.Options
+	HashingSeed      uint32
+	HostID           string
+	NewDirectoryMode os.FileMode
 }
 
 // Configure creates a new ConfigureResults
@@ -128,7 +130,8 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
 		// Set timeout to zero so it will wait indefinitely for the
 		// initial value.
-		SetServicesOptions(services.NewOptions().SetInitTimeout(0))
+		SetServicesOptions(services.NewOptions().SetInitTimeout(0)).
+		SetNewDirectoryMode(cfgParams.NewDirectoryMode)
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)
