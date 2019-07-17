@@ -243,11 +243,14 @@ func (agg *aggregator) AddPassThrough(
 	metadata metadata.TimedMetadata,
 ) error {
 	callStart := agg.nowFn()
+	agg.metrics.passThrough.Inc(1)
+	agg.RLock()
 	if agg.state != aggregatorOpen {
+		agg.metrics.addPassThrough.ReportError(errAggregatorAlreadyOpenOrClosed)
 		return errAggregatorNotOpenOrClosed
 	}
+	agg.RUnlock()
 
-	agg.metrics.passThrough.Inc(1)
 	mp := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: id.ChunkedID{
