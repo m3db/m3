@@ -297,6 +297,9 @@ func Run(runOpts RunOptions) {
 		cpuProfileDuration,
 		iopts,
 	)
+	if err != nil {
+		logger.Error("unable to create debug writer", zap.Error(err))
+	}
 
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
@@ -572,12 +575,10 @@ func Run(runOpts RunOptions) {
 	if cfg.DebugListenAddress != "" {
 		go func() {
 			mux := http.DefaultServeMux
-			if err == nil {
+			if debugWriter != nil {
 				if err = debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
 				}
-			} else {
-				logger.Error("unable to create debug writer", zap.Error(err))
 			}
 
 			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
