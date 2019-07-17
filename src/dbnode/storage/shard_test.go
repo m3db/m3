@@ -240,6 +240,43 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	}
 }
 
+// TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
+// and call CacheShardIndices if a BlockRetrieverManager is present.
+func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdir")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		opts   = DefaultTestOptions()
+		fsOpts = opts.CommitLogOptions().FilesystemOptions().
+			SetFilePathPrefix(dir)
+		newClOpts = opts.
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
+		mockRetriever    = block.NewMockDatabaseBlockRetriever(ctrl)
+		mockRetrieverMgr = block.NewMockDatabaseBlockRetrieverManager(ctrl)
+	)
+	opts = opts.
+		SetCommitLogOptions(newClOpts).
+		SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+
+	s := testDatabaseShard(t, opts)
+	defer s.Close()
+
+	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
+	mockRetrieverMgr.EXPECT().Retriever(s.namespace).Return(mockRetriever, nil)
+
+	bootstrappedSeries := result.NewMap(result.MapOptions{})
+
+	err = s.Bootstrap(bootstrappedSeries)
+	require.NoError(t, err)
+	require.Equal(t, Bootstrapped, s.bootstrapState)
+}
+
 func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
