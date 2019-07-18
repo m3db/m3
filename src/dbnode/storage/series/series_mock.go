@@ -64,18 +64,18 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 }
 
 // Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks) (BootstrapResult, error) {
+func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks, arg1 map[time0.UnixNano]BlockState) (BootstrapResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", arg0)
+	ret := m.ctrl.Call(m, "Bootstrap", arg0, arg1)
 	ret0, _ := ret[0].(BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockDatabaseSeriesMockRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabaseSeries)(nil).Bootstrap), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabaseSeries)(nil).Bootstrap), arg0, arg1)
 }
 
 // Close mocks base method
@@ -189,6 +189,18 @@ func (m *MockDatabaseSeries) IsEmpty() bool {
 func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockDatabaseSeries)(nil).IsEmpty))
+}
+
+// Load mocks base method
+func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Load", arg0)
+}
+
+// Load indicates an expected call of Load
+func (mr *MockDatabaseSeriesMockRecorder) Load(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDatabaseSeries)(nil).Load), arg0)
 }
 
 // NumActiveBlocks mocks base method

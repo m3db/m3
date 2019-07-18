@@ -103,7 +103,11 @@ type DatabaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
+	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState) (BootstrapResult, error)
+
+	// Load does the same thing as Bootstrap except it should be used for data that did
+	// not originate from the Bootstrap process (like background repairs).
+	Load(blocks block.DatabaseSeriesBlocks)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -358,14 +362,6 @@ const (
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
-
-// BootstrapWriteType is the write type assigned for bootstraps.
-//
-// TODO(juchan): We can't know from a bootstrapped block whether data was
-// originally written as a ColdWrite or a WarmWrite. After implementing
-// persistence logic including ColdWrites, we need to revisit this to figure out
-// what write type makes sense for bootstraps.
-const BootstrapWriteType = WarmWrite
 
 // WriteTransformOptions describes transforms to run on incoming writes.
 type WriteTransformOptions struct {

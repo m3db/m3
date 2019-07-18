@@ -409,7 +409,10 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	s.cachedBlocks.AddBlock(b)
 }
 
-func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
+func (s *dbSeries) Bootstrap(
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates map[xtime.UnixNano]BlockState,
+) (BootstrapResult, error) {
 	s.Lock()
 	defer func() {
 		s.bs = bootstrapped
@@ -426,12 +429,22 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (Boo
 	}
 
 	for _, block := range bootstrappedBlocks.AllBlocks() {
-		s.buffer.Bootstrap(block)
-		result.NumBlocksMovedToBuffer++
+		blStartNano := xtime.ToUnixNano(block.StartTime())
+		blState := blockStates[blStartNano]
+		s.buffer.Bootstrap(block, blState)
 	}
+	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
 
 	s.bs = bootstrapped
 	return result, nil
+}
+
+func (s *dbSeries) Load(blocks block.DatabaseSeriesBlocks) {
+	s.Lock()
+	defer s.Unlock()
+	for _, block := range blocks.AllBlocks() {
+		s.buffer.Load(block)
+	}
 }
 
 func (s *dbSeries) OnRetrieveBlock(

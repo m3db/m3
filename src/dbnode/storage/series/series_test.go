@@ -84,7 +84,7 @@ func newSeriesTestOptions() Options {
 func TestSeriesEmpty(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 	assert.True(t, series.IsEmpty())
 }
@@ -106,7 +106,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	data := []value{
@@ -141,7 +141,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	data := []value{
@@ -184,7 +184,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	data := []value{
@@ -217,10 +217,70 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 }
 
+// TestSeriesLoad tests the behavior the Load() method by ensuring that it actually loads data
+// into the series and that the data (merged with any existing data) can be retrieved.
+func TestSeriesLoad(t *testing.T) {
+	var (
+		opts      = newSeriesTestOptions()
+		blockSize = opts.RetentionOptions().BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		start     = curr
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	_, err := series.Bootstrap(nil, nil)
+	require.NoError(t, err)
+
+	rawWrites := []value{
+		{curr.Add(mins(1)), 2, xtime.Second, nil},
+		{curr.Add(mins(3)), 3, xtime.Second, nil},
+		{curr.Add(mins(5)), 4, xtime.Second, nil},
+	}
+
+	for _, v := range rawWrites {
+		curr = v.timestamp
+		verifyWriteToSeries(t, series, v)
+	}
+
+	var (
+		loadWrites = []value{
+			// Ensure each value is in a separate block so since block.DatabaseSeriesBlocks
+			// can only store a single block per block start).
+			{curr.Add(blockSize), 5, xtime.Second, nil},
+			{curr.Add(2 * blockSize), 6, xtime.Second, nil},
+		}
+		nsCtx     = namespace.Context{}
+		blockOpts = opts.DatabaseBlockOptions()
+		blocks    = block.NewDatabaseSeriesBlocks(len(loadWrites))
+	)
+	for _, v := range loadWrites {
+		curr = v.timestamp
+		enc := opts.EncoderPool().Get()
+		enc.Reset(v.timestamp.Truncate(blockSize), 0, nil)
+		dp := ts.Datapoint{Timestamp: v.timestamp, Value: v.value}
+		require.NoError(t, enc.Encode(dp, v.unit, nil))
+
+		dbBlock := block.NewDatabaseBlock(v.timestamp.Truncate(blockSize), blockSize, enc.Discard(), blockOpts, nsCtx)
+		blocks.AddBlock(dbBlock)
+	}
+	series.Load(blocks)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+	require.NoError(t, err)
+
+	expectedData := append(rawWrites, loadWrites...)
+	requireReaderValuesEqual(t, expectedData, results, opts, nsCtx)
+}
+
 func TestSeriesReadEndBeforeStart(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -236,7 +296,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 func TestSeriesFlushNoBlock(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
 	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
@@ -255,7 +315,7 @@ func TestSeriesFlush(t *testing.T) {
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -282,7 +342,7 @@ func TestSeriesFlush(t *testing.T) {
 func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 	_, err = series.Tick(nil, namespace.Context{})
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
@@ -294,7 +354,7 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
@@ -318,7 +378,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
@@ -371,7 +431,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	// Test case where block has been read within expiry period - won't be removed
@@ -439,7 +499,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	// Test case where block was not retrieved from disk - Will be removed
@@ -514,7 +574,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	// Retrievable blocks should be removed
@@ -635,7 +695,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 		Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	series.cachedBlocks = blocks
@@ -705,7 +765,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		Return(expectedResults, nil)
 
 	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	mockBlocks.EXPECT().AllBlocks().Return(blocks)
@@ -843,7 +903,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()

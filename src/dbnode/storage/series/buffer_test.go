@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -439,9 +440,9 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 
 	blopts := opts.DatabaseBlockOptions()
 	newBlock := block.NewDatabaseBlock(curr, 0, encoder.Discard(), blopts, namespace.Context{})
-	b.bootstrapped = append(b.bootstrapped, newBlock)
+	b.loadedBlocks = append(b.loadedBlocks, newBlock)
 	ctx := opts.ContextPool().Get()
-	stream, err := b.bootstrapped[0].Stream(ctx)
+	stream, err := b.loadedBlocks[0].Stream(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
@@ -449,7 +450,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, mergeRes)
 	assert.Equal(t, 1, len(b.encoders))
-	assert.Equal(t, 0, len(b.bootstrapped))
+	assert.Equal(t, 0, len(b.loadedBlocks))
 }
 
 func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
@@ -933,7 +934,7 @@ func testBuffertoStream(t *testing.T, opts Options, setAnn setAnnotation) {
 	bucket, exists := b.writableBucket(WarmWrite)
 	require.True(t, exists)
 	assert.Len(t, bucket.encoders, 4)
-	assert.Len(t, bucket.bootstrapped, 0)
+	assert.Len(t, bucket.loadedBlocks, 0)
 
 	stream, err := b.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 	require.NoError(t, err)
@@ -1585,4 +1586,67 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
 	assert.NoError(t, err)
 	requireReaderValuesEqual(t, []value{}, [][]xio.BlockReader{reader}, opts, nsCtx)
+}
+
+// TestBufferBootstrap tests the Bootstrap method, ensuring that blocks are successfully loaded into
+// the buffer and treated as warm writes.
+// TODO(rartoul): Test the cold case too?
+func TestBufferBootstrap(t *testing.T) {
+	var (
+		opts      = newBufferTestOptions()
+		buffer    = newDatabaseBuffer()
+		blockSize = opts.RetentionOptions().BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		nsCtx     = namespace.Context{}
+	)
+	buffer.Reset(nil, opts)
+	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(encoded))
+
+	data := checked.NewBytes([]byte("some-data"), nil)
+	data.IncRef()
+	segment := ts.Segment{Head: data}
+	block := block.NewDatabaseBlock(curr, blockSize, segment, opts.DatabaseBlockOptions(), nsCtx)
+	buffer.Bootstrap(block, BlockState{})
+
+	// Ensure the bootstrapped block is loaded and readable.
+	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(encoded))
+
+	// Ensure bootstrapped blocks are loaded as warm writes.
+	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
+	require.Equal(t, 0, coldFlushBlockStarts.Len())
+}
+
+// TestBufferLoad tests the Load method, ensuring that blocks are successfully loaded into
+// the buffer and treated as cold writes.
+func TestBufferLoad(t *testing.T) {
+	var (
+		opts      = newBufferTestOptions()
+		buffer    = newDatabaseBuffer()
+		blockSize = opts.RetentionOptions().BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		nsCtx     = namespace.Context{}
+	)
+	buffer.Reset(nil, opts)
+	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(encoded))
+
+	data := checked.NewBytes([]byte("some-data"), nil)
+	data.IncRef()
+	segment := ts.Segment{Head: data}
+	block := block.NewDatabaseBlock(curr, blockSize, segment, opts.DatabaseBlockOptions(), nsCtx)
+	buffer.Load(block)
+
+	// Ensure the bootstrapped block is loaded and readable.
+	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(encoded))
+
+	// Ensure bootstrapped blocks are loaded as cold writes.
+	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
+	require.Equal(t, 1, coldFlushBlockStarts.Len())
 }
