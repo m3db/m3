@@ -29,6 +29,7 @@ import (
 	"testing"
 	"text/template"
 	"time"
+	"net/http"
 
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -168,6 +169,11 @@ func TestConfig(t *testing.T) {
 			InterruptCh: interruptCh,
 		})
 		serverWg.Done()
+	}()
+	defer func(){
+		// Resetting DefaultServeMux to prevent multiple assignments
+		// to /debug/dump in Server.Run()
+		http.DefaultServeMux = http.NewServeMux()
 	}()
 
 	// Wait for bootstrap
@@ -312,6 +318,11 @@ func TestEmbeddedConfig(t *testing.T) {
 		})
 		serverWg.Done()
 	}()
+	defer func(){
+		// Resetting DefaultServeMux to prevent multiple assignments
+		// to /debug/dump in Server.Run()
+		http.DefaultServeMux = http.NewServeMux()
+	}()
 
 	// Wait for embedded KV to be up.
 	<-embeddedKVCh
@@ -437,6 +448,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	// Wait for server to stop
 	interruptCh <- fmt.Errorf("test complete")
 	serverWg.Wait()
+	http.DefaultServeMux = new(http.ServeMux)
 }
 
 var (
