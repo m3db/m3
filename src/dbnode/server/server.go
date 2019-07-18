@@ -576,7 +576,7 @@ func Run(runOpts RunOptions) {
 		go func() {
 			mux := http.DefaultServeMux
 			if debugWriter != nil {
-				if err = debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
+				if err := debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
 				}
 			}
