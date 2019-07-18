@@ -428,6 +428,7 @@ func (s *dbSeries) Bootstrap(
 		return result, nil
 	}
 
+	// TODO(rartoul): Branch coverage here.
 	for _, block := range bootstrappedBlocks.AllBlocks() {
 		blStartNano := xtime.ToUnixNano(block.StartTime())
 		blState := blockStates[blStartNano]
