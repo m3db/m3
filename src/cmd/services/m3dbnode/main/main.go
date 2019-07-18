@@ -25,8 +25,6 @@ import (
 	"fmt"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
-	"os/signal"
-	"syscall"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
@@ -107,10 +105,4 @@ func main() {
 	} else if cfg.Coordinator != nil {
 		<-coordinatorDoneCh
 	}
-}
-
-func interrupt() <-chan os.Signal {
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	return c
 }

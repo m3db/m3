@@ -33,11 +33,12 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
+	"github.com/m3db/m3/src/aggregator/server"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	m3cfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
@@ -69,6 +70,7 @@ type testServerSetup struct {
 	workerPool       xsync.WorkerPool
 	results          *[]aggregated.MetricWithStoragePolicy
 	resultLock       *sync.Mutex
+	cfg              m3cfg.Configuration
 
 	// Signals.
 	doneCh   chan struct{}
@@ -243,22 +245,12 @@ func (ts *testServerSetup) startServer() error {
 		return err
 	}
 
-	go func() {
-		if err := serve.Serve(
-			ts.rawTCPAddr,
-			ts.rawTCPServerOpts,
-			ts.httpAddr,
-			ts.httpServerOpts,
-			ts.aggregator,
-			ts.doneCh,
-		); err != nil {
-			select {
-			case errCh <- err:
-			default:
-			}
-		}
-		close(ts.closedCh)
-	}()
+	curCfg := m3cfg.Configuration{}
+	curCfg.RawTCP.ListenAddress = ts.rawTCPAddr
+	curCfg.HTTP.ListenAddress = ts.httpAddr
+	server.Run(server.RunOptions{
+		Config: curCfg,
+	})
 
 	go func() {
 		select {
