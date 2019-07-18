@@ -249,6 +249,8 @@ func (ts *testServerSetup) startServer() error {
 			ts.rawTCPServerOpts,
 			ts.httpAddr,
 			ts.httpServerOpts,
+			"",
+			nil,
 			ts.aggregator,
 			ts.doneCh,
 		); err != nil {
