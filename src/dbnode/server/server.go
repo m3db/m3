@@ -68,6 +68,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -89,6 +90,7 @@ const (
 	serverGracefulCloseTimeout       = 10 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
+	cpuProfileDuration               = 5 * time.Second
 	filePathPrefixLockFile           = ".lock"
 	defaultServiceName               = "m3dbnode"
 )
@@ -290,6 +292,14 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetInstrumentOptions(iopts)
 
 	opentracing.SetGlobalTracer(tracer)
+
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+		cpuProfileDuration,
+		iopts,
+	)
+	if err != nil {
+		logger.Error("unable to create debug writer", zap.Error(err))
+	}
 
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
@@ -564,9 +574,20 @@ func Run(runOpts RunOptions) {
 
 	if cfg.DebugListenAddress != "" {
 		go func() {
-			if err := http.ListenAndServe(cfg.DebugListenAddress, nil); err != nil {
+			mux := http.DefaultServeMux
+			if debugWriter != nil {
+				if err := debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
+					logger.Error("unable to register debug writer endpoint", zap.Error(err))
+				}
+			}
+
+			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
 				logger.Error("debug server could not listen",
 					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
+			} else {
+				logger.Info("debug server listening",
+					zap.String("address", cfg.DebugListenAddress),
+				)
 			}
 		}()
 	}

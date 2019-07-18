@@ -30,6 +30,7 @@ import (
 	"testing"
 	"text/template"
 	"time"
+	"net/http"
 
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -176,6 +177,11 @@ func TestIndexEnabledServer(t *testing.T) {
 			InterruptCh: interruptCh,
 		})
 		serverWg.Done()
+	}()
+	defer func(){
+		// Resetting DefaultServeMux to prevent multiple assignments
+		// to /debug/dump in Server.Run()
+		http.DefaultServeMux = http.NewServeMux()
 	}()
 
 	// Wait for bootstrap
