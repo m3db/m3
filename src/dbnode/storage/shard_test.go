@@ -240,6 +240,64 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	}
 }
 
+// TestShardBootstrapWithFlushVersionNoCleanUp ensures that the shard is able to
+// bootstrap the cold flush version from the info files even if the DB stopped
+// before it was able clean up its files. For example, if the DB had volume 0,
+// did a cold flush producing volume 1, then terminated before cleaning up the
+// files from volume 0, the flush version for that block should be bootstrapped
+// to 1.
+func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdir")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		opts   = DefaultTestOptions()
+		fsOpts = opts.CommitLogOptions().FilesystemOptions().
+			SetFilePathPrefix(dir)
+		newClOpts = opts.
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
+	)
+	opts = opts.
+		SetCommitLogOptions(newClOpts)
+
+	s := testDatabaseShard(t, opts)
+	defer s.Close()
+
+	writer, err := fs.NewWriter(fsOpts)
+	require.NoError(t, err)
+
+	var (
+		blockSize  = 2 * time.Hour
+		start      = time.Now().Truncate(blockSize)
+		numVolumes = 3
+	)
+	for i := 0; i < numVolumes; i++ {
+		writer.Open(fs.DataWriterOpenOptions{
+			FileSetType: persist.FileSetFlushType,
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   defaultTestNs1ID,
+				Shard:       s.ID(),
+				BlockStart:  start,
+				VolumeIndex: i,
+			},
+		})
+		require.NoError(t, writer.Close())
+	}
+
+	bootstrappedSeries := result.NewMap(result.MapOptions{})
+
+	err = s.Bootstrap(bootstrappedSeries)
+	require.NoError(t, err)
+	require.Equal(t, Bootstrapped, s.bootstrapState)
+
+	require.Equal(t, numVolumes-1, s.FlushState(start).ColdVersion)
+}
+
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
 // and call CacheShardIndices if a BlockRetrieverManager is present.
 func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
