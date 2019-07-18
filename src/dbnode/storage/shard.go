@@ -1856,7 +1856,7 @@ func (s *dbShard) Bootstrap(
 		return true
 	})
 
-	// Now that this shard has finished bootstrapping attempt to cache all of its seekers. Cannot call
+	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
 	// this earlier as block lease verification will fail due to the shards not being bootstrapped
 	// (and as a result no leases can be verified since the flush state is not yet known).
 	if err := s.cacheShardIndices(); err != nil {
