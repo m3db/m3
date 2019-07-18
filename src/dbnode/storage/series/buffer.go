@@ -135,9 +135,7 @@ type databaseBuffer interface {
 
 	Tick(versions map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult
 
-	Bootstrap(bl block.DatabaseBlock, blockState BlockState)
-
-	Load(bl block.DatabaseBlock)
+	Load(bl block.DatabaseBlock, writeType WriteType)
 
 	Reset(id ident.ID, opts Options)
 }
@@ -426,42 +424,7 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespa
 	}
 }
 
-func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock, blockState BlockState) {
-	if !blockState.WarmRetrievable {
-		// If the block being bootstrapped has never been warm flushed before then the block
-		// can be loaded into the buffer as a WarmWrite because a subsequent warm flush will
-		// ensure that it gets persisted to disk.
-		//
-		// If the ColdWrites feature is disabled then this branch should always be followed.
-		b.load(bl, WarmWrite)
-	} else {
-		// If the block being bootstrapped has been warm flushed before then the block should
-		// be loaded into the buffer as a ColdWrite so that a subsequent cold flush will ensure
-		// that it gets persisted to disk.
-		//
-		// This branch can be executed in the situation that a cold write was received for a block
-		// that had already been flushed to disk. Before the cold write could be persisted to disk
-		// via a cold flush, the node crashed and began bootsrapping itself. The cold write would be
-		// read out of the commitlog and would eventually be loaded into the buffer via this branch.
-		b.load(bl, ColdWrite)
-	}
-}
-
-func (b *dbBuffer) Load(bl block.DatabaseBlock) {
-	// Load may be called for any block start (including blocks that may or may not have
-	// been flushed yet.) As a result, they're treated as cold writes to ensure they get merged
-	// with any existing data if the block is for a blockStart that has already been flushed.
-	//
-	// NB(rartoul): Using this method for block starts that have never been flushed yet will result
-	// in unnecessary cold flushes since the sequence will proceed as:
-	//
-	//     1. Warm flush block start X
-	//     2. Cold flush block start X (since there are "cold write" blocks here that were not
-	//          flushed as part of the warm flush since they were not marked as "warm writes").
-	b.load(bl, ColdWrite)
-}
-
-func (b *dbBuffer) load(bl block.DatabaseBlock, writeType WriteType) {
+func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)

@@ -1590,7 +1590,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 
 // TestBufferBootstrap tests the Bootstrap method, ensuring that blocks are successfully loaded into
 // the buffer and treated as warm writes.
-// TODO(rartoul): Test the cold case too?
+// TODO(rartoul): Fix/rename test
 func TestBufferBootstrap(t *testing.T) {
 	var (
 		opts      = newBufferTestOptions()
@@ -1608,7 +1608,7 @@ func TestBufferBootstrap(t *testing.T) {
 	data.IncRef()
 	segment := ts.Segment{Head: data}
 	block := block.NewDatabaseBlock(curr, blockSize, segment, opts.DatabaseBlockOptions(), nsCtx)
-	buffer.Bootstrap(block, BlockState{})
+	buffer.Load(block, WarmWrite)
 
 	// Ensure the bootstrapped block is loaded and readable.
 	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
@@ -1639,7 +1639,7 @@ func TestBufferLoad(t *testing.T) {
 	data.IncRef()
 	segment := ts.Segment{Head: data}
 	block := block.NewDatabaseBlock(curr, blockSize, segment, opts.DatabaseBlockOptions(), nsCtx)
-	buffer.Load(block)
+	buffer.Load(block, ColdWrite)
 
 	// Ensure the bootstrapped block is loaded and readable.
 	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)

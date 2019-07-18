@@ -221,28 +221,16 @@ func (mr *MockdatabaseBufferMockRecorder) Tick(versions, nsCtx interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseBuffer)(nil).Tick), versions, nsCtx)
 }
 
-// Bootstrap mocks base method
-func (m *MockdatabaseBuffer) Bootstrap(bl block.DatabaseBlock, blockState BlockState) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Bootstrap", bl, blockState)
-}
-
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseBufferMockRecorder) Bootstrap(bl, blockState interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBuffer)(nil).Bootstrap), bl, blockState)
-}
-
 // Load mocks base method
-func (m *MockdatabaseBuffer) Load(bl block.DatabaseBlock) {
+func (m *MockdatabaseBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Load", bl)
+	m.ctrl.Call(m, "Load", bl, writeType)
 }
 
 // Load indicates an expected call of Load
-func (mr *MockdatabaseBufferMockRecorder) Load(bl interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Load(bl, writeType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockdatabaseBuffer)(nil).Load), bl)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockdatabaseBuffer)(nil).Load), bl, writeType)
 }
 
 // Reset mocks base method
