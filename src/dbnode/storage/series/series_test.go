@@ -244,7 +244,8 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blocks block.DatabaseSeriesBlocks,
 				blockStates map[xtime.UnixNano]BlockState,
 			) {
-				series.Bootstrap(blocks, blockStates)
+				_, err := series.Bootstrap(blocks, blockStates)
+				require.NoError(t, err)
 			}},
 	}
 
@@ -260,8 +261,6 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				return curr
 			}))
 			series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-			_, err := series.Bootstrap(nil, nil)
-			require.NoError(t, err)
 
 			rawWrites := []value{
 				{curr.Add(mins(1)), 2, xtime.Second, nil},
