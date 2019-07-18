@@ -1588,10 +1588,9 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	requireReaderValuesEqual(t, []value{}, [][]xio.BlockReader{reader}, opts, nsCtx)
 }
 
-// TestBufferBootstrap tests the Bootstrap method, ensuring that blocks are successfully loaded into
+// TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into
 // the buffer and treated as warm writes.
-// TODO(rartoul): Fix/rename test
-func TestBufferBootstrap(t *testing.T) {
+func TestBufferLoadWarmWrite(t *testing.T) {
 	var (
 		opts      = newBufferTestOptions()
 		buffer    = newDatabaseBuffer()
@@ -1620,9 +1619,9 @@ func TestBufferBootstrap(t *testing.T) {
 	require.Equal(t, 0, coldFlushBlockStarts.Len())
 }
 
-// TestBufferLoad tests the Load method, ensuring that blocks are successfully loaded into
+// TestBufferLoadColdWrite tests the Load method, ensuring that blocks are successfully loaded into
 // the buffer and treated as cold writes.
-func TestBufferLoad(t *testing.T) {
+func TestBufferLoadColdWrite(t *testing.T) {
 	var (
 		opts      = newBufferTestOptions()
 		buffer    = newDatabaseBuffer()
