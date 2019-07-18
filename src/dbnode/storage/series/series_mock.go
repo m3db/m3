@@ -192,15 +192,15 @@ func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // Load mocks base method
-func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks) {
+func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 map[time0.UnixNano]BlockState) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Load", arg0)
+	m.ctrl.Call(m, "Load", arg0, arg1)
 }
 
 // Load indicates an expected call of Load
-func (mr *MockDatabaseSeriesMockRecorder) Load(arg0 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Load(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDatabaseSeries)(nil).Load), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDatabaseSeries)(nil).Load), arg0, arg1)
 }
 
 // NumActiveBlocks mocks base method

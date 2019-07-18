@@ -107,7 +107,7 @@ type DatabaseSeries interface {
 
 	// Load does the same thing as Bootstrap except it should be used for data that did
 	// not originate from the Bootstrap process (like background repairs).
-	Load(blocks block.DatabaseSeriesBlocks)
+	Load(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(

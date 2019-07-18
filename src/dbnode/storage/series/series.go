@@ -428,7 +428,25 @@ func (s *dbSeries) Bootstrap(
 		return result, nil
 	}
 
-	// TODO(rartoul): Branch coverage here.
+	s.loadWithLock(bootstrappedBlocks, blockStates)
+	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
+
+	s.bs = bootstrapped
+	return result, nil
+}
+
+func (s *dbSeries) Load(
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates map[xtime.UnixNano]BlockState,
+) {
+	s.Lock()
+	s.loadWithLock(bootstrappedBlocks, blockStates)
+	s.Unlock()
+}
+
+func (s *dbSeries) loadWithLock(
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates map[xtime.UnixNano]BlockState) {
 	for _, block := range bootstrappedBlocks.AllBlocks() {
 		blStartNano := xtime.ToUnixNano(block.StartTime())
 		blState := blockStates[blStartNano]
@@ -450,28 +468,6 @@ func (s *dbSeries) Bootstrap(
 			// read out of the commitlog and would eventually be loaded into the buffer via this branch.
 			s.buffer.Load(block, ColdWrite)
 		}
-	}
-	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
-
-	s.bs = bootstrapped
-	return result, nil
-}
-
-func (s *dbSeries) Load(blocks block.DatabaseSeriesBlocks) {
-	s.Lock()
-	defer s.Unlock()
-	for _, block := range blocks.AllBlocks() {
-		// Load may be called for any block start (including blocks that may or may not have
-		// been flushed yet). As a result, they're treated as cold writes to ensure they get merged
-		// with any existing data if the block is for a blockStart that has already been flushed.
-		//
-		// NB(rartoul): Using this method for block starts that have never been flushed yet will result
-		// in unnecessary cold flushes since the sequence will proceed as:
-		//
-		//     1. Warm flush block start X
-		//     2. Cold flush block start X (since there are "cold write" blocks here that were not
-		//          flushed as part of the warm flush since they were not marked as "warm writes").
-		s.buffer.Load(block, ColdWrite)
 	}
 }
 
