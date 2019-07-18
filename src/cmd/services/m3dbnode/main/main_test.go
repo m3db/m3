@@ -448,7 +448,6 @@ func TestEmbeddedConfig(t *testing.T) {
 	// Wait for server to stop
 	interruptCh <- fmt.Errorf("test complete")
 	serverWg.Wait()
-	http.DefaultServeMux = new(http.ServeMux)
 }
 
 var (
