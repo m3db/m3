@@ -131,6 +131,9 @@ func TestRegisterSourceSameName(t *testing.T) {
 
 func TestHTTPEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
+
+	// Randomizing the path here so we avoid multiple tests
+	// registring the same endpoint.
 	path := fmt.Sprintf("/debug/%s", randStringBytes(10))
 
 	zw := NewZipWriter(instrument.NewOptions())
