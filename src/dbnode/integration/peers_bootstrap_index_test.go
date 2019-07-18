@@ -114,7 +114,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 			Start:     now,
 		},
 	})
-	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps,0))
+	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())

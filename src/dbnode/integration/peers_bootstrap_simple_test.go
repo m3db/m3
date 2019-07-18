@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
@@ -86,7 +86,7 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 		updateInputConfig(inputData)
 	}
 	seriesMaps := generate.BlocksByStart(inputData)
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps,0))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
