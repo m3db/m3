@@ -2,11 +2,19 @@
 
 M3DB is a time series database that was primarily designed to be horizontally scalable and able to handle high data throughput.
 
-## Time Series Compression (M3TSZ)
+## Time Series Compression
 
-One of M3DB's biggest strengths as a time series database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time series data resulting in huge memory and disk savings. This high compression ratio is implemented via the M3TSZ algorithm, a variant of the streaming time series compression algorithm described in [Facebook's Gorilla paper](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf).
+One of M3DB's biggest strengths as a time series database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time series data resulting in huge memory and disk savings. There are two compression algorithms used in M3DB: M3TSZ and protobuf encoding.
 
-The compression ratio will vary depending on the workload and configuration, but we found that with M3TSZ we were able to achieve a compression ratio of 1.45 bytes/datapoint with Uber's production workloads. This was a 40% improvement over standard TSZ, which only gave us a compression ratio of 2.42 bytes/datapoint under the same conditions.
+### M3TSZ
+
+M3TSZ is used when values are floats. A variant of the streaming time series compression algorithm described in [Facebook's Gorilla paper](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf), it achieves a high compression ratio. The compression ratio will vary depending on the workload and configuration, but we found that we were able to achieve a compression ratio of 1.45 bytes/datapoint with Uber's production workloads. This was a 40% improvement over standard TSZ, which only gave us a compression ratio of 2.42 bytes/datapoint under the same conditions.
+
+### Protobuf Encoding
+
+For more complex value types, M3DB also supports generic Protobuf messages with [a few exceptions](https://github.com/m3db/m3/blob/master/src/dbnode/encoding/proto/docs/encoding.md#supported-syntax). The algorithm takes on a hybrid approach and uses different compression schemes depending on the field types within the Protobuf message.
+
+Details on the encoding, marshaling and unmarshaling methods can be read [here](https://github.com/m3db/m3/tree/master/src/dbnode/encoding/proto).
 
 ## Architecture
 
@@ -37,7 +45,7 @@ M3DB is a persistent database with durable storage, but it is best understood vi
    │   │   │   │                                    │   │   │   │
    │   │   │   │                                    │   │   │   │
    │   │   │   │   ┌────────────────────────────┐   │   │   │   │
-   │   │   │   │   │           Blocks           │   │   │   │   │
+   │   │   │   │   │       Cached blocks        │   │   │   │   │
    │   │   │   │   └────────────────────────────┘   │   │   │   │
    │   │   │   │                ...                 │   │   │   │
    │   │   │   │                                    │   │   │   │
@@ -61,11 +69,11 @@ The in-memory portion of M3DB is implemented via a hierarchy of objects:
 
 3. A [`shard`](sharding.md) is effectively the same as a "virtual shard" in Cassandra in that it provides an arbitrary distribution of time series data via a simple hash of the series ID. A shard owns multiple `series`.
 
-4. A `series` represents a sequence of time series datapoints. For example, the CPU utilization for a host could be represented as a series with the ID "host1.system.cpu.utilization" and a vector of (TIMESTAMP, CPU_LEVEL) tuples. Visualizing this example in a graph, there would a single line with time on the x-axis and CPU utilization on the y-axis. A `series` owns a `buffer` and multiple `block`s.
+4. A `series` represents a sequence of time series datapoints. For example, the CPU utilization for a host could be represented as a series with the ID "host1.system.cpu.utilization" and a vector of (TIMESTAMP, CPU_LEVEL) tuples. Visualizing this example in a graph, there would a single line with time on the x-axis and CPU utilization on the y-axis. A `series` owns a `buffer` and any cached `block`s.
 
-5. The `buffer` is where all data that has yet to be written to disk gets stored in memory. This includes both new writes to M3DB and data obtained through bootstrapping. More details on the [buffer](engine.md#buffer) is explained below.
+5. The `buffer` is where all data that has yet to be written to disk gets stored in memory. This includes both new writes to M3DB and data obtained through bootstrapping. More details on the [buffer](engine.md#buffer) is explained below. Upon [flushing](engine.md#flushing), the buffer creates a `block` of its data to be persisted to disk.
 
-6. A `block` represents a stream of compressed time series data for a pre-configured block size, for example, a block could hold data for 6-8PM (block size of two hours). A `block` arrives in the series only as a result of getting cached after a read request. Since blocks are in a compressed format, individual datapoints cannot be read from it. In other words, in order to read a single datapoint, the entire block up to that datapoint needs to be decompressed beforehand.
+6. A `block` represents a stream of compressed time series data for a pre-configured block size, for example, a block could hold data for 6-8PM (block size of two hours). A `block` can arrive directly into the series only as a result of getting cached after a read request. Since blocks are in a compressed format, individual datapoints cannot be read from it. In other words, in order to read a single datapoint, the entire block up to that datapoint needs to be decompressed beforehand.
 
 ### Persistent storage
 
@@ -73,9 +81,9 @@ While in-memory databases can be useful (and M3DB supports operating in a memory
 
 In addition, with large volumes of data, it becomes prohibitively expensive to keep all of the data in memory. This is especially true for monitoring workloads which often follow a "write-once, read-never" pattern where less than a few percent of all the data that's stored is ever read. With that type of workload, it's wasteful to keep all of that data in memory when it could be persisted on disk and retrieved when required.
 
-M3DB takes a two-pronged approach to persistant storage that involves combining a commit log for disaster recovery with periodic flushing (writing [fileset files](storage.md) to disk) for efficient retrieval:
+M3DB takes a two-pronged approach to persistant storage that involves combining a [commit log](commitlogs.md) for disaster recovery with periodic flushing (writing [fileset files](storage.md) to disk) for efficient retrieval:
 
-1. All writes are persisted to a [commit log](commitlogs.md) (the commit log can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commit log is completely uncompressed and exists only to recover unflushed data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
+1. All writes are persisted to a commit log (the commit log can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commit log is completely uncompressed and exists only to recover unflushed data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
 2. Periodically (based on the configured block size), all data in the buffer is flushed to disk as immutable [fileset files](storage.md). These files are highly compressed and can be indexed into via their complementary index files. Check out the [flushing section](engine.md#flushing) to learn more about the background flushing process.
 
 The block size parameter is the most important variable that needs to be tuned for a particular workload. A small block size will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and data will take up more space on disk.
@@ -93,11 +101,9 @@ We now have enough context of M3DB's architecture to discuss the lifecycle of a 
 3. The timestamp
 4. The value itself
 
-M3DB will consult the database object to check if the namespace exists, and if it does, then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then an encoder in the buffer will encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some additional logic for handling multiple encoders which is discussed in the [merging all encoders](engine.md#merging-all-encoders) section.
+M3DB will consult the database object to check if the namespace exists, and if it does, then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then an encoder in the buffer will encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some additional logic for handling multiple encoders and filesets which is discussed in the [buffer](engine.md#buffer) section.
 
-At the same time, the write will be appended to the commit log queue (and depending on the commit log configuration, immediately fsync'd to disk or batched together with other writes and flushed out all at once).
-
-The write will exist only in this buffer and the commit log until the block ends and is flushed to disk, at which point the write will exist in a fileset file for efficient storage and retrieval later and the commit log entry can be removed.
+At the same time, the write will be appended to the commit log, which is periodically compacted via a snapshot process. Details of this is outlined in the [commit log](commitlogs.md) page.
 
 **Note:** Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured [consistency level](consistencylevels.md).
 
@@ -114,7 +120,7 @@ M3DB will consult the database object to check if the namespace exists, and if i
 1. Whether the series exists and if it does,
 2. Whether the data exists in the buffer, cached in-memory, on disk, or some combination of all three.
 
-Determining whether the series exists is simple. M3DB looks up the series in the shard object. If it exists, then the series exists. If it doesn't, then M3DB consults an in-memory bloom filter(s) for that shard / block start combination(s) to determine if the series exists on disk.
+Determining whether the series exists is simple. M3DB looks up the series in the shard object. If it exists, then the series exists. If it doesn't, then M3DB consults in-memory bloom filters(s) for all shard/block start combinations(s) that overlap the query range to determine if the series exists on disk.
 
 If the series exists, then for every block that the request spans, M3DB needs to consolidate data from the buffer, in-memory cache, and fileset files (disk).
 
@@ -123,15 +129,16 @@ Let's imagine a read for a given series that requests the last 6 hours worth of 
 If the current time is 8PM, then the location of the requested blocks might be as follows:
 
 ```
-[2PM - 4PM (FileSet file)]    - Flushed block that isn't cached
-[4PM - 6PM (In-memory cache)] - Flushed block that is cached
-[6PM - 8PM (active buffer)]   - Hasn't been flushed yet
+[2PM - 4PM (fileset file)]                - Flushed block that isn't cached
+[4PM - 6PM (in-memory cache)]             - Flushed block that is cached
+[4PM - 6PM (cold write in active buffer)] - Cold write that hasn't been flushed yet
+[6PM - 8PM (active buffer)]               - Hasn't been flushed yet
 ```
 
 Then M3DB will need to consolidate:
 
 1. The not-yet-sealed block from the buffer (located inside an internal lookup in the Series object) **[6PM - 8PM]**
-2. The in-memory cached block (also located inside an internal lookup in the Series object) **[4PM - 6PM]**
+2. The in-memory cached block (also located inside an internal lookup in the Series object). Since there are also cold writes in this block, the cold writes will be consolidated in memory with data found in the cached block before returning. **[4PM - 6PM]**
 3. The block from disk (the block will be retrieved from disk and will then be cached according to the current [caching policy](caching.md)) **[2PM - 4PM]**
 
 Retrieving blocks from the buffer and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieving a block from disk is as follows:
@@ -147,9 +154,11 @@ Once M3DB has retrieved the three blocks from their respective locations in memo
 
 ## Buffer
 
-Each series object contains a buffer, which is in charge of handling all data that has yet to be flushed - new writes and bootstrapped data. To accomplish this, it keeps "buckets" of encoders (for new writes) and blocks (for bootstrapped data). M3TSZ, the database's encoding scheme, is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For metrics workloads this works very well because every subsequent datapoint is almost always after the previous one. However, out of order writes will occasionally be received, for example due to clock skew. When this happens, M3DB will allocate a new encoder for the out of order datapoints. These encoders are contained in a bucket along with any blocks that got bootstrapped.
+Each series object contains a buffer, which is in charge of handling all data that has yet to be flushed - new writes and bootstrapped data. To accomplish this, it keeps mutable "buckets" of encoders (for new writes) and immutable blocks (for bootstrapped data). M3TSZ, the database's encoding scheme, is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For metrics workloads this works very well because every subsequent datapoint is almost always after the previous one. However, out of order writes will occasionally be received, for example due to clock skew. When this happens, M3DB will allocate a new encoder for the out of order datapoints. These encoders are contained in a bucket along with any blocks that got bootstrapped.
 
 Upon a flush (discussed further below), all data within a bucket gets merged and its version gets incremented - the specific version it gets set to depends on the number of times this block has previously been flushed. This bucket versioning allows the buffer to know which data has been flushed so that subsequent flushes will not try to flush it again. It also indicates to the clean up process (also discussed below) that that data can be evicted.
+
+Given this complex, concurrent logic, this has been [modeled in TLA](https://github.com/m3db/m3/blob/master/specs/dbnode/flush/FlushVersion.tla).
 
 ```
            ┌─────────────────────────┐
@@ -235,7 +244,7 @@ Depending on the configured [caching policy](caching.md), the [in-memory object 
 Fileset files can become no longer necessary for two reasons:
 
 1. The fileset files for a block that has fallen out of retention
-2. A flush occurred for a block that already has a fileset file. The new fileset will be a merge of the existing fileset with any new data that for that block, hence, the existing fileset is no longer required
+2. A flush occurred for a block that already has a fileset file. The new fileset will be a superset of the existing fileset with any new data that for that block, hence, the existing fileset is no longer required
 
 During the clean up process, these fileset files will get deleted.
 
@@ -244,3 +253,4 @@ During the clean up process, these fileset files will get deleted.
 1. Currently M3DB does not support deletes.
 2. M3DB does not support storing data with an indefinite retention period, every namespace in M3DB is required to have a retention policy which specifies how long data in that namespace will be retained for. While there is no upper bound on that value, it's still required and generally speaking M3DB is optimized for workloads with a well-defined [TTL](https://en.wikipedia.org/wiki/Time_to_live).
 3. M3DB does not support either background data repair or Cassandra-style [read repairs](https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/opsRepairNodesReadRepair.html). Future versions of M3DB will support automatic repairs of data as an ongoing background process.
+4. M3DB does not support writing far into the future. Support for this will be added in future.
