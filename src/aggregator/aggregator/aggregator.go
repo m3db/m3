@@ -58,6 +58,7 @@ var (
 	errInvalidMetricType             = errors.New("invalid metric type")
 	errActivePlacementChanged        = errors.New("active placement has changed")
 	errShardNotOwned                 = errors.New("aggregator shard is not owned")
+	errPassThroughWriterNotDefined   = errors.New("pass-through writer is not defined")
 )
 
 // Aggregator aggregates different types of metrics.
@@ -251,6 +252,11 @@ func (agg *aggregator) AddPassThrough(
 	}
 	agg.RUnlock()
 
+	if agg.passThroughWriter == nil {
+		agg.metrics.addPassThrough.ReportError(errPassThroughWriterNotDefined)
+		return errPassThroughWriterNotDefined
+	}
+
 	mp := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: id.ChunkedID{
@@ -300,7 +306,9 @@ func (agg *aggregator) Close() error {
 		agg.closeShardSetWithLock()
 	}
 	agg.flushHandler.Close()
-	agg.passThroughWriter.Close()
+	if agg.passThroughWriter != nil {
+		agg.passThroughWriter.Close()
+	}
 	if agg.adminClient != nil {
 		agg.adminClient.Close()
 	}
