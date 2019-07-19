@@ -21,6 +21,7 @@
 package promql
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/query/functions"
@@ -458,4 +459,17 @@ func TestFailedTemporalParse(t *testing.T) {
 	q := "unknown_over_time(http_requests_total[5m])"
 	_, err := Parse(q, models.NewTagOptions())
 	require.Error(t, err)
+}
+
+func TestSubquery(t *testing.T) {
+	q := "max_over_time(deriv(rate(distance_covered_total[5s])[30s:5s])[10m:])"
+	// q = "rate(http_requests_total[5m])[30m:1m]"
+	q = `holt_winters(rate(scrape_duration_seconds{job="prometheus"}[5m])[30m:1m],0.4,0.6)`
+	q = `deriv(rate(scrape_duration_seconds{job="prometheus"}[15m])[120m:10m])`
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+
+	fmt.Println(transforms, edges)
 }

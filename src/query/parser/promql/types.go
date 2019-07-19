@@ -43,6 +43,7 @@ import (
 // NewSelectorFromVector creates a new fetchop.
 func NewSelectorFromVector(
 	n *promql.VectorSelector,
+	opts models.FetchOverrideOptions,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
 	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
@@ -50,16 +51,26 @@ func NewSelectorFromVector(
 		return nil, err
 	}
 
+	var (
+		offset = n.Offset
+	)
+
+	if opts.ShouldOverride {
+		offset = opts.Offset
+	}
+
 	return functions.FetchOp{
-		Name:     n.Name,
-		Offset:   n.Offset,
-		Matchers: matchers,
+		Name:            n.Name,
+		Offset:          offset,
+		Matchers:        matchers,
+		OverrideOptions: opts,
 	}, nil
 }
 
 // NewSelectorFromMatrix creates a new fetchop.
 func NewSelectorFromMatrix(
 	n *promql.MatrixSelector,
+	opts models.FetchOverrideOptions,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
 	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
@@ -67,11 +78,22 @@ func NewSelectorFromMatrix(
 		return nil, err
 	}
 
+	var (
+		offset     = n.Offset
+		fetchRange = n.Range
+	)
+
+	if opts.ShouldOverride {
+		offset = opts.Offset
+		fetchRange = opts.FetchRange
+	}
+
 	return functions.FetchOp{
-		Name:     n.Name,
-		Offset:   n.Offset,
-		Matchers: matchers,
-		Range:    n.Range,
+		Name:            n.Name,
+		Offset:          offset,
+		Matchers:        matchers,
+		Range:           fetchRange,
+		OverrideOptions: opts,
 	}, nil
 }
 

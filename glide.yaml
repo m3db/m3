@@ -162,7 +162,7 @@ import:
 
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
-    version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+    version: e5b22494857deca4b806f74f6e3a6ee30c251763
 
   # To avoid prometheus/prometheus dependencies from breaking,
   # pin the transitive dependencies

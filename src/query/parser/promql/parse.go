@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/query/functions/reconsolidated"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
@@ -54,7 +56,7 @@ func Parse(q string, tagOpts models.TagOptions) (parser.Parser, error) {
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
 	state := &parseState{tagOpts: p.tagOpts}
-	err := state.walk(p.expr)
+	err := state.walk(p.expr, models.FetchOverrideOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,14 +150,18 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	return nil
 }
 
-func (p *parseState) walk(node pql.Node) error {
+func (p *parseState) walk(
+	node pql.Node,
+	opts models.FetchOverrideOptions,
+) error {
 	if node == nil {
 		return nil
 	}
 
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
-		err := p.walk(n.Expr)
+		fmt.Println("Aggregate")
+		err := p.walk(n.Expr, opts)
 		if err != nil {
 			return err
 		}
@@ -175,7 +181,8 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.MatrixSelector:
-		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
+		fmt.Println("Matrix")
+		operation, err := NewSelectorFromMatrix(n, opts, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -187,7 +194,8 @@ func (p *parseState) walk(node pql.Node) error {
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
-		operation, err := NewSelectorFromVector(n, p.tagOpts)
+		fmt.Println("Vector")
+		operation, err := NewSelectorFromVector(n, opts, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -200,6 +208,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.Call:
+		fmt.Println("Call")
 		if n.Func.Name == scalar.VectorType {
 			if len(n.Args) != 1 {
 				return fmt.Errorf(
@@ -229,11 +238,29 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		expressions := n.Args
+		fmt.Println("Function type preprocessing", n.Func.Name)
 		argTypes := n.Func.ArgTypes
 		argValues := make([]interface{}, 0, len(expressions))
 		stringValues := make([]string, 0, len(expressions))
 		for i, argType := range argTypes {
 			expr := expressions[i]
+			if expr.Type() == "matrix" {
+				fmt.Println(i, " -- expressions", expr.String(), "t", expr.Type(),
+					"arg type", argType)
+
+				s, ok := expr.(*pql.SubqueryExpr)
+				if !ok {
+					s, ok := expr.(*pql.MatrixSelector)
+					if !ok {
+						return fmt.Errorf("wrong type")
+					}
+					fmt.Printf("Matrix: %+v\n", s)
+				} else {
+					fmt.Printf("\n%s SQ: %+v", n.Func.Name, s)
+					argValues = append(argValues, s.Range)
+				}
+			}
+
 			if argType == pql.ValueTypeScalar {
 				val, err := resolveScalarArgument(expr)
 				if err != nil {
@@ -248,7 +275,7 @@ func (p *parseState) walk(node pql.Node) error {
 					argValues = append(argValues, e.Range)
 				}
 
-				if err := p.walk(expr); err != nil {
+				if err := p.walk(expr, opts); err != nil {
 					return err
 				}
 			}
@@ -263,6 +290,7 @@ func (p *parseState) walk(node pql.Node) error {
 			}
 		}
 
+		fmt.Println("Function type postprocessing", n.Func.Name, argValues, stringValues)
 		op, ok, err := NewFunctionExpr(n.Func.Name, argValues,
 			stringValues, p.tagOpts)
 		if err != nil {
@@ -284,13 +312,14 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.BinaryExpr:
-		err := p.walk(n.LHS)
+		fmt.Println("Binary")
+		err := p.walk(n.LHS, opts)
 		if err != nil {
 			return err
 		}
 
 		lhsID := p.lastTransformID()
-		err = p.walk(n.RHS)
+		err = p.walk(n.RHS, opts)
 		if err != nil {
 			return err
 		}
@@ -314,6 +343,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.NumberLiteral:
+		fmt.Println("Number")
 		op, err := newScalarOperator(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -324,11 +354,13 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.ParenExpr:
+		fmt.Println("Paren")
 		// Evaluate inside of paren expressions
-		return p.walk(n.Expr)
+		return p.walk(n.Expr, opts)
 
 	case *pql.UnaryExpr:
-		err := p.walk(n.Expr)
+		fmt.Println("Unary")
+		err := p.walk(n.Expr, opts)
 		if err != nil {
 			return err
 		}
@@ -340,7 +372,43 @@ func (p *parseState) walk(node pql.Node) error {
 
 		return p.addLazyUnaryTransform(unaryOp)
 
+	case *pql.SubqueryExpr:
+		fmt.Println("Subquery", n.Range, n.Offset, n.Step)
+		// fmt.Printf("%+v\n", n)
+		// fmt.Println(" Range:", n.Range)
+		// fmt.Println(" Offset:", n.Offset)
+		// fmt.Println(" Step:", n.Step)
+		// expr := n.Expr
+		// fmt.Printf(" Expr: %s, %s", expr.String(), expr.Type())
+
+		op, err := reconsolidated.NewReconsolidatedOp()
+		if err != nil {
+			return err
+		}
+
+		opts.FetchRange = n.Range
+		opts.Step = n.Step
+		opts.Offset = opts.Offset + n.Offset
+		opts.StartOffset = opts.StartOffset + n.Range
+		opts.ShouldOverride = true
+
+		err = p.walk(n.Expr, opts)
+		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+		p.edges = append(p.edges, parser.Edge{
+			ParentID: p.lastTransformID(),
+			ChildID:  opTransform.ID,
+		})
+		p.transforms = append(p.transforms, opTransform)
+
+		return err
+
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
 	}
+}
+
+type fetchOverrideOptions struct {
+	timeRange time.Duration
+	offset    time.Duration
+	step      time.Duration
 }

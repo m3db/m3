@@ -22,6 +22,7 @@ package models
 
 import (
 	"regexp"
+	"time"
 )
 
 // Separators for tags.
@@ -97,6 +98,14 @@ type TagOptions interface {
 	SetIDSchemeType(scheme IDSchemeType) TagOptions
 	// IDSchemeType gets the ID generation scheme type.
 	IDSchemeType() IDSchemeType
+}
+
+type FetchOverrideOptions struct {
+	ShouldOverride bool
+	FetchRange     time.Duration
+	Offset         time.Duration
+	Step           time.Duration
+	StartOffset    time.Duration
 }
 
 // Tags represents a set of tags with options.
