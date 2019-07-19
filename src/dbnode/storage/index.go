@@ -28,12 +28,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
@@ -146,6 +148,10 @@ type nsIndexState struct {
 	// chronological order. This is used at query time to enforce determinism about results
 	// returned.
 	blockStartsDescOrder []xtime.UnixNano
+
+	// shardsFilterID is set every time the shards change to correctly
+	// only return IDs that this node owns.
+	shardsFilterID func(ident.ID) bool
 }
 
 // NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
@@ -175,6 +181,7 @@ type indexFilesetsBeforeFn func(dir string,
 
 type newNamespaceIndexOpts struct {
 	md              namespace.Metadata
+	shardSet        sharding.ShardSet
 	opts            Options
 	newIndexQueueFn newNamespaceIndexInsertQueueFn
 	newBlockFn      newBlockFn
@@ -202,10 +209,12 @@ type asyncQueryExecState struct {
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
 func newNamespaceIndex(
 	nsMD namespace.Metadata,
+	shardSet sharding.ShardSet,
 	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
+		shardSet:        shardSet,
 		opts:            opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      index.NewBlock,
@@ -215,11 +224,13 @@ func newNamespaceIndex(
 // newNamespaceIndexWithInsertQueueFn is a ctor used in tests to override the insert queue.
 func newNamespaceIndexWithInsertQueueFn(
 	nsMD namespace.Metadata,
+	shardSet sharding.ShardSet,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
+		shardSet:        shardSet,
 		opts:            opts,
 		newIndexQueueFn: newIndexQueueFn,
 		newBlockFn:      index.NewBlock,
@@ -229,11 +240,13 @@ func newNamespaceIndexWithInsertQueueFn(
 // newNamespaceIndexWithNewBlockFn is a ctor used in tests to inject blocks.
 func newNamespaceIndexWithNewBlockFn(
 	nsMD namespace.Metadata,
+	shardSet sharding.ShardSet,
 	newBlockFn newBlockFn,
 	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
+		shardSet:        shardSet,
 		opts:            opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      newBlockFn,
@@ -246,6 +259,7 @@ func newNamespaceIndexWithOptions(
 ) (namespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
+		shardSet        = newIndexOpts.shardSet
 		indexOpts       = newIndexOpts.opts.IndexOptions()
 		instrumentOpts  = newIndexOpts.opts.InstrumentOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
@@ -297,6 +311,9 @@ func newNamespaceIndexWithOptions(
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
+
+	// Assign shard set upfront.
+	idx.AssignShardSet(shardSet)
 
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
@@ -928,6 +945,29 @@ func (i *nsIndex) flushBlockSegment(
 	return preparedPersist.Persist(builder)
 }
 
+func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
+	// NB(r): Allocate the filter function once, it can be used outside
+	// of locks as it depends on no internal state.
+	set := bitset.NewBitSet(uint(shardSet.Max()))
+	for _, shardID := range shardSet.AllIDs() {
+		set.Set(uint(shardID))
+	}
+
+	i.state.Lock()
+	i.state.shardsFilterID = func(id ident.ID) bool {
+		// NB(r): Use a bitset for fast lookups.
+		return set.Test(uint(shardSet.Lookup(id)))
+	}
+	i.state.Unlock()
+}
+
+func (i *nsIndex) shardsFilterID() func(id ident.ID) bool {
+	i.state.RLock()
+	v := i.state.shardsFilterID
+	i.state.RUnlock()
+	return v
+}
+
 func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
@@ -949,6 +989,7 @@ func (i *nsIndex) Query(
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
 		SizeLimit: opts.Limit,
+		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)

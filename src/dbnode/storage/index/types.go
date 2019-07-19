@@ -155,6 +155,9 @@ type QueryResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
+
+	// FilterID if not nil will filter the ID if specified.
+	FilterID func(id ident.ID) bool
 }
 
 // QueryResultsAllocator allocates QueryResults types.
