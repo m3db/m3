@@ -116,12 +116,12 @@ func TestInvalidUnary(t *testing.T) {
 }
 
 func TestGetUnaryOpType(t *testing.T) {
-	promOpType := promql.ItemType(itemADD)
+	promOpType := promql.ItemADD
 	unaryOpType, err := getUnaryOpType(promOpType)
 	require.NoError(t, err)
 	assert.Equal(t, binary.PlusType, unaryOpType)
 
-	promOpType = promql.ItemType(itemEQL)
+	promOpType = promql.ItemEQL
 	_, err = getUnaryOpType(promOpType)
 	require.Error(t, err)
 }

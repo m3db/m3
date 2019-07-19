@@ -135,28 +135,28 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 
 func getAggOpType(opType promql.ItemType) string {
 	switch opType {
-	case promql.ItemType(itemSum):
+	case promql.ItemSum:
 		return aggregation.SumType
-	case promql.ItemType(itemMin):
+	case promql.ItemMin:
 		return aggregation.MinType
-	case promql.ItemType(itemMax):
+	case promql.ItemMax:
 		return aggregation.MaxType
-	case promql.ItemType(itemAvg):
+	case promql.ItemAvg:
 		return aggregation.AverageType
-	case promql.ItemType(itemStddev):
+	case promql.ItemStddev:
 		return aggregation.StandardDeviationType
-	case promql.ItemType(itemStdvar):
+	case promql.ItemStdvar:
 		return aggregation.StandardVarianceType
-	case promql.ItemType(itemCount):
+	case promql.ItemCount:
 		return aggregation.CountType
 
-	case promql.ItemType(itemTopK):
+	case promql.ItemTopK:
 		return aggregation.TopKType
-	case promql.ItemType(itemBottomK):
+	case promql.ItemBottomK:
 		return aggregation.BottomKType
-	case promql.ItemType(itemQuantile):
+	case promql.ItemQuantile:
 		return aggregation.QuantileType
-	case promql.ItemType(itemCountValues):
+	case promql.ItemCountValues:
 		return aggregation.CountValuesType
 	default:
 		return common.UnknownOpType
@@ -290,37 +290,37 @@ func NewFunctionExpr(
 
 func getBinaryOpType(opType promql.ItemType) string {
 	switch opType {
-	case promql.ItemType(itemLAND):
+	case promql.ItemLAND:
 		return binary.AndType
-	case promql.ItemType(itemLOR):
+	case promql.ItemLOR:
 		return binary.OrType
-	case promql.ItemType(itemLUnless):
+	case promql.ItemLUnless:
 		return binary.UnlessType
 
-	case promql.ItemType(itemADD):
+	case promql.ItemADD:
 		return binary.PlusType
-	case promql.ItemType(itemSUB):
+	case promql.ItemSUB:
 		return binary.MinusType
-	case promql.ItemType(itemMUL):
+	case promql.ItemMUL:
 		return binary.MultiplyType
-	case promql.ItemType(itemDIV):
+	case promql.ItemDIV:
 		return binary.DivType
-	case promql.ItemType(itemPOW):
+	case promql.ItemPOW:
 		return binary.ExpType
-	case promql.ItemType(itemMOD):
+	case promql.ItemMOD:
 		return binary.ModType
 
-	case promql.ItemType(itemEQL):
+	case promql.ItemEQL:
 		return binary.EqType
-	case promql.ItemType(itemNEQ):
+	case promql.ItemNEQ:
 		return binary.NotEqType
-	case promql.ItemType(itemGTR):
+	case promql.ItemGTR:
 		return binary.GreaterType
-	case promql.ItemType(itemLSS):
+	case promql.ItemLSS:
 		return binary.LesserType
-	case promql.ItemType(itemGTE):
+	case promql.ItemGTE:
 		return binary.GreaterEqType
-	case promql.ItemType(itemLTE):
+	case promql.ItemLTE:
 		return binary.LesserEqType
 
 	default:
@@ -331,9 +331,9 @@ func getBinaryOpType(opType promql.ItemType) string {
 // getUnaryOpType returns the M3 unary op type based on the Prom op type.
 func getUnaryOpType(opType promql.ItemType) (string, error) {
 	switch opType {
-	case promql.ItemType(itemADD):
+	case promql.ItemADD:
 		return binary.PlusType, nil
-	case promql.ItemType(itemSUB):
+	case promql.ItemSUB:
 		return binary.MinusType, nil
 	default:
 		return "", fmt.Errorf(

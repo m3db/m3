@@ -24,11 +24,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/query/functions/reconsolidated"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
+	"github.com/m3db/m3/src/query/functions/reconsolidated"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
