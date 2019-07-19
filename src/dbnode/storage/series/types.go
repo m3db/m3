@@ -333,6 +333,7 @@ type Options interface {
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
 	encoderCreated tally.Counter
+	coldWrites     tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
@@ -340,12 +341,18 @@ func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
 	return Stats{
 		encoderCreated: subScope.Counter("encoder-created"),
+		coldWrites:     subScope.Counter("coldwrites"),
 	}
 }
 
 // IncCreatedEncoders incs the EncoderCreated stat.
 func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
+}
+
+// IncColdWrites incs the ColdWrites stat.
+func (s Stats) IncColdWrites() {
+	s.coldWrites.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.
