@@ -94,7 +94,8 @@ func (b Bounds) Blocks(t time.Time) int {
 
 // String representation of the bounds
 func (b Bounds) String() string {
-	return fmt.Sprintf("start: %v, duration: %v, stepSize: %v, steps: %d", b.Start, b.Duration, b.StepSize, b.Steps())
+	return fmt.Sprintf("start: %v, duration: %v, stepSize: %v, steps: %d",
+		b.Start.Format("3:04:05PM"), b.Duration, b.StepSize, b.Steps())
 }
 
 // Nearest returns the nearest bound before the given time

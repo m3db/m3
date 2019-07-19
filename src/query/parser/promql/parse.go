@@ -160,7 +160,6 @@ func (p *parseState) walk(
 
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
-		fmt.Println("Aggregate")
 		err := p.walk(n.Expr, opts)
 		if err != nil {
 			return err
@@ -181,7 +180,6 @@ func (p *parseState) walk(
 		return nil
 
 	case *pql.MatrixSelector:
-		fmt.Println("Matrix")
 		operation, err := NewSelectorFromMatrix(n, opts, p.tagOpts)
 		if err != nil {
 			return err
@@ -194,7 +192,6 @@ func (p *parseState) walk(
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
-		fmt.Println("Vector")
 		operation, err := NewSelectorFromVector(n, opts, p.tagOpts)
 		if err != nil {
 			return err
@@ -208,7 +205,6 @@ func (p *parseState) walk(
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.Call:
-		fmt.Println("Call")
 		if n.Func.Name == scalar.VectorType {
 			if len(n.Args) != 1 {
 				return fmt.Errorf(
@@ -238,27 +234,14 @@ func (p *parseState) walk(
 		}
 
 		expressions := n.Args
-		fmt.Println("Function type preprocessing", n.Func.Name)
 		argTypes := n.Func.ArgTypes
 		argValues := make([]interface{}, 0, len(expressions))
 		stringValues := make([]string, 0, len(expressions))
 		for i, argType := range argTypes {
 			expr := expressions[i]
-			if expr.Type() == "matrix" {
-				fmt.Println(i, " -- expressions", expr.String(), "t", expr.Type(),
-					"arg type", argType)
-
-				s, ok := expr.(*pql.SubqueryExpr)
-				if !ok {
-					s, ok := expr.(*pql.MatrixSelector)
-					if !ok {
-						return fmt.Errorf("wrong type")
-					}
-					fmt.Printf("Matrix: %+v\n", s)
-				} else {
-					fmt.Printf("\n%s SQ: %+v", n.Func.Name, s)
-					argValues = append(argValues, s.Range)
-				}
+			s, ok := expr.(*pql.SubqueryExpr)
+			if ok {
+				argValues = append(argValues, s.Range)
 			}
 
 			if argType == pql.ValueTypeScalar {
@@ -290,7 +273,6 @@ func (p *parseState) walk(
 			}
 		}
 
-		fmt.Println("Function type postprocessing", n.Func.Name, argValues, stringValues)
 		op, ok, err := NewFunctionExpr(n.Func.Name, argValues,
 			stringValues, p.tagOpts)
 		if err != nil {
@@ -312,7 +294,6 @@ func (p *parseState) walk(
 		return nil
 
 	case *pql.BinaryExpr:
-		fmt.Println("Binary")
 		err := p.walk(n.LHS, opts)
 		if err != nil {
 			return err
@@ -343,7 +324,6 @@ func (p *parseState) walk(
 		return nil
 
 	case *pql.NumberLiteral:
-		fmt.Println("Number")
 		op, err := newScalarOperator(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -354,12 +334,10 @@ func (p *parseState) walk(
 		return nil
 
 	case *pql.ParenExpr:
-		fmt.Println("Paren")
 		// Evaluate inside of paren expressions
 		return p.walk(n.Expr, opts)
 
 	case *pql.UnaryExpr:
-		fmt.Println("Unary")
 		err := p.walk(n.Expr, opts)
 		if err != nil {
 			return err
@@ -373,14 +351,6 @@ func (p *parseState) walk(
 		return p.addLazyUnaryTransform(unaryOp)
 
 	case *pql.SubqueryExpr:
-		fmt.Println("Subquery", n.Range, n.Offset, n.Step)
-		// fmt.Printf("%+v\n", n)
-		// fmt.Println(" Range:", n.Range)
-		// fmt.Println(" Offset:", n.Offset)
-		// fmt.Println(" Step:", n.Step)
-		// expr := n.Expr
-		// fmt.Printf(" Expr: %s, %s", expr.String(), expr.Type())
-
 		op, err := reconsolidated.NewReconsolidatedOp()
 		if err != nil {
 			return err
