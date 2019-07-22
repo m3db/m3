@@ -431,7 +431,6 @@ func (s *dbSeries) Bootstrap(
 	s.loadWithLock(bootstrappedBlocks, blockStates)
 	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
 
-	s.bs = bootstrapped
 	return result, nil
 }
 
@@ -446,7 +445,8 @@ func (s *dbSeries) Load(
 
 func (s *dbSeries) loadWithLock(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates map[xtime.UnixNano]BlockState) {
+	blockStates map[xtime.UnixNano]BlockState,
+) {
 	for _, block := range bootstrappedBlocks.AllBlocks() {
 		blStartNano := xtime.ToUnixNano(block.StartTime())
 		blState := blockStates[blStartNano]
