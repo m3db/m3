@@ -365,11 +365,12 @@ func (m *MockQueryableBlockRetriever) EXPECT() *MockQueryableBlockRetrieverMockR
 }
 
 // BlockStatesSnapshot mocks base method
-func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() map[time0.UnixNano]BlockState {
+func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() (map[time0.UnixNano]BlockState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStatesSnapshot")
 	ret0, _ := ret[0].(map[time0.UnixNano]BlockState)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // BlockStatesSnapshot indicates an expected call of BlockStatesSnapshot

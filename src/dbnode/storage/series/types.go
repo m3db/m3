@@ -173,7 +173,7 @@ type QueryableBlockRetriever interface {
 	// Flushes may occur and change the actual block state while iterating
 	// through this snapshot, so any logic using this function should take this
 	// into account.
-	BlockStatesSnapshot() map[xtime.UnixNano]BlockState
+	BlockStatesSnapshot() (map[xtime.UnixNano]BlockState, error)
 }
 
 // BlockState contains the state of a block.
