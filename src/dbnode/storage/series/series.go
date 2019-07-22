@@ -409,7 +409,10 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	s.cachedBlocks.AddBlock(b)
 }
 
-func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
+func (s *dbSeries) Bootstrap(
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates map[xtime.UnixNano]BlockState,
+) (BootstrapResult, error) {
 	s.Lock()
 	defer func() {
 		s.bs = bootstrapped
@@ -425,13 +428,47 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (Boo
 		return result, nil
 	}
 
-	for _, block := range bootstrappedBlocks.AllBlocks() {
-		s.buffer.Bootstrap(block)
-		result.NumBlocksMovedToBuffer++
-	}
+	s.loadWithLock(bootstrappedBlocks, blockStates)
+	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
 
-	s.bs = bootstrapped
 	return result, nil
+}
+
+func (s *dbSeries) Load(
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates map[xtime.UnixNano]BlockState,
+) {
+	s.Lock()
+	s.loadWithLock(bootstrappedBlocks, blockStates)
+	s.Unlock()
+}
+
+func (s *dbSeries) loadWithLock(
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates map[xtime.UnixNano]BlockState,
+) {
+	for _, block := range bootstrappedBlocks.AllBlocks() {
+		blStartNano := xtime.ToUnixNano(block.StartTime())
+		blState := blockStates[blStartNano]
+		if !blState.WarmRetrievable {
+			// If the block being bootstrapped has never been warm flushed before then the block
+			// can be loaded into the buffer as a WarmWrite because a subsequent warm flush will
+			// ensure that it gets persisted to disk.
+			//
+			// If the ColdWrites feature is disabled then this branch should always be followed.
+			s.buffer.Load(block, WarmWrite)
+		} else {
+			// If the block being bootstrapped has been warm flushed before then the block should
+			// be loaded into the buffer as a ColdWrite so that a subsequent cold flush will ensure
+			// that it gets persisted to disk.
+			//
+			// This branch can be executed in the situation that a cold write was received for a block
+			// that had already been flushed to disk. Before the cold write could be persisted to disk
+			// via a cold flush, the node crashed and began bootsrapping itself. The cold write would be
+			// read out of the commitlog and would eventually be loaded into the buffer via this branch.
+			s.buffer.Load(block, ColdWrite)
+		}
+	}
 }
 
 func (s *dbSeries) OnRetrieveBlock(

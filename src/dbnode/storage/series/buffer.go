@@ -135,7 +135,7 @@ type databaseBuffer interface {
 
 	Tick(versions map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult
 
-	Bootstrap(bl block.DatabaseBlock)
+	Load(bl block.DatabaseBlock, writeType WriteType)
 
 	Reset(id ident.ID, opts Options)
 }
@@ -426,10 +426,13 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespa
 	}
 }
 
-func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
-	blockStart := bl.StartTime()
-	buckets := b.bucketVersionsAtCreate(blockStart)
-	buckets.bootstrap(bl)
+func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
+	var (
+		blockStart = bl.StartTime()
+		buckets    = b.bucketVersionsAtCreate(blockStart)
+		bucket     = buckets.writableBucketCreate(writeType)
+	)
+	bucket.loadedBlocks = append(bucket.loadedBlocks, bl)
 }
 
 func (b *dbBuffer) Snapshot(
@@ -957,11 +960,6 @@ func (b *BufferBucketVersions) lastRead() time.Time {
 	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
-func (b *BufferBucketVersions) bootstrap(bl block.DatabaseBlock) {
-	bucket := b.writableBucketCreate(BootstrapWriteType)
-	bucket.bootstrapped = append(bucket.bootstrapped, bl)
-}
-
 func (b *BufferBucketVersions) writableBucket(writeType WriteType) (*BufferBucket, bool) {
 	for _, bucket := range b.buckets {
 		if bucket.version == writableBucketVersion && bucket.writeType == writeType {
@@ -1020,7 +1018,7 @@ type BufferBucket struct {
 	opts         Options
 	start        time.Time
 	encoders     []inOrderEncoder
-	bootstrapped []block.DatabaseBlock
+	loadedBlocks []block.DatabaseBlock
 	version      int
 	writeType    WriteType
 }
@@ -1045,7 +1043,7 @@ func (b *BufferBucket) resetTo(
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder: encoder,
 	})
-	b.bootstrapped = nil
+	b.loadedBlocks = nil
 	// We would only ever create a bucket for it to be writable.
 	b.version = writableBucketVersion
 	b.writeType = writeType
@@ -1053,7 +1051,7 @@ func (b *BufferBucket) resetTo(
 
 func (b *BufferBucket) reset() {
 	b.resetEncoders()
-	b.resetBootstrapped()
+	b.resetLoadedBlocks()
 }
 
 func (b *BufferBucket) write(
@@ -1143,13 +1141,13 @@ func (b *BufferBucket) writeToEncoderIndex(
 }
 
 func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
-	streams := make([]xio.BlockReader, 0, len(b.bootstrapped)+len(b.encoders))
+	streams := make([]xio.BlockReader, 0, len(b.loadedBlocks)+len(b.encoders))
 
-	for i := range b.bootstrapped {
-		if b.bootstrapped[i].Len() == 0 {
+	for i := range b.loadedBlocks {
+		if b.loadedBlocks[i].Len() == 0 {
 			continue
 		}
-		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s.IsNotEmpty() {
+		if s, err := b.loadedBlocks[i].Stream(ctx); err == nil && s.IsNotEmpty() {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
 		}
@@ -1172,8 +1170,8 @@ func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 
 func (b *BufferBucket) streamsLen() int {
 	length := 0
-	for i := range b.bootstrapped {
-		length += b.bootstrapped[i].Len()
+	for i := range b.loadedBlocks {
+		length += b.loadedBlocks[i].Len()
 	}
 	for i := range b.encoders {
 		length += b.encoders[i].encoder.Len()
@@ -1192,26 +1190,26 @@ func (b *BufferBucket) resetEncoders() {
 	b.encoders = b.encoders[:0]
 }
 
-func (b *BufferBucket) resetBootstrapped() {
-	for i := range b.bootstrapped {
-		bl := b.bootstrapped[i]
+func (b *BufferBucket) resetLoadedBlocks() {
+	for i := range b.loadedBlocks {
+		bl := b.loadedBlocks[i]
 		bl.Close()
 	}
-	b.bootstrapped = nil
+	b.loadedBlocks = nil
 }
 
 func (b *BufferBucket) needsMerge() bool {
-	return !(b.hasJustSingleEncoder() || b.hasJustSingleBootstrappedBlock())
+	return !(b.hasJustSingleEncoder() || b.hasJustSingleLoadedBlock())
 }
 
 func (b *BufferBucket) hasJustSingleEncoder() bool {
-	return len(b.encoders) == 1 && len(b.bootstrapped) == 0
+	return len(b.encoders) == 1 && len(b.loadedBlocks) == 0
 }
 
-func (b *BufferBucket) hasJustSingleBootstrappedBlock() bool {
+func (b *BufferBucket) hasJustSingleLoadedBlock() bool {
 	encodersEmpty := len(b.encoders) == 0 ||
 		(len(b.encoders) == 1 && b.encoders[0].encoder.Len() == 0)
-	return encodersEmpty && len(b.bootstrapped) == 1
+	return encodersEmpty && len(b.loadedBlocks) == 1
 }
 
 func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
@@ -1222,7 +1220,7 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 
 	var (
 		start   = b.start
-		readers = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
+		readers = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.loadedBlocks))
 		streams = make([]xio.SegmentReader, 0, len(b.encoders))
 		ctx     = b.opts.ContextPool().Get()
 		merges  = 0
@@ -1230,17 +1228,17 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 	defer func() {
 		ctx.Close()
 		// NB(r): Only need to close the mutable encoder streams as
-		// the context we created for reading the bootstrap blocks
-		// when closed will close those streams.
+		// the context we created for reading the loaded blocks
+		// will close those streams when it is closed.
 		for _, stream := range streams {
 			stream.Finalize()
 		}
 	}()
 
-	// Rank bootstrapped blocks as data that has appeared before data that
+	// Rank loaded blocks as data that has appeared before data that
 	// arrived locally in the buffer
-	for i := range b.bootstrapped {
-		block, err := b.bootstrapped[i].Stream(ctx)
+	for i := range b.loadedBlocks {
+		block, err := b.loadedBlocks[i].Stream(ctx)
 		if err == nil && block.SegmentReader != nil {
 			merges++
 			readers = append(readers, block.SegmentReader)
@@ -1261,7 +1259,7 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 	}
 
 	b.resetEncoders()
-	b.resetBootstrapped()
+	b.resetLoadedBlocks()
 
 	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder:     encoder,
@@ -1308,7 +1306,7 @@ func mergeStreamsToEncoder(
 // returns it.
 func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Context) (xio.SegmentReader, bool, error) {
 	if b.hasJustSingleEncoder() {
-		b.resetBootstrapped()
+		b.resetLoadedBlocks()
 		// Already merged as a single encoder.
 		stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
 		if !ok {
@@ -1318,11 +1316,11 @@ func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Contex
 		return stream, true, nil
 	}
 
-	if b.hasJustSingleBootstrappedBlock() {
+	if b.hasJustSingleLoadedBlock() {
 		// Need to reset encoders but do not want to finalize the block as we
 		// are passing ownership of it to the caller.
 		b.resetEncoders()
-		stream, err := b.bootstrapped[0].Stream(ctx)
+		stream, err := b.loadedBlocks[0].Stream(ctx)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1332,11 +1330,11 @@ func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Contex
 	_, err := b.merge(nsCtx)
 	if err != nil {
 		b.resetEncoders()
-		b.resetBootstrapped()
+		b.resetLoadedBlocks()
 		return nil, false, err
 	}
 
-	// After a successful merge, encoders and bootstrapped blocks will be
+	// After a successful merge, encoders and loaded blocks will be
 	// reset, and the merged encoder appended as the only encoder in the
 	// bucket.
 	if !b.hasJustSingleEncoder() {

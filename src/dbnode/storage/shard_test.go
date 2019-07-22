@@ -165,9 +165,9 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(series.BootstrapResult{}, nil)
+	fooSeries.EXPECT().Bootstrap(fooBlocks, gomock.Any()).Return(series.BootstrapResult{}, nil)
 	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Bootstrap(barBlocks).Return(series.BootstrapResult{}, errors.New("series error"))
+	barSeries.EXPECT().Bootstrap(barBlocks, gomock.Any()).Return(series.BootstrapResult{}, errors.New("series error"))
 	barSeries.EXPECT().IsBootstrapped().Return(true)
 
 	fooID := ident.StringID("foo")
@@ -208,6 +208,19 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
+	mockSeriesID := ident.StringID("series-1")
+	mockSeries := series.NewMockDatabaseSeries(ctrl)
+	mockSeries.EXPECT().ID().Return(mockSeriesID).AnyTimes()
+	mockSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
+	mockSeries.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+
+	// Load the mock into the shard as an expected series so that we can assert
+	// on the call to its Bootstrap() method below.
+	entry := lookup.NewEntry(mockSeries, 0)
+	s.Lock()
+	s.insertNewShardEntryWithLock(entry)
+	s.Unlock()
+
 	writer, err := fs.NewWriter(fsOpts)
 	require.NoError(t, err)
 
@@ -230,6 +243,24 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	}
 
 	bootstrappedSeries := result.NewMap(result.MapOptions{})
+	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
+	blocks.EXPECT().AllBlocks().AnyTimes()
+	blocks.EXPECT().Len().AnyTimes()
+	bootstrappedSeries.Set(mockSeriesID, result.DatabaseSeriesBlocks{
+		ID:     mockSeriesID,
+		Blocks: blocks,
+	})
+
+	// Ensure that the bootstrapped flush/block states get passed to the series.Bootstrap()
+	// method properly.
+	blockStateSnapshot := map[xtime.UnixNano]series.BlockState{}
+	for i, blockStart := range blockStarts {
+		blockStateSnapshot[xtime.ToUnixNano(blockStart)] = series.BlockState{
+			WarmRetrievable: true,
+			ColdVersion:     i,
+		}
+	}
+	mockSeries.EXPECT().Bootstrap(blocks, blockStateSnapshot)
 
 	err = s.Bootstrap(bootstrappedSeries)
 	require.NoError(t, err)
@@ -758,7 +789,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
 	series := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	if bootstrap {
-		series.Bootstrap(nil)
+		series.Bootstrap(nil, nil)
 	}
 	shard.Lock()
 	entry := lookup.NewEntry(series, 0)
