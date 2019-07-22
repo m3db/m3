@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestSeriesWriteReadParallel is a regression test that was added to capture panics that might
@@ -46,7 +46,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		series            = NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	)
 
-	_, err := series.Bootstrap(nil)
+	_, err := series.Bootstrap(nil, nil)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
