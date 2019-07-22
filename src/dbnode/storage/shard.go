@@ -72,6 +72,8 @@ var (
 	errShardInvalidPageToken               = errors.New("shard could not unmarshal page token")
 	errNewShardEntryTagsTypeInvalid        = errors.New("new shard entry options error: tags type invalid")
 	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
+	errShardIsNotBootstrapped              = errors.New("shard is not bootstrapped")
+	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
 )
 
 type filesetsFn func(
@@ -232,6 +234,7 @@ type shardListElement *list.Element
 type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
+	bootstrapped bool
 }
 
 func newShardFlushState() shardFlushState {
@@ -381,6 +384,10 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
 func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	s.flushState.RLock()
 	defer s.flushState.RUnlock()
+
+	if !s.flushState.bootstrapped {
+		return errFlushStateIsNotBootstrapped
+	}
 
 	states := s.flushState.statesByTime
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
@@ -1773,6 +1780,7 @@ func (s *dbShard) Bootstrap(
 ) error {
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
+		// TODO(rartoul): This should return an error instead of failing silently.
 		s.Unlock()
 		return nil
 	}
@@ -1832,6 +1840,15 @@ func (s *dbShard) Bootstrap(
 func (s *dbShard) Load(
 	series *result.Map,
 ) error {
+	s.Lock()
+	// Don't allow loads until the shard is bootstrapped because the shard flush states need to be
+	// bootstrapped in order to safely load blocks. This also keeps things simpler to reason about.
+	if !s.bootstrapState == Bootstrapped {
+		s.Unlock()
+		return errShardIsNotBootstrapped
+	}
+	s.Unlock()
+
 	_, err := s.loadSeries(series, false)
 	return err
 }
@@ -1896,6 +1913,12 @@ func (s *dbShard) loadSeries(
 }
 
 func (s *dbShard) bootstrapFlushStates() {
+	s.FlushState.Lock()
+	defer func() {
+		s.flushState.bootstrapped = true
+		s.flushState.Unlock()
+	}()
+
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
