@@ -308,6 +308,8 @@ func (b *dbBuffer) Write(
 		if !now.Add(b.futureRetentionPeriod).Add(b.blockSize).After(timestamp) {
 			return false, m3dberrors.ErrTooFuture
 		}
+
+		b.opts.Stats().IncColdWrites()
 	}
 
 	blockStart := timestamp.Truncate(b.blockSize)
