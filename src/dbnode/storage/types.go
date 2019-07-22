@@ -466,6 +466,12 @@ type databaseShard interface {
 		bootstrappedSeries *result.Map,
 	) error
 
+	// Load does the same thing as Bootstrap, except it can be called more than once
+	// and after a shard is bootstrapped already.
+	Load(
+		series *result.Map,
+	) error
+
 	// WarmFlush flushes the WarmWrites in this shard.
 	WarmFlush(
 		blockStart time.Time,
