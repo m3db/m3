@@ -1788,54 +1788,12 @@ func (s *dbShard) Bootstrap(
 	// (will be passed to series.Bootstrap() as BlockState).
 	s.bootstrapFlushStates()
 
-	var (
-		shardBootstrapResult = dbShardBootstrapResult{}
-		multiErr             = xerrors.NewMultiError()
-		// Safe to use the same snapshot for all the series since the block states can't change while
-		// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
-		blockStates = s.BlockStatesSnapshot()
-	)
-	for _, elem := range bootstrappedSeries.Iter() {
-		dbBlocks := elem.Value()
-
-		// First lookup if series already exists
-		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			continue
-		}
-		if entry == nil {
-			// Synchronously insert to avoid waiting for
-			// the insert queue potential delayed insert
-			entry, err = s.insertSeriesSync(dbBlocks.ID, newTagsArg(dbBlocks.Tags),
-				insertSyncIncReaderWriterCount)
-			if err != nil {
-				multiErr = multiErr.Add(err)
-				continue
-			}
-		} else {
-			// No longer needed as we found the series and we don't require
-			// them for insertion.
-			// FOLLOWUP(r): Audit places that keep refs to the ID from a
-			// bootstrap result, newShardEntry copies it but some of the
-			// bootstrapped blocks when using certain series cache policies
-			// keeps refs to the ID with seriesID, so for now these IDs will
-			// be garbage collected)
-			dbBlocks.Tags.Finalize()
-		}
-
-		// Cannot close blocks once done as series takes ref to these
-		bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks, blockStates)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		}
-		shardBootstrapResult.update(bsResult)
-
-		// Always decrement the writer count, avoid continue on bootstrap error
-		entry.DecrementReaderWriterCount()
+	multiErr := xerrors.NewMultiError()
+	bootstrapResult, err := s.loadSeries(bootstrappedSeries, true)
+	if err != nil {
+		multiErr = multiErr.Add(err)
 	}
-
-	s.emitBootstrapResult(shardBootstrapResult)
+	s.emitBootstrapResult(bootstrapResult)
 
 	// From this point onwards, all newly created series that aren't in
 	// the existing map should be considered bootstrapped because they
@@ -1869,6 +1827,72 @@ func (s *dbShard) Bootstrap(
 	s.Unlock()
 
 	return multiErr.FinalError()
+}
+
+func (s *dbShard) Load(
+	series *result.Map,
+) error {
+	_, err := s.loadSeries(series, false)
+	return err
+}
+
+func (s *dbShard) loadSeries(
+	series *result.Map,
+	bootstrap bool,
+) (dbShardBootstrapResult, error) {
+	var (
+		// Only used for the bootstrap path.
+		shardBootstrapResult = dbShardBootstrapResult{}
+		multiErr             = xerrors.NewMultiError()
+		// Safe to use the same snapshot for all the series since the block states can't change while
+		// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
+		blockStates = s.BlockStatesSnapshot()
+	)
+	for _, elem := range series.Iter() {
+		dbBlocks := elem.Value()
+
+		// First lookup if series already exists
+		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		if entry == nil {
+			// Synchronously insert to avoid waiting for the insert queue which could potentially
+			// delay the insert.
+			entry, err = s.insertSeriesSync(dbBlocks.ID, newTagsArg(dbBlocks.Tags),
+				insertSyncIncReaderWriterCount)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				continue
+			}
+		} else {
+			// No longer needed as we found the series and we don't require
+			// them for insertion.
+			// FOLLOWUP(r): Audit places that keep refs to the ID from a
+			// bootstrap result, newShardEntry copies it but some of the
+			// bootstrapped blocks when using certain series cache policies
+			// keeps refs to the ID with seriesID, so for now these IDs will
+			// be garbage collected)
+			dbBlocks.Tags.Finalize()
+		}
+
+		if bootstrap {
+			bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks, blockStates)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			}
+			shardBootstrapResult.update(bsResult)
+		} else {
+			entry.Series.Load(dbBlocks.Blocks, blockStates)
+		}
+		// Cannot close blocks once done as series takes ref to them.
+
+		// Always decrement the writer count, avoid continue on bootstrap error
+		entry.DecrementReaderWriterCount()
+	}
+
+	return shardBootstrapResult, multiErr.FinalError()
 }
 
 func (s *dbShard) bootstrapFlushStates() {
