@@ -345,7 +345,7 @@ func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
 	return Stats{
 		encoderCreated: subScope.Counter("encoder-created"),
-		coldWrites:     subScope.Counter("coldwrites"),
+		coldWrites:     subScope.Counter("cold-writes"),
 	}
 }
 
