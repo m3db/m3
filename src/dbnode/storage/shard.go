@@ -1240,7 +1240,7 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		_, err := entry.Series.Bootstrap(nil)
+		_, err := entry.Series.Bootstrap(nil, nil)
 		if err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
@@ -1326,7 +1326,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			_, err := entry.Series.Bootstrap(nil)
+			_, err := entry.Series.Bootstrap(nil, nil)
 			if err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
@@ -1782,9 +1782,17 @@ func (s *dbShard) Bootstrap(
 	s.bootstrapState = Bootstrapping
 	s.Unlock()
 
+	// Iterate flushed time ranges to determine which blocks are retrievable. This step happens
+	// first because the flushState information is required for bootstrapping individual series
+	// (will be passed to series.Bootstrap() as BlockState).
+	s.bootstrapFlushStates()
+
 	var (
 		shardBootstrapResult = dbShardBootstrapResult{}
 		multiErr             = xerrors.NewMultiError()
+		// Safe to use the same snapshot for all the series since the block states can't change while
+		// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
+		blockStates = s.BlockStatesSnapshot()
 	)
 	for _, elem := range bootstrappedSeries.Iter() {
 		dbBlocks := elem.Value()
@@ -1816,7 +1824,7 @@ func (s *dbShard) Bootstrap(
 		}
 
 		// Cannot close blocks once done as series takes ref to these
-		bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks)
+		bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks, blockStates)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -1843,13 +1851,26 @@ func (s *dbShard) Bootstrap(
 		if series.IsBootstrapped() {
 			return true
 		}
-		_, err := series.Bootstrap(nil)
+		_, err := series.Bootstrap(nil, nil)
 		multiErr = multiErr.Add(err)
 		return true
 	})
 
-	// Now iterate flushed time ranges to determine which blocks are
-	// retrievable before servicing reads
+	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
+	// this earlier as block lease verification will fail due to the shards not being bootstrapped
+	// (and as a result no leases can be verified since the flush state is not yet known).
+	if err := s.cacheShardIndices(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	s.Lock()
+	s.bootstrapState = Bootstrapped
+	s.Unlock()
+
+	return multiErr.FinalError()
+}
+
+func (s *dbShard) bootstrapFlushStates() {
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
@@ -1882,35 +1903,31 @@ func (s *dbShard) Bootstrap(
 			s.setFlushStateColdVersion(at, info.VolumeIndex)
 		}
 	}
+}
 
+func (s *dbShard) cacheShardIndices() error {
+	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	// May be nil depending on the caching policy.
-	if retrieverMgr := s.opts.DatabaseBlockRetrieverManager(); retrieverMgr != nil {
-		// Now that this shard has finished bootstrapping attempt to cache all of its seekers. Cannot call
-		// this earlier as block lease verification will fail due to the shards not being bootstrapped
-		// (and as a result no leases can be verified since the flush state is not yet known).
-		retriever, err := retrieverMgr.Retriever(s.namespace)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		} else {
-			s.logger.Debug("caching shard indices",
-				zap.Uint32("shard", s.ID()))
-			if err := retriever.CacheShardIndices([]uint32{s.ID()}); err != nil {
-				multiErr = multiErr.Add(err)
-				s.logger.Error("caching shard indices error",
-					zap.Uint32("shard", s.ID()),
-					zap.Error(err))
-			} else {
-				s.logger.Debug("caching shard indices completed successfully",
-					zap.Uint32("shard", s.ID()))
-			}
-		}
+	if retrieverMgr == nil {
+		return nil
 	}
 
-	s.Lock()
-	s.bootstrapState = Bootstrapped
-	s.Unlock()
+	retriever, err := retrieverMgr.Retriever(s.namespace)
+	if err != nil {
+		return err
+	}
 
-	return multiErr.FinalError()
+	s.logger.Debug("caching shard indices", zap.Uint32("shard", s.ID()))
+	if err := retriever.CacheShardIndices([]uint32{s.ID()}); err != nil {
+		s.logger.Error("caching shard indices error",
+			zap.Uint32("shard", s.ID()),
+			zap.Error(err))
+		return err
+	}
+
+	s.logger.Debug("caching shard indices completed successfully",
+		zap.Uint32("shard", s.ID()))
+	return nil
 }
 
 func (s *dbShard) WarmFlush(

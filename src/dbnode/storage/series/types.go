@@ -103,7 +103,11 @@ type DatabaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
+	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState) (BootstrapResult, error)
+
+	// Load does the same thing as Bootstrap except it should be used for data that did
+	// not originate from the Bootstrap process (like background repairs).
+	Load(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -333,6 +337,7 @@ type Options interface {
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
 	encoderCreated tally.Counter
+	coldWrites     tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
@@ -340,12 +345,18 @@ func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
 	return Stats{
 		encoderCreated: subScope.Counter("encoder-created"),
+		coldWrites:     subScope.Counter("cold-writes"),
 	}
 }
 
 // IncCreatedEncoders incs the EncoderCreated stat.
 func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
+}
+
+// IncColdWrites incs the ColdWrites stat.
+func (s Stats) IncColdWrites() {
+	s.coldWrites.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.
@@ -358,14 +369,6 @@ const (
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
-
-// BootstrapWriteType is the write type assigned for bootstraps.
-//
-// TODO(juchan): We can't know from a bootstrapped block whether data was
-// originally written as a ColdWrite or a WarmWrite. After implementing
-// persistence logic including ColdWrites, we need to revisit this to figure out
-// what write type makes sense for bootstraps.
-const BootstrapWriteType = WarmWrite
 
 // WriteTransformOptions describes transforms to run on incoming writes.
 type WriteTransformOptions struct {
