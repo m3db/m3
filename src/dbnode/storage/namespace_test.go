@@ -1282,7 +1282,7 @@ func waitForStats(
 }
 
 func assertNeedsFlush(t *testing.T, ns *dbNamespace, t0, t1 time.Time, assertTrue bool) {
-	needsFlush, err := ns.NeedsFlush(t1, t1)
+	needsFlush, err := ns.NeedsFlush(t0, t1)
 	require.NoError(t, err)
 	require.Equal(t, assertTrue, needsFlush)
 }

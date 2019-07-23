@@ -825,13 +825,17 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	assert.Equal(t, 2, len(encoders))
 
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(start): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
+	shardBlockState := NewShardBlockStateSnapshot(true, blockStates)
 	// Perform a tick and ensure merged out of order blocks.
-	r := buffer.Tick(blockStates, namespace.Context{})
+	r := buffer.Tick(shardBlockState, namespace.Context{})
 	assert.Equal(t, 1, r.mergedOutOfOrderBlocks)
 
 	// Check values correct.
@@ -901,17 +905,21 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	// Simulate that a flush has fully completed on this bucket so that it will.
 	// get removed from the bucket.
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(start): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
+	shardBlockState := NewShardBlockStateSnapshot(true, blockStates)
 	bucket.version = 1
 
 	// False because we just wrote to it.
 	assert.False(t, buffer.IsEmpty())
 	// Perform a tick to remove the bucket which has been flushed.
-	buffer.Tick(blockStates, namespace.Context{})
+	buffer.Tick(shardBlockState, namespace.Context{})
 	// True because we just removed the bucket.
 	assert.True(t, buffer.IsEmpty())
 }

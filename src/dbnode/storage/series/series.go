@@ -49,8 +49,9 @@ var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
 
-	errSeriesAlreadyBootstrapped = errors.New("series is already bootstrapped")
-	errSeriesNotBootstrapped     = errors.New("series is not yet bootstrapped")
+	errSeriesAlreadyBootstrapped         = errors.New("series is already bootstrapped")
+	errSeriesNotBootstrapped             = errors.New("series is not yet bootstrapped")
+	errBlockStateSnapshotNotBootstrapped = errors.New("block state snapshot is not bootstrapped")
 )
 
 type dbSeries struct {
@@ -117,7 +118,7 @@ func (s *dbSeries) Tags() ident.Tags {
 	return tags
 }
 
-func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error) {
+func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error) {
 	var r TickResult
 
 	s.Lock()
@@ -149,7 +150,7 @@ type updateBlocksResult struct {
 }
 
 func (s *dbSeries) updateBlocksWithLock(
-	blockStates map[xtime.UnixNano]BlockState,
+	blockStates ShardBlockStateSnapshot,
 	evictedBucketTimes OptimizedTimes,
 ) (updateBlocksResult, error) {
 	var (
@@ -204,24 +205,28 @@ func (s *dbSeries) updateBlocksWithLock(
 
 		// Potentially unwire
 		var unwired, shouldUnwire bool
-		// Makes sure that the block has been flushed, which
-		// prevents us from unwiring blocks that haven't been flushed yet which
-		// would cause data loss.
-		if blockState := blockStates[startNano]; blockState.WarmRetrievable {
-			switch cachePolicy {
-			case CacheNone:
-				shouldUnwire = true
-			case CacheRecentlyRead:
-				sinceLastRead := now.Sub(currBlock.LastReadTime())
-				shouldUnwire = sinceLastRead >= wiredTimeout
-			case CacheLRU:
-				// The tick is responsible for managing the lifecycle of blocks that were not
-				// read from disk (not retrieved), and the WiredList will manage those that were
-				// retrieved from disk.
-				shouldUnwire = !currBlock.WasRetrievedFromDisk()
-			default:
-				s.opts.InstrumentOptions().Logger().Fatal(
-					"unhandled cache policy in series tick", zap.Any("policy", cachePolicy))
+		blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+		// Only use the block states data to make decision if it has been bootstrapped already.
+		if bootstrapped {
+			// Makes sure that the block has been flushed, which
+			// prevents us from unwiring blocks that haven't been flushed yet which
+			// would cause data loss.
+			if blockState := blockStatesSnapshot.Snapshot[startNano]; blockState.WarmRetrievable {
+				switch cachePolicy {
+				case CacheNone:
+					shouldUnwire = true
+				case CacheRecentlyRead:
+					sinceLastRead := now.Sub(currBlock.LastReadTime())
+					shouldUnwire = sinceLastRead >= wiredTimeout
+				case CacheLRU:
+					// The tick is responsible for managing the lifecycle of blocks that were not
+					// read from disk (not retrieved), and the WiredList will manage those that were
+					// retrieved from disk.
+					shouldUnwire = !currBlock.WasRetrievedFromDisk()
+				default:
+					s.opts.InstrumentOptions().Logger().Fatal(
+						"unhandled cache policy in series tick", zap.Any("policy", cachePolicy))
+				}
 			}
 		}
 
@@ -411,7 +416,7 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 
 func (s *dbSeries) Bootstrap(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates map[xtime.UnixNano]BlockState,
+	blockStates BlockStateSnapshot,
 ) (BootstrapResult, error) {
 	s.Lock()
 	defer func() {
@@ -436,7 +441,7 @@ func (s *dbSeries) Bootstrap(
 
 func (s *dbSeries) Load(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates map[xtime.UnixNano]BlockState,
+	blockStates BlockStateSnapshot,
 ) {
 	s.Lock()
 	s.loadWithLock(bootstrappedBlocks, blockStates)
@@ -445,11 +450,11 @@ func (s *dbSeries) Load(
 
 func (s *dbSeries) loadWithLock(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates map[xtime.UnixNano]BlockState,
+	blockStates BlockStateSnapshot,
 ) {
 	for _, block := range bootstrappedBlocks.AllBlocks() {
 		blStartNano := xtime.ToUnixNano(block.StartTime())
-		blState := blockStates[blStartNano]
+		blState := blockStates.Snapshot[blStartNano]
 		if !blState.WarmRetrievable {
 			// If the block being bootstrapped has never been warm flushed before then the block
 			// can be loaded into the buffer as a WarmWrite because a subsequent warm flush will
@@ -603,11 +608,11 @@ func (s *dbSeries) Snapshot(
 	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
 
-func (s *dbSeries) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
+func (s *dbSeries) ColdFlushBlockStarts(blockStates BlockStateSnapshot) OptimizedTimes {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.buffer.ColdFlushBlockStarts(blockStates)
+	return s.buffer.ColdFlushBlockStarts(blockStates.Snapshot)
 }
 
 func (s *dbSeries) Close() {

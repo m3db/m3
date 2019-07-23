@@ -388,13 +388,12 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
-func (s *dbShard) BlockStatesSnapshot() (map[xtime.UnixNano]series.BlockState, error) {
+func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	s.flushState.RLock()
 	defer s.flushState.RUnlock()
 
 	if !s.flushState.bootstrapped {
-		// Safeguard against attempting to use the flush state before it has been bootstrapped.
-		return nil, errFlushStateIsNotBootstrapped
+		return series.NewShardBlockStateSnapshot(false, series.BlockStateSnapshot{})
 	}
 
 	states := s.flushState.statesByTime
@@ -406,7 +405,9 @@ func (s *dbShard) BlockStatesSnapshot() (map[xtime.UnixNano]series.BlockState, e
 		}
 	}
 
-	return snapshot, nil
+	return series.NewShardBlockStateSnapshot(true, series.BlockStateSnapshot{
+		Snapshot: snapshot,
+	})
 }
 
 func (s *dbShard) OnRetrieveBlock(
@@ -680,11 +681,8 @@ func (s *dbShard) tickAndExpire(
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
 	// Acquire snapshot of block states here to avoid releasing the
 	// RLock and acquiring it right after.
-	blockStates, err := s.BlockStatesSnapshot()
+	blockStates := s.BlockStatesSnapshot()
 	s.RUnlock()
-	if err != nil {
-		return tickResult{}, err
-	}
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
 		// to be safe for re-use.
@@ -1259,7 +1257,7 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		_, err := entry.Series.Bootstrap(nil, nil)
+		_, err := entry.Series.Bootstrap(nil, series.BlockStateSnapshot{})
 		if err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
@@ -1345,7 +1343,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			_, err := entry.Series.Bootstrap(nil, nil)
+			_, err := entry.Series.Bootstrap(nil, series.BlockStateSnapshot{})
 			if err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
@@ -1825,11 +1823,11 @@ func (s *dbShard) Bootstrap(
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
-		series := entry.Series
-		if series.IsBootstrapped() {
+		seriesEntry := entry.Series
+		if seriesEntry.IsBootstrapped() {
 			return true
 		}
-		_, err := series.Bootstrap(nil, nil)
+		_, err := seriesEntry.Bootstrap(nil, series.BlockStateSnapshot{})
 		multiErr = multiErr.Add(err)
 		return true
 	})
@@ -1868,6 +1866,10 @@ func (s *dbShard) loadSeries(
 	series *result.Map,
 	bootstrap bool,
 ) (dbShardBootstrapResult, error) {
+	if series == nil {
+		return dbShardBootstrapResult{}, nil
+	}
+
 	var (
 		// Only used for the bootstrap path.
 		shardBootstrapResult = dbShardBootstrapResult{}
@@ -1875,9 +1877,10 @@ func (s *dbShard) loadSeries(
 	)
 	// Safe to use the same snapshot for all the series since the block states can't change while
 	// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
-	blockStates, err := s.BlockStatesSnapshot()
-	if err != nil {
-		return dbShardBootstrapResult{}, err
+	blockStates := s.BlockStatesSnapshot()
+	blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+	if !bootstrapped {
+		return dbShardBootstrapResult{}, errFlushStateIsNotBootstrapped
 	}
 	for _, elem := range series.Iter() {
 		dbBlocks := elem.Value()
@@ -1909,13 +1912,13 @@ func (s *dbShard) loadSeries(
 		}
 
 		if bootstrap {
-			bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks, blockStates)
+			bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks, blockStatesSnapshot)
 			if err != nil {
 				multiErr = multiErr.Add(err)
 			}
 			shardBootstrapResult.update(bsResult)
 		} else {
-			entry.Series.Load(dbBlocks.Blocks, blockStates)
+			entry.Series.Load(dbBlocks.Blocks, blockStatesSnapshot)
 		}
 		// Cannot close blocks once done as series takes ref to them.
 
@@ -2087,9 +2090,10 @@ func (s *dbShard) ColdFlush(
 		idElementPool      = resources.idElementPool
 	)
 
-	blockStates, err := s.BlockStatesSnapshot()
-	if err != nil {
-		return err
+	blockStates := s.BlockStatesSnapshot()
+	blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+	if !bootstrapped {
+		return errFlushStateIsNotBootstrapped
 	}
 
 	var (
@@ -2102,7 +2106,7 @@ func (s *dbShard) ColdFlush(
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		seriesID := curr.ID()
-		blockStarts := curr.ColdFlushBlockStarts(blockStates)
+		blockStarts := curr.ColdFlushBlockStarts(blockStatesSnapshot)
 		blockStarts.ForEach(func(t xtime.UnixNano) {
 			// Cold flushes can only happen on blockStarts that have been
 			// warm flushed, because warm flush logic does not currently
@@ -2364,14 +2368,15 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 	// Get a snapshot of all states here to prevent constantly getting/releasing
 	// locks in a tight loop below. This snapshot won't become stale halfway
 	// through this because flushing and cleanup never happen in parallel.
-	blockStates, err := s.BlockStatesSnapshot()
-	if err != nil {
-		return err
+	blockStates := s.BlockStatesSnapshot()
+	blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+	if !bootstrapped {
+		return errFlushStateIsNotBootstrapped
 	}
 	toDelete := fs.FileSetFilesSlice(make([]fs.FileSetFile, 0, len(filesets)))
 	for _, datafile := range filesets {
 		fileID := datafile.ID
-		blockState := blockStates[xtime.ToUnixNano(fileID.BlockStart)]
+		blockState := blockStatesSnapshot.Snapshot[xtime.ToUnixNano(fileID.BlockStart)]
 		if fileID.VolumeIndex < blockState.ColdVersion {
 			toDelete = append(toDelete, datafile)
 		}

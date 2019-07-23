@@ -64,7 +64,7 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 }
 
 // Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks, arg1 map[time0.UnixNano]BlockState) (BootstrapResult, error) {
+func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks, arg1 BlockStateSnapshot) (BootstrapResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", arg0, arg1)
 	ret0, _ := ret[0].(BootstrapResult)
@@ -91,7 +91,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 }
 
 // ColdFlushBlockStarts mocks base method
-func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 map[time0.UnixNano]BlockState) OptimizedTimes {
+func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 BlockStateSnapshot) OptimizedTimes {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", arg0)
 	ret0, _ := ret[0].(OptimizedTimes)
@@ -192,7 +192,7 @@ func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // Load mocks base method
-func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 map[time0.UnixNano]BlockState) {
+func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 BlockStateSnapshot) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Load", arg0, arg1)
 }
@@ -297,7 +297,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockDatabaseSeries) Tick(arg0 map[time0.UnixNano]BlockState, arg1 namespace.Context) (TickResult, error) {
+func (m *MockDatabaseSeries) Tick(arg0 ShardBlockStateSnapshot, arg1 namespace.Context) (TickResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", arg0, arg1)
 	ret0, _ := ret[0].(TickResult)
@@ -365,12 +365,11 @@ func (m *MockQueryableBlockRetriever) EXPECT() *MockQueryableBlockRetrieverMockR
 }
 
 // BlockStatesSnapshot mocks base method
-func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() (map[time0.UnixNano]BlockState, error) {
+func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() ShardBlockStateSnapshot {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStatesSnapshot")
-	ret0, _ := ret[0].(map[time0.UnixNano]BlockState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(ShardBlockStateSnapshot)
+	return ret0
 }
 
 // BlockStatesSnapshot indicates an expected call of BlockStatesSnapshot

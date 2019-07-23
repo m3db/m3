@@ -50,7 +50,7 @@ type DatabaseSeries interface {
 	Tags() ident.Tags
 
 	// Tick executes async updates
-	Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error)
+	Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error)
 
 	// Write writes a new value.
 	Write(
@@ -103,11 +103,11 @@ type DatabaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState) (BootstrapResult, error)
+	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates BlockStateSnapshot) (BootstrapResult, error)
 
 	// Load does the same thing as Bootstrap except it should be used for data that did
 	// not originate from the Bootstrap process (like background repairs).
-	Load(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState)
+	Load(blocks block.DatabaseSeriesBlocks, blockStates BlockStateSnapshot)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -127,7 +127,7 @@ type DatabaseSeries interface {
 	) error
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
-	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
+	ColdFlushBlockStarts(blockStates BlockStateSnapshot) OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -173,7 +173,37 @@ type QueryableBlockRetriever interface {
 	// Flushes may occur and change the actual block state while iterating
 	// through this snapshot, so any logic using this function should take this
 	// into account.
-	BlockStatesSnapshot() (map[xtime.UnixNano]BlockState, error)
+	BlockStatesSnapshot() ShardBlockStateSnapshot
+}
+
+// ShardBlockStateSnapshot represents a snapshot of a shard's block state at
+// a moment in time.
+type ShardBlockStateSnapshot struct {
+	bootstrapped bool
+	snapshot     BlockStateSnapshot
+}
+
+// NewShardBlockStateSnapshot constructs a new NewShardBlockStateSnapshot.
+func NewShardBlockStateSnapshot(
+	bootstrapped bool,
+	snapshot BlockStateSnapshot,
+) ShardBlockStateSnapshot {
+	return ShardBlockStateSnapshot{
+		bootstrapped: bootstrapped,
+		snapshot:     snapshot,
+	}
+}
+
+// Snapshot returns a BlockStateSnapshot and a boolean indicating whether the
+// snapshot is bootstrapped or not.
+func (s *ShardBlockStateSnapshot) Snapshot() (BlockStateSnapshot, bool) {
+	return s.snapshot, s.bootstrapped
+}
+
+// BlockStateSnapshot represents a bootstrapped shard block state snapshot.
+// TODO(rartoul): Rename?
+type BlockStateSnapshot struct {
+	Snapshot map[xtime.UnixNano]BlockState
 }
 
 // BlockState contains the state of a block.

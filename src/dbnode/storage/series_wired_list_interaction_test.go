@@ -85,15 +85,15 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				SetWiredList(wl).
 				SetDatabaseBlockPool(blPool),
 		)
-		shard  = testDatabaseShard(t, opts)
-		id     = ident.StringID("foo")
-		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
+		shard       = testDatabaseShard(t, opts)
+		id          = ident.StringID("foo")
+		seriesEntry = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	)
 
-	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
-	series.Bootstrap(nil, nil)
+	seriesEntry.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
+	seriesEntry.Bootstrap(nil, series.BlockStateSnapshot{})
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(seriesEntry, 0))
 	shard.Unlock()
 
 	var (
