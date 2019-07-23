@@ -121,7 +121,12 @@ func (m *flushManager) Flush(startTime time.Time) error {
 	// as the snapshotting process will attempt to snapshot any unflushed blocks
 	// which would be wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
+
+	if err := m.dataWarmFlush(namespaces, startTime); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	if err := m.indexWarmFlush(namespaces); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -161,6 +166,14 @@ func (m *flushManager) Flush(startTime time.Time) error {
 			// the cold writes from its commit log.
 			return multiErr.FinalError()
 		}
+		if err := m.indexColdFlush(namespaces); err != nil {
+			multiErr = multiErr.Add(err)
+			// NB(r): As above, we can't proceed to snapshotting if a cold flush
+			// fails, and in this case the data would not be indexed properly
+			// and potentially if snapshot succeeds then commit logs would get
+			// removed.
+			return multiErr.FinalError()
+		}
 		// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
 		// value by however many bytes had been tracked when the cold flush began.
 		memTracker.DecPendingLoadedBytes()
@@ -170,10 +183,8 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		}
 	} else {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
-	}
-
-	if err = m.indexFlush(namespaces); err != nil {
-		multiErr = multiErr.Add(err)
+		// Cannot continue if cannot rotate commit logs
+		return multiErr.FinalError()
 	}
 
 	return multiErr.FinalError()
@@ -290,7 +301,7 @@ func (m *flushManager) dataSnapshot(
 	return finalErr
 }
 
-func (m *flushManager) indexFlush(
+func (m *flushManager) indexWarmFlush(
 	namespaces []databaseNamespace,
 ) error {
 	indexFlush, err := m.pm.StartIndexPersist()
@@ -309,6 +320,38 @@ func (m *flushManager) indexFlush(
 			continue
 		}
 		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
+	}
+	multiErr = multiErr.Add(indexFlush.DoneIndex())
+
+	return multiErr.FinalError()
+}
+
+func (m *flushManager) indexColdFlush(
+	namespaces []databaseNamespace,
+) error {
+	// TODO(r): Before merge create a StartColdFlushIndexPersist that will
+	// combine data  into a single volume each time, instead of just creating
+	// a new one (which could generate hundreds of volumes as right now
+	// it will create a new segment each time any cold writes need to be
+	// written out, reads work fine combining across all, but perf will be
+	// horrible with any significant amount of cold write batches being
+	// written).
+	indexFlush, err := m.pm.StartIndexPersist()
+	if err != nil {
+		return err
+	}
+
+	m.setState(flushManagerIndexFlushInProgress)
+	multiErr := xerrors.NewMultiError()
+	for _, ns := range namespaces {
+		var (
+			indexOpts    = ns.Options().IndexOptions()
+			indexEnabled = indexOpts.Enabled()
+		)
+		if !indexEnabled {
+			continue
+		}
+		multiErr = multiErr.Add(ns.ColdFlushIndex(indexFlush))
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 

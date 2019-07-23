@@ -109,6 +109,7 @@ type block struct {
 
 	foregroundSegments  []*readableSeg
 	backgroundSegments  []*readableSeg
+	sealedSegments      []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
 
 	newFieldsAndTermsIteratorFn newFieldsAndTermsIteratorFn
@@ -122,6 +123,8 @@ type block struct {
 	nsMD                        namespace.Metadata
 
 	compact blockCompact
+
+	mutableSealedBlock Block
 
 	metrics blockMetrics
 	logger  *zap.Logger
@@ -165,6 +168,7 @@ type blockShardRangesSegments struct {
 type BlockOptions struct {
 	ForegroundCompactorMmapDocsData bool
 	BackgroundCompactorMmapDocsData bool
+	IsMutableSealedBlock            bool
 }
 
 // NewBlock returns a new Block, representing a complete reverse index for the
@@ -190,6 +194,19 @@ func NewBlock(
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorFn = b.executorWithRLock
+
+	// Create a sub block for storing mutable data after sealing for cold writes
+	if !opts.IsMutableSealedBlock && md.Options().ColdWritesEnabled() {
+		subOpts := opts
+		subOpts.IsMutableSealedBlock = true
+
+		subBlock, err := NewBlock(blockStart, md, subOpts, indexOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		b.mutableSealedBlock = subBlock
+	}
 
 	return b, nil
 }
@@ -401,12 +418,30 @@ func (b *block) addCompactedSegmentFromSegments(
 	return append(result, newReadableSeg(compacted, b.opts))
 }
 
+func (b *block) acceptWritesWithRLock() bool {
+	if b.state == blockStateOpen {
+		// If open accept writes
+		return true
+	}
+
+	// If sealed and cold writes enabled accept writes
+	return b.state == blockStateSealed &&
+		b.nsMD.Options().ColdWritesEnabled()
+}
+
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.Lock()
-	if b.state != blockStateOpen {
+	if !b.acceptWritesWithRLock() {
 		b.Unlock()
 		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
 	}
+	if b.state == blockStateSealed {
+		// Performing sub block sealed write (with cold flushes)
+		subBlock := b.mutableSealedBlock
+		b.Unlock()
+		return subBlock.WriteBatch(inserts)
+	}
+
 	if b.compact.compactingForeground {
 		b.Unlock()
 		return b.writeBatchResult(inserts, errUnableToWriteBlockConcurrent)
@@ -1363,6 +1398,13 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 	return anyMutableSegmentNeedsEviction
 }
 
+func (b *block) NeedsColdFlushMutableSegmentsEvicted() bool {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b.mutableSealedBlock.NeedsMutableSegmentsEvicted()
+}
+
 func (b *block) EvictMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
@@ -1398,6 +1440,13 @@ func (b *block) EvictMutableSegments() error {
 	}
 
 	return multiErr.FinalError()
+}
+
+func (b *block) EvictColdFlushMutableSegments() error {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b.mutableSealedBlock.EvictMutableSegments()
 }
 
 func (b *block) Close() error {

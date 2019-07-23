@@ -352,6 +352,9 @@ type Block interface {
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
+	NeedsColdFlushMutableSegmentsEvicted() bool
+	EvictColdFlushMutableSegments() error
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }
