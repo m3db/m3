@@ -380,11 +380,12 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) BlockStatesSnapshot() *gomock
 }
 
 // IsBlockRetrievable mocks base method
-func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) bool {
+func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBlockRetrievable", arg0)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // IsBlockRetrievable indicates an expected call of IsBlockRetrievable
@@ -394,11 +395,12 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 }
 
 // RetrievableBlockColdVersion mocks base method
-func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) int {
+func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetrievableBlockColdVersion", arg0)
 	ret0, _ := ret[0].(int)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // RetrievableBlockColdVersion indicates an expected call of RetrievableBlockColdVersion

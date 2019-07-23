@@ -74,6 +74,7 @@ var (
 	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
 	errShardIsNotBootstrapped              = errors.New("shard is not bootstrapped")
 	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
+	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
 )
 
 type filesetsFn func(
@@ -354,13 +355,16 @@ func (s *dbShard) Stream(
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
-func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
+func (s *dbShard) IsBlockRetrievable(blockStart time.Time) (bool, error) {
 	return s.hasWarmFlushed(blockStart)
 }
 
-func (s *dbShard) hasWarmFlushed(blockStart time.Time) bool {
-	flushState := s.FlushState(blockStart)
-	return statusIsRetrievable(flushState.WarmStatus)
+func (s *dbShard) hasWarmFlushed(blockStart time.Time) (bool, error) {
+	flushState, err := s.FlushState(blockStart)
+	if err != nil {
+		return false, err
+	}
+	return statusIsRetrievable(flushState.WarmStatus), nil
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -375,9 +379,12 @@ func statusIsRetrievable(status fileOpStatus) bool {
 }
 
 // RetrievableBlockColdVersion implements series.QueryableBlockRetriever
-func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
-	flushState := s.FlushState(blockStart)
-	return flushState.ColdVersion
+func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error) {
+	flushState, err := s.FlushState(blockStart)
+	if err != nil {
+		return -1, err
+	}
+	return flushState.ColdVersion, nil
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -1919,7 +1926,20 @@ func (s *dbShard) loadSeries(
 	return shardBootstrapResult, multiErr.FinalError()
 }
 
-func (s *dbShard) bootstrapFlushStates() {
+func (s *dbShard) bootstrapFlushStates() error {
+	s.flushState.RLock()
+	if s.flushState.bootstrapped {
+		s.RUnlock()
+		return errFlushStateAlreadyBootstrapped
+	}
+	s.flushState.RUnlock()
+
+	defer func() {
+		s.Lock()
+		s.flushState.bootstrapped = true
+		s.Unlock()
+	}()
+
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
@@ -1936,7 +1956,7 @@ func (s *dbShard) bootstrapFlushStates() {
 		}
 		info := result.Info
 		at := xtime.FromNanoseconds(info.BlockStart)
-		fs := s.FlushState(at)
+		fs := s.flushStateNoBootstrapCheck(at)
 		if fs.WarmStatus != fileOpSuccess {
 			s.markWarmFlushStateSuccess(at)
 		}
@@ -1952,6 +1972,8 @@ func (s *dbShard) bootstrapFlushStates() {
 			s.setFlushStateColdVersion(at, info.VolumeIndex)
 		}
 	}
+
+	return nil
 }
 
 func (s *dbShard) cacheShardIndices() error {
@@ -2069,6 +2091,12 @@ func (s *dbShard) ColdFlush(
 	if err != nil {
 		return err
 	}
+
+	var (
+		// forEachShardEntry should not execute in parallel, but protect with a lock anyways for paranoia.
+		loopErrLock sync.Mutex
+		loopErr     error
+	)
 	// First, loop through all series to capture data on which blocks have dirty
 	// series and add them to the resources for further processing.
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
@@ -2079,7 +2107,14 @@ func (s *dbShard) ColdFlush(
 			// Cold flushes can only happen on blockStarts that have been
 			// warm flushed, because warm flush logic does not currently
 			// perform any merging logic.
-			if !s.hasWarmFlushed(t.ToTime()) {
+			hasWarmFlushed, err := s.hasWarmFlushed(t.ToTime())
+			if err != nil {
+				loopErrLock.Lock()
+				loopErr = err
+				loopErrLock.Unlock()
+				return
+			}
+			if !hasWarmFlushed {
 				return
 			}
 
@@ -2095,6 +2130,9 @@ func (s *dbShard) ColdFlush(
 
 		return true
 	})
+	if loopErr != nil {
+		return loopErr
+	}
 
 	if dirtySeries.Len() == 0 {
 		// Early exit if there is nothing dirty to merge. dirtySeriesToWrite
@@ -2113,7 +2151,11 @@ func (s *dbShard) ColdFlush(
 	// a block, we continue to try persisting other blocks.
 	for blockStart := range dirtySeriesToWrite {
 		startTime := blockStart.ToTime()
-		coldVersion := s.RetrievableBlockColdVersion(startTime)
+		coldVersion, err := s.RetrievableBlockColdVersion(startTime)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
 		fsID := fs.FileSetFileIdentifier{
 			Namespace:   s.namespace.ID(),
 			Shard:       s.ID(),
@@ -2122,7 +2164,7 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx)
+		err = merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -2222,10 +2264,23 @@ func (s *dbShard) Snapshot(
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
+func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
 	s.flushState.RLock()
 	defer s.flushState.RUnlock()
+	if !s.flushState.bootstrapped {
+		return fileOpState{}, errFlushStateIsNotBootstrapped
+	}
 
+	return s.flushStateWithRLock(blockStart), nil
+}
+
+func (s *dbShard) flushStateNoBootstrapCheck(blockStart time.Time) fileOpState {
+	s.flushState.RLock()
+	defer s.flushState.RUnlock()
+	return s.flushStateWithRLock(blockStart)
+}
+
+func (s *dbShard) flushStateWithRLock(blockStart time.Time) fileOpState {
 	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		return fileOpState{WarmStatus: fileOpNotStarted}

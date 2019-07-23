@@ -358,7 +358,7 @@ type databaseNamespace interface {
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
-	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
+	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) (bool, error)
 
 	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
@@ -495,7 +495,7 @@ type databaseShard interface {
 	) error
 
 	// FlushState returns the flush state for this shard at block start.
-	FlushState(blockStart time.Time) fileOpState
+	FlushState(blockStart time.Time) (fileOpState, error)
 
 	// CleanupExpiredFileSets removes expired fileset files.
 	CleanupExpiredFileSets(earliestToRetain time.Time) error

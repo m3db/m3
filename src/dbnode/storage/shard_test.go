@@ -140,7 +140,9 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 
 	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
-		assert.Equal(t, notStarted, s.FlushState(earliest))
+		flushState, err := s.FlushState(earliest)
+		require.NoError(t, err)
+		assert.Equal(t, notStarted, flushState)
 	}
 }
 
@@ -267,7 +269,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
 	for i, blockStart := range blockStarts {
-		require.Equal(t, i, s.FlushState(blockStart).ColdVersion)
+		flushState, err := s.FlushState(blockStart)
+		require.NoError(t, err)
+		require.Equal(t, i, flushState.ColdVersion)
 	}
 }
 
@@ -326,7 +330,9 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
-	require.Equal(t, numVolumes-1, s.FlushState(start).ColdVersion)
+	flushState, err := s.FlushState(start)
+	require.NoError(t, err)
+	require.Equal(t, numVolumes-1, flushState.ColdVersion)
 }
 
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
@@ -432,7 +438,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	require.NotNil(t, err)
 	require.Equal(t, "error bar", err.Error())
 
-	flushState := s.FlushState(blockStart)
+	flushState, err := s.FlushState(blockStart)
+	require.NoError(t, err)
 	require.Equal(t, fileOpState{
 		WarmStatus:  fileOpFailed,
 		NumFailures: 2,
@@ -498,7 +505,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	require.True(t, closed)
 	require.Nil(t, err)
 
-	flushState := s.FlushState(blockStart)
+	flushState, err := s.FlushState(blockStart)
+	require.NoError(t, err)
 	require.Equal(t, fileOpState{
 		WarmStatus:  fileOpSuccess,
 		ColdVersion: 0,
@@ -580,16 +588,22 @@ func TestShardColdFlush(t *testing.T) {
 
 	// Assert that flush state cold versions all start at 0.
 	for i := t0; i.Before(t7.Add(blockSize)); i = i.Add(blockSize) {
-		assert.Equal(t, 0, shard.RetrievableBlockColdVersion(i))
+		coldVersion, err := shard.RetrievableBlockColdVersion(i)
+		require.NoError(t, err)
+		assert.Equal(t, 0, coldVersion)
 	}
 	shard.ColdFlush(preparer, resources, nsCtx)
 	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
 	for i := t0; i.Before(t6.Add(blockSize)); i = i.Add(blockSize) {
-		assert.Equal(t, 1, shard.RetrievableBlockColdVersion(i))
+		coldVersion, err := shard.RetrievableBlockColdVersion(i)
+		require.NoError(t, err)
+		assert.Equal(t, 1, coldVersion)
 	}
 	// t7 shouldn't be cold flushed because it hasn't been warm flushed.
-	assert.Equal(t, 0, shard.RetrievableBlockColdVersion(t7))
+	coldVersion, err := shard.RetrievableBlockColdVersion(t7)
+	require.NoError(t, err)
+	assert.Equal(t, 0, coldVersion)
 }
 
 func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
@@ -603,7 +617,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
-	shard.bootstrapState = Bootstrapped
+	shard.Bootstrap(nil)
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
 
@@ -642,7 +656,9 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	// After a cold flush, t0-t3 should remain version 0, since nothing should
 	// actually be merged.
 	for i := t0; i.Before(t3.Add(blockSize)); i = i.Add(blockSize) {
-		assert.Equal(t, 0, shard.RetrievableBlockColdVersion(i))
+		coldVersion, err := shard.RetrievableBlockColdVersion(i)
+		require.NoError(t, err)
+		assert.Equal(t, 0, coldVersion)
 	}
 }
 
@@ -847,11 +863,12 @@ func TestShardTick(t *testing.T) {
 	sleepPerSeries := time.Microsecond
 
 	shard := testDatabaseShard(t, opts)
+	shard.Bootstrap(nil)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
 		SetTickSeriesBatchSize(1))
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
-	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false).AnyTimes()
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil).AnyTimes()
 	shard.seriesBlockRetriever = retriever
 	defer shard.Close()
 
@@ -1007,12 +1024,13 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	sleepPerSeries := time.Microsecond
 
 	shard := testDatabaseShard(t, opts)
+	shard.Bootstrap(nil)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true).
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
 		SetTickSeriesBatchSize(1))
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
-	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false).AnyTimes()
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil).AnyTimes()
 	shard.seriesBlockRetriever = retriever
 	defer shard.Close()
 
@@ -1091,6 +1109,7 @@ func TestShardTickRace(t *testing.T) {
 func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
+	shard.Bootstrap(nil)
 	addTestSeries(shard, ident.StringID("foo"))
 	shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 	require.Equal(t, 0, shard.lookup.Len())
@@ -1231,7 +1250,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	retriever := series.NewMockQueryableBlockRetriever(ctrl)
-	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false).AnyTimes()
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false, nil).AnyTimes()
 	shard.seriesBlockRetriever = retriever
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()

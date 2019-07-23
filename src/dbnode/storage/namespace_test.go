@@ -455,7 +455,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	for i, s := range states {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(testShardIDs[i].ID())
-		shard.EXPECT().FlushState(blockStart).Return(s)
+		shard.EXPECT().FlushState(blockStart).Return(s, nil)
 		if s.WarmStatus != fileOpSuccess {
 			shard.EXPECT().WarmFlush(blockStart, gomock.Any(), gomock.Any()).Return(nil)
 		}
@@ -780,11 +780,11 @@ func setShardExpects(ns *dbNamespace, ctrl *gomock.Controller, cases []needsFlus
 			if needFlush {
 				shard.EXPECT().FlushState(t.ToTime()).Return(fileOpState{
 					WarmStatus: fileOpNotStarted,
-				}).AnyTimes()
+				}, nil).AnyTimes()
 			} else {
 				shard.EXPECT().FlushState(t.ToTime()).Return(fileOpState{
 					WarmStatus: fileOpSuccess,
-				}).AnyTimes()
+				}, nil).AnyTimes()
 			}
 		}
 		ns.shards[cs.shardNum] = shard
@@ -813,10 +813,11 @@ func TestNamespaceNeedsFlushRange(t *testing.T) {
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
-	assert.False(t, ns.NeedsFlush(t0, t0))
-	assert.True(t, ns.NeedsFlush(t0, t1))
-	assert.True(t, ns.NeedsFlush(t1, t1))
-	assert.False(t, ns.NeedsFlush(t1, t0))
+
+	assertNeedsFlush(t, ns, t0, t0, false)
+	assertNeedsFlush(t, ns, t0, t1, true)
+	assertNeedsFlush(t, ns, t1, t1, true)
+	assertNeedsFlush(t, ns, t1, t0, false)
 }
 
 func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
@@ -843,14 +844,14 @@ func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
-	assert.True(t, ns.NeedsFlush(t0, t0))
-	assert.True(t, ns.NeedsFlush(t1, t1))
-	assert.True(t, ns.NeedsFlush(t2, t2))
-	assert.True(t, ns.NeedsFlush(t0, t1))
-	assert.True(t, ns.NeedsFlush(t0, t2))
-	assert.True(t, ns.NeedsFlush(t1, t2))
-	assert.False(t, ns.NeedsFlush(t2, t1))
-	assert.False(t, ns.NeedsFlush(t2, t0))
+	assertNeedsFlush(t, ns, t0, t0, true)
+	assertNeedsFlush(t, ns, t1, t1, true)
+	assertNeedsFlush(t, ns, t2, t2, true)
+	assertNeedsFlush(t, ns, t0, t1, true)
+	assertNeedsFlush(t, ns, t0, t2, true)
+	assertNeedsFlush(t, ns, t1, t2, true)
+	assertNeedsFlush(t, ns, t2, t1, false)
+	assertNeedsFlush(t, ns, t2, t0, false)
 }
 func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -876,14 +877,14 @@ func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
-	assert.True(t, ns.NeedsFlush(t0, t0))
-	assert.False(t, ns.NeedsFlush(t1, t1))
-	assert.True(t, ns.NeedsFlush(t2, t2))
-	assert.True(t, ns.NeedsFlush(t0, t1))
-	assert.True(t, ns.NeedsFlush(t0, t2))
-	assert.True(t, ns.NeedsFlush(t1, t2))
-	assert.False(t, ns.NeedsFlush(t2, t1))
-	assert.False(t, ns.NeedsFlush(t2, t0))
+	assertNeedsFlush(t, ns, t0, t0, true)
+	assertNeedsFlush(t, ns, t1, t1, false)
+	assertNeedsFlush(t, ns, t2, t2, true)
+	assertNeedsFlush(t, ns, t0, t1, true)
+	assertNeedsFlush(t, ns, t0, t2, true)
+	assertNeedsFlush(t, ns, t1, t2, true)
+	assertNeedsFlush(t, ns, t2, t1, false)
+	assertNeedsFlush(t, ns, t2, t0, false)
 }
 
 func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
@@ -920,11 +921,11 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
 		shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 			WarmStatus: fileOpSuccess,
-		}).AnyTimes()
+		}, nil).AnyTimes()
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.False(t, ns.NeedsFlush(blockStart, blockStart))
+	assertNeedsFlush(t, ns, blockStart, blockStart, false)
 }
 
 func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
@@ -962,21 +963,21 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 		case shards[0].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				WarmStatus: fileOpSuccess,
-			}).AnyTimes()
+			}, nil).AnyTimes()
 		case shards[1].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				WarmStatus: fileOpSuccess,
-			}).AnyTimes()
+			}, nil).AnyTimes()
 		case shards[2].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				WarmStatus:  fileOpFailed,
 				NumFailures: 999,
-			}).AnyTimes()
+			}, nil).AnyTimes()
 		}
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
+	assertNeedsFlush(t, ns, blockStart, blockStart, true)
 }
 
 func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
@@ -1014,20 +1015,20 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 		case shards[0].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				WarmStatus: fileOpSuccess,
-			}).AnyTimes()
+			}, nil).AnyTimes()
 		case shards[1].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				WarmStatus: fileOpNotStarted,
-			}).AnyTimes()
+			}, nil).AnyTimes()
 		case shards[2].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				WarmStatus: fileOpSuccess,
-			}).AnyTimes()
+			}, nil).AnyTimes()
 		}
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
+	assertNeedsFlush(t, ns, blockStart, blockStart, true)
 }
 
 func TestNamespaceCloseWillCloseShard(t *testing.T) {
@@ -1191,6 +1192,11 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	idx := NewMocknamespaceIndex(ctrl)
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
+	for _, s := range ns.shards {
+		if s != nil {
+			s.Bootstrap(nil)
+		}
+	}
 
 	ctx := context.NewCancellable()
 	idx.EXPECT().Tick(ctx, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
@@ -1251,7 +1257,7 @@ func TestNamespaceFlushState(t *testing.T) {
 		}
 		shard0 = NewMockdatabaseShard(ctrl)
 	)
-	shard0.EXPECT().FlushState(blockStart).Return(expectedFlushState)
+	shard0.EXPECT().FlushState(blockStart).Return(expectedFlushState, nil)
 	ns.shards[0] = shard0
 
 	flushState, err := ns.FlushState(0, blockStart)
@@ -1273,4 +1279,10 @@ func waitForStats(
 	}()
 
 	wg.Wait()
+}
+
+func assertNeedsFlush(t *testing.T, ns *dbNamespace, t0, t1 time.Time, assertTrue bool) {
+	needsFlush, err := ns.NeedsFlush(t1, t1)
+	require.NoError(t, err)
+	require.Equal(t, assertTrue, needsFlush)
 }
