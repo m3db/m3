@@ -2160,6 +2160,7 @@ func (s *dbShard) ColdFlush(
 			multiErr = multiErr.Add(err)
 			continue
 		}
+
 		fsID := fs.FileSetFileIdentifier{
 			Namespace:   s.namespace.ID(),
 			Shard:       s.ID(),
