@@ -21,6 +21,8 @@
 package fs
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -214,9 +216,6 @@ func (m *merger) Merge(
 		}
 		brs = append(brs, br)
 
-		sliceOfSlices.Reset(brs)
-		multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
-
 		// tagsIter is never nil. These tags will be valid as long as the IDs
 		// are valid, and the IDs are valid for the duration of the file writing.
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
@@ -225,8 +224,9 @@ func (m *merger) Merge(
 			return err
 		}
 		tagsToFinalize = append(tagsToFinalize, tags)
-		if err := persistIter(prepared.Persist, multiIter, startTime,
-			id, tags, blockAllocSize, nsCtx.Schema, encoderPool); err != nil {
+
+		if err := persistBlockReaders(id, tags, brs, multiIter, sliceOfSlices,
+			blockStart.ToTime(), blockAllocSize, nsCtx.Schema, encoderPool, prepared.Persist); err != nil {
 			return err
 		}
 		// Closing the context will finalize the data returned from
@@ -239,13 +239,11 @@ func (m *merger) Merge(
 	tmpCtx.Reset()
 	err = mergeWith.ForEachRemaining(
 		tmpCtx, blockStart,
-		func(seriesID ident.ID, tags ident.Tags, mergeWithData []xio.BlockReader) error {
+		func(id ident.ID, tags ident.Tags, mergeWithData []xio.BlockReader) error {
 			brs = brs[:0]
 			brs = append(brs, mergeWithData)
-			sliceOfSlices.Reset(brs)
-			multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
-			err := persistIter(prepared.Persist, multiIter, startTime,
-				seriesID, tags, blockAllocSize, nsCtx.Schema, encoderPool)
+			err := persistBlockReaders(id, tags, brs, multiIter, sliceOfSlices,
+				blockStart.ToTime(), blockAllocSize, nsCtx.Schema, encoderPool, prepared.Persist)
 			// Context is safe to close after persisting data to disk.
 			tmpCtx.BlockingClose()
 			// Reset context here within the passed in function so that the
@@ -278,15 +276,48 @@ func blockReaderFromData(
 	}
 }
 
-func persistIter(
-	persistFn persist.DataFn,
-	it encoding.Iterator,
-	blockStart time.Time,
+func persistBlockReaders(
 	id ident.ID,
 	tags ident.Tags,
+	blockReadersSliceOfSlices [][]xio.BlockReader,
+	multiIter encoding.MultiReaderIterator,
+	sliceOfSlices xio.ReaderSliceOfSlicesFromBlockReadersIterator,
+	blockStart time.Time,
 	blockAllocSize int,
 	schema namespace.SchemaDescr,
 	encoderPool encoding.EncoderPool,
+	persistFn persist.DataFn,
+) error {
+	if len(blockReadersSliceOfSlices) == 0 {
+		return nil
+	}
+	if len(blockReadersSliceOfSlices) > 1 {
+		return errors.New("length of blocks readers should be zero or one")
+	}
+
+	blockReaders := blockReadersSliceOfSlices[0]
+	if len(blockReaders) == 0 {
+		return nil
+	}
+	if len(blockReaders) == 1 {
+		return persistBlockReader(id, tags, blockReaders[0], persistFn)
+	}
+
+	sliceOfSlices.Reset(blockReadersSliceOfSlices)
+	multiIter.ResetSliceOfSlices(sliceOfSlices, schema)
+	return persistIter(id, tags, multiIter,
+		blockStart, blockAllocSize, schema, encoderPool, persistFn)
+}
+
+func persistIter(
+	id ident.ID,
+	tags ident.Tags,
+	it encoding.Iterator,
+	blockStart time.Time,
+	blockAllocSize int,
+	schema namespace.SchemaDescr,
+	encoderPool encoding.EncoderPool,
+	persistFn persist.DataFn,
 ) error {
 	encoder := encoderPool.Get()
 	encoder.Reset(blockStart, blockAllocSize, schema)
@@ -302,7 +333,29 @@ func persistIter(
 	}
 
 	segment := encoder.Discard()
-	checksum := digest.SegmentChecksum(segment)
+	return persistSegment(id, tags, segment, persistFn)
+}
 
+func persistBlockReader(
+	id ident.ID,
+	tags ident.Tags,
+	blockReader xio.BlockReader,
+	persistFn persist.DataFn,
+) error {
+	segment, err := blockReader.Segment()
+	if err != nil {
+		fmt.Println("hmm")
+		return err
+	}
+	return persistSegment(id, tags, segment, persistFn)
+}
+
+func persistSegment(
+	id ident.ID,
+	tags ident.Tags,
+	segment ts.Segment,
+	persistFn persist.DataFn,
+) error {
+	checksum := digest.SegmentChecksum(segment)
 	return persistFn(id, tags, segment, checksum)
 }
