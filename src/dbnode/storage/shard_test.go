@@ -110,7 +110,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	require.True(t, shard.newSeriesBootstrapped)
 }
 
-func TestShardBootstrapState(t *testing.T) {
+func TestShardErrorIfDoubleBootstrap(t *testing.T) {
 	opts := DefaultTestOptions()
 	testNs, closer := newTestNamespace(t)
 	defer closer()
@@ -120,7 +120,15 @@ func TestShardBootstrapState(t *testing.T) {
 	defer shard.Close()
 
 	require.Equal(t, Bootstrapped, shard.bootstrapState)
-	require.Equal(t, Bootstrapped, shard.BootstrapState())
+	require.True(t, shard.newSeriesBootstrapped)
+}
+
+func TestShardBootstrapState(t *testing.T) {
+	opts := DefaultTestOptions()
+	s := testDatabaseShard(t, opts)
+	defer s.Close()
+	require.NoError(t, s.Bootstrap(nil))
+	require.Error(t, s.Bootstrap(nil))
 }
 
 func TestShardFlushStateNotStarted(t *testing.T) {
