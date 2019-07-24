@@ -141,7 +141,7 @@ func (m *merger) Merge(
 	}
 
 	var (
-		// There will likely be at least two SegmentReader - one for disk data and
+		// There will likely be at least two SegmentReaders - one for disk data and
 		// one for data from the merge target.
 		segmentReaders = make([]xio.SegmentReader, 0, 2)
 
@@ -201,7 +201,6 @@ func (m *merger) Merge(
 		}
 		idsToFinalize = append(idsToFinalize, id)
 
-		// Reset BlockReaders.
 		segmentReaders = segmentReaders[:0]
 		segmentReaders = append(segmentReaders, segmentReaderFromData(data, segReader))
 
@@ -224,7 +223,7 @@ func (m *merger) Merge(
 		}
 		tagsToFinalize = append(tagsToFinalize, tags)
 
-		if err := persistBlockReaders(id, tags, segmentReaders, iterResources, prepared.Persist); err != nil {
+		if err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist); err != nil {
 			return err
 		}
 		// Closing the context will finalize the data returned from
@@ -239,8 +238,8 @@ func (m *merger) Merge(
 		tmpCtx, blockStart,
 		func(id ident.ID, tags ident.Tags, mergeWithData []xio.BlockReader) error {
 			segmentReaders = segmentReaders[:0]
-			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders[:0], mergeWithData)
-			err := persistBlockReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
+			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData)
+			err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
 			// Context is safe to close after persisting data to disk.
 			tmpCtx.BlockingClose()
 			// Reset context here within the passed in function so that the
@@ -274,7 +273,7 @@ func segmentReaderFromData(
 	return segReader
 }
 
-func persistBlockReaders(
+func persistSegmentReaders(
 	id ident.ID,
 	tags ident.Tags,
 	segReaders []xio.SegmentReader,
