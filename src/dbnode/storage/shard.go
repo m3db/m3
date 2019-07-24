@@ -73,6 +73,7 @@ var (
 	errNewShardEntryTagsTypeInvalid        = errors.New("new shard entry options error: tags type invalid")
 	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
 	errShardIsNotBootstrapped              = errors.New("shard is not bootstrapped")
+	errShardAlreadyBootstrapped            = errors.New("shard is already bootstrapped")
 	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
 	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
 )
@@ -1789,9 +1790,8 @@ func (s *dbShard) Bootstrap(
 ) error {
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
-		// TODO(rartoul): This should return an error instead of failing silently.
 		s.Unlock()
-		return nil
+		return errShardAlreadyBootstrapped
 	}
 	if s.bootstrapState == Bootstrapping {
 		s.Unlock()

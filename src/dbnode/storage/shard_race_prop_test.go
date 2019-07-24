@@ -110,7 +110,6 @@ var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) {
 	opts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
 	shard.currRuntimeOptions.tickSleepPerSeries = time.Microsecond
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = tickBatchSize
 	return shard, opts
