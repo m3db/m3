@@ -51,6 +51,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -2091,6 +2092,14 @@ func (s *dbShard) ColdFlush(
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
 		if err != nil {
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.With(
+					zap.String("namespace", s.namespace.ID().String()),
+					zap.Uint32("shard", s.ID()),
+					zap.Time("blockStart", startTime),
+					zap.Int("nextVersion", nextVersion),
+				).Error("failed to update open leases after updating flush state cold version")
+			})
 			multiErr = multiErr.Add(err)
 			continue
 		}
