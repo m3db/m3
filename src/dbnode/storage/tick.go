@@ -63,10 +63,12 @@ func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 }
 
 type tickManager struct {
-	database database
-	opts     Options
-	nowFn    clock.NowFn
-	sleepFn  sleepFn
+	sync.Mutex
+	database                   database
+	opts                       Options
+	lastCompletedTickStartTime time.Time
+	nowFn                      clock.NowFn
+	sleepFn                    sleepFn
 
 	metrics tickManagerMetrics
 	c       context.Cancellable
@@ -123,7 +125,7 @@ func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
 	})
 }
 
-func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
+func (mgr *tickManager) Tick(forceType forceType) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)
@@ -149,6 +151,8 @@ func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
 	// Release the token
 	defer func() { mgr.tokenCh <- struct{}{} }()
 
+	tickStartTime := mgr.nowFn()
+
 	// Now we acquired the token, reset the cancellable
 	mgr.c.Reset()
 	namespaces, err := mgr.database.GetOwnedNamespaces()
@@ -165,7 +169,7 @@ func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
 		multiErr xerrors.MultiError
 	)
 	for _, n := range namespaces {
-		multiErr = multiErr.Add(n.Tick(mgr.c, tickStart))
+		multiErr = multiErr.Add(n.Tick(mgr.c, tickStartTime))
 	}
 
 	// NB(r): Always sleep for some constant period since ticking
@@ -205,5 +209,17 @@ func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
 		return errTickCancelled
 	}
 
+	finalErr := multiErr.FinalError()
+	if finalErr == nil {
+		mgr.Lock()
+		mgr.lastCompletedTickStartTime = tickStartTime
+		mgr.Unlock()
+	}
 	return multiErr.FinalError()
+}
+
+func (mgr *tickManager) LastCompletedTickStartTime() (time.Time, bool) {
+	mgr.Lock()
+	defer mgr.Unlock()
+	return mgr.lastCompletedTickStartTime, !mgr.lastCompletedTickStartTime.IsZero()
 }

@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 
-	"go.uber.org/zap"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 type mediatorState int
@@ -118,6 +118,7 @@ func (m *mediator) Open() error {
 	}
 	m.state = mediatorOpen
 	go m.reportLoop()
+	go m.ongoingFilesystemProcesses()
 	go m.ongoingTick()
 	m.databaseRepairer.Start()
 	return nil
@@ -155,19 +156,9 @@ func (m *mediator) EnableFileOps() {
 // a shard flush state (due to it expiring), but since the flush logic is using a slightly more stale timestamp it
 // will think that the old block hasn't been flushed (even thought it has) and try to flush it even though the data
 // is potentially still on disk (if it hasn't been cleaned up yet).
-func (m *mediator) Tick(runType runType, forceType forceType) error {
-	tickStart := m.nowFn()
+func (m *mediator) RunFilesystemProcesses(forceType forceType, lastCompletedTickStartTime time.Time) error {
 	dbBootstrapStateAtTickStart := m.database.BootstrapState()
-
-	if err := m.databaseTickManager.Tick(forceType, tickStart); err != nil {
-		return err
-	}
-
-	// NB(r): Cleanup and/or flush if required to cleanup files and/or
-	// flush blocks to disk. Note this has to run after the tick as
-	// blocks may only have just become available during a tick beginning
-	// from the tick begin marker.
-	m.databaseFileSystemManager.Run(tickStart, dbBootstrapStateAtTickStart, syncRun, forceType)
+	m.databaseFileSystemManager.Run(lastCompletedTickStartTime, dbBootstrapStateAtTickStart, syncRun, forceType)
 	return nil
 }
 
@@ -192,21 +183,49 @@ func (m *mediator) Close() error {
 	return nil
 }
 
+func (m *mediator) ongoingFilesystemProcesses() {
+	var prevLastCompletedTickStartTime time.Time
+	for {
+		select {
+		case <-m.closedCh:
+			return
+		default:
+			m.sleepFn(tickCheckInterval)
+			// NB(xichen): if we attempt to tick while another tick
+			// is in progress, throttle a little to avoid constantly
+			// checking whether the ongoing tick is finished
+			lastCompletedTickStartTime, anyTicksHaveCompleted := m.databaseTickManager.LastCompletedTickStartTime()
+			if !anyTicksHaveCompleted {
+				// Can't proceed until at least one tick has completed successfully.
+				continue
+			}
+			if lastCompletedTickStartTime.Equal(prevLastCompletedTickStartTime) {
+				// Wait for a full tick to elapse between running filesystem processes.
+				continue
+			}
+
+			if err := m.RunFilesystemProcesses(noForce, lastCompletedTickStartTime); err != nil {
+				log := m.opts.InstrumentOptions().Logger()
+				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
+				continue
+			}
+
+			// Only update if no errors to allow retries.
+			prevLastCompletedTickStartTime = lastCompletedTickStartTime
+		}
+	}
+}
+
 func (m *mediator) ongoingTick() {
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
-			// NB(xichen): if we attempt to tick while another tick
-			// is in progress, throttle a little to avoid constantly
-			// checking whether the ongoing tick is finished
-			err := m.Tick(asyncRun, noForce)
-			if err == errTickInProgress {
-				m.sleepFn(tickCheckInterval)
-			} else if err != nil {
+			m.sleepFn(tickCheckInterval)
+			if err := m.Tick(force); err != nil {
 				log := m.opts.InstrumentOptions().Logger()
-				log.Error("error within ongoingTick", zap.Error(err))
+				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
 			}
 		}
 	}
