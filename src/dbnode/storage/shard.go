@@ -2366,6 +2366,7 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 		return fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
 			filePathPrefix, s.namespace.ID(), s.ID(), err)
 	}
+
 	// Get a snapshot of all states here to prevent constantly getting/releasing
 	// locks in a tight loop below. This snapshot won't become stale halfway
 	// through this because flushing and cleanup never happen in parallel.
@@ -2374,6 +2375,7 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 	if !bootstrapped {
 		return errFlushStateIsNotBootstrapped
 	}
+
 	toDelete := fs.FileSetFilesSlice(make([]fs.FileSetFile, 0, len(filesets)))
 	for _, datafile := range filesets {
 		fileID := datafile.ID
