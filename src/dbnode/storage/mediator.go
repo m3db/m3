@@ -225,7 +225,7 @@ func (m *mediator) ongoingTick() {
 			m.sleepFn(tickCheckInterval)
 			if err := m.Tick(force); err != nil {
 				log := m.opts.InstrumentOptions().Logger()
-				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
+				log.Error("error within tick", zap.Error(err))
 			}
 		}
 	}

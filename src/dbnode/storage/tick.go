@@ -215,7 +215,7 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 		mgr.lastCompletedTickStartTime = tickStartTime
 		mgr.Unlock()
 	}
-	return multiErr.FinalError()
+	return finalErr
 }
 
 func (mgr *tickManager) LastCompletedTickStartTime() (time.Time, bool) {
