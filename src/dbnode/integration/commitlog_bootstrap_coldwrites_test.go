@@ -81,6 +81,9 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: start.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: start.Add(-blockSize)},
 	}
+	if updateInputConfig != nil {
+		updateInputConfig(dataFilesData)
+	}
 	dataFilesSeriesMaps := generate.BlocksByStart(dataFilesData)
 	require.NoError(t, writeTestDataToDisk(ns1, setup, dataFilesSeriesMaps, 0))
 	log.Info("finished writing data files")
@@ -90,14 +93,12 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 		{IDs: []string{"commitlog1", "commitlog2"}, NumPoints: 120, Start: start.Add(-2 * blockSize)},
 		{IDs: []string{"commitlog2", "commitlog3"}, NumPoints: 130, Start: start.Add(-blockSize)},
 	}
+	if updateInputConfig != nil {
+		updateInputConfig(commitLogData)
+	}
 	commitLogSeriesMaps := generate.BlocksByStart(commitLogData)
 	writeCommitLogData(t, setup, commitLogOpts, commitLogSeriesMaps, ns1, false)
 	log.Info("finished writing commit logs")
-
-	allData := append(dataFilesData, commitLogData...)
-	if updateInputConfig != nil {
-		updateInputConfig(allData)
-	}
 
 	// Merge the two generated series maps together. We can only do this simply
 	// here because we know that they span the same block starts and they do
@@ -112,6 +113,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
+	setup.setNowFn(start)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.startServer())
 	log.Debug("server is now up")
