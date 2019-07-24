@@ -51,6 +51,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -2085,11 +2086,23 @@ func (s *dbShard) ColdFlush(
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
 			Namespace:  s.namespace.ID(),
 			Shard:      s.ID(),
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
+		if err != nil {
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.With(
+					zap.String("namespace", s.namespace.ID().String()),
+					zap.Uint32("shard", s.ID()),
+					zap.Time("blockStart", startTime),
+					zap.Int("nextVersion", nextVersion),
+				).Error("failed to update open leases after updating flush state cold version")
+			})
+			multiErr = multiErr.Add(err)
+			continue
+		}
 	}
 
 	return multiErr.FinalError()
