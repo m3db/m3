@@ -206,7 +206,8 @@ func (s *dbSeries) updateBlocksWithLock(
 		// Potentially unwire
 		var unwired, shouldUnwire bool
 		blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
-		// Only use the block states data to make decision if it has been bootstrapped already.
+		// Only use block state snapshot information to make eviction decisions if the block state
+		// has been properly bootstrapped already.
 		if bootstrapped {
 			// Makes sure that the block has been flushed, which
 			// prevents us from unwiring blocks that haven't been flushed yet which
