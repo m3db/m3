@@ -84,7 +84,7 @@ func newSeriesTestOptions() Options {
 func TestSeriesEmpty(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	assert.True(t, series.IsEmpty())
 }
@@ -106,7 +106,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	data := []value{
@@ -141,7 +141,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	data := []value{
@@ -184,7 +184,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	data := []value{
@@ -228,13 +228,13 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 		f     func(
 			series DatabaseSeries,
 			blocks block.DatabaseSeriesBlocks,
-			blockStates BlockStateSnapshot)
+			blockStates BootstrappedBlockStateSnapshot)
 	}{
 		{
 			title: "load",
 			f: func(series DatabaseSeries,
 				blocks block.DatabaseSeriesBlocks,
-				blockStates BlockStateSnapshot,
+				blockStates BootstrappedBlockStateSnapshot,
 			) {
 				series.Load(blocks, blockStates)
 			}},
@@ -242,7 +242,7 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 			title: "bootstrap",
 			f: func(series DatabaseSeries,
 				blocks block.DatabaseSeriesBlocks,
-				blockStates BlockStateSnapshot,
+				blockStates BootstrappedBlockStateSnapshot,
 			) {
 				_, err := series.Bootstrap(blocks, blockStates)
 				require.NoError(t, err)
@@ -285,7 +285,7 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blocks                       = block.NewDatabaseSeriesBlocks(len(loadWrites))
 				alreadyWarmFlushedBlockStart = curr.Add(blockSize).Truncate(blockSize)
 				notYetWarmFlushedBlockStart  = curr.Add(2 * blockSize).Truncate(blockSize)
-				blockStates                  = BlockStateSnapshot{
+				blockStates                  = BootstrappedBlockStateSnapshot{
 					Snapshot: map[xtime.UnixNano]BlockState{
 						// Exercise both code paths.
 						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
@@ -340,7 +340,7 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 func TestSeriesReadEndBeforeStart(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -356,7 +356,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 func TestSeriesFlushNoBlock(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
 	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
@@ -375,7 +375,7 @@ func TestSeriesFlush(t *testing.T) {
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -402,9 +402,9 @@ func TestSeriesFlush(t *testing.T) {
 func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
-	_, err = series.Tick(NewShardBlockStateSnapshot(true, BlockStateSnapshot{}), namespace.Context{})
+	_, err = series.Tick(NewShardBlockStateSnapshot(true, BootstrappedBlockStateSnapshot{}), namespace.Context{})
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -414,13 +414,13 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
 	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	r, err := series.Tick(NewShardBlockStateSnapshot(true, BlockStateSnapshot{}), namespace.Context{})
+	r, err := series.Tick(NewShardBlockStateSnapshot(true, BootstrappedBlockStateSnapshot{}), namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
@@ -438,7 +438,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
@@ -455,7 +455,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	blockStates := BlockStateSnapshot{
+	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(blockStart): BlockState{
 				WarmRetrievable: false,
@@ -494,7 +494,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	// Test case where block has been read within expiry period - won't be removed
@@ -505,7 +505,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates := BlockStateSnapshot{
+	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(curr): BlockState{
 				WarmRetrievable: true,
@@ -538,7 +538,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates = BlockStateSnapshot{
+	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(curr): BlockState{
 				WarmRetrievable: false,
@@ -570,7 +570,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	// Test case where block was not retrieved from disk - Will be removed
@@ -580,7 +580,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates := BlockStateSnapshot{
+	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(curr): BlockState{
 				WarmRetrievable: true,
@@ -620,7 +620,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	_, expiredBlockExists := series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, true, expiredBlockExists)
 
-	blockStates = BlockStateSnapshot{
+	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(curr): BlockState{
 				WarmRetrievable: false,
@@ -653,7 +653,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	// Retrievable blocks should be removed
@@ -662,7 +662,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates := BlockStateSnapshot{
+	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(curr): BlockState{
 				WarmRetrievable: true,
@@ -682,7 +682,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates = BlockStateSnapshot{
+	blockStates = BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(curr): BlockState{
 				WarmRetrievable: false,
@@ -745,7 +745,7 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 	series.buffer = buffer
 
 	assert.Equal(t, 3, series.cachedBlocks.Len())
-	blockStates := BlockStateSnapshot{}
+	blockStates := BootstrappedBlockStateSnapshot{}
 	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
 	_, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
@@ -783,7 +783,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 		Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	series.cachedBlocks = blocks
@@ -853,7 +853,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		Return(expectedResults, nil)
 
 	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	mockBlocks.EXPECT().AllBlocks().Return(blocks)
@@ -991,7 +991,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, BlockStateSnapshot{})
+	_, err := series.Bootstrap(nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()

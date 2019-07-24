@@ -103,11 +103,11 @@ type DatabaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates BlockStateSnapshot) (BootstrapResult, error)
+	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates BootstrappedBlockStateSnapshot) (BootstrapResult, error)
 
 	// Load does the same thing as Bootstrap except it should be used for data that did
 	// not originate from the Bootstrap process (like background repairs).
-	Load(blocks block.DatabaseSeriesBlocks, blockStates BlockStateSnapshot)
+	Load(blocks block.DatabaseSeriesBlocks, blockStates BootstrappedBlockStateSnapshot)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -127,7 +127,7 @@ type DatabaseSeries interface {
 	) error
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
-	ColdFlushBlockStarts(blockStates BlockStateSnapshot) OptimizedTimes
+	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -180,13 +180,13 @@ type QueryableBlockRetriever interface {
 // a moment in time.
 type ShardBlockStateSnapshot struct {
 	bootstrapped bool
-	snapshot     BlockStateSnapshot
+	snapshot     BootstrappedBlockStateSnapshot
 }
 
 // NewShardBlockStateSnapshot constructs a new NewShardBlockStateSnapshot.
 func NewShardBlockStateSnapshot(
 	bootstrapped bool,
-	snapshot BlockStateSnapshot,
+	snapshot BootstrappedBlockStateSnapshot,
 ) ShardBlockStateSnapshot {
 	return ShardBlockStateSnapshot{
 		bootstrapped: bootstrapped,
@@ -194,15 +194,14 @@ func NewShardBlockStateSnapshot(
 	}
 }
 
-// Snapshot returns a BlockStateSnapshot and a boolean indicating whether the
+// Snapshot returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
 // snapshot is bootstrapped or not.
-func (s *ShardBlockStateSnapshot) Snapshot() (BlockStateSnapshot, bool) {
+func (s *ShardBlockStateSnapshot) Snapshot() (BootstrappedBlockStateSnapshot, bool) {
 	return s.snapshot, s.bootstrapped
 }
 
-// BlockStateSnapshot represents a bootstrapped shard block state snapshot.
-// TODO(rartoul): Rename?
-type BlockStateSnapshot struct {
+// BootstrappedBlockStateSnapshot represents a bootstrapped shard block state snapshot.
+type BootstrappedBlockStateSnapshot struct {
 	Snapshot map[xtime.UnixNano]BlockState
 }
 

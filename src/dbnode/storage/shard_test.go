@@ -273,7 +273,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	// Ensure that the bootstrapped flush/block states get passed to the series.Bootstrap()
 	// method properly.
-	blockStateSnapshot := series.BlockStateSnapshot{
+	blockStateSnapshot := series.BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]series.BlockState{},
 	}
 	for i, blockStart := range blockStarts {
@@ -835,7 +835,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
 	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	if bootstrap {
-		seriesEntry.Bootstrap(nil, series.BlockStateSnapshot{})
+		seriesEntry.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
 	}
 	shard.Lock()
 	entry := lookup.NewEntry(seriesEntry, 0)

@@ -416,7 +416,7 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 
 func (s *dbSeries) Bootstrap(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates BlockStateSnapshot,
+	blockStates BootstrappedBlockStateSnapshot,
 ) (BootstrapResult, error) {
 	s.Lock()
 	defer func() {
@@ -441,7 +441,7 @@ func (s *dbSeries) Bootstrap(
 
 func (s *dbSeries) Load(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates BlockStateSnapshot,
+	blockStates BootstrappedBlockStateSnapshot,
 ) {
 	s.Lock()
 	s.loadWithLock(bootstrappedBlocks, blockStates)
@@ -450,7 +450,7 @@ func (s *dbSeries) Load(
 
 func (s *dbSeries) loadWithLock(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates BlockStateSnapshot,
+	blockStates BootstrappedBlockStateSnapshot,
 ) {
 	for _, block := range bootstrappedBlocks.AllBlocks() {
 		blStartNano := xtime.ToUnixNano(block.StartTime())
@@ -608,7 +608,7 @@ func (s *dbSeries) Snapshot(
 	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
 
-func (s *dbSeries) ColdFlushBlockStarts(blockStates BlockStateSnapshot) OptimizedTimes {
+func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
 	s.RLock()
 	defer s.RUnlock()
 

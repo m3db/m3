@@ -394,7 +394,7 @@ func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	defer s.flushState.RUnlock()
 
 	if !s.flushState.bootstrapped {
-		return series.NewShardBlockStateSnapshot(false, series.BlockStateSnapshot{})
+		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
 	}
 
 	states := s.flushState.statesByTime
@@ -406,7 +406,7 @@ func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 		}
 	}
 
-	return series.NewShardBlockStateSnapshot(true, series.BlockStateSnapshot{
+	return series.NewShardBlockStateSnapshot(true, series.BootstrappedBlockStateSnapshot{
 		Snapshot: snapshot,
 	})
 }
@@ -1258,7 +1258,7 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		_, err := entry.Series.Bootstrap(nil, series.BlockStateSnapshot{})
+		_, err := entry.Series.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
 		if err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
@@ -1344,7 +1344,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			_, err := entry.Series.Bootstrap(nil, series.BlockStateSnapshot{})
+			_, err := entry.Series.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
 			if err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
@@ -1827,7 +1827,7 @@ func (s *dbShard) Bootstrap(
 		if seriesEntry.IsBootstrapped() {
 			return true
 		}
-		_, err := seriesEntry.Bootstrap(nil, series.BlockStateSnapshot{})
+		_, err := seriesEntry.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
 		multiErr = multiErr.Add(err)
 		return true
 	})

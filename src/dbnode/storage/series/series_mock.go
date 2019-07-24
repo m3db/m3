@@ -64,7 +64,7 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 }
 
 // Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks, arg1 BlockStateSnapshot) (BootstrapResult, error) {
+func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks, arg1 BootstrappedBlockStateSnapshot) (BootstrapResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", arg0, arg1)
 	ret0, _ := ret[0].(BootstrapResult)
@@ -91,7 +91,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 }
 
 // ColdFlushBlockStarts mocks base method
-func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 BlockStateSnapshot) OptimizedTimes {
+func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 BootstrappedBlockStateSnapshot) OptimizedTimes {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", arg0)
 	ret0, _ := ret[0].(OptimizedTimes)
@@ -192,7 +192,7 @@ func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // Load mocks base method
-func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 BlockStateSnapshot) {
+func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 BootstrappedBlockStateSnapshot) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Load", arg0, arg1)
 }

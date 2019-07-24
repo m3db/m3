@@ -825,7 +825,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	assert.Equal(t, 2, len(encoders))
 
-	blockStates := BlockStateSnapshot{
+	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(start): BlockState{
 				WarmRetrievable: true,
@@ -905,7 +905,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	// Simulate that a flush has fully completed on this bucket so that it will.
 	// get removed from the bucket.
-	blockStates := BlockStateSnapshot{
+	blockStates := BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]BlockState{
 			xtime.ToUnixNano(start): BlockState{
 				WarmRetrievable: true,
