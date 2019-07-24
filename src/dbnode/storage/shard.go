@@ -2085,11 +2085,15 @@ func (s *dbShard) ColdFlush(
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
 			Namespace:  s.namespace.ID(),
 			Shard:      s.ID(),
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
 	}
 
 	return multiErr.FinalError()
