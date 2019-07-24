@@ -73,24 +73,28 @@ type mediator struct {
 	databaseTickManager
 	databaseRepairer
 
-	opts     Options
-	nowFn    clock.NowFn
-	sleepFn  sleepFn
-	metrics  mediatorMetrics
-	state    mediatorState
-	closedCh chan struct{}
+	opts                       Options
+	nowFn                      clock.NowFn
+	sleepFn                    sleepFn
+	metrics                    mediatorMetrics
+	state                      mediatorState
+	mediatorTime               time.Time
+	filesystemProcessesRunning bool
+	filesystemProcessesBarrier chan struct{}
+	closedCh                   chan struct{}
 }
 
 func newMediator(database database, commitlog commitlog.CommitLog, opts Options) (databaseMediator, error) {
 	scope := opts.InstrumentOptions().MetricsScope()
 	d := &mediator{
-		database: database,
-		opts:     opts,
-		nowFn:    opts.ClockOptions().NowFn(),
-		sleepFn:  time.Sleep,
-		metrics:  newMediatorMetrics(scope),
-		state:    mediatorNotOpen,
-		closedCh: make(chan struct{}),
+		database:                   database,
+		opts:                       opts,
+		nowFn:                      opts.ClockOptions().NowFn(),
+		sleepFn:                    time.Sleep,
+		metrics:                    newMediatorMetrics(scope),
+		state:                      mediatorNotOpen,
+		filesystemProcessesBarrier: make(chan struct{}),
+		closedCh:                   make(chan struct{}),
 	}
 
 	fsm := newFileSystemManager(database, commitlog, opts)
@@ -136,20 +140,12 @@ func (m *mediator) EnableFileOps() {
 	m.databaseFileSystemManager.Enable()
 }
 
-// Tick mediates the relationship between ticks and flushes/snapshots/cleanups.
+// The mediator mediates the relationship between ticks and flushes(warm and cold)/snapshots/cleanups.
 //
 // For example, the requirements to perform a flush are:
 // 		1) currentTime > blockStart.Add(blockSize).Add(bufferPast)
 // 		2) node is not bootstrapping (technically shard is not bootstrapping)
-// 		3) at least one complete tick has occurred since blockStart.Add(blockSize).Add(bufferPast)
-//		4) at least one complete tick has occurred since bootstrap completed (can be the same tick
-// 		   that satisfies condition #3)
 //
-// The mediator helps ensure conditions #3 and #4 are met by measuring the tickStart time and the shard bootstrap
-// states *before* the tick, and then propagating those values to downstream components so they can use that
-// information to make decisions about whether to flush / snapshot / run cleanups.
-//
-// Measuring the tickStart before the tick and propagating that also helps the tick and flush logic to coordinate.
 // For example, there is logic in the Tick flow for removing shard flush states from a map so that it doesn't
 // grow infinitely for nodes that are not restarted. If the Tick path measured the current time when it made that
 // decision instead of using the same measurement that is shared with the flush logic, it might end up removing
@@ -184,27 +180,33 @@ func (m *mediator) Close() error {
 }
 
 func (m *mediator) ongoingFilesystemProcesses() {
-	var prevLastCompletedTickStartTime time.Time
+	var prevMediatorTime time.Time
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
+
+			// Wait for next time.
 			// NB(xichen): if we attempt to tick while another tick
 			// is in progress, throttle a little to avoid constantly
 			// checking whether the ongoing tick is finished
-			lastCompletedTickStartTime, anyTicksHaveCompleted := m.databaseTickManager.LastCompletedTickStartTime()
-			if !anyTicksHaveCompleted {
-				// Can't proceed until at least one tick has completed successfully.
-				continue
-			}
-			if lastCompletedTickStartTime.Equal(prevLastCompletedTickStartTime) {
+			// lastCompletedTickStartTime, anyTicksHaveCompleted := m.databaseTickManager.LastCompletedTickStartTime()
+			// if !anyTicksHaveCompleted {
+			// 	// Can't proceed until at least one tick has completed successfully.
+			// 	continue
+			// }
+			mediatorTime := m.getMediatorTime()
+			if mediatorTime.Equal(prevMediatorTime) {
 				// Wait for a full tick to elapse between running filesystem processes.
 				continue
 			}
 
-			if err := m.RunFilesystemProcesses(noForce, lastCompletedTickStartTime); err != nil {
+			m.setFSProcessesRunning(true)
+			err := m.RunFilesystemProcesses(noForce, lastCompletedTickStartTime)
+			m.setFSProcessesRunning(false)
+			if err != nil {
 				log := m.opts.InstrumentOptions().Logger()
 				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
 				continue
@@ -222,11 +224,25 @@ func (m *mediator) ongoingTick() {
 		case <-m.closedCh:
 			return
 		default:
+			// If flush in progress, tick
+			// else, set new time.
 			m.sleepFn(tickCheckInterval)
+			fsProcessRunning := m.getFSProcessesRunning()
+			if !fsProcessRunning {
+				m.setMediatorTime(m.nowFn())
+			}
+			// TODO: pass time
 			if err := m.Tick(force); err != nil {
 				log := m.opts.InstrumentOptions().Logger()
 				log.Error("error within tick", zap.Error(err))
 			}
+
+			// fsProcessesBarrier
+			// fsProcessRunning := m.getFSProcessesRunning()
+			// if !fsProcessRunning {
+			// 	m.setMediatorTime(m.nowFn())
+			// }
+			m.file
 		}
 	}
 }
@@ -244,4 +260,60 @@ func (m *mediator) reportLoop() {
 			return
 		}
 	}
+}
+
+func (m *mediator) setMediatorTime(t time.Time) {
+	m.Lock()
+	m.mediatorTime = t
+	m.Unlock()
+}
+
+func (m *mediator) getMediatorTime() time.Time {
+	m.RLock()
+	t := m.mediatorTime
+	m.RUnlock()
+	return t
+}
+
+func (m *mediator) setFSProcessesRunning(running bool) {
+	m.Lock()
+	m.filesystemProcessesRunning = running
+	m.Unlock()
+}
+
+func (m *mediator) getFSProcessesRunning() bool {
+	m.RLock()
+	running := m.filesystemProcessesRunning
+	m.RUnlock()
+	return running
+}
+
+type timeBarrier struct {
+	sync.Mutex
+	isWaiting bool
+	doneCh    chan time.Time
+}
+
+func (b *timeBarrier) wait() time.Time {
+	b.Lock()
+	b.isWaiting = true
+	b.Unlock()
+
+	t := <-b.doneCh
+
+	b.Lock()
+	b.isWaiting = false
+	b.Unlock()
+	return t
+}
+
+func (b *timeBarrier) release(t time.Time) {
+	b.doneCh <- t
+}
+
+func (b *timeBarrier) hasWaiter() bool {
+	b.Lock()
+	isWaiting := b.isWaiting
+	b.Unlock()
+	return isWaiting
 }
