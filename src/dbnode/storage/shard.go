@@ -616,8 +616,8 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error) {
-	s.removeAnyFlushStatesTooEarly(tickStart)
+func (s *dbShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+	s.removeAnyFlushStatesTooEarly(startTime)
 	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
 }
 
@@ -2250,9 +2250,9 @@ func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version 
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
+func (s *dbShard) removeAnyFlushStatesTooEarly(startTime time.Time) {
 	s.flushState.Lock()
-	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), tickStart)
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), startTime)
 	for t := range s.flushState.statesByTime {
 		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)

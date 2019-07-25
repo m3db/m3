@@ -269,7 +269,7 @@ type databaseNamespace interface {
 	GetIndex() (namespaceIndex, error)
 
 	// Tick performs any regular maintenance operations.
-	Tick(c context.Cancellable, tickStart time.Time) error
+	Tick(c context.Cancellable, startTime time.Time) error
 
 	// Write writes a data point.
 	Write(
@@ -397,7 +397,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error)
+	Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -548,7 +548,7 @@ type namespaceIndex interface {
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
-	Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error)
+	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
 
 	// Flush performs any flushes that the index has outstanding using
 	// the owned shards of the database.
@@ -606,7 +606,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(tickStart time.Time) error
+	Flush(startTime time.Time) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.

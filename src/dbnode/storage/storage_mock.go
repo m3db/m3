@@ -1150,17 +1150,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) GetIndex() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
+func (m *MockdatabaseNamespace) Tick(c context.Cancellable, startTime time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, tickStart)
+	ret := m.ctrl.Call(m, "Tick", c, startTime)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, tickStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, startTime)
 }
 
 // Write mocks base method
@@ -1598,18 +1598,18 @@ func (mr *MockdatabaseShardMockRecorder) Close() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseShard) Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error) {
+func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, tickStart, nsCtx)
+	ret := m.ctrl.Call(m, "Tick", c, startTime, nsCtx)
 	ret0, _ := ret[0].(tickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart, nsCtx interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, tickStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
 }
 
 // Write mocks base method
@@ -1958,18 +1958,18 @@ func (mr *MocknamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) 
 }
 
 // Tick mocks base method
-func (m *MocknamespaceIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
+func (m *MocknamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, tickStart)
+	ret := m.ctrl.Call(m, "Tick", c, startTime)
 	ret0, _ := ret[0].(namespaceIndexTickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MocknamespaceIndexMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+func (mr *MocknamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c, tickStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c, startTime)
 }
 
 // Flush mocks base method
@@ -2168,17 +2168,17 @@ func (m *MockdatabaseFlushManager) EXPECT() *MockdatabaseFlushManagerMockRecorde
 }
 
 // Flush mocks base method
-func (m *MockdatabaseFlushManager) Flush(tickStart time.Time) error {
+func (m *MockdatabaseFlushManager) Flush(startTime time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", tickStart)
+	ret := m.ctrl.Call(m, "Flush", startTime)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockdatabaseFlushManagerMockRecorder) Flush(tickStart interface{}) *gomock.Call {
+func (mr *MockdatabaseFlushManagerMockRecorder) Flush(startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), tickStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), startTime)
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method

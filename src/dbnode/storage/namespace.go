@@ -514,7 +514,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
+func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
 	// Allow the reader cache to tick.
 	n.namespaceReaderMgr.tick()
 
@@ -545,7 +545,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 				return
 			}
 
-			shardResult, err := shard.Tick(c, tickStart, nsCtx)
+			shardResult, err := shard.Tick(c, startTime, nsCtx)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -562,7 +562,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 		err              error
 	)
 	if idx := n.reverseIndex; idx != nil {
-		indexTickResults, err = idx.Tick(c, tickStart)
+		indexTickResults, err = idx.Tick(c, startTime)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}

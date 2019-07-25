@@ -90,7 +90,7 @@ func newFlushManager(
 	}
 }
 
-func (m *flushManager) Flush(tickStart time.Time) error {
+func (m *flushManager) Flush(startTime time.Time) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
 	if m.state != flushManagerIdle {
@@ -118,7 +118,7 @@ func (m *flushManager) Flush(tickStart time.Time) error {
 	// as the snapshotting process will attempt to snapshot any unflushed blocks
 	// which would be wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, tickStart); err != nil {
+	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -137,7 +137,7 @@ func (m *flushManager) Flush(tickStart time.Time) error {
 			return multiErr.FinalError()
 		}
 
-		if err = m.dataSnapshot(namespaces, tickStart, rotatedCommitlogID); err != nil {
+		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	} else {
@@ -153,7 +153,7 @@ func (m *flushManager) Flush(tickStart time.Time) error {
 
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
-	tickStart time.Time,
+	startTime time.Time,
 ) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
@@ -164,7 +164,7 @@ func (m *flushManager) dataWarmFlush(
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes.
-		flushTimes := m.namespaceFlushTimes(ns, tickStart)
+		flushTimes := m.namespaceFlushTimes(ns, startTime)
 		err = m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -205,7 +205,7 @@ func (m *flushManager) dataColdFlush(
 
 func (m *flushManager) dataSnapshot(
 	namespaces []databaseNamespace,
-	tickStart time.Time,
+	startTime time.Time,
 	rotatedCommitlogID persist.CommitLogFile,
 ) error {
 	snapshotID := uuid.NewUUID()
@@ -221,14 +221,14 @@ func (m *flushManager) dataSnapshot(
 		multiErr                        = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
-		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, tickStart)
+		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, startTime)
 
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
 		}
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			err := ns.Snapshot(
-				snapshotBlockStart, tickStart, snapshotPersist)
+				snapshotBlockStart, startTime, snapshotPersist)
 
 			if err != nil {
 				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
@@ -244,7 +244,7 @@ func (m *flushManager) dataSnapshot(
 
 	finalErr := multiErr.FinalError()
 	if finalErr == nil {
-		m.lastSuccessfulSnapshotStartTime = tickStart
+		m.lastSuccessfulSnapshotStartTime = startTime
 	}
 	return finalErr
 }
