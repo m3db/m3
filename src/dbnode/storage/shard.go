@@ -2081,10 +2081,10 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 
-		// After writing the full block successfully update the flushed cold version number. This will
+		// After writing the full block successfully update the ColdVersionFlushed number. This will
 		// allow the SeekerManager to open a lease on the latest version of the fileset files because
-		// the BlockLeaseVerifier will check both the ColdVersion and ColdVersionFlushed, but the buffer
-		// only looks at ColdVersion so a concurrent tick will not yet cause the blocks in memory to be
+		// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
+		// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
 		// evicted (which is the desired behavior because we haven't updated the open leases yet which
 		// means the newly written data is not available for querying via the SeekerManager yet.)
 		s.setFlushStateColdVersionFlushed(startTime, nextVersion)
@@ -2098,12 +2098,13 @@ func (s *dbShard) ColdFlush(
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
 		// After writing the full block successfully **and** propagating the new lease to the
-		// BlockLeaseManager, update the cold version in the flush state. Once this function
-		// completes block leasers will no longer be able to acquire leases on previous volumes
-		// for the given namespace/shard/blockstart.
+		// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
+		// completes concurrent ticks will be able to evict the data from memory that was just flushed
+		// (which is now safe to do since the SeekerManager has been notified of the presence of new
+		// files).
 		//
-		// NB(rartoul): Ideally the ColdVersion would only be updated if the call to UpdateOpenLeases
-		// succeeded, but that would allow the ColdVersion and ColdVersionFlushed numbers to drift
+		// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
+		// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
 		// which would increase the complexity of the code to address a situation that is probably not
 		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
 		s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
