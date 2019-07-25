@@ -90,10 +90,7 @@ func newFlushManager(
 	}
 }
 
-func (m *flushManager) Flush(
-	tickStart time.Time,
-	dbBootstrapStateAtTickStart DatabaseBootstrapState,
-) error {
+func (m *flushManager) Flush(tickStart time.Time) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
 	if m.state != flushManagerIdle {
@@ -121,7 +118,7 @@ func (m *flushManager) Flush(
 	// as the snapshotting process will attempt to snapshot any unflushed blocks
 	// which would be wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, tickStart, dbBootstrapStateAtTickStart); err != nil {
+	if err = m.dataWarmFlush(namespaces, tickStart); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -157,7 +154,6 @@ func (m *flushManager) Flush(
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	tickStart time.Time,
-	dbBootstrapStateAtTickStart DatabaseBootstrapState,
 ) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
@@ -167,18 +163,9 @@ func (m *flushManager) dataWarmFlush(
 	m.setState(flushManagerFlushInProgress)
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
-		// Flush first because we will only snapshot if there are no outstanding flushes
+		// Flush first because we will only snapshot if there are no outstanding flushes.
 		flushTimes := m.namespaceFlushTimes(ns, tickStart)
-		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-		if !ok {
-			// Could happen if namespaces are added / removed.
-			multiErr = multiErr.Add(fmt.Errorf(
-				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
-			continue
-		}
-
-		err = m.flushNamespaceWithTimes(
-			ns, shardBootstrapTimes, flushTimes, flushPersist)
+		err = m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -366,7 +353,6 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 // time, returning any error encountered during flushing
 func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
-	ShardBootstrapStates ShardBootstrapStates,
 	times []time.Time,
 	flushPreparer persist.FlushPreparer,
 ) error {
@@ -374,7 +360,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := ns.WarmFlush(t, ShardBootstrapStates, flushPreparer); err != nil {
+		if err := ns.WarmFlush(t, flushPreparer); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)

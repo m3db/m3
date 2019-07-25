@@ -91,11 +91,11 @@ func newFileSystemManager(
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
-		log:      instrumentOpts.Logger(),
-		database: database,
-		opts:     opts,
-		status:   fileOpNotStarted,
-		enabled:  true,
+		log:                    instrumentOpts.Logger(),
+		database:               database,
+		opts:                   opts,
+		status:                 fileOpNotStarted,
+		enabled:                true,
 	}
 }
 
@@ -124,7 +124,6 @@ func (m *fileSystemManager) Status() fileOpStatus {
 
 func (m *fileSystemManager) Run(
 	t time.Time,
-	dbBootstrapStates DatabaseBootstrapState,
 	runType runType,
 	forceType forceType,
 ) bool {
@@ -141,7 +140,7 @@ func (m *fileSystemManager) Run(
 		if err := m.Cleanup(t); err != nil {
 			m.log.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
 		}
-		if err := m.Flush(t, dbBootstrapStates); err != nil {
+		if err := m.Flush(t); err != nil {
 			m.log.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 		}
 		m.Lock()

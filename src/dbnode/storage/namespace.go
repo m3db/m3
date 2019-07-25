@@ -906,7 +906,6 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 
 func (n *dbNamespace) WarmFlush(
 	blockStart time.Time,
-	shardBootstrapStatesAtTickStart ShardBootstrapStates,
 	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -936,21 +935,10 @@ func (n *dbNamespace) WarmFlush(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		// This is different than calling shard.IsBootstrapped() because it was determined
-		// before the start of the tick that preceded this flush, meaning it can be reliably
-		// used to determine if all of the bootstrapped blocks have been merged (ticked)
-		// and are ready to be flushed.
-		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
-		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
-			// We don't own this shard anymore (!ok) or the shard was not bootstrapped
-			// before the previous tick which means that we have no guarantee that all
-			// bootstrapped blocks have been rotated out of the series buffer buckets,
-			// so we wait until the next opportunity.
+		if !shard.IsBootstrapped() {
 			n.log.
 				With(zap.Uint32("shard", shard.ID())).
-				With(zap.Any("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
-				With(zap.Bool("bootstrapStateExists", ok)).
-				Debug("skipping snapshot due to shard bootstrap state before tick")
+				Debug("skipping warm flush due to shard not bootstrapped yet")
 			continue
 		}
 

@@ -79,6 +79,7 @@ type mediator struct {
 	metrics                    mediatorMetrics
 	state                      mediatorState
 	mediatorTime               time.Time
+	timeBarrier                timeBarrier
 	filesystemProcessesRunning bool
 	filesystemProcessesBarrier chan struct{}
 	closedCh                   chan struct{}
@@ -153,8 +154,7 @@ func (m *mediator) EnableFileOps() {
 // will think that the old block hasn't been flushed (even thought it has) and try to flush it even though the data
 // is potentially still on disk (if it hasn't been cleaned up yet).
 func (m *mediator) RunFilesystemProcesses(forceType forceType, lastCompletedTickStartTime time.Time) error {
-	dbBootstrapStateAtTickStart := m.database.BootstrapState()
-	m.databaseFileSystemManager.Run(lastCompletedTickStartTime, dbBootstrapStateAtTickStart, syncRun, forceType)
+	m.databaseFileSystemManager.Run(lastCompletedTickStartTime, syncRun, forceType)
 	return nil
 }
 
@@ -180,45 +180,25 @@ func (m *mediator) Close() error {
 }
 
 func (m *mediator) ongoingFilesystemProcesses() {
-	var prevMediatorTime time.Time
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
-
-			// Wait for next time.
-			// NB(xichen): if we attempt to tick while another tick
-			// is in progress, throttle a little to avoid constantly
-			// checking whether the ongoing tick is finished
-			// lastCompletedTickStartTime, anyTicksHaveCompleted := m.databaseTickManager.LastCompletedTickStartTime()
-			// if !anyTicksHaveCompleted {
-			// 	// Can't proceed until at least one tick has completed successfully.
-			// 	continue
-			// }
-			mediatorTime := m.getMediatorTime()
-			if mediatorTime.Equal(prevMediatorTime) {
-				// Wait for a full tick to elapse between running filesystem processes.
-				continue
-			}
-
-			m.setFSProcessesRunning(true)
-			err := m.RunFilesystemProcesses(noForce, lastCompletedTickStartTime)
-			m.setFSProcessesRunning(false)
+			mediatorTime := m.timeBarrier.wait()
+			err := m.RunFilesystemProcesses(noForce, mediatorTime)
 			if err != nil {
 				log := m.opts.InstrumentOptions().Logger()
 				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
 				continue
 			}
-
-			// Only update if no errors to allow retries.
-			prevLastCompletedTickStartTime = lastCompletedTickStartTime
 		}
 	}
 }
 
 func (m *mediator) ongoingTick() {
+	log := m.opts.InstrumentOptions().Logger()
 	for {
 		select {
 		case <-m.closedCh:
@@ -227,22 +207,20 @@ func (m *mediator) ongoingTick() {
 			// If flush in progress, tick
 			// else, set new time.
 			m.sleepFn(tickCheckInterval)
-			fsProcessRunning := m.getFSProcessesRunning()
+			fsProcessRunning := m.timeBarrier.hasWaiter()
 			if !fsProcessRunning {
-				m.setMediatorTime(m.nowFn())
+				newMediatorTime := m.nowFn()
+				// Force one tick to begin and complete with the new time before allowing
+				// filesystem processes to proceed.
+				if err := m.Tick(force); err != nil {
+					log.Error("error within tick", zap.Error(err))
+				}
+				m.timeBarrier.release(newMediatorTime)
 			}
 			// TODO: pass time
 			if err := m.Tick(force); err != nil {
-				log := m.opts.InstrumentOptions().Logger()
 				log.Error("error within tick", zap.Error(err))
 			}
-
-			// fsProcessesBarrier
-			// fsProcessRunning := m.getFSProcessesRunning()
-			// if !fsProcessRunning {
-			// 	m.setMediatorTime(m.nowFn())
-			// }
-			m.file
 		}
 	}
 }
@@ -273,19 +251,6 @@ func (m *mediator) getMediatorTime() time.Time {
 	t := m.mediatorTime
 	m.RUnlock()
 	return t
-}
-
-func (m *mediator) setFSProcessesRunning(running bool) {
-	m.Lock()
-	m.filesystemProcessesRunning = running
-	m.Unlock()
-}
-
-func (m *mediator) getFSProcessesRunning() bool {
-	m.RLock()
-	running := m.filesystemProcessesRunning
-	m.RUnlock()
-	return running
 }
 
 type timeBarrier struct {

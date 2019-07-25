@@ -1286,17 +1286,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(start, process interface{
 }
 
 // WarmFlush mocks base method
-func (m *MockdatabaseNamespace) WarmFlush(blockStart time.Time, ShardBootstrapStates ShardBootstrapStates, flush persist.FlushPreparer) error {
+func (m *MockdatabaseNamespace) WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", blockStart, ShardBootstrapStates, flush)
+	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WarmFlush indicates an expected call of WarmFlush
-func (mr *MockdatabaseNamespaceMockRecorder) WarmFlush(blockStart, ShardBootstrapStates, flush interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) WarmFlush(blockStart, flush interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).WarmFlush), blockStart, ShardBootstrapStates, flush)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).WarmFlush), blockStart, flush)
 }
 
 // FlushIndex mocks base method
@@ -2168,17 +2168,17 @@ func (m *MockdatabaseFlushManager) EXPECT() *MockdatabaseFlushManagerMockRecorde
 }
 
 // Flush mocks base method
-func (m *MockdatabaseFlushManager) Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error {
+func (m *MockdatabaseFlushManager) Flush(tickStart time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", tickStart, dbBootstrapStateAtTickStart)
+	ret := m.ctrl.Call(m, "Flush", tickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockdatabaseFlushManagerMockRecorder) Flush(tickStart, dbBootstrapStateAtTickStart interface{}) *gomock.Call {
+func (mr *MockdatabaseFlushManagerMockRecorder) Flush(tickStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), tickStart, dbBootstrapStateAtTickStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), tickStart)
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
@@ -2295,17 +2295,17 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t interface{}) *gom
 }
 
 // Flush mocks base method
-func (m *MockdatabaseFileSystemManager) Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error {
+func (m *MockdatabaseFileSystemManager) Flush(t time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", t, dbBootstrapStateAtTickStart)
+	ret := m.ctrl.Call(m, "Flush", t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Flush indicates an expected call of Flush
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(t, dbBootstrapStateAtTickStart interface{}) *gomock.Call {
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(t interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), t, dbBootstrapStateAtTickStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), t)
 }
 
 // Disable mocks base method
@@ -2351,17 +2351,17 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Status() *gomock.Call {
 }
 
 // Run mocks base method
-func (m *MockdatabaseFileSystemManager) Run(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState, runType runType, forceType forceType) bool {
+func (m *MockdatabaseFileSystemManager) Run(t time.Time, runType runType, forceType forceType) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", t, dbBootstrapStateAtTickStart, runType, forceType)
+	ret := m.ctrl.Call(m, "Run", t, runType, forceType)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Run indicates an expected call of Run
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t, dbBootstrapStateAtTickStart, runType, forceType interface{}) *gomock.Call {
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t, runType, forceType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t, dbBootstrapStateAtTickStart, runType, forceType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t, runType, forceType)
 }
 
 // Report mocks base method

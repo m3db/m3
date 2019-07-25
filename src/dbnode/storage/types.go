@@ -336,11 +336,7 @@ type databaseNamespace interface {
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(
-		blockStart time.Time,
-		ShardBootstrapStates ShardBootstrapStates,
-		flush persist.FlushPreparer,
-	) error
+	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
@@ -610,7 +606,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+	Flush(tickStart time.Time) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
@@ -635,7 +631,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+	Flush(t time.Time) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status.
@@ -651,7 +647,6 @@ type databaseFileSystemManager interface {
 	// returning true if those operations are performed, and false otherwise.
 	Run(
 		t time.Time,
-		dbBootstrapStateAtTickStart DatabaseBootstrapState,
 		runType runType,
 		forceType forceType,
 	) bool
