@@ -2540,32 +2540,17 @@ func (m *MockdatabaseTickManager) EXPECT() *MockdatabaseTickManagerMockRecorder 
 }
 
 // Tick mocks base method
-func (m *MockdatabaseTickManager) Tick(forceType forceType) error {
+func (m *MockdatabaseTickManager) Tick(forceType forceType, startTime time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", forceType)
+	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseTickManagerMockRecorder) Tick(forceType interface{}) *gomock.Call {
+func (mr *MockdatabaseTickManagerMockRecorder) Tick(forceType, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseTickManager)(nil).Tick), forceType)
-}
-
-// LastCompletedTickStartTime mocks base method
-func (m *MockdatabaseTickManager) LastCompletedTickStartTime() (time.Time, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LastCompletedTickStartTime")
-	ret0, _ := ret[0].(time.Time)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// LastCompletedTickStartTime indicates an expected call of LastCompletedTickStartTime
-func (mr *MockdatabaseTickManagerMockRecorder) LastCompletedTickStartTime() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastCompletedTickStartTime", reflect.TypeOf((*MockdatabaseTickManager)(nil).LastCompletedTickStartTime))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseTickManager)(nil).Tick), forceType, startTime)
 }
 
 // MockdatabaseMediator is a mock of databaseMediator interface
@@ -2673,17 +2658,17 @@ func (mr *MockdatabaseMediatorMockRecorder) EnableFileOps() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseMediator) Tick(forceType forceType) error {
+func (m *MockdatabaseMediator) Tick(forceType forceType, startTime time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", forceType)
+	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseMediatorMockRecorder) Tick(forceType interface{}) *gomock.Call {
+func (mr *MockdatabaseMediatorMockRecorder) Tick(forceType, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), forceType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), forceType, startTime)
 }
 
 // Repair mocks base method

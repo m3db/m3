@@ -78,9 +78,7 @@ type mediator struct {
 	sleepFn                    sleepFn
 	metrics                    mediatorMetrics
 	state                      mediatorState
-	mediatorTime               time.Time
-	timeBarrier                timeBarrier
-	filesystemProcessesRunning bool
+	mediatorTimeBarrier        mediatorTimeBarrier
 	filesystemProcessesBarrier chan struct{}
 	closedCh                   chan struct{}
 }
@@ -153,8 +151,8 @@ func (m *mediator) EnableFileOps() {
 // a shard flush state (due to it expiring), but since the flush logic is using a slightly more stale timestamp it
 // will think that the old block hasn't been flushed (even thought it has) and try to flush it even though the data
 // is potentially still on disk (if it hasn't been cleaned up yet).
-func (m *mediator) RunFilesystemProcesses(forceType forceType, lastCompletedTickStartTime time.Time) error {
-	m.databaseFileSystemManager.Run(lastCompletedTickStartTime, syncRun, forceType)
+func (m *mediator) RunFilesystemProcesses(forceType forceType, startTime time.Time) error {
+	m.databaseFileSystemManager.Run(startTime, syncRun, forceType)
 	return nil
 }
 
@@ -186,7 +184,7 @@ func (m *mediator) ongoingFilesystemProcesses() {
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
-			mediatorTime := m.timeBarrier.wait()
+			mediatorTime := m.mediatorTimeBarrier.wait()
 			err := m.RunFilesystemProcesses(noForce, mediatorTime)
 			if err != nil {
 				log := m.opts.InstrumentOptions().Logger()
@@ -198,27 +196,22 @@ func (m *mediator) ongoingFilesystemProcesses() {
 }
 
 func (m *mediator) ongoingTick() {
-	log := m.opts.InstrumentOptions().Logger()
+	var (
+		log          = m.opts.InstrumentOptions().Logger()
+		mediatorTime = m.nowFn()
+	)
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
-			// If flush in progress, tick
-			// else, set new time.
 			m.sleepFn(tickCheckInterval)
-			fsProcessRunning := m.timeBarrier.hasWaiter()
+			fsProcessRunning := m.mediatorTimeBarrier.hasWaiter()
 			if !fsProcessRunning {
-				newMediatorTime := m.nowFn()
-				// Force one tick to begin and complete with the new time before allowing
-				// filesystem processes to proceed.
-				if err := m.Tick(force); err != nil {
-					log.Error("error within tick", zap.Error(err))
-				}
-				m.timeBarrier.release(newMediatorTime)
+				mediatorTime := m.nowFn()
+				m.mediatorTimeBarrier.release(mediatorTime)
 			}
-			// TODO: pass time
-			if err := m.Tick(force); err != nil {
+			if err := m.Tick(force, mediatorTime); err != nil {
 				log.Error("error within tick", zap.Error(err))
 			}
 		}
@@ -240,26 +233,13 @@ func (m *mediator) reportLoop() {
 	}
 }
 
-func (m *mediator) setMediatorTime(t time.Time) {
-	m.Lock()
-	m.mediatorTime = t
-	m.Unlock()
-}
-
-func (m *mediator) getMediatorTime() time.Time {
-	m.RLock()
-	t := m.mediatorTime
-	m.RUnlock()
-	return t
-}
-
-type timeBarrier struct {
+type mediatorTimeBarrier struct {
 	sync.Mutex
 	isWaiting bool
 	doneCh    chan time.Time
 }
 
-func (b *timeBarrier) wait() time.Time {
+func (b *mediatorTimeBarrier) wait() time.Time {
 	b.Lock()
 	b.isWaiting = true
 	b.Unlock()
@@ -272,11 +252,11 @@ func (b *timeBarrier) wait() time.Time {
 	return t
 }
 
-func (b *timeBarrier) release(t time.Time) {
+func (b *mediatorTimeBarrier) release(t time.Time) {
 	b.doneCh <- t
 }
 
-func (b *timeBarrier) hasWaiter() bool {
+func (b *mediatorTimeBarrier) hasWaiter() bool {
 	b.Lock()
 	isWaiting := b.isWaiting
 	b.Unlock()

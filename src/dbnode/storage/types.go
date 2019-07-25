@@ -693,9 +693,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(forceType forceType) error
-
-	LastCompletedTickStartTime() (time.Time, bool)
+	Tick(forceType forceType, startTime time.Time) error
 }
 
 // databaseMediator mediates actions among various database managers.
@@ -720,7 +718,7 @@ type databaseMediator interface {
 	EnableFileOps()
 
 	// Tick performs a tick.
-	Tick(forceType forceType) error
+	Tick(forceType forceType, startTime time.Time) error
 
 	// Repair repairs the database.
 	Repair() error
