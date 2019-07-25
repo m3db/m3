@@ -80,5 +80,8 @@ func (v *leaseVerifier) LatestState(descriptor block.LeaseDescriptor) (block.Lea
 			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
 	}
 
-	return block.LeaseState{Volume: flushState.ColdVersion}, nil
+	// LeaseVerifier should return ColdVersionFlushed not ColdVersion since ColdVersionFlushed
+	// represents the latest version that is available on disk while ColdVersion only represents
+	// the latest version that is retrievable from the block retriever and SeekerManager.
+	return block.LeaseState{Volume: flushState.ColdVersionFlushed}, nil
 }
