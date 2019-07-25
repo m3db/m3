@@ -44,9 +44,10 @@ const (
 )
 
 var (
-	errMediatorAlreadyOpen   = errors.New("mediator is already open")
-	errMediatorNotOpen       = errors.New("mediator is not open")
-	errMediatorAlreadyClosed = errors.New("mediator is already closed")
+	errMediatorAlreadyOpen               = errors.New("mediator is already open")
+	errMediatorNotOpen                   = errors.New("mediator is not open")
+	errMediatorAlreadyClosed             = errors.New("mediator is already closed")
+	errMediatorTimeBarrierAlreadyWaiting = errors.New("mediator time barrier already has a waiter")
 )
 
 type mediatorMetrics struct {
@@ -178,16 +179,19 @@ func (m *mediator) Close() error {
 }
 
 func (m *mediator) ongoingFilesystemProcesses() {
+	log := m.opts.InstrumentOptions().Logger()
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
-			mediatorTime := m.mediatorTimeBarrier.wait()
-			err := m.RunFilesystemProcesses(noForce, mediatorTime)
+			mediatorTime, err := m.mediatorTimeBarrier.wait()
 			if err != nil {
-				log := m.opts.InstrumentOptions().Logger()
+				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
+			}
+
+			if err := m.RunFilesystemProcesses(noForce, mediatorTime); err != nil {
 				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
 				continue
 			}
@@ -239,8 +243,12 @@ type mediatorTimeBarrier struct {
 	doneCh    chan time.Time
 }
 
-func (b *mediatorTimeBarrier) wait() time.Time {
+func (b *mediatorTimeBarrier) wait() (time.Time, error) {
 	b.Lock()
+	if b.isWaiting {
+		b.Unlock()
+		return time.Time{}, errMediatorTimeBarrierAlreadyWaiting
+	}
 	b.isWaiting = true
 	b.Unlock()
 
@@ -249,7 +257,7 @@ func (b *mediatorTimeBarrier) wait() time.Time {
 	b.Lock()
 	b.isWaiting = false
 	b.Unlock()
-	return t
+	return t, nil
 }
 
 func (b *mediatorTimeBarrier) release(t time.Time) {
