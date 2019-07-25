@@ -191,11 +191,11 @@ func (m *mediator) ongoingFilesystemProcesses() {
 			// See comment over mediatorTimeBarrier for an explanation of this logic.
 			mediatorTime, err := m.mediatorTimeBarrier.wait()
 			if err != nil {
-				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
+				log.Error("error within ongoingFilesystemProcesses waiting for next mediatorTime", zap.Error(err))
 			}
 
 			if err := m.RunFilesystemProcesses(noForce, mediatorTime); err != nil {
-				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
+				log.Error("error within ongoingFilesystemProcesses running filesystem processes", zap.Error(err))
 				continue
 			}
 		}
