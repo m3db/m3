@@ -74,27 +74,26 @@ type mediator struct {
 	databaseTickManager
 	databaseRepairer
 
-	opts                       Options
-	nowFn                      clock.NowFn
-	sleepFn                    sleepFn
-	metrics                    mediatorMetrics
-	state                      mediatorState
-	mediatorTimeBarrier        mediatorTimeBarrier
-	filesystemProcessesBarrier chan struct{}
-	closedCh                   chan struct{}
+	opts                Options
+	nowFn               clock.NowFn
+	sleepFn             sleepFn
+	metrics             mediatorMetrics
+	state               mediatorState
+	mediatorTimeBarrier mediatorTimeBarrier
+	closedCh            chan struct{}
 }
 
 func newMediator(database database, commitlog commitlog.CommitLog, opts Options) (databaseMediator, error) {
 	scope := opts.InstrumentOptions().MetricsScope()
 	d := &mediator{
-		database:                   database,
-		opts:                       opts,
-		nowFn:                      opts.ClockOptions().NowFn(),
-		sleepFn:                    time.Sleep,
-		metrics:                    newMediatorMetrics(scope),
-		state:                      mediatorNotOpen,
-		filesystemProcessesBarrier: make(chan struct{}),
-		closedCh:                   make(chan struct{}),
+		database:            database,
+		opts:                opts,
+		nowFn:               opts.ClockOptions().NowFn(),
+		sleepFn:             time.Sleep,
+		metrics:             newMediatorMetrics(scope),
+		state:               mediatorNotOpen,
+		mediatorTimeBarrier: newMediatorTimeBarrier(),
+		closedCh:            make(chan struct{}),
 	}
 
 	fsm := newFileSystemManager(database, commitlog, opts)
@@ -318,4 +317,10 @@ func (b *mediatorTimeBarrier) hasWaiter() bool {
 	isWaiting := b.isWaiting
 	b.Unlock()
 	return isWaiting
+}
+
+func newMediatorTimeBarrier() mediatorTimeBarrier {
+	return mediatorTimeBarrier{
+		doneCh: make(chan struct{}, 0),
+	}
 }
