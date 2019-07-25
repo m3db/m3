@@ -152,6 +152,8 @@ func (m *mediator) EnableFileOps() {
 // a shard flush state (due to it expiring), but since the flush logic is using a slightly more stale timestamp it
 // will think that the old block hasn't been flushed (even thought it has) and try to flush it even though the data
 // is potentially still on disk (if it hasn't been cleaned up yet).
+//
+// See comment over mediatorTimeBarrier for more details on how this is implemented.
 func (m *mediator) RunFilesystemProcesses(forceType forceType, startTime time.Time) error {
 	m.databaseFileSystemManager.Run(startTime, syncRun, forceType)
 	return nil
@@ -186,6 +188,7 @@ func (m *mediator) ongoingFilesystemProcesses() {
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
+			// See comment over mediatorTimeBarrier for an explanation of this logic.
 			mediatorTime, err := m.mediatorTimeBarrier.wait()
 			if err != nil {
 				log.Error("error within ongoingFilesystemProcesses", zap.Error(err))
@@ -210,6 +213,7 @@ func (m *mediator) ongoingTick() {
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
+			// See comment over mediatorTimeBarrier for an explanation of this logic.
 			fsProcessWaiting := m.mediatorTimeBarrier.hasWaiter()
 			if fsProcessWaiting {
 				mediatorTime := m.nowFn()
@@ -237,6 +241,50 @@ func (m *mediator) reportLoop() {
 	}
 }
 
+// mediatorTimeBarrier is used to prevent the tick process and the filesystem processes from ever running
+// concurrently with an inconsistent view of time. Each time the filesystem processes want to run they first
+// register for the next barrier by calling wait(). Once a tick completes it will detect that the filesystem
+// processes are waiting for the next barrier by calling hasWaiter() at which point it will update the mediator
+// time and propagate that information to the filesystem processes via a call to release(). If the filesystem
+// processes are still running when the tick completes, it will just tick again but use the same startTime as
+// the previous run.
+//
+// This cooperation ensures that multiple ticks can run during a single run of filesystem processes (although
+// each tick will run with the same startTime), but that if a tick and run of filesystem processes are executing
+// concurrently they will always have the same value for startTime.
+//
+// One implication of this scheme is that once a run of filesystem processes completes it will always have to wait
+// until the currently executing tick completes before performing the next run, but in practice this should not be
+// much of an issue.
+//
+//  ____________       ___________
+// | Flush (t0) |     | Tick (t0) |
+// |            |     |           |
+// |            |     |___________|
+// |            |      ___________
+// |            |     | Tick (t0) |
+// |            |     |           |
+// |            |     |___________|
+// |            |      ___________
+// |____________|     | Tick (t0) |
+//  barrier.wait()    |           |
+//                    |___________|
+//                    barrier.release()
+// ------------------------------------
+//  ____________       ___________
+// | Flush (t1) |     | Tick (t1) |
+// |            |     |           |
+// |            |     |___________|
+// |            |      ___________
+// |            |     | Tick (t1) |
+// |            |     |           |
+// |            |     |___________|
+// |            |      ___________
+// |____________|     | Tick (t1) |
+//  barrier.wait()    |           |
+//                    |___________|
+//                    barrier.release()
+// ------------------------------------
 type mediatorTimeBarrier struct {
 	sync.Mutex
 	isWaiting bool
