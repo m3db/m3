@@ -51,11 +51,11 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
