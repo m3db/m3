@@ -321,6 +321,6 @@ func (b *mediatorTimeBarrier) hasWaiter() bool {
 
 func newMediatorTimeBarrier() mediatorTimeBarrier {
 	return mediatorTimeBarrier{
-		doneCh: make(chan struct{}, 0),
+		doneCh: make(chan time.Time, 0),
 	}
 }
