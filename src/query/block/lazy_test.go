@@ -52,7 +52,7 @@ func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
 	}
 	vt := func(val float64) float64 { return val * valOffset }
 
-	return NewLazyOpts().SetTimeTransform(tt).SetMetaTransform(mt).SetValueTransform(vt)
+	return NewLazyOptions().SetTimeTransform(tt).SetMetaTransform(mt).SetValueTransform(vt)
 }
 
 func TestLazyOpts(t *testing.T) {

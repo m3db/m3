@@ -48,7 +48,7 @@ func (b *encodedBlock) SeriesIter() (
 	cs := b.consolidation
 	bounds := cs.bounds
 	consolidator := consolidators.NewSeriesLookbackConsolidator(
-		b.lookback,
+		b.options.LookbackDuration(),
 		bounds.StepSize,
 		cs.currentTime,
 		cs.consolidationFn,

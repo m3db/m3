@@ -51,8 +51,10 @@ func TestDAGWithCountOp(t *testing.T) {
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Equal(t, transforms[1].Op.OpType(), aggregation.CountType)
 	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"),
+		"fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"),
+		"aggregation should be the child")
 }
 
 func TestDAGWithOffset(t *testing.T) {
@@ -67,8 +69,10 @@ func TestDAGWithOffset(t *testing.T) {
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Equal(t, transforms[1].Op.OpType(), lazy.OffsetType)
 	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "offset should be the child")
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"),
+		"fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"),
+		"offset should be the child")
 }
 
 func TestInvalidOffset(t *testing.T) {
@@ -255,6 +259,27 @@ func TestScalar(t *testing.T) {
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 	assert.Len(t, edges, 0)
+}
+
+func TestVector(t *testing.T) {
+	vectorExprs := []string{
+		"vector(12)",
+		"vector(scalar(up))",
+		"vector(12 - scalar(vector(100)-2))",
+	}
+
+	for _, expr := range vectorExprs {
+		t.Run(expr, func(t *testing.T) {
+			p, err := Parse(expr, models.NewTagOptions())
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 1)
+			assert.Equal(t, transforms[0].Op.OpType(), scalar.ScalarType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Len(t, edges, 0)
+		})
+	}
 }
 
 func TestTimeTypeParse(t *testing.T) {

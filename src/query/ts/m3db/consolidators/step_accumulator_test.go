@@ -33,44 +33,50 @@ import (
 func TestAccumulator(t *testing.T) {
 	lookback := time.Minute
 	start := time.Now().Truncate(time.Hour)
-	iterCount := 2
-
 	acc := NewStepLookbackAccumulator(
 		lookback,
 		lookback,
 		start,
-		iterCount,
 	)
 
 	// NB: lookback limit: start-1
 	actual := acc.AccumulateAndMoveToNext()
-	expected := []xts.Datapoints{{}, {}}
-	assert.Equal(t, expected, actual)
+	assert.Nil(t, actual)
 
-	acc.AddPointForIterator(ts.Datapoint{Timestamp: start, Value: 1}, 0)
-	acc.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10}, 1)
+	acc.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
+	acc.AddPoint(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10})
+	acc.BufferStep()
+	acc.BufferStep()
+	acc.BufferStep()
+	acc.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(2*time.Minute + time.Second*30),
+		Value:     2,
+	})
+	acc.AddPoint(ts.Datapoint{
+		Timestamp: start.Add(3*time.Minute + time.Second),
+		Value:     3},
+	)
+	acc.BufferStep()
 
 	// NB: lookback limit: start
 	actual = acc.AccumulateAndMoveToNext()
-	expected[0] = xts.Datapoints{xts.Datapoint{Timestamp: start, Value: 1}}
-	expected[1] = xts.Datapoints{xts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10}}
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, []xts.Datapoint{
+		{Timestamp: start, Value: 1},
+		{Timestamp: start.Add(time.Minute), Value: 10},
+	}, actual)
 
 	// NB: lookback limit: start+1, should be reset
 	actual = acc.AccumulateAndMoveToNext()
-	expected[1] = xts.Datapoints{}
-	expected[0] = xts.Datapoints{}
-	assert.Equal(t, expected, actual)
+	assert.Nil(t, actual)
 
 	// NB: lookback limit: start+2, should be reset
 	actual = acc.AccumulateAndMoveToNext()
-	assert.Equal(t, expected, actual)
-
-	acc.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2}, 0)
-	acc.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3}, 0)
+	assert.Nil(t, actual)
 
 	// NB: lookback limit: start+3, both points in lookback period
 	actual = acc.AccumulateAndMoveToNext()
-	expected[0] = xts.Datapoints{xts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3}}
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, []xts.Datapoint{
+		{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2},
+		{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3},
+	}, actual)
 }

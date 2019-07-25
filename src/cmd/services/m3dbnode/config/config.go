@@ -313,6 +313,13 @@ type RepairPolicy struct {
 
 	// The repair check interval.
 	CheckInterval time.Duration `yaml:"checkInterval" validate:"nonzero"`
+
+	// Whether debug shadow comparisons are enabled.
+	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`
+
+	// If enabled, what percentage of metadata should perform a detailed debug
+	// shadow comparison.
+	DebugShadowComparisonsPercentage float64 `yaml:"debugShadowComparisonsPercentage"`
 }
 
 // HashingConfiguration is the configuration for hashing.
@@ -324,7 +331,7 @@ type HashingConfiguration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
-	Enabled bool `yaml:"enabled"`
+	Enabled        bool                            `yaml:"enabled"`
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 

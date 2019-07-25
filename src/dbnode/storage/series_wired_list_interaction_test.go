@@ -91,7 +91,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	)
 
 	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
-	series.Bootstrap(nil)
+	series.Bootstrap(nil, nil)
 	shard.Lock()
 	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
 	shard.Unlock()

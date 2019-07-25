@@ -39,7 +39,7 @@ type promParser struct {
 	tagOpts models.TagOptions
 }
 
-// Parse takes a promQL string and converts parses it into a DAG
+// Parse takes a promQL string and converts parses it into a DAG.
 func Parse(q string, tagOpts models.TagOptions) (parser.Parser, error) {
 	expr, err := pql.ParseExpr(q)
 	if err != nil {
@@ -96,7 +96,7 @@ func (p *parseState) addLazyUnaryTransform(unaryOp string) error {
 	}
 
 	vt := func(val float64) float64 { return val * -1.0 }
-	lazyOpts := block.NewLazyOpts().SetValueTransform(vt)
+	lazyOpts := block.NewLazyOptions().SetValueTransform(vt)
 
 	op, err := lazy.NewLazyOp(lazy.UnaryType, lazyOpts)
 	if err != nil {
@@ -129,7 +129,7 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 		}
 	)
 
-	lazyOpts := block.NewLazyOpts().
+	lazyOpts := block.NewLazyOptions().
 		SetTimeTransform(tt).
 		SetMetaTransform(mt)
 
@@ -180,7 +180,10 @@ func (p *parseState) walk(node pql.Node) error {
 			return err
 		}
 
-		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
+		p.transforms = append(
+			p.transforms,
+			parser.NewTransformFromOperation(operation, p.transformLen()),
+		)
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
@@ -189,10 +192,42 @@ func (p *parseState) walk(node pql.Node) error {
 			return err
 		}
 
-		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
+		p.transforms = append(
+			p.transforms,
+			parser.NewTransformFromOperation(operation, p.transformLen()),
+		)
+
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.Call:
+		if n.Func.Name == scalar.VectorType {
+			if len(n.Args) != 1 {
+				return fmt.Errorf(
+					"scalar() operation must be called with 1 argument, got %d",
+					len(n.Args),
+				)
+			}
+
+			val, err := resolveScalarArgument(n.Args[0])
+			if err != nil {
+				return err
+			}
+
+			op, err := scalar.NewScalarOp(
+				func(_ time.Time) float64 { return val },
+				scalar.ScalarType,
+				p.tagOpts,
+			)
+
+			if err != nil {
+				return err
+			}
+
+			opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+			p.transforms = append(p.transforms, opTransform)
+			return nil
+		}
+
 		expressions := n.Args
 		argTypes := n.Func.ArgTypes
 		argValues := make([]interface{}, 0, len(expressions))
@@ -228,7 +263,8 @@ func (p *parseState) walk(node pql.Node) error {
 			}
 		}
 
-		op, ok, err := NewFunctionExpr(n.Func.Name, argValues, stringValues)
+		op, ok, err := NewFunctionExpr(n.Func.Name, argValues,
+			stringValues, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -278,7 +314,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.NumberLiteral:
-		op, err := NewScalarOperator(n)
+		op, err := newScalarOperator(n, p.tagOpts)
 		if err != nil {
 			return err
 		}

@@ -28,6 +28,16 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
+var (
+	errRExhausted = errors.New("right iter exhausted while left iter has values")
+	errLExhausted = errors.New("left iter exhausted while right iter has values")
+)
+
+type indexMatcher struct {
+	lhsIndex int
+	rhsIndex int
+}
+
 // VectorMatchCardinality describes the cardinality relationship
 // of two Vectors in a binary operation.
 type VectorMatchCardinality int
@@ -60,7 +70,7 @@ type VectorMatching struct {
 }
 
 // HashFunc returns a function that calculates the signature for a metric
-// ignoring the provided labels. If on, then the given labels are only used instead.
+// ignoring the provided labels. If on, then only the given labels are used.
 func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 	if on {
 		return func(tags models.Tags) uint64 {
@@ -76,12 +86,16 @@ func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 const initIndexSliceLength = 10
 
 var (
-	errMismatchedBounds        = errors.New("block bounds are mismatched")
-	errMismatchedStepCounts    = errors.New("block step counts are mismatched")
-	errLeftScalar              = errors.New("expected left scalar but node type incorrect")
-	errRightScalar             = errors.New("expected right scalar but node type incorrect")
-	errNoModifierForComparison = errors.New("comparisons between scalars must use BOOL modifier")
-	errNoMatching              = errors.New("vector matching parameters must be provided for binary operations between series")
+	errMismatchedBounds     = errors.New("block bounds are mismatched")
+	errMismatchedStepCounts = errors.New("block step counts are mismatched")
+	errLeftScalar           = errors.New("expected left scalar but node type" +
+		" incorrect")
+	errRightScalar = errors.New("expected right scalar but node" +
+		" type incorrect")
+	errNoModifierForComparison = errors.New("comparisons between scalars must" +
+		" use BOOL modifier")
+	errNoMatching = errors.New("vector matching parameters must" +
+		" be provided for binary operations between series")
 )
 
 func tagMap(t models.Tags) map[string]models.Tag {
@@ -153,20 +167,6 @@ func combineMetaAndSeriesMeta(
 		seriesMeta,
 		otherSeriesMeta,
 		nil
-}
-
-func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
-	for index := 0; iter.Next(); index++ {
-		step := iter.Current()
-		values := step.Values()
-		for _, idx := range idxArray {
-			if err := builder.AppendValue(index, values[idx]); err != nil {
-				return err
-			}
-		}
-	}
-
-	return iter.Err()
 }
 
 // NB: binary functions should remove the name tag from relevant series.

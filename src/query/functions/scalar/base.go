@@ -33,16 +33,22 @@ import (
 )
 
 const (
-	// ScalarType is a scalar series
+	// ScalarType is a scalar series.
 	ScalarType = "scalar"
 
+	// VectorType is a vector series.
+	VectorType = "vector"
+
 	// TimeType returns the number of seconds since January 1, 1970 UTC.
-	// Note that this does not actually return the current time, but the time at which the expression is to be evaluated.
+	//
+	// NB: this does not actually return the current time, but the time at
+	// which the expression is to be evaluated.
 	TimeType = "time"
 )
 
 type baseOp struct {
 	fn           block.ScalarFunc
+	tagOptions   models.TagOptions
 	operatorType string
 }
 
@@ -66,13 +72,18 @@ func (o baseOp) Node(
 }
 
 // NewScalarOp creates a new scalar op
-func NewScalarOp(fn block.ScalarFunc, opType string) (parser.Params, error) {
+func NewScalarOp(
+	fn block.ScalarFunc,
+	opType string,
+	tagOptions models.TagOptions,
+) (parser.Params, error) {
 	if opType != ScalarType && opType != TimeType {
 		return nil, fmt.Errorf("unknown scalar type: %s", opType)
 	}
 
 	return &baseOp{
 		fn:           fn,
+		tagOptions:   tagOptions,
 		operatorType: opType,
 	}, nil
 }
@@ -88,7 +99,7 @@ type baseNode struct {
 func (n *baseNode) Execute(queryCtx *models.QueryContext) error {
 	bounds := n.opts.TimeSpec().Bounds()
 
-	block := block.NewScalar(n.op.fn, bounds)
+	block := block.NewScalar(n.op.fn, bounds, n.op.tagOptions)
 	if n.opts.Debug() {
 		// Ignore any errors
 		iter, _ := block.StepIter()

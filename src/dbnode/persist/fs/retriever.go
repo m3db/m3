@@ -157,12 +157,19 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 
 func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	r.RLock()
-	defer r.RUnlock()
-
 	if r.status != blockRetrieverOpen {
+		r.RUnlock()
 		return errBlockRetrieverNotOpen
 	}
-	return r.seekerMgr.CacheShardIndices(shards)
+	seekerMgr := r.seekerMgr
+	r.RUnlock()
+
+	// Don't hold the RLock() for duration of CacheShardIndices because
+	// it can take a very long time and it could block the regular read
+	// path (which sometimes needs to acquire an exclusive lock). In practice
+	// this is fine, it just means that the Retriever could be closed while a
+	// call to CacheShardIndices is still outstanding.
+	return seekerMgr.CacheShardIndices(shards)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {

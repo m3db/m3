@@ -278,7 +278,7 @@ func setupBuilder(
 		idx++
 	}
 
-	meta.Tags, metas = utils.DedupeMetadata(metas)
+	meta.Tags, metas = utils.DedupeMetadata(metas, meta.Tags.Opts)
 	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err

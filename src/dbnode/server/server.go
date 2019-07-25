@@ -68,6 +68,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -89,6 +90,7 @@ const (
 	serverGracefulCloseTimeout       = 10 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
+	cpuProfileDuration               = 5 * time.Second
 	filePathPrefixLockFile           = ".lock"
 	defaultServiceName               = "m3dbnode"
 )
@@ -290,6 +292,14 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetInstrumentOptions(iopts)
 
 	opentracing.SetGlobalTracer(tracer)
+
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+		cpuProfileDuration,
+		iopts,
+	)
+	if err != nil {
+		logger.Error("unable to create debug writer", zap.Error(err))
+	}
 
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
@@ -564,9 +574,20 @@ func Run(runOpts RunOptions) {
 
 	if cfg.DebugListenAddress != "" {
 		go func() {
-			if err := http.ListenAndServe(cfg.DebugListenAddress, nil); err != nil {
+			mux := http.DefaultServeMux
+			if debugWriter != nil {
+				if err := debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
+					logger.Error("unable to register debug writer endpoint", zap.Error(err))
+				}
+			}
+
+			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
 				logger.Error("debug server could not listen",
 					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
+			} else {
+				logger.Info("debug server listening",
+					zap.String("address", cfg.DebugListenAddress),
+				)
 			}
 		}()
 	}
@@ -643,7 +664,13 @@ func Run(runOpts RunOptions) {
 			SetRepairTimeJitter(cfg.Repair.Jitter).
 			SetRepairThrottle(cfg.Repair.Throttle).
 			SetRepairCheckInterval(cfg.Repair.CheckInterval).
-			SetAdminClient(m3dbClient)
+			SetAdminClient(m3dbClient).
+			SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
+
+		if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
+			// Set conditionally to avoid stomping on the default value of 1.0.
+			repairOpts = repairOpts.SetDebugShadowComparisonsPercentage(cfg.Repair.DebugShadowComparisonsPercentage)
+		}
 
 		opts = opts.
 			SetRepairEnabled(cfg.Repair.Enabled).
@@ -667,6 +694,20 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
+
+	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers", "bootstrapper")
+	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
+		logger.Error("unable to start emitting bootstrap gauge",
+			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),
+			zap.Error(err),
+		)
+	}
+	defer func() {
+		if err := bsGauge.Close(); err != nil {
+			logger.Error("stop emitting bootstrap gauge failed", zap.Error(err))
+		}
+	}()
+
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
@@ -683,6 +724,13 @@ func Run(runOpts RunOptions) {
 			}
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
+
+			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
+				logger.Error("unable to update bootstrap gauge with new bootstrappers",
+					zap.Strings("bootstrappers", bootstrappers),
+					zap.Error(err),
+				)
+			}
 		})
 
 	// Start the cluster services now that the M3DB client is available.

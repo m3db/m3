@@ -24,7 +24,9 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -34,6 +36,16 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/stretchr/testify/require"
 )
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
 
 type fakeSource struct {
 	called    bool
@@ -119,7 +131,10 @@ func TestRegisterSourceSameName(t *testing.T) {
 
 func TestHTTPEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
-	path := "/debug/dump"
+
+	// Randomizing the path here so we avoid multiple tests
+	// registering the same endpoint.
+	path := fmt.Sprintf("/debug/%s", randStringBytes(10))
 
 	zw := NewZipWriter(instrument.NewOptions())
 	fs1 := &fakeSource{
