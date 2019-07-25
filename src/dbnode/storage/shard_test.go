@@ -267,7 +267,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
 	for i, blockStart := range blockStarts {
-		require.Equal(t, i, s.FlushState(blockStart).ColdVersion)
+		require.Equal(t, i, s.FlushState(blockStart).ColdVersionRetrievable)
 	}
 }
 
@@ -326,7 +326,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
-	require.Equal(t, numVolumes-1, s.FlushState(start).ColdVersion)
+	require.Equal(t, numVolumes-1, s.FlushState(start).ColdVersionRetrievable)
 }
 
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
@@ -501,7 +501,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
 		WarmStatus:  fileOpSuccess,
-		ColdVersion: 0,
+		ColdVersionRetrievable: 0,
 		NumFailures: 0,
 	}, flushState)
 }

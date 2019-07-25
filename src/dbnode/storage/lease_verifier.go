@@ -65,7 +65,7 @@ func (v *leaseVerifier) VerifyLease(
 		// flush should be 0 and the cold version should also be 0.
 		return fmt.Errorf(
 			"cannot permit lease for ns: %s, shard: %d, blockStart: %s, volume: %d when latest volume is %d",
-			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), state.Volume, flushState.ColdVersion)
+			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), state.Volume, flushState.ColdVersionFlushed)
 	}
 
 	return nil
@@ -80,7 +80,7 @@ func (v *leaseVerifier) LatestState(descriptor block.LeaseDescriptor) (block.Lea
 			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
 	}
 
-	// LeaseVerifier should return ColdVersionFlushed not ColdVersion since ColdVersionFlushed
+	// LeaseVerifier should return ColdVersionFlushed not ColdVersionRetrievable since ColdVersionFlushed
 	// represents the latest version that is available on disk while ColdVersion only represents
 	// the latest version that is retrievable from the block retriever and SeekerManager.
 	return block.LeaseState{Volume: flushState.ColdVersionFlushed}, nil

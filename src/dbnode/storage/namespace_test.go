@@ -1241,7 +1241,7 @@ func TestNamespaceFlushState(t *testing.T) {
 	var (
 		blockStart         = time.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
-			ColdVersion: 2,
+			ColdVersionRetrievable: 2,
 		}
 		shard0 = NewMockdatabaseShard(ctrl)
 	)

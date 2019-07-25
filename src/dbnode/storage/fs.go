@@ -44,11 +44,12 @@ type fileOpState struct {
 	// version here is okay. This is used in the buffer Tick to determine when
 	// a warm bucket is evictable from memory.
 	WarmStatus fileOpStatus
-	// ColdVersion keeps track of data persistence for ColdWrites only.
+	// ColdVersionRetrievable keeps track of data persistence for ColdWrites only.
 	// Each block can be cold-flushed multiple times, so this tracks which
 	// version of the flush completed successfully. This is ultimately used in
-	// the buffer Tick to determine which buckets are evictable.
-	ColdVersion int
+	// the buffer Tick to determine which buckets are evictable. Note the distinction
+	// between ColdVersionRetrievable and ColdVersionFlushed described below.
+	ColdVersionRetrievable int
 	// ColdVersionFlushed is the same as ColdVersion except in some cases it will be
 	// higher than ColdVersion. ColdVersionFlushed will be higher than ColdVersion in
 	// the situation that a cold flush has completed successfully but signaling the

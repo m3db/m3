@@ -378,11 +378,12 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespa
 		// Retrievable and higher versioned buckets will be left to be
 		// collected in the next tick.
 		blockState := blockStates[tNano]
-		// NB(rartoul): Buffer should always make eviction decisions based on ColdVersion not ColdVersionFlushed
-		// since ColdVersion is the value that indicates what version is currently retrievable via the block
-		// retriever and SeekerManager while ColdVersionFlushed only indcates what version has successfully
-		// been persisted to disk, but the SeekerManager may not have opened the corresponding seekers yet and
-		// as a result evicting the data from memory could cause queries to return stale results.
+		// NB(rartoul): Buffer should always make eviction decisions based on ColdVersionRetrievable not
+		// ColdVersionFlushed since ColdVersion is the value that indicates what version is currently
+		// retrievable via the block retriever and SeekerManager while ColdVersionFlushed only indcates
+		// what version has successfully been persisted to disk, but the SeekerManager may not have opened
+		// the corresponding seekers yet and as a result evicting the data from memory could cause queries
+		// to return stale results.
 		if coldVersion := blockState.ColdVersion; blockState.WarmRetrievable || coldVersion > 0 {
 			if blockState.WarmRetrievable {
 				// Buckets for WarmWrites that are retrievable will only be version 1, since

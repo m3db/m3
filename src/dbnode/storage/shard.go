@@ -374,7 +374,7 @@ func statusIsRetrievable(status fileOpStatus) bool {
 // RetrievableBlockColdVersion implements series.QueryableBlockRetriever
 func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
-	return flushState.ColdVersion
+	return flushState.ColdVersionRetrievable
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -387,7 +387,10 @@ func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
 			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
-			ColdVersion:     state.ColdVersion,
+			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
+			// will be used to make eviction decisions and we don't want to evict data before
+			// it is retrievable.
+			ColdVersion: state.ColdVersionRetrievable,
 		}
 	}
 
@@ -1900,8 +1903,8 @@ func (s *dbShard) bootstrapFlushStates() {
 		// Note that there can be multiple info files for the same block, for
 		// example if the database didn't get to clean up compacted filesets
 		// before terminating.
-		if fs.ColdVersion < info.VolumeIndex {
-			s.setFlushStateColdVersion(at, info.VolumeIndex)
+		if fs.ColdVersionRetrievable < info.VolumeIndex {
+			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
 			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
 		}
 	}
@@ -2103,7 +2106,7 @@ func (s *dbShard) ColdFlush(
 		// succeeded, but that would allow the ColdVersion and ColdVersionFlushed numbers to drift
 		// which would increase the complexity of the code to address a situation that is probably not
 		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
-		s.setFlushStateColdVersion(startTime, nextVersion)
+		s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.With(
@@ -2231,10 +2234,10 @@ func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.ColdVersion = version
+	state.ColdVersionRetrievable = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
