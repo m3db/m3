@@ -55,7 +55,7 @@ func (v *leaseVerifier) VerifyLease(
 			descriptor.Namespace.String(), descriptor.Shard, descriptor.BlockStart.String(), err)
 	}
 
-	if flushState.ColdVersion != state.Volume {
+	if state.Volume != flushState.ColdVersionFlushed {
 		// The cold flush version and volume correspond 1:1 so a lease should only
 		// be permitted if the requested volume is equal to the highest flushed
 		// volume (the current cold flush version).

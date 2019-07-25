@@ -1902,6 +1902,7 @@ func (s *dbShard) bootstrapFlushStates() {
 		// before terminating.
 		if fs.ColdVersion < info.VolumeIndex {
 			s.setFlushStateColdVersion(at, info.VolumeIndex)
+			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
 		}
 	}
 }
@@ -2077,11 +2078,13 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 
-		// After writing the full block successfully, update the cold version
-		// in the flush state. Once this function completes block leasers will
-		// no longer be able to acquire leases on previous volumes for the given
-		// namespace/shard/blockstart.
-		s.setFlushStateColdVersion(startTime, nextVersion)
+		// After writing the full block successfully update the flushed cold version number. This will
+		// allow the SeekerManager to open a lease on the latest version of the fileset files because
+		// the BlockLeaseVerifier will check both the ColdVersion and ColdVersionFlushed, but the buffer
+		// only looks at ColdVersion so a concurrent tick will not yet cause the blocks in memory to be
+		// evicted (which is the desired behavior because we haven't updated the open leases yet which
+		// means the newly written data is not available for querying via the SeekerManager yet.)
+		s.setFlushStateColdVersionFlushed(startTime, nextVersion)
 
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
@@ -2091,6 +2094,16 @@ func (s *dbShard) ColdFlush(
 			Shard:      s.ID(),
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
+		// After writing the full block successfully **and** propagating the new lease to the
+		// BlockLeaseManager, update the cold version in the flush state. Once this function
+		// completes block leasers will no longer be able to acquire leases on previous volumes
+		// for the given namespace/shard/blockstart.
+		//
+		// NB(rartoul): Ideally the ColdVersion would only be updated if the call to UpdateOpenLeases
+		// succeeded, but that would allow the ColdVersion and ColdVersionFlushed numbers to drift
+		// which would increase the complexity of the code to address a situation that is probably not
+		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
+		s.setFlushStateColdVersion(startTime, nextVersion)
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.With(
@@ -2222,6 +2235,14 @@ func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	state.ColdVersion = version
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.ColdVersionFlushed = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }

@@ -49,7 +49,22 @@ type fileOpState struct {
 	// version of the flush completed successfully. This is ultimately used in
 	// the buffer Tick to determine which buckets are evictable.
 	ColdVersion int
-	NumFailures int
+	// ColdVersionFlushed is the same as ColdVersion except in some cases it will be
+	// higher than ColdVersion. ColdVersionFlushed will be higher than ColdVersion in
+	// the situation that a cold flush has completed successfully but signaling the
+	// update to the BlockLeaseManager hasn't completed yet. As a result, the ColdVersion
+	// can't be incremented yet because a parallel tick could evict the block before it
+	// becomes queryable via the block retriever / seeker manager, however, the BlockLeaseVerifier
+	// needs to know that a higher cold flush version exists on disk so that it can approve the
+	// SeekerManager's request to open a lease on the latest version.
+	//
+	// In other words the ColdVersion is used to keep track of the latest cold version that has
+	// been succesfully flushed and can be queried via the block retriever / seeker manager and
+	// as a result is safe to evict, while the ColdVersionFlushed is used to keep track of the
+	// latest cold version that has been flushed and to validate lease requests from the
+	// SeekerManager when it receives a signal to open a new lease.
+	ColdVersionFlushed int
+	NumFailures        int
 }
 
 type runType int
