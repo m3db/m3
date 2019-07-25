@@ -210,8 +210,8 @@ func (m *mediator) ongoingTick() {
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
-			fsProcessRunning := m.mediatorTimeBarrier.hasWaiter()
-			if !fsProcessRunning {
+			fsProcessWaiting := m.mediatorTimeBarrier.hasWaiter()
+			if fsProcessWaiting {
 				mediatorTime := m.nowFn()
 				m.mediatorTimeBarrier.release(mediatorTime)
 			}
