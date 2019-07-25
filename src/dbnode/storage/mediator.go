@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -212,11 +213,25 @@ func (m *mediator) ongoingTick() {
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
+
 			// See comment over mediatorTimeBarrier for an explanation of this logic.
 			fsProcessWaiting := m.mediatorTimeBarrier.hasWaiter()
 			if fsProcessWaiting {
-				mediatorTime := m.nowFn()
-				m.mediatorTimeBarrier.release(mediatorTime)
+				newMediatorTime := m.nowFn()
+				if newMediatorTime.Before(mediatorTime) {
+					instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(), func(l *zap.Logger) {
+						l.Error(
+							"mediator time attempted to move backwards in time",
+							zap.Time("prevTime", mediatorTime), zap.Time("newTime", mediatorTime))
+					})
+
+					// Ignore new time so we can continue looping and hopefully get one thats actually in the future
+					// next time since moving backwards in time could cause undefined behavior.
+					continue
+				} else {
+					mediatorTime = m.nowFn()
+					m.mediatorTimeBarrier.release(mediatorTime)
+				}
 			}
 			if err := m.Tick(force, mediatorTime); err != nil {
 				log.Error("error within tick", zap.Error(err))
