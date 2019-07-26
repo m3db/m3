@@ -809,7 +809,10 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 			}, nil)
 	}
 
-	ids := [][]byte{[]byte("foo")}
+	var (
+		ids                          = [][]byte{[]byte("foo")}
+		outstandingRequestIsComplete = make(chan struct{}, 0)
+	)
 	// First request will hang until the test is over simulating an "outstanding" request.
 	go func() {
 		service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
@@ -819,6 +822,7 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 			NameSpace:     []byte(nsID),
 			Ids:           ids,
 		})
+		close(outstandingRequestIsComplete)
 	}()
 
 	<-requestIsOutstanding
@@ -831,6 +835,10 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 	})
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 	close(testIsComplete)
+
+	// Ensure the number of outstanding requests gets decremented at the end of the R.P.C.
+	<-outstandingRequestIsComplete
+	require.Equal(t, 0, service.state.numOutstandingReadRPCs)
 }
 
 func TestServiceFetchBatchRawUnknownError(t *testing.T) {
@@ -2126,11 +2134,13 @@ func TestServiceWriteBatchRawOverMaxOutstandingRequests(t *testing.T) {
 	mockDB.EXPECT().IsOverloaded().Return(false).AnyTimes()
 
 	// First request will hang until the test is over (so a request is outstanding).
+	outstandingRequestIsComplete := make(chan struct{}, 0)
 	go func() {
 		service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
 			NameSpace: []byte(nsID),
 			Elements:  elements,
 		})
+		close(outstandingRequestIsComplete)
 	}()
 	<-requestIsOutstanding
 
@@ -2140,6 +2150,11 @@ func TestServiceWriteBatchRawOverMaxOutstandingRequests(t *testing.T) {
 		Elements:  elements,
 	})
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+	close(testIsComplete)
+
+	// Ensure the number of outstanding requests gets decremented at the end of the R.P.C.
+	<-outstandingRequestIsComplete
+	require.Equal(t, 0, service.state.numOutstandingWriteRPCs)
 }
 
 func TestServiceWriteBatchRawDatabaseNotSet(t *testing.T) {
