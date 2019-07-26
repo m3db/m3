@@ -374,7 +374,7 @@ func statusIsRetrievable(status fileOpStatus) bool {
 // RetrievableBlockColdVersion implements series.QueryableBlockRetriever
 func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
-	return flushState.ColdVersion
+	return flushState.ColdVersionRetrievable
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -387,7 +387,10 @@ func (s *dbShard) BlockStatesSnapshot() map[xtime.UnixNano]series.BlockState {
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
 			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
-			ColdVersion:     state.ColdVersion,
+			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
+			// will be used to make eviction decisions and we don't want to evict data before
+			// it is retrievable.
+			ColdVersion: state.ColdVersionRetrievable,
 		}
 	}
 
@@ -613,8 +616,8 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error) {
-	s.removeAnyFlushStatesTooEarly(tickStart)
+func (s *dbShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+	s.removeAnyFlushStatesTooEarly(startTime)
 	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
 }
 
@@ -1900,8 +1903,9 @@ func (s *dbShard) bootstrapFlushStates() {
 		// Note that there can be multiple info files for the same block, for
 		// example if the database didn't get to clean up compacted filesets
 		// before terminating.
-		if fs.ColdVersion < info.VolumeIndex {
-			s.setFlushStateColdVersion(at, info.VolumeIndex)
+		if fs.ColdVersionRetrievable < info.VolumeIndex {
+			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
+			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
 		}
 	}
 }
@@ -2077,11 +2081,13 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 
-		// After writing the full block successfully, update the cold version
-		// in the flush state. Once this function completes block leasers will
-		// no longer be able to acquire leases on previous volumes for the given
-		// namespace/shard/blockstart.
-		s.setFlushStateColdVersion(startTime, nextVersion)
+		// After writing the full block successfully update the ColdVersionFlushed number. This will
+		// allow the SeekerManager to open a lease on the latest version of the fileset files because
+		// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
+		// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
+		// evicted (which is the desired behavior because we haven't updated the open leases yet which
+		// means the newly written data is not available for querying via the SeekerManager yet.)
+		s.setFlushStateColdVersionFlushed(startTime, nextVersion)
 
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
@@ -2091,6 +2097,17 @@ func (s *dbShard) ColdFlush(
 			Shard:      s.ID(),
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
+		// After writing the full block successfully **and** propagating the new lease to the
+		// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
+		// completes concurrent ticks will be able to evict the data from memory that was just flushed
+		// (which is now safe to do since the SeekerManager has been notified of the presence of new
+		// files).
+		//
+		// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
+		// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
+		// which would increase the complexity of the code to address a situation that is probably not
+		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
+		s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.With(
@@ -2218,17 +2235,25 @@ func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.ColdVersion = version
+	state.ColdVersionRetrievable = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
+func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
 	s.flushState.Lock()
-	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), tickStart)
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.ColdVersionFlushed = version
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) removeAnyFlushStatesTooEarly(startTime time.Time) {
+	s.flushState.Lock()
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), startTime)
 	for t := range s.flushState.statesByTime {
 		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)

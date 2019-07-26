@@ -514,11 +514,11 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
-	// Allow the reader cache to tick
+func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+	// Allow the reader cache to tick.
 	n.namespaceReaderMgr.tick()
 
-	// Fetch the owned shards
+	// Fetch the owned shards.
 	shards := n.GetOwnedShards()
 	if len(shards) == 0 {
 		return nil
@@ -528,7 +528,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	// Tick through the shards at a capped level of concurrency
+	// Tick through the shards at a capped level of concurrency.
 	var (
 		r        tickResult
 		multiErr xerrors.MultiError
@@ -545,7 +545,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 				return
 			}
 
-			shardResult, err := shard.Tick(c, tickStart, nsCtx)
+			shardResult, err := shard.Tick(c, startTime, nsCtx)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -556,13 +556,13 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 
 	wg.Wait()
 
-	// Tick namespaceIndex if it exists
+	// Tick namespaceIndex if it exists.
 	var (
 		indexTickResults namespaceIndexTickResult
 		err              error
 	)
 	if idx := n.reverseIndex; idx != nil {
-		indexTickResults, err = idx.Tick(c, tickStart)
+		indexTickResults, err = idx.Tick(c, startTime)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -906,7 +906,6 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 
 func (n *dbNamespace) WarmFlush(
 	blockStart time.Time,
-	shardBootstrapStatesAtTickStart ShardBootstrapStates,
 	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -936,25 +935,14 @@ func (n *dbNamespace) WarmFlush(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		// This is different than calling shard.IsBootstrapped() because it was determined
-		// before the start of the tick that preceded this flush, meaning it can be reliably
-		// used to determine if all of the bootstrapped blocks have been merged (ticked)
-		// and are ready to be flushed.
-		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
-		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
-			// We don't own this shard anymore (!ok) or the shard was not bootstrapped
-			// before the previous tick which means that we have no guarantee that all
-			// bootstrapped blocks have been rotated out of the series buffer buckets,
-			// so we wait until the next opportunity.
+		if !shard.IsBootstrapped() {
 			n.log.
 				With(zap.Uint32("shard", shard.ID())).
-				With(zap.Any("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
-				With(zap.Bool("bootstrapStateExists", ok)).
-				Debug("skipping snapshot due to shard bootstrap state before tick")
+				Debug("skipping warm flush due to shard not bootstrapped yet")
 			continue
 		}
 
-		// skip flushing if the shard has already flushed data for the `blockStart`
+		// Skip flushing if the shard has already flushed data for the `blockStart`,
 		if s := shard.FlushState(blockStart); s.WarmStatus == fileOpSuccess {
 			continue
 		}
@@ -1029,9 +1017,7 @@ func (r *coldFlushReuseableResources) reset() {
 	r.dirtySeries.Reset()
 }
 
-func (n *dbNamespace) ColdFlush(
-	flushPersist persist.FlushPreparer,
-) error {
+func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -1042,7 +1028,7 @@ func (n *dbNamespace) ColdFlush(
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
-	nsCtx := namespace.Context{Schema: n.schemaDescr}
+	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
 	if !n.nopts.ColdWritesEnabled() {
@@ -1071,9 +1057,7 @@ func (n *dbNamespace) ColdFlush(
 	return res
 }
 
-func (n *dbNamespace) FlushIndex(
-	flush persist.IndexFlush,
-) error {
+func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	callStart := n.nowFn()
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {

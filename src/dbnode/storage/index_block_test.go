@@ -458,7 +458,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	}()
 
 	c := context.NewCancellable()
-	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
@@ -474,7 +474,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	now = now.Add(2 * blockSize)
 	nowLock.Unlock()
 
-	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
@@ -489,7 +489,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumTotalDocs:    10,
 	}, result)
 
-	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)

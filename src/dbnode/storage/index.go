@@ -676,11 +676,11 @@ func (i *nsIndex) BootstrapsDone() uint {
 	return result
 }
 
-func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
+func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	var (
 		result                     = namespaceIndexTickResult{}
-		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, tickStart)
-		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, tickStart.Add(-i.bufferPast))
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, startTime)
+		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, startTime.Add(-i.bufferPast))
 	)
 
 	i.state.Lock()
@@ -708,7 +708,7 @@ func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceInd
 		}
 
 		// tick any blocks we're going to retain
-		blockTickResult, tickErr := block.Tick(c, tickStart)
+		blockTickResult, tickErr := block.Tick(c)
 		multiErr = multiErr.Add(tickErr)
 		result.NumSegments += blockTickResult.NumSegments
 		result.NumTotalDocs += blockTickResult.NumDocs

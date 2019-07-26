@@ -327,7 +327,7 @@ type Block interface {
 	AddResults(results result.IndexBlock) error
 
 	// Tick does internal house keeping operations.
-	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
+	Tick(c context.Cancellable) (BlockTickResult, error)
 
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error

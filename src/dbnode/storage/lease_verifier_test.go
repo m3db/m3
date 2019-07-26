@@ -70,7 +70,7 @@ func TestLeaseVerifierVerifyLeaseReturnsErrorIfNotLatestVolume(t *testing.T) {
 		testBlockDescriptor.Namespace,
 		uint32(testBlockDescriptor.Shard),
 		testBlockDescriptor.BlockStart,
-	).Return(fileOpState{ColdVersion: testBlockLeaseState.Volume + 1}, nil)
+	).Return(fileOpState{ColdVersionFlushed: testBlockLeaseState.Volume + 1}, nil)
 
 	err := leaseVerifier.VerifyLease(testBlockDescriptor, testBlockLeaseState)
 	require.Error(t, err)
@@ -90,7 +90,7 @@ func TestLeaseVerifierVerifyLeaseSuccessIfVolumeIsLatest(t *testing.T) {
 		testBlockDescriptor.Namespace,
 		uint32(testBlockDescriptor.Shard),
 		testBlockDescriptor.BlockStart,
-	).Return(fileOpState{ColdVersion: volumeNum}, nil)
+	).Return(fileOpState{ColdVersionFlushed: volumeNum}, nil)
 
 	require.NoError(t, leaseVerifier.VerifyLease(testBlockDescriptor, state))
 }
@@ -125,7 +125,7 @@ func TestLeaseVerifierLatestStateSuccess(t *testing.T) {
 		testBlockDescriptor.Namespace,
 		uint32(testBlockDescriptor.Shard),
 		testBlockDescriptor.BlockStart,
-	).Return(fileOpState{ColdVersion: 1}, nil)
+	).Return(fileOpState{ColdVersionFlushed: 1}, nil)
 
 	state, err := leaseVerifier.LatestState(testBlockDescriptor)
 	require.NoError(t, err)
