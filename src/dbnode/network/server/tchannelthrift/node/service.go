@@ -174,17 +174,17 @@ func (s *serviceState) Health() (*rpc.NodeHealthResult_, bool) {
 func (s *serviceState) DBForWriteRPCWithLimit() (
 	db storage.Database, dbInitialized bool, rpcDoesNotExceedLimit bool) {
 	s.Lock()
+	defer s.Unlock()
+
 	if s.db == nil {
-		s.Unlock()
 		return nil, false, false
 	}
 	if s.numOutstandingWriteRPCs >= s.maxOutstandingWriteRPCs {
-		s.Unlock()
 		return nil, true, false
 	}
+
 	v := s.db
 	s.numOutstandingWriteRPCs++
-	s.Unlock()
 	return v, true, true
 }
 
@@ -197,17 +197,17 @@ func (s *serviceState) DecNumOutstandingWriteRPCs() {
 func (s *serviceState) DBForReadRPCWithLimit() (
 	db storage.Database, dbInitialized bool, requestDoesNotExceedLimit bool) {
 	s.Lock()
+	defer s.Unlock()
+
 	if s.db == nil {
-		s.Unlock()
 		return nil, false, false
 	}
 	if s.numOutstandingReadRPCs >= s.maxOutstandingReadRPCs {
-		s.Unlock()
 		return nil, true, false
 	}
+
 	v := s.db
 	s.numOutstandingReadRPCs++
-	s.Unlock()
 	return v, true, true
 }
 
