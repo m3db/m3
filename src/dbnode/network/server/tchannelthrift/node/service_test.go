@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -740,6 +740,97 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		assert.Equal(t, expectHead, seg.Merged.Head)
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
+}
+
+// TestServiceFetchBatchRawOverMaxOutstandingRequests tests that the FetchBatchRaw endpoint
+// will reject requests if the number of outstanding read requests has hit the maximum.
+func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	tchanOpts := testTChannelThriftOptions.
+		SetMaxOutstandingReadRequests(1)
+	service := NewService(mockDB, tchanOpts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	var (
+		nsID    = "metrics"
+		streams = map[string]xio.SegmentReader{}
+		series  = map[string][]struct {
+			t time.Time
+			v float64
+		}{
+			"foo": {
+				{start.Add(10 * time.Second), 1.0},
+				{start.Add(20 * time.Second), 2.0},
+			},
+		}
+
+		requestIsOutstanding = make(chan struct{}, 0)
+		testIsComplete       = make(chan struct{}, 0)
+	)
+	for id, s := range series {
+		enc := testStorageOpts.EncoderPool().Get()
+		enc.Reset(start, 0, nil)
+		for _, v := range s {
+			dp := ts.Datapoint{
+				Timestamp: v.t,
+				Value:     v.v,
+			}
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
+
+		stream, _ := enc.Stream(encoding.StreamOptions{})
+		streams[id] = stream
+		mockDB.EXPECT().
+			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			Do(func(ctx interface{}, nsID ident.ID, seriesID ident.ID, start time.Time, end time.Time) {
+				close(requestIsOutstanding)
+				<-testIsComplete
+			}).
+			Return([][]xio.BlockReader{
+				[]xio.BlockReader{
+					xio.BlockReader{
+						SegmentReader: stream,
+					},
+				},
+			}, nil)
+	}
+
+	ids := [][]byte{[]byte("foo")}
+	// First request will hang until the test is over simulating an "outstanding" request.
+	go func() {
+		service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
+			RangeStart:    start.Unix(),
+			RangeEnd:      end.Unix(),
+			RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+			NameSpace:     []byte(nsID),
+			Ids:           ids,
+		})
+	}()
+
+	<-requestIsOutstanding
+	_, err := service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
+		RangeStart:    start.Unix(),
+		RangeEnd:      end.Unix(),
+		RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		NameSpace:     []byte(nsID),
+		Ids:           ids,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+	close(testIsComplete)
 }
 
 func TestServiceFetchBatchRawUnknownError(t *testing.T) {
@@ -1966,6 +2057,87 @@ func TestServiceWriteBatchRawOverloaded(t *testing.T) {
 	mockDB.EXPECT().IsOverloaded().Return(true)
 	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
 		NameSpace: []byte("metrics"),
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
+// TestServiceWriteBatchRawOverMaxOutstandingRequests tests that the WriteBatchRaw endpoint
+// will reject requests if the number of outstanding write requests has hit the maximum.
+func TestServiceWriteBatchRawOverMaxOutstandingRequests(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	tchanOpts := testTChannelThriftOptions.
+		SetMaxOutstandingWriteRequests(1)
+	service := NewService(mockDB, tchanOpts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	values := []struct {
+		id string
+		t  time.Time
+		v  float64
+	}{
+		{"foo", time.Now().Truncate(time.Second), 12.34},
+		{"bar", time.Now().Truncate(time.Second), 42.42},
+	}
+
+	var (
+		testIsComplete       = make(chan struct{}, 0)
+		requestIsOutstanding = make(chan struct{}, 0)
+	)
+	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
+		Do(func(nsID ident.ID, numValues int) {
+			// Signal that a request is now outstanding.
+			close(requestIsOutstanding)
+			// Wait for test to complete.
+			<-testIsComplete
+		}).
+		Return(writeBatch, nil)
+	mockDB.EXPECT().
+		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		Return(nil).
+		// AnyTimes() so we don't have to add extra signaling to wait for the
+		// async goroutine to complete.
+		AnyTimes()
+
+	var elements []*rpc.WriteBatchRawRequestElement
+	for _, w := range values {
+		elem := &rpc.WriteBatchRawRequestElement{
+			ID: []byte(w.id),
+			Datapoint: &rpc.Datapoint{
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	mockDB.EXPECT().IsOverloaded().Return(false).AnyTimes()
+
+	// First request will hang until the test is over (so a request is outstanding).
+	go func() {
+		service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
+			NameSpace: []byte(nsID),
+			Elements:  elements,
+		})
+	}()
+	<-requestIsOutstanding
+
+	// Second request should get an overloaded error since there is an outstanding request.
+	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
+		NameSpace: []byte(nsID),
+		Elements:  elements,
 	})
 	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
