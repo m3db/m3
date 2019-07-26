@@ -276,7 +276,15 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	})
 	segmentPool.Init()
 
-	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
+	writeBatchPoolSize := writeBatchPooledReqPoolSize
+	if maxWriteReqs := opts.MaxOutstandingWriteRequests(); maxWriteReqs > 0 {
+		// If a limit on the number of maximum outstanding write
+		// requests has been set then we know the exact number of
+		// of writeBatchPooledReq objects we need to never have to
+		// allocate one on demand.
+		writeBatchPoolSize = maxWriteReqs
+	}
+	writeBatchPooledReqPool := newWriteBatchPooledReqPool(writeBatchPoolSize, iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
 	return &service{
@@ -1816,10 +1824,11 @@ type writeBatchPooledReqPool struct {
 }
 
 func newWriteBatchPooledReqPool(
+	size int,
 	iopts instrument.Options,
 ) *writeBatchPooledReqPool {
 	pool := pool.NewObjectPool(pool.NewObjectPoolOptions().
-		SetSize(writeBatchPooledReqPoolSize).
+		SetSize(size).
 		SetInstrumentOptions(iopts.SetMetricsScope(
 			iopts.MetricsScope().SubScope("write-batch-pooled-req-pool"))))
 	return &writeBatchPooledReqPool{pool: pool}

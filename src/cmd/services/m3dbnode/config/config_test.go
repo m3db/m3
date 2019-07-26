@@ -659,6 +659,9 @@ func TestConfiguration(t *testing.T) {
       headers: null
       baggage_restrictions: null
       throttler: null
+  limits:
+    maxOutstandingWriteRequests: 0
+    maxOutstandingReadRequests: 0
 coordinator: null
 `
 
