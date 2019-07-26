@@ -48,14 +48,15 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -63,6 +64,9 @@ var (
 	checkedBytesPoolSize        = 65536
 	segmentArrayPoolSize        = 65536
 	writeBatchPooledReqPoolSize = 1024
+	// 8192 * 128 ~= enough workers for 1 million outstanding writes/s
+	// before the pool will need to start growing.
+	workerPoolSize = 8192
 )
 
 const (
@@ -174,6 +178,7 @@ type pools struct {
 	writeBatchPooledReqPool *writeBatchPooledReqPool
 	blockMetadataV2         tchannelthrift.BlockMetadataV2Pool
 	blockMetadataV2Slice    tchannelthrift.BlockMetadataV2SlicePool
+	workers                 xsync.PooledWorkerPool
 }
 
 // ensure `pools` matches a required conversion interface
@@ -191,7 +196,7 @@ type Service interface {
 }
 
 // NewService creates a new node TChannel Thrift service
-func NewService(db storage.Database, opts tchannelthrift.Options) Service {
+func NewService(db storage.Database, opts tchannelthrift.Options) (Service, error) {
 	if opts == nil {
 		opts = tchannelthrift.NewOptions()
 	}
@@ -227,6 +232,16 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
+	workerPoolIopts := iopts.SetMetricsScope(scope.SubScope("worker-pool"))
+	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+		SetGrowOnDemand(true).
+		SetInstrumentOptions(workerPoolIopts)
+	workerPool, err := xsync.NewPooledWorkerPool(workerPoolSize, workerPoolOpts)
+	if err != nil {
+		return nil, err
+	}
+	workerPool.Init()
+
 	return &service{
 		state: serviceState{
 			db: db,
@@ -249,8 +264,9 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			writeBatchPooledReqPool: writeBatchPooledReqPool,
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
+			workers:                 workerPool,
 		},
-	}
+	}, nil
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
@@ -1061,6 +1077,17 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		return err
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+	s.pools.workers.Go(func() {
+		err = s.writeBatchRaw(db, tctx, req)
+		wg.Done()
+	})
+	wg.Wait()
+	return err
+}
+
+func (s *service) writeBatchRaw(db storage.Database, tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -1144,6 +1171,17 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		return err
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+	s.pools.workers.Go(func() {
+		err = s.writeTaggedBatchRaw(db, tctx, req)
+		wg.Done()
+	})
+	wg.Wait()
+	return err
+}
+
+func (s *service) writeTaggedBatchRaw(db storage.Database, tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 

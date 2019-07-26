@@ -104,7 +104,10 @@ func openAndServe(
 
 	contextPool := opts.ContextPool()
 	ttopts := tchannelthrift.NewOptions()
-	service := ttnode.NewService(db, ttopts)
+	service, err := ttnode.NewService(db, ttopts)
+	if err != nil {
+		return fmt.Errorf("could not create new tchannel node service")
+	}
 	nativeNodeClose, err := ttnode.NewServer(service, tchannelNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
