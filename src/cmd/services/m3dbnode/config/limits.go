@@ -22,13 +22,13 @@ package config
 
 // Limits contains configuration for configurable limits that can be applied to M3DB.
 type Limits struct {
-	// MaxOutstandingWriteRequests controls the maximum number of outstanding write RPCs
+	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
 	// that the server will allow before it begins rejecting requests. Note that this value
 	// is independent of the number of values that are being written (due to variable batch
-	// from the client) but is still very useful for enforcing backpressure due to the fact
+	// size from the client) but is still very useful for enforcing backpressure due to the fact
 	// that all writes within a single RPC are single-threaded.
 	MaxOutstandingWriteRequests int `yaml:"maxOutstandingWriteRequests" validate:"min=0"`
-	// MaxOutstandingReadRequests controls the maximum number of outstanding read RPCs that
+	// MaxOutstandingReadRequests controls the maximum number of outstanding read requests that
 	// the server will allow before it begins rejecting requests. Just like MaxOutstandingWriteRequests
 	// this value is independent of the number of time series being read.
 	MaxOutstandingReadRequests int `yaml:"maxOutstandingReadRequests" validate:"min=0"`
