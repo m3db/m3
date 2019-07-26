@@ -1545,7 +1545,6 @@ func (s *service) writeRPCCompleted() {
 	}
 
 	s.state.DecNumOutstandingWriteRPCs()
-	return
 }
 
 func (s *service) startReadRPCWithDB() (storage.Database, error) {
@@ -1577,7 +1576,6 @@ func (s *service) readRPCCompleted() {
 	}
 
 	s.state.DecNumOutstandingReadRPCs()
-	return
 }
 
 func (s *service) startRPCWithDB() (storage.Database, error) {
