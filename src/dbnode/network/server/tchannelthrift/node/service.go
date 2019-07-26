@@ -51,11 +51,11 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -149,6 +149,12 @@ type serviceState struct {
 	sync.RWMutex
 	db     storage.Database
 	health *rpc.NodeHealthResult_
+
+	numOutstandingWriteRPCs int
+	maxOutstandingWriteRPCs int
+
+	numOutstandingReadRPCs int
+	maxOutstandingReadRPCs int
 }
 
 func (s *serviceState) DB() (storage.Database, bool) {
@@ -163,6 +169,52 @@ func (s *serviceState) Health() (*rpc.NodeHealthResult_, bool) {
 	v := s.health
 	s.RUnlock()
 	return v, v != nil
+}
+
+func (s *serviceState) DBForWriteRPCWithLimit() (
+	db storage.Database, dbInitialized bool, rpcDoesNotExceedLimit bool) {
+	s.Lock()
+	if s.db == nil {
+		s.Unlock()
+		return nil, false, false
+	}
+	if s.numOutstandingWriteRPCs >= s.maxOutstandingWriteRPCs {
+		s.Unlock()
+		return nil, true, false
+	}
+	v := s.db
+	s.numOutstandingWriteRPCs++
+	s.Unlock()
+	return v, true, true
+}
+
+func (s *serviceState) DecNumOutstandingWriteRPCs() {
+	s.Lock()
+	s.numOutstandingWriteRPCs--
+	s.Unlock()
+}
+
+func (s *serviceState) DBForReadRPCWithLimit() (
+	db storage.Database, dbInitialized bool, requestDoesNotExceedLimit bool) {
+	s.Lock()
+	if s.db == nil {
+		s.Unlock()
+		return nil, false, false
+	}
+	if s.numOutstandingReadRPCs >= s.maxOutstandingReadRPCs {
+		s.Unlock()
+		return nil, true, false
+	}
+	v := s.db
+	s.numOutstandingReadRPCs++
+	s.Unlock()
+	return v, true, true
+}
+
+func (s *serviceState) DecNumOutstandingReadRPCs() {
+	s.Lock()
+	s.numOutstandingReadRPCs--
+	s.Unlock()
 }
 
 type pools struct {
@@ -235,6 +287,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 				Status:       "up",
 				Bootstrapped: false,
 			},
+			maxOutstandingWriteRPCs: opts.MaxOutstandingWriteRequests(),
+			maxOutstandingReadRPCs:  opts.MaxOutstandingReadRequests(),
 		},
 		logger:  iopts.Logger(),
 		opts:    opts,
@@ -346,10 +400,11 @@ func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.Query)
 	sp.LogFields(
@@ -429,10 +484,11 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	var (
 		callStart = s.nowFn()
@@ -505,10 +561,11 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.FetchTagged)
 	sp.LogFields(
@@ -582,10 +639,11 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -625,10 +683,11 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -692,10 +751,11 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -748,10 +808,11 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	var (
 		callStart = s.nowFn()
@@ -823,10 +884,11 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	defer func() {
@@ -957,10 +1019,11 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1003,10 +1066,11 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1056,10 +1120,11 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1139,10 +1204,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1440,6 +1506,70 @@ func (s *service) SetDatabase(db storage.Database) error {
 
 	s.state.db = db
 	return nil
+}
+
+func (s *service) startWriteRPCWithDB() (storage.Database, error) {
+	if s.state.maxOutstandingWriteRPCs == 0 {
+		// No limitations on number of outstanding requests.
+		return s.startRPCWithDB()
+	}
+
+	db, dbIsInitialized, requestDoesNotExceedLimit := s.state.DBForWriteRPCWithLimit()
+	if !dbIsInitialized {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+	if !requestDoesNotExceedLimit {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return db, nil
+}
+
+func (s *service) writeRPCCompleted() {
+	if s.state.maxOutstandingWriteRPCs == 0 {
+		// Nothing to do since we're not tracking the number outstanding RPCs.
+		return
+	}
+
+	s.state.DecNumOutstandingWriteRPCs()
+	return
+}
+
+func (s *service) startReadRPCWithDB() (storage.Database, error) {
+	if s.state.maxOutstandingReadRPCs == 0 {
+		// No limitations on number of outstanding requests.
+		return s.startRPCWithDB()
+	}
+
+	db, dbIsInitialized, requestDoesNotExceedLimit := s.state.DBForReadRPCWithLimit()
+	if !dbIsInitialized {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+	if !requestDoesNotExceedLimit {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return db, nil
+}
+
+func (s *service) readRPCCompleted() {
+	if s.state.maxOutstandingReadRPCs == 0 {
+		// Nothing to do since we're not tracking the number outstanding RPCs.
+		return
+	}
+
+	s.state.DecNumOutstandingReadRPCs()
+	return
 }
 
 func (s *service) startRPCWithDB() (storage.Database, error) {
