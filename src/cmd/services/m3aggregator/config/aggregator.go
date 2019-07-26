@@ -291,7 +291,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetFlushHandler(flushHandler)
 
 	// Set pass-through handler.
-	passThroughScope := scope.SubScope("pass-through-handler")
+	passThroughScope := scope.SubScope("passthrough-handler")
 	iOpts = instrumentOpts.SetMetricsScope(passThroughScope)
 	// fishie9: this is a temporary change to use a separate m3msg topic for pass-through metrics during the migration
 	for _, handler := range c.Flush.Handlers {

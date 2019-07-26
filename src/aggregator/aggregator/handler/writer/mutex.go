@@ -31,7 +31,7 @@ type mutexWriter struct {
 	w Writer
 }
 
-// NewMutexWriter creates a writer with a lock
+// NewMutexWriter creates a writer with a lock.
 func NewMutexWriter(w Writer) Writer {
 	return &mutexWriter{
 		w: w,

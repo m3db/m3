@@ -1129,7 +1129,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 	w.EXPECT().Close().Return(nil).AnyTimes()
 
 	h := handler.NewMockHandler(ctrl)
-	h.EXPECT().NewWriter(gomock.Any()).Return(w, nil).AnyTimes()
+	h.EXPECT()gomock.Any()).Return(w, nil).AnyTimes()
 	h.EXPECT().Close().AnyTimes()
 
 	pw := writer.NewMockWriter(ctrl)

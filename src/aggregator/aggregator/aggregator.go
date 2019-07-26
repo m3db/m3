@@ -58,7 +58,7 @@ var (
 	errInvalidMetricType             = errors.New("invalid metric type")
 	errActivePlacementChanged        = errors.New("active placement has changed")
 	errShardNotOwned                 = errors.New("aggregator shard is not owned")
-	errPassThroughWriterNotDefined   = errors.New("pass-through writer is not defined")
+	errPassThroughWriterNotDefined   = errors.New("passthrough writer is not defined")
 )
 
 // Aggregator aggregates different types of metrics.
@@ -248,6 +248,7 @@ func (agg *aggregator) AddPassThrough(
 	agg.RLock()
 	if agg.state != aggregatorOpen {
 		agg.metrics.addPassThrough.ReportError(errAggregatorAlreadyOpenOrClosed)
+		agg.RUnlock()
 		return errAggregatorNotOpenOrClosed
 	}
 	agg.RUnlock()
@@ -993,7 +994,7 @@ func newAggregatorMetrics(
 		gauges:         scope.Counter("gauges"),
 		forwarded:      scope.Counter("forwarded"),
 		timed:          scope.Counter("timed"),
-		passThrough:    scope.Counter("pass-through"),
+		passThrough:    scope.Counter("passthrough"),
 		addUntimed:     newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
 		addTimed:       newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
 		addForwarded:   newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),

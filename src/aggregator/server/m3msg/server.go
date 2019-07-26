@@ -35,7 +35,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// GetWriteFn returns the m3msg write function for pass-through metrics
+// GetWriteFn returns the m3msg write function for pass-through metrics.
 func GetWriteFn(
 	aggregator aggregator.Aggregator,
 	s *sampler.Sampler,
@@ -49,7 +49,7 @@ func GetWriteFn(
 		sp policy.StoragePolicy,
 		callback m3msg.Callbackable,
 	) {
-		// The type of a pass-through metric does not matter as it is written directly into m3db
+		// The type of a pass-through metric does not matter as it is written directly into m3db.
 		metric := aggregated.Metric{
 			Type:      metric.GaugeType,
 			ID:        id,
