@@ -104,9 +104,11 @@ type DBConfiguration struct {
 	// The initial garbage collection target percentage.
 	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
 
+	// TODO(V1): Move to `limits`.
 	// Write new series limit per second to limit overwhelming during new ID bursts.
 	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
 
+	// TODO(V1): Move to `limits`.
 	// Write new series backoff between batches of new series insertions.
 	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
@@ -148,6 +150,10 @@ type DBConfiguration struct {
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
 	Tracing *opentracing.TracingConfiguration `yaml:"tracing"`
+
+	// Limits contains configuration for limits that can be applied to M3DB for the purposes
+	// of applying back-pressure or protecting the db nodes.
+	Limits Limits `yaml:"limits"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
