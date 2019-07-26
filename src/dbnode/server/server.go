@@ -550,10 +550,13 @@ func Run(runOpts RunOptions) {
 	var (
 		contextPool  = opts.ContextPool()
 		tchannelOpts = xtchannel.NewDefaultChannelOptions()
-		// Pass nil for the database argument because we haven't constructed it yet. We'll call
-		// SetDatabase() once we've initialized it.
-		service = ttnode.NewService(nil, ttopts)
 	)
+	// Pass nil for the database argument because we haven't constructed it yet. We'll call
+	// SetDatabase() once we've initialized it.
+	service, err := ttnode.NewService(nil, ttopts)
+	if err != nil {
+		logger.Fatal("could not open tchannel node service", zap.Error(err))
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
