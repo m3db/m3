@@ -45,8 +45,9 @@ func NewScalar(
 	return &Scalar{
 		s: s,
 		meta: Metadata{
-			Bounds: bounds,
-			Tags:   models.NewTags(0, tagOptions),
+			Bounds:     bounds,
+			Tags:       models.NewTags(0, tagOptions),
+			Exhaustive: true,
 		},
 	}
 }
@@ -54,17 +55,6 @@ func NewScalar(
 // Unconsolidated returns the unconsolidated version for the block
 func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
-}
-
-// WithMetadata updates this blocks metadata, and the metadatas for each series.
-func (b *Scalar) WithMetadata(
-	meta Metadata,
-	_ []SeriesMeta,
-) (Block, error) {
-	return &Scalar{
-		meta: meta,
-		s:    b.s,
-	}, nil
 }
 
 // StepIter returns a StepIterator

@@ -68,28 +68,6 @@ func (b *containerBlock) Close() error {
 	return multiErr.FinalError()
 }
 
-func (b *containerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (Block, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]Block, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return newContainerBlock(updatedBlockList), nil
-}
-
 func (b *containerBlock) StepIter() (StepIter, error) {
 	if b.err != nil {
 		return nil, b.err
@@ -186,12 +164,18 @@ func (it *containerStepIter) Next() bool {
 }
 
 func (it *containerStepIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
 	if len(it.its) == 0 {
-		return Metadata{}
+		return Metadata{Exhaustive: true}
 	}
 
-	return it.its[0].Meta()
+	meta := it.its[0].Meta()
+	exhaustive := meta.Exhaustive
+	for _, iter := range it.its[1:] {
+		exhaustive = exhaustive && iter.Meta().Exhaustive
+	}
+
+	meta.Exhaustive = exhaustive
+	return meta
 }
 
 func (it *containerStepIter) Current() Step {
@@ -313,12 +297,18 @@ func (it *containerSeriesIter) Current() Series {
 }
 
 func (it *containerSeriesIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
 	if len(it.its) == 0 {
-		return Metadata{}
+		return Metadata{Exhaustive: true}
 	}
 
-	return it.its[0].Meta()
+	meta := it.its[0].Meta()
+	exhaustive := meta.Exhaustive
+	for _, iter := range it.its[1:] {
+		exhaustive = exhaustive && iter.Meta().Exhaustive
+	}
+
+	meta.Exhaustive = exhaustive
+	return meta
 }
 
 // Unconsolidated returns the unconsolidated version for the block
@@ -357,28 +347,6 @@ func (b *ucContainerBlock) Close() error {
 	}
 
 	return multiErr.FinalError()
-}
-
-func (b *ucContainerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (UnconsolidatedBlock, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]UnconsolidatedBlock, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return &ucContainerBlock{blocks: updatedBlockList}, nil
 }
 
 func (b *ucContainerBlock) Consolidate() (Block, error) {
@@ -498,12 +466,18 @@ func (it *ucContainerStepIter) Next() bool {
 }
 
 func (it *ucContainerStepIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
 	if len(it.its) == 0 {
-		return Metadata{}
+		return Metadata{Exhaustive: true}
 	}
 
-	return it.its[0].Meta()
+	meta := it.its[0].Meta()
+	exhaustive := meta.Exhaustive
+	for _, iter := range it.its[1:] {
+		exhaustive = exhaustive && iter.Meta().Exhaustive
+	}
+
+	meta.Exhaustive = exhaustive
+	return meta
 }
 
 func (it *ucContainerStepIter) Current() UnconsolidatedStep {
@@ -628,10 +602,16 @@ func (it *ucContainerSeriesIter) Current() UnconsolidatedSeries {
 }
 
 func (it *ucContainerSeriesIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
 	if len(it.its) == 0 {
-		return Metadata{}
+		return Metadata{Exhaustive: true}
 	}
 
-	return it.its[0].Meta()
+	meta := it.its[0].Meta()
+	exhaustive := meta.Exhaustive
+	for _, iter := range it.its[1:] {
+		exhaustive = exhaustive && iter.Meta().Exhaustive
+	}
+
+	meta.Exhaustive = exhaustive
+	return meta
 }

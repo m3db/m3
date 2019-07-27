@@ -305,6 +305,7 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
+	exhaustive bool,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
@@ -318,6 +319,7 @@ func decompressSequentially(
 
 	return &FetchResult{
 		SeriesList: seriesList,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -325,6 +327,7 @@ func decompressConcurrently(
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
+	exhaustive bool,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, len(iters))
@@ -371,6 +374,7 @@ func decompressConcurrently(
 
 	return &FetchResult{
 		SeriesList: seriesList,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -379,6 +383,7 @@ func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
+	exhaustive bool,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
@@ -388,9 +393,9 @@ func SeriesIteratorsToFetchResult(
 
 	iters := seriesIterators.Iters()
 	if readWorkerPool == nil {
-		return decompressSequentially(iters, enforcer, tagOptions)
+		return decompressSequentially(iters, enforcer, exhaustive, tagOptions)
 	}
 
 	return decompressConcurrently(iters, readWorkerPool,
-		enforcer, tagOptions)
+		enforcer, exhaustive, tagOptions)
 }

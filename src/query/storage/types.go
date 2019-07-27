@@ -373,6 +373,7 @@ type CompletedTag struct {
 type CompleteTagsResult struct {
 	CompleteNameOnly bool
 	CompletedTags    []CompletedTag
+	Exhaustive       bool
 }
 
 // CompleteTagsResultBuilder is a builder that accumulates and deduplicates
@@ -390,14 +391,15 @@ type Appender interface {
 
 // SearchResults is the result from a search
 type SearchResults struct {
-	Metrics models.Metrics
+	Metrics    models.Metrics
+	Exhaustive bool
 }
 
 // FetchResult provides a fetch result and meta information
 type FetchResult struct {
 	SeriesList ts.SeriesList // The aggregated list of results across all underlying storage calls
 	LocalOnly  bool
-	HasNext    bool
+	Exhaustive bool
 }
 
 // QueryResult is the result from a query

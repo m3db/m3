@@ -30,6 +30,7 @@ import (
 type completeTagsResultBuilder struct {
 	sync.RWMutex
 	nameOnly    bool
+	exhaustive  bool
 	tagBuilders map[string]completedTagBuilder
 }
 
@@ -38,7 +39,8 @@ func NewCompleteTagsResultBuilder(
 	nameOnly bool,
 ) CompleteTagsResultBuilder {
 	return &completeTagsResultBuilder{
-		nameOnly: nameOnly,
+		nameOnly:   nameOnly,
+		exhaustive: true,
 	}
 }
 
@@ -56,6 +58,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 		b.tagBuilders = make(map[string]completedTagBuilder, len(completedTags))
 	}
 
+	b.exhaustive = b.exhaustive && tagResult.Exhaustive
 	if nameOnly {
 		for _, tag := range completedTags {
 			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
@@ -102,6 +105,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 		return CompleteTagsResult{
 			CompleteNameOnly: true,
 			CompletedTags:    result,
+			Exhaustive:       b.exhaustive,
 		}
 	}
 
@@ -116,6 +120,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 	return CompleteTagsResult{
 		CompleteNameOnly: false,
 		CompletedTags:    result,
+		Exhaustive:       b.exhaustive,
 	}
 }
 

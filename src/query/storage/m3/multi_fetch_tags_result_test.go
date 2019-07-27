@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package m3
 
 import (
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/block"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/client"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type encodedBlockUnconsolidated struct {
-	// There is slightly different execution for the last block in the series
-	lastBlock            bool
-	meta                 block.Metadata
-	consolidation        consolidationSettings
-	seriesMetas          []block.SeriesMeta
-	seriesBlockIterators []encoding.SeriesIterator
-	options              Options
-}
+func TestExhaustiveTagMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-func (b *encodedBlockUnconsolidated) Consolidate() (block.Block, error) {
-	return &encodedBlock{
-		lastBlock:            b.lastBlock,
-		meta:                 b.meta,
-		consolidation:        b.consolidation,
-		seriesMetas:          b.seriesMetas,
-		seriesBlockIterators: b.seriesBlockIterators,
-		options:              b.options,
-	}, nil
-}
+	r := NewMultiFetchTagsResult()
+	for _, tt := range exhaustTests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, ex := range tt.exhaustives {
+				it := client.NewMockTaggedIDsIterator(ctrl)
+				it.EXPECT().Next().Return(false)
+				it.EXPECT().Err().Return(nil)
+				it.EXPECT().Finalize().Return()
+				r.Add(it, ex, nil)
+			}
 
-func (b *encodedBlockUnconsolidated) Close() error {
-	for _, bl := range b.seriesBlockIterators {
-		bl.Close()
+			_, actual, err := r.FinalResult()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+			assert.NoError(t, r.Close())
+		})
 	}
-
-	return nil
 }

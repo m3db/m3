@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -121,10 +122,11 @@ func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) 
 
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		r.Add(ns.attrs, iters, nil)
+		r.Add(ns.attrs, iters, true, nil)
 	}
 
-	iters, err := r.FinalResult()
+	iters, exhaustive, err := r.FinalResult()
+	assert.True(t, exhaustive)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, iters.Len())
 	assert.Equal(t, 4, len(iters.Iters()))
@@ -140,4 +142,43 @@ func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) 
 	}
 
 	assert.NoError(t, r.Close())
+}
+
+var exhaustTests = []struct {
+	name        string
+	exhaustives []bool
+	expected    bool
+}{
+	{"single exhaustive", []bool{true}, true},
+	{"single non-exhaustive", []bool{false}, false},
+	{"multiple exhaustive", []bool{true, true}, true},
+	{"multiple non-exhaustive", []bool{false, false}, false},
+	{"some exhaustive", []bool{true, false}, false},
+	{"mixed", []bool{true, false, true}, false},
+}
+
+func TestExhaustiveMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pools := generateIteratorPools(ctrl)
+	r := newMultiFetchResult(namespaceCoversAllQueryRange, pools)
+	for _, tt := range exhaustTests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i, ex := range tt.exhaustives {
+				iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
+					encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+						ID: ident.StringID(fmt.Sprint(i)),
+					}, nil),
+				}, nil)
+
+				r.Add(storage.Attributes{}, iters, ex, nil)
+			}
+
+			_, actual, err := r.FinalResult()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+			assert.NoError(t, r.Close())
+		})
+	}
 }

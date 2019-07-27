@@ -31,16 +31,17 @@ const initSize = 10
 
 type multiSearchResult struct {
 	sync.Mutex
-	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
-	dedupeMap map[string]MultiTagResult
-	err       xerrors.MultiError
+	exhaustive bool
+	err        xerrors.MultiError
+	seenIters  []client.TaggedIDsIterator // track known iterators to avoid leaking
+	dedupeMap  map[string]MultiTagResult
 }
 
 // NewMultiFetchTagsResult builds a new multi fetch tags result
 func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
-		dedupeMap: make(map[string]MultiTagResult, initSize),
-		seenIters: make([]client.TaggedIDsIterator, 0, initSize),
+		dedupeMap:  make(map[string]MultiTagResult, initSize),
+		exhaustive: true,
 	}
 }
 
@@ -58,13 +59,13 @@ func (r *multiSearchResult) Close() error {
 	return nil
 }
 
-func (r *multiSearchResult) FinalResult() ([]MultiTagResult, error) {
+func (r *multiSearchResult) FinalResult() ([]MultiTagResult, bool, error) {
 	r.Lock()
 	defer r.Unlock()
 
 	err := r.err.FinalError()
 	if err != nil {
-		return nil, err
+		return nil, r.exhaustive, err
 	}
 
 	result := make([]MultiTagResult, 0, len(r.dedupeMap))
@@ -72,11 +73,12 @@ func (r *multiSearchResult) FinalResult() ([]MultiTagResult, error) {
 		result = append(result, it)
 	}
 
-	return result, nil
+	return result, r.exhaustive, nil
 }
 
 func (r *multiSearchResult) Add(
 	newIterator client.TaggedIDsIterator,
+	exhaustive bool,
 	err error,
 ) {
 	r.Lock()
@@ -85,6 +87,13 @@ func (r *multiSearchResult) Add(
 	if err != nil {
 		r.err = r.err.Add(err)
 		return
+	}
+
+	if r.seenIters == nil {
+		r.seenIters = make([]client.TaggedIDsIterator, 0, initSize)
+		r.exhaustive = exhaustive
+	} else {
+		r.exhaustive = r.exhaustive && exhaustive
 	}
 
 	r.seenIters = append(r.seenIters, newIterator)

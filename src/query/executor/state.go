@@ -71,17 +71,7 @@ func CreateTransform(
 ) (transform.OpNode, *transform.Controller) {
 	controller := &transform.Controller{ID: ID}
 	node := params.Node(controller, options)
-
-	switch node.(type) {
-	case transform.SeriesNode:
-		return transform.NewLazyNode(node, controller)
-
-	case transform.StepNode:
-		return transform.NewLazyNode(node, controller)
-
-	default:
-		return node, controller
-	}
+	return node, controller
 }
 
 // SourceParams are defined by sources

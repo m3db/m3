@@ -61,6 +61,7 @@ func multiTagResultsToM3TagProperties(
 // search result.
 func encodeToCompressedSearchResult(
 	results []m3.MultiTagResult,
+	exhaustive bool,
 	pools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
 	if pools == nil {
@@ -81,6 +82,7 @@ func encodeToCompressedSearchResult(
 		Value: &rpc.SearchResponse_Compressed{
 			Compressed: compressedTags,
 		},
+		Exhaustive: exhaustive,
 	}, nil
 }
 

@@ -119,7 +119,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	iters, attrs, err := accumulator.FinalResultWithAttrs()
+	iters, attrs, exhaustive, err := accumulator.FinalResultWithAttrs()
 	defer accumulator.Close()
 	if err != nil {
 		return nil, err
@@ -134,6 +134,7 @@ func (s *m3storage) Fetch(
 		iters,
 		s.readWorkerPool,
 		false,
+		exhaustive,
 		enforcer,
 		s.opts.TagOptions(),
 	)
@@ -179,7 +180,7 @@ func (s *m3storage) FetchBlocks(
 			SetSplitSeriesByBlock(true)
 	}
 
-	raw, _, err := s.FetchCompressed(ctx, query, options)
+	raw, exhaustive, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
 	}
@@ -208,6 +209,7 @@ func (s *m3storage) FetchBlocks(
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
 		raw,
 		bounds,
+		exhaustive,
 		opts,
 	)
 
@@ -216,7 +218,8 @@ func (s *m3storage) FetchBlocks(
 	}
 
 	return block.Result{
-		Blocks: blocks,
+		Blocks:     blocks,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -224,19 +227,19 @@ func (s *m3storage) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (encoding.SeriesIterators, Cleanup, error) {
+) (encoding.SeriesIterators, bool, Cleanup, error) {
 	accumulator, err := s.fetchCompressed(ctx, query, options)
 	if err != nil {
-		return nil, noop, err
+		return nil, false, noop, err
 	}
 
-	iters, err := accumulator.FinalResult()
+	iters, exhaustive, err := accumulator.FinalResult()
 	if err != nil {
 		accumulator.Close()
-		return nil, noop, err
+		return nil, exhaustive, noop, err
 	}
 
-	return iters, accumulator.Close, nil
+	return iters, exhaustive, accumulator.Close, nil
 }
 
 // fetches compressed series, returning a MultiFetchResult accumulator
@@ -312,10 +315,10 @@ func (s *m3storage) fetchCompressed(
 		go func() {
 			session := namespace.Session()
 			ns := namespace.NamespaceID()
-			iters, _, err := session.FetchTagged(ns, m3query, opts)
+			iters, exhaustive, err := session.FetchTagged(ns, m3query, opts)
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(namespace.Options().Attributes(), iters, err)
+			result.Add(namespace.Options().Attributes(), iters, exhaustive, err)
 			wg.Done()
 		}()
 	}
@@ -337,7 +340,7 @@ func (s *m3storage) SearchSeries(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	tagResult, cleanup, err := s.SearchCompressed(ctx, query, options)
+	tagResult, exhaustive, cleanup, err := s.SearchCompressed(ctx, query, options)
 	defer cleanup()
 	if err != nil {
 		return nil, err
@@ -355,7 +358,8 @@ func (s *m3storage) SearchSeries(
 	}
 
 	return &storage.SearchResults{
-		Metrics: metrics,
+		Metrics:    metrics,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -430,7 +434,7 @@ func (s *m3storage) CompleteTags(
 			defer wg.Done()
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			aggTagIter, _, err := session.Aggregate(namespaceID, m3query, aggOpts)
+			aggTagIter, exhaustive, err := session.Aggregate(namespaceID, m3query, aggOpts)
 			if err != nil {
 				multiErr.add(err)
 				return
@@ -467,6 +471,7 @@ func (s *m3storage) CompleteTags(
 			result := &storage.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
+				Exhaustive:       exhaustive,
 			}
 
 			if err := accumulatedTags.Add(result); err != nil {
@@ -488,17 +493,17 @@ func (s *m3storage) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) ([]MultiTagResult, Cleanup, error) {
+) ([]MultiTagResult, bool, Cleanup, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, false, nil, ctx.Err()
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return nil, noop, err
+		return nil, false, noop, err
 	}
 
 	var (
@@ -520,7 +525,7 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	if len(namespaces) == 0 {
-		return nil, noop, errNoNamespacesConfigured
+		return nil, true, noop, errNoNamespacesConfigured
 	}
 
 	wg.Add(len(namespaces))
@@ -529,16 +534,16 @@ func (s *m3storage) SearchCompressed(
 		go func() {
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iter, _, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
-			result.Add(iter, err)
+			iter, exhaustive, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
+			result.Add(iter, exhaustive, err)
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
 
-	tagResult, err := result.FinalResult()
-	return tagResult, result.Close, err
+	tagResult, exhaustive, err := result.FinalResult()
+	return tagResult, exhaustive, result.Close, err
 }
 
 func (s *m3storage) Write(

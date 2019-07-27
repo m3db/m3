@@ -65,6 +65,7 @@ enum MetricsType {
 
 message FetchResponse {
 	repeated Series series = 1;
+	bool exhaustive        = 2;
 }
 
 message Series {
@@ -146,6 +147,8 @@ message SearchResponse {
 		TagProperties decompressed = 1;
 		M3TagProperties compressed = 2;
 	}
+
+	bool exhaustive              = 3;
 }
 
 enum CompleteTagsType {
@@ -187,4 +190,6 @@ message CompleteTagsResponse {
 		TagValues default  = 1;
 		TagNames namesOnly = 2;
 	}
+
+	bool exhaustive      = 3;
 }

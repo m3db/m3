@@ -44,6 +44,7 @@ type encodedBlock struct {
 	seriesMetas          []block.SeriesMeta
 	seriesBlockIterators []encoding.SeriesIterator
 	options              Options
+	exhaustive           bool
 }
 
 // NewEncodedBlock builds an encoded block.
@@ -51,6 +52,7 @@ func NewEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
 	bounds models.Bounds,
 	lastBlock bool,
+	exhaustive bool,
 	opts Options,
 ) (block.Block, error) {
 	consolidation := consolidationSettings{
@@ -63,6 +65,7 @@ func NewEncodedBlock(
 		seriesBlockIterators,
 		consolidation,
 		lastBlock,
+		exhaustive,
 		opts,
 	)
 	err := bl.generateMetas()
@@ -77,12 +80,14 @@ func newEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
 	consolidation consolidationSettings,
 	lastBlock bool,
+	exhaustive bool,
 	options Options,
 ) encodedBlock {
 	return encodedBlock{
 		seriesBlockIterators: seriesBlockIterators,
 		consolidation:        consolidation,
 		lastBlock:            lastBlock,
+		exhaustive:           exhaustive,
 		options:              options,
 	}
 }
@@ -126,8 +131,9 @@ func (b *encodedBlock) buildSeriesMeta() error {
 
 func (b *encodedBlock) buildMeta() {
 	b.meta = block.Metadata{
-		Tags:   models.NewTags(0, b.options.TagOptions()),
-		Bounds: b.consolidation.bounds,
+		Tags:       models.NewTags(0, b.options.TagOptions()),
+		Bounds:     b.consolidation.bounds,
+		Exhaustive: b.exhaustive,
 	}
 }
 
@@ -139,20 +145,4 @@ func (b *encodedBlock) generateMetas() error {
 
 	b.buildMeta()
 	return nil
-}
-
-func (b *encodedBlock) WithMetadata(
-	meta block.Metadata,
-	seriesMetas []block.SeriesMeta,
-) (block.Block, error) {
-	bl := newEncodedBlock(
-		b.seriesBlockIterators,
-		b.consolidation,
-		b.lastBlock,
-		b.options,
-	)
-
-	bl.meta = meta
-	bl.seriesMetas = seriesMetas
-	return &bl, nil
 }

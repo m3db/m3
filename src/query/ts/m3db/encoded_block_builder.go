@@ -41,14 +41,17 @@ type blockAtTime struct {
 type blocksAtTime []blockAtTime
 
 type encodedBlockBuilder struct {
+	exhaustive   bool
 	blocksAtTime blocksAtTime
 	options      Options
 }
 
 func newEncodedBlockBuilder(
+	exhaustive bool,
 	options Options,
 ) *encodedBlockBuilder {
 	return &encodedBlockBuilder{
+		exhaustive:   exhaustive,
 		blocksAtTime: make(blocksAtTime, 0, initBlockLength),
 		options:      options,
 	}
@@ -79,6 +82,7 @@ func (b *encodedBlockBuilder) add(
 		[]encoding.SeriesIterator{},
 		consolidation,
 		lastBlock,
+		b.exhaustive,
 		b.options,
 	)
 

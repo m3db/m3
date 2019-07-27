@@ -49,14 +49,14 @@ type Querier interface {
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
-	) (encoding.SeriesIterators, Cleanup, error)
+	) (encoding.SeriesIterators, bool, Cleanup, error)
 
 	// SearchCompressed fetches matching tags based on a query.
 	SearchCompressed(
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
-	) ([]MultiTagResult, Cleanup, error)
+	) ([]MultiTagResult, bool, Cleanup, error)
 }
 
 // MultiFetchResult is a deduping accumalator for series iterators
@@ -66,19 +66,22 @@ type MultiFetchResult interface {
 	Add(
 		attrs genericstorage.Attributes,
 		iterators encoding.SeriesIterators,
+		exhaustive bool,
 		err error,
 	)
 
 	// FinalResult returns a series iterators object containing
-	// deduplicated series values.
-	FinalResult() (encoding.SeriesIterators, error)
+	// deduplicated series values, a boolean indicating if the query was
+	// exhaustive, and any errors encountered.
+	FinalResult() (encoding.SeriesIterators, bool, error)
 
 	// FinalResultWithAttrs returns a series iterators object containing
-	// deduplicated series values, attributes corresponding to these iterators,
-	// and any errors encountered.
+	// deduplicated series values, attributes corresponding to these iterators, a
+	// boolean indicating if the query was exhaustive, and any errors encountered.
 	FinalResultWithAttrs() (
 		encoding.SeriesIterators,
 		[]genericstorage.Attributes,
+		bool,
 		error,
 	)
 
@@ -91,11 +94,12 @@ type MultiFetchTagsResult interface {
 	// Add adds tagged ID iterators to the accumulator.f
 	Add(
 		newIterator client.TaggedIDsIterator,
+		exhaustive bool,
 		err error,
 	)
 	// FinalResult returns a deduped list of tag iterators with
 	// corresponding series IDs.
-	FinalResult() ([]MultiTagResult, error)
+	FinalResult() ([]MultiTagResult, bool, error)
 	// Close releases all resources held by this accumulator.
 	Close() error
 }

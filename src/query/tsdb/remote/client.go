@@ -110,7 +110,7 @@ func (c *grpcClient) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	iters, err := c.fetchRaw(ctx, query, options)
+	iters, exhaustive, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (c *grpcClient) Fetch(
 	}
 
 	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool,
-		true, enforcer, c.tagOptions)
+		true, exhaustive, enforcer, c.tagOptions)
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -136,15 +136,15 @@ func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
+) (encoding.SeriesIterators, bool, error) {
 	pools, err := c.waitForPools()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	request, err := encodeFetchRequest(query, options)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
@@ -153,16 +153,17 @@ func (c *grpcClient) fetchRaw(
 	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	defer fetchClient.CloseSend()
+	exhaustive := true
 	seriesIterators := make([]encoding.SeriesIterator, 0, initResultSize)
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, false, ctx.Err()
 		default:
 		}
 
@@ -172,12 +173,13 @@ func (c *grpcClient) fetchRaw(
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
+		exhaustive = exhaustive && result.GetExhaustive()
 		iters, err := decodeCompressedFetchResponse(result, pools)
 		if err != nil {
-			return nil, err
+			return nil, exhaustive, err
 		}
 
 		seriesIterators = append(seriesIterators, iters.Iters()...)
@@ -186,7 +188,7 @@ func (c *grpcClient) fetchRaw(
 	return encoding.NewSeriesIterators(
 		seriesIterators,
 		nil,
-	), nil
+	), exhaustive, nil
 }
 
 func (c *grpcClient) FetchBlocks(
@@ -209,7 +211,7 @@ func (c *grpcClient) FetchBlocks(
 			opts.LookbackDuration(), options.Enforcer)
 	}
 
-	raw, err := c.fetchRaw(ctx, query, options)
+	raw, exhaustive, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
 	}
@@ -234,6 +236,7 @@ func (c *grpcClient) FetchBlocks(
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
 		raw,
 		bounds,
+		exhaustive,
 		opts,
 	)
 
@@ -242,7 +245,8 @@ func (c *grpcClient) FetchBlocks(
 	}
 
 	return block.Result{
-		Blocks: blocks,
+		Blocks:     blocks,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -271,8 +275,9 @@ func (c *grpcClient) SearchSeries(
 		return nil, err
 	}
 
-	defer searchClient.CloseSend()
 	metrics := make(models.Metrics, 0, initResultSize)
+	exhaustive := true
+	defer searchClient.CloseSend()
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
@@ -290,6 +295,7 @@ func (c *grpcClient) SearchSeries(
 			return nil, err
 		}
 
+		exhaustive = exhaustive && received.GetExhaustive()
 		m, err := decodeSearchResponse(received, pools, c.tagOptions)
 		if err != nil {
 			return nil, err
@@ -299,7 +305,8 @@ func (c *grpcClient) SearchSeries(
 	}
 
 	return &storage.SearchResults{
-		Metrics: metrics,
+		Metrics:    metrics,
+		Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -324,6 +331,7 @@ func (c *grpcClient) CompleteTags(
 	}
 
 	tags := make([]storage.CompletedTag, 0, initResultSize)
+	exhaustive := true
 	defer completeTagsClient.CloseSend()
 	for {
 		select {
@@ -340,6 +348,7 @@ func (c *grpcClient) CompleteTags(
 			return nil, err
 		}
 
+		exhaustive = exhaustive && received.GetExhaustive()
 		result, err := decodeCompleteTagsResponse(received, query.CompleteNameOnly)
 		if err != nil {
 			return nil, err
@@ -351,6 +360,7 @@ func (c *grpcClient) CompleteTags(
 	return &storage.CompleteTagsResult{
 		CompleteNameOnly: query.CompleteNameOnly,
 		CompletedTags:    tags,
+		Exhaustive:       exhaustive,
 	}, nil
 }
 

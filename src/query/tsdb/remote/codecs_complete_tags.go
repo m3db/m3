@@ -143,6 +143,7 @@ func encodeToCompressedCompleteTagsDefaultResult(
 				Values: values,
 			},
 		},
+		Exhaustive: results.Exhaustive,
 	}, nil
 }
 
@@ -161,6 +162,7 @@ func encodeToCompressedCompleteTagsNameOnlyResult(
 				Names: names,
 			},
 		},
+		Exhaustive: results.Exhaustive,
 	}, nil
 }
 

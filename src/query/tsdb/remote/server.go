@@ -106,7 +106,8 @@ func (s *grpcServer) Fetch(
 		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 	}
 
-	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
+	result, exhaustive, cleanup, err := s.storage.FetchCompressed(ctx,
+		storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
@@ -129,7 +130,8 @@ func (s *grpcServer) Fetch(
 	for ; len(results) > 0; results = results[size:] {
 		size = min(size, len(results))
 		response := &rpc.FetchResponse{
-			Series: results[:size],
+			Series:     results[:size],
+			Exhaustive: exhaustive,
 		}
 
 		err = stream.Send(response)
@@ -160,8 +162,8 @@ func (s *grpcServer) Search(
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Remote = true
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-	results, cleanup, err := s.storage.SearchCompressed(ctx, searchQuery,
-		fetchOpts)
+	results, exhaustive, cleanup, err := s.storage.SearchCompressed(ctx,
+		searchQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to search tags", zap.Error(err))
@@ -183,6 +185,7 @@ func (s *grpcServer) Search(
 			return err
 		}
 
+		response.Exhaustive = exhaustive
 		err = stream.Send(response)
 		if err != nil {
 			logger.Error("unable to send search result", zap.Error(err))

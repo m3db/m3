@@ -188,6 +188,7 @@ func (s *m3WrappedStore) FetchByQuery(
 		return nil, err
 	}
 
+	m3result.Exhaustive
 	series, err := translateTimeseries(ctx, m3result.SeriesList,
 		opts.StartTime, opts.EndTime)
 	if err != nil {

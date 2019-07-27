@@ -41,8 +41,6 @@ type Block interface {
 	// SeriesIter returns a series-wise block iterator, giving consolidated values
 	// by series.
 	SeriesIter() (SeriesIter, error)
-	// WithMetadata returns a block with updated meta and series metadata.
-	WithMetadata(Metadata, []SeriesMeta) (Block, error)
 }
 
 type AccumulatorBlock interface {
@@ -62,8 +60,6 @@ type UnconsolidatedBlock interface {
 	SeriesIter() (UnconsolidatedSeriesIter, error)
 	// Consolidate attempts to consolidate the unconsolidated block.
 	Consolidate() (Block, error)
-	// WithMetadata returns a block with updated meta and series metadata.
-	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
 }
 
 // SeriesMeta is metadata data for the series.
@@ -154,8 +150,9 @@ type UnconsolidatedStep interface {
 
 // Metadata is metadata for a block.
 type Metadata struct {
-	Bounds models.Bounds
-	Tags   models.Tags // Common tags across different series
+	Bounds     models.Bounds
+	Tags       models.Tags // Common tags across different series
+	Exhaustive bool
 }
 
 // String returns a string representation of metadata.
@@ -173,7 +170,8 @@ type Builder interface {
 
 // Result is the result from a block query.
 type Result struct {
-	Blocks []Block
+	Blocks     []Block
+	Exhaustive bool
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.
@@ -196,6 +194,9 @@ type TimeTransform func(time.Time) time.Time
 // MetaTransform transforms meta data.
 type MetaTransform func(meta Metadata) Metadata
 
+// SeriesMetaTransform transforms series meta data.
+type SeriesMetaTransform func(meta []SeriesMeta) []SeriesMeta
+
 // ValueTransform transform a float64.
 type ValueTransform func(float64) float64
 
@@ -205,12 +206,16 @@ type LazyOptions interface {
 	SetTimeTransform(TimeTransform) LazyOptions
 	// TimeTransform returns the time transform function.
 	TimeTransform() TimeTransform
-	// SetMetaTransform sets the meta transform function.
-	SetMetaTransform(MetaTransform) LazyOptions
-	// MetaTransform returns the meta transform function.
-	MetaTransform() MetaTransform
 	// SetValueTransform sets the value transform function.
 	SetValueTransform(ValueTransform) LazyOptions
 	// ValueTransform returns the value transform function.
 	ValueTransform() ValueTransform
+	// SetMetaTransform sets the meta transform function.
+	SetMetaTransform(MetaTransform) LazyOptions
+	// MetaTransform returns the meta transform function.
+	MetaTransform() MetaTransform
+	// SetSeriesMetaTransform sets the series meta transform function.
+	SetSeriesMetaTransform(SeriesMetaTransform) LazyOptions
+	// SeriesMetaTransform returns the series meta transform function.
+	SeriesMetaTransform() SeriesMetaTransform
 }

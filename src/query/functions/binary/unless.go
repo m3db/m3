@@ -53,6 +53,9 @@ func makeUnlessBlock(
 	rSeriesMetas = utils.FlattenMetadata(rMeta, rSeriesMetas)
 	indices := matchingIndices(matching, lSeriesMetas, rSeriesMetas)
 
+	// NB: if either side is non-exhaustive, the result is also non-exhaustive.
+	lMeta.Exhaustive = lMeta.Exhaustive && rMeta.Exhaustive
+
 	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMetas)
 	if err != nil {
 		return nil, err

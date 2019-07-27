@@ -50,6 +50,7 @@ func mapToCompletedTag(nameOnly bool, m map[string][]string) CompleteTagsResult 
 	return CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
 		CompletedTags:    tags,
+		Exhaustive:       true,
 	}
 }
 
@@ -99,6 +100,7 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 		expected := CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
 			CompletedTags:    []CompletedTag{},
+			Exhaustive:       true,
 		}
 
 		assert.Equal(t, expected, actual)
@@ -197,6 +199,38 @@ func TestMergeCompletedTagResult(t *testing.T) {
 
 				expected := mapToCompletedTag(nameOnly, exResult)
 				assert.Equal(t, expected, actual)
+			})
+		}
+	}
+}
+
+var exhaustTests = []struct {
+	name        string
+	exhaustives []bool
+	expected    bool
+}{
+	{"single exhaustive", []bool{true}, true},
+	{"single non-exhaustive", []bool{false}, false},
+	{"multiple exhaustive", []bool{true, true}, true},
+	{"multiple non-exhaustive", []bool{false, false}, false},
+	{"some exhaustive", []bool{true, false}, false},
+	{"mixed", []bool{true, false, true}, false},
+}
+
+func TestExhaustiveMerge(t *testing.T) {
+	for _, nameOnly := range []bool{true, false} {
+		for _, tt := range exhaustTests {
+			builder := NewCompleteTagsResultBuilder(nameOnly)
+			t.Run(fmt.Sprintf("%s_%v", tt.name, nameOnly), func(t *testing.T) {
+				for _, ex := range tt.exhaustives {
+					builder.Add(&CompleteTagsResult{
+						CompleteNameOnly: nameOnly,
+						Exhaustive:       ex,
+					})
+				}
+
+				ctr := builder.Build()
+				assert.Equal(t, tt.expected, ctr.Exhaustive)
 			})
 		}
 	}

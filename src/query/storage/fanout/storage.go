@@ -161,17 +161,21 @@ func (s *fanoutStorage) SearchSeries(
 	var metrics models.Metrics
 
 	stores := filterStores(s.stores, s.fetchFilter, query)
+	exhaustive := true
 	for _, store := range stores {
 		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
 			return nil, err
 		}
+
+		exhaustive = exhaustive && results.Exhaustive
 		metrics = append(metrics, results.Metrics...)
 	}
 
-	result := &storage.SearchResults{Metrics: metrics}
-
-	return result, nil
+	return &storage.SearchResults{
+		Metrics:    metrics,
+		Exhaustive: exhaustive,
+	}, nil
 }
 
 func (s *fanoutStorage) CompleteTags(

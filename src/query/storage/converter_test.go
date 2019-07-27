@@ -77,6 +77,7 @@ func verifyExpandSeries(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	num int,
+	ex bool,
 	pools xsync.PooledWorkerPool,
 ) {
 	testTags := seriesiter.GenerateTag()
@@ -84,11 +85,13 @@ func verifyExpandSeries(
 
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true, enforcer, nil)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true,
+		ex, enforcer, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
+	require.Equal(t, ex, results.Exhaustive)
 	require.Len(t, results.SeriesList, num)
 	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(),
 		Value: testTags.Value.Bytes()}}
@@ -99,30 +102,33 @@ func verifyExpandSeries(
 	}
 }
 
-func testExpandSeries(t *testing.T, pools xsync.PooledWorkerPool) {
+func testExpandSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
 	ctrl := gomock.NewController(t)
 
 	for i := 0; i < 100; i++ {
-		verifyExpandSeries(t, ctrl, i, pools)
+		verifyExpandSeries(t, ctrl, i, ex, pools)
 	}
 }
 
 func TestExpandSeriesNilPools(t *testing.T) {
-	testExpandSeries(t, nil)
+	testExpandSeries(t, false, nil)
+	testExpandSeries(t, true, nil)
 }
 
 func TestExpandSeriesValidPools(t *testing.T) {
 	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
-	testExpandSeries(t, pool)
+	testExpandSeries(t, false, pool)
+	testExpandSeries(t, true, pool)
 }
 
 func TestExpandSeriesSmallValidPools(t *testing.T) {
 	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
-	testExpandSeries(t, pool)
+	testExpandSeries(t, false, pool)
+	testExpandSeries(t, true, pool)
 }
 
 func TestFailingExpandSeriesValidPools(t *testing.T) {
@@ -170,13 +176,8 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
 
-	result, err := SeriesIteratorsToFetchResult(
-		mockIters,
-		pool,
-		true,
-		enforcer,
-		nil,
-	)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true, false,
+		enforcer, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
@@ -210,13 +211,8 @@ func TestOverLimit(t *testing.T) {
 	enforcer.EXPECT().Add(xcost.Cost(2)).
 		Return(xcost.Report{Error: errors.New("error")}).MinTimes(1)
 
-	result, err := SeriesIteratorsToFetchResult(
-		mockIters,
-		pool,
-		true,
-		enforcer,
-		nil,
-	)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true, true,
+		enforcer, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }

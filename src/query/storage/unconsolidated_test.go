@@ -58,7 +58,8 @@ func buildUnconsolidatedBlock(t *testing.T) block.UnconsolidatedBlock {
 		Interval: time.Minute,
 	}
 
-	unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery, time.Minute)
+	unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery,
+		true, time.Minute)
 	require.NoError(t, err)
 	return unconsolidated
 }

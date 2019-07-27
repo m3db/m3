@@ -32,6 +32,7 @@ import (
 // TODO: use a better seriesIterators merge here
 type multiResult struct {
 	sync.Mutex
+	exhaustive     bool
 	fanout         queryFanoutType
 	seenFirstAttrs storage.Attributes
 	seenIters      []encoding.SeriesIterators // track known iterators to avoid leaking
@@ -47,8 +48,9 @@ func newMultiFetchResult(
 	pools encoding.IteratorPools,
 ) MultiFetchResult {
 	return &multiResult{
-		fanout: fanout,
-		pools:  pools,
+		exhaustive: true,
+		fanout:     fanout,
+		pools:      pools,
 	}
 }
 
@@ -84,10 +86,10 @@ func (r *multiResult) Close() error {
 }
 
 func (r *multiResult) FinalResultWithAttrs() (
-	encoding.SeriesIterators, []storage.Attributes, error) {
-	iters, err := r.FinalResult()
+	encoding.SeriesIterators, []storage.Attributes, bool, error) {
+	iters, exhaustive, err := r.FinalResult()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, exhaustive, err
 	}
 
 	attrs := make([]storage.Attributes, iters.Len())
@@ -104,28 +106,29 @@ func (r *multiResult) FinalResultWithAttrs() (
 		}
 	}
 
-	return iters, attrs, nil
+	return iters, attrs, exhaustive, nil
 }
 
-func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
+func (r *multiResult) FinalResult() (encoding.SeriesIterators, bool, error) {
 	r.Lock()
 	defer r.Unlock()
 
 	err := r.err.LastError()
 	if err != nil {
-		return nil, err
+		return nil, r.exhaustive, err
 	}
+
 	if r.finalResult != nil {
-		return r.finalResult, nil
+		return r.finalResult, r.exhaustive, nil
 	}
 
 	if len(r.seenIters) == 0 {
-		return encoding.EmptySeriesIterators, nil
+		return encoding.EmptySeriesIterators, r.exhaustive, nil
 	}
 
 	// can short-cicuit in this case
 	if len(r.seenIters) == 1 {
-		return r.seenIters[0], nil
+		return r.seenIters[0], r.exhaustive, nil
 	}
 
 	// otherwise have to create a new seriesiters
@@ -139,12 +142,13 @@ func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
 		i++
 	}
 
-	return r.finalResult, nil
+	return r.finalResult, r.exhaustive, nil
 }
 
 func (r *multiResult) Add(
 	attrs storage.Attributes,
 	newIterators encoding.SeriesIterators,
+	exhaustive bool,
 	err error,
 ) {
 	r.Lock()
@@ -158,9 +162,14 @@ func (r *multiResult) Add(
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
+		r.exhaustive = exhaustive
+	} else {
+		// NB: any non-exhaustive result set added makes the entire
+		// result non-exhaustive
+		r.exhaustive = r.exhaustive && exhaustive
 	}
-	r.seenIters = append(r.seenIters, newIterators)
 
+	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
 	if !r.err.Empty() {
