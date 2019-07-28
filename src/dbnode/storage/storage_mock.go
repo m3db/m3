@@ -1857,6 +1857,18 @@ func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 	return m.recorder
 }
 
+// AssignShardSet mocks base method
+func (m *MocknamespaceIndex) AssignShardSet(shardSet sharding.ShardSet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AssignShardSet", shardSet)
+}
+
+// AssignShardSet indicates an expected call of AssignShardSet
+func (mr *MocknamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MocknamespaceIndex)(nil).AssignShardSet), shardSet)
+}
+
 // BlockStartForWriteTime mocks base method
 func (m *MocknamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
 	m.ctrl.T.Helper()

@@ -1,16 +1,19 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: promremotebench
+  labels:
+    app: promremotebench
 spec:
+  serviceName: "promremotebench"
   replicas: 0
   selector:
     matchLabels:
-      k8s-app: promremotebench
+      app: promremotebench
   template:
     metadata:
       labels:
-        k8s-app: promremotebench
+        app: promremotebench
     spec:
       containers:
       - name: promremotebench
@@ -24,3 +27,9 @@ spec:
           value: "10"
         - name: PROMREMOTEBENCH_BATCH
           value: "128"
+        - name: PROMREMOTEBENCH_LABELS_JSON_ENV
+          value: "{\"generator\":\"PROMREMOTEBENCH_POD_NAME\"}"
+        - name: PROMREMOTEBENCH_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
