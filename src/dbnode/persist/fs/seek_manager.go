@@ -216,10 +216,14 @@ func (m *seekerManager) Test(shard uint32, id ident.ID, start time.Time) (bool, 
 	byTime.RLock()
 	startNano := xtime.ToUnixNano(start)
 	seekers, ok := byTime.seekers[startNano]
-	byTime.RUnlock()
 
+	// Seekers are open: good to test but still hold RLock while doing so
 	if ok && seekers.active.wg == nil {
-		return seekers.active.bloomFilter.Test(id.Bytes()), nil
+		idExists := seekers.active.bloomFilter.Test(id.Bytes())
+		byTime.RUnlock()
+		return idExists, nil
+	} else {
+		byTime.RUnlock()
 	}
 
 	byTime.Lock()
