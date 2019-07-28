@@ -57,10 +57,11 @@ Once you have identified a change you want to make, and gathered consensus by ta
 (0) If you have updated an interface that has been mocked, you need to update the generated `gomock `files.
 
 ```shell
-# Generate mocks for all top level packages, or...
-mach mock-gen
+# Generate mocks for all top level packages
+make mock-gen
 
-# ...replace xyz with the package you want to generate files for, e.g. dbnode
+# If you just want to generate it for a single package,
+# replace xyz with the package you want to generate files for, e.g. dbnode
 make mock-gen-xyz
 ```
 
