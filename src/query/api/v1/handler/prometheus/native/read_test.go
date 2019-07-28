@@ -61,10 +61,12 @@ func TestPromReadHandler_Read(t *testing.T) {
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, err := read(context.TODO(), promRead.engine, setup.QueryOpts,
-		setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(), r, instrument.NewOptions())
+	seriesList, exhaustive, err := read(context.TODO(), promRead.engine,
+		setup.QueryOpts, setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(),
+		r, instrument.NewOptions())
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
+	require.False(t, exhaustive)
 	s := seriesList[0]
 
 	assert.Equal(t, 5, s.Values().Len())

@@ -199,7 +199,8 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts, w, params, h.instrumentOpts)
+	result, exhaustive, err := read(ctx, engine, opts, fetchOpts, h.tagOpts,
+		w, params, h.instrumentOpts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
@@ -211,6 +212,9 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
+	if !exhaustive {
+		w.Header().Set(handler.LimitHeader, "true")
+	}
 
 	return result, params, nil
 }

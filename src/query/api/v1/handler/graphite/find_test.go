@@ -120,7 +120,7 @@ func bs(ss ...string) [][]byte {
 	return bb
 }
 
-func setupStorage(ctrl *gomock.Controller) storage.Storage {
+func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 	store := storage.NewMockStorage(ctrl)
 	// set up no children case
 	noChildrenMatcher := &completeTagQueryMatcher{
@@ -136,6 +136,7 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 		CompletedTags: []storage.CompletedTag{
 			{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
 		},
+		Exhaustive: ex,
 	}
 
 	store.EXPECT().CompleteTags(gomock.Any(), noChildrenMatcher, gomock.Any()).
@@ -155,6 +156,7 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 		CompletedTags: []storage.CompletedTag{
 			{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
 		},
+		Exhaustive: ex2,
 	}
 
 	store.EXPECT().CompleteTags(gomock.Any(), childrenMatcher, gomock.Any()).
@@ -165,12 +167,20 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 
 type writer struct {
 	results []string
+	header  http.Header
 }
 
 var _ http.ResponseWriter = &writer{}
 
-func (w *writer) WriteHeader(_ int)   {}
-func (w *writer) Header() http.Header { return make(http.Header) }
+func (w *writer) WriteHeader(_ int) {}
+func (w *writer) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+
+	return w.header
+}
+
 func (w *writer) Write(b []byte) (int, error) {
 	if w.results == nil {
 		w.results = make([]string, 0, 10)
@@ -196,13 +206,13 @@ func (r results) Less(i, j int) bool {
 	return strings.Compare(r[i].ID, r[j].ID) == -1
 }
 
-func TestFind(t *testing.T) {
+func testFind(t *testing.T, ex, ex2, hasHeader bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// setup storage and handler
-	store := setupStorage(ctrl)
-	handler := NewFindHandler(store,
+	store := setupStorage(ctrl, ex, ex2)
+	h := NewFindHandler(store,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		instrument.NewOptions())
 
@@ -214,7 +224,7 @@ func TestFind(t *testing.T) {
 		},
 	}
 
-	handler.ServeHTTP(w, req)
+	h.ServeHTTP(w, req)
 
 	// convert results to comparable format
 	require.Equal(t, 1, len(w.results))
@@ -241,4 +251,28 @@ func TestFind(t *testing.T) {
 	}
 
 	require.Equal(t, expected, r)
+	header := w.Header().Get(handler.LimitHeader)
+	if hasHeader {
+		require.Equal(t, "true", header)
+	} else {
+		require.Equal(t, "", header)
+	}
+}
+
+var limitTests = []struct {
+	name               string
+	ex, ex2, hasHeader bool
+}{
+	{"both incomplete", false, false, true},
+	{"with terminator incomplete", true, false, true},
+	{"with children incomplete", false, true, true},
+	{"both complete", true, true, false},
+}
+
+func TestFind(t *testing.T) {
+	for _, tt := range limitTests {
+		t.Run(tt.name, func(t *testing.T) {
+			testFind(t, tt.ex, tt.ex2, tt.hasHeader)
+		})
+	}
 }

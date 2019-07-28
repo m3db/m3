@@ -156,9 +156,10 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 		Return(nil, nil)
 	promRead := readHandler(store, timeoutOpts)
 	req := test.GeneratePromReadRequest()
-	_, err := promRead.read(context.TODO(), httptest.NewRecorder(),
+	_, ex, err := promRead.read(context.TODO(), httptest.NewRecorder(),
 		req, time.Hour, storage.NewFetchOptions())
-	require.NotNil(t, err, "unable to read from storage")
+	require.Error(t, err, "unable to read from storage")
+	require.True(t, ex)
 }
 
 func TestQueryMatchMustBeEqual(t *testing.T) {
@@ -254,12 +255,14 @@ func TestMultipleRead(t *testing.T) {
 		SeriesList: ts.SeriesList{
 			ts.NewSeries([]byte("a"), vals, tags),
 		},
+		Exhaustive: true,
 	}
 
 	rTwo := &storage.FetchResult{
 		SeriesList: ts.SeriesList{
 			ts.NewSeries([]byte("c"), valsTwo, tagsTwo),
 		},
+		Exhaustive: false,
 	}
 
 	req := &prompb.ReadRequest{
@@ -281,8 +284,9 @@ func TestMultipleRead(t *testing.T) {
 		Execute(gomock.Any(), qTwo, gomock.Any(), gomock.Any()).Return(rTwo, nil)
 
 	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
-	result, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
+	result, ex, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
 	require.NoError(t, err)
+	require.False(t, ex)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
 			&prompb.TimeSeries{

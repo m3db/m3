@@ -29,4 +29,7 @@ const (
 
 	// RoutePrefixV1 is the v1 prefix for all coordinator routes
 	RoutePrefixV1 = "/api/v1"
+
+	// LimitHeader is the header added when series limits are exceeded.
+	LimitHeader = "Series-Limit-Exceeded"
 )

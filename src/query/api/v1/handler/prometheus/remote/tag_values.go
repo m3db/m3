@@ -108,6 +108,10 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !result.Exhaustive {
+		w.Header().Set(handler.LimitHeader, "true")
+	}
+
 	// TODO: Support multiple result types
 	err = prometheus.RenderTagValuesResultsJSON(w, result)
 	if err != nil {

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -152,12 +153,12 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	minsAgo := 12
 	start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
-
 	resolution := 10 * time.Second
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
+
 	for _, series := range seriesList {
 		series.SetResolution(resolution)
 	}
@@ -187,6 +188,45 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 		start.Unix(), start.Unix()+10, start.Unix()+20, resolution/time.Millisecond)
 
 	require.Equal(t, expected, string(buf))
+}
+
+func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
+	for _, tt := range limitTests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockStorage := mock.NewMockStorage()
+			minsAgo := 12
+			start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
+			resolution := 10 * time.Second
+			vals := ts.NewFixedStepValues(resolution, 3, 3, start)
+			seriesList := ts.SeriesList{
+				ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
+			}
+
+			for _, series := range seriesList {
+				series.SetResolution(resolution)
+			}
+
+			mockStorage.SetFetchResults(
+				&storage.FetchResult{SeriesList: seriesList, Exhaustive: tt.ex},
+				&storage.FetchResult{SeriesList: seriesList, Exhaustive: tt.ex2},
+			)
+
+			h := NewRenderHandler(mockStorage,
+				models.QueryContextOptions{}, nil, instrument.NewOptions())
+
+			req := newGraphiteReadHTTPRequest(t)
+			req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=bar.baz&from=%d&until=%d",
+				start.Unix(), start.Unix()+30)
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, req)
+			header := recorder.Header().Get(handler.LimitHeader)
+			if tt.hasHeader {
+				require.Equal(t, "true", header)
+			} else {
+				require.Equal(t, "", header)
+			}
+		})
+	}
 }
 
 func newGraphiteReadHTTPRequest(t *testing.T) *http.Request {

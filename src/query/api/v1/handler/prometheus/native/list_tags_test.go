@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +78,15 @@ var _ gomock.Matcher = &listTagsMatcher{}
 
 func b(s string) []byte { return []byte(s) }
 
-func TestListTags(t *testing.T) {
+func TestListTagsNotExhaustive(t *testing.T) {
+	testListTags(t, false)
+}
+
+func TestListTagsExhaustive(t *testing.T) {
+	testListTags(t, true)
+}
+
+func testListTags(t *testing.T, exhaustive bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -90,6 +99,7 @@ func TestListTags(t *testing.T) {
 			{Name: b("baz")},
 			{Name: b("foo")},
 		},
+		Exhaustive: exhaustive,
 	}
 
 	now := time.Now()
@@ -97,7 +107,7 @@ func TestListTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store,
+	h := NewListTagsHandler(store,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		nowFn, instrument.NewOptions())
 	for _, method := range []string{"GET", "POST"} {
@@ -106,9 +116,8 @@ func TestListTags(t *testing.T) {
 			Return(storeResult, nil)
 
 		req := httptest.NewRequest(method, "/labels", nil)
-		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		h.ServeHTTP(w, req)
 		body := w.Result().Body
 		defer body.Close()
 
@@ -117,6 +126,13 @@ func TestListTags(t *testing.T) {
 
 		ex := `{"status":"success","data":["bar","baz","foo"]}`
 		require.Equal(t, ex, string(r))
+
+		header := w.Header().Get(handler.LimitHeader)
+		if exhaustive {
+			assert.Equal(t, "", header)
+		} else {
+			assert.Equal(t, "true", header)
+		}
 	}
 }
 

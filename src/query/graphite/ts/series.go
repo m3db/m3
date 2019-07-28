@@ -636,6 +636,9 @@ type SeriesList struct {
 	Values []*Series
 	// SortApplied specifies whether a specific sort order has been applied.
 	SortApplied bool
+	// Exhaustive specified whether the result is a full set of data, or has been
+	// rate limited.
+	Exhaustive bool
 }
 
 // Len returns the length of the list.

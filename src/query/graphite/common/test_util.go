@@ -148,14 +148,10 @@ func (s *MovingAverageStorage) fetchByIDs(
 		} else {
 			values = s.Values
 		}
-		series := ts.NewSeries(ctx, ids[0], opts.StartTime, NewTestSeriesValues(ctx, s.StepMillis, values))
+		series := ts.NewSeries(ctx, ids[0], opts.StartTime,
+			NewTestSeriesValues(ctx, s.StepMillis, values))
 		seriesList = append(seriesList, series)
 	}
-	return storage.NewFetchResult(ctx, seriesList), nil
+
+	return storage.NewFetchResult(ctx, seriesList, true), nil
 }
-
-// Type returns to the dc scope
-// func (s *MovingAverageStorage) Type() storage.Type { return storage.TypeLocalDC }
-
-// Name returns the name of the storage struct
-// func (s *MovingAverageStorage) Name() string { return "movingAverageStorage" }

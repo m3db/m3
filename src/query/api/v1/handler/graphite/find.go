@@ -148,6 +148,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		return
 	}
 
+	exhaustive := terminatedResult.Exhaustive && childResult.Exhaustive
 	// NB: merge results from both queries to specify which series have children
 	seenMap, err := mergeTags(terminatedResult, childResult)
 	if err != nil {
@@ -159,6 +160,10 @@ func (h *grahiteFindHandler) ServeHTTP(
 	prefix := graphite.DropLastMetricPart(raw)
 	if len(prefix) > 0 {
 		prefix += "."
+	}
+
+	if !exhaustive {
+		w.Header().Set(handler.LimitHeader, "true")
 	}
 
 	// TODO: Support multiple result types

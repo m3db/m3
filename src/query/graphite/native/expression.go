@@ -103,7 +103,11 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	for _, r := range result.SeriesList {
 		r.Specification = f.pathArg.path
 	}
-	return ts.SeriesList{Values: result.SeriesList}, nil
+
+	return ts.SeriesList{
+		Values:     result.SeriesList,
+		Exhaustive: result.Exhaustive,
+	}, nil
 }
 
 // Evaluate evaluates the fetch and returns its results as a reflection value, allowing it to be used

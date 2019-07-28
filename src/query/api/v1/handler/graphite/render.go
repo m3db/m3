@@ -103,9 +103,11 @@ func (h *renderHandler) serveHTTP(
 	}
 
 	var (
-		results = make([]ts.SeriesList, len(p.Targets))
-		errorCh = make(chan error, 1)
-		mu      sync.Mutex
+		results       = make([]ts.SeriesList, len(p.Targets))
+		errorCh       = make(chan error, 1)
+		exhaustive    = true
+		exhaustiveSet bool
+		mu            sync.Mutex
 	)
 
 	ctx := common.NewContext(common.ContextOptions{
@@ -165,6 +167,13 @@ func (h *renderHandler) serveHTTP(
 
 			mu.Lock()
 			results[i] = targetSeries
+			if !exhaustiveSet {
+				exhaustiveSet = true
+				exhaustive = targetSeries.Exhaustive
+			} else {
+				exhaustive = exhaustive && targetSeries.Exhaustive
+			}
+
 			mu.Unlock()
 		}()
 	}
@@ -198,6 +207,10 @@ func (h *renderHandler) serveHTTP(
 	response := ts.SeriesList{
 		Values:      series,
 		SortApplied: true,
+	}
+
+	if !exhaustive {
+		w.Header().Set(handler.LimitHeader, "true")
 	}
 
 	err = WriteRenderResponse(w, response, p.Format)

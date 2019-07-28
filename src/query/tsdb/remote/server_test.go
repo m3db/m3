@@ -72,14 +72,14 @@ func newMockStorage(
 			ctx context.Context,
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
-		) (encoding.SeriesIterators, m3.Cleanup, error) {
+		) (encoding.SeriesIterators, bool, m3.Cleanup, error) {
 			var cleanup = func() error { return nil }
 			if opts.cleanup != nil {
 				cleanup = opts.cleanup
 			}
 
 			if opts.err != nil {
-				return nil, cleanup, opts.err
+				return nil, false, cleanup, opts.err
 			}
 
 			if opts.fetchCompressedSleep > 0 {
@@ -96,7 +96,7 @@ func newMockStorage(
 				)
 			}
 
-			return iters, cleanup, nil
+			return iters, true, cleanup, nil
 		}).
 		AnyTimes()
 	return store
@@ -431,7 +431,7 @@ func TestBatchedSearch(t *testing.T) {
 
 		store := m3.NewMockStorage(ctrl)
 		store.EXPECT().SearchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(tags, noopCleanup, nil)
+			Return(tags, true, noopCleanup, nil)
 
 		listener := startServer(t, ctrl, store)
 		client := buildClient(t, []string{listener.Addr().String()})
@@ -488,6 +488,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 			expected := &storage.CompleteTagsResult{
 				CompleteNameOnly: nameOnly,
 				CompletedTags:    tags,
+				Exhaustive:       true,
 			}
 
 			store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).

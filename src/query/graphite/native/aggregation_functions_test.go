@@ -167,12 +167,12 @@ func TestVariadicSumSeries(t *testing.T) {
 			return storage.NewFetchResult(ctx, []*ts.Series{
 				ts.NewSeries(ctx, "foo.bar.a", start, ts.NewConstantValues(ctx, 1, 3, 1000)),
 				ts.NewSeries(ctx, "foo.bar.b", start, ts.NewConstantValues(ctx, 2, 3, 1000)),
-			}), nil
+			}, true), nil
 		case "foo.baz.*":
 			return storage.NewFetchResult(ctx, []*ts.Series{
 				ts.NewSeries(ctx, "foo.baz.a", start, ts.NewConstantValues(ctx, 3, 3, 1000)),
 				ts.NewSeries(ctx, "foo.baz.b", start, ts.NewConstantValues(ctx, 4, 3, 1000)),
-			}), nil
+			}, true), nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}}

@@ -49,7 +49,7 @@ func read(
 	w http.ResponseWriter,
 	params models.RequestParams,
 	instrumentOpts instrument.Options,
-) ([]*ts.Series, error) {
+) ([]*ts.Series, bool, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
@@ -68,12 +68,12 @@ func read(
 	// TODO: Capture timing
 	parser, err := promql.Parse(params.Query, tagOpts)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	result, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Block slices are sorted by start time
@@ -86,12 +86,19 @@ func read(
 		}
 	}()
 
-	firstElement := false
-	var numSteps, numSeries int
+	var (
+		numSteps   int
+		numSeries  int
+		exhaustive bool
+		ex         bool
+
+		firstElement bool
+	)
+
 	// TODO(nikunj): Stream blocks to client
 	for blkResult := range resultChan {
 		if err := blkResult.Err; err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		b := blkResult.Block
@@ -99,23 +106,27 @@ func read(
 			firstElement = true
 			firstStepIter, err := b.StepIter()
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			firstSeriesIter, err := b.SeriesIter()
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			numSteps = firstStepIter.StepCount()
 			numSeries = firstSeriesIter.SeriesCount()
+			exhaustive = firstStepIter.Meta().Exhaustive
 		}
 
 		// Insert blocks sorted by start time
-		sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
+		sortedBlockList, ex, err = insertSortedBlock(b, sortedBlockList,
+			numSteps, numSeries)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+
+		exhaustive = exhaustive && ex
 	}
 
 	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
@@ -126,7 +137,12 @@ func read(
 		}
 	}()
 
-	return sortedBlocksToSeriesList(sortedBlockList)
+	series, err := sortedBlocksToSeriesList(sortedBlockList)
+	if err != nil {
+		return series, true, err
+	}
+
+	return series, exhaustive, nil
 }
 
 func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
@@ -203,10 +219,10 @@ func insertSortedBlock(
 	blockList []blockWithMeta,
 	stepCount,
 	seriesCount int,
-) ([]blockWithMeta, error) {
+) ([]blockWithMeta, bool, error) {
 	blockSeriesIter, err := b.SeriesIter()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	blockMeta := blockSeriesIter.Meta()
@@ -215,12 +231,12 @@ func insertSortedBlock(
 			block: b,
 			meta:  blockMeta,
 		})
-		return blockList, nil
+		return blockList, false, nil
 	}
 
 	blockSeriesCount := blockSeriesIter.SeriesCount()
 	if seriesCount != blockSeriesCount {
-		return nil, fmt.Errorf("mismatch in number of series for "+
+		return nil, false, fmt.Errorf("mismatch in number of series for "+
 			"the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
 	}
 
@@ -237,5 +253,6 @@ func insertSortedBlock(
 		meta:  blockMeta,
 	}
 
-	return blockList, nil
+	exhaustive := blockSeriesIter.Meta().Exhaustive
+	return blockList, exhaustive, nil
 }

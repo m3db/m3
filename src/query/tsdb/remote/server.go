@@ -179,7 +179,8 @@ func (s *grpcServer) Search(
 	size := min(defaultBatch, len(results))
 	for ; len(results) > 0; results = results[size:] {
 		size = min(size, len(results))
-		response, err := encodeToCompressedSearchResult(results[:size], pools)
+		response, err := encodeToCompressedSearchResult(results[:size],
+			exhaustive, pools)
 		if err != nil {
 			logger.Error("unable to encode search result", zap.Error(err))
 			return err
@@ -227,6 +228,7 @@ func (s *grpcServer) CompleteTags(
 		results := &storage.CompleteTagsResult{
 			CompleteNameOnly: completed.CompleteNameOnly,
 			CompletedTags:    tags[:size],
+			Exhaustive:       completed.Exhaustive,
 		}
 
 		response, err := encodeToCompressedCompleteTagsResult(results)

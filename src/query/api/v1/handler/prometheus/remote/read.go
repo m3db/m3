@@ -121,7 +121,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.read(ctx, w, req, timeout, fetchOpts)
+	result, exhaustive, err := h.read(ctx, w, req, timeout, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -143,6 +143,9 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
+	if !exhaustive {
+		w.Header().Set(handler.LimitHeader, "true")
+	}
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -178,7 +181,7 @@ func (h *PromReadHandler) read(
 	r *prompb.ReadRequest,
 	timeout time.Duration,
 	fetchOpts *storage.FetchOptions,
-) ([]*prompb.QueryResult, error) {
+) ([]*prompb.QueryResult, bool, error) {
 	var (
 		queryCount  = len(r.Queries)
 		promResults = make([]*prompb.QueryResult, queryCount)
@@ -188,9 +191,11 @@ func (h *PromReadHandler) read(
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
 
-		wg           sync.WaitGroup
-		multiErr     xerrors.MultiError
-		multiErrLock sync.Mutex
+		wg            sync.WaitGroup
+		mu            sync.Mutex
+		multiErr      xerrors.MultiError
+		exhaustiveSet bool
+		exhaustive    = true
 	)
 
 	wg.Add(queryCount)
@@ -202,9 +207,9 @@ func (h *PromReadHandler) read(
 			cancelFuncs[i] = cancel
 			query, err := storage.PromReadQueryToM3(promQuery)
 			if err != nil {
-				multiErrLock.Lock()
+				mu.Lock()
 				multiErr = multiErr.Add(err)
-				multiErrLock.Unlock()
+				mu.Unlock()
 				return
 			}
 
@@ -212,12 +217,21 @@ func (h *PromReadHandler) read(
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
 			result, err := h.engine.Execute(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
-				multiErrLock.Lock()
+				mu.Lock()
 				multiErr = multiErr.Add(err)
-				multiErrLock.Unlock()
+				mu.Unlock()
 				return
 			}
 
+			mu.Lock()
+			if !exhaustiveSet {
+				exhaustiveSet = true
+				exhaustive = result.Exhaustive
+			} else {
+				exhaustive = exhaustive && result.Exhaustive
+			}
+
+			mu.Unlock()
 			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
 			promResults[i] = promRes
 		}()
@@ -229,8 +243,8 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return nil, err
+		return nil, true, err
 	}
 
-	return promResults, nil
+	return promResults, exhaustive, nil
 }

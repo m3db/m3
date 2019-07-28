@@ -1957,7 +1957,7 @@ type mockStorage struct{}
 func (*mockStorage) FetchByQuery(
 	ctx xctx.Context, query string, opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return storage.NewFetchResult(ctx, nil), nil
+	return storage.NewFetchResult(ctx, nil, true), nil
 }
 
 func TestHoltWintersForecast(t *testing.T) {

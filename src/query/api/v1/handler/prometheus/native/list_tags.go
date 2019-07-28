@@ -97,6 +97,10 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !result.Exhaustive {
+		w.Header().Set(handler.LimitHeader, "true")
+	}
+
 	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
