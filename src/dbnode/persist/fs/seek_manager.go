@@ -209,7 +209,7 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 	return multiErr.FinalError()
 }
 
-func (m *seekerManager) Test(shard uint32, id ident.ID, start time.Time) (bool, error) {
+func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
 	byTime := m.seekersByTime(shard)
 
 	// Try fast RLock() first.

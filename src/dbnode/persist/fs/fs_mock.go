@@ -1057,7 +1057,7 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Return(arg0, arg1, arg2 inte
 }
 
 // Test mocks base method
-func (m *MockDataFileSetSeekerManager) Test(arg0 uint32, arg1 ident.ID, arg2 time.Time) (bool, error) {
+func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 time.Time) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Test", arg0, arg1, arg2)
 	ret0, _ := ret[0].(bool)

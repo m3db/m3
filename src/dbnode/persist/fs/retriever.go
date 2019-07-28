@@ -415,7 +415,7 @@ func (r *blockRetriever) Stream(
 	}
 	r.RUnlock()
 
-	idExists, err := r.seekerMgr.Test(shard, id, startTime)
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}
