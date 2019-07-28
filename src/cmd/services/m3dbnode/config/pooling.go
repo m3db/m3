@@ -66,8 +66,16 @@ var (
 	defaultPoolPolicies = map[string]poolPolicyDefault{
 		"tagsIterator": defaultPoolPolicy,
 		"indexResults": defaultPoolPolicy,
-		"tagEncoder":   defaultPoolPolicy,
-		"tagDecoder":   defaultPoolPolicy,
+		"tagEncoder": poolPolicyDefault{
+			// NB(r): Tag encoder is used for every individual time series
+			// returned from an index query since it needs to encode the tags
+			// back for RPC and has a bytes buffer internally for each time
+			// series being returned.
+			size:                8192,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
+		"tagDecoder": defaultPoolPolicy,
 		"context": poolPolicyDefault{
 			size:                262144,
 			refillLowWaterMark:  defaultRefillLowWaterMark,

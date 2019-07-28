@@ -203,7 +203,7 @@ func (c *ctx) close(mode closeMode) {
 	c.done = true
 	c.Unlock()
 
-	if c.finalizeables == nil {
+	if len(c.finalizeables) == 0 {
 		c.returnToPool()
 		return
 	}

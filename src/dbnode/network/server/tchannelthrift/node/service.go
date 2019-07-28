@@ -473,15 +473,20 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	}
 	for _, entry := range queryResult.Results.Map().Iter() {
 		elem := &rpc.QueryResultElement{
-			ID:   entry.Key().String(),
-			Tags: make([]*rpc.Tag, 0, len(entry.Value().Values())),
+			ID: entry.Key().String(),
 		}
 		result.Results = append(result.Results, elem)
-		for _, tag := range entry.Value().Values() {
+
+		tags := entry.Value()
+		for tags.Next() {
+			tag := tags.Current()
 			elem.Tags = append(elem.Tags, &rpc.Tag{
 				Name:  tag.Name.String(),
 				Value: tag.Value.String(),
 			})
+		}
+		if err := tags.Err(); err != nil {
+			return nil, err
 		}
 		if !fetchData {
 			continue
@@ -627,21 +632,20 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	}
 	results := queryResult.Results
 	nsID := results.Namespace()
-	tagsIter := ident.NewTagsIterator(ident.Tags{})
+	nsIDBytes := nsID.Bytes()
 	for _, entry := range results.Map().Iter() {
 		tsID := entry.Key()
 		tags := entry.Value()
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
-		tagsIter.Reset(tags)
-		encodedTags, err := s.encodeTags(enc, tagsIter)
+		encodedTags, err := s.encodeTags(enc, tags)
 		if err != nil { // This is an invariant, should never happen
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return nil, tterrors.NewInternalError(err)
 		}
 
 		elem := &rpc.FetchTaggedIDResult_{
-			NameSpace:   nsID.Bytes(),
+			NameSpace:   nsIDBytes,
 			ID:          tsID.Bytes(),
 			EncodedTags: encodedTags.Bytes(),
 		}
