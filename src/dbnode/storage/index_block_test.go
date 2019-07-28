@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -52,8 +53,18 @@ var (
 		Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
 	}
 
-	testShardSet = sharding.NewEmptyShardSet(nil)
+	testShardSet sharding.ShardSet
 )
+
+func init() {
+	shards := sharding.NewShards([]uint32{0, 1, 2, 3}, shard.Available)
+	hashFn := sharding.DefaultHashFn(len(shards))
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	if err != nil {
+		panic(err)
+	}
+	testShardSet = shardSet
+}
 
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
