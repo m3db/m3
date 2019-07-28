@@ -796,12 +796,12 @@ func Run(runOpts RunOptions) {
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 
-			if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
-				logger.Error("unable to update bootstrap gauge with new bootstrappers",
-					zap.Strings("bootstrappers", bootstrappers),
-					zap.Error(err),
-				)
-			}
+			// if err := bsGauge.UpdateStringList(bootstrappers); err != nil {
+			// 	logger.Error("unable to update bootstrap gauge with new bootstrappers",
+			// 		zap.Strings("bootstrappers", bootstrappers),
+			// 		zap.Error(err),
+			// 	)
+			// }
 		})
 
 	// Start the cluster services now that the M3DB client is available.
