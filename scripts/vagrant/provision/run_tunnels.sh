@@ -5,7 +5,7 @@ set -xe
 # Use correct kubeconfig
 export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
 
-forwards="grafana:3000 m3coordinator:7201"
+forwards="grafana:3000 m3coordinator:7201 m3dbnode:9003 m3dbnode:9004"
 
 port_forward() {
     forward=$1
