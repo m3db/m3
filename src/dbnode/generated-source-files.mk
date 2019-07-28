@@ -151,7 +151,7 @@ genny-map-storage-index-results:
 	cd $(m3x_package_path) && make hashmap-gen                \
 		pkg=index                                               \
 		key_type=ident.ID                                       \
-		value_type=ident.Tags                                   \
+		value_type=ident.TagIterator                            \
 		target_package=$(m3db_package)/src/dbnode/storage/index \
 		rename_nogen_key=true                                   \
 		rename_nogen_value=true                                 \

@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
-	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/context"
 	pilosaroaring "github.com/m3db/pilosa/roaring"
 	"github.com/m3db/vellum"
 )
@@ -147,7 +147,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
 	}
 
-	return &fsSegment{
+	s := &fsSegment{
 		fieldsFST:       fieldsFST,
 		docsDataReader:  docsDataReader,
 		docsIndexReader: docsIndexReader,
@@ -158,11 +158,20 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		numDocs:        metadata.NumDocs,
 		startInclusive: startInclusive,
 		endExclusive:   endExclusive,
-	}, nil
+	}
+
+	// NB(r): The segment uses the context finalization to finalize
+	// resources. Finalize is called after Close is called and all
+	// the segment readers have also been closed.
+	s.ctx = context.NewContext()
+	s.ctx.RegisterFinalizer(s)
+
+	return s, nil
 }
 
 type fsSegment struct {
 	sync.RWMutex
+	ctx             context.Context
 	closed          bool
 	fieldsFST       *vellum.FST
 	docsDataReader  *docs.DataReader
@@ -225,24 +234,33 @@ func (r *fsSegment) Reader() (index.Reader, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
-	return &fsSegmentReader{
-		fsSegment: r,
-	}, nil
+
+	reader := newReader(r)
+
+	// NB(r): Ensure that we do not release, mmaps, etc
+	// until all readers have been closed.
+	r.ctx.DependsOn(reader.ctx)
+
+	return reader, nil
 }
 
 func (r *fsSegment) Close() error {
 	r.Lock()
-	defer r.Unlock()
 	if r.closed {
+		r.Unlock()
 		return errReaderClosed
 	}
 	r.closed = true
-	var multiErr xerrors.MultiError
-	multiErr = multiErr.Add(r.fieldsFST.Close())
-	if r.data.Closer != nil {
-		multiErr = multiErr.Add(r.data.Closer.Close())
-	}
-	return multiErr.FinalError()
+	r.Unlock()
+	// NB(r): Inform context we are done, once all segment readers are
+	// closed the segment Finalize will be called.
+	r.ctx.Close()
+	return nil
+}
+
+func (r *fsSegment) Finalize() {
+	r.fieldsFST.Close()
+	r.data.Closer.Close()
 }
 
 func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
@@ -683,14 +701,23 @@ func (r *fsSegment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, 
 	return base[payloadStart:payloadEnd], nil
 }
 
+var _ index.Reader = &fsSegmentReader{}
+
 type fsSegmentReader struct {
 	sync.RWMutex
-	closed bool
-
+	closed    bool
+	ctx       context.Context
 	fsSegment *fsSegment
 }
 
-var _ index.Reader = &fsSegmentReader{}
+func newReader(
+	fsSegment *fsSegment,
+) *fsSegmentReader {
+	return &fsSegmentReader{
+		ctx:       context.NewContext(),
+		fsSegment: fsSegment,
+	}
+}
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
 	sr.RLock()
@@ -777,5 +804,7 @@ func (sr *fsSegmentReader) Close() error {
 	}
 	sr.closed = true
 	sr.Unlock()
+	// Close the context so that segment doesn't need to track this any longer.
+	sr.ctx.Close()
 	return nil
 }

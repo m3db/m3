@@ -827,11 +827,17 @@ func (b *block) queryWithSpan(
 		batchSize = defaultQueryDocsBatchSize
 	}
 
+	// Register local components that need closing.
 	defer func() {
 		iterCloser.Close()
-		execCloser.Close()
 		docsPool.Put(batch)
 	}()
+
+	// Register the executor to close when context closes
+	// so can copy the results.
+	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		execCloser.Close()
+	}))
 
 	for iter.Next() {
 		if opts.LimitExceeded(size) {
@@ -862,10 +868,6 @@ func (b *block) queryWithSpan(
 	}
 
 	if err := iterCloser.Close(); err != nil {
-		return false, err
-	}
-
-	if err := execCloser.Close(); err != nil {
 		return false, err
 	}
 
