@@ -29,5 +29,6 @@ fi
 # Run tunnels
 echo "Tunnelling"
 echo "Grafana available at http://localhost:3333"
-vagrant ssh -c "./provision/run_tunnels.sh" --\
+vagrant ssh -c "cd provision && ./run_tunnels.sh" --\
     -L 3333:localhost:3000
+    -L 7201:localhost:7201
