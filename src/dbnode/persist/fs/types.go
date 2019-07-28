@@ -247,6 +247,10 @@ type DataFileSetSeekerManager interface {
 	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
 	// shard, block start time, and volume.
 	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
+
+	// Test checks if an ID exists in a concurrent ID bloom filter for a
+	// given shard, block, start time and volume.
+	Test(shard uint32, id ident.ID, start time.Time) (bool, error)
 }
 
 // DataBlockRetriever provides a block retriever for TSDB file sets
