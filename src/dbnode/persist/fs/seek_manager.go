@@ -223,12 +223,13 @@ func (m *seekerManager) Test(shard uint32, id ident.ID, start time.Time) (bool, 
 	}
 
 	byTime.Lock()
-	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
-	byTime.Unlock()
+	defer byTime.Unlock()
 
+	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
 	if err != nil {
 		return false, err
 	}
+
 	return seekersAndBloom.bloomFilter.Test(id.Bytes()), nil
 }
 
