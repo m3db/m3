@@ -77,4 +77,20 @@ type Options interface {
 
 	// TagDecoderPool returns the tag encoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
+
+	// SetMaxOutstandingWriteRequests sets the maximum number of allowed
+	// outstanding write requests.
+	SetMaxOutstandingWriteRequests(value int) Options
+
+	// MaxOutstandingWriteRequests returns the maxinum number of allowed
+	// outstanding write requests.
+	MaxOutstandingWriteRequests() int
+
+	// SetMaxOutstandingReadRequests sets the maximum number of allowed
+	// outstanding read requests.
+	SetMaxOutstandingReadRequests(value int) Options
+
+	// MaxOutstandingReadRequests returns the maxinum number of allowed
+	// outstanding read requests.
+	MaxOutstandingReadRequests() int
 }
