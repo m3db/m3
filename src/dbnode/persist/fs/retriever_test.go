@@ -650,11 +650,6 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		nsCtx      = namespace.NewContextFrom(testNs1Metadata(t))
 		shard      = uint32(0)
 		blockStart = time.Now().Truncate(rOpts.BlockSize())
-
-		// Always true because all the bits in 255 are set.
-		//bloomBytes = []byte{255, 255, 255, 255, 255, 255, 255, 255}
-		//alwaysTrueBloomFilter = bloom.NewConcurrentReadOnlyBloomFilter(1, 1, bloomBytes)
-		//managedBloomFilter    = newManagedConcurrentBloomFilter(alwaysTrueBloomFilter, bloomBytes)
 	)
 
 	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
