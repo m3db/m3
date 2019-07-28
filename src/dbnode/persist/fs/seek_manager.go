@@ -237,25 +237,6 @@ func (m *seekerManager) Test(shard uint32, id ident.ID, start time.Time) (bool, 
 	return seekersAndBloom.bloomFilter.Test(id.Bytes()), nil
 }
 
-func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error) {
-	byTime := m.seekersByTime(shard)
-
-	// Try fast RLock() first.
-	byTime.RLock()
-	startNano := xtime.ToUnixNano(start)
-	seekers, ok := byTime.seekers[startNano]
-	byTime.RUnlock()
-
-	if ok && seekers.active.wg == nil {
-		return seekers.active.bloomFilter, nil
-	}
-
-	byTime.Lock()
-	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
-	byTime.Unlock()
-	return seekersAndBloom.bloomFilter, err
-}
-
 func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 
