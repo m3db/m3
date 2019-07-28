@@ -156,7 +156,10 @@ type QueryResultsOptions struct {
 	// overflown will return early successfully.
 	SizeLimit int
 
-	// FilterID if not nil will filter the ID if specified.
+	// FilterID, if provided, can be used to filter out unwanted IDs from
+	// the query results.
+	// NB(r): This is used to filter out results from shards the DB node
+	// node no longer owns but is still included in index segments.
 	FilterID func(id ident.ID) bool
 }
 
