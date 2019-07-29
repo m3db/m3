@@ -141,6 +141,53 @@ func waitUntilDataFilesFlushed(
 	return errDiskFlushTimedOut
 }
 
+func waitUntilFileSetFilesExist(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	timeout time.Duration,
+) error {
+	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, true, timeout)
+}
+
+func waitUntilFileSetFilesNotExist(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	timeout time.Duration,
+) error {
+	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, false, timeout)
+}
+
+func waitUntilFileSetFilesExistOrNot(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	// Either wait for all files to exist of for all files to not exist.
+	checkForExistence bool,
+	timeout time.Duration,
+) error {
+	dataFlushed := func() bool {
+		for _, file := range files {
+			exists, err := fs.DataFileSetExists(
+				filePathPrefix, file.Namespace, file.Shard, file.BlockStart, file.VolumeIndex)
+			if err != nil {
+				panic(err)
+			}
+
+			if checkForExistence && !exists {
+				return false
+			}
+
+			if !checkForExistence && exists {
+				return false
+			}
+		}
+		return true
+	}
+	if waitUntil(dataFlushed, timeout) {
+		return nil
+	}
+	return errDiskFlushTimedOut
+}
+
 func verifyForTime(
 	t *testing.T,
 	storageOpts storage.Options,
@@ -168,15 +215,19 @@ func verifyForTime(
 			FileSetType: filesetType,
 		}
 
-		if filesetType == persist.FileSetSnapshotType {
-			// If we're verifying snapshot files, then we need to identify the latest
-			// one because multiple snapshot files can exist at the same time with the
-			// same blockStart, but increasing "indexes" which indicates which one is
-			// most recent (and thus has more cumulative data).
-			filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+		filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+		switch filesetType {
+		// Identify the latest volume for this block start.
+		case persist.FileSetSnapshotType:
 			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, nsCtx.ID, shard)
 			require.NoError(t, err)
 			latest, ok := snapshotFiles.LatestVolumeForBlock(timestamp)
+			require.True(t, ok)
+			rOpts.Identifier.VolumeIndex = latest.ID.VolumeIndex
+		case persist.FileSetFlushType:
+			dataFiles, err := fs.DataFiles(filePathPrefix, nsCtx.ID, shard)
+			require.NoError(t, err)
+			latest, ok := dataFiles.LatestVolumeForBlock(timestamp)
 			require.True(t, ok)
 			rOpts.Identifier.VolumeIndex = latest.ID.VolumeIndex
 		}
