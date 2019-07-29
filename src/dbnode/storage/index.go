@@ -799,7 +799,11 @@ func (i *nsIndex) flushableBlocks(
 	}
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 	for _, block := range i.state.blocksByTime {
-		if !i.canFlushBlock(block, shards) {
+		canFlush, err := i.canFlushBlock(block, shards)
+		if err != nil {
+			return nil, err
+		}
+		if !canFlush {
 			continue
 		}
 		flushable = append(flushable, block)
@@ -810,11 +814,11 @@ func (i *nsIndex) flushableBlocks(
 func (i *nsIndex) canFlushBlock(
 	block index.Block,
 	shards []databaseShard,
-) bool {
+) (bool, error) {
 	// Check the block needs flushing because it is sealed and has
 	// any mutable segments that need to be evicted from memory
 	if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
-		return false
+		return false, nil
 	}
 
 	// Check all data files exist for the shards we own
@@ -822,13 +826,17 @@ func (i *nsIndex) canFlushBlock(
 		start := block.StartTime()
 		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
 		for t := start; t.Before(block.EndTime()); t = t.Add(dataBlockSize) {
-			if shard.FlushState(t).WarmStatus != fileOpSuccess {
-				return false
+			flushState, err := shard.FlushState(t)
+			if err != nil {
+				return false, err
+			}
+			if flushState.WarmStatus != fileOpSuccess {
+				return false, nil
 			}
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 func (i *nsIndex) flushBlock(

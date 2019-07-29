@@ -63,21 +63,6 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 	return m.recorder
 }
 
-// Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks, arg1 map[time0.UnixNano]BlockState) (BootstrapResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", arg0, arg1)
-	ret0, _ := ret[0].(BootstrapResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockDatabaseSeriesMockRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabaseSeries)(nil).Bootstrap), arg0, arg1)
-}
-
 // Close mocks base method
 func (m *MockDatabaseSeries) Close() {
 	m.ctrl.T.Helper()
@@ -91,7 +76,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 }
 
 // ColdFlushBlockStarts mocks base method
-func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 map[time0.UnixNano]BlockState) OptimizedTimes {
+func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 BootstrappedBlockStateSnapshot) OptimizedTimes {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", arg0)
 	ret0, _ := ret[0].(OptimizedTimes)
@@ -192,15 +177,18 @@ func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // Load mocks base method
-func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 map[time0.UnixNano]BlockState) {
+func (m *MockDatabaseSeries) Load(arg0 LoadOptions, arg1 block.DatabaseSeriesBlocks, arg2 BootstrappedBlockStateSnapshot) (LoadResult, error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Load", arg0, arg1)
+	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
+	ret0, _ := ret[0].(LoadResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Load indicates an expected call of Load
-func (mr *MockDatabaseSeriesMockRecorder) Load(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Load(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDatabaseSeries)(nil).Load), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDatabaseSeries)(nil).Load), arg0, arg1, arg2)
 }
 
 // NumActiveBlocks mocks base method
@@ -297,7 +285,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockDatabaseSeries) Tick(arg0 map[time0.UnixNano]BlockState, arg1 namespace.Context) (TickResult, error) {
+func (m *MockDatabaseSeries) Tick(arg0 ShardBlockStateSnapshot, arg1 namespace.Context) (TickResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", arg0, arg1)
 	ret0, _ := ret[0].(TickResult)
@@ -365,10 +353,10 @@ func (m *MockQueryableBlockRetriever) EXPECT() *MockQueryableBlockRetrieverMockR
 }
 
 // BlockStatesSnapshot mocks base method
-func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() map[time0.UnixNano]BlockState {
+func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() ShardBlockStateSnapshot {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStatesSnapshot")
-	ret0, _ := ret[0].(map[time0.UnixNano]BlockState)
+	ret0, _ := ret[0].(ShardBlockStateSnapshot)
 	return ret0
 }
 
@@ -379,11 +367,12 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) BlockStatesSnapshot() *gomock
 }
 
 // IsBlockRetrievable mocks base method
-func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) bool {
+func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBlockRetrievable", arg0)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // IsBlockRetrievable indicates an expected call of IsBlockRetrievable
@@ -393,11 +382,12 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 }
 
 // RetrievableBlockColdVersion mocks base method
-func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) int {
+func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetrievableBlockColdVersion", arg0)
 	ret0, _ := ret[0].(int)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // RetrievableBlockColdVersion indicates an expected call of RetrievableBlockColdVersion

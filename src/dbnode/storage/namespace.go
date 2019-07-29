@@ -957,10 +957,15 @@ func (n *dbNamespace) WarmFlush(
 			continue
 		}
 
+		flushState, err := shard.FlushState(blockStart)
+		if err != nil {
+			return err
+		}
 		// skip flushing if the shard has already flushed data for the `blockStart`
-		if s := shard.FlushState(blockStart); s.WarmStatus == fileOpSuccess {
+		if flushState.WarmStatus == fileOpSuccess {
 			continue
 		}
+
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
 		if err := shard.WarmFlush(blockStart, flushPersist, nsCtx); err != nil {
@@ -1142,7 +1147,9 @@ func (n *dbNamespace) Snapshot(
 }
 
 func (n *dbNamespace) NeedsFlush(
-	alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
+	alignedInclusiveStart time.Time,
+	alignedInclusiveEnd time.Time,
+) (bool, error) {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
 	// we need to flush - otherwise if any in progress we can't flush and if
@@ -1152,7 +1159,10 @@ func (n *dbNamespace) NeedsFlush(
 	return n.needsFlushWithLock(alignedInclusiveStart, alignedInclusiveEnd)
 }
 
-func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
+func (n *dbNamespace) needsFlushWithLock(
+	alignedInclusiveStart time.Time,
+	alignedInclusiveEnd time.Time,
+) (bool, error) {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
 		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
@@ -1167,14 +1177,18 @@ func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, aligne
 			continue
 		}
 		for _, blockStart := range blockStarts {
-			if shard.FlushState(blockStart).WarmStatus != fileOpSuccess {
-				return true
+			flushState, err := shard.FlushState(blockStart)
+			if err != nil {
+				return false, err
+			}
+			if flushState.WarmStatus != fileOpSuccess {
+				return true, nil
 			}
 		}
 	}
 
 	// All success or failed and reached max retries
-	return false
+	return false, nil
 }
 
 func (n *dbNamespace) Truncate() (int64, error) {
@@ -1410,7 +1424,11 @@ func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpSt
 	if err != nil {
 		return fileOpState{}, err
 	}
-	return shard.FlushState(blockStart), nil
+	flushState, err := shard.FlushState(blockStart)
+	if err != nil {
+		return fileOpState{}, err
+	}
+	return flushState, nil
 }
 
 func (n *dbNamespace) nsContextWithRLock() namespace.Context {

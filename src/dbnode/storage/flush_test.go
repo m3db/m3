@@ -280,7 +280,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -329,7 +329,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -418,8 +418,9 @@ func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	now := time.Now()
 
-	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
-	flushTimes := fm.namespaceFlushTimes(ns1, now)
+	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	flushTimes, err := fm.namespaceFlushTimes(ns1, now)
+	require.NoError(t, err)
 	require.Empty(t, flushTimes)
 }
 
@@ -430,8 +431,9 @@ func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	now := time.Now()
 
-	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
-	times := fm.namespaceFlushTimes(ns1, now)
+	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	times, err := fm.namespaceFlushTimes(ns1, now)
+	require.NoError(t, err)
 	sort.Sort(timesInOrder(times))
 
 	blockSize := ns1.Options().RetentionOptions().BlockSize()
@@ -462,15 +464,16 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 
 		// skip 1/3 of input
 		if i%3 == 0 {
-			ns1.EXPECT().NeedsFlush(st, st).Return(false)
+			ns1.EXPECT().NeedsFlush(st, st).Return(false, nil)
 			continue
 		}
 
-		ns1.EXPECT().NeedsFlush(st, st).Return(true)
+		ns1.EXPECT().NeedsFlush(st, st).Return(true, nil)
 		expectedTimes = append(expectedTimes, st)
 	}
 
-	times := fm.namespaceFlushTimes(ns1, now)
+	times, err := fm.namespaceFlushTimes(ns1, now)
+	require.NoError(t, err)
 	require.NotEmpty(t, times)
 	sort.Sort(timesInOrder(times))
 	require.Equal(t, expectedTimes, times)
@@ -494,7 +497,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(false)
+			ns.EXPECT().NeedsFlush(st, st).Return(false, nil)
 		}
 
 		ns.EXPECT().ColdFlush(gomock.Any())
@@ -503,7 +506,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		num = numIntervals(start, snapshotEnd, blockSize)
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(true)
+			ns.EXPECT().NeedsFlush(st, st).Return(true, nil)
 			ns.EXPECT().Snapshot(st, now, gomock.Any())
 		}
 	}

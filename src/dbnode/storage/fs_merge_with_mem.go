@@ -85,7 +85,11 @@ func (m *fsMergeWithMem) fetchBlocks(
 	nsCtx namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	startTime := blockStart.ToTime()
-	nextVersion := m.retriever.RetrievableBlockColdVersion(startTime) + 1
+	currVersion, err := m.retriever.RetrievableBlockColdVersion(startTime)
+	if err != nil {
+		return nil, false, err
+	}
+	nextVersion := currVersion + 1
 
 	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
 	if err != nil {
