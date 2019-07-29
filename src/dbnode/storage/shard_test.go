@@ -1136,18 +1136,12 @@ func TestShardTickRace(t *testing.T) {
 
 	wg.Add(2)
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
-		if err != nil {
-			panic(err)
-		}
+		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
-		if err != nil {
-			panic(err)
-		}
+		shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 		wg.Done()
 	}()
 
