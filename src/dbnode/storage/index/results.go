@@ -129,6 +129,11 @@ func (r *results) addDocumentWithLock(
 	// before we're sure we need it.
 	tsID := ident.BytesID(d.ID)
 
+	// Need to apply filter if set first.
+	if r.opts.FilterID != nil && !r.opts.FilterID(tsID) {
+		return false, r.resultsMap.Len(), nil
+	}
+
 	// check if it already exists in the map.
 	if r.resultsMap.Contains(tsID) {
 		return false, r.resultsMap.Len(), nil

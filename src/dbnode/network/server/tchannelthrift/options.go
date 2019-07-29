@@ -30,14 +30,16 @@ import (
 )
 
 type options struct {
-	clockOpts                clock.Options
-	instrumentOpts           instrument.Options
-	topologyInitializer      topology.Initializer
-	idPool                   ident.Pool
-	blockMetadataV2Pool      BlockMetadataV2Pool
-	blockMetadataV2SlicePool BlockMetadataV2SlicePool
-	tagEncoderPool           serialize.TagEncoderPool
-	tagDecoderPool           serialize.TagDecoderPool
+	clockOpts                   clock.Options
+	instrumentOpts              instrument.Options
+	topologyInitializer         topology.Initializer
+	idPool                      ident.Pool
+	blockMetadataV2Pool         BlockMetadataV2Pool
+	blockMetadataV2SlicePool    BlockMetadataV2SlicePool
+	tagEncoderPool              serialize.TagEncoderPool
+	tagDecoderPool              serialize.TagDecoderPool
+	maxOutstandingWriteRequests int
+	maxOutstandingReadRequests  int
 }
 
 // NewOptions creates new options
@@ -148,4 +150,24 @@ func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
 
 func (o *options) TagDecoderPool() serialize.TagDecoderPool {
 	return o.tagDecoderPool
+}
+
+func (o *options) SetMaxOutstandingWriteRequests(value int) Options {
+	opts := *o
+	opts.maxOutstandingWriteRequests = value
+	return &opts
+}
+
+func (o *options) MaxOutstandingWriteRequests() int {
+	return o.maxOutstandingWriteRequests
+}
+
+func (o *options) SetMaxOutstandingReadRequests(value int) Options {
+	opts := *o
+	opts.maxOutstandingReadRequests = value
+	return &opts
+}
+
+func (o *options) MaxOutstandingReadRequests() int {
+	return o.maxOutstandingReadRequests
 }

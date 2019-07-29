@@ -513,6 +513,9 @@ type databaseShard interface {
 
 // namespaceIndex indexes namespace writes.
 type namespaceIndex interface {
+	// AssignShardSet sets the shard set assignment and returns immediately.
+	AssignShardSet(shardSet sharding.ShardSet)
+
 	// BlockStartForWriteTime returns the index block start
 	// time for the given writeTime.
 	BlockStartForWriteTime(

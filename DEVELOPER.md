@@ -54,6 +54,17 @@ M3 has an extensive, and ever increasing, set of tests to ensure we are able to 
 
 Once you have identified a change you want to make, and gathered consensus by talking to some devs, go ahead and make a branch with the changes. To test your changes:
 
+(0) If you have updated an interface that has been mocked, you need to update the generated `gomock `files.
+
+```shell
+# Generate mocks for all top level packages
+make mock-gen
+
+# If you just want to generate it for a single package,
+# replace xyz with the package you want to generate files for, e.g. dbnode
+make mock-gen-xyz
+```
+
 (1) Run unit tests locally
 ```
 go test ./... -v

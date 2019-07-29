@@ -44,7 +44,7 @@ import (
 
 func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	now := time.Now().Truncate(time.Hour)
@@ -69,7 +69,7 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	defer func() {
@@ -342,7 +342,7 @@ func newTestIndex(t *testing.T, ctrl *gomock.Controller) testIndex {
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	require.NoError(t, err)
 	opts := DefaultTestOptions()
-	index, err := newNamespaceIndex(md, opts)
+	index, err := newNamespaceIndex(md, testShardSet, opts)
 	require.NoError(t, err)
 
 	return testIndex{

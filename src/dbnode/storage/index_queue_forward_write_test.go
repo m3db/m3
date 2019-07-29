@@ -90,7 +90,7 @@ func setupForwardIndex(
 	require.NoError(t, err)
 
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
 	require.NoError(t, err)
 
 	var (
@@ -276,7 +276,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	mockBlock, futureBlock, newBlockFn := createMockBlocks(ctrl, blockStart, futureStart)
 
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -316,7 +316,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 	mockBlock, futureBlock, newBlockFn := createMockBlocks(ctrl, blockStart, futureStart)
 
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -374,7 +374,7 @@ func testShardForwardWriteTaggedRefCountIndex(
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
 	opts = opts.SetIndexOptions(opts.IndexOptions().SetInsertMode(syncType))
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
 	require.NoError(t, err)
 
 	defer func() {

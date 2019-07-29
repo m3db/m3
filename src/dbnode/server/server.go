@@ -543,7 +543,9 @@ func Run(runOpts RunOptions) {
 		SetTopologyInitializer(envCfg.TopologyInitializer).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool)
+		SetTagDecoderPool(tagDecoderPool).
+		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
+		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.
