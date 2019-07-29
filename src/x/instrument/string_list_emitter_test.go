@@ -22,33 +22,54 @@ package instrument
 
 import (
 	"fmt"
-	"reflect"
-	"testing"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	promreporter "github.com/uber-go/tally/prometheus"
+	"reflect"
+	"testing"
 )
 
 var bootstrappers = [][]string{
-	[]string{
+	{
 		"filesystem",
 		"peers",
 		"commitlog",
 		"uninitialized_topology",
 	},
-	[]string{
+	{
 		"uninitialized_topology",
 		"filesystem",
 		"commitlog",
 		"peers",
 	},
-	[]string{"", "", "", ""},
-	[]string{},
+	{
+		"a",
+		"b",
+		"c",
+		"d",
+	},
+	{
+		"foo",
+		"bar",
+		"hello",
+		"world",
+		"more",
+		"labels",
+	},
+	{
+		"x",
+		"y",
+	},
+	{
+		"foo",
+	},
+	{"", "", "", ""},
+	{},
 }
 
-func TestBootstrapGaugeEmitter(t *testing.T) {
+func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
+	scope := tally.NewTestScope("testScope", nil)
 	t.Run("TestNewBootstrapGaugeEmitter", func(t *testing.T) {
-		scope := tally.NewTestScope("testScope", nil)
 		for _, bs := range bootstrappers {
 
 			bge := NewStringListEmitter(scope, "bootstrapper_bootstrappers", "bootstrapper")
@@ -174,4 +195,58 @@ func TestBootstrapGaugeEmitter(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, bge.running)
 	})
+
+	t.Run("MultipleLabelCombinations", func(t *testing.T) {
+		bge := NewStringListEmitter(scope, "bootstrapper_bootstrappers", "bootstrapper")
+		require.NotNil(t, bge)
+		require.NotNil(t, bge.gauge)
+
+		err := bge.Start(bootstrappers[0])
+		require.NoError(t, err)
+		require.True(t, bge.running)
+		require.NotNil(t, bge.gauge)
+
+		// Update same Gauge with standard bootstrappers
+		for _, bs := range bootstrappers {
+			err = bge.UpdateStringList(bs)
+			require.NoError(t, err)
+			require.True(t, bge.running)
+			require.NotNil(t, bge.gauge)
+		}
+
+		err = bge.Close()
+		require.NoError(t, err)
+		require.False(t, bge.running)
+	})
+}
+
+func TestStringListEmitterPrometheusScope(t *testing.T) {
+	r := promreporter.NewReporter(promreporter.Options{})
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Prefix:         "",
+		Tags:           map[string]string{},
+		CachedReporter: r,
+	}, 0)
+	defer closer.Close()
+
+	bge := NewStringListEmitter(scope, "bootstrappers", "bootstrapper")
+	require.NotNil(t, bge)
+	require.NotNil(t, bge.gauge)
+
+	err := bge.Start(bootstrappers[0])
+	require.NoError(t, err)
+	require.True(t, bge.running)
+	require.NotNil(t, bge.gauge)
+
+	// Update same Gauge with standard bootstrappers
+	for _, bs := range bootstrappers {
+		err = bge.UpdateStringList(bs)
+		require.NoError(t, err)
+		require.True(t, bge.running)
+		require.NotNil(t, bge.gauge)
+	}
+
+	err = bge.Close()
+	require.NoError(t, err)
+	require.False(t, bge.running)
 }
