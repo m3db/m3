@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
@@ -69,7 +69,7 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
 	})
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
 	// Set the time to one blockSize in the future (for which we do not have
 	// a fileset file) to ensure we try and use the peer bootstrapper.

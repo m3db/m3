@@ -94,6 +94,32 @@ function wait_for_db_init {
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
+  echo "Adding coldWritesNoIndex namespace"
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
+    "name": "coldWritesNoIndex",
+    "options": {
+      "bootstrapEnabled": true,
+      "flushEnabled": true,
+      "writesToCommitLog": true,
+      "cleanupEnabled": true,
+      "snapshotEnabled": true,
+      "repairEnabled": false,
+      "coldWritesEnabled": true,
+      "retentionOptions": {
+        "retentionPeriodDuration": "8h",
+        "blockSizeDuration": "1h",
+        "bufferFutureDuration": "10m",
+        "bufferPastDuration": "10m",
+        "blockDataExpiry": true,
+        "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+      }
+    }
+  }'
+
+  echo "Wait until coldWritesNoIndex namespace is init'd"
+  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.coldWritesNoIndex.coldWritesEnabled)" == true ]'
+
   echo "Wait until bootstrapped"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
