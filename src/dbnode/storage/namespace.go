@@ -325,7 +325,7 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
-		index, err = newNamespaceIndex(metadata, opts)
+		index, err = newNamespaceIndex(metadata, shardSet, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -474,6 +474,9 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
+	}
+	if idx := n.reverseIndex; idx != nil {
+		idx.AssignShardSet(shardSet)
 	}
 	n.Unlock()
 	n.closeShards(closing, false)

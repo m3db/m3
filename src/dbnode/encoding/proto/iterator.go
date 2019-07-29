@@ -259,7 +259,20 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 	if schemaDesc == nil {
 		it.schemaDesc = nil
 		it.schema = nil
-		it.customFields = nil
+
+		// Clear but don't set to nil so they don't need to be reallocated
+		// next time.
+		customFields := it.customFields
+		for i := range customFields {
+			customFields[i] = customFieldState{}
+		}
+		it.customFields = customFields[:0]
+
+		nonCustomFields := it.nonCustomFields
+		for i := range nonCustomFields {
+			nonCustomFields[i] = marshalledField{}
+		}
+		it.nonCustomFields = nonCustomFields[:0]
 		return
 	}
 

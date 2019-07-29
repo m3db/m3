@@ -3,6 +3,8 @@ kind: M3DBCluster
 metadata:
   name: test-cluster
 spec:
+  labels:
+    app: m3dbnode
   image: quay.io/m3db/m3dbnode:latest
   replicationFactor: 1
   numberOfShards: 64

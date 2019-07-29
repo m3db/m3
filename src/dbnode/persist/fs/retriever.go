@@ -415,14 +415,14 @@ func (r *blockRetriever) Stream(
 	}
 	r.RUnlock()
 
-	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
-	if !bloomFilter.Test(id.Bytes()) {
+	if !idExists {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
 		req.onRetrieved(ts.Segment{}, namespace.Context{})
 		return req.toBlock(), nil
