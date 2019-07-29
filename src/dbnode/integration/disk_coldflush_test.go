@@ -79,7 +79,13 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	warmData := []generate.BlockConfig{
 		{IDs: []string{"warm1", "warm2"}, NumPoints: 100, Start: start},
-		{IDs: []string{"warm1", "warm3"}, NumPoints: 50, Start: start.Add(blockSize)},
+		// The `coldOverwrite` series data produced from this will later be
+		// completely overwritten when cold data is flushed later in the test.
+		// In order to satisfy this assumption, `coldOverwrite` needs to be on
+		// the same block with equal or fewer NumPoints as its corresponding
+		// cold data. Since `coldOverwrite` warm data is later overwritten,
+		// we remove this from the expected `seriesMaps`.
+		{IDs: []string{"warm1", "warm3", "coldOverwrite"}, NumPoints: 50, Start: start.Add(blockSize)},
 	}
 
 	expectedDataFiles := []fs.FileSetFileIdentifier{
@@ -111,6 +117,13 @@ func TestDiskColdFlushSimple(t *testing.T) {
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 0,
 		},
+		fs.FileSetFileIdentifier{
+			// coldWrite, start + 1
+			Namespace:   nsID,
+			Shard:       8,
+			BlockStart:  start.Add(blockSize),
+			VolumeIndex: 0,
+		},
 	}
 	for _, input := range warmData {
 		testSetup.setNowFn(input.Start)
@@ -118,6 +131,10 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
 		require.NoError(t, testSetup.writeBatch(nsID, testData))
 	}
+	startPlusOneBlockNano := xtime.ToUnixNano(start.Add(blockSize))
+	// Remove warm data for `coldOverwrite`. See earlier comment for context.
+	seriesMaps[startPlusOneBlockNano] =
+		seriesMaps[startPlusOneBlockNano][:len(seriesMaps[startPlusOneBlockNano])-1]
 	log.Debug("warm data is now written")
 
 	// Advance time to make sure all data are flushed. Because data
@@ -133,7 +150,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	coldData := []generate.BlockConfig{
 		{IDs: []string{"cold0"}, NumPoints: 80, Start: start.Add(-blockSize)},
 		{IDs: []string{"cold1", "cold2", "cold3"}, NumPoints: 30, Start: start},
-		{IDs: []string{"cold1", "cold3"}, NumPoints: 20, Start: start.Add(blockSize)},
+		{IDs: []string{"cold1", "cold3", "coldOverwrite"}, NumPoints: 100, Start: start.Add(blockSize)},
 	}
 	// Set "now" to start + 3 * blockSize so that the above are cold writes.
 	testSetup.setNowFn(start.Add(blockSize * 3))
@@ -206,6 +223,13 @@ func TestDiskColdFlushSimple(t *testing.T) {
 			// cold3, start + 1
 			Namespace:   nsID,
 			Shard:       11,
+			BlockStart:  start.Add(blockSize),
+			VolumeIndex: 1,
+		},
+		fs.FileSetFileIdentifier{
+			// coldWrite, start + 1
+			Namespace:   nsID,
+			Shard:       8,
 			BlockStart:  start.Add(blockSize),
 			VolumeIndex: 1,
 		},
