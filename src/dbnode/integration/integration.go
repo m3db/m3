@@ -329,7 +329,7 @@ func writeTestSnapshotsToDiskWithPredicate(
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume,pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {
