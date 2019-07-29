@@ -196,7 +196,7 @@ func NewShardBlockStateSnapshot(
 
 // Snapshot returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
 // snapshot is bootstrapped or not.
-func (s *ShardBlockStateSnapshot) Snapshot() (BootstrappedBlockStateSnapshot, bool) {
+func (s ShardBlockStateSnapshot) Snapshot() (BootstrappedBlockStateSnapshot, bool) {
 	return s.snapshot, s.bootstrapped
 }
 
