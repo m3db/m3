@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -542,6 +543,7 @@ func (i *nsIndex) writeBatches(
 		futureLimit         = now.Add(1 * i.bufferFuture)
 		pastLimit           = now.Add(-1 * i.bufferPast)
 		batchOptions        = batch.Options()
+		coldWritesEnabled   = i.nsMetadata.Options().ColdWritesEnabled()
 		forwardIndexDice    = i.forwardIndexDice
 		forwardIndexEnabled = forwardIndexDice.enabled
 
@@ -564,14 +566,16 @@ func (i *nsIndex) writeBatches(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
 			ts := entry.Timestamp
-			if !futureLimit.After(ts) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
-				return
-			}
+			if !coldWritesEnabled {
+				if !futureLimit.After(ts) {
+					batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
+					return
+				}
 
-			if !ts.After(pastLimit) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
-				return
+				if !ts.After(pastLimit) {
+					batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+					return
+				}
 			}
 
 			if forwardIndexDice.roll(ts) {
@@ -740,11 +744,26 @@ func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceInd
 	return result, multiErr.FinalError()
 }
 
-func (i *nsIndex) Flush(
+func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
 ) error {
-	flushable, err := i.flushableBlocks(shards)
+	return i.flush(flush, shards, series.WarmWrite)
+}
+
+func (i *nsIndex) ColdFlush(
+	flush persist.IndexFlush,
+	shards []databaseShard,
+) error {
+	return i.flush(flush, shards, series.ColdWrite)
+}
+
+func (i *nsIndex) flush(
+	flush persist.IndexFlush,
+	shards []databaseShard,
+	flushType series.WriteType,
+) error {
+	flushable, err := i.flushableBlocks(shards, flushType)
 	if err != nil {
 		return err
 	}
@@ -791,6 +810,7 @@ func (i *nsIndex) Flush(
 
 func (i *nsIndex) flushableBlocks(
 	shards []databaseShard,
+	flushType series.WriteType,
 ) ([]index.Block, error) {
 	i.state.RLock()
 	defer i.state.RUnlock()
@@ -799,7 +819,7 @@ func (i *nsIndex) flushableBlocks(
 	}
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 	for _, block := range i.state.blocksByTime {
-		if !i.canFlushBlock(block, shards) {
+		if !i.canFlushBlock(block, shards, flushType) {
 			continue
 		}
 		flushable = append(flushable, block)
@@ -810,11 +830,19 @@ func (i *nsIndex) flushableBlocks(
 func (i *nsIndex) canFlushBlock(
 	block index.Block,
 	shards []databaseShard,
+	flushType series.WriteType,
 ) bool {
 	// Check the block needs flushing because it is sealed and has
 	// any mutable segments that need to be evicted from memory
-	if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
-		return false
+	switch flushType {
+	case series.WarmWrite:
+		if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
+			return false
+		}
+	case series.ColdWrite:
+		if !block.IsSealed() || !block.NeedsColdFlushMutableSegmentsEvicted() {
+			return false
+		}
 	}
 
 	// Check all data files exist for the shards we own
