@@ -185,9 +185,9 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Bootstrap(fooBlocks, gomock.Any()).Return(series.BootstrapResult{}, nil)
+	fooSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, fooBlocks, gomock.Any()).Return(series.LoadResult{}, nil)
 	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Bootstrap(barBlocks, gomock.Any()).Return(series.BootstrapResult{}, errors.New("series error"))
+	barSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, barBlocks, gomock.Any()).Return(series.LoadResult{}, errors.New("series error"))
 	barSeries.EXPECT().IsBootstrapped().Return(true)
 
 	fooID := ident.StringID("foo")
@@ -271,7 +271,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		Blocks: blocks,
 	})
 
-	// Ensure that the bootstrapped flush/block states get passed to the series.Bootstrap()
+	// Ensure that the bootstrapped flush/block states get passed to the series.Load()
 	// method properly.
 	blockStateSnapshot := series.BootstrappedBlockStateSnapshot{
 		Snapshot: map[xtime.UnixNano]series.BlockState{},
@@ -282,7 +282,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 			ColdVersion:     i,
 		}
 	}
-	mockSeries.EXPECT().Bootstrap(blocks, blockStateSnapshot)
+	mockSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, blocks, blockStateSnapshot)
 
 	err = s.Bootstrap(bootstrappedSeries)
 	require.NoError(t, err)
@@ -835,7 +835,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
 	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	if bootstrap {
-		seriesEntry.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
+		seriesEntry.Load(series.LoadOptions{Bootstrap: true}, nil, series.BootstrappedBlockStateSnapshot{})
 	}
 	shard.Lock()
 	entry := lookup.NewEntry(seriesEntry, 0)

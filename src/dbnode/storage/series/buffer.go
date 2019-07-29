@@ -377,7 +377,7 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 		// 2) remove a lower versioned bucket.
 		// Retrievable and higher versioned buckets will be left to be
 		// collected in the next tick.
-		blockStateSnapshot, bootstrapped := blockStates.Snapshot()
+		blockStateSnapshot, bootstrapped := blockStates.UnwrapValue()
 		// Only use block state snapshot information to make eviction decisions if the block state
 		// has been properly bootstrapped already.
 		if bootstrapped {

@@ -76,6 +76,7 @@ var (
 	errShardAlreadyBootstrapped            = errors.New("shard is already bootstrapped")
 	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
 	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
+	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
 )
 
 type filesetsFn func(
@@ -1258,7 +1259,10 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		_, err := entry.Series.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
+		_, err := entry.Series.Load(
+			series.LoadOptions{Bootstrap: true},
+			nil,
+			series.BootstrappedBlockStateSnapshot{})
 		if err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
@@ -1344,7 +1348,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			_, err := entry.Series.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
+			_, err := entry.Series.Load(
+				series.LoadOptions{Bootstrap: true},
+				nil,
+				series.BootstrappedBlockStateSnapshot{})
 			if err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
@@ -1802,7 +1809,7 @@ func (s *dbShard) Bootstrap(
 
 	// Iterate flushed time ranges to determine which blocks are retrievable. This step happens
 	// first because the flushState information is required for bootstrapping individual series
-	// (will be passed to series.Bootstrap() as BlockState).
+	// (will be passed to series.Load() as BlockState).
 	s.bootstrapFlushStates()
 
 	multiErr := xerrors.NewMultiError()
@@ -1827,7 +1834,10 @@ func (s *dbShard) Bootstrap(
 		if seriesEntry.IsBootstrapped() {
 			return true
 		}
-		_, err := seriesEntry.Bootstrap(nil, series.BootstrappedBlockStateSnapshot{})
+		_, err := seriesEntry.Load(
+			series.LoadOptions{Bootstrap: true},
+			nil,
+			series.BootstrappedBlockStateSnapshot{})
 		multiErr = multiErr.Add(err)
 		return true
 	})
@@ -1847,8 +1857,12 @@ func (s *dbShard) Bootstrap(
 }
 
 func (s *dbShard) Load(
-	series *result.Map,
+	seriesToLoad *result.Map,
 ) error {
+	if seriesToLoad == nil {
+		return errTriedToLoadNilSeries
+	}
+
 	s.Lock()
 	// Don't allow loads until the shard is bootstrapped because the shard flush states need to be
 	// bootstrapped in order to safely load blocks. This also keeps things simpler to reason about.
@@ -1858,15 +1872,15 @@ func (s *dbShard) Load(
 	}
 	s.Unlock()
 
-	_, err := s.loadSeries(series, false)
+	_, err := s.loadSeries(seriesToLoad, false)
 	return err
 }
 
 func (s *dbShard) loadSeries(
-	series *result.Map,
+	seriesToLoad *result.Map,
 	bootstrap bool,
 ) (dbShardBootstrapResult, error) {
-	if series == nil {
+	if seriesToLoad == nil {
 		return dbShardBootstrapResult{}, nil
 	}
 
@@ -1878,11 +1892,11 @@ func (s *dbShard) loadSeries(
 	// Safe to use the same snapshot for all the series since the block states can't change while
 	// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
 	blockStates := s.BlockStatesSnapshot()
-	blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
 		return dbShardBootstrapResult{}, errFlushStateIsNotBootstrapped
 	}
-	for _, elem := range series.Iter() {
+	for _, elem := range seriesToLoad.Iter() {
 		dbBlocks := elem.Value()
 
 		// First lookup if series already exists
@@ -1911,14 +1925,16 @@ func (s *dbShard) loadSeries(
 			dbBlocks.Tags.Finalize()
 		}
 
+		loadOpts := series.LoadOptions{Bootstrap: bootstrap}
+		loadResult, err := entry.Series.Load(
+			loadOpts,
+			dbBlocks.Blocks,
+			blockStatesSnapshot)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 		if bootstrap {
-			bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks, blockStatesSnapshot)
-			if err != nil {
-				multiErr = multiErr.Add(err)
-			}
-			shardBootstrapResult.update(bsResult)
-		} else {
-			entry.Series.Load(dbBlocks.Blocks, blockStatesSnapshot)
+			shardBootstrapResult.update(loadResult.Bootstrap)
 		}
 		// Cannot close blocks once done as series takes ref to them.
 
@@ -2091,7 +2107,7 @@ func (s *dbShard) ColdFlush(
 	)
 
 	blockStates := s.BlockStatesSnapshot()
-	blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
 		return errFlushStateIsNotBootstrapped
 	}
@@ -2371,7 +2387,7 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 	// locks in a tight loop below. This snapshot won't become stale halfway
 	// through this because flushing and cleanup never happen in parallel.
 	blockStates := s.BlockStatesSnapshot()
-	blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
 		return errFlushStateIsNotBootstrapped
 	}

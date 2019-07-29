@@ -205,7 +205,7 @@ func (s *dbSeries) updateBlocksWithLock(
 
 		// Potentially unwire
 		var unwired, shouldUnwire bool
-		blockStatesSnapshot, bootstrapped := blockStates.Snapshot()
+		blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 		// Only use block state snapshot information to make eviction decisions if the block state
 		// has been properly bootstrapped already.
 		if bootstrapped {
@@ -415,7 +415,21 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	s.cachedBlocks.AddBlock(b)
 }
 
-func (s *dbSeries) Bootstrap(
+func (s *dbSeries) Load(
+	opts LoadOptions,
+	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blockStates BootstrappedBlockStateSnapshot,
+) (LoadResult, error) {
+	if opts.Bootstrap {
+		bsResult, err := s.bootstrap(bootstrappedBlocks, blockStates)
+		return LoadResult{Bootstrap: bsResult}, err
+	}
+
+	s.load(bootstrappedBlocks, blockStates)
+	return LoadResult{}, nil
+}
+
+func (s *dbSeries) bootstrap(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
 	blockStates BootstrappedBlockStateSnapshot,
 ) (BootstrapResult, error) {
@@ -440,7 +454,7 @@ func (s *dbSeries) Bootstrap(
 	return result, nil
 }
 
-func (s *dbSeries) Load(
+func (s *dbSeries) load(
 	bootstrappedBlocks block.DatabaseSeriesBlocks,
 	blockStates BootstrappedBlockStateSnapshot,
 ) {

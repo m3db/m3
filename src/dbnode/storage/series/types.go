@@ -102,12 +102,12 @@ type DatabaseSeries interface {
 	// IsBootstrapped returns whether the series is bootstrapped or not.
 	IsBootstrapped() bool
 
-	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates BootstrappedBlockStateSnapshot) (BootstrapResult, error)
-
-	// Load does the same thing as Bootstrap except it should be used for data that did
-	// not originate from the Bootstrap process (like background repairs).
-	Load(blocks block.DatabaseSeriesBlocks, blockStates BootstrappedBlockStateSnapshot)
+	// Load loads data into the series.
+	Load(
+		opts LoadOptions,
+		blocks block.DatabaseSeriesBlocks,
+		blockStates BootstrappedBlockStateSnapshot,
+	) (LoadResult, error)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -194,9 +194,9 @@ func NewShardBlockStateSnapshot(
 	}
 }
 
-// Snapshot returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
+// UnwrapValue returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
 // snapshot is bootstrapped or not.
-func (s ShardBlockStateSnapshot) Snapshot() (BootstrappedBlockStateSnapshot, bool) {
+func (s ShardBlockStateSnapshot) UnwrapValue() (BootstrappedBlockStateSnapshot, bool) {
 	return s.snapshot, s.bootstrapped
 }
 
@@ -263,15 +263,6 @@ const (
 	// to disk successfully.
 	FlushOutcomeFlushedToDisk
 )
-
-// BootstrapResult contains information about the result of bootstrapping a series.
-// It is returned from the series Bootstrap method primarily so the caller can aggregate
-// and emit metrics instead of the series itself having to store additional fields (which
-// would be costly because we have millions of them.)
-type BootstrapResult struct {
-	NumBlocksMovedToBuffer int64
-	NumBlocksMerged        int64
-}
 
 // Options represents the options for series
 type Options interface {
@@ -416,4 +407,26 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
+}
+
+// LoadOptions contains the options for the Load() method.
+type LoadOptions struct {
+	// Whether the call to Bootstrap should be considered a "true" bootstrap
+	// or if additional data is being loaded after the fact (as in the case
+	// of repairs).
+	Bootstrap bool
+}
+
+// LoadResult contains the return information for the Load() method.
+type LoadResult struct {
+	Bootstrap BootstrapResult
+}
+
+// BootstrapResult contains information about the result of bootstrapping a series.
+// It is returned from the series Bootstrap method primarily so the caller can aggregate
+// and emit metrics instead of the series itself having to store additional fields (which
+// would be costly because we have millions of them.)
+type BootstrapResult struct {
+	NumBlocksMovedToBuffer int64
+	NumBlocksMerged        int64
 }
