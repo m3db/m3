@@ -47,7 +47,7 @@ type StringListEmitter struct {
 	running   bool
 	doneCh    chan bool
 	scope     tally.Scope
-	gauge     tally.Gauge
+	gauges    []tally.Gauge
 	name      string
 	tagPrefix string
 }
@@ -55,27 +55,35 @@ type StringListEmitter struct {
 // NewStringListEmitter returns a StringListEmitter. The name and tagPrefix
 // arguments are used by the Start() and UpdateStringList() function to set
 // the name and tags on the gauge.
-func NewStringListEmitter(scope tally.Scope, name, tagPrefix string) *StringListEmitter {
-	gauge := tally.NoopScope.Gauge("blackhole")
+func NewStringListEmitter(scope tally.Scope, name string) *StringListEmitter {
+	gauge := []tally.Gauge{tally.NoopScope.Gauge("blackhole")}
 	return &StringListEmitter{
-		running:   false,
-		doneCh:    make(chan bool, 1),
-		scope:     scope,
-		gauge:     gauge,
-		name:      name,
-		tagPrefix: tagPrefix,
+		running: false,
+		doneCh:  make(chan bool, 1),
+		scope:   scope,
+		gauges:  gauge,
+		name:    name,
 	}
 }
 
-func (bge *StringListEmitter) newGauge(scope tally.Scope, sl []string) tally.Gauge {
-	tags := make(map[string]string, len(sl))
+func (bge *StringListEmitter) newGauges(scope tally.Scope, sl []string) []tally.Gauge {
+	gauges := make([]tally.Gauge, len(sl))
 	for i, v := range sl {
-		tags[fmt.Sprintf("%s%d", bge.tagPrefix, i)] = v
+		name := fmt.Sprintf("%s%d", bge.name, i)
+		g := scope.Tagged(map[string]string{"type": v}).Gauge(name)
+		g.Update(1)
+		gauges[i] = g
 	}
-	g := scope.Tagged(tags).Gauge(bge.name)
-	g.Update(1)
 
-	return g
+	return gauges
+}
+
+// update updates the Gauges on the StringListEmitter. Client should acquire a
+// Lock before updating.
+func (bge *StringListEmitter) update(val float64) {
+	for _, gauge := range bge.gauges {
+		gauge.Update(val)
+	}
 }
 
 // Start starts a goroutine that continuously emits the value of the gauge.
@@ -87,7 +95,7 @@ func (bge *StringListEmitter) Start(sl []string) error {
 		return errStringListEmitterAlreadyRunning
 	}
 
-	bge.gauge = bge.newGauge(bge.scope, sl)
+	bge.gauges = bge.newGauges(bge.scope, sl)
 
 	bge.running = true
 	go func() {
@@ -97,7 +105,7 @@ func (bge *StringListEmitter) Start(sl []string) error {
 				return
 			default:
 				bge.Lock()
-				bge.gauge.Update(1)
+				bge.update(1)
 				bge.Unlock()
 				time.Sleep(stringListEmitterWaitInterval)
 			}
@@ -117,9 +125,9 @@ func (bge *StringListEmitter) UpdateStringList(sl []string) error {
 		return errStringListEmitterNotStarted
 	}
 
-	bge.gauge.Update(0)
+	bge.update(0)
 
-	bge.gauge = bge.newGauge(bge.scope, sl)
+	bge.gauges = bge.newGauges(bge.scope, sl)
 
 	return nil
 }
