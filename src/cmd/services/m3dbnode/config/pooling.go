@@ -65,7 +65,15 @@ var (
 
 	defaultPoolPolicies = map[string]poolPolicyDefault{
 		"tagsIterator": defaultPoolPolicy,
-		"indexResults": defaultPoolPolicy,
+		"indexResults": poolPolicyDefault{
+			// NB(r): There only needs to be one index results map per
+			// concurrent query, so as long as there is no more than
+			// the number of concurrent index queries than the size
+			// specified here the maps should be recycled.
+			size:                1024,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
 		"tagEncoder": poolPolicyDefault{
 			// NB(r): Tag encoder is used for every individual time series
 			// returned from an index query since it needs to encode the tags
