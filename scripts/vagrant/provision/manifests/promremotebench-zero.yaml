@@ -38,9 +38,9 @@ spec:
         - name: PROMREMOTEBENCH_QUERY_TARGET
           value: "http://m3coordinator-dedicated-test-cluster:7201/api/v1/query_range"
         - name: PROMREMOTEBENCH_QUERY_CONCURRENCY
-          value: "10"
+          value: "20"
         - name: PROMREMOTEBENCH_QUERY_NUM_SERIES
-          value: "5000"
+          value: "1000"
         - name: PROMREMOTEBENCH_QUERY_STEP
           value: "1m"
         - name: PROMREMOTEBENCH_QUERY_RANGE
@@ -50,6 +50,6 @@ spec:
         - name: PROMREMOTEBENCH_QUERY_LABELS_JSON_ENV
           value: "{\"generator\":\"PROMREMOTEBENCH_POD_NAME\"}"
         - name: PROMREMOTEBENCH_QUERY_SLEEP
-          value: "1s"
+          value: "100ms"
         - name: PROMREMOTEBENCH_QUERY_DEBUG
           value: "false"
