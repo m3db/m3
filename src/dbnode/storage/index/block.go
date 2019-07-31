@@ -827,7 +827,7 @@ func (b *block) queryWithSpan(
 		batchSize = defaultQueryDocsBatchSize
 	}
 
-	// Register local components that need closing.
+	// Register local data structures that need closing.
 	defer func() {
 		iterCloser.Close()
 		docsPool.Put(batch)
@@ -866,7 +866,6 @@ func (b *block) queryWithSpan(
 	if err := iter.Err(); err != nil {
 		return false, err
 	}
-
 	if err := iterCloser.Close(); err != nil {
 		return false, err
 	}
