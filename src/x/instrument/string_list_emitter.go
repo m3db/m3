@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	// stringListEmitterWaitInterval defines the time to wait between emitting the value of the Gauge
-	// again.
+	// stringListEmitterWaitInterval defines the time to wait between emitting
+	// the value of the Gauge again.
 	stringListEmitterWaitInterval = 10 * time.Second
 )
 
@@ -40,8 +40,7 @@ var (
 	errStringListEmitterNotStarted     = errors.New("string list emitter: not running")
 )
 
-// StringListEmitter emits a gauge where its tags indicate the order of a
-// list of strings.
+// StringListEmitter emits a gauges indicating the order of a list of strings.
 type StringListEmitter struct {
 	sync.Mutex
 	running   bool
@@ -52,9 +51,7 @@ type StringListEmitter struct {
 	tagPrefix string
 }
 
-// NewStringListEmitter returns a StringListEmitter. The name and tagPrefix
-// arguments are used by the Start() and UpdateStringList() function to set
-// the name and tags on the gauge.
+// NewStringListEmitter returns a StringListEmitter.
 func NewStringListEmitter(scope tally.Scope, name string) *StringListEmitter {
 	gauge := []tally.Gauge{tally.NoopScope.Gauge("blackhole")}
 	return &StringListEmitter{
@@ -66,10 +63,11 @@ func NewStringListEmitter(scope tally.Scope, name string) *StringListEmitter {
 	}
 }
 
-func (bge *StringListEmitter) newGauges(scope tally.Scope, sl []string) []tally.Gauge {
+// newGauges creates a gauge per string in a passed list of strings.
+func (sle *StringListEmitter) newGauges(scope tally.Scope, sl []string) []tally.Gauge {
 	gauges := make([]tally.Gauge, len(sl))
 	for i, v := range sl {
-		name := fmt.Sprintf("%s_%d", bge.name, i)
+		name := fmt.Sprintf("%s_%d", sle.name, i)
 		g := scope.Tagged(map[string]string{"type": v}).Gauge(name)
 		g.Update(1)
 		gauges[i] = g
@@ -80,33 +78,33 @@ func (bge *StringListEmitter) newGauges(scope tally.Scope, sl []string) []tally.
 
 // update updates the Gauges on the StringListEmitter. Client should acquire a
 // Lock before updating.
-func (bge *StringListEmitter) update(val float64) {
-	for _, gauge := range bge.gauges {
+func (sle *StringListEmitter) update(val float64) {
+	for _, gauge := range sle.gauges {
 		gauge.Update(val)
 	}
 }
 
-// Start starts a goroutine that continuously emits the value of the gauge.
-func (bge *StringListEmitter) Start(sl []string) error {
-	bge.Lock()
-	defer bge.Unlock()
+// Start starts a goroutine that continuously emits the value of the gauges
+func (sle *StringListEmitter) Start(sl []string) error {
+	sle.Lock()
+	defer sle.Unlock()
 
-	if bge.running {
+	if sle.running {
 		return errStringListEmitterAlreadyRunning
 	}
 
-	bge.gauges = bge.newGauges(bge.scope, sl)
+	sle.gauges = sle.newGauges(sle.scope, sl)
 
-	bge.running = true
+	sle.running = true
 	go func() {
 		for {
 			select {
-			case <-bge.doneCh:
+			case <-sle.doneCh:
 				return
 			default:
-				bge.Lock()
-				bge.update(1)
-				bge.Unlock()
+				sle.Lock()
+				sle.update(1)
+				sle.Unlock()
 				time.Sleep(stringListEmitterWaitInterval)
 			}
 		}
@@ -114,35 +112,35 @@ func (bge *StringListEmitter) Start(sl []string) error {
 	return nil
 }
 
-// UpdateStringList updates the gauge with new tags according to the passed
-// list of strings. It will first set the old gauge to 0, then emit a
-// new metric with the same name but different tags.
-func (bge *StringListEmitter) UpdateStringList(sl []string) error {
-	bge.Lock()
-	defer bge.Unlock()
+// UpdateStringList updates the gauges according to the passed
+// list of strings. It will first set the old gauges to 0, then emit
+// new metrics with different values for the "type" label.
+func (sle *StringListEmitter) UpdateStringList(sl []string) error {
+	sle.Lock()
+	defer sle.Unlock()
 
-	if !bge.running {
+	if !sle.running {
 		return errStringListEmitterNotStarted
 	}
 
-	bge.update(0)
+	sle.update(0)
 
-	bge.gauges = bge.newGauges(bge.scope, sl)
+	sle.gauges = sle.newGauges(sle.scope, sl)
 
 	return nil
 }
 
 // Close stops emitting the gauge.
-func (bge *StringListEmitter) Close() error {
-	bge.Lock()
-	defer bge.Unlock()
+func (sle *StringListEmitter) Close() error {
+	sle.Lock()
+	defer sle.Unlock()
 
-	if !bge.running {
+	if !sle.running {
 		return errStringListEmitterNotStarted
 	}
 
-	bge.running = false
-	close(bge.doneCh)
+	sle.running = false
+	close(sle.doneCh)
 
 	return nil
 }
