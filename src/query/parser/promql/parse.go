@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
+	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -273,7 +274,9 @@ func (p *parseState) walk(node pql.Node) error {
 				if e, ok := expr.(*pql.MatrixSelector); ok {
 					argValues = append(argValues, e.Range)
 				} else if _, ok := expr.(*pql.VectorSelector); ok {
-					argValues = append(argValues, struct{}{})
+					if variadic != 0 && n.Func.Name != linear.RoundType {
+						argValues = append(argValues, struct{}{})
+					}
 				}
 
 				if err := p.walk(expr); err != nil {
@@ -284,7 +287,6 @@ func (p *parseState) walk(node pql.Node) error {
 
 		// NB: Variadic function with additional args that are appended to the end
 		// of the arg list.
-		fmt.Println(exprCount, numVals)
 		if variadic != 0 && exprCount > numVals {
 			for _, expr := range expressions[numVals:] {
 				if argTypes[argCount-1] == pql.ValueTypeString {
