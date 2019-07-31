@@ -206,7 +206,7 @@ func NewFunctionExpr(
 	case linear.DayOfMonthType, linear.DayOfWeekType,
 		linear.DaysInMonthType, linear.HourType,
 		linear.MinuteType, linear.MonthType, linear.YearType:
-		p, err = linear.NewDateOp(name)
+		p, err = linear.NewDateOp(argValues, name)
 		return p, true, err
 
 	case tag.TagJoinType, tag.TagReplaceType:

@@ -228,11 +228,37 @@ func (p *parseState) walk(node pql.Node) error {
 			return nil
 		}
 
-		expressions := n.Args
-		argTypes := n.Func.ArgTypes
-		argValues := make([]interface{}, 0, len(expressions))
-		stringValues := make([]string, 0, len(expressions))
-		for i, argType := range argTypes {
+		var (
+			// argTypes describes Prom's expected argument types for this call.
+			argTypes = n.Func.ArgTypes
+			// expressions describes the actual arguments for this call.
+			expressions = n.Args
+			argCount    = len(argTypes)
+			exprCount   = len(expressions)
+			numVals     = argCount
+			variadic    = n.Func.Variadic
+		)
+
+		if variadic == 0 {
+			if argCount != exprCount {
+				return fmt.Errorf("incorrect number of expressions(%d) for %q, "+
+					"received %d", exprCount, n.Func.Name, argCount)
+			}
+		} else {
+			if argCount-1 > exprCount {
+				return fmt.Errorf("incorrect number of expressions(%d) for variadic "+
+					"function %q, received %d", exprCount, n.Func.Name, argCount)
+			}
+
+			if argCount != exprCount {
+				numVals--
+			}
+		}
+
+		argValues := make([]interface{}, 0, exprCount)
+		stringValues := make([]string, 0, exprCount)
+		for i := 0; i < numVals; i++ {
+			argType := argTypes[i]
 			expr := expressions[i]
 			if argType == pql.ValueTypeScalar {
 				val, err := resolveScalarArgument(expr)
@@ -246,6 +272,8 @@ func (p *parseState) walk(node pql.Node) error {
 			} else {
 				if e, ok := expr.(*pql.MatrixSelector); ok {
 					argValues = append(argValues, e.Range)
+				} else if _, ok := expr.(*pql.VectorSelector); ok {
+					argValues = append(argValues, struct{}{})
 				}
 
 				if err := p.walk(expr); err != nil {
@@ -254,11 +282,22 @@ func (p *parseState) walk(node pql.Node) error {
 			}
 		}
 
-		if n.Func.Variadic == -1 {
-			l := len(argTypes)
-			for _, expr := range expressions[l:] {
-				if argTypes[l-1] == pql.ValueTypeString {
+		// NB: Variadic function with additional args that are appended to the end
+		// of the arg list.
+		fmt.Println(exprCount, numVals)
+		if variadic != 0 && exprCount > numVals {
+			for _, expr := range expressions[numVals:] {
+				if argTypes[argCount-1] == pql.ValueTypeString {
 					stringValues = append(stringValues, expr.(*pql.StringLiteral).Val)
+				} else if argTypes[argCount-1] == pql.ValueTypeVector {
+					argValues = append(argValues, struct{}{})
+				} else {
+					s, err := resolveScalarArgument(expr)
+					if err != nil {
+						return err
+					}
+
+					argValues = append(argValues, s)
 				}
 			}
 		}
