@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -95,9 +96,10 @@ type namespaceReaderManager struct {
 	filesetExistsFn fsFileSetExistsFn
 	newReaderFn     fsNewReaderFn
 
-	namespace namespace.Metadata
-	fsOpts    fs.Options
-	bytesPool pool.CheckedBytesPool
+	namespace         namespace.Metadata
+	fsOpts            fs.Options
+	blockLeaseManager block.LeaseManager
+	bytesPool         pool.CheckedBytesPool
 
 	logger *zap.Logger
 
@@ -115,6 +117,7 @@ type cachedOpenReaderKey struct {
 }
 
 type readerPosition struct {
+	volume      int
 	dataIdx     int
 	metadataIdx int
 }
@@ -150,26 +153,39 @@ func newNamespaceReaderManager(
 	namespaceScope tally.Scope,
 	opts Options,
 ) databaseNamespaceReaderManager {
-	return &namespaceReaderManager{
-		filesetExistsFn: fs.DataFileSetExists,
-		newReaderFn:     fs.NewReader,
-		namespace:       namespace,
-		fsOpts:          opts.CommitLogOptions().FilesystemOptions(),
-		bytesPool:       opts.BytesPool(),
-		logger:          opts.InstrumentOptions().Logger(),
-		openReaders:     make(map[cachedOpenReaderKey]cachedReader),
-		metrics:         newNamespaceReaderManagerMetrics(namespaceScope),
+	blm := opts.BlockLeaseManager()
+	mgr := &namespaceReaderManager{
+		filesetExistsFn:   fs.DataFileSetExists,
+		newReaderFn:       fs.NewReader,
+		namespace:         namespace,
+		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
+		blockLeaseManager: blm,
+		bytesPool:         opts.BytesPool(),
+		logger:            opts.InstrumentOptions().Logger(),
+		openReaders:       make(map[cachedOpenReaderKey]cachedReader),
+		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
 	}
+
+	blm.RegisterLeaser(mgr)
+
+	return mgr
 }
 
 func (m *namespaceReaderManager) filesetExistsAt(
 	shard uint32,
 	blockStart time.Time,
 ) (bool, error) {
-	// TODO(juchan): get the actual volume here.
-	vol := 0
+	state, err := m.blockLeaseManager.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace.ID(),
+		Shard:      shard,
+		BlockStart: blockStart,
+	})
+	if err != nil {
+		return false, err
+	}
+
 	return m.filesetExistsFn(m.fsOpts.FilePathPrefix(),
-		m.namespace.ID(), shard, blockStart, vol)
+		m.namespace.ID(), shard, blockStart, state.Volume)
 }
 
 type cachedReaderForKeyResult struct {
@@ -238,10 +254,28 @@ func (m *namespaceReaderManager) get(
 	blockStart time.Time,
 	position readerPosition,
 ) (fs.DataFileSetReader, error) {
+	state, err := m.blockLeaseManager.OpenLatestLease(m, block.LeaseDescriptor{
+		Namespace:  m.namespace.ID(),
+		Shard:      shard,
+		BlockStart: blockStart,
+	})
+	if err != nil {
+		return nil, err
+	}
+	latestVolume := state.Volume
+
+	// If requesting an outdated volume, we need to go back to the beginning
+	// again and read the latest volume.
+	if position.volume < latestVolume {
+		position.dataIdx = 0
+		position.metadataIdx = 0
+	}
+
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
 		position:   position,
+		volume:     latestVolume,
 	}
 
 	lookup, err := m.cachedReaderForKey(key)
@@ -255,14 +289,13 @@ func (m *namespaceReaderManager) get(
 	// We have a closed reader from the cache (either a cached closed
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
-	// TODO(juchan): get the actual volume here.
-	vol := 0
+
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   m.namespace.ID(),
 			Shard:       shard,
 			BlockStart:  blockStart,
-			VolumeIndex: vol,
+			VolumeIndex: latestVolume,
 		},
 	}
 	if err := reader.Open(openOpts); err != nil {
@@ -336,6 +369,8 @@ func (m *namespaceReaderManager) tick() {
 }
 
 func (m *namespaceReaderManager) close() {
+	m.blockLeaseManager.UnregisterLeaser(m)
+
 	// Perform a tick but make the threshold zero so all readers must be expired
 	m.tickWithThreshold(0)
 }
@@ -379,4 +414,27 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 		// Save the mutated copy back to the map
 		m.openReaders[key] = elem
 	}
+}
+
+// UpdateOpenLease() implements block.Leaser.
+func (m *namespaceReaderManager) UpdateOpenLease(
+	descriptor block.LeaseDescriptor,
+	state block.LeaseState,
+) (block.UpdateOpenLeaseResult, error) {
+	if !m.namespace.ID().Equal(descriptor.Namespace) {
+		return block.NoOpenLease, nil
+	}
+
+	m.Lock()
+	// Remove open readers with matching key but lower volume.
+	for readerKey := range m.openReaders {
+		if readerKey.shard == descriptor.Shard &&
+			readerKey.blockStart == xtime.ToUnixNano(descriptor.BlockStart) &&
+			readerKey.volume < state.Volume {
+			delete(m.openReaders, readerKey)
+		}
+	}
+	m.Unlock()
+
+	return 0, nil
 }
