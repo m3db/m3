@@ -69,7 +69,7 @@ func NewStringListEmitter(scope tally.Scope, name string) *StringListEmitter {
 func (bge *StringListEmitter) newGauges(scope tally.Scope, sl []string) []tally.Gauge {
 	gauges := make([]tally.Gauge, len(sl))
 	for i, v := range sl {
-		name := fmt.Sprintf("%s%d", bge.name, i)
+		name := fmt.Sprintf("%s_%d", bge.name, i)
 		g := scope.Tagged(map[string]string{"type": v}).Gauge(name)
 		g.Update(1)
 		gauges[i] = g

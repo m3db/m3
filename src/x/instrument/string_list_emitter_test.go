@@ -22,10 +22,12 @@ package instrument
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	promreporter "github.com/uber-go/tally/prometheus"
 )
 
 var bootstrappers = [][]string{
@@ -124,10 +126,10 @@ func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
 		require.Equal(t, len(bs0), len(gauges), "length of gauges after start")
 
 		for _, id := range []string{
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs0[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs0[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs0[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs0[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs0[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs0[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs0[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs0[3]),
 		} {
 			g, ok := gauges[id]
 			require.True(t, ok)
@@ -145,14 +147,14 @@ func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
 		gauges = scope.Snapshot().Gauges()
 		require.Equal(t, 8, len(gauges), "length of gauges after updating")
 		for i, id := range []string{
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs0[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs0[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs0[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs0[3]),
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs1[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs1[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs1[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs1[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs0[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs0[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs0[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs0[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs1[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs1[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs1[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs1[3]),
 		} {
 			g, ok := gauges[id]
 			require.True(t, ok)
@@ -173,14 +175,14 @@ func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
 		gauges = scope.Snapshot().Gauges()
 		require.Equal(t, 8, len(gauges), "length of gauges after updating")
 		for i, id := range []string{
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs0[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs0[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs0[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs0[3]),
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs1[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs1[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs1[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs1[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs0[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs0[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs0[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs0[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs1[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs1[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs1[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs1[3]),
 		} {
 			g, ok := gauges[id]
 			require.True(t, ok)
@@ -201,14 +203,14 @@ func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
 		gauges = scope.Snapshot().Gauges()
 		require.Equal(t, 8, len(gauges), "length of gauges after updating")
 		for i, id := range []string{
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs0[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs0[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs0[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs0[3]),
-			fmt.Sprintf("testScope.bootstrappers0+type=%s", bs1[0]),
-			fmt.Sprintf("testScope.bootstrappers1+type=%s", bs1[1]),
-			fmt.Sprintf("testScope.bootstrappers2+type=%s", bs1[2]),
-			fmt.Sprintf("testScope.bootstrappers3+type=%s", bs1[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs0[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs0[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs0[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs0[3]),
+			fmt.Sprintf("testScope.bootstrappers_0+type=%s", bs1[0]),
+			fmt.Sprintf("testScope.bootstrappers_1+type=%s", bs1[1]),
+			fmt.Sprintf("testScope.bootstrappers_2+type=%s", bs1[2]),
+			fmt.Sprintf("testScope.bootstrappers_3+type=%s", bs1[3]),
 		} {
 			g, ok := gauges[id]
 			require.True(t, ok)
@@ -247,4 +249,34 @@ func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, bge.running)
 	})
+}
+
+func TestStringListEmitterPrometheusScope(t *testing.T) {
+	r := promreporter.NewReporter(promreporter.Options{})
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Prefix:         "",
+		Tags:           map[string]string{},
+		CachedReporter: r,
+	}, 0)
+	defer closer.Close()
+
+	bge := NewStringListEmitter(scope, "bootstrappers")
+	require.NotNil(t, bge)
+	require.NotNil(t, bge.gauges)
+
+	err := bge.Start(bootstrappers[0])
+	require.NoError(t, err)
+	require.True(t, bge.running)
+	require.NotNil(t, bge.gauges)
+
+	for _, bs := range bootstrappers {
+		err = bge.UpdateStringList(bs)
+		require.NoError(t, err)
+		require.True(t, bge.running)
+		require.NotNil(t, bge.gauges)
+	}
+
+	err = bge.Close()
+	require.NoError(t, err)
+	require.False(t, bge.running)
 }
