@@ -697,7 +697,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
 
-	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers", "bootstrapper")
+	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers")
 	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
 		logger.Error("unable to start emitting bootstrap gauge",
 			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),
