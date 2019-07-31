@@ -1718,6 +1718,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			tokenBlockStart = time.Time{}
 
 			pos.metadataIdx = int(flushedPhase.CurrBlockEntryIdx)
+			pos.volume = int(flushedPhase.Volume)
 		}
 
 		// Open a reader at this position, potentially from cache
@@ -1766,15 +1767,24 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		// Return the reader to the cache
-		endPos := int64(reader.MetadataRead())
-		s.namespaceReaderMgr.put(reader)
+		err = s.namespaceReaderMgr.put(reader)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		if numResults >= limit {
+			endPos := int64(reader.MetadataRead())
+			// This volume may be different from the one initialliy requested,
+			// e.g. if there was a compaction between the last call and this
+			// one.
+			volume := int64(reader.Status().Volume)
+
 			// We hit the limit, return results with page token
 			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
 					CurrBlockStartUnixNanos: blockStart.UnixNano(),
 					CurrBlockEntryIdx:       endPos,
+					Volume:                  volume,
 				},
 			}
 			data, err := proto.Marshal(token)

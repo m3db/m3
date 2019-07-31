@@ -43,15 +43,6 @@ func TestProtoCommitLogBootstrapColdWrites(t *testing.T) {
 }
 
 func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
-	// TODO(juchan): this test will periodically fail until this issue is
-	// resolved: https://github.com/m3db/m3/issues/1747
-	// When issuing a fetch, if commit log data is still in memory, all data
-	// will be found. However, if commit log data has been evicted, the DB will
-	// try to read from disk. However, since the namespace readers is hard coded
-	// to look at volume 0, the commit log data which has been compacted to a
-	// fileset with a higher volume number will not be found.
-	t.SkipNow()
-
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}

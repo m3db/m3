@@ -70,7 +70,7 @@ type databaseNamespaceReaderManager interface {
 		position readerPosition,
 	) (fs.DataFileSetReader, error)
 
-	put(reader fs.DataFileSetReader)
+	put(reader fs.DataFileSetReader) error
 
 	tick()
 
@@ -171,21 +171,33 @@ func newNamespaceReaderManager(
 	return mgr
 }
 
-func (m *namespaceReaderManager) filesetExistsAt(
+func (m *namespaceReaderManager) latestVolume(
 	shard uint32,
 	blockStart time.Time,
-) (bool, error) {
+) (int, error) {
 	state, err := m.blockLeaseManager.OpenLatestLease(m, block.LeaseDescriptor{
 		Namespace:  m.namespace.ID(),
 		Shard:      shard,
 		BlockStart: blockStart,
 	})
 	if err != nil {
+		return -1, err
+	}
+
+	return state.Volume, nil
+}
+
+func (m *namespaceReaderManager) filesetExistsAt(
+	shard uint32,
+	blockStart time.Time,
+) (bool, error) {
+	latestVolume, err := m.latestVolume(shard, blockStart)
+	if err != nil {
 		return false, err
 	}
 
 	return m.filesetExistsFn(m.fsOpts.FilePathPrefix(),
-		m.namespace.ID(), shard, blockStart, state.Volume)
+		m.namespace.ID(), shard, blockStart, latestVolume)
 }
 
 type cachedReaderForKeyResult struct {
@@ -254,18 +266,13 @@ func (m *namespaceReaderManager) get(
 	blockStart time.Time,
 	position readerPosition,
 ) (fs.DataFileSetReader, error) {
-	state, err := m.blockLeaseManager.OpenLatestLease(m, block.LeaseDescriptor{
-		Namespace:  m.namespace.ID(),
-		Shard:      shard,
-		BlockStart: blockStart,
-	})
+	latestVolume, err := m.latestVolume(shard, blockStart)
 	if err != nil {
 		return nil, err
 	}
-	latestVolume := state.Volume
 
-	// If requesting an outdated volume, we need to go back to the beginning
-	// again and read the latest volume.
+	// If requesting an outdated volume, we need to start again reading from
+	// the beginning of the latest volume.
 	if position.volume < latestVolume {
 		position.dataIdx = 0
 		position.metadataIdx = 0
@@ -274,8 +281,8 @@ func (m *namespaceReaderManager) get(
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
-		position:   position,
 		volume:     latestVolume,
+		position:   position,
 	}
 
 	lookup, err := m.cachedReaderForKey(key)
@@ -329,7 +336,7 @@ func (m *namespaceReaderManager) get(
 	return reader, nil
 }
 
-func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
+func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	status := reader.Status()
 
 	m.Lock()
@@ -337,11 +344,35 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
 
 	if !status.Open {
 		m.pushClosedReaderWithLock(reader)
+		return nil
+	}
+
+	shard := status.Shard
+
+	latestVolume, err := m.latestVolume(shard, status.BlockStart)
+	if err != nil {
+		return err
+	}
+
+	closeAndAddReader := func() {
+		if err := reader.Close(); err != nil {
+			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
+			return
+		}
+		m.pushClosedReaderWithLock(reader)
 		return
 	}
 
+	// If the supplied reader is for a stale volume, then it will never be
+	// reused in its current state. Instead, put it in the closed reader pool
+	// so that it can be reconfigured to be reopened later.
+	if latestVolume > status.Volume {
+		closeAndAddReader()
+		return nil
+	}
+
 	key := cachedOpenReaderKey{
-		shard:      status.Shard,
+		shard:      shard,
 		blockStart: xtime.ToUnixNano(status.BlockStart),
 		volume:     status.Volume,
 		position: readerPosition{
@@ -353,15 +384,13 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
 	if _, ok := m.openReaders[key]; ok {
 		// Unlikely, however if so just close the reader we were trying to put
 		// and put into the closed readers
-		if err := reader.Close(); err != nil {
-			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
-			return
-		}
-		m.pushClosedReaderWithLock(reader)
-		return
+		closeAndAddReader()
+		return nil
 	}
 
 	m.openReaders[key] = cachedReader{reader: reader}
+
+	return nil
 }
 
 func (m *namespaceReaderManager) tick() {
