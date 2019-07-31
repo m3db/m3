@@ -465,5 +465,5 @@ func (m *namespaceReaderManager) UpdateOpenLease(
 	}
 	m.Unlock()
 
-	return 0, nil
+	return block.UpdateOpenLease, nil
 }
