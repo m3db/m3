@@ -251,6 +251,7 @@ func TestBootstrapGaugeEmitterNoopScope(t *testing.T) {
 	})
 }
 
+// This test might timeout instead of just fail
 func TestStringListEmitterPrometheusScope(t *testing.T) {
 	r := promreporter.NewReporter(promreporter.Options{})
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
