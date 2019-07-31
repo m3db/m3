@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
