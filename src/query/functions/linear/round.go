@@ -41,21 +41,21 @@ type roundOp struct {
 }
 
 func parseArgs(args []interface{}) (float64, error) {
+	// NB: if no args passed; this should use default value of `1`.
+	if len(args) == 0 {
+		return 1, nil
+	}
+
 	if len(args) > 1 {
-		return 0, fmt.Errorf("invalid number of args for round: %d",
-			len(args))
+		return 0, fmt.Errorf("invalid number of args for round: %d", len(args))
 	}
 
-	if len(args) == 1 {
-		if nearest, ok := args[0].(float64); ok {
-			return nearest, nil
-		}
-
-		return 0, fmt.Errorf("unable to cast to to_nearest argument: %v",
-			args[0])
+	// Attempt to parse a single arg.
+	if nearest, ok := args[0].(float64); ok {
+		return nearest, nil
 	}
 
-	return 1, nil
+	return 0, fmt.Errorf("unable to cast to to_nearest argument: %v", args[0])
 }
 
 func roundFn(roundTo float64) block.ValueTransform {

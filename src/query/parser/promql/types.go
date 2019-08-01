@@ -170,15 +170,34 @@ func NewBinaryOperator(expr *promql.BinaryExpr,
 	return binary.NewOp(op, nodeParams)
 }
 
+var dateFuncs = []string{linear.DayOfMonthType, linear.DayOfWeekType,
+	linear.DaysInMonthType, linear.HourType, linear.MinuteType,
+	linear.MonthType, linear.YearType}
+
+func isDateFunc(name string) bool {
+	for _, n := range dateFuncs {
+		if name == n {
+			return true
+		}
+	}
+
+	return false
+}
+
 // NewFunctionExpr creates a new function expr based on the type.
 func NewFunctionExpr(
 	name string,
 	argValues []interface{},
 	stringValues []string,
+	hasArgValue bool,
 	tagOptions models.TagOptions,
 ) (parser.Params, bool, error) {
 	var p parser.Params
 	var err error
+	if isDateFunc(name) {
+		p, err = linear.NewDateOp(name, hasArgValue)
+		return p, true, err
+	}
 
 	switch name {
 	case linear.AbsType, linear.CeilType, linear.ExpType,
@@ -201,12 +220,6 @@ func NewFunctionExpr(
 
 	case linear.RoundType:
 		p, err = linear.NewRoundOp(argValues)
-		return p, true, err
-
-	case linear.DayOfMonthType, linear.DayOfWeekType,
-		linear.DaysInMonthType, linear.HourType,
-		linear.MinuteType, linear.MonthType, linear.YearType:
-		p, err = linear.NewDateOp(argValues, name)
 		return p, true, err
 
 	case tag.TagJoinType, tag.TagReplaceType:

@@ -27,6 +27,7 @@ import (
 )
 
 // FIXME: This is incorrect functionality.
+// Tracking issue https://github.com/m3db/m3/issues/1847
 //' This should be an aggregation function that works in a step-wise fashion.
 // AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
 // and returns a timeseries with the value 1 if the timeseries passed in has no elements

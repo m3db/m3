@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/lazy"
-
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -81,8 +80,8 @@ var (
 	}
 )
 
-func buildTransform(args []interface{}, fn timeFn) block.ValueTransform {
-	if len(args) == 0 {
+func buildTransform(fn timeFn, usingSeries bool) block.ValueTransform {
+	if !usingSeries {
 		return func(v float64) float64 {
 			return fn(time.Now())
 		}
@@ -99,9 +98,9 @@ func buildTransform(args []interface{}, fn timeFn) block.ValueTransform {
 }
 
 // NewDateOp creates a new date op based on the type.
-func NewDateOp(args []interface{}, opType string) (parser.Params, error) {
+func NewDateOp(opType string, usingSeries bool) (parser.Params, error) {
 	if dateFn, ok := datetimeFuncs[opType]; ok {
-		fn := buildTransform(args, dateFn)
+		fn := buildTransform(dateFn, usingSeries)
 		lazyOpts := block.NewLazyOptions().SetValueTransform(fn)
 		return lazy.NewLazyOp(opType, lazyOpts)
 	}

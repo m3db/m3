@@ -64,7 +64,7 @@ func TestDayOfMonth(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, DayOfMonthType)
+	timeOp, err := NewDateOp(DayOfMonthType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -87,7 +87,7 @@ func TestDayOfWeek(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, DayOfWeekType)
+	timeOp, err := NewDateOp(DayOfWeekType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -110,7 +110,7 @@ func TestDaysInMonth(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, DaysInMonthType)
+	timeOp, err := NewDateOp(DaysInMonthType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -133,7 +133,7 @@ func TestHour(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, HourType)
+	timeOp, err := NewDateOp(HourType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -156,7 +156,7 @@ func TestMinute(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, MinuteType)
+	timeOp, err := NewDateOp(MinuteType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -179,7 +179,7 @@ func TestMonth(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, MonthType)
+	timeOp, err := NewDateOp(MonthType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -202,7 +202,7 @@ func TestYear(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(withArg, YearType)
+	timeOp, err := NewDateOp(YearType, true)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)
@@ -217,7 +217,7 @@ func TestYear(t *testing.T) {
 }
 
 func TestNonExistentDateFunc(t *testing.T) {
-	_, err := NewDateOp(withArg, "nonexistent_func")
+	_, err := NewDateOp("nonexistent_func", true)
 	require.Error(t, err)
 }
 
@@ -229,7 +229,7 @@ func TestWithoutArgs(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	timeOp, err := NewDateOp(emptyArgs, YearType)
+	timeOp, err := NewDateOp(YearType, false)
 	require.NoError(t, err)
 
 	op, ok := timeOp.(transform.Params)

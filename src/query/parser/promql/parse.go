@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
-	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -233,11 +232,12 @@ func (p *parseState) walk(node pql.Node) error {
 			// argTypes describes Prom's expected argument types for this call.
 			argTypes = n.Func.ArgTypes
 			// expressions describes the actual arguments for this call.
-			expressions = n.Args
-			argCount    = len(argTypes)
-			exprCount   = len(expressions)
-			numVals     = argCount
-			variadic    = n.Func.Variadic
+			expressions       = n.Args
+			argCount          = len(argTypes)
+			exprCount         = len(expressions)
+			numExpectedValues = argCount
+			variadic          = n.Func.Variadic
+			hasValue          = false
 		)
 
 		if variadic == 0 {
@@ -246,19 +246,20 @@ func (p *parseState) walk(node pql.Node) error {
 					"received %d", exprCount, n.Func.Name, argCount)
 			}
 		} else {
+			hasValue = exprCount > 0
 			if argCount-1 > exprCount {
 				return fmt.Errorf("incorrect number of expressions(%d) for variadic "+
 					"function %q, received %d", exprCount, n.Func.Name, argCount)
 			}
 
 			if argCount != exprCount {
-				numVals--
+				numExpectedValues--
 			}
 		}
 
 		argValues := make([]interface{}, 0, exprCount)
 		stringValues := make([]string, 0, exprCount)
-		for i := 0; i < numVals; i++ {
+		for i := 0; i < numExpectedValues; i++ {
 			argType := argTypes[i]
 			expr := expressions[i]
 			if argType == pql.ValueTypeScalar {
@@ -273,10 +274,6 @@ func (p *parseState) walk(node pql.Node) error {
 			} else {
 				if e, ok := expr.(*pql.MatrixSelector); ok {
 					argValues = append(argValues, e.Range)
-				} else if _, ok := expr.(*pql.VectorSelector); ok {
-					if variadic != 0 && n.Func.Name != linear.RoundType {
-						argValues = append(argValues, struct{}{})
-					}
 				}
 
 				if err := p.walk(expr); err != nil {
@@ -287,12 +284,10 @@ func (p *parseState) walk(node pql.Node) error {
 
 		// NB: Variadic function with additional args that are appended to the end
 		// of the arg list.
-		if variadic != 0 && exprCount > numVals {
-			for _, expr := range expressions[numVals:] {
+		if variadic != 0 && exprCount > numExpectedValues {
+			for _, expr := range expressions[numExpectedValues:] {
 				if argTypes[argCount-1] == pql.ValueTypeString {
 					stringValues = append(stringValues, expr.(*pql.StringLiteral).Val)
-				} else if argTypes[argCount-1] == pql.ValueTypeVector {
-					argValues = append(argValues, struct{}{})
 				} else {
 					s, err := resolveScalarArgument(expr)
 					if err != nil {
@@ -305,7 +300,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		op, ok, err := NewFunctionExpr(n.Func.Name, argValues,
-			stringValues, p.tagOpts)
+			stringValues, hasValue, p.tagOpts)
 		if err != nil {
 			return err
 		}
