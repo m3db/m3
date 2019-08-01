@@ -30,20 +30,13 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// HostBlockMetadata contains a host along with block metadata from that host
-type HostBlockMetadata struct {
-	Host     topology.Host
-	Size     int64
-	Checksum *uint32
-}
-
 // HostBlockMetadataSlice captures a slice of hostBlockMetadata
 type HostBlockMetadataSlice interface {
 	// Add adds the metadata to the slice
-	Add(metadata HostBlockMetadata)
+	Add(metadata block.ReplicaMetadata)
 
 	// Metadata returns the metadata slice
-	Metadata() []HostBlockMetadata
+	Metadata() []block.ReplicaMetadata
 
 	// Reset resets the metadata slice
 	Reset()
@@ -67,10 +60,10 @@ type ReplicaBlockMetadata interface {
 	Start() time.Time
 
 	// Metadata returns the metadata from all hosts
-	Metadata() []HostBlockMetadata
+	Metadata() []block.ReplicaMetadata
 
 	// Add adds a metadata from a host
-	Add(metadata HostBlockMetadata)
+	Add(metadata block.ReplicaMetadata)
 
 	// Close performs cleanup
 	Close()
@@ -176,18 +169,6 @@ type Options interface {
 	// RepairInterval returns the repair interval.
 	RepairInterval() time.Duration
 
-	// SetRepairTimeOffset sets the repair time offset.
-	SetRepairTimeOffset(value time.Duration) Options
-
-	// RepairTimeOffset returns the repair time offset.
-	RepairTimeOffset() time.Duration
-
-	// SetRepairJitter sets the repair time jitter.
-	SetRepairTimeJitter(value time.Duration) Options
-
-	// RepairTimeJitter returns the repair time jitter.
-	RepairTimeJitter() time.Duration
-
 	// SetRepairCheckInterval sets the repair check interval.
 	SetRepairCheckInterval(value time.Duration) Options
 
@@ -199,12 +180,6 @@ type Options interface {
 
 	// RepairThrottle returns the repair throttle.
 	RepairThrottle() time.Duration
-
-	// SetRepairMaxRetries sets the max number of retries for a block start.
-	SetRepairMaxRetries(value int) Options
-
-	// MaxRepairRetries returns the max number of retries for a block start.
-	RepairMaxRetries() int
 
 	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool.
 	SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options

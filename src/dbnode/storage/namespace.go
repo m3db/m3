@@ -1053,7 +1053,9 @@ func (n *dbNamespace) ColdFlush(
 	nsCtx := namespace.Context{Schema: n.schemaDescr}
 	n.RUnlock()
 
-	if !n.nopts.ColdWritesEnabled() {
+	// If repair is enabled we still need cold flush regardless of whether cold writes is
+	// enabled since repairs are dependent on the cold flushing logic.
+	if !n.nopts.ColdWritesEnabled() && !n.nopts.RepairEnabled() {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -1245,6 +1247,7 @@ func (n *dbNamespace) Repair(
 
 	n.RLock()
 	nsCtx := n.nsContextWithRLock()
+	nsMeta := n.metadata
 	n.RUnlock()
 
 	for _, shard := range shards {
@@ -1257,7 +1260,7 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, nsCtx, tr, repairer)
+			metadataRes, err := shard.Repair(ctx, nsCtx, nsMeta, tr, repairer)
 
 			mutex.Lock()
 			if err != nil {

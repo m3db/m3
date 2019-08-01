@@ -36,7 +36,7 @@ const (
 )
 
 type hostBlockMetadataSlice struct {
-	metadata []HostBlockMetadata
+	metadata []block.ReplicaMetadata
 	pool     HostBlockMetadataSlicePool
 }
 
@@ -44,20 +44,20 @@ func newHostBlockMetadataSlice() HostBlockMetadataSlice {
 	return &hostBlockMetadataSlice{}
 }
 
-func newPooledHostBlockMetadataSlice(metadata []HostBlockMetadata, pool HostBlockMetadataSlicePool) HostBlockMetadataSlice {
+func newPooledHostBlockMetadataSlice(metadata []block.ReplicaMetadata, pool HostBlockMetadataSlicePool) HostBlockMetadataSlice {
 	return &hostBlockMetadataSlice{metadata: metadata, pool: pool}
 }
 
-func (s *hostBlockMetadataSlice) Add(metadata HostBlockMetadata) {
+func (s *hostBlockMetadataSlice) Add(metadata block.ReplicaMetadata) {
 	s.metadata = append(s.metadata, metadata)
 }
 
-func (s *hostBlockMetadataSlice) Metadata() []HostBlockMetadata {
+func (s *hostBlockMetadataSlice) Metadata() []block.ReplicaMetadata {
 	return s.metadata
 }
 
 func (s *hostBlockMetadataSlice) Reset() {
-	var zeroed HostBlockMetadata
+	var zeroed block.ReplicaMetadata
 	for i := range s.metadata {
 		s.metadata[i] = zeroed
 	}
@@ -80,10 +80,10 @@ func NewReplicaBlockMetadata(start time.Time, p HostBlockMetadataSlice) ReplicaB
 	return replicaBlockMetadata{start: start, metadata: p}
 }
 
-func (m replicaBlockMetadata) Start() time.Time               { return m.start }
-func (m replicaBlockMetadata) Metadata() []HostBlockMetadata  { return m.metadata.Metadata() }
-func (m replicaBlockMetadata) Add(metadata HostBlockMetadata) { m.metadata.Add(metadata) }
-func (m replicaBlockMetadata) Close()                         { m.metadata.Close() }
+func (m replicaBlockMetadata) Start() time.Time                   { return m.start }
+func (m replicaBlockMetadata) Metadata() []block.ReplicaMetadata  { return m.metadata.Metadata() }
+func (m replicaBlockMetadata) Add(metadata block.ReplicaMetadata) { m.metadata.Add(metadata) }
+func (m replicaBlockMetadata) Close()                             { m.metadata.Close() }
 
 type replicaBlocksMetadata map[xtime.UnixNano]ReplicaBlockMetadata
 
@@ -176,12 +176,11 @@ func NewReplicaMetadataComparer(replicas int, opts Options) ReplicaMetadataCompa
 
 func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) error {
 	for localIter.Next() {
-		id, block := localIter.Current()
+		id, localBlock := localIter.Current()
 		blocks := m.metadata.GetOrAdd(id)
-		blocks.GetOrAdd(block.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
+		blocks.GetOrAdd(localBlock.Start, m.hostBlockMetadataSlicePool).Add(block.ReplicaMetadata{
 			Host:     origin,
-			Size:     block.Size,
-			Checksum: block.Checksum,
+			Metadata: localBlock,
 		})
 	}
 
@@ -192,10 +191,9 @@ func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlockMetada
 	for peerIter.Next() {
 		peer, peerBlock := peerIter.Current()
 		blocks := m.metadata.GetOrAdd(peerBlock.ID)
-		blocks.GetOrAdd(peerBlock.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
+		blocks.GetOrAdd(peerBlock.Start, m.hostBlockMetadataSlicePool).Add(block.ReplicaMetadata{
 			Host:     peer,
-			Size:     peerBlock.Size,
-			Checksum: peerBlock.Checksum,
+			Metadata: peerBlock,
 		})
 	}
 
@@ -226,23 +224,23 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 
 			for _, hm := range bm {
 				// Check size
-				if hm.Size != 0 {
+				if hm.Metadata.Size != 0 {
 					numHostsWithSize++
 					if firstSize {
-						sizeVal = hm.Size
+						sizeVal = hm.Metadata.Size
 						firstSize = false
-					} else if hm.Size != sizeVal {
+					} else if hm.Metadata.Size != sizeVal {
 						sameSize = false
 					}
 				}
 
 				// Check checksum
-				if hm.Checksum != nil {
+				if hm.Metadata.Checksum != nil {
 					numHostsWithChecksum++
 					if firstChecksum {
-						checksumVal = *hm.Checksum
+						checksumVal = *hm.Metadata.Checksum
 						firstChecksum = false
-					} else if *hm.Checksum != checksumVal {
+					} else if *hm.Metadata.Checksum != checksumVal {
 						sameChecksum = false
 					}
 				}

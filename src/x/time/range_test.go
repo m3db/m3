@@ -21,6 +21,7 @@
 package time
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -335,6 +336,84 @@ func TestRangeSubtract(t *testing.T) {
 	}
 	for i := 0; i < len(input); i++ {
 		require.Equal(t, expected[i], input[i].r1.Subtract(input[i].r2))
+	}
+}
+
+func TestRangeIterateForwards(t *testing.T) {
+	testCases := []struct {
+		r        Range
+		stepSize time.Duration
+		expected []time.Time
+	}{
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}},
+			stepSize: time.Second,
+		},
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Millisecond)},
+			stepSize: time.Second,
+			expected: []time.Time{time.Time{}},
+		},
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Second)},
+			stepSize: time.Second,
+			expected: []time.Time{time.Time{}},
+		},
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}.Add(3 * time.Second)},
+			stepSize: time.Second,
+			expected: []time.Time{time.Time{}, time.Time{}.Add(time.Second), time.Time{}.Add(2 * time.Second)},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
+			var actual []time.Time
+			tc.r.IterateForwards(tc.stepSize, func(currStep time.Time) bool {
+				actual = append(actual, currStep)
+				return true
+			})
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestRangeIterateBackwards(t *testing.T) {
+	testCases := []struct {
+		r        Range
+		stepSize time.Duration
+		expected []time.Time
+	}{
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}},
+			stepSize: time.Second,
+		},
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Millisecond)},
+			stepSize: time.Second,
+			expected: []time.Time{time.Time{}.Add(time.Millisecond)},
+		},
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}.Add(time.Second)},
+			stepSize: time.Second,
+			expected: []time.Time{time.Time{}.Add(time.Second)},
+		},
+		{
+			r:        Range{Start: time.Time{}, End: time.Time{}.Add(3 * time.Second)},
+			stepSize: time.Second,
+			expected: []time.Time{time.Time{}.Add(3 * time.Second), time.Time{}.Add(2 * time.Second), time.Time{}.Add(time.Second)},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
+			var actual []time.Time
+			tc.r.IterateBackwards(tc.stepSize, func(currStep time.Time) bool {
+				actual = append(actual, currStep)
+				return true
+			})
+			require.Equal(t, tc.expected, actual)
+		})
 	}
 }
 

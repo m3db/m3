@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -42,11 +41,17 @@ import (
 	"github.com/m3db/m3/src/x/dice"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+)
+
+const (
+	// TODO(rartoul): Config this.
+	repairLimitPerIter = 10
 )
 
 var (
@@ -90,6 +95,7 @@ func (r shardRepairer) Options() repair.Options {
 func (r shardRepairer) Repair(
 	ctx context.Context,
 	nsCtx namespace.Context,
+	nsMeta namespace.Metadata,
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
@@ -117,6 +123,8 @@ func (r shardRepairer) Repair(
 		accumLocalMetadata = block.NewFetchBlocksMetadataResults()
 		pageToken          PageToken
 	)
+	// Safe to register since by the time this function completes we won't be using the metadata
+	// for anything anymore.
 	ctx.RegisterCloser(accumLocalMetadata)
 
 	for {
@@ -150,7 +158,6 @@ func (r shardRepairer) Repair(
 			r.logger.Error(
 				"Shadow compare failed",
 				zap.Error(err))
-			return repair.MetadataComparisonResult{}, err
 		}
 	}
 
@@ -171,7 +178,60 @@ func (r shardRepairer) Repair(
 		return repair.MetadataComparisonResult{}, err
 	}
 
+	// TODO(rartoul): Pool this slice.
+	metadatas := []block.ReplicaMetadata{}
 	metadataRes := metadata.Compare()
+	for _, e := range metadataRes.ChecksumDifferences.Series().Iter() {
+		for blockStart, replicaMetadataBlocks := range e.Value().Metadata.Blocks() {
+			blStartTime := blockStart.ToTime()
+			blStartRange := xtime.Range{Start: blStartTime, End: blStartTime}
+			if !tr.Contains(blStartRange) {
+				instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.With(
+						zap.Time("blockStart", blockStart.ToTime()),
+						zap.String("namespace", nsMeta.ID().String()),
+						zap.Uint32("shard", shard.ID()),
+					).Error("repair received replica metadata for unrequested blockStart")
+				})
+				continue
+			}
+
+			for _, replicaMetadata := range replicaMetadataBlocks.Metadata() {
+				if replicaMetadata.Host.ID() == session.Origin().ID() {
+					// Don't request blocks for self metadata.
+					continue
+				}
+				metadatas = append(metadatas, replicaMetadata)
+			}
+		}
+	}
+
+	resultOpts := result.NewOptions()
+	perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatas, resultOpts)
+	if err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
+
+	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
+	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
+	// TODO(rartoul): Need to use existing result options not create new ones to take advantage of pools.
+	numMismatchSeries := metadataRes.ChecksumDifferences.Series().Len()
+	results := result.NewShardResult(numMismatchSeries, result.NewOptions())
+	for perSeriesReplicaIter.Next() {
+		_, id, block := perSeriesReplicaIter.Current()
+		// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
+		if existing, ok := results.BlockAt(id, block.StartTime()); ok {
+			if err := existing.Merge(block); err != nil {
+				return repair.MetadataComparisonResult{}, err
+			}
+		} else {
+			results.AddBlock(id, ident.Tags{}, block)
+		}
+	}
+
+	if err := shard.Load(results.AllSeries()); err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
 
 	r.recordFn(nsCtx.ID, shard, metadataRes)
 
@@ -219,8 +279,8 @@ const (
 )
 
 type repairState struct {
+	LastAttempt time.Time
 	Status      repairStatus
-	NumFailures int
 }
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
@@ -270,6 +330,7 @@ func (r repairStatesByNs) setRepairState(
 // it with a mutex.
 type dbRepairer struct {
 	database         database
+	opts             Options
 	ropts            repair.Options
 	shardRepairer    databaseShardRepairer
 	repairStatesByNs repairStatesByNs
@@ -279,10 +340,8 @@ type dbRepairer struct {
 	nowFn               clock.NowFn
 	logger              *zap.Logger
 	repairInterval      time.Duration
-	repairTimeOffset    time.Duration
-	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
-	repairMaxRetries    int
+	scope               tally.Scope
 	status              tally.Gauge
 
 	closedLock sync.Mutex
@@ -291,9 +350,11 @@ type dbRepairer struct {
 }
 
 func newDatabaseRepairer(database database, opts Options) (databaseRepairer, error) {
-	nowFn := opts.ClockOptions().NowFn()
-	scope := opts.InstrumentOptions().MetricsScope()
-	ropts := opts.RepairOptions()
+	var (
+		nowFn = opts.ClockOptions().NowFn()
+		scope = opts.InstrumentOptions().MetricsScope().SubScope("repair")
+		ropts = opts.RepairOptions()
+	)
 	if ropts == nil {
 		return nil, errNoRepairOptions
 	}
@@ -303,14 +364,9 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 
 	shardRepairer := newShardRepairer(opts, ropts)
 
-	var jitter time.Duration
-	if repairJitter := ropts.RepairTimeJitter(); repairJitter > 0 {
-		src := rand.NewSource(nowFn().UnixNano())
-		jitter = time.Duration(float64(repairJitter) * (float64(src.Int63()) / float64(math.MaxInt64)))
-	}
-
 	r := &dbRepairer{
 		database:            database,
+		opts:                opts,
 		ropts:               ropts,
 		shardRepairer:       shardRepairer,
 		repairStatesByNs:    newRepairStates(),
@@ -318,10 +374,8 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
 		repairInterval:      ropts.RepairInterval(),
-		repairTimeOffset:    ropts.RepairTimeOffset(),
-		repairTimeJitter:    jitter,
 		repairCheckInterval: ropts.RepairCheckInterval(),
-		repairMaxRetries:    ropts.RepairMaxRetries(),
+		scope:               scope,
 		status:              scope.Gauge("repair"),
 	}
 	r.repairFn = r.Repair
@@ -330,8 +384,6 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 }
 
 func (r *dbRepairer) run() {
-	var curIntervalStart time.Time
-
 	for {
 		r.closedLock.Lock()
 		closed := r.closed
@@ -343,28 +395,13 @@ func (r *dbRepairer) run() {
 
 		r.sleepFn(r.repairCheckInterval)
 
-		now := r.nowFn()
-		intervalStart := now.Truncate(r.repairInterval)
-
-		// If we haven't reached the offset yet, skip
-		target := intervalStart.Add(r.repairTimeOffset + r.repairTimeJitter)
-		if now.Before(target) {
-			continue
-		}
-
-		// If we are in the same interval, we must have already repaired, skip
-		if intervalStart.Equal(curIntervalStart) {
-			continue
-		}
-
-		curIntervalStart = intervalStart
 		if err := r.repairFn(); err != nil {
 			r.logger.Error("error repairing database", zap.Error(err))
 		}
 	}
 }
 
-func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Ranges {
+func (r *dbRepairer) namespaceRepairTimeRange(ns databaseNamespace) xtime.Range {
 	var (
 		now       = r.nowFn()
 		rtopts    = ns.Options().RetentionOptions()
@@ -372,25 +409,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 		start     = now.Add(-rtopts.RetentionPeriod()).Truncate(blockSize)
 		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
 	)
-
-	targetRanges := xtime.NewRanges(xtime.Range{Start: start, End: end})
-	for tNano := range r.repairStatesByNs[ns.ID().String()] {
-		t := tNano.ToTime()
-		if !r.needsRepair(ns.ID(), t) {
-			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})
-		}
-	}
-
-	return targetRanges
-}
-
-func (r *dbRepairer) needsRepair(ns ident.ID, t time.Time) bool {
-	repairState, exists := r.repairStatesByNs.repairStates(ns, t)
-	if !exists {
-		return true
-	}
-	return repairState.Status == repairNotStarted ||
-		(repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries)
+	return xtime.Range{Start: start, End: end}
 }
 
 func (r *dbRepairer) Start() {
@@ -426,12 +445,95 @@ func (r *dbRepairer) Repair() error {
 	if err != nil {
 		return err
 	}
+
 	for _, n := range namespaces {
-		iter := r.namespaceRepairTimeRanges(n).Iter()
-		for iter.Next() {
-			multiErr = multiErr.Add(r.repairNamespaceWithTimeRange(n, iter.Value()))
+		repairRange := r.namespaceRepairTimeRange(n)
+		blockSize := n.Options().RetentionOptions().BlockSize()
+
+		// Iterating backwards will be inclusve on the end and exclusive on the start, but we
+		// want the opposite behavior with the existing range so subtract a blocksize on each
+		// end to make it inclusive on the original start and exclusive on the original end.
+		repairRange.Start = repairRange.Start.Add(-blockSize)
+		repairRange.End = repairRange.End.Add(-blockSize)
+
+		numUnrepairedBlocks := 0
+		repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
+			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
+			if !ok || repairState.Status != repairSuccess {
+				numUnrepairedBlocks++
+			}
+
+			return true
+		})
+
+		if numUnrepairedBlocks > 0 {
+			r.scope.Tagged(map[string]string{
+				"namespace": n.ID().String(),
+			}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
+
+			numBlocksRepaired := 0
+			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
+				if numBlocksRepaired >= repairLimitPerIter {
+					return false
+				}
+
+				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
+				if !ok || repairState.Status != repairSuccess {
+					if err := r.repairNamespaceBlockstart(n, blockStart); err != nil {
+						multiErr = multiErr.Add(err)
+					}
+					numBlocksRepaired++
+				}
+				return true
+			})
+
+			continue
+		}
+
+		var (
+			numBlocksRepaired              = 0
+			maxSecondsSinceLastBlockRepair = r.scope.Tagged(map[string]string{
+				"namespace": n.ID().String(),
+			}).Gauge("max-seconds-since-last-block-repair")
+		)
+		for {
+			if numBlocksRepaired >= repairLimitPerIter {
+				break
+			}
+
+			var (
+				leastRecentlyRepairedBlockStart               time.Time
+				leastRecentlyRepairedBlockStartLastRepairTime time.Time
+			)
+			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
+				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
+				if !ok {
+					// Should never happen.
+					instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
+						l.With(
+							zap.Time("blockStart", blockStart),
+							zap.String("namespace", n.ID().String()),
+						).Error("missing repair state in all-blocks-are-repaired branch")
+					})
+					return true
+				}
+
+				if leastRecentlyRepairedBlockStart.IsZero() || repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime) {
+					leastRecentlyRepairedBlockStart = blockStart
+					leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
+				}
+				return true
+			})
+
+			secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
+			maxSecondsSinceLastBlockRepair.Update(secondsSinceLastRepair)
+			if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
+				multiErr = multiErr.Add(err)
+			}
+			numBlocksRepaired++
 		}
 	}
+
 	return multiErr.FinalError()
 }
 
@@ -443,31 +545,38 @@ func (r *dbRepairer) Report() {
 	}
 }
 
-func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
+func (r *dbRepairer) repairNamespaceBlockstart(n databaseNamespace, blockStart time.Time) error {
 	var (
-		rtopts    = n.Options().RetentionOptions()
-		blockSize = rtopts.BlockSize()
-		err       error
+		blockSize   = n.Options().RetentionOptions().BlockSize()
+		repairRange = xtime.Range{Start: blockStart, End: blockStart.Add(blockSize)}
+		repairTime  = r.nowFn()
 	)
-
-	// repair the namespace
-	if err = n.Repair(r.shardRepairer, tr); err != nil {
-		err = fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
+	if err := r.repairNamespaceWithTimeRange(n, repairRange); err != nil {
+		r.markRepairAttempt(n.ID(), blockStart, repairTime, repairFailed)
+		return err
 	}
 
-	// update repairer state
-	for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
-		repairState, _ := r.repairStatesByNs.repairStates(n.ID(), t)
-		if err == nil {
-			repairState.Status = repairSuccess
-		} else {
-			repairState.Status = repairFailed
-			repairState.NumFailures++
-		}
-		r.repairStatesByNs.setRepairState(n.ID(), t, repairState)
+	r.markRepairAttempt(n.ID(), blockStart, repairTime, repairSuccess)
+	return nil
+}
+
+func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
+	if err := n.Repair(r.shardRepairer, tr); err != nil {
+		return fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
 	}
 
-	return err
+	return nil
+}
+
+func (r *dbRepairer) markRepairAttempt(
+	namespace ident.ID,
+	blockStart time.Time,
+	repairTime time.Time,
+	repairStatus repairStatus) {
+	repairState, _ := r.repairStatesByNs.repairStates(namespace, blockStart)
+	repairState.Status = repairStatus
+	repairState.LastAttempt = repairTime
+	r.repairStatesByNs.setRepairState(namespace, blockStart, repairState)
 }
 
 var noOpRepairer databaseRepairer = repairerNoOp{}
@@ -512,10 +621,16 @@ func (r shardRepairer) shadowCompare(
 
 		tmpCtx.Reset()
 		defer tmpCtx.BlockingClose()
-		localSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
+
+		unfilteredLocalSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
 		}
+		localSeriesDataBlocks, err := xio.FilterEmptyBlockReadersInPlaceSliceOfSlices(unfilteredLocalSeriesDataBlocks)
+		if err != nil {
+			return err
+		}
+
 		localSeriesSliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(localSeriesDataBlocks)
 		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
 		localSeriesIter.ResetSliceOfSlices(localSeriesSliceOfSlices, nsCtx.Schema)

@@ -20,7 +20,10 @@
 
 package repair
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/pool"
+)
 
 type hostBlockMetadataSlicePool struct {
 	pool     pool.ObjectPool
@@ -31,7 +34,7 @@ type hostBlockMetadataSlicePool struct {
 func NewHostBlockMetadataSlicePool(opts pool.ObjectPoolOptions, capacity int) HostBlockMetadataSlicePool {
 	p := &hostBlockMetadataSlicePool{pool: pool.NewObjectPool(opts), capacity: capacity}
 	p.pool.Init(func() interface{} {
-		metadata := make([]HostBlockMetadata, 0, capacity)
+		metadata := make([]block.ReplicaMetadata, 0, capacity)
 		return newPooledHostBlockMetadataSlice(metadata, p)
 	})
 	return p

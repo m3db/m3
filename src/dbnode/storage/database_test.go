@@ -128,9 +128,7 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairTimeJitter(300 * time.Millisecond).
+		SetRepairInterval(time.Second)
 		SetRepairCheckInterval(100 * time.Millisecond)
 }
 
