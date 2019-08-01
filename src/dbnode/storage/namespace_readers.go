@@ -112,7 +112,6 @@ type namespaceReaderManager struct {
 type cachedOpenReaderKey struct {
 	shard      uint32
 	blockStart xtime.UnixNano
-	volume     int
 	position   readerPosition
 }
 
@@ -280,6 +279,7 @@ func (m *namespaceReaderManager) get(
 	// UpdateOpenLease gets called, so we don't need to worry about closing it
 	// here.
 	if position.volume < latestVolume {
+		position.volume = latestVolume
 		position.dataIdx = 0
 		position.metadataIdx = 0
 	}
@@ -287,7 +287,6 @@ func (m *namespaceReaderManager) get(
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
-		volume:     latestVolume,
 		position:   position,
 	}
 
@@ -384,8 +383,8 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(status.BlockStart),
-		volume:     status.Volume,
 		position: readerPosition{
+			volume:      status.Volume,
 			dataIdx:     reader.EntriesRead(),
 			metadataIdx: reader.MetadataRead(),
 		},
@@ -469,11 +468,11 @@ func (m *namespaceReaderManager) UpdateOpenLease(
 	}
 
 	m.Lock()
-	// Remove open readers with matching key but lower volume.
+	// Close and remove open readers with matching key but lower volume.
 	for readerKey, cachedReader := range m.openReaders {
 		if readerKey.shard == descriptor.Shard &&
 			readerKey.blockStart == xtime.ToUnixNano(descriptor.BlockStart) &&
-			readerKey.volume < state.Volume {
+			readerKey.position.volume < state.Volume {
 			delete(m.openReaders, readerKey)
 			if err := m.closeAndPushReader(cachedReader.reader); err != nil {
 				// Best effort on closing the reader and caching it. If it
