@@ -54,6 +54,7 @@ zone: z1
 service: service1
 cacheDir: /tmp/cache.json
 watchWithRevision: 1
+async: true
 etcdClusters:
   - zone: z1
     endpoints:
@@ -123,6 +124,7 @@ m3sd:
 		},
 	}, cfg.ETCDClusters)
 	require.Equal(t, 10*time.Second, *cfg.SDConfig.InitTimeout)
+	require.Equal(t, true, cfg.Async)
 
 	opts := cfg.NewOptions()
 	cluster1, exists := opts.ClusterForZone("z1")

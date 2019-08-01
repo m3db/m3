@@ -90,7 +90,8 @@ type Configuration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
-	Enabled bool `yaml:"enabled"`
+	Enabled  bool `yaml:"enabled"`
+	TestOnly bool `yaml:"testOnly"`
 	// load user schema from client configuration into schema registry
 	// at startup/initialization time.
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`

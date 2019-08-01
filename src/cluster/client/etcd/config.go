@@ -97,6 +97,7 @@ type Configuration struct {
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
+	Async             bool                   `yaml:"async"`
 }
 
 // NewClient creates a new config service client.

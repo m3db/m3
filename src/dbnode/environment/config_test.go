@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -75,19 +77,21 @@ func TestConfigureStatic(t *testing.T) {
 
 func TestConfigureDynamic(t *testing.T) {
 	config := Configuration{
-		Service: &etcdclient.Configuration{
-			Zone:     "local",
-			Env:      "test",
-			Service:  "m3dbnode_test",
-			CacheDir: "/",
-			ETCDClusters: []etcdclient.ClusterConfig{
-				etcdclient.ClusterConfig{
-					Zone:      "local",
-					Endpoints: []string{"localhost:1111"},
+		Services: []*etcdclient.Configuration{
+			&etcdclient.Configuration{
+				Zone:     "local",
+				Env:      "test",
+				Service:  "m3dbnode_test",
+				CacheDir: "/",
+				ETCDClusters: []etcdclient.ClusterConfig{
+					etcdclient.ClusterConfig{
+						Zone:      "local",
+						Endpoints: []string{"localhost:1111"},
+					},
 				},
-			},
-			SDConfig: services.Configuration{
-				InitTimeout: &initTimeout,
+				SDConfig: services.Configuration{
+					InitTimeout: &initTimeout,
+				},
 			},
 		},
 	}
@@ -99,4 +103,47 @@ func TestConfigureDynamic(t *testing.T) {
 	configRes, err := config.Configure(cfgParams)
 	assert.NotNil(t, configRes)
 	assert.NoError(t, err)
+}
+
+func TestUnmarshalDynamicSingle(t *testing.T) {
+	in := `
+service:
+  zone: dca8
+  env: test
+`
+
+	var cfg Configuration
+	err := yaml.Unmarshal([]byte(in), &cfg)
+	assert.NoError(t, err)
+	assert.Len(t, cfg.Services, 1)
+}
+
+func TestUnmarshalDynamicList(t *testing.T) {
+	in := `
+services:
+  - zone: dca8
+    env: test
+  - zone: phx3
+    env: test
+    async: true
+`
+
+	var cfg Configuration
+	err := yaml.Unmarshal([]byte(in), &cfg)
+	assert.NoError(t, err)
+	assert.Len(t, cfg.Services, 2)
+}
+
+func TestUnmarshalDynamicValidation(t *testing.T) {
+	in := `
+services:
+  - zone: dca8
+    env: test
+  - zone: phx3
+    env: test
+`
+
+	var cfg Configuration
+	err := yaml.Unmarshal([]byte(in), &cfg)
+	assert.Error(t, err)
 }
