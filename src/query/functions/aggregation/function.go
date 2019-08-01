@@ -25,23 +25,34 @@ import (
 )
 
 const (
-	// SumType adds all non nan elements in a list of series
+	// SumType adds all non nan elements in a list of series.
 	SumType = "sum"
-	// MinType takes the minimum all non nan elements in a list of series
+	// MinType takes the minimum all non nan elements in a list of series.
 	MinType = "min"
-	// MaxType takes the maximum all non nan elements in a list of series
+	// MaxType takes the maximum all non nan elements in a list of series.
 	MaxType = "max"
-	// AverageType averages all non nan elements in a list of series
+	// AverageType averages all non nan elements in a list of series.
 	AverageType = "avg"
 	// StandardDeviationType takes the population standard deviation of all non
-	// nan elements in a list of series
+	// nan elements in a list of series.
 	StandardDeviationType = "stddev"
 	// StandardVarianceType takes the population standard variance of all non
-	// nan elements in a list of series
+	// nan elements in a list of series.
 	StandardVarianceType = "var"
-	// CountType counts all non nan elements in a list of series
+	// CountType counts all non nan elements in a list of series.
 	CountType = "count"
 )
+
+func absentFn(values []float64, bucket []int) float64 {
+	for _, idx := range bucket {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			return math.NaN()
+		}
+	}
+
+	return 1
+}
 
 func sumAndCount(values []float64, bucket []int) (float64, float64) {
 	sum := 0.0
@@ -54,7 +65,7 @@ func sumAndCount(values []float64, bucket []int) (float64, float64) {
 		}
 	}
 
-	// If all elements are NaN, sum should be NaN
+	// If all elements are NaN, sum should be NaN.
 	if count == 0 {
 		sum = math.NaN()
 	}
