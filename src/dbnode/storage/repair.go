@@ -456,11 +456,11 @@ func (r *dbRepairer) Repair() error {
 			return true
 		})
 
+		r.scope.Tagged(map[string]string{
+			"namespace": n.ID().String(),
+		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
+		
 		if numUnrepairedBlocks > 0 {
-			r.scope.Tagged(map[string]string{
-				"namespace": n.ID().String(),
-			}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
-
 			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
 				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 				if !ok || repairState.Status != repairSuccess {
