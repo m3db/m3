@@ -271,8 +271,14 @@ func (m *namespaceReaderManager) get(
 		return nil, err
 	}
 
-	// If requesting an outdated volume, we need to start again reading from
-	// the beginning of the latest volume.
+	// If requesting an outdated volume, we need to start reading again from
+	// the beginning of the latest volume. The caller knows how to handle
+	// duplicate metadata, so doing this is okay.
+	//
+	// The previously cached reader for the outdated volume will eventually be
+	// cleaned up either during the ticking process or the next time
+	// UpdateOpenLease gets called, so we don't need to worry about closing it
+	// here.
 	if position.volume < latestVolume {
 		position.dataIdx = 0
 		position.metadataIdx = 0
@@ -336,6 +342,15 @@ func (m *namespaceReaderManager) get(
 	return reader, nil
 }
 
+func (m *namespaceReaderManager) closeAndPushReader(reader fs.DataFileSetReader) error {
+	if err := reader.Close(); err != nil {
+		return err
+	}
+
+	m.pushClosedReaderWithLock(reader)
+	return nil
+}
+
 func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	status := reader.Status()
 
@@ -354,20 +369,15 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 		return err
 	}
 
-	closeAndAddReader := func() {
-		if err := reader.Close(); err != nil {
-			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
-			return
-		}
-		m.pushClosedReaderWithLock(reader)
-		return
-	}
-
 	// If the supplied reader is for a stale volume, then it will never be
 	// reused in its current state. Instead, put it in the closed reader pool
 	// so that it can be reconfigured to be reopened later.
 	if latestVolume > status.Volume {
-		closeAndAddReader()
+		if err := m.closeAndPushReader(reader); err != nil {
+			// Best effort on closing the reader and caching it. If it fails,
+			// we can always allocate a new reader.
+			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
+		}
 		return nil
 	}
 
@@ -384,7 +394,11 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	if _, ok := m.openReaders[key]; ok {
 		// Unlikely, however if so just close the reader we were trying to put
 		// and put into the closed readers
-		closeAndAddReader()
+		if err := m.closeAndPushReader(reader); err != nil {
+			// Best effort on closing the reader and caching it. If it fails,
+			// we can always allocate a new reader.
+			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
+		}
 		return nil
 	}
 
@@ -456,11 +470,16 @@ func (m *namespaceReaderManager) UpdateOpenLease(
 
 	m.Lock()
 	// Remove open readers with matching key but lower volume.
-	for readerKey := range m.openReaders {
+	for readerKey, cachedReader := range m.openReaders {
 		if readerKey.shard == descriptor.Shard &&
 			readerKey.blockStart == xtime.ToUnixNano(descriptor.BlockStart) &&
 			readerKey.volume < state.Volume {
 			delete(m.openReaders, readerKey)
+			if err := m.closeAndPushReader(cachedReader.reader); err != nil {
+				// Best effort on closing the reader and caching it. If it
+				// fails, we can always allocate a new reader.
+				m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
+			}
 		}
 	}
 	m.Unlock()
