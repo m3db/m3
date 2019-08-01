@@ -339,7 +339,6 @@ type dbRepairer struct {
 	sleepFn             sleepFn
 	nowFn               clock.NowFn
 	logger              *zap.Logger
-	repairInterval      time.Duration
 	repairCheckInterval time.Duration
 	scope               tally.Scope
 	status              tally.Gauge
@@ -373,7 +372,6 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 		sleepFn:             time.Sleep,
 		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
-		repairInterval:      ropts.RepairInterval(),
 		repairCheckInterval: ropts.RepairCheckInterval(),
 		scope:               scope,
 		status:              scope.Gauge("repair"),
@@ -413,10 +411,6 @@ func (r *dbRepairer) namespaceRepairTimeRange(ns databaseNamespace) xtime.Range 
 }
 
 func (r *dbRepairer) Start() {
-	if r.repairInterval <= 0 {
-		return
-	}
-
 	go r.run()
 }
 

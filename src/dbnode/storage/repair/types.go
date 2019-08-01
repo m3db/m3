@@ -163,12 +163,6 @@ type Options interface {
 	// RepairShardConcurrency returns the concurrency in which to repair shards with.
 	RepairShardConcurrency() int
 
-	// SetRepairInterval sets the repair interval.
-	SetRepairInterval(value time.Duration) Options
-
-	// RepairInterval returns the repair interval.
-	RepairInterval() time.Duration
-
 	// SetRepairCheckInterval sets the repair check interval.
 	SetRepairCheckInterval(value time.Duration) Options
 

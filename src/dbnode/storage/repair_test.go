@@ -96,17 +96,15 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		repairInterval = 2 * time.Hour
-		now            = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
-		repaired       = false
-		numIter        = 0
+		now      = time.Now().Add(30 * time.Minute)
+		repaired = false
+		numIter  = 0
 	)
 
 	nowFn := func() time.Time { return now }
 	opts := DefaultTestOptions()
 	clockOpts := opts.ClockOptions().SetNowFn(nowFn)
-	repairOpts := testRepairOptions(ctrl).
-		SetRepairInterval(repairInterval)
+	repairOpts := testRepairOptions(ctrl)
 	opts = opts.
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
@@ -139,10 +137,9 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		repairInterval = 2 * time.Hour
-		now            = time.Now().Truncate(repairInterval).Add(90 * time.Minute)
-		numRepairs     = 0
-		numIter        = 0
+		now        = time.Now().Add(90 * time.Minute)
+		numRepairs = 0
+		numIter    = 0
 	)
 
 	nowFn := func() time.Time {
@@ -160,8 +157,7 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 
 	opts := DefaultTestOptions()
 	clockOpts := opts.ClockOptions().SetNowFn(nowFn)
-	repairOpts := testRepairOptions(ctrl).
-		SetRepairInterval(repairInterval)
+	repairOpts := testRepairOptions(ctrl)
 	opts = opts.
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
