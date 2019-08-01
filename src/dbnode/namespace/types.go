@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // Options controls namespace behavior
@@ -220,6 +220,11 @@ type Watch interface {
 type Registry interface {
 	// Watch for the Registry changes
 	Watch() (Watch, error)
+
+	// ForceGet bypasses the watch and issues a get request against KV directly.
+	// This can be used in situations where the caller wants to get the current
+	// value, if any, without potentially waiting for an initial value to be set.
+	ForceGet() (Map, bool, error)
 
 	// Close closes the registry
 	Close() error
