@@ -162,10 +162,11 @@ func (r shardRepairer) Repair(
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	// Add peer metadata
+	rsOpts := r.opts.RepairOptions().ResultOptions()
+	// Add peer metadata.
 	level := r.rpopts.RepairConsistencyLevel()
 	peerIter, err := session.FetchBlocksMetadataFromPeers(nsCtx.ID, shard.ID(), start, end,
-		level, result.NewOptions())
+		level, rsOpts)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
@@ -201,8 +202,7 @@ func (r shardRepairer) Repair(
 		}
 	}
 
-	resultOpts := result.NewOptions()
-	perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatas, resultOpts)
+	perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatas, rsOpts)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
@@ -212,7 +212,7 @@ func (r shardRepairer) Repair(
 	// TODO(rartoul): Need to use existing result options not create new ones to take advantage of pools.
 	// really need to do this creating options allocates like crazy.
 	numMismatchSeries := metadataRes.ChecksumDifferences.Series().Len()
-	results := result.NewShardResult(numMismatchSeries, result.NewOptions())
+	results := result.NewShardResult(numMismatchSeries, rsOpts)
 	for perSeriesReplicaIter.Next() {
 		_, id, block := perSeriesReplicaIter.Current()
 		// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
@@ -459,7 +459,7 @@ func (r *dbRepairer) Repair() error {
 		r.scope.Tagged(map[string]string{
 			"namespace": n.ID().String(),
 		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
-		
+
 		if numUnrepairedBlocks > 0 {
 			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
 				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
@@ -476,39 +476,38 @@ func (r *dbRepairer) Repair() error {
 			continue
 		}
 
-			
-			var (
-				leastRecentlyRepairedBlockStart               time.Time
-				leastRecentlyRepairedBlockStartLastRepairTime time.Time
-				maxSecondsSinceLastBlockRepair = r.scope.Tagged(map[string]string{
-					"namespace": n.ID().String(),
-				}).Gauge("max-seconds-since-last-block-repair")
-			)
-			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
-				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
-				if !ok {
-					// Should never happen.
-					instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
-						l.With(
-							zap.Time("blockStart", blockStart),
-							zap.String("namespace", n.ID().String()),
-						).Error("missing repair state in all-blocks-are-repaired branch")
-					})
-					return true
-				}
-
-				if leastRecentlyRepairedBlockStart.IsZero() || repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime) {
-					leastRecentlyRepairedBlockStart = blockStart
-					leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
-				}
+		var (
+			leastRecentlyRepairedBlockStart               time.Time
+			leastRecentlyRepairedBlockStartLastRepairTime time.Time
+			maxSecondsSinceLastBlockRepair                = r.scope.Tagged(map[string]string{
+				"namespace": n.ID().String(),
+			}).Gauge("max-seconds-since-last-block-repair")
+		)
+		repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
+			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
+			if !ok {
+				// Should never happen.
+				instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.With(
+						zap.Time("blockStart", blockStart),
+						zap.String("namespace", n.ID().String()),
+					).Error("missing repair state in all-blocks-are-repaired branch")
+				})
 				return true
-			})
-
-			secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
-			maxSecondsSinceLastBlockRepair.Update(secondsSinceLastRepair)
-			if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
-				multiErr = multiErr.Add(err)
 			}
+
+			if leastRecentlyRepairedBlockStart.IsZero() || repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime) {
+				leastRecentlyRepairedBlockStart = blockStart
+				leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
+			}
+			return true
+		})
+
+		secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
+		maxSecondsSinceLastBlockRepair.Update(secondsSinceLastRepair)
+		if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	return multiErr.FinalError()

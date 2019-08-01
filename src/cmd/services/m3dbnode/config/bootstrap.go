@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
 
@@ -109,6 +108,7 @@ type BootstrapConfigurationValidator interface {
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
 	validator BootstrapConfigurationValidator,
+	rsOpts result.Options,
 	opts storage.Options,
 	topoMapProvider topology.MapProvider,
 	origin topology.Host,
@@ -119,19 +119,10 @@ func (bsc BootstrapConfiguration) New(
 	}
 
 	var (
-		mutableSegmentAlloc = index.NewBootstrapResultMutableSegmentAllocator(
-			opts.IndexOptions())
 		bs  bootstrap.BootstrapperProvider
 		err error
+	fsOpts = opts.CommitLogOptions().FilesystemOptions()
 	)
-	rsOpts := result.NewOptions().
-		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
-		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-		SetIndexMutableSegmentAllocator(mutableSegmentAlloc)
-
-	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
 		switch bsc.Bootstrappers[i] {

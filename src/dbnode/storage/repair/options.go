@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
 
@@ -42,6 +43,7 @@ var (
 	errInvalidRepairCheckInterval              = errors.New("invalid repair check interval in repair options")
 	errInvalidRepairThrottle                   = errors.New("invalid repair throttle in repair options")
 	errNoHostBlockMetadataSlicePool            = errors.New("no host block metadata pool in repair options")
+	errNoResultOptions                         = errors.New("no result options in repair options")
 	errInvalidDebugShadowComparisonsPercentage = errors.New("debug shadow comparisons percentage must be between 0 and 1")
 )
 
@@ -52,6 +54,7 @@ type options struct {
 	repairCheckInterval              time.Duration
 	repairThrottle                   time.Duration
 	hostBlockMetadataSlicePool       HostBlockMetadataSlicePool
+	resultOptions                    result.Options
 	debugShadowComparisonsEnabled    bool
 	debugShadowComparisonsPercentage float64
 }
@@ -64,6 +67,7 @@ func NewOptions() Options {
 		repairCheckInterval:              defaultRepairCheckInterval,
 		repairThrottle:                   defaultRepairThrottle,
 		hostBlockMetadataSlicePool:       NewHostBlockMetadataSlicePool(nil, 0),
+		resultOptions:                    result.NewOptions(),
 		debugShadowComparisonsEnabled:    defaultDebugShadowComparisonsEnabled,
 		debugShadowComparisonsPercentage: defaultDebugShadowComparisonsPercentage,
 	}
@@ -129,6 +133,16 @@ func (o *options) HostBlockMetadataSlicePool() HostBlockMetadataSlicePool {
 	return o.hostBlockMetadataSlicePool
 }
 
+func (o *options) SetResultOptions(value result.Options) Options {
+	opts := *o
+	opts.resultOptions = value
+	return &opts
+}
+
+func (o *options) ResultOptions() result.Options {
+	return o.resultOptions
+}
+
 func (o *options) SetDebugShadowComparisonsEnabled(value bool) Options {
 	opts := *o
 	opts.debugShadowComparisonsEnabled = value
@@ -161,6 +175,9 @@ func (o *options) Validate() error {
 	}
 	if o.hostBlockMetadataSlicePool == nil {
 		return errNoHostBlockMetadataSlicePool
+	}
+	if o.resultOptions == nil {
+		return errNoResultOptions
 	}
 	if o.debugShadowComparisonsPercentage > 1.0 ||
 		o.debugShadowComparisonsPercentage < 0 {
