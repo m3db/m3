@@ -49,11 +49,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// TODO(rartoul): Config this.
-	repairLimitPerIter = 10
-)
-
 var (
 	errNoRepairOptions  = errors.New("no repair options")
 	errRepairInProgress = errors.New("repair already in progress")
@@ -215,6 +210,7 @@ func (r shardRepairer) Repair(
 	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
 	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
 	// TODO(rartoul): Need to use existing result options not create new ones to take advantage of pools.
+	// really need to do this creating options allocates like crazy.
 	numMismatchSeries := metadataRes.ChecksumDifferences.Series().Len()
 	results := result.NewShardResult(numMismatchSeries, result.NewOptions())
 	for perSeriesReplicaIter.Next() {
@@ -465,18 +461,14 @@ func (r *dbRepairer) Repair() error {
 				"namespace": n.ID().String(),
 			}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
 
-			numBlocksRepaired := 0
 			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
-				if numBlocksRepaired >= repairLimitPerIter {
-					return false
-				}
-
 				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 				if !ok || repairState.Status != repairSuccess {
 					if err := r.repairNamespaceBlockstart(n, blockStart); err != nil {
 						multiErr = multiErr.Add(err)
 					}
-					numBlocksRepaired++
+					// Only repair one block per namespace per iteration.
+					return false
 				}
 				return true
 			})
@@ -484,20 +476,13 @@ func (r *dbRepairer) Repair() error {
 			continue
 		}
 
-		var (
-			numBlocksRepaired              = 0
-			maxSecondsSinceLastBlockRepair = r.scope.Tagged(map[string]string{
-				"namespace": n.ID().String(),
-			}).Gauge("max-seconds-since-last-block-repair")
-		)
-		for {
-			if numBlocksRepaired >= repairLimitPerIter {
-				break
-			}
-
+			
 			var (
 				leastRecentlyRepairedBlockStart               time.Time
 				leastRecentlyRepairedBlockStartLastRepairTime time.Time
+				maxSecondsSinceLastBlockRepair = r.scope.Tagged(map[string]string{
+					"namespace": n.ID().String(),
+				}).Gauge("max-seconds-since-last-block-repair")
 			)
 			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
 				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
@@ -524,8 +509,6 @@ func (r *dbRepairer) Repair() error {
 			if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
 				multiErr = multiErr.Add(err)
 			}
-			numBlocksRepaired++
-		}
 	}
 
 	return multiErr.FinalError()
