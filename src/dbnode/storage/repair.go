@@ -209,8 +209,6 @@ func (r shardRepairer) Repair(
 
 	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
 	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
-	// TODO(rartoul): Need to use existing result options not create new ones to take advantage of pools.
-	// really need to do this creating options allocates like crazy.
 	numMismatchSeries := metadataRes.ChecksumDifferences.Series().Len()
 	results := result.NewShardResult(numMismatchSeries, rsOpts)
 	for perSeriesReplicaIter.Next() {
