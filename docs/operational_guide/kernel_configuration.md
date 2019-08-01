@@ -7,14 +7,14 @@ values for you. Please read the comment in that manifest to understand the impli
 
 ## Running with Docker
 
-If running M3DB under Docker it is recommended to give M3DB the `SYS_RESOURCE` capability so that it may raise its file
-limits. If running directly with Docker this can be accomplished using:
+When running M3DB inside Docker, it is recommended to add the `SYS_RESOURCE` capability to the container (using the
+`--cap-add` argument to `docker run`) so that it can raise its file limits:
 
 ```
 docker run --cap-add SYS_RESOURCE quay.io/m3/m3dbnode:latest
 ```
 
-If you wish to run M3DB as a non-root user, you will need to use our `setcap` images:
+If M3DB is being run as a non-root user, M3's `setcap` images are required:
 ```
 docker run --cap-add SYS_RESOURCE -u 1000:1000 quay.io/m3/m3dbnode:latest-setcap
 ```
@@ -81,7 +81,7 @@ Before running the process make sure the limits are set, if running manually you
 
 ## Automatic Limit Raising
 
-When M3DB first starts up it will attempt to raise its open file limit to the current value of `fs.nr_open`. This is a
-benign operation and if it fails M3DB will simply emit a warning.
+During startup, M3DB will attempt to raise its open file limit to the current value of `fs.nr_open`. This is a benign
+operation; if it fails M3DB, will simply emit a warning.
 
 [docker-caps]: https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities
