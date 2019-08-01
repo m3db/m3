@@ -127,9 +127,6 @@ db:
 
   repair:
       enabled: false
-      interval: 2h
-      offset: 30m
-      jitter: 1h
       throttle: 2m
       checkInterval: 1m
 
@@ -440,9 +437,6 @@ func TestConfiguration(t *testing.T) {
     blockSize: null
   repair:
     enabled: false
-    interval: 2h0m0s
-    offset: 30m0s
-    jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
     debugShadowComparisonsEnabled: false

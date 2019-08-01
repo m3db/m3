@@ -24,12 +24,12 @@ package main_test
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"sync"
 	"testing"
 	"text/template"
 	"time"
-	"net/http"
 
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -170,7 +170,7 @@ func TestConfig(t *testing.T) {
 		})
 		serverWg.Done()
 	}()
-	defer func(){
+	defer func() {
 		// Resetting DefaultServeMux to prevent multiple assignments
 		// to /debug/dump in Server.Run()
 		http.DefaultServeMux = http.NewServeMux()
@@ -318,7 +318,7 @@ func TestEmbeddedConfig(t *testing.T) {
 		})
 		serverWg.Done()
 	}()
-	defer func(){
+	defer func() {
 		// Resetting DefaultServeMux to prevent multiple assignments
 		// to /debug/dump in Server.Run()
 		http.DefaultServeMux = http.NewServeMux()
@@ -527,9 +527,6 @@ db:
 
     repair:
         enabled: false
-        interval: 2h
-        offset: 30m
-        jitter: 1h
         throttle: 2m
         checkInterval: 1m
 
