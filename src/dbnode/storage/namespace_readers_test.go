@@ -220,8 +220,8 @@ func TestNamespaceReadersPutTickClose(t *testing.T) {
 	require.NoError(t, nsReaderMgr.put(mockFSReader))
 	require.Len(t, nsReaderMgrImpl.closedReaders, 2)
 
-	// Case 3: a reader with a volume lower than the latest volume should be
-	// closed and added in the slice of closed readers.
+	// Case 3: an open reader with the correct volume gets added to the open
+	// readers.
 	mockFSReader.EXPECT().Status().Return(fs.DataFileSetReaderStatus{
 		Namespace: nsID, BlockStart: start, Shard: shard,
 		Volume: 2,
