@@ -56,6 +56,7 @@ var (
 
 type recordFn func(namespace ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
 
+// TODO(rartoul): See if we can find a way to guard against too much metadata.
 type shardRepairer struct {
 	opts     Options
 	rpopts   repair.Options
