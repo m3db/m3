@@ -192,8 +192,11 @@ func NewFunctionExpr(
 	hasArgValue bool,
 	tagOptions models.TagOptions,
 ) (parser.Params, bool, error) {
-	var p parser.Params
-	var err error
+	var (
+		p   parser.Params
+		err error
+	)
+
 	if isDateFunc(name) {
 		p, err = linear.NewDateOp(name, hasArgValue)
 		return p, true, err

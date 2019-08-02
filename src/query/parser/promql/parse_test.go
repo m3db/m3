@@ -495,5 +495,5 @@ func TestMissingTagsDoNotPanic(t *testing.T) {
 	q := `label_join(up, "foo", ",")`
 	p, err := Parse(q, models.NewTagOptions())
 	require.NoError(t, err)
-	_, _, _ = p.DAG()
+	assert.NotPanics(t, func() { _, _, _ = p.DAG() })
 }
