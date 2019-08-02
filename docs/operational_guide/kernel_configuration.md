@@ -1,9 +1,25 @@
-Kernel Configuration
+Docker & Kernel Configuration
 ====================
 
 This document lists the Kernel tweaks M3DB needs to run well. If you are running on Kubernetes, you may use our
 `sysctl-setter` [DaemonSet](https://github.com/m3db/m3/blob/master/kube/sysctl-daemonset.yaml) that will set these
 values for you. Please read the comment in that manifest to understand the implications of applying it.
+
+## Running with Docker
+
+When running M3DB inside Docker, it is recommended to add the `SYS_RESOURCE` capability to the container (using the
+`--cap-add` argument to `docker run`) so that it can raise its file limits:
+
+```
+docker run --cap-add SYS_RESOURCE quay.io/m3/m3dbnode:latest
+```
+
+If M3DB is being run as a non-root user, M3's `setcap` images are required:
+```
+docker run --cap-add SYS_RESOURCE -u 1000:1000 quay.io/m3/m3dbnode:latest-setcap
+```
+
+More information on Docker's capability settings can be found [here][docker-caps].
 
 ## vm.max_map_count
 M3DB uses a lot of mmap-ed files for performance, as a result, you might need to bump `vm.max_map_count`. We suggest setting this value to `3000000`, so you don’t have to come back and debug issues later.
@@ -62,3 +78,10 @@ Also note that systemd has a `system.conf` file and a `user.conf` file which may
 Be sure to check that those files aren't configured with values lower than the value you configure at the service level.
 
 Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 3000000`.
+
+## Automatic Limit Raising
+
+During startup, M3DB will attempt to raise its open file limit to the current value of `fs.nr_open`. This is a benign
+operation; if it fails M3DB, will simply emit a warning.
+
+[docker-caps]: https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities

@@ -55,7 +55,7 @@ type readableSeriesTag struct {
 
 type readableSeriesList []readableSeries
 
-func toDatapoints(fetched *rpc.FetchResult_) ([]generate.TestValue) {
+func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
 	converted := make([]generate.TestValue, len(fetched.Datapoints))
 	for i, dp := range fetched.Datapoints {
 		converted[i] = generate.TestValue{

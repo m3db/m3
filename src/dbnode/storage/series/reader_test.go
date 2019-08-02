@@ -51,8 +51,8 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	onRetrieveBlock := block.NewMockOnRetrieveBlock(ctrl)
 
 	retriever := NewMockQueryableBlockRetriever(ctrl)
-	retriever.EXPECT().IsBlockRetrievable(start).Return(true)
-	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true)
+	retriever.EXPECT().IsBlockRetrievable(start).Return(true, nil)
+	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true, nil)
 
 	var blockReaders []xio.BlockReader
 	for i := 0; i < 2; i++ {
@@ -476,9 +476,9 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
 					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
 					if !ok {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false)
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
 					} else {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true)
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true, nil)
 						if diskBlocks.err != nil {
 							retriever.EXPECT().
 								Stream(ctx, ident.NewIDMatcher("foo"), currTime, nil, gomock.Any()).
@@ -572,9 +572,9 @@ func TestReaderReadEncodedRobust(t *testing.T) {
 					diskCache.EXPECT().BlockAt(currTime).Return(nil, false)
 					diskBlocks, ok := tc.diskBlocks[xtime.ToUnixNano(currTime)]
 					if !ok {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false)
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(false, nil)
 					} else {
-						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true)
+						retriever.EXPECT().IsBlockRetrievable(currTime).Return(true, nil)
 						if diskBlocks.err != nil {
 							retriever.EXPECT().
 								Stream(ctx, ident.NewIDMatcher("foo"), currTime, onRetrieveBlock, gomock.Any()).
