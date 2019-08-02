@@ -1766,6 +1766,11 @@ func (s *dbShard) FetchBlocksMetadataV2(
 				blockResult))
 		}
 
+		endPos := int64(reader.MetadataRead())
+		// This volume may be different from the one initialliy requested,
+		// e.g. if there was a compaction between the last call and this
+		// one.
+		volume := int64(reader.Status().Volume)
 		// Return the reader to the cache
 		err = s.namespaceReaderMgr.put(reader)
 		if err != nil {
@@ -1773,12 +1778,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		if numResults >= limit {
-			endPos := int64(reader.MetadataRead())
-			// This volume may be different from the one initialliy requested,
-			// e.g. if there was a compaction between the last call and this
-			// one.
-			volume := int64(reader.Status().Volume)
-
 			// We hit the limit, return results with page token
 			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
