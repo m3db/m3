@@ -261,7 +261,6 @@ func (os *ostream) Rawbytes() ([]byte, int) {
 }
 
 func (os *ostream) CheckedBytes() (checked.Bytes, int) {
-	os.repairCheckedBytes()
 	return os.checked, os.pos
 }
 
