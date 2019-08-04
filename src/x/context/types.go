@@ -105,31 +105,11 @@ type Options interface {
 
 	// FinalizerPoolOptions returns the finalizer pool options.
 	FinalizerPoolOptions() pool.ObjectPoolOptions
-
-	// SetMaxPooledFinalizerCapacity sets the maximum capacity allowed
-	// for a finalizer to be pooled.
-	SetMaxPooledFinalizerCapacity(int) Options
-
-	// MaxPooledFinalizerCapacity returns the maximum capacity allowed
-	// for a finalizer to be pooled.
-	MaxPooledFinalizerCapacity() int
-
-	// SetInitPooledFinalizerCapacity sets the capacity finalizers are
-	// initialized to.
-	SetInitPooledFinalizerCapacity(int) Options
-
-	// InitPooledFinalizerCapacity return the capacity finalizers are
-	// initialized to.
-	InitPooledFinalizerCapacity() int
 }
 
 // contextPool is the internal pool interface for contexts.
 type contextPool interface {
 	Pool
-
-	// getFinalizeables provides a finalizeables slice from the pool.
-	getFinalizeables() []finalizeable
-
-	// putFinalizeables returns the finalizers to pool.
-	putFinalizeables([]finalizeable)
+	getFinalizeablesList() *finalizeableList
+	putFinalizeablesList(v *finalizeableList)
 }

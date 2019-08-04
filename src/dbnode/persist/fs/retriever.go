@@ -84,7 +84,7 @@ type blockRetriever struct {
 
 	newSeekerMgrFn newSeekerMgrFn
 
-	reqPool    retrieveRequestPool
+	reqPool    RetrieveRequestPool
 	bytesPool  pool.CheckedBytesPool
 	idPool     ident.Pool
 	nsMetadata namespace.Metadata
@@ -108,16 +108,12 @@ func NewBlockRetriever(
 		return nil, err
 	}
 
-	segmentReaderPool := opts.SegmentReaderPool()
-	reqPoolOpts := opts.RequestPoolOptions()
-	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
-	reqPool.Init()
 	return &blockRetriever{
 		opts:           opts,
 		fsOpts:         fsOpts,
 		logger:         fsOpts.InstrumentOptions().Logger(),
 		newSeekerMgrFn: NewSeekerManager,
-		reqPool:        reqPool,
+		reqPool:        opts.RetrieveRequestPool(),
 		bytesPool:      opts.BytesPool(),
 		idPool:         opts.IdentifierPool(),
 		status:         blockRetrieverNotOpen,
@@ -692,7 +688,8 @@ func (r retrieveRequestByOffsetAsc) Less(i, j int) bool {
 	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
 }
 
-type retrieveRequestPool interface {
+// RetrieveRequestPool is the retrieve request pool.
+type RetrieveRequestPool interface {
 	Init()
 	Get() *retrieveRequest
 	Put(req *retrieveRequest)
@@ -703,10 +700,11 @@ type reqPool struct {
 	pool              pool.ObjectPool
 }
 
-func newRetrieveRequestPool(
+// NewRetrieveRequestPool returns a new retrieve request pool.
+func NewRetrieveRequestPool(
 	segmentReaderPool xio.SegmentReaderPool,
 	opts pool.ObjectPoolOptions,
-) retrieveRequestPool {
+) RetrieveRequestPool {
 	return &reqPool{
 		segmentReaderPool: segmentReaderPool,
 		pool:              pool.NewObjectPool(opts),

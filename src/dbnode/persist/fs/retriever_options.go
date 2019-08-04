@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	defaultRequestPoolSize  = 16384
 	defaultFetchConcurrency = 2
 )
 
@@ -39,9 +38,8 @@ var (
 )
 
 type blockRetrieverOptions struct {
-	requestPoolOpts   pool.ObjectPoolOptions
+	requestPool       RetrieveRequestPool
 	bytesPool         pool.CheckedBytesPool
-	segmentReaderPool xio.SegmentReaderPool
 	fetchConcurrency  int
 	identifierPool    ident.Pool
 	blockLeaseManager block.LeaseManager
@@ -55,15 +53,20 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
+
+	segmentReaderPool := xio.NewSegmentReaderPool(nil)
+	segmentReaderPool.Init()
+
+	requestPool := NewRetrieveRequestPool(segmentReaderPool, nil)
+	requestPool.Init()
+
 	o := &blockRetrieverOptions{
-		requestPoolOpts: pool.NewObjectPoolOptions().
-			SetSize(defaultRequestPoolSize),
-		bytesPool:         bytesPool,
-		segmentReaderPool: xio.NewSegmentReaderPool(nil),
-		fetchConcurrency:  defaultFetchConcurrency,
-		identifierPool:    ident.NewPool(bytesPool, ident.PoolOptions{}),
+		requestPool:      requestPool,
+		bytesPool:        bytesPool,
+		fetchConcurrency: defaultFetchConcurrency,
+		identifierPool:   ident.NewPool(bytesPool, ident.PoolOptions{}),
 	}
-	o.segmentReaderPool.Init()
+
 	return o
 }
 
@@ -74,14 +77,14 @@ func (o *blockRetrieverOptions) Validate() error {
 	return nil
 }
 
-func (o *blockRetrieverOptions) SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions {
+func (o *blockRetrieverOptions) SetRetrieveRequestPool(value RetrieveRequestPool) BlockRetrieverOptions {
 	opts := *o
-	opts.requestPoolOpts = value
+	opts.requestPool = value
 	return &opts
 }
 
-func (o *blockRetrieverOptions) RequestPoolOptions() pool.ObjectPoolOptions {
-	return o.requestPoolOpts
+func (o *blockRetrieverOptions) RetrieveRequestPool() RetrieveRequestPool {
+	return o.requestPool
 }
 
 func (o *blockRetrieverOptions) SetBytesPool(value pool.CheckedBytesPool) BlockRetrieverOptions {
@@ -92,16 +95,6 @@ func (o *blockRetrieverOptions) SetBytesPool(value pool.CheckedBytesPool) BlockR
 
 func (o *blockRetrieverOptions) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
-}
-
-func (o *blockRetrieverOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) BlockRetrieverOptions {
-	opts := *o
-	opts.segmentReaderPool = value
-	return &opts
-}
-
-func (o *blockRetrieverOptions) SegmentReaderPool() xio.SegmentReaderPool {
-	return o.segmentReaderPool
 }
 
 func (o *blockRetrieverOptions) SetFetchConcurrency(value int) BlockRetrieverOptions {

@@ -25,22 +25,21 @@ import (
 )
 
 type poolOfContexts struct {
-	ctxPool        pool.ObjectPool
-	finalizersPool finalizeablesArrayPool
+	finalizeablesListPool    pool.ObjectPool
+	finalizeablesElementPool *finalizeableElementPool
+	ctxPool                  pool.ObjectPool
 }
 
 // NewPool creates a new context pool.
 func NewPool(opts Options) Pool {
 	p := &poolOfContexts{
-		ctxPool: pool.NewObjectPool(opts.ContextPoolOptions()),
-		finalizersPool: newFinalizeablesArrayPool(finalizeablesArrayPoolOpts{
-			Capacity:    opts.InitPooledFinalizerCapacity(),
-			MaxCapacity: opts.MaxPooledFinalizerCapacity(),
-			Options:     opts.FinalizerPoolOptions(),
-		}),
+		finalizeablesListPool:    pool.NewObjectPool(opts.ContextPoolOptions()),
+		finalizeablesElementPool: newFinalizeableElementPool(opts.FinalizerPoolOptions()),
+		ctxPool:                  pool.NewObjectPool(opts.ContextPoolOptions()),
 	}
-
-	p.finalizersPool.Init()
+	p.finalizeablesListPool.Init(func() interface{} {
+		return &finalizeableList{Pool: p.finalizeablesElementPool}
+	})
 	p.ctxPool.Init(func() interface{} {
 		return newPooledContext(p)
 	})
@@ -56,10 +55,15 @@ func (p *poolOfContexts) Put(context Context) {
 	p.ctxPool.Put(context)
 }
 
-func (p *poolOfContexts) getFinalizeables() []finalizeable {
-	return p.finalizersPool.Get()
+func (p *poolOfContexts) getFinalizeablesList() *finalizeableList {
+	return p.finalizeablesListPool.Get().(*finalizeableList)
 }
 
-func (p *poolOfContexts) putFinalizeables(finalizeables []finalizeable) {
-	p.finalizersPool.Put(finalizeables)
+func (p *poolOfContexts) putFinalizeablesList(v *finalizeableList) {
+	emptyValue := finalizeable{}
+	for elem := v.Front(); elem != nil; elem = elem.Next() {
+		elem.Value = emptyValue
+	}
+	v.Reset()
+	p.finalizeablesListPool.Put(v)
 }

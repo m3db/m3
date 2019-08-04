@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
@@ -145,6 +146,7 @@ type options struct {
 	writeBatchPool                 *ts.WriteBatchPool
 	bufferBucketPool               *series.BufferBucketPool
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
+	retrieveRequestPool            fs.RetrieveRequestPool
 	schemaReg                      namespace.SchemaRegistry
 	blockLeaseManager              block.LeaseManager
 }
@@ -168,6 +170,12 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil, nil)
 	writeBatchPool.Init()
 
+	segmentReaderPool := xio.NewSegmentReaderPool(poolOpts)
+	segmentReaderPool.Init()
+
+	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool, nil)
+	retrieveRequestPool.Init()
+
 	o := &options{
 		clockOpts:                clock.NewOptions(),
 		instrumentOpts:           instrument.NewOptions(),
@@ -190,7 +198,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		seriesPool:              series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:               bytesPool,
 		encoderPool:             encoding.NewEncoderPool(poolOpts),
-		segmentReaderPool:       xio.NewSegmentReaderPool(poolOpts),
+		segmentReaderPool:       segmentReaderPool,
 		readerIteratorPool:      encoding.NewReaderIteratorPool(poolOpts),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(poolOpts),
 		identifierPool: ident.NewPool(bytesPool, ident.PoolOptions{
@@ -204,6 +212,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		writeBatchPool:                 writeBatchPool,
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
+		retrieveRequestPool:            retrieveRequestPool,
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
 	}
 	return o.SetEncodingM3TSZPooled()
@@ -671,6 +680,16 @@ func (o *options) SetBufferBucketVersionsPool(value *series.BufferBucketVersions
 
 func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
+}
+
+func (o *options) SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options {
+	opts := *o
+	opts.retrieveRequestPool = value
+	return &opts
+}
+
+func (o *options) RetrieveRequestPool() fs.RetrieveRequestPool {
+	return o.retrieveRequestPool
 }
 
 func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {

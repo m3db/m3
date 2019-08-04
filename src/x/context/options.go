@@ -22,25 +22,16 @@ package context
 
 import "github.com/m3db/m3/src/x/pool"
 
-const (
-	defaultInitFinalizersCap = 4
-	defaultMaxFinalizersCap  = 1 << 16
-)
-
 type opts struct {
-	contextPoolOpts        pool.ObjectPoolOptions
-	finalizerPoolOpts      pool.ObjectPoolOptions
-	maxPooledFinalizerCap  int
-	initPooledFinalizerCap int
+	contextPoolOpts   pool.ObjectPoolOptions
+	finalizerPoolOpts pool.ObjectPoolOptions
 }
 
 // NewOptions returns a new Options object.
 func NewOptions() Options {
 	return &opts{
-		contextPoolOpts:        pool.NewObjectPoolOptions(),
-		finalizerPoolOpts:      pool.NewObjectPoolOptions(),
-		maxPooledFinalizerCap:  defaultMaxFinalizersCap,
-		initPooledFinalizerCap: defaultInitFinalizersCap,
+		contextPoolOpts:   pool.NewObjectPoolOptions(),
+		finalizerPoolOpts: pool.NewObjectPoolOptions(),
 	}
 }
 
@@ -62,24 +53,4 @@ func (o *opts) SetFinalizerPoolOptions(po pool.ObjectPoolOptions) Options {
 
 func (o *opts) FinalizerPoolOptions() pool.ObjectPoolOptions {
 	return o.finalizerPoolOpts
-}
-
-func (o *opts) SetMaxPooledFinalizerCapacity(max int) Options {
-	opts := *o
-	opts.maxPooledFinalizerCap = max
-	return &opts
-}
-
-func (o *opts) MaxPooledFinalizerCapacity() int {
-	return o.maxPooledFinalizerCap
-}
-
-func (o *opts) SetInitPooledFinalizerCapacity(init int) Options {
-	opts := *o
-	opts.initPooledFinalizerCap = init
-	return &opts
-}
-
-func (o *opts) InitPooledFinalizerCapacity() int {
-	return o.initPooledFinalizerCap
 }

@@ -29,11 +29,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 )
 
 type dbMergedBlockReader struct {
 	sync.RWMutex
+	ctx        context.Context
 	opts       Options
 	blockStart time.Time
 	blockSize  time.Duration
@@ -69,6 +71,7 @@ func newDatabaseMergedBlockReader(
 	opts Options,
 ) xio.BlockReader {
 	r := &dbMergedBlockReader{
+		ctx:        opts.ContextPool().Get(),
 		nsCtx:      nsCtx,
 		opts:       opts,
 		blockStart: blockStart,
@@ -135,7 +138,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 
 	// Can ignore OK here because BlockReader will handle nil streams
 	// properly.
-	stream, _ := r.encoder.Stream(encoding.StreamOptions{})
+	stream, _ := r.encoder.Stream(r.ctx, encoding.StreamOptions{})
 	r.merged = xio.BlockReader{
 		SegmentReader: stream,
 		Start:         r.blockStart,
@@ -208,6 +211,10 @@ func (r *dbMergedBlockReader) ResetWindowed(_ ts.Segment, _, _ time.Time) {
 
 func (r *dbMergedBlockReader) Finalize() {
 	r.Lock()
+
+	// Can blocking close, the finalizer will complete immediately
+	// since it just dec refs on the buffer it created in the encoder.
+	r.ctx.BlockingClose()
 
 	r.blockStart = time.Time{}
 

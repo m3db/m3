@@ -44,7 +44,7 @@ type ctx struct {
 	pool                 contextPool
 	done                 bool
 	wg                   sync.WaitGroup
-	finalizeables        []finalizeable
+	finalizeables        *finalizeableList
 	parent               Context
 	checkedAndNotSampled bool
 }
@@ -120,23 +120,23 @@ func (c *ctx) registerFinalizeable(f finalizeable) {
 		return
 	}
 
-	if c.finalizeables != nil {
-		c.finalizeables = append(c.finalizeables, f)
-		c.Unlock()
-		return
+	if c.finalizeables == nil {
+		if c.pool != nil {
+			c.finalizeables = c.pool.getFinalizeablesList()
+		} else {
+			c.finalizeables = newFinalizeableList(nil)
+		}
 	}
-
-	if c.pool != nil {
-		c.finalizeables = append(c.pool.getFinalizeables(), f)
-	} else {
-		c.finalizeables = append(allocateFinalizeables(), f)
-	}
+	c.finalizeables.PushBack(f)
 
 	c.Unlock()
 }
 
-func allocateFinalizeables() []finalizeable {
-	return make([]finalizeable, 0, defaultInitFinalizersCap)
+func (c *ctx) numFinalizeables() int {
+	if c.finalizeables == nil {
+		return 0
+	}
+	return c.finalizeables.Len()
 }
 
 func (c *ctx) DependsOn(blocker Context) {
@@ -203,7 +203,7 @@ func (c *ctx) close(mode closeMode) {
 	c.done = true
 	c.Unlock()
 
-	if len(c.finalizeables) == 0 {
+	if c.finalizeables == nil {
 		c.returnToPool()
 		return
 	}
@@ -221,24 +221,22 @@ func (c *ctx) close(mode closeMode) {
 	}
 }
 
-func (c *ctx) finalize(f []finalizeable) {
+func (c *ctx) finalize(f *finalizeableList) {
 	// Wait for dependencies.
 	c.wg.Wait()
 
 	// Now call finalizers.
-	for i := range f {
-		if f[i].finalizer != nil {
-			f[i].finalizer.Finalize()
-			f[i].finalizer = nil
+	for elem := f.Front(); elem != nil; elem = elem.Next() {
+		if elem.Value.finalizer != nil {
+			elem.Value.finalizer.Finalize()
 		}
-		if f[i].closer != nil {
-			f[i].closer.Close()
-			f[i].closer = nil
+		if elem.Value.closer != nil {
+			elem.Value.closer.Close()
 		}
 	}
 
 	if c.pool != nil {
-		c.pool.putFinalizeables(f)
+		c.pool.putFinalizeablesList(f)
 	}
 
 	c.returnToPool()
