@@ -85,8 +85,8 @@ var (
 		"tagDecoder": defaultPoolPolicy,
 		"context": poolPolicyDefault{
 			size:                262144,
-			refillLowWaterMark:  defaultRefillLowWaterMark,
-			refillHighWaterMark: defaultRefillHighWaterMark,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
 		},
 		"series": poolPolicyDefault{
 			size:                262144,
@@ -104,9 +104,10 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"closers": poolPolicyDefault{
-			size:                104857,
-			refillLowWaterMark:  defaultRefillLowWaterMark,
-			refillHighWaterMark: defaultRefillHighWaterMark,
+			// Note this has to be bigger than context pool
+			size:                262144,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
 		},
 		"segmentReader": poolPolicyDefault{
 			size:                65536,
