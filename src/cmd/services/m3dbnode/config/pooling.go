@@ -105,8 +105,9 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"closers": poolPolicyDefault{
-			// Note this has to be bigger than context pool
-			size:                262144,
+			// Note this has to be bigger than context pool by
+			// big fraction (by factor of say 4)
+			size:                524288,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
 		},
