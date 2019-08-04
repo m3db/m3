@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -213,7 +214,10 @@ func (enc *Encoder) encodeSchemaAndOrTimeUnit(
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *Encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
+func (enc *Encoder) Stream(
+	ctx context.Context,
+	opts encoding.StreamOptions,
+) (xio.SegmentReader, bool) {
 	seg := enc.segment(true)
 	if seg.Len() == 0 {
 		return nil, false

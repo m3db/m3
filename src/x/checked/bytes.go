@@ -20,6 +20,13 @@
 
 package checked
 
+import (
+	"fmt"
+	"sync"
+
+	"github.com/m3db/m3/src/x/resource"
+)
+
 var (
 	defaultBytesOptions = NewBytesOptions()
 )
@@ -52,6 +59,8 @@ type Bytes interface {
 
 	// Reset will reset the reference referred to by the bytes.
 	Reset(v []byte)
+
+	DelayFinalizer() resource.Finalizer
 }
 
 type bytesRef struct {
@@ -59,6 +68,27 @@ type bytesRef struct {
 
 	opts  BytesOptions
 	value []byte
+
+	constBytesRefFinalizeDelayed bytesRefFinalizeDelayed
+	delayedFinalizer             *bytesRefFinalizeDelayed
+}
+
+type bytesRefFinalizeDelayed struct {
+	sync.Mutex
+	delayed        int32
+	finalizeCalled bool
+	bytesRef       *bytesRef
+}
+
+func (d *bytesRefFinalizeDelayed) Finalize() {
+	d.Lock()
+	d.delayed--
+	if d.delayed == 0 && d.finalizeCalled {
+		d.bytesRef.finalizeWithDelayedFinalizerLock()
+	} else if d.delayed < 0 {
+		panic(fmt.Sprintf("negative delayed finalize ref count: %d", d.delayed))
+	}
+	d.Unlock()
 }
 
 // NewBytes returns a new checked byte slice.
@@ -70,6 +100,8 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 		opts:  opts,
 		value: value,
 	}
+	b.constBytesRefFinalizeDelayed.bytesRef = b
+	b.delayedFinalizer = &b.constBytesRefFinalizeDelayed
 	b.SetFinalizer(b)
 	// NB(r): Tracking objects causes interface allocation
 	// so avoid if we are not performing any leak detection.
@@ -77,6 +109,13 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 		b.TrackObject(b.value)
 	}
 	return b
+}
+
+func (b *bytesRef) DelayFinalizer() resource.Finalizer {
+	b.delayedFinalizer.Lock()
+	b.delayedFinalizer.delayed++
+	b.delayedFinalizer.Unlock()
+	return b.delayedFinalizer
 }
 
 func (b *bytesRef) Bytes() []byte {
@@ -125,6 +164,19 @@ func (b *bytesRef) Reset(v []byte) {
 }
 
 func (b *bytesRef) Finalize() {
+	b.delayedFinalizer.Lock()
+	b.delayedFinalizer.finalizeCalled = true
+	if b.delayedFinalizer.delayed == 0 {
+		b.finalizeWithDelayedFinalizerLock()
+	}
+	b.delayedFinalizer.Unlock()
+}
+
+func (b *bytesRef) finalizeWithDelayedFinalizerLock() {
+	// Set to finalizeCalled false so state is reset if the finalizer
+	// puts this ref back in the pool.
+	b.delayedFinalizer.finalizeCalled = false
+
 	if finalizer := b.opts.Finalizer(); finalizer != nil {
 		finalizer.FinalizeBytes(b)
 	}

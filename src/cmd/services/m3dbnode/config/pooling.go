@@ -54,8 +54,8 @@ type bucketPoolPolicyDefault struct {
 }
 
 var (
-	defaultRefillLowWaterMark  = 0.7
-	defaultRefillHighWaterMark = 1.0
+	defaultRefillLowWaterMark  = 0.3
+	defaultRefillHighWaterMark = 0.6
 
 	defaultPoolPolicy = poolPolicyDefault{
 		size:                4096,
@@ -110,7 +110,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"segmentReader": poolPolicyDefault{
-			size:                16384,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
@@ -151,6 +151,11 @@ var (
 			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
+		},
+		"retrieveRequestPool": poolPolicyDefault{
+			size:                65536,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
 		},
 
 		// Capacity pools.
@@ -282,7 +287,7 @@ type PoolingPolicy struct {
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
 	// The policy for the Context pool.
-	ContextPool ContextPoolPolicy `yaml:"contextPool"`
+	ContextPool PoolPolicy `yaml:"contextPool"`
 
 	// The policy for the DatabaseSeries pool.
 	SeriesPool PoolPolicy `yaml:"seriesPool"`
@@ -346,6 +351,9 @@ type PoolingPolicy struct {
 
 	// The policy for the BufferBucketVersions pool.
 	BufferBucketVersionsPool PoolPolicy `yaml:"bufferBucketVersionsPool"`
+
+	// The policy for the RetrieveRequestPool pool.
+	RetrieveRequestPool PoolPolicy `yaml:"retrieveRequestPool"`
 
 	// The policy for the PostingsListPool.
 	PostingsListPool PoolPolicy `yaml:"postingsListPool"`
@@ -423,6 +431,9 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 		return err
 	}
 	if err := p.BufferBucketVersionsPool.initDefaultsAndValidate("bufferBucketVersions"); err != nil {
+		return err
+	}
+	if err := p.RetrieveRequestPool.initDefaultsAndValidate("retrieveRequestPool"); err != nil {
 		return err
 	}
 	return nil
@@ -638,27 +649,6 @@ type WriteBatchPoolPolicy struct {
 	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
 	// and still remain in the pool.
 	MaxBatchSize *int `yaml:"maxBatchSize"`
-}
-
-// ContextPoolPolicy specifies the policy for the context pool.
-type ContextPoolPolicy struct {
-	PoolPolicy `yaml:",inline"`
-
-	// The maximum allowable size for a slice of finalizers that the
-	// pool will allow to be returned (finalizer slices that grow too
-	// large during use will be discarded instead of returning to the
-	// pool where they would consume more memory.)
-	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
-}
-
-// MaxFinalizerCapacityOrDefault returns the maximum finalizer capacity and
-// fallsback to the default value if its not set.
-func (p ContextPoolPolicy) MaxFinalizerCapacityOrDefault() int {
-	if p.MaxFinalizerCapacity == 0 {
-		return defaultMaxFinalizerCapacity
-	}
-
-	return p.MaxFinalizerCapacity
 }
 
 func intPtr(x int) *int {

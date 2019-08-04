@@ -260,6 +260,11 @@ func (os *ostream) Rawbytes() ([]byte, int) {
 	return os.rawBuffer, os.pos
 }
 
+func (os *ostream) CheckedBytes() (checked.Bytes, int) {
+	os.repairCheckedBytes()
+	return os.checked, os.pos
+}
+
 // repairCheckedBytes makes sure that the checked.Bytes wraps the rawBuffer as
 // they may have fallen out of sync during the writing process.
 func (os *ostream) repairCheckedBytes() {

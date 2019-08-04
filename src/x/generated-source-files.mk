@@ -12,7 +12,7 @@ test-genny-all: genny-all
 	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: genny-all
-genny-all: genny-map-all genny-arraypool-all
+genny-all: genny-map-all genny-list-all genny-arraypool-all
 
 .PHONY: genny-map-all
 genny-map-all: idhashmap-update byteshashmap-update
@@ -102,21 +102,27 @@ endif
 	rm -f $(temp_outdir)/value.go
 	rmdir $(temp_outdir)
 
-.PHONY: genny-arraypool-all
-genny-arraypool-all: genny-arraypool-context-finalizeables genny-arraypool-ident-tags
+# Generation rule for all generated lists
+.PHONY: genny-list-all
+genny-list-all:                              \
+	genny-list-context-finalizeables
 
-# arraypool generation rule for context/finalizeablesPool
-.PHONY: genny-arraypool-context-finalizeables
-genny-arraypool-context-finalizeables:
-	cd $(m3x_package_path) && make genny-arraypool \
-		pkg=context                                  \
-		elem_type=finalizeable                       \
-		target_package=$(m3x_package)/context        \
-		out_file=finalizeables_arraypool_gen.go      \
-		rename_type_middle=Finalizeables             \
-		rename_constructor=newFinalizeablesArrayPool \
-		rename_type_prefix=finalizeables             \
-		rename_gen_types=true
+# List generation rule for context/finalizeablesList
+.PHONY: genny-list-context-finalizeables
+genny-list-context-finalizeables:
+	cd $(m3x_package_path) && make genny-pooled-elem-list-gen \
+		pkg=context                                           \
+		elem_type=finalizeable                                \
+		value_type=finalizeable                               \
+		rename_type_prefix=finalizeable                       \
+		rename_type_middle=Finalizeable                       \
+		rename_gen_types=true                                 \
+		target_package=github.com/m3db/m3/src/x/context
+	# Rename generated list file
+	mv -f $(m3x_package_path)/context/list_gen.go $(m3x_package_path)/context/finalizeable_list_gen.go
+
+.PHONY: genny-arraypool-all
+genny-arraypool-all: genny-arraypool-ident-tags
 
 # arraypool generation rule for ident/tagsArrayPool
 .PHONY: genny-arraypool-ident-tags

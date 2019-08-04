@@ -628,13 +628,27 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		return nil, convert.ToRPCError(err)
 	}
 
+	results := queryResult.Results
 	response := &rpc.FetchTaggedResult_{
 		Exhaustive: queryResult.Exhaustive,
+		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, results.Size()),
 	}
-	results := queryResult.Results
 	nsID := results.Namespace()
 	nsIDBytes := nsID.Bytes()
+
+	// NB(r): Step 1 if reading data then read using an asychronuous block reader,
+	// but don't serialize yet so that all block reader requests can
+	// be issued at once before waiting for their results.
+	var encodedDataResults [][][]xio.BlockReader
+	if fetchData {
+		encodedDataResults = make([][][]xio.BlockReader, results.Size())
+	}
+
+	i := 0
 	for _, entry := range results.Map().Iter() {
+		idx := i
+		i++
+
 		tsID := entry.Key()
 		tags := entry.Value()
 		enc := s.pools.tagEncoder.Get()
@@ -654,12 +668,31 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		if !fetchData {
 			continue
 		}
-		segments, rpcErr := s.readEncoded(ctx, db, nsID, tsID, opts.StartInclusive, opts.EndExclusive)
-		if rpcErr != nil {
-			elem.Err = rpcErr
-			continue
+
+		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
+			opts.StartInclusive, opts.EndExclusive)
+		if err != nil {
+			elem.Err = convert.ToRPCError(err)
+		} else {
+			encodedDataResults[idx] = encoded
 		}
-		elem.Segments = segments
+	}
+
+	// Step 2: If fetching data read the results of the asynchronuous block readers.
+	if fetchData {
+		for idx, elem := range response.Elements {
+			if elem.Err != nil {
+				continue
+			}
+
+			segments, rpcErr := s.readEncodedResult(ctx, encodedDataResults[idx])
+			if rpcErr != nil {
+				elem.Err = rpcErr
+				continue
+			}
+
+			response.Elements[idx].Segments = segments
+		}
 	}
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
@@ -798,22 +831,34 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	nsID := s.newID(ctx, req.NameSpace)
-
-	result := rpc.NewFetchBatchRawResult_()
-
 	var (
 		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+	nsID := s.newID(ctx, req.NameSpace)
+	result := rpc.NewFetchBatchRawResult_()
+	result.Elements = make([]*rpc.FetchRawResult_, len(req.Ids))
 
+	// NB(r): Step 1 read the data using an asychronuous block reader,
+	// but don't serialize yet so that all block reader requests can
+	// be issued at once before waiting for their results.
+	encodedResults := make([][][]xio.BlockReader, len(req.Ids))
+	for i := range req.Ids {
+		tsID := s.newID(ctx, req.Ids[i])
+		encoded, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		encodedResults[i] = encoded
+	}
+
+	// Step 2: Read the results of the asynchronuous block readers.
 	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
-		result.Elements = append(result.Elements, rawResult)
+		result.Elements[i] = rawResult
 
-		tsID := s.newID(ctx, req.Ids[i])
-		segments, rpcErr := s.readEncoded(ctx, db, nsID, tsID, start, end)
+		segments, rpcErr := s.readEncodedResult(ctx, encodedResults[i])
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -1941,17 +1986,10 @@ func (s *service) newPooledID(
 	return s.newID(ctx, id)
 }
 
-func (s *service) readEncoded(
+func (s *service) readEncodedResult(
 	ctx context.Context,
-	db storage.Database,
-	nsID, tsID ident.ID,
-	start, end time.Time,
+	encoded [][]xio.BlockReader,
 ) ([]*rpc.Segments, *rpc.Error) {
-	encoded, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
-	if err != nil {
-		return nil, convert.ToRPCError(err)
-	}
-
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]

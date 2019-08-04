@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -276,11 +277,22 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
-	segment := enc.segment(byCopyResultType)
+func (enc *encoder) Stream(
+	ctx context.Context,
+	opts encoding.StreamOptions,
+) (xio.SegmentReader, bool) {
+	segment := enc.segment(byZeroCopyResultType)
 	if segment.Len() == 0 {
 		return nil, false
 	}
+
+	// NB(r): There was bytes we actually took reference to, so
+	// extend their lifetime.
+	buffer, _ := enc.os.CheckedBytes()
+
+	// Make sure the ostream bytes ref is delayed from finalizing
+	// until this operation is complete (since this is zero copy).
+	ctx.RegisterFinalizer(buffer.DelayFinalizer())
 
 	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
 		reader := readerPool.Get()
@@ -380,29 +392,30 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data.
 	var head checked.Bytes
-	buffer, pos := enc.os.Rawbytes()
-	lastByte := buffer[length-1]
+	rawBuffer, pos := enc.os.Rawbytes()
+	lastByte := rawBuffer[length-1]
 	if resType == byRefResultType {
-		// Take ref from the ostream
+		// Take ref from the ostream.
 		head = enc.os.Discard()
 
-		// Resize to crop out last byte
+		// Resize to crop out last byte.
 		head.IncRef()
 		defer head.DecRef()
 
 		head.Resize(length - 1)
 	} else {
-		// Copy into new buffer
-		head = enc.newBuffer(length - 1)
+		// Zero copy from the output stream.
+		// TODO: use a checked bytes pool here
+		head = checked.NewBytes(nil, nil)
 
 		head.IncRef()
 		defer head.DecRef()
 
-		// Copy up to last byte
-		head.AppendAll(buffer[:length-1])
+		// Take ref up to last byte.
+		head.Reset(rawBuffer[:length-1])
 	}
 
-	// Take a shared ref to a known good tail
+	// Take a shared ref to a known good tail.
 	scheme := enc.opts.MarkerEncodingScheme()
 	tail := scheme.Tail(lastByte, pos)
 
@@ -415,6 +428,6 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 type resultType int
 
 const (
-	byCopyResultType resultType = iota
-	byRefResultType
+	byZeroCopyResultType resultType = iota
+	byRefResultType                 // TODO: rename this something about taking ownership
 )

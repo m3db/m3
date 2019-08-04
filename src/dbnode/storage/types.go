@@ -957,6 +957,12 @@ type Options interface {
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
 
+	// SetRetrieveRequestPool sets the retrieve request pool.
+	SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options
+
+	// RetrieveRequestPool gets the retrieve request pool.
+	RetrieveRequestPool() fs.RetrieveRequestPool
+
 	// SetSchemaRegistry sets the schema registry the database uses.
 	SetSchemaRegistry(registry namespace.SchemaRegistry) Options
 

@@ -495,7 +495,7 @@ func Run(runOpts RunOptions) {
 		// to service a cache miss
 		retrieverOpts := fs.NewBlockRetrieverOptions().
 			SetBytesPool(opts.BytesPool()).
-			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetRetrieveRequestPool(opts.RetrieveRequestPool()).
 			SetIdentifierPool(opts.IdentifierPool()).
 			SetBlockLeaseManager(blockLeaseManager)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
@@ -1261,13 +1261,12 @@ func withEncodingAndPoolingOptions(
 		scope.SubScope("closers-pool"))
 
 	contextPoolOpts := poolOptions(
-		policy.ContextPool.PoolPolicy,
+		policy.ContextPool,
 		scope.SubScope("context-pool"))
 
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
-		SetFinalizerPoolOptions(closersPoolOpts).
-		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityOrDefault()))
+		SetFinalizerPoolOptions(closersPoolOpts))
 
 	iteratorPool := encoding.NewReaderIteratorPool(
 		poolOptions(
@@ -1386,6 +1385,10 @@ func withEncodingAndPoolingOptions(
 	bucketVersionsPool := series.NewBufferBucketVersionsPool(
 		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
 
+	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool,
+		poolOptions(policy.RetrieveRequestPool, scope.SubScope("retrieve-request-pool")))
+	retrieveRequestPool.Init()
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -1397,7 +1400,8 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
 		SetWriteBatchPool(writeBatchPool).
 		SetBufferBucketPool(bucketPool).
-		SetBufferBucketVersionsPool(bucketVersionsPool)
+		SetBufferBucketVersionsPool(bucketVersionsPool).
+		SetRetrieveRequestPool(retrieveRequestPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
