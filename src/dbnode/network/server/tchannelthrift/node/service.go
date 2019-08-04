@@ -472,12 +472,13 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		fetchData = false
 	}
 	for _, entry := range queryResult.Results.Map().Iter() {
+		tags := entry.Value()
 		elem := &rpc.QueryResultElement{
-			ID: entry.Key().String(),
+			ID:   entry.Key().String(),
+			Tags: make([]*rpc.Tag, 0, tags.Remaining()),
 		}
 		result.Results = append(result.Results, elem)
 
-		tags := entry.Value()
 		for tags.Next() {
 			tag := tags.Current()
 			elem.Tags = append(elem.Tags, &rpc.Tag{
