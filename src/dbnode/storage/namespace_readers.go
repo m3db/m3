@@ -341,7 +341,7 @@ func (m *namespaceReaderManager) get(
 	return reader, nil
 }
 
-func (m *namespaceReaderManager) closeAndPushReader(reader fs.DataFileSetReader) error {
+func (m *namespaceReaderManager) closeAndPushReaderWithLock(reader fs.DataFileSetReader) error {
 	if err := reader.Close(); err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	// reused in its current state. Instead, put it in the closed reader pool
 	// so that it can be reconfigured to be reopened later.
 	if latestVolume > status.Volume {
-		if err := m.closeAndPushReader(reader); err != nil {
+		if err := m.closeAndPushReaderWithLock(reader); err != nil {
 			// Best effort on closing the reader and caching it. If it fails,
 			// we can always allocate a new reader.
 			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
@@ -391,9 +391,10 @@ func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) error {
 	}
 
 	if _, ok := m.openReaders[key]; ok {
-		// Unlikely, however if so just close the reader we were trying to put
-		// and put into the closed readers
-		if err := m.closeAndPushReader(reader); err != nil {
+		// There is already an open reader cached for this key. We don't need
+		// a duplicate one, so close the reader and push to slice of closed
+		// readers.
+		if err := m.closeAndPushReaderWithLock(reader); err != nil {
 			// Best effort on closing the reader and caching it. If it fails,
 			// we can always allocate a new reader.
 			m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
@@ -468,20 +469,20 @@ func (m *namespaceReaderManager) UpdateOpenLease(
 	}
 
 	m.Lock()
+	defer m.Unlock()
 	// Close and remove open readers with matching key but lower volume.
 	for readerKey, cachedReader := range m.openReaders {
 		if readerKey.shard == descriptor.Shard &&
 			readerKey.blockStart == xtime.ToUnixNano(descriptor.BlockStart) &&
 			readerKey.position.volume < state.Volume {
 			delete(m.openReaders, readerKey)
-			if err := m.closeAndPushReader(cachedReader.reader); err != nil {
+			if err := m.closeAndPushReaderWithLock(cachedReader.reader); err != nil {
 				// Best effort on closing the reader and caching it. If it
 				// fails, we can always allocate a new reader.
 				m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
 			}
 		}
 	}
-	m.Unlock()
 
 	return block.UpdateOpenLease, nil
 }
