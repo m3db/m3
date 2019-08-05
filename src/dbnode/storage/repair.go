@@ -501,7 +501,8 @@ func (r shardRepairer) shadowCompare(
 		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	}
 
-	tmpCtx := context.NewContext()
+	contextPool := r.Options().AdminClient().Options().ContextPool()
+	readCtx := contextPool.Get()
 	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
 		seriesID := result.ID
 		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
@@ -510,9 +511,9 @@ func (r shardRepairer) shadowCompare(
 		}
 		defer peerSeriesIter.Close()
 
-		tmpCtx.Reset()
-		defer tmpCtx.BlockingClose()
-		localSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
+		readCtx.Reset()
+		defer readCtx.BlockingCloseReset()
+		localSeriesDataBlocks, err := shard.ReadEncoded(readCtx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
 		}

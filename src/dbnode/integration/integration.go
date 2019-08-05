@@ -265,7 +265,8 @@ func newDefaultBootstrappableTestSetups(
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 				SetPersistManager(setup.storageOpts.PersistManager()).
-				SetRuntimeOptionsManager(runtimeOptsMgr)
+				SetRuntimeOptionsManager(runtimeOptsMgr).
+				SetContextPool(setup.storageOpts.ContextPool())
 
 			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
