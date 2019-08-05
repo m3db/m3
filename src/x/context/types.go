@@ -62,11 +62,19 @@ type Context interface {
 	// BlockingClose will close the context and call the
 	// registered finalizers in a blocking manner after waiting
 	// for any dependent contexts to close. After calling
-	// the context becomes safe to reset and reuse again.
+	// the context becomes safe to reset and reuse again
+	// if and only if it is not a pooled context.
 	BlockingClose()
 
 	// Reset will reset the context for reuse.
 	Reset()
+
+	// BlockingCloseReset will close the context and call the
+	// registered finalizers in a blocking manner after waiting
+	// for any dependent contexts to close. After calling
+	// the context becomes reset and is safe for reuse again as it
+	// will not be returned to a pool.
+	BlockingCloseReset()
 
 	// GoContext returns the Go std context.
 	GoContext() (stdctx.Context, bool)

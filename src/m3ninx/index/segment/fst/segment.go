@@ -163,7 +163,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	// NB(r): The segment uses the context finalization to finalize
 	// resources. Finalize is called after Close is called and all
 	// the segment readers have also been closed.
-	s.ctx = context.NewContext()
+	s.ctx = opts.ContextPool().Get()
 	s.ctx.RegisterFinalizer(s)
 
 	return s, nil
@@ -253,7 +253,7 @@ func (r *fsSegment) Close() error {
 	r.closed = true
 	r.Unlock()
 	// NB(r): Inform context we are done, once all segment readers are
-	// closed the segment Finalize will be called.
+	// closed the segment Finalize will be called async.
 	r.ctx.Close()
 	return nil
 }

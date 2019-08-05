@@ -168,33 +168,57 @@ const (
 	closeBlock
 )
 
+type returnToPoolMode int
+
+const (
+	returnToPool returnToPoolMode = iota
+	reuse
+)
+
 func (c *ctx) Close() {
+	returnMode := returnToPool
 	parent := c.parentCtx()
 	if parent != nil {
 		if !parent.IsClosed() {
 			parent.Close()
 		}
-		c.returnToPool()
+		c.tryReturnToPool(returnMode)
 		return
 	}
 
-	c.close(closeAsync)
+	c.close(closeAsync, returnMode)
 }
 
 func (c *ctx) BlockingClose() {
+	returnMode := returnToPool
 	parent := c.parentCtx()
 	if parent != nil {
 		if !parent.IsClosed() {
 			parent.BlockingClose()
 		}
-		c.returnToPool()
+		c.tryReturnToPool(returnMode)
 		return
 	}
 
-	c.close(closeBlock)
+	c.close(closeBlock, returnMode)
 }
 
-func (c *ctx) close(mode closeMode) {
+func (c *ctx) BlockingCloseReset() {
+	returnMode := reuse
+	parent := c.parentCtx()
+	if parent != nil {
+		if !parent.IsClosed() {
+			parent.BlockingCloseReset()
+		}
+		c.tryReturnToPool(returnMode)
+		return
+	}
+
+	c.close(closeBlock, returnMode)
+	c.Reset()
+}
+
+func (c *ctx) close(mode closeMode, returnMode returnToPoolMode) {
 	if c.Lock(); c.done {
 		c.Unlock()
 		return
@@ -204,7 +228,7 @@ func (c *ctx) close(mode closeMode) {
 	c.Unlock()
 
 	if c.finalizeables == nil {
-		c.returnToPool()
+		c.tryReturnToPool(returnMode)
 		return
 	}
 
@@ -215,13 +239,13 @@ func (c *ctx) close(mode closeMode) {
 
 	switch mode {
 	case closeAsync:
-		go c.finalize(f)
+		go c.finalize(f, returnMode)
 	case closeBlock:
-		c.finalize(f)
+		c.finalize(f, returnMode)
 	}
 }
 
-func (c *ctx) finalize(f *finalizeableList) {
+func (c *ctx) finalize(f *finalizeableList, returnMode returnToPoolMode) {
 	// Wait for dependencies.
 	c.wg.Wait()
 
@@ -236,10 +260,12 @@ func (c *ctx) finalize(f *finalizeableList) {
 	}
 
 	if c.pool != nil {
+		// NB(r): Always return finalizeables, only the
+		// context itself might want to be reused immediately.
 		c.pool.putFinalizeablesList(f)
 	}
 
-	c.returnToPool()
+	c.tryReturnToPool(returnMode)
 }
 
 func (c *ctx) Reset() {
@@ -254,8 +280,8 @@ func (c *ctx) Reset() {
 	c.Unlock()
 }
 
-func (c *ctx) returnToPool() {
-	if c.pool == nil {
+func (c *ctx) tryReturnToPool(returnMode returnToPoolMode) {
+	if c.pool == nil || returnMode != returnToPool {
 		return
 	}
 

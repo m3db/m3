@@ -70,7 +70,7 @@ var (
 			// concurrent query, so as long as there is no more than
 			// the number of concurrent index queries than the size
 			// specified here the maps should be recycled.
-			size:                1024,
+			size:                512,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
 		},

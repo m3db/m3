@@ -547,5 +547,6 @@ type NewMergerFn func(
 	multiIterPool encoding.MultiReaderIteratorPool,
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
+	contextPool context.Pool,
 	nsOpts namespace.Options,
 ) Merger

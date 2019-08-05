@@ -50,6 +50,7 @@ var (
 	multiIterPool encoding.MultiReaderIteratorPool
 	identPool     ident.Pool
 	encoderPool   encoding.EncoderPool
+	contextPool   context.Pool
 
 	startTime = time.Now().Truncate(blockSize)
 
@@ -79,6 +80,7 @@ func init() {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(startTime, nil, true, encoding.NewOptions())
 	})
+	contextPool = context.NewPool(context.NewOptions())
 }
 
 func TestMergeWithIntersection(t *testing.T) {
@@ -446,7 +448,7 @@ func testMergeWith(
 	nsCtx := namespace.Context{}
 
 	nsOpts := namespace.NewOptions()
-	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, nsOpts)
+	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, contextPool, nsOpts)
 	fsID := FileSetFileIdentifier{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      uint32(8),
@@ -485,12 +487,15 @@ func assertPersistedAsExpected(
 }
 
 func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
+	ctx := contextPool.Get()
+	defer ctx.Close()
 	encoder := encoderPool.Get()
+	defer encoder.Close()
 	for _, dp := range dps {
 		encoder.Encode(dp, xtime.Second, nil)
 	}
 
-	r, ok := encoder.Stream(encoding.StreamOptions{})
+	r, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	require.True(t, ok)
 	var b [1000]byte
 	n, err := r.Read(b[:])
