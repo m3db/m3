@@ -66,7 +66,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	}
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        true,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
@@ -210,7 +209,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	// Add mock active series
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        false,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < numActiveSeries; i++ {

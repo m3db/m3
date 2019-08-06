@@ -1574,46 +1574,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 	}
 
-	activePhase := token.ActiveSeriesPhase
-	flushedPhase := token.FlushedSeriesPhase
-
-	cachePolicy := s.opts.SeriesCachePolicy()
-	if cachePolicy == series.CacheAll {
-		// If we are using a series cache policy that caches all block metadata
-		// in memory then we only ever perform the active phase as all metadata
-		// is actively held in memory.
-		indexCursor := int64(0)
-		if activePhase != nil {
-			indexCursor = activePhase.IndexCursor
-		}
-		// We always include cached blocks.
-		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
-			FetchBlocksMetadataOptions: opts,
-			IncludeCachedBlocks:        true,
-		}
-		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
-			limit, indexCursor, seriesFetchBlocksMetadataOpts)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if nextIndexCursor == nil {
-			// No more results and only enacting active phase since we are using
-			// series policy that caches all block metadata in memory.
-			return result, nil, nil
-		}
-		token = &pagetoken.PageToken{
-			ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
-				IndexCursor: *nextIndexCursor,
-			},
-		}
-		data, err := proto.Marshal(token)
-		if err != nil {
-			return nil, nil, err
-		}
-		return result, PageToken(data), nil
-	}
-
 	// NB(r): If returning mixed in memory and disk results, then we return anything
 	// that's mutable in memory first then all disk results.
 	// We work backwards so we don't hit race conditions with blocks
@@ -1631,6 +1591,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// and we'll finish our read cleanly. If there's a race between us thinking
 	// the file is accessible and us opening a reader to it then this will bubble
 	// an error to the client which will be retried.
+	var (
+		activePhase  = token.ActiveSeriesPhase
+		flushedPhase = token.FlushedSeriesPhase
+	)
 	if flushedPhase == nil {
 		// If first phase started or no phases started then return active
 		// series metadata until we find a block start time that we have fileset
@@ -1643,7 +1607,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		// those blocks when we send metadata directly from the flushed files.
 		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
 			FetchBlocksMetadataOptions: opts,
-			IncludeCachedBlocks:        false,
 		}
 		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
