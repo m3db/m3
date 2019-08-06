@@ -41,7 +41,7 @@ idhashmap-gen:
 	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
 	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
-	make hashmap-gen-rename
+	make hashmap-gen-rename rename_nogen_key="true"
 endif
 
 .PHONY: byteshashmap-gen
@@ -50,7 +50,7 @@ byteshashmap-gen:
 	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
 	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
-	make hashmap-gen-rename
+	make hashmap-gen-rename rename_nogen_key="true"
 endif
 
 .PHONY: hashmap-gen-rename-helper
