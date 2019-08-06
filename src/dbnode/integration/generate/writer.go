@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -188,9 +189,12 @@ func writeToDiskWithPredicate(
 				SnapshotTime: start.Add(snapshotInterval),
 			},
 		}
+
 		if err := writer.Open(writerOpts); err != nil {
 			return err
 		}
+
+		ctx := context.NewContext()
 		for _, series := range seriesList {
 			encoder.Reset(start, 0, nsCtx.Schema)
 			for _, dp := range series.Data {
@@ -203,7 +207,8 @@ func writeToDiskWithPredicate(
 				}
 			}
 
-			stream, ok := encoder.Stream(encoding.StreamOptions{})
+			ctx.Reset()
+			stream, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 			if !ok {
 				// None of the datapoints passed the predicate.
 				continue
@@ -219,7 +224,9 @@ func writeToDiskWithPredicate(
 			if err != nil {
 				return err
 			}
+			ctx.BlockingClose()
 		}
+
 		if err := writer.Close(); err != nil {
 			return err
 		}

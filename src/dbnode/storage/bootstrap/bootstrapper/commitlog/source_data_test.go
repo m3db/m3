@@ -30,16 +30,17 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -213,6 +214,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	md := testNsMetadata(t)
 	testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t, opts, md, nil)
 }
+
 // TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a regression test to make
 // sure that the commit log bootstrapper does not make any assumptions about series having a unique
 // unique index because that only holds for the duration that an M3DB node is on, but commit log
@@ -405,7 +407,10 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	reader, ok := encoder.Stream(encoding.StreamOptions{})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	reader, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	require.True(t, ok)
 
 	seg, err := reader.Segment()
@@ -693,7 +698,6 @@ func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBloc
 					actualUnit,
 				)
 			}
-
 
 			if nsCtx.Schema == nil {
 				if !reflect.DeepEqual(expectedAnnotation, actualAnnotation) {
