@@ -214,10 +214,7 @@ func (enc *Encoder) encodeSchemaAndOrTimeUnit(
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *Encoder) Stream(
-	ctx context.Context,
-	opts encoding.StreamOptions,
-) (xio.SegmentReader, bool) {
+func (enc *Encoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
 	seg := enc.segmentZeroCopy(ctx)
 	if seg.Len() == 0 {
 		return nil, false

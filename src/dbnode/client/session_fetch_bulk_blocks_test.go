@@ -1451,7 +1451,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	reader, ok := enc.Stream(ctx, encoding.StreamOptions{})
+	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
@@ -1602,7 +1602,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	reader, ok := enc.Stream(ctx, encoding.StreamOptions{})
+	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
@@ -2545,7 +2545,7 @@ func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 	return fmt.Errorf("not implemented")
 }
 
-func (e *testEncoder) Stream(ctx context.Context, opts encoding.StreamOptions) (xio.SegmentReader, bool) {
+func (e *testEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
 	return xio.NewSegmentReader(e.data), true
 }
 

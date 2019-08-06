@@ -277,10 +277,7 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *encoder) Stream(
-	ctx context.Context,
-	opts encoding.StreamOptions,
-) (xio.SegmentReader, bool) {
+func (enc *encoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
 	segment := enc.segmentZeroCopy(ctx)
 	if segment.Len() == 0 {
 		return nil, false

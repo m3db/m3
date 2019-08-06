@@ -31,10 +31,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -168,7 +168,11 @@ func TestRoundTripProp(t *testing.T) {
 		// Ensure that the Len() method always returns the length of the final stream that would
 		// be returned by a call to Stream().
 		encLen := enc.Len()
-		stream, ok := enc.Stream(encoding.StreamOptions{})
+
+		ctx := context.NewContext()
+		defer ctx.Close()
+
+		stream, ok := enc.Stream(ctx)
 		if !ok {
 			if len(input.messages) == 0 {
 				return true, nil
