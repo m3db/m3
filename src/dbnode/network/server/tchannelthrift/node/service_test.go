@@ -46,7 +46,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -270,9 +269,6 @@ func TestServiceQuery(t *testing.T) {
 			}
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
-
-		ctx := context.NewContext()
-		defer ctx.Close()
 
 		stream, _ := enc.Stream(ctx, encoding.StreamOptions{})
 		streams[id] = stream

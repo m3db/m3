@@ -309,7 +309,7 @@ func TestRefCountDelayFinalizerPropTest(t *testing.T) {
 		props      = gopter.NewProperties(parameters)
 		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
 	)
-	parameters.MinSuccessfulTests = 2 << 13 // ~16k
+	parameters.MinSuccessfulTests = 1024
 	parameters.Rng.Seed(seed)
 
 	type testInput struct {

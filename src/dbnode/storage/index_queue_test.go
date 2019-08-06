@@ -315,6 +315,8 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	now := time.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
@@ -344,6 +346,8 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	now := time.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()

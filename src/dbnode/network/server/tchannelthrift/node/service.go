@@ -835,14 +835,18 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	// NB(r): Step 1 read the data using an asychronuous block reader,
 	// but don't serialize yet so that all block reader requests can
 	// be issued at once before waiting for their results.
-	encodedResults := make([][][]xio.BlockReader, len(req.Ids))
+	encodedResults := make([]struct {
+		err    error
+		result [][]xio.BlockReader
+	}, len(req.Ids))
 	for i := range req.Ids {
 		tsID := s.newID(ctx, req.Ids[i])
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
 		if err != nil {
-			return nil, convert.ToRPCError(err)
+			encodedResults[i].err = err
+			continue
 		}
-		encodedResults[i] = encoded
+		encodedResults[i].result = encoded
 	}
 
 	// Step 2: Read the results of the asynchronuous block readers.
@@ -850,7 +854,12 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		rawResult := rpc.NewFetchRawResult_()
 		result.Elements[i] = rawResult
 
-		segments, rpcErr := s.readEncodedResult(ctx, encodedResults[i])
+		if err := encodedResults[i].err; err != nil {
+			rawResult.Err = convert.ToRPCError(err)
+			continue
+		}
+
+		segments, rpcErr := s.readEncodedResult(ctx, encodedResults[i].result)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {

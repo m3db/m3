@@ -147,6 +147,10 @@ db:
           size: 25165824
           lowWatermark: 0.01
           highWatermark: 0.02
+      checkedBytesWrapperPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       closersPool:
           size: 104857
           lowWatermark: 0.01
@@ -155,7 +159,6 @@ db:
           size: 524288
           lowWatermark: 0.01
           highWatermark: 0.02
-          maxFinalizerCapacity: 8
       segmentReaderPool:
           size: 16384
           lowWatermark: 0.01
@@ -236,6 +239,10 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
       bufferBucketVersionsPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      retrieveRequestPool:
           size: 65536
           lowWatermark: 0.01
           highWatermark: 0.02
@@ -486,6 +493,10 @@ func TestConfiguration(t *testing.T) {
         lowWatermark: 0.01
         highWatermark: 0.02
         capacity: 8192
+    checkedBytesWrapperPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -494,7 +505,6 @@ func TestConfiguration(t *testing.T) {
       size: 524288
       lowWatermark: 0.01
       highWatermark: 0.02
-      maxFinalizerCapacity: 8
     seriesPool:
       size: 5242880
       lowWatermark: 0.01
@@ -583,6 +593,10 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
     bufferBucketVersionsPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
+    retrieveRequestPool:
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
