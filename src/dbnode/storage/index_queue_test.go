@@ -335,7 +335,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
-		ident.NewTagsIterator(tags)))
+		tags))
 }
 
 func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {

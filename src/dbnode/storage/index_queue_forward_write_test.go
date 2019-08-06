@@ -128,6 +128,8 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
 	defer idx.Close()
 
@@ -153,7 +155,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("name", "value")).Matches(
-			ident.NewTagsIterator(tags)))
+			tags))
 	}
 }
 
@@ -163,6 +165,8 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
 	defer idx.Close()
 
