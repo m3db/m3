@@ -260,7 +260,9 @@ func (r *fsSegment) Close() error {
 
 func (r *fsSegment) Finalize() {
 	r.fieldsFST.Close()
-	r.data.Closer.Close()
+	if r.data.Closer != nil {
+		r.data.Closer.Close()
+	}
 }
 
 func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
