@@ -66,7 +66,7 @@ function read_all {
   fi
 }
 
-# Write 2 block sizes into the past to ensure its a repairable block since the current mutable
+# Write 2 block sizes into the past to ensure it's a repairable block since the current mutable
 # block will not be repaired. Use the node-specific port to ensure the write only goes to dbnode01
 # and not the other two nodes.
 echo "Write data for 'now - 2 * blockSize' to dbnode01"
@@ -76,7 +76,7 @@ write_data "coldWritesRepairAndNoIndex" "foo" "$(($(date +"%s") - 60 * 60 * 2))"
 echo "Expect to read the data back from dbnode01"
 read_all "coldWritesRepairAndNoIndex" "foo" 1 9012
 
-# These two should eventually suceed once a repair detects the mismatch.
+# These two should eventually succeed once a repair detects the mismatch.
 echo "Wait for the data to become available (via repairs) from dbnode02"
 ATTEMPTS=30 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
   read_all "coldWritesRepairAndNoIndex" "foo" 1 9022

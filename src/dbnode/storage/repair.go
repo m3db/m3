@@ -175,10 +175,14 @@ func (r shardRepairer) Repair(
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	// TODO(rartoul): Pool this slice.
-	metadatas := []block.ReplicaMetadata{}
-	metadataRes := metadata.Compare()
-	for _, e := range metadataRes.ChecksumDifferences.Series().Iter() {
+	var (
+		// TODO(rartoul): Pool this slice.
+		metadatasToFetchBlocksFor    = []block.ReplicaMetadata{}
+		metadataRes                  = metadata.Compare()
+		seriesWithChecksumMismatches = metadataRes.ChecksumDifferences.Series()
+	)
+
+	for _, e := range seriesWithChecksumMismatches.Iter() {
 		for blockStart, replicaMetadataBlocks := range e.Value().Metadata.Blocks() {
 			blStartTime := blockStart.ToTime()
 			blStartRange := xtime.Range{Start: blStartTime, End: blStartTime}
@@ -198,19 +202,19 @@ func (r shardRepairer) Repair(
 					// Don't request blocks for self metadata.
 					continue
 				}
-				metadatas = append(metadatas, replicaMetadata)
+				metadatasToFetchBlocksFor = append(metadatasToFetchBlocksFor, replicaMetadata)
 			}
 		}
 	}
 
-	perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatas, rsOpts)
+	perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatasToFetchBlocksFor, rsOpts)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
 	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
 	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
-	numMismatchSeries := metadataRes.ChecksumDifferences.Series().Len()
+	numMismatchSeries := seriesWithChecksumMismatches.Len()
 	results := result.NewShardResult(numMismatchSeries, rsOpts)
 	for perSeriesReplicaIter.Next() {
 		_, id, block := perSeriesReplicaIter.Current()
@@ -416,7 +420,7 @@ func (r *dbRepairer) Stop() {
 
 // Repair will analyze the current repair state for each namespace/blockStart combination and pick one blockStart
 // per namespace to repair. It will prioritize blocks that have never been repaired over those that have been
-// repaired before, and it will priotize more recent blocks over older ones. If all blocks have been repaired
+// repaired before, and it will prioritize more recent blocks over older ones. If all blocks have been repaired
 // before then it will prioritize the least recently repaired block.
 //
 // The Repair function only attempts to repair one block at a time because this allows the background repair process
@@ -455,65 +459,60 @@ func (r *dbRepairer) Repair() error {
 		// start so subtract a blocksize.
 		repairRange.Start = repairRange.Start.Add(-blockSize)
 
-		numUnrepairedBlocks := 0
+		var (
+			numUnrepairedBlocks                           = 0
+			hasRepairedABlockStart                        = false
+			leastRecentlyRepairedBlockStart               time.Time
+			leastRecentlyRepairedBlockStartLastRepairTime time.Time
+		)
 		repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
-			if !ok || repairState.Status != repairSuccess {
-				numUnrepairedBlocks++
+			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
+				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {
+				leastRecentlyRepairedBlockStart = blockStart
+				leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
 			}
+
+			if ok && repairState.Status == repairSuccess {
+				return true
+			}
+
+			// Failed or unrepair block from this point onwards.
+			numUnrepairedBlocks++
+			if hasRepairedABlockStart {
+				// Only want to repair one namespace/blockStart per call to Repair()
+				// so once we've repaired a single blockStart we don't perform any
+				// more actual repairs although we do keep iterating so that we can
+				// emit an accurate value for the "num-unrepaired-blocks" gauge.
+				return true
+			}
+
+			if err := r.repairNamespaceBlockstart(n, blockStart); err != nil {
+				multiErr = multiErr.Add(err)
+			}
+			hasRepairedABlockStart = true
 
 			return true
 		})
 
+		// Update metrics with statistics about repair status.
 		r.scope.Tagged(map[string]string{
 			"namespace": n.ID().String(),
 		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
 
-		if numUnrepairedBlocks > 0 {
-			repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
-				repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
-				if !ok || repairState.Status != repairSuccess {
-					if err := r.repairNamespaceBlockstart(n, blockStart); err != nil {
-						multiErr = multiErr.Add(err)
-					}
-					// Only repair one block per namespace per iteration.
-					return false
-				}
-				return true
-			})
+		secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
+		r.scope.Tagged(map[string]string{
+			"namespace": n.ID().String(),
+		}).Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
 
+		if hasRepairedABlockStart {
+			// Previous loop performed a repair which means we've hit our limit of repairing
+			// one block per namespace per call to Repair() so we can skip the logic below.
 			continue
 		}
 
-		var (
-			leastRecentlyRepairedBlockStart               time.Time
-			leastRecentlyRepairedBlockStartLastRepairTime time.Time
-			maxSecondsSinceLastBlockRepair                = r.scope.Tagged(map[string]string{
-				"namespace": n.ID().String(),
-			}).Gauge("max-seconds-since-last-block-repair")
-		)
-		repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
-			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
-			if !ok {
-				// Should never happen.
-				instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
-					l.With(
-						zap.Time("blockStart", blockStart),
-						zap.String("namespace", n.ID().String()),
-					).Error("missing repair state in all-blocks-are-repaired branch")
-				})
-				return true
-			}
-
-			if leastRecentlyRepairedBlockStart.IsZero() || repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime) {
-				leastRecentlyRepairedBlockStart = blockStart
-				leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
-			}
-			return true
-		})
-
-		secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
-		maxSecondsSinceLastBlockRepair.Update(secondsSinceLastRepair)
+		// If we've made it this far that means that there were no unrepaired blocks which means we should
+		// repair the least recently repaired block instead.
 		if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
 			multiErr = multiErr.Add(err)
 		}

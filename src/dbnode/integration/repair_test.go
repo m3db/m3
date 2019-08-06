@@ -174,7 +174,7 @@ func testRepair(
 		t.SkipNow()
 	}
 
-	// Test setups
+	// Test setups.
 	log := xtest.NewLogger(t)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
@@ -226,7 +226,7 @@ func testRepair(
 	})
 	log.Debug("servers are now up")
 
-	// Stop the servers
+	// Stop the servers.
 	defer func() {
 		setups.parallel(func(s *testSetup) {
 			require.NoError(t, s.stopServer())
