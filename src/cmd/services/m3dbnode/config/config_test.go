@@ -173,7 +173,7 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
           capacity: 4096
-      hostBlockMetadataSlicePool:
+      replicaMetadataSlicePool:
           size: 131072
           capacity: 3
           lowWatermark: 0.01
@@ -522,7 +522,7 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
       capacity: 4096
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
       size: 131072
       lowWatermark: 0.01
       highWatermark: 0.02

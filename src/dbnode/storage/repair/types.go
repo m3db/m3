@@ -46,8 +46,8 @@ type HostBlockMetadataSlice interface {
 	Close()
 }
 
-// HostBlockMetadataSlicePool provides a pool for hostBlockMetadata slices
-type HostBlockMetadataSlicePool interface {
+// ReplicaMetadataSlicePool provides a pool for hostBlockMetadata slices
+type ReplicaMetadataSlicePool interface {
 	// Get returns a hostBlockMetadata slice
 	Get() HostBlockMetadataSlice
 
@@ -82,7 +82,7 @@ type ReplicaBlocksMetadata interface {
 	Add(block ReplicaBlockMetadata)
 
 	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist
-	GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata
+	GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata
 
 	// Close performs cleanup
 	Close()
@@ -176,11 +176,11 @@ type Options interface {
 	// RepairThrottle returns the repair throttle.
 	RepairThrottle() time.Duration
 
-	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool.
-	SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options
+	// SetReplicaMetadataSlicePool sets the hostBlockMetadataSlice pool.
+	SetReplicaMetadataSlicePool(value ReplicaMetadataSlicePool) Options
 
-	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool.
-	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
+	// ReplicaMetadataSlicePool returns the hostBlockMetadataSlice pool.
+	ReplicaMetadataSlicePool() ReplicaMetadataSlicePool
 
 	// SetResultOptions sets the result options.
 	SetResultOptions(value result.Options) Options

@@ -42,7 +42,7 @@ var (
 	errNoAdminClient                           = errors.New("no admin client in repair options")
 	errInvalidRepairCheckInterval              = errors.New("invalid repair check interval in repair options")
 	errInvalidRepairThrottle                   = errors.New("invalid repair throttle in repair options")
-	errNoHostBlockMetadataSlicePool            = errors.New("no host block metadata pool in repair options")
+	errNoReplicaMetadataSlicePool              = errors.New("no replica metadata pool in repair options")
 	errNoResultOptions                         = errors.New("no result options in repair options")
 	errInvalidDebugShadowComparisonsPercentage = errors.New("debug shadow comparisons percentage must be between 0 and 1")
 )
@@ -53,7 +53,7 @@ type options struct {
 	repairShardConcurrency           int
 	repairCheckInterval              time.Duration
 	repairThrottle                   time.Duration
-	hostBlockMetadataSlicePool       HostBlockMetadataSlicePool
+	replicaMetadataSlicePool         ReplicaMetadataSlicePool
 	resultOptions                    result.Options
 	debugShadowComparisonsEnabled    bool
 	debugShadowComparisonsPercentage float64
@@ -66,7 +66,7 @@ func NewOptions() Options {
 		repairShardConcurrency:           defaultRepairShardConcurrency,
 		repairCheckInterval:              defaultRepairCheckInterval,
 		repairThrottle:                   defaultRepairThrottle,
-		hostBlockMetadataSlicePool:       NewHostBlockMetadataSlicePool(nil, 0),
+		replicaMetadataSlicePool:         NewReplicaMetadataSlicePool(nil, 0),
 		resultOptions:                    result.NewOptions(),
 		debugShadowComparisonsEnabled:    defaultDebugShadowComparisonsEnabled,
 		debugShadowComparisonsPercentage: defaultDebugShadowComparisonsPercentage,
@@ -123,14 +123,14 @@ func (o *options) RepairThrottle() time.Duration {
 	return o.repairThrottle
 }
 
-func (o *options) SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options {
+func (o *options) SetReplicaMetadataSlicePool(value ReplicaMetadataSlicePool) Options {
 	opts := *o
-	opts.hostBlockMetadataSlicePool = value
+	opts.replicaMetadataSlicePool = value
 	return &opts
 }
 
-func (o *options) HostBlockMetadataSlicePool() HostBlockMetadataSlicePool {
-	return o.hostBlockMetadataSlicePool
+func (o *options) ReplicaMetadataSlicePool() ReplicaMetadataSlicePool {
+	return o.replicaMetadataSlicePool
 }
 
 func (o *options) SetResultOptions(value result.Options) Options {
@@ -173,8 +173,8 @@ func (o *options) Validate() error {
 	if o.repairThrottle < 0 {
 		return errInvalidRepairThrottle
 	}
-	if o.hostBlockMetadataSlicePool == nil {
-		return errNoHostBlockMetadataSlicePool
+	if o.replicaMetadataSlicePool == nil {
+		return errNoReplicaMetadataSlicePool
 	}
 	if o.resultOptions == nil {
 		return errNoResultOptions

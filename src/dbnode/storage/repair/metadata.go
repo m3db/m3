@@ -35,28 +35,28 @@ const (
 	defaultReplicaSeriesMetadataCapacity = 4096
 )
 
-type hostBlockMetadataSlice struct {
+type replicaMetadataSlice struct {
 	metadata []block.ReplicaMetadata
-	pool     HostBlockMetadataSlicePool
+	pool     ReplicaMetadataSlicePool
 }
 
-func newHostBlockMetadataSlice() HostBlockMetadataSlice {
-	return &hostBlockMetadataSlice{}
+func newReplicaMetadataSlice() HostBlockMetadataSlice {
+	return &replicaMetadataSlice{}
 }
 
-func newPooledHostBlockMetadataSlice(metadata []block.ReplicaMetadata, pool HostBlockMetadataSlicePool) HostBlockMetadataSlice {
-	return &hostBlockMetadataSlice{metadata: metadata, pool: pool}
+func newPooledReplicaMetadataSlice(metadata []block.ReplicaMetadata, pool ReplicaMetadataSlicePool) HostBlockMetadataSlice {
+	return &replicaMetadataSlice{metadata: metadata, pool: pool}
 }
 
-func (s *hostBlockMetadataSlice) Add(metadata block.ReplicaMetadata) {
+func (s *replicaMetadataSlice) Add(metadata block.ReplicaMetadata) {
 	s.metadata = append(s.metadata, metadata)
 }
 
-func (s *hostBlockMetadataSlice) Metadata() []block.ReplicaMetadata {
+func (s *replicaMetadataSlice) Metadata() []block.ReplicaMetadata {
 	return s.metadata
 }
 
-func (s *hostBlockMetadataSlice) Reset() {
+func (s *replicaMetadataSlice) Reset() {
 	var zeroed block.ReplicaMetadata
 	for i := range s.metadata {
 		s.metadata[i] = zeroed
@@ -64,7 +64,7 @@ func (s *hostBlockMetadataSlice) Reset() {
 	s.metadata = s.metadata[:0]
 }
 
-func (s *hostBlockMetadataSlice) Close() {
+func (s *replicaMetadataSlice) Close() {
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
@@ -98,7 +98,7 @@ func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata) {
 	m[xtime.ToUnixNano(block.Start())] = block
 }
 
-func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata {
+func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata {
 	startNano := xtime.ToUnixNano(start)
 	block, exists := m[startNano]
 	if exists {
@@ -160,17 +160,17 @@ func (m replicaSeriesMetadata) Close() {
 }
 
 type replicaMetadataComparer struct {
-	origin                     topology.Host
-	metadata                   ReplicaSeriesMetadata
-	hostBlockMetadataSlicePool HostBlockMetadataSlicePool
+	origin                   topology.Host
+	metadata                 ReplicaSeriesMetadata
+	replicaMetadataSlicePool ReplicaMetadataSlicePool
 }
 
 // NewReplicaMetadataComparer creates a new replica metadata comparer
 func NewReplicaMetadataComparer(origin topology.Host, opts Options) ReplicaMetadataComparer {
 	return replicaMetadataComparer{
-		origin:                     origin,
-		metadata:                   NewReplicaSeriesMetadata(),
-		hostBlockMetadataSlicePool: opts.HostBlockMetadataSlicePool(),
+		origin:                   origin,
+		metadata:                 NewReplicaSeriesMetadata(),
+		replicaMetadataSlicePool: opts.ReplicaMetadataSlicePool(),
 	}
 }
 
@@ -178,7 +178,7 @@ func (m replicaMetadataComparer) AddLocalMetadata(localIter block.FilteredBlocks
 	for localIter.Next() {
 		id, localBlock := localIter.Current()
 		blocks := m.metadata.GetOrAdd(id)
-		blocks.GetOrAdd(localBlock.Start, m.hostBlockMetadataSlicePool).Add(block.ReplicaMetadata{
+		blocks.GetOrAdd(localBlock.Start, m.replicaMetadataSlicePool).Add(block.ReplicaMetadata{
 			Host:     m.origin,
 			Metadata: localBlock,
 		})
@@ -191,7 +191,7 @@ func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlockMetada
 	for peerIter.Next() {
 		peer, peerBlock := peerIter.Current()
 		blocks := m.metadata.GetOrAdd(peerBlock.ID)
-		blocks.GetOrAdd(peerBlock.Start, m.hostBlockMetadataSlicePool).Add(block.ReplicaMetadata{
+		blocks.GetOrAdd(peerBlock.Start, m.replicaMetadataSlicePool).Add(block.ReplicaMetadata{
 			Host:     peer,
 			Metadata: peerBlock,
 		})

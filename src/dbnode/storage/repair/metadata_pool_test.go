@@ -29,9 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHostBlockMetadataSlicePoolResetOnPut(t *testing.T) {
+func TestReplicaMetadataSlicePoolResetOnPut(t *testing.T) {
 	opts := pool.NewObjectPoolOptions().SetSize(1)
-	p := NewHostBlockMetadataSlicePool(opts, 64)
+	p := NewReplicaMetadataSlicePool(opts, 64)
 	res := p.Get()
 
 	// Make res non-empty

@@ -35,8 +35,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testHostBlockMetadataSlicePool() HostBlockMetadataSlicePool {
-	return NewHostBlockMetadataSlicePool(nil, 0)
+func testReplicaMetadataSlicePool() ReplicaMetadataSlicePool {
+	return NewReplicaMetadataSlicePool(nil, 0)
 }
 
 func testRepairOptions() Options {
@@ -50,7 +50,7 @@ func TestReplicaBlockMetadataAdd(t *testing.T) {
 		ident.StringID("some-id"), ident.Tags{}, time.Time{}, 2, new(uint32), time.Time{})
 
 	now := time.Now()
-	m := NewReplicaBlockMetadata(now, newHostBlockMetadataSlice())
+	m := NewReplicaBlockMetadata(now, newReplicaMetadataSlice())
 	inputs := []block.ReplicaMetadata{
 		{Host: topology.NewHost("foo", "addrFoo"), Metadata: meta1},
 		{Host: topology.NewHost("bar", "addrBar"), Metadata: meta2},
@@ -64,7 +64,7 @@ func TestReplicaBlockMetadataAdd(t *testing.T) {
 
 func TestReplicaBlocksMetadataAdd(t *testing.T) {
 	now := time.Now()
-	block := NewReplicaBlockMetadata(now, newHostBlockMetadataSlice())
+	block := NewReplicaBlockMetadata(now, newReplicaMetadataSlice())
 	m := NewReplicaBlocksMetadata()
 	m.Add(block)
 
@@ -82,7 +82,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	require.Equal(t, 0, len(m.Blocks()))
 
 	// Add a block
-	b := m.GetOrAdd(now, testHostBlockMetadataSlicePool())
+	b := m.GetOrAdd(now, testReplicaMetadataSlicePool())
 	require.Equal(t, now, b.Start())
 	blocks := m.Blocks()
 	require.Equal(t, 1, len(blocks))
@@ -91,7 +91,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	require.Equal(t, now, block.Start())
 
 	// Add the same block and check we don't add new blocks
-	m.GetOrAdd(now, testHostBlockMetadataSlicePool())
+	m.GetOrAdd(now, testReplicaMetadataSlicePool())
 	require.Equal(t, 1, len(m.Blocks()))
 }
 
@@ -273,7 +273,7 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		metadata.GetOrAdd(input.Metadata.ID).GetOrAdd(input.Metadata.Start, testHostBlockMetadataSlicePool()).Add(input)
+		metadata.GetOrAdd(input.Metadata.ID).GetOrAdd(input.Metadata.Start, testReplicaMetadataSlicePool()).Add(input)
 	}
 
 	sizeExpected := []testBlock{

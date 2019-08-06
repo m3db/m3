@@ -417,7 +417,7 @@ db:
             capacity: 128
             lowWatermark: 0.01
             highWatermark: 0.02
-        hostBlockMetadataSlicePool:
+				replicaMetadataSlicePool:
             size: 128
             capacity: 3
             lowWatermark: 0.01
