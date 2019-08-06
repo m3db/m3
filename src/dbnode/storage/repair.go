@@ -714,8 +714,7 @@ func (r shardRepairer) shadowCompare(
 		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	}
 
-	contextPool := r.Options().AdminClient().Options().ContextPool()
-	readCtx := contextPool.Get()
+	readCtx := r.opts.ContextPool().Get()
 	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
 		seriesID := result.ID
 		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)

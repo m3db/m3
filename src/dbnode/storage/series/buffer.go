@@ -738,7 +738,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if opts.IncludeChecksums {
 			// Checksum calculations are best effort since we can't calculate one if there
 			// are multiple streams without performing an expensive merge.
-			checksum, err = bv.checksumIfSingleStream()
+			checksum, err = bv.checksumIfSingleStream(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -917,11 +917,11 @@ func (b *BufferBucketVersions) streamsLen() int {
 	return res
 }
 
-func (b *BufferBucketVersions) checksumIfSingleStream() (*uint32, error) {
+func (b *BufferBucketVersions) checksumIfSingleStream(ctx context.Context) (*uint32, error) {
 	if len(b.buckets) != 1 {
 		return nil, nil
 	}
-	return b.buckets[0].checksumIfSingleStream()
+	return b.buckets[0].checksumIfSingleStream(ctx)
 }
 
 func (b *BufferBucketVersions) write(
@@ -1203,10 +1203,10 @@ func (b *BufferBucket) streamsLen() int {
 	return length
 }
 
-func (b *BufferBucket) checksumIfSingleStream() (*uint32, error) {
+func (b *BufferBucket) checksumIfSingleStream(ctx context.Context) (*uint32, error) {
 	if b.hasJustSingleEncoder() {
 		enc := b.encoders[0].encoder
-		stream, ok := enc.Stream(encoding.StreamOptions{})
+		stream, ok := enc.Stream(ctx, encoding.StreamOptions{})
 		if !ok {
 			return nil, nil
 		}

@@ -143,6 +143,20 @@ func (mr *MockBytesMockRecorder) DecWrites() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecWrites", reflect.TypeOf((*MockBytes)(nil).DecWrites))
 }
 
+// DelayFinalizer mocks base method
+func (m *MockBytes) DelayFinalizer() resource.Closer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DelayFinalizer")
+	ret0, _ := ret[0].(resource.Closer)
+	return ret0
+}
+
+// DelayFinalizer indicates an expected call of DelayFinalizer
+func (mr *MockBytesMockRecorder) DelayFinalizer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DelayFinalizer", reflect.TypeOf((*MockBytes)(nil).DelayFinalizer))
+}
+
 // Finalize mocks base method
 func (m *MockBytes) Finalize() {
 	m.ctrl.T.Helper()
