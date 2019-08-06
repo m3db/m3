@@ -24,19 +24,32 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
 	"github.com/m3db/m3/src/x/resource"
 )
 
+const (
+	refFinalizeWaitDelay int32 = -1
+	refFinalizeDelayDone int32 = -2
+	refDelayDone         int32 = -1
+)
+
 // RefCount is an embeddable checked.Ref.
 type RefCount struct {
-	ref       int32
-	reads     int32
-	writes    int32
-	finalizer unsafe.Pointer
-	delayRef  int32
+	ref           int32
+	reads         int32
+	writes        int32
+	finalizer     unsafe.Pointer
+	finalizeState refCountFinalizeState
+}
+
+type refCountFinalizeState struct {
+	sync.Mutex
+	called   bool
+	delayRef int32
 }
 
 // IncRef increments the reference count to this entity.
@@ -76,23 +89,20 @@ func (c *RefCount) Finalize() {
 		panicRef(c, err)
 	}
 
-	// Try to finalize if finalization has not been delayed.
-	_ = c.finalize()
+	c.finalizeState.Lock()
+	c.finalizeState.called = true
+	if c.finalizeState.delayRef == 0 {
+		c.finalizeWithLock()
+	}
+	c.finalizeState.Unlock()
 }
 
-func (c *RefCount) finalize() bool {
-	if !atomic.CompareAndSwapInt32(&c.delayRef, 0, -1) {
-		// If unable to swap to negative then there are some delayed
-		// finalize calls.
-		return false
-	}
-
-	atomic.StoreInt32(&c.delayRef, 0) // Reset for reuse.
+func (c *RefCount) finalizeWithLock() {
+	// Reset the finalize called state for reuse.
+	c.finalizeState.called = false
 	if f := c.Finalizer(); f != nil {
 		f.Finalize()
 	}
-
-	return true
 }
 
 // DelayFinalizer will delay calling the finalizer on this entity
@@ -100,51 +110,20 @@ func (c *RefCount) finalize() bool {
 // This is useful for dependent resources requiring the lifetime of this
 // entityt to be extended.
 func (c *RefCount) DelayFinalizer() resource.Closer {
-	for {
-		curr := atomic.LoadInt32(&c.delayRef)
-		if curr < 0 {
-			// curr was < 0 which means was already finalized.
-			err := fmt.Errorf("cannot delay finalize, already finalized: curr=%d",
-				curr)
-			panicRef(c, err)
-		}
-
-		v := curr + 1
-		if !atomic.CompareAndSwapInt32(&c.delayRef, curr, v) {
-			continue // Contended, so retry.
-		}
-
-		// Done.
-		return c
-	}
+	c.finalizeState.Lock()
+	c.finalizeState.delayRef++
+	c.finalizeState.Unlock()
+	return c
 }
 
 // Close implements resource.Closer for the purpose of use with DelayFinalizer.
 func (c *RefCount) Close() {
-	for {
-		curr := atomic.LoadInt32(&c.delayRef)
-		if curr < 0 {
-			// curr was < 0 which means was already finalized.
-			err := fmt.Errorf("cannot delay finalize, already finalized: curr=%d",
-				curr)
-			panicRef(c, err)
-		}
-
-		v := curr - 1
-		if !atomic.CompareAndSwapInt32(&c.delayRef, curr, v) {
-			continue // Contended, so retry.
-		}
-
-		if v == 0 {
-			// Attempt to finalize if last delayed ref is decremented.
-			if finalized := c.finalize(); !finalized {
-				err := fmt.Errorf("unable to finalize, already called: finalized=%v",
-					finalized)
-				panicRef(c, err)
-			}
-		}
-		return
+	c.finalizeState.Lock()
+	c.finalizeState.delayRef--
+	if c.finalizeState.called && c.finalizeState.delayRef == 0 {
+		c.finalizeWithLock()
 	}
+	c.finalizeState.Unlock()
 }
 
 // Finalizer returns the finalizer if any or nil otherwise.
