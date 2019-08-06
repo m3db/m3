@@ -431,8 +431,11 @@ func TestEncoderLastEncoded(t *testing.T) {
 func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 	testMultiplePasses(t, multiplePassesTest{
 		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+			ctx := context.NewContext()
+			defer ctx.BlockingClose()
+
 			encLen := enc.Len()
-			stream, ok := enc.Stream(encoding.StreamOptions{})
+			stream, ok := enc.Stream(ctx)
 
 			var streamLen int
 			if ok {
