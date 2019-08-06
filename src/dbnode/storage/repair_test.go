@@ -207,18 +207,23 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		Return(peerIter, nil)
 
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
-	// TODO(rartoul): Add check for merging logic.
-	dbBlock := block.NewMockDatabaseBlock(ctrl)
-	dbBlock.EXPECT().StartTime().Return(inputBlocks[2].Metadata.Start).AnyTimes()
+	dbBlock1 := block.NewMockDatabaseBlock(ctrl)
+	dbBlock1.EXPECT().StartTime().Return(inputBlocks[2].Metadata.Start).AnyTimes()
+	dbBlock2 := block.NewMockDatabaseBlock(ctrl)
+	dbBlock2.EXPECT().StartTime().Return(inputBlocks[2].Metadata.Start).AnyTimes()
+	// Ensure merging logic works.
+	dbBlock1.EXPECT().Merge(dbBlock2)
 	gomock.InOrder(
 		peerBlocksIter.EXPECT().Next().Return(true),
-		peerBlocksIter.EXPECT().Current().Return(inputBlocks[2].Host, inputBlocks[2].Metadata.ID, dbBlock),
+		peerBlocksIter.EXPECT().Current().Return(inputBlocks[2].Host, inputBlocks[2].Metadata.ID, dbBlock1),
+		peerBlocksIter.EXPECT().Next().Return(true),
+		peerBlocksIter.EXPECT().Current().Return(inputBlocks[2].Host, inputBlocks[2].Metadata.ID, dbBlock2),
 		peerBlocksIter.EXPECT().Next().Return(false),
 	)
 	nsMeta, err := namespace.NewMetadata(namespaceID, namespace.NewOptions())
 	require.NoError(t, err)
 	session.EXPECT().
-		FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inputBlocks[2:3], gomock.Any()).
+		FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inputBlocks[2:], gomock.Any()).
 		Return(peerBlocksIter, nil)
 
 	var (
