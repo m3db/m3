@@ -44,7 +44,7 @@ func NewNullEncoder() Encoder {
 func (e *nullEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
 	return nil
 }
-func (e *nullEncoder) Stream(ctx context.Context, opts StreamOptions) (xio.SegmentReader, bool) {
+func (e *nullEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
 	return nil, false
 }
 func (e *nullEncoder) NumEncoded() int { return 0 }

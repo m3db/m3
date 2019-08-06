@@ -93,18 +93,18 @@ func (mr *MockEncoderMockRecorder) Encode(dp, unit, annotation interface{}) *gom
 }
 
 // Stream mocks base method
-func (m *MockEncoder) Stream(ctx context.Context, opts StreamOptions) (xio.SegmentReader, bool) {
+func (m *MockEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stream", ctx, opts)
+	ret := m.ctrl.Call(m, "Stream", ctx)
 	ret0, _ := ret[0].(xio.SegmentReader)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
 // Stream indicates an expected call of Stream
-func (mr *MockEncoderMockRecorder) Stream(ctx, opts interface{}) *gomock.Call {
+func (mr *MockEncoderMockRecorder) Stream(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockEncoder)(nil).Stream), ctx, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockEncoder)(nil).Stream), ctx)
 }
 
 // NumEncoded mocks base method

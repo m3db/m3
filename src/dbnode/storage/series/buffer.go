@@ -1206,7 +1206,7 @@ func (b *BufferBucket) streamsLen() int {
 func (b *BufferBucket) checksumIfSingleStream(ctx context.Context) (*uint32, error) {
 	if b.hasJustSingleEncoder() {
 		enc := b.encoders[0].encoder
-		stream, ok := enc.Stream(ctx, encoding.StreamOptions{})
+		stream, ok := enc.Stream(ctx)
 		if !ok {
 			return nil, nil
 		}
