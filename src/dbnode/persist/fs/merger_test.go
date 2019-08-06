@@ -499,7 +499,7 @@ func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	r, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	r, ok := encoder.Stream(ctx)
 	require.True(t, ok)
 	var b [1000]byte
 	n, err := r.Read(b[:])

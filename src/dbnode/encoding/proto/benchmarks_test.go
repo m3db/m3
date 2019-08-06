@@ -90,7 +90,7 @@ func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
 		}
 	}
 
-	stream, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	stream, ok := encoder.Stream(ctx)
 	if !ok {
 		panic("encoder had no stream")
 	}

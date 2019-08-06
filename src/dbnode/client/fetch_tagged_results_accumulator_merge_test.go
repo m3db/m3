@@ -584,7 +584,7 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
-	reader, ok := enc.Stream(context.NewContext(), encoding.StreamOptions{})
+	reader, ok := enc.Stream(context.NewContext())
 	if !ok {
 		return nil
 	}

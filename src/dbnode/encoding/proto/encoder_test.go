@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
@@ -120,7 +119,7 @@ func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 }
 
 func getCurrEncoderBytes(ctx context.Context, t *testing.T, enc *Encoder) []byte {
-	stream, ok := enc.Stream(ctx, encoding.StreamOptions{})
+	stream, ok := enc.Stream(ctx)
 	require.True(t, ok)
 
 	currSeg, err := stream.Segment()

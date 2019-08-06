@@ -410,7 +410,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	reader, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	reader, ok := encoder.Stream(ctx)
 	require.True(t, ok)
 
 	seg, err := reader.Segment()

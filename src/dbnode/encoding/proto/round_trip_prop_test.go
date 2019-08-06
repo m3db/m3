@@ -30,9 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -163,7 +163,10 @@ func TestRoundTripProp(t *testing.T) {
 			enc.SetSchema(setSchemaDescr)
 		}
 
-		stream, ok := enc.Stream(encoding.StreamOptions{})
+		ctx := context.NewContext()
+		defer ctx.Close()
+
+		stream, ok := enc.Stream(ctx)
 		if !ok {
 			return true, nil
 		}

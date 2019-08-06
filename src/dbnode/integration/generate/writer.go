@@ -208,7 +208,7 @@ func writeToDiskWithPredicate(
 			}
 
 			ctx.Reset()
-			stream, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+			stream, ok := encoder.Stream(ctx)
 			if !ok {
 				// None of the datapoints passed the predicate.
 				continue

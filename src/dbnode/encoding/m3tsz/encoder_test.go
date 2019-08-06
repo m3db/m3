@@ -154,7 +154,7 @@ func getBytes(t *testing.T, e encoding.Encoder) []byte {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	r, ok := e.Stream(ctx, encoding.StreamOptions{})
+	r, ok := e.Stream(ctx)
 	if !ok {
 		return nil
 	}
@@ -204,7 +204,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -244,7 +244,7 @@ func TestEncodeWithAnnotation(t *testing.T) {
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -288,7 +288,7 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -326,7 +326,7 @@ func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
 	defer ctx.Close()
 
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -384,7 +384,7 @@ func TestEncoderResets(t *testing.T) {
 	defer enc.Close()
 
 	require.Equal(t, 0, enc.os.Len())
-	_, ok := enc.Stream(ctx, encoding.StreamOptions{})
+	_, ok := enc.Stream(ctx)
 	require.False(t, ok)
 
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
@@ -393,7 +393,7 @@ func TestEncoderResets(t *testing.T) {
 	now := time.Now()
 	enc.Reset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok = enc.Stream(ctx, encoding.StreamOptions{})
+	_, ok = enc.Stream(ctx)
 	require.False(t, ok)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
@@ -403,7 +403,7 @@ func TestEncoderResets(t *testing.T) {
 
 	enc.DiscardReset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok = enc.Stream(ctx, encoding.StreamOptions{})
+	_, ok = enc.Stream(ctx)
 	require.False(t, ok)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
