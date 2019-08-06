@@ -64,6 +64,11 @@ var (
 	}
 
 	defaultPoolPolicies = map[string]poolPolicyDefault{
+		"checkedBytesWrapper": poolPolicyDefault{
+			size:                65536,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
 		"tagsIterator": defaultPoolPolicy,
 		"indexResults": poolPolicyDefault{
 			// NB(r): There only needs to be one index results map per
@@ -105,8 +110,9 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"closers": poolPolicyDefault{
-			// Note this has to be bigger than context pool by
-			// big fraction (by factor of say 4)
+			// NB(r): Note this has to be bigger than context pool by
+			// big fraction (by factor of say 4) since each context
+			// usually uses a fair few closers.
 			size:                524288,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
@@ -285,6 +291,9 @@ type PoolingPolicy struct {
 	// The Bytes pool buckets to use.
 	BytesPool BucketPoolPolicy `yaml:"bytesPool"`
 
+	// The policy for the checked bytes wrapper pool.
+	CheckedBytesWrapperPool PoolPolicy `yaml:"checkedBytesWrapperPool"`
+
 	// The policy for the Closers pool.
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
@@ -363,6 +372,9 @@ type PoolingPolicy struct {
 
 // InitDefaultsAndValidate initializes all default values and validates the configuration
 func (p *PoolingPolicy) InitDefaultsAndValidate() error {
+	if err := p.CheckedBytesWrapperPool.initDefaultsAndValidate("checkedBytesWrapper"); err != nil {
+		return err
+	}
 	if err := p.ClosersPool.initDefaultsAndValidate("closers"); err != nil {
 		return err
 	}

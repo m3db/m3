@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -151,6 +152,7 @@ type options struct {
 	bufferBucketPool               *series.BufferBucketPool
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
 	retrieveRequestPool            fs.RetrieveRequestPool
+	checkedBytesWrapperPool        xpool.CheckedBytesWrapperPool
 	schemaReg                      namespace.SchemaRegistry
 	blockLeaseManager              block.LeaseManager
 	memoryTracker                  MemoryTracker
@@ -178,8 +180,11 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	segmentReaderPool := xio.NewSegmentReaderPool(poolOpts)
 	segmentReaderPool.Init()
 
-	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool, nil)
+	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool, poolOpts)
 	retrieveRequestPool.Init()
+
+	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOpts)
+	bytesWrapperPool.Init()
 
 	o := &options{
 		clockOpts:                clock.NewOptions(),
@@ -218,6 +223,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
 		retrieveRequestPool:            retrieveRequestPool,
+		checkedBytesWrapperPool:        bytesWrapperPool,
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
 		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 	}
@@ -696,6 +702,16 @@ func (o *options) SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options {
 
 func (o *options) RetrieveRequestPool() fs.RetrieveRequestPool {
 	return o.retrieveRequestPool
+}
+
+func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	opts := *o
+	opts.checkedBytesWrapperPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	return o.checkedBytesWrapperPool
 }
 
 func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {

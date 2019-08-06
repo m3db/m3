@@ -33,6 +33,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/x/xpool"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
@@ -567,6 +569,7 @@ func Run(runOpts RunOptions) {
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
+		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
@@ -1350,11 +1353,19 @@ func withEncodingAndPoolingOptions(
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
 		fetchBlocksMetadataResultsPoolPolicy.CapacityOrDefault())
 
+	bytesWrapperPoolOpts := poolOptions(
+		policy.CheckedBytesWrapperPool,
+		scope.SubScope("checked-bytes-wrapper-pool"))
+	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(
+		bytesWrapperPoolOpts)
+	bytesWrapperPool.Init()
+
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
-		SetSegmentReaderPool(segmentReaderPool)
+		SetSegmentReaderPool(segmentReaderPool).
+		SetCheckedBytesWrapperPool(bytesWrapperPool)
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
@@ -1401,7 +1412,8 @@ func withEncodingAndPoolingOptions(
 		SetWriteBatchPool(writeBatchPool).
 		SetBufferBucketPool(bucketPool).
 		SetBufferBucketVersionsPool(bucketVersionsPool).
-		SetRetrieveRequestPool(retrieveRequestPool)
+		SetRetrieveRequestPool(retrieveRequestPool).
+		SetCheckedBytesWrapperPool(bytesWrapperPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).

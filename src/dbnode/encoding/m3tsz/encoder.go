@@ -281,18 +281,10 @@ func (enc *encoder) Stream(
 	ctx context.Context,
 	opts encoding.StreamOptions,
 ) (xio.SegmentReader, bool) {
-	segment := enc.segment(byZeroCopyResultType)
+	segment := enc.segmentZeroCopy(ctx)
 	if segment.Len() == 0 {
 		return nil, false
 	}
-
-	// NB(r): There was bytes we actually took reference to, so
-	// extend their lifetime.
-	buffer, _ := enc.os.CheckedBytes()
-
-	// Make sure the ostream bytes ref is delayed from finalizing
-	// until this operation is complete (since this is zero copy).
-	ctx.RegisterFinalizer(buffer.DelayFinalizer())
 
 	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
 		reader := readerPool.Get()
@@ -360,14 +352,10 @@ func (enc *encoder) Close() {
 	}
 }
 
-func (enc *encoder) discard() ts.Segment {
-	return enc.segment(byRefResultType)
-}
-
 // Discard closes the encoder and transfers ownership of the data stream to
 // the caller.
 func (enc *encoder) Discard() ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 
 	// Close the encoder no longer needed
 	enc.Close()
@@ -378,12 +366,12 @@ func (enc *encoder) Discard() ts.Segment {
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
 func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
 	return segment
 }
 
-func (enc *encoder) segment(resType resultType) ts.Segment {
+func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	length := enc.os.Len()
 	if length == 0 {
 		return ts.Segment{}
@@ -391,29 +379,24 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data.
-	var head checked.Bytes
 	rawBuffer, pos := enc.os.Rawbytes()
 	lastByte := rawBuffer[length-1]
-	if resType == byRefResultType {
-		// Take ref from the ostream.
-		head = enc.os.Discard()
 
-		// Resize to crop out last byte.
-		head.IncRef()
-		defer head.DecRef()
+	// Take ref up to last byte.
+	headBytes := rawBuffer[:length-1]
 
-		head.Resize(length - 1)
+	// Zero copy from the output stream.
+	var head checked.Bytes
+	if pool := enc.opts.CheckedBytesWrapperPool(); pool != nil {
+		head = pool.Get(headBytes)
 	} else {
-		// Zero copy from the output stream.
-		// TODO: use a checked bytes pool here
-		head = checked.NewBytes(nil, nil)
-
-		head.IncRef()
-		defer head.DecRef()
-
-		// Take ref up to last byte.
-		head.Reset(rawBuffer[:length-1])
+		head = checked.NewBytes(headBytes, nil)
 	}
+
+	// Make sure the ostream bytes ref is delayed from finalizing
+	// until this operation is complete (since this is zero copy).
+	buffer, _ := enc.os.CheckedBytes()
+	ctx.RegisterCloser(buffer.DelayFinalizer())
 
 	// Take a shared ref to a known good tail.
 	scheme := enc.opts.MarkerEncodingScheme()
@@ -425,9 +408,30 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead)
 }
 
-type resultType int
+func (enc *encoder) segmentTakeOwnership() ts.Segment {
+	length := enc.os.Len()
+	if length == 0 {
+		return ts.Segment{}
+	}
 
-const (
-	byZeroCopyResultType resultType = iota
-	byRefResultType                 // TODO: rename this something about taking ownership
-)
+	// We need a multibyte tail since the tail isn't set correctly midstream.
+	rawBuffer, pos := enc.os.Rawbytes()
+	lastByte := rawBuffer[length-1]
+
+	// Take ref from the ostream.
+	head := enc.os.Discard()
+
+	// Resize to crop out last byte.
+	head.IncRef()
+	head.Resize(length - 1)
+	head.DecRef()
+
+	// Take a shared ref to a known good tail.
+	scheme := enc.opts.MarkerEncodingScheme()
+	tail := scheme.Tail(lastByte, pos)
+
+	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
+	// ref we have no ref to it anymore and if by copy then the owner should
+	// be finalizing the bytes when the segment is finalized.
+	return ts.NewSegment(head, tail, ts.FinalizeHead)
+}

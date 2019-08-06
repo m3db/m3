@@ -48,6 +48,12 @@ type Ref interface {
 	// SetFinalizer sets the finalizer.
 	SetFinalizer(f resource.Finalizer)
 
+	// DelayFinalizer will delay calling the finalizer on this entity
+	// until the closer returned by the method is called at least once.
+	// This is useful for dependent resources requiring the lifetime of this
+	// entityt to be extended.
+	DelayFinalizer() resource.Closer
+
 	// TrackObject sets up the initial internal state of the Ref for
 	// leak detection.
 	TrackObject(v interface{})
