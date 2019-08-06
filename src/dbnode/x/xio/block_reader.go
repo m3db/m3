@@ -77,7 +77,7 @@ func FilterEmptyBlockReadersInPlaceSliceOfSlices(brSliceOfSlices [][]BlockReader
 	return filteredSliceOfSlices, nil
 }
 
-// FilterEmptyBlockReadersInPlace is the same as FilterEmptyBlockReadersInPlaceSliceOfSlices exception for
+// FilterEmptyBlockReadersInPlace is the same as FilterEmptyBlockReadersInPlaceSliceOfSlices except for
 // one dimensional slices instead of two.
 func FilterEmptyBlockReadersInPlace(brs []BlockReader) ([]BlockReader, error) {
 	filtered := brs[:0]
