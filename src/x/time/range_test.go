@@ -339,7 +339,7 @@ func TestRangeSubtract(t *testing.T) {
 	}
 }
 
-func TestRangeIterateForwards(t *testing.T) {
+func TestRangeIterateForward(t *testing.T) {
 	testCases := []struct {
 		r        Range
 		stepSize time.Duration
@@ -369,7 +369,7 @@ func TestRangeIterateForwards(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
 			var actual []time.Time
-			tc.r.IterateForwards(tc.stepSize, func(currStep time.Time) bool {
+			tc.r.IterateForward(tc.stepSize, func(currStep time.Time) bool {
 				actual = append(actual, currStep)
 				return true
 			})
@@ -378,7 +378,7 @@ func TestRangeIterateForwards(t *testing.T) {
 	}
 }
 
-func TestRangeIterateBackwards(t *testing.T) {
+func TestRangeIterateBackward(t *testing.T) {
 	testCases := []struct {
 		r        Range
 		stepSize time.Duration
@@ -408,7 +408,7 @@ func TestRangeIterateBackwards(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s", tc.r.String()), func(t *testing.T) {
 			var actual []time.Time
-			tc.r.IterateBackwards(tc.stepSize, func(currStep time.Time) bool {
+			tc.r.IterateBackward(tc.stepSize, func(currStep time.Time) bool {
 				actual = append(actual, currStep)
 				return true
 			})

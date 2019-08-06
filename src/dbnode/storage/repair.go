@@ -465,7 +465,7 @@ func (r *dbRepairer) Repair() error {
 			leastRecentlyRepairedBlockStart               time.Time
 			leastRecentlyRepairedBlockStartLastRepairTime time.Time
 		)
-		repairRange.IterateBackwards(blockSize, func(blockStart time.Time) bool {
+		repairRange.IterateBackward(blockSize, func(blockStart time.Time) bool {
 			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
 			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
 				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {

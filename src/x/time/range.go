@@ -135,9 +135,9 @@ func (r Range) Subtract(other Range) []Range {
 	return res
 }
 
-// IterateForwards iterates through a time range by step size in the
+// IterateForward iterates through a time range by step size in the
 // forwards direction.
-func (r Range) IterateForwards(stepSize time.Duration, f func(t time.Time) bool) {
+func (r Range) IterateForward(stepSize time.Duration, f func(t time.Time) (shouldContinue bool)) {
 	for t := r.Start; t.Before(r.End); t = t.Add(stepSize) {
 		if shouldContinue := f(t); !shouldContinue {
 			break
@@ -145,9 +145,9 @@ func (r Range) IterateForwards(stepSize time.Duration, f func(t time.Time) bool)
 	}
 }
 
-// IterateBackwards iterates through a time range by step size in the
+// IterateBackward iterates through a time range by step size in the
 // backwards direction.
-func (r Range) IterateBackwards(stepSize time.Duration, f func(t time.Time) bool) {
+func (r Range) IterateBackward(stepSize time.Duration, f func(t time.Time) (shouldContinue bool)) {
 	for t := r.End; t.After(r.Start); t = t.Add(-stepSize) {
 		if shouldContinue := f(t); !shouldContinue {
 			break
