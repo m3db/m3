@@ -40,11 +40,11 @@ type replicaMetadataSlice struct {
 	pool     ReplicaMetadataSlicePool
 }
 
-func newReplicaMetadataSlice() HostBlockMetadataSlice {
+func newReplicaMetadataSlice() ReplicaMetadataSlice {
 	return &replicaMetadataSlice{}
 }
 
-func newPooledReplicaMetadataSlice(metadata []block.ReplicaMetadata, pool ReplicaMetadataSlicePool) HostBlockMetadataSlice {
+func newPooledReplicaMetadataSlice(metadata []block.ReplicaMetadata, pool ReplicaMetadataSlicePool) ReplicaMetadataSlice {
 	return &replicaMetadataSlice{metadata: metadata, pool: pool}
 }
 
@@ -72,11 +72,11 @@ func (s *replicaMetadataSlice) Close() {
 
 type replicaBlockMetadata struct {
 	start    time.Time
-	metadata HostBlockMetadataSlice
+	metadata ReplicaMetadataSlice
 }
 
 // NewReplicaBlockMetadata creates a new replica block metadata
-func NewReplicaBlockMetadata(start time.Time, p HostBlockMetadataSlice) ReplicaBlockMetadata {
+func NewReplicaBlockMetadata(start time.Time, p ReplicaMetadataSlice) ReplicaBlockMetadata {
 	return replicaBlockMetadata{start: start, metadata: p}
 }
 

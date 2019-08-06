@@ -149,7 +149,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 			capacity:            4096,
 		},
-		"hostBlockMetadataSlice": poolPolicyDefault{
+		"replicaMetadataSlice": poolPolicyDefault{
 			size:                131072,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
@@ -363,7 +363,7 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 	if err := p.FetchBlocksMetadataResultsPool.initDefaultsAndValidate("fetchBlocksMetadataResults"); err != nil {
 		return err
 	}
-	if err := p.ReplicaMetadataSlicePool.initDefaultsAndValidate("hostBlockMetadataSlice"); err != nil {
+	if err := p.ReplicaMetadataSlicePool.initDefaultsAndValidate("replicaMetadataSlice"); err != nil {
 		return err
 	}
 	if err := p.BlockMetadataPool.initDefaultsAndValidate("blockMetadata"); err != nil {

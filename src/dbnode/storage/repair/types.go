@@ -31,8 +31,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// HostBlockMetadataSlice captures a slice of hostBlockMetadata
-type HostBlockMetadataSlice interface {
+// ReplicaMetadataSlice captures a slice of hostBlockMetadata
+type ReplicaMetadataSlice interface {
 	// Add adds the metadata to the slice
 	Add(metadata block.ReplicaMetadata)
 
@@ -49,10 +49,10 @@ type HostBlockMetadataSlice interface {
 // ReplicaMetadataSlicePool provides a pool for hostBlockMetadata slices
 type ReplicaMetadataSlicePool interface {
 	// Get returns a hostBlockMetadata slice
-	Get() HostBlockMetadataSlice
+	Get() ReplicaMetadataSlice
 
 	// Put puts a hostBlockMetadata slice back to pool
-	Put(m HostBlockMetadataSlice)
+	Put(m ReplicaMetadataSlice)
 }
 
 // ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set
@@ -176,10 +176,10 @@ type Options interface {
 	// RepairThrottle returns the repair throttle.
 	RepairThrottle() time.Duration
 
-	// SetReplicaMetadataSlicePool sets the hostBlockMetadataSlice pool.
+	// SetReplicaMetadataSlicePool sets the replicaMetadataSlice pool.
 	SetReplicaMetadataSlicePool(value ReplicaMetadataSlicePool) Options
 
-	// ReplicaMetadataSlicePool returns the hostBlockMetadataSlice pool.
+	// ReplicaMetadataSlicePool returns the replicaMetadataSlice pool.
 	ReplicaMetadataSlicePool() ReplicaMetadataSlicePool
 
 	// SetResultOptions sets the result options.

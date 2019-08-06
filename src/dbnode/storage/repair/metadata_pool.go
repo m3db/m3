@@ -40,11 +40,11 @@ func NewReplicaMetadataSlicePool(opts pool.ObjectPoolOptions, capacity int) Repl
 	return p
 }
 
-func (p *replicaMetadataSlicePool) Get() HostBlockMetadataSlice {
-	return p.pool.Get().(HostBlockMetadataSlice)
+func (p *replicaMetadataSlicePool) Get() ReplicaMetadataSlice {
+	return p.pool.Get().(ReplicaMetadataSlice)
 }
 
-func (p *replicaMetadataSlicePool) Put(res HostBlockMetadataSlice) {
+func (p *replicaMetadataSlicePool) Put(res ReplicaMetadataSlice) {
 	res.Reset()
 	p.pool.Put(res)
 }
