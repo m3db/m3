@@ -58,6 +58,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -664,15 +665,21 @@ func Run(runOpts RunOptions) {
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 
+	mutableSegmentAlloc := index.NewBootstrapResultMutableSegmentAllocator(
+		opts.IndexOptions())
+	rsOpts := result.NewOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
+		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
+		SetIndexMutableSegmentAllocator(mutableSegmentAlloc)
+
 	opts = opts.SetRepairEnabled(false)
 	if cfg.Repair != nil {
 		repairOpts := opts.RepairOptions().
-			SetRepairInterval(cfg.Repair.Interval).
-			SetRepairTimeOffset(cfg.Repair.Offset).
-			SetRepairTimeJitter(cfg.Repair.Jitter).
 			SetRepairThrottle(cfg.Repair.Throttle).
 			SetRepairCheckInterval(cfg.Repair.CheckInterval).
 			SetAdminClient(m3dbClient).
+			SetResultOptions(rsOpts).
 			SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
 
 		if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
@@ -695,7 +702,7 @@ func Run(runOpts RunOptions) {
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := newTopoMapProvider(topo)
 	bs, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
-		opts, topoMapProvider, origin, m3dbClient)
+		rsOpts, opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
 		logger.Fatal("could not create bootstrap process", zap.Error(err))
 	}
@@ -725,7 +732,7 @@ func Run(runOpts RunOptions) {
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
 			updated, err := cfg.Bootstrap.New(config.NewBootstrapConfigurationValidator(),
-				opts, topoMapProvider, origin, m3dbClient)
+				rsOpts, opts, topoMapProvider, origin, m3dbClient)
 			if err != nil {
 				logger.Error("updated bootstrapper list failed", zap.Error(err))
 				return

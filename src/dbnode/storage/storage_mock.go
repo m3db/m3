@@ -1820,18 +1820,18 @@ func (mr *MockdatabaseShardMockRecorder) CleanupCompactedFileSets() *gomock.Call
 }
 
 // Repair mocks base method
-func (m *MockdatabaseShard) Repair(ctx context.Context, nsCtx namespace.Context, tr time0.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+func (m *MockdatabaseShard) Repair(ctx context.Context, nsCtx namespace.Context, nsMeta namespace.Metadata, tr time0.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, tr, repairer)
+	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, nsMeta, tr, repairer)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Repair indicates an expected call of Repair
-func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, tr, repairer interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, repairer interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, nsCtx, tr, repairer)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, nsCtx, nsMeta, tr, repairer)
 }
 
 // TagsFromSeriesID mocks base method
@@ -2457,18 +2457,18 @@ func (mr *MockdatabaseShardRepairerMockRecorder) Options() *gomock.Call {
 }
 
 // Repair mocks base method
-func (m *MockdatabaseShardRepairer) Repair(ctx context.Context, nsCtx namespace.Context, tr time0.Range, shard databaseShard) (repair.MetadataComparisonResult, error) {
+func (m *MockdatabaseShardRepairer) Repair(ctx context.Context, nsCtx namespace.Context, nsMeta namespace.Metadata, tr time0.Range, shard databaseShard) (repair.MetadataComparisonResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, tr, shard)
+	ret := m.ctrl.Call(m, "Repair", ctx, nsCtx, nsMeta, tr, shard)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Repair indicates an expected call of Repair
-func (mr *MockdatabaseShardRepairerMockRecorder) Repair(ctx, nsCtx, tr, shard interface{}) *gomock.Call {
+func (mr *MockdatabaseShardRepairerMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, shard interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Repair), ctx, nsCtx, tr, shard)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Repair), ctx, nsCtx, nsMeta, tr, shard)
 }
 
 // MockdatabaseRepairer is a mock of databaseRepairer interface

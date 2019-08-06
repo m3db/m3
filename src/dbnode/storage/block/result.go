@@ -234,6 +234,8 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 			return false
 		}
 		tagsIter.Close()
+		// Set to nil so it doesn't get closed again later and trigger a double-put pooling bug.
+		it.res[it.resIdx].Tags = nil
 	}
 	it.metadata = NewMetadata(it.id, tags, block.Start,
 		block.Size, block.Checksum, block.LastRead)

@@ -70,7 +70,7 @@ type Encoder interface {
 	// an error is returned.
 	LastEncoded() (ts.Datapoint, error)
 
-	// Len returns the length of the encoded bytes in the encoder.
+	// Len returns the length of the encoded stream as returned by a call to Stream().
 	Len() int
 
 	// Reset resets the start time of the encoder and the internal state.
