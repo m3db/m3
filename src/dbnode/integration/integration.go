@@ -312,23 +312,25 @@ func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps generate.SeriesBlocksByStart,
+	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps)
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps generate.SeriesBlocksByStart,
+	volume int,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

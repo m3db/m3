@@ -133,7 +133,7 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	Tick(versions map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult
+	Tick(versions ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult
 
 	Load(bl block.DatabaseBlock, writeType WriteType)
 
@@ -365,7 +365,7 @@ func (b *dbBuffer) Stats() bufferStats {
 	}
 }
 
-func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult {
+func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult {
 	mergedOutOfOrder := 0
 	var evictedBucketTimes OptimizedTimes
 	for tNano, buckets := range b.bucketsMap {
@@ -377,35 +377,40 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespa
 		// 2) remove a lower versioned bucket.
 		// Retrievable and higher versioned buckets will be left to be
 		// collected in the next tick.
-		blockState := blockStates[tNano]
-		if coldVersion := blockState.ColdVersion; blockState.WarmRetrievable || coldVersion > 0 {
-			if blockState.WarmRetrievable {
-				// Buckets for WarmWrites that are retrievable will only be version 1, since
-				// they only get successfully persisted once.
-				buckets.removeBucketsUpToVersion(WarmWrite, 1)
-			}
-			if coldVersion > 0 {
-				buckets.removeBucketsUpToVersion(ColdWrite, coldVersion)
-			}
+		blockStateSnapshot, bootstrapped := blockStates.UnwrapValue()
+		// Only use block state snapshot information to make eviction decisions if the block state
+		// has been properly bootstrapped already.
+		if bootstrapped {
+			blockState := blockStateSnapshot.Snapshot[tNano]
+			if coldVersion := blockState.ColdVersion; blockState.WarmRetrievable || coldVersion > 0 {
+				if blockState.WarmRetrievable {
+					// Buckets for WarmWrites that are retrievable will only be version 1, since
+					// they only get successfully persisted once.
+					buckets.removeBucketsUpToVersion(WarmWrite, 1)
+				}
+				if coldVersion > 0 {
+					buckets.removeBucketsUpToVersion(ColdWrite, coldVersion)
+				}
 
-			if buckets.streamsLen() == 0 {
-				t := tNano.ToTime()
-				// All underlying buckets have been flushed successfully, so we can
-				// just remove the buckets from the bucketsMap.
-				b.removeBucketVersionsAt(t)
-				// Pass which bucket got evicted from the buffer to the series.
-				// Data gets read in order of precedence: buffer -> cache -> disk.
-				// After a bucket gets removed from the buffer, data from the cache
-				// will be served. However, since data just got persisted to disk,
-				// the cached block is now stale. To correct this, we can either:
-				// 1) evict the stale block from cache so that new data will
-				//    be retrieved from disk, or
-				// 2) merge the new data into the cached block.
-				// It's unclear whether recently flushed data would frequently be
-				// read soon afterward, so we're choosing (1) here, since it has a
-				// simpler implementation (just removing from a map).
-				evictedBucketTimes.Add(tNano)
-				continue
+				if buckets.streamsLen() == 0 {
+					t := tNano.ToTime()
+					// All underlying buckets have been flushed successfully, so we can
+					// just remove the buckets from the bucketsMap.
+					b.removeBucketVersionsAt(t)
+					// Pass which bucket got evicted from the buffer to the series.
+					// Data gets read in order of precedence: buffer -> cache -> disk.
+					// After a bucket gets removed from the buffer, data from the cache
+					// will be served. However, since data just got persisted to disk,
+					// the cached block is now stale. To correct this, we can either:
+					// 1) evict the stale block from cache so that new data will
+					//    be retrieved from disk, or
+					// 2) merge the new data into the cached block.
+					// It's unclear whether recently flushed data would frequently be
+					// read soon afterward, so we're choosing (1) here, since it has a
+					// simpler implementation (just removing from a map).
+					evictedBucketTimes.Add(tNano)
+					continue
+				}
 			}
 		}
 

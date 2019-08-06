@@ -133,18 +133,6 @@ type MetaNode interface {
 	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }
 
-// SeriesNode is implemented by function nodes which can support series iteration
-type SeriesNode interface {
-	MetaNode
-	ProcessSeries(series block.Series) (block.Series, error)
-}
-
-// StepNode is implemented by function nodes which can support step iteration
-type StepNode interface {
-	MetaNode
-	ProcessStep(step block.Step) (block.Step, error)
-}
-
 // BoundOp is implements by operations which have bounds
 type BoundOp interface {
 	Bounds() BoundSpec

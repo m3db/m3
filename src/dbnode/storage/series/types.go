@@ -50,7 +50,7 @@ type DatabaseSeries interface {
 	Tags() ident.Tags
 
 	// Tick executes async updates
-	Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error)
+	Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error)
 
 	// Write writes a new value.
 	Write(
@@ -102,12 +102,12 @@ type DatabaseSeries interface {
 	// IsBootstrapped returns whether the series is bootstrapped or not.
 	IsBootstrapped() bool
 
-	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState) (BootstrapResult, error)
-
-	// Load does the same thing as Bootstrap except it should be used for data that did
-	// not originate from the Bootstrap process (like background repairs).
-	Load(blocks block.DatabaseSeriesBlocks, blockStates map[xtime.UnixNano]BlockState)
+	// Load loads data into the series.
+	Load(
+		opts LoadOptions,
+		blocks block.DatabaseSeriesBlocks,
+		blockStates BootstrappedBlockStateSnapshot,
+	) (LoadResult, error)
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -127,7 +127,7 @@ type DatabaseSeries interface {
 	) error
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
-	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
+	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -160,11 +160,11 @@ type QueryableBlockRetriever interface {
 
 	// IsBlockRetrievable returns whether a block is retrievable
 	// for a given block start time.
-	IsBlockRetrievable(blockStart time.Time) bool
+	IsBlockRetrievable(blockStart time.Time) (bool, error)
 
 	// RetrievableBlockColdVersion returns the cold version that was
 	// successfully persisted.
-	RetrievableBlockColdVersion(blockStart time.Time) int
+	RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 
 	// BlockStatesSnapshot returns a snapshot of the whether blocks are
 	// retrievable and their flush versions for each block start. This is used
@@ -173,7 +173,36 @@ type QueryableBlockRetriever interface {
 	// Flushes may occur and change the actual block state while iterating
 	// through this snapshot, so any logic using this function should take this
 	// into account.
-	BlockStatesSnapshot() map[xtime.UnixNano]BlockState
+	BlockStatesSnapshot() ShardBlockStateSnapshot
+}
+
+// ShardBlockStateSnapshot represents a snapshot of a shard's block state at
+// a moment in time.
+type ShardBlockStateSnapshot struct {
+	bootstrapped bool
+	snapshot     BootstrappedBlockStateSnapshot
+}
+
+// NewShardBlockStateSnapshot constructs a new NewShardBlockStateSnapshot.
+func NewShardBlockStateSnapshot(
+	bootstrapped bool,
+	snapshot BootstrappedBlockStateSnapshot,
+) ShardBlockStateSnapshot {
+	return ShardBlockStateSnapshot{
+		bootstrapped: bootstrapped,
+		snapshot:     snapshot,
+	}
+}
+
+// UnwrapValue returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
+// snapshot is bootstrapped or not.
+func (s ShardBlockStateSnapshot) UnwrapValue() (BootstrappedBlockStateSnapshot, bool) {
+	return s.snapshot, s.bootstrapped
+}
+
+// BootstrappedBlockStateSnapshot represents a bootstrapped shard block state snapshot.
+type BootstrappedBlockStateSnapshot struct {
+	Snapshot map[xtime.UnixNano]BlockState
 }
 
 // BlockState contains the state of a block.
@@ -234,15 +263,6 @@ const (
 	// to disk successfully.
 	FlushOutcomeFlushedToDisk
 )
-
-// BootstrapResult contains information about the result of bootstrapping a series.
-// It is returned from the series Bootstrap method primarily so the caller can aggregate
-// and emit metrics instead of the series itself having to store additional fields (which
-// would be costly because we have millions of them.)
-type BootstrapResult struct {
-	NumBlocksMovedToBuffer int64
-	NumBlocksMerged        int64
-}
 
 // Options represents the options for series
 type Options interface {
@@ -387,4 +407,26 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
+}
+
+// LoadOptions contains the options for the Load() method.
+type LoadOptions struct {
+	// Whether the call to Bootstrap should be considered a "true" bootstrap
+	// or if additional data is being loaded after the fact (as in the case
+	// of repairs).
+	Bootstrap bool
+}
+
+// LoadResult contains the return information for the Load() method.
+type LoadResult struct {
+	Bootstrap BootstrapResult
+}
+
+// BootstrapResult contains information about the result of bootstrapping a series.
+// It is returned from the series Bootstrap method primarily so the caller can aggregate
+// and emit metrics instead of the series itself having to store additional fields (which
+// would be costly because we have millions of them.)
+type BootstrapResult struct {
+	NumBlocksMovedToBuffer int64
+	NumBlocksMerged        int64
 }

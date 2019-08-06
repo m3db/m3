@@ -51,7 +51,7 @@ func TestRead(t *testing.T) {
 	ctx := context.NewContext()
 	nsCtx := namespace.Context{}
 	fetchedBlocks := []xio.BlockReader{xio.BlockReader{}}
-	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version).AnyTimes()
+	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version, nil).AnyTimes()
 
 	dirtySeries := newDirtySeriesMap(dirtySeriesMapOptions{})
 	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)
@@ -129,7 +129,7 @@ func TestForEachRemaining(t *testing.T) {
 	ctx := context.NewContext()
 	nsCtx := namespace.Context{}
 	fetchedBlocks := []xio.BlockReader{xio.BlockReader{}}
-	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version).AnyTimes()
+	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version, nil).AnyTimes()
 
 	dirtySeries := newDirtySeriesMap(dirtySeriesMapOptions{})
 	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)

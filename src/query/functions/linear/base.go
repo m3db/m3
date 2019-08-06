@@ -51,7 +51,6 @@ func (o BaseOp) String() string {
 func (o BaseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &baseNode{
 		controller: controller,
-		cache:      transform.NewBlockCache(),
 		op:         o,
 		processor:  o.processorFn(o, controller),
 	}
@@ -60,28 +59,11 @@ func (o BaseOp) Node(controller *transform.Controller, _ transform.Options) tran
 type baseNode struct {
 	op         BaseOp
 	controller *transform.Controller
-	cache      *transform.BlockCache
 	processor  Processor
 }
 
 func (c *baseNode) Params() parser.Params {
 	return c.op
-}
-
-// Ensure baseNode implements the types for lazy evaluation
-var _ transform.StepNode = (*baseNode)(nil)
-var _ transform.SeriesNode = (*baseNode)(nil)
-
-// ProcessStep allows step iteration
-func (c *baseNode) ProcessStep(step block.Step) (block.Step, error) {
-	processedValue := c.processor.Process(step.Values())
-	return block.NewColStep(step.Time(), processedValue), nil
-}
-
-// ProcessSeries allows series iteration
-func (c *baseNode) ProcessSeries(series block.Series) (block.Series, error) {
-	processedValue := c.processor.Process(series.Values())
-	return block.NewSeries(processedValue, series.Meta), nil
 }
 
 // Process the block

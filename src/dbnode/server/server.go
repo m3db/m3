@@ -30,6 +30,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -95,6 +96,8 @@ const (
 	cpuProfileDuration               = 5 * time.Second
 	filePathPrefixLockFile           = ".lock"
 	defaultServiceName               = "m3dbnode"
+	skipRaiseProcessLimitsEnvVar     = "SKIP_PROCESS_LIMITS_RAISE"
+	skipRaiseProcessLimitsEnvVarTrue = "true"
 )
 
 // RunOptions provides options for running the server
@@ -155,17 +158,20 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	// Raise fd limits to nr_open system limit
-	result, err := xos.RaiseProcessNoFileToNROpen()
-	if err != nil {
-		logger.Warn("unable to raise rlimit to no file fds limit",
-			zap.Error(err))
-	} else {
-		logger.Info("raised rlimit no file fds limit",
-			zap.Bool("required", result.RaisePerformed),
-			zap.Uint64("sysNROpenValue", result.NROpenValue),
-			zap.Uint64("noFileMaxValue", result.NoFileMaxValue),
-			zap.Uint64("noFileCurrValue", result.NoFileCurrValue))
+	// By default attempt to raise process limits, which is a benign operation.
+	skipRaiseLimits := strings.TrimSpace(os.Getenv(skipRaiseProcessLimitsEnvVar))
+	if skipRaiseLimits != skipRaiseProcessLimitsEnvVarTrue {
+		// Raise fd limits to nr_open system limit
+		result, err := xos.RaiseProcessNoFileToNROpen()
+		if err != nil {
+			logger.Warn("unable to raise rlimit", zap.Error(err))
+		} else {
+			logger.Info("raised rlimit no file fds limit",
+				zap.Bool("required", result.RaisePerformed),
+				zap.Uint64("sysNROpenValue", result.NROpenValue),
+				zap.Uint64("noFileMaxValue", result.NoFileMaxValue),
+				zap.Uint64("noFileCurrValue", result.NoFileCurrValue))
+		}
 	}
 
 	// Parse file and directory modes
@@ -700,7 +706,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetBootstrapProcessProvider(bs)
 	timeout := bootstrapConfigInitTimeout
 
-	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers", "bootstrapper")
+	bsGauge := instrument.NewStringListEmitter(scope, "bootstrappers")
 	if err := bsGauge.Start(cfg.Bootstrap.Bootstrappers); err != nil {
 		logger.Error("unable to start emitting bootstrap gauge",
 			zap.Strings("bootstrappers", cfg.Bootstrap.Bootstrappers),

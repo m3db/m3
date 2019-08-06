@@ -168,7 +168,12 @@ func (m *flushManager) dataWarmFlush(
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes
-		flushTimes := m.namespaceFlushTimes(ns, tickStart)
+		flushTimes, err := m.namespaceFlushTimes(ns, tickStart)
+		if err != nil {
+			multiErr = multiErr.Add(fmt.Errorf(
+				"error determining namespace flush times for ns: %s, err: %v", ns.ID().String(), err))
+			continue
+		}
 		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
 		if !ok {
 			// Could happen if namespaces are added / removed.
@@ -234,7 +239,14 @@ func (m *flushManager) dataSnapshot(
 		multiErr                        = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
-		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, tickStart)
+		snapshotBlockStarts, err := m.namespaceSnapshotTimes(ns, tickStart)
+		if err != nil {
+			detailedErr := fmt.Errorf(
+				"namespace %s failed to determine snapshot times: %v",
+				ns.ID().String(), err)
+			multiErr = multiErr.Add(detailedErr)
+			continue
+		}
 
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
@@ -244,9 +256,11 @@ func (m *flushManager) dataSnapshot(
 				snapshotBlockStart, tickStart, snapshotPersist)
 
 			if err != nil {
-				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
-					ns.ID().String(), err)
+				detailedErr := fmt.Errorf(
+					"namespace %s failed to snapshot data for blockStart %s: %v",
+					ns.ID().String(), snapshotBlockStart.String(), err)
 				multiErr = multiErr.Add(detailedErr)
+				continue
 			}
 		}
 	}
@@ -327,7 +341,7 @@ func (m *flushManager) flushRange(rOpts retention.Options, t time.Time) (time.Ti
 	return retention.FlushTimeStart(rOpts, t), retention.FlushTimeEnd(rOpts, t)
 }
 
-func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) []time.Time {
+func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) ([]time.Time, error) {
 	var (
 		rOpts            = ns.Options().RetentionOptions()
 		blockSize        = rOpts.BlockSize()
@@ -335,12 +349,18 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 	)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
+	var loopErr error
 	return filterTimes(candidateTimes, func(t time.Time) bool {
-		return ns.NeedsFlush(t, t)
-	})
+		needsFlush, err := ns.NeedsFlush(t, t)
+		if err != nil {
+			loopErr = err
+			return false
+		}
+		return needsFlush
+	}), loopErr
 }
 
-func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Time) []time.Time {
+func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Time) ([]time.Time, error) {
 	var (
 		rOpts     = ns.Options().RetentionOptions()
 		blockSize = rOpts.BlockSize()
@@ -356,10 +376,16 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 	)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
+	var loopErr error
 	return filterTimes(candidateTimes, func(t time.Time) bool {
 		// Snapshot anything that is unflushed.
-		return ns.NeedsFlush(t, t)
-	})
+		needsFlush, err := ns.NeedsFlush(t, t)
+		if err != nil {
+			loopErr = err
+			return false
+		}
+		return needsFlush
+	}), loopErr
 }
 
 // flushWithTime flushes in-memory data for a given namespace, at a given

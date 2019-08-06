@@ -191,6 +191,7 @@ var linearParseTests = []struct {
 	{"log2(up)", linear.Log2Type},
 	{"log10(up)", linear.Log10Type},
 	{"sqrt(up)", linear.SqrtType},
+	{"round(up)", linear.RoundType},
 	{"round(up, 10)", linear.RoundType},
 
 	{"day_of_month(up)", linear.DayOfMonthType},
@@ -214,7 +215,7 @@ func TestLinearParses(t *testing.T) {
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
-			assert.Len(t, transforms, 2)
+			require.Len(t, transforms, 2)
 			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
@@ -222,6 +223,36 @@ func TestLinearParses(t *testing.T) {
 			assert.Len(t, edges, 1)
 			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
 			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
+}
+
+var variadicTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"day_of_month()", linear.DayOfMonthType},
+	{"day_of_week()", linear.DayOfWeekType},
+	{"day_of_month()", linear.DayOfMonthType},
+	{"days_in_month()", linear.DaysInMonthType},
+
+	{"hour()", linear.HourType},
+	{"minute()", linear.MinuteType},
+	{"month()", linear.MonthType},
+	{"year()", linear.YearType},
+}
+
+func TestVariadicParses(t *testing.T) {
+	for _, tt := range variadicTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q, models.NewTagOptions())
+			require.NoError(t, err)
+			transforms, _, err := p.DAG()
+			require.NoError(t, err)
+			require.Len(t, transforms, 1)
+			assert.Equal(t, transforms[0].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 		})
 	}
 }
@@ -458,4 +489,11 @@ func TestFailedTemporalParse(t *testing.T) {
 	q := "unknown_over_time(http_requests_total[5m])"
 	_, err := Parse(q, models.NewTagOptions())
 	require.Error(t, err)
+}
+
+func TestMissingTagsDoNotPanic(t *testing.T) {
+	q := `label_join(up, "foo", ",")`
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	assert.NotPanics(t, func() { _, _, _ = p.DAG() })
 }
