@@ -31,7 +31,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// ReplicaMetadataSlice captures a slice of hostBlockMetadata
+// ReplicaMetadataSlice captures a slice of block.ReplicaMetadata
 type ReplicaMetadataSlice interface {
 	// Add adds the metadata to the slice
 	Add(metadata block.ReplicaMetadata)
@@ -46,12 +46,12 @@ type ReplicaMetadataSlice interface {
 	Close()
 }
 
-// ReplicaMetadataSlicePool provides a pool for hostBlockMetadata slices
+// ReplicaMetadataSlicePool provides a pool for block.ReplicaMetadata slices
 type ReplicaMetadataSlicePool interface {
-	// Get returns a hostBlockMetadata slice
+	// Get returns a ReplicaMetadata slice
 	Get() ReplicaMetadataSlice
 
-	// Put puts a hostBlockMetadata slice back to pool
+	// Put puts a ReplicaMetadata slice back to pool
 	Put(m ReplicaMetadataSlice)
 }
 
