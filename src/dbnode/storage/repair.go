@@ -513,10 +513,11 @@ func (r *dbRepairer) Repair() error {
 
 		// If we've made it this far that means that there were no unrepaired blocks which means we should
 		// repair the least recently repaired block instead.
-		if !leastRecentlyRepairedBlockStart.IsZero() {
-			if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
-				multiErr = multiErr.Add(err)
-			}
+		if leastRecentlyRepairedBlockStart.IsZero() {
+			continue
+		}
+		if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
 
