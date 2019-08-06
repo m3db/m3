@@ -63,9 +63,8 @@ genny-map-storage-bootstrap-result:
 # when generating map source files in parallel, run these sequentially)
 .PHONY: genny-map-storage
 genny-map-storage:                      \
-	genny-map-storage-database-namespaces \
-	genny-map-storage-shard               \
-	genny-map-storage-dirty-series
+	genny-map-storage-shard             \
+	genny-map-storage-dirty-series      \
 
 # Map generation rule for storage/shardMap
 .PHONY: genny-map-storage-shard
