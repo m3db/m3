@@ -2421,10 +2421,11 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 func (s *dbShard) Repair(
 	ctx context.Context,
 	nsCtx namespace.Context,
+	nsMeta namespace.Metadata,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, nsCtx, tr, s)
+	return repairer.Repair(ctx, nsCtx, nsMeta, tr, s)
 }
 
 func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {

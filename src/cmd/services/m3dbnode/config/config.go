@@ -305,15 +305,6 @@ type RepairPolicy struct {
 	// Enabled or disabled.
 	Enabled bool `yaml:"enabled"`
 
-	// The repair interval.
-	Interval time.Duration `yaml:"interval" validate:"nonzero"`
-
-	// The repair time offset.
-	Offset time.Duration `yaml:"offset" validate:"nonzero"`
-
-	// The repair time jitter.
-	Jitter time.Duration `yaml:"jitter" validate:"nonzero"`
-
 	// The repair throttle.
 	Throttle time.Duration `yaml:"throttle" validate:"nonzero"`
 

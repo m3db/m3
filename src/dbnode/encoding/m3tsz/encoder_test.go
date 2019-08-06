@@ -409,6 +409,23 @@ func TestEncoderLastEncoded(t *testing.T) {
 	})
 }
 
+func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
+	testMultiplePasses(t, multiplePassesTest{
+		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+			encLen := enc.Len()
+			stream, ok := enc.Stream(encoding.StreamOptions{})
+
+			var streamLen int
+			if ok {
+				segment, err := stream.Segment()
+				require.NoError(t, err)
+				streamLen = segment.Len()
+			}
+			require.Equal(t, streamLen, encLen)
+		},
+	})
+}
+
 type multiplePassesTest struct {
 	preEncodeAll        func(enc *encoder, numDatapointsToEncode int)
 	preEncodeDatapoint  func(enc *encoder, datapoint ts.Datapoint)

@@ -417,15 +417,17 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 
 func (s *dbSeries) Load(
 	opts LoadOptions,
-	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	blocksToLoad block.DatabaseSeriesBlocks,
 	blockStates BootstrappedBlockStateSnapshot,
 ) (LoadResult, error) {
 	if opts.Bootstrap {
-		bsResult, err := s.bootstrap(bootstrappedBlocks, blockStates)
+		bsResult, err := s.bootstrap(blocksToLoad, blockStates)
 		return LoadResult{Bootstrap: bsResult}, err
 	}
 
-	s.load(bootstrappedBlocks, blockStates)
+	s.Lock()
+	s.loadWithLock(false, blocksToLoad, blockStates)
+	s.Unlock()
 	return LoadResult{}, nil
 }
 
@@ -448,26 +450,33 @@ func (s *dbSeries) bootstrap(
 		return result, nil
 	}
 
-	s.loadWithLock(bootstrappedBlocks, blockStates)
+	s.loadWithLock(true, bootstrappedBlocks, blockStates)
 	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
 
 	return result, nil
 }
 
-func (s *dbSeries) load(
-	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates BootstrappedBlockStateSnapshot,
-) {
-	s.Lock()
-	s.loadWithLock(bootstrappedBlocks, blockStates)
-	s.Unlock()
-}
-
 func (s *dbSeries) loadWithLock(
-	bootstrappedBlocks block.DatabaseSeriesBlocks,
+	isBootstrap bool,
+	blocksToLoad block.DatabaseSeriesBlocks,
 	blockStates BootstrappedBlockStateSnapshot,
 ) {
-	for _, block := range bootstrappedBlocks.AllBlocks() {
+	for _, block := range blocksToLoad.AllBlocks() {
+		if !isBootstrap {
+			// The data being loaded is not part of the bootstrap process then it needs to be
+			// loaded as a cold write because the load could be happening concurrently with
+			// other processes like the flush (as opposed to bootstrap which cannot happen
+			// concurrently with a flush) and there is no way to know if this series/block
+			// combination has been warm flushed or not yet since updating the shard block state
+			// doesn't happen until the entire flush completes.
+			//
+			// As a result the only safe operation is to load the block as a cold write which
+			// ensures that the data will eventually be flushed and merged with the existing data
+			// on disk in the two scenarios where the Load() API is used (cold writes and repairs).
+			s.buffer.Load(block, ColdWrite)
+			continue
+		}
+
 		blStartNano := xtime.ToUnixNano(block.StartTime())
 		blState := blockStates.Snapshot[blStartNano]
 		if !blState.WarmRetrievable {

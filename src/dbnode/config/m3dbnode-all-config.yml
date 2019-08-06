@@ -154,9 +154,6 @@ db:
   # This feature is currently not working, do not enable.
   repair:
     enabled: false
-    interval: 2h
-    offset: 30m
-    jitter: 1h
     throttle: 2m
     checkInterval: 1m
 

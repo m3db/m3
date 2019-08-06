@@ -25,25 +25,19 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// HostBlockMetadata contains a host along with block metadata from that host
-type HostBlockMetadata struct {
-	Host     topology.Host
-	Size     int64
-	Checksum *uint32
-}
-
 // HostBlockMetadataSlice captures a slice of hostBlockMetadata
 type HostBlockMetadataSlice interface {
 	// Add adds the metadata to the slice
-	Add(metadata HostBlockMetadata)
+	Add(metadata block.ReplicaMetadata)
 
 	// Metadata returns the metadata slice
-	Metadata() []HostBlockMetadata
+	Metadata() []block.ReplicaMetadata
 
 	// Reset resets the metadata slice
 	Reset()
@@ -67,10 +61,10 @@ type ReplicaBlockMetadata interface {
 	Start() time.Time
 
 	// Metadata returns the metadata from all hosts
-	Metadata() []HostBlockMetadata
+	Metadata() []block.ReplicaMetadata
 
 	// Add adds a metadata from a host
-	Add(metadata HostBlockMetadata)
+	Add(metadata block.ReplicaMetadata)
 
 	// Close performs cleanup
 	Close()
@@ -121,7 +115,7 @@ type ReplicaSeriesBlocksMetadata struct {
 // ReplicaMetadataComparer compares metadata from hosts in a replica set
 type ReplicaMetadataComparer interface {
 	// AddLocalMetadata adds metadata from local host
-	AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) error
+	AddLocalMetadata(localIter block.FilteredBlocksMetadataIter) error
 
 	// AddPeerMetadata adds metadata from peers
 	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error
@@ -170,24 +164,6 @@ type Options interface {
 	// RepairShardConcurrency returns the concurrency in which to repair shards with.
 	RepairShardConcurrency() int
 
-	// SetRepairInterval sets the repair interval.
-	SetRepairInterval(value time.Duration) Options
-
-	// RepairInterval returns the repair interval.
-	RepairInterval() time.Duration
-
-	// SetRepairTimeOffset sets the repair time offset.
-	SetRepairTimeOffset(value time.Duration) Options
-
-	// RepairTimeOffset returns the repair time offset.
-	RepairTimeOffset() time.Duration
-
-	// SetRepairJitter sets the repair time jitter.
-	SetRepairTimeJitter(value time.Duration) Options
-
-	// RepairTimeJitter returns the repair time jitter.
-	RepairTimeJitter() time.Duration
-
 	// SetRepairCheckInterval sets the repair check interval.
 	SetRepairCheckInterval(value time.Duration) Options
 
@@ -200,17 +176,17 @@ type Options interface {
 	// RepairThrottle returns the repair throttle.
 	RepairThrottle() time.Duration
 
-	// SetRepairMaxRetries sets the max number of retries for a block start.
-	SetRepairMaxRetries(value int) Options
-
-	// MaxRepairRetries returns the max number of retries for a block start.
-	RepairMaxRetries() int
-
 	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool.
 	SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options
 
 	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool.
 	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
+
+	// SetResultOptions sets the result options.
+	SetResultOptions(value result.Options) Options
+
+	// ResultOptions returns the result options.
+	ResultOptions() result.Options
 
 	// SetDebugShadowComparisonsEnabled sets whether debug shadow comparisons are enabled.
 	SetDebugShadowComparisonsEnabled(value bool) Options
