@@ -22,6 +22,7 @@ package checked
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"sync"
@@ -31,6 +32,9 @@ import (
 
 	"github.com/m3db/m3/src/x/resource"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -251,7 +255,7 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			}
 
 			elem.Finalize()
-			require.Equal(t, int32(0), finalizerCalls)
+			require.Equal(t, int32(0), atomic.LoadInt32(&finalizerCalls))
 
 			var startWaitingWg, startBeginWg, doneWg sync.WaitGroup
 			startBeginWg.Add(1)
@@ -268,13 +272,134 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			}
 
 			startWaitingWg.Wait() // Wait for ready to go.
-			require.Equal(t, int32(0), finalizerCalls)
+			require.Equal(t, int32(0), atomic.LoadInt32(&finalizerCalls))
 
 			startBeginWg.Done() // Open flood gate.
 			doneWg.Wait()       // Wait for all done.
 
-			require.Equal(t, int32(1), finalizerCalls)
+			require.Equal(t, int32(1), atomic.LoadInt32(&finalizerCalls))
 		})
+	}
+}
+
+func TestRefCountDelayFinalizerDoesNotFinalizeUntilDone(t *testing.T) {
+	elem := &RefCount{}
+
+	finalizerCalls := int32(0)
+	finalizer := resource.Finalizer(resource.FinalizerFn(func() {
+		atomic.AddInt32(&finalizerCalls, 1)
+	}))
+
+	elem.SetFinalizer(finalizer)
+
+	// Delay finalization and complete immediately, should not cause finalization.
+	delay := elem.DelayFinalizer()
+	delay.Close()
+
+	require.Equal(t, int32(0), atomic.LoadInt32(&finalizerCalls))
+
+	elem.Finalize()
+	require.Equal(t, int32(1), atomic.LoadInt32(&finalizerCalls))
+}
+
+func TestRefCountDelayFinalizerPropTest(t *testing.T) {
+	var (
+		parameters = gopter.DefaultTestParameters()
+		seed       = time.Now().UnixNano()
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+	)
+	parameters.MinSuccessfulTests = 2 << 13 // ~16k
+	parameters.Rng.Seed(seed)
+
+	type testInput struct {
+		numEvents                 int
+		finalizeBeforeDuringAfter int
+		finalizeDuringIndex       int
+	}
+
+	genTestInput := func() gopter.Gen {
+		return gen.
+			IntRange(1, 64).
+			FlatMap(func(input interface{}) gopter.Gen {
+				numEvents := input.(int)
+				return gopter.CombineGens(
+					gen.IntRange(0, 1),
+					gen.IntRange(0, numEvents-1),
+				).Map(func(input []interface{}) testInput {
+					finalizeBeforeDuringAfter := input[0].(int)
+					finalizeDuringIndex := input[1].(int)
+					return testInput{
+						numEvents:                 numEvents,
+						finalizeBeforeDuringAfter: finalizeBeforeDuringAfter,
+						finalizeDuringIndex:       finalizeDuringIndex,
+					}
+				})
+			}, reflect.TypeOf(testInput{}))
+	}
+
+	// Use single ref count to make sure can be safely reused.
+	elem := &RefCount{}
+
+	props.Property("should finalize always once",
+		prop.ForAll(func(input testInput) (bool, error) {
+			finalizerCalls := int32(0)
+			finalizer := resource.Finalizer(resource.FinalizerFn(func() {
+				if n := atomic.AddInt32(&finalizerCalls, 1); n > 1 {
+					panic(fmt.Sprintf("called finalizer more than once: %v", n))
+				}
+			}))
+			elem.SetFinalizer(finalizer)
+
+			var startWaitingWg, startBeginWg, startDoneWg, continueWg, doneWg sync.WaitGroup
+			startBeginWg.Add(1)
+			continueWg.Add(1)
+			startWaitingWg.Add(input.numEvents)
+			startDoneWg.Add(input.numEvents)
+			doneWg.Add(input.numEvents)
+			for j := 0; j < input.numEvents; j++ {
+				j := j // Capture for lambda
+				go func() {
+					startWaitingWg.Done()
+					startBeginWg.Wait()
+
+					delay := elem.DelayFinalizer()
+
+					// Wait for delayed finalize calls done, cannot call
+					// finalize before all delay finalize calls have been issued.
+					startDoneWg.Done()
+					continueWg.Wait()
+
+					if input.finalizeBeforeDuringAfter == 0 && j == input.finalizeDuringIndex {
+						elem.Finalize() // Trigger after an element has began delayed close
+					}
+
+					delay.Close()
+
+					if input.finalizeBeforeDuringAfter == 1 && j == input.finalizeDuringIndex {
+						elem.Finalize() // Trigger after an element has finished delayed closed
+					}
+
+					doneWg.Done()
+				}()
+			}
+
+			startWaitingWg.Wait() // Wait for ready to go.
+			startBeginWg.Done()   // Open flood gate.
+			startDoneWg.Wait()    // Wait for delay finalize to be called.
+			continueWg.Done()     // Continue the close calls.
+			doneWg.Wait()         // Wait for all done.
+
+			if v := atomic.LoadInt32(&finalizerCalls); v != 1 {
+				return false, fmt.Errorf(
+					"finalizer should have been called once, instead: v=%v", v)
+			}
+
+			return true, nil
+		}, genTestInput()))
+
+	if !props.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
 	}
 }
 
