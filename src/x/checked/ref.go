@@ -36,6 +36,7 @@ type RefCount struct {
 	reads     int32
 	writes    int32
 	finalizer unsafe.Pointer
+	delayRef  int32
 }
 
 // IncRef increments the reference count to this entity.
@@ -75,8 +76,74 @@ func (c *RefCount) Finalize() {
 		panicRef(c, err)
 	}
 
+	// Try to finalize if finalization has not been delayed.
+	_ = c.finalize()
+}
+
+func (c *RefCount) finalize() bool {
+	if !atomic.CompareAndSwapInt32(&c.delayRef, 0, -1) {
+		// If unable to swap to negative then there are some delayed
+		// finalize calls.
+		return false
+	}
+
+	atomic.StoreInt32(&c.delayRef, 0) // Reset for reuse.
 	if f := c.Finalizer(); f != nil {
 		f.Finalize()
+	}
+
+	return true
+}
+
+// DelayFinalizer will delay calling the finalizer on this entity
+// until the closer returned by the method is called at least once.
+// This is useful for dependent resources requiring the lifetime of this
+// entityt to be extended.
+func (c *RefCount) DelayFinalizer() resource.Closer {
+	for {
+		curr := atomic.LoadInt32(&c.delayRef)
+		if curr < 0 {
+			// curr was < 0 which means was already finalized.
+			err := fmt.Errorf("cannot delay finalize, already finalized: curr=%d",
+				curr)
+			panicRef(c, err)
+		}
+
+		v := curr + 1
+		if !atomic.CompareAndSwapInt32(&c.delayRef, curr, v) {
+			continue // Contended, so retry.
+		}
+
+		// Done.
+		return c
+	}
+}
+
+// Close implements resource.Closer for the purpose of use with DelayFinalizer.
+func (c *RefCount) Close() {
+	for {
+		curr := atomic.LoadInt32(&c.delayRef)
+		if curr < 0 {
+			// curr was < 0 which means was already finalized.
+			err := fmt.Errorf("cannot delay finalize, already finalized: curr=%d",
+				curr)
+			panicRef(c, err)
+		}
+
+		v := curr - 1
+		if !atomic.CompareAndSwapInt32(&c.delayRef, curr, v) {
+			continue // Contended, so retry.
+		}
+
+		if v == 0 {
+			// Attempt to finalize if last delayed ref is decremented.
+			if finalized := c.finalize(); !finalized {
+				err := fmt.Errorf("unable to finalize, already called: finalized=%v",
+					finalized)
+				panicRef(c, err)
+			}
+		}
+		return
 	}
 }
 

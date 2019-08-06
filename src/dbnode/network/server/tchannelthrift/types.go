@@ -23,6 +23,7 @@ package tchannelthrift
 import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
@@ -77,6 +78,12 @@ type Options interface {
 
 	// TagDecoderPool returns the tag encoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
+
+	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
+	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
+
+	// CheckedBytesWrapperPool returns the checked bytes wrapper pool.
+	CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool
 
 	// SetMaxOutstandingWriteRequests sets the maximum number of allowed
 	// outstanding write requests.

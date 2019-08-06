@@ -21,14 +21,18 @@
 package checked
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRefCountNegativeRefCount(t *testing.T) {
@@ -207,6 +211,71 @@ func TestRefCountWriteFinishAfterFree(t *testing.T) {
 	elem.DecWrites()
 	assert.Error(t, err)
 	assert.Equal(t, "write finish after free: writes=0, ref=0", err.Error())
+}
+
+func TestRefCountDelayFinalizer(t *testing.T) {
+	// NB(r): Make sure to reuse elem so that reuse is accounted for.
+	elem := &RefCount{}
+
+	tests := []struct {
+		numDelay int
+	}{
+		{
+			numDelay: 1,
+		},
+		{
+			numDelay: 2,
+		},
+		{
+			numDelay: 1024,
+		},
+		{
+			numDelay: 4096,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("num_delay=%d", test.numDelay), func(t *testing.T) {
+			finalizerCalls := int32(0)
+			finalizer := resource.Finalizer(resource.FinalizerFn(func() {
+				atomic.AddInt32(&finalizerCalls, 1)
+			}))
+
+			elem.SetFinalizer(finalizer)
+			elem.IncRef()
+			elem.DecRef()
+
+			delays := make([]resource.Closer, 0, test.numDelay)
+			for i := 0; i < test.numDelay; i++ {
+				delays = append(delays, elem.DelayFinalizer())
+			}
+
+			elem.Finalize()
+			require.Equal(t, int32(0), finalizerCalls)
+
+			var startWaitingWg, startBeginWg, doneWg sync.WaitGroup
+			startBeginWg.Add(1)
+			for _, delay := range delays {
+				delay := delay
+				startWaitingWg.Add(1)
+				doneWg.Add(1)
+				go func() {
+					startWaitingWg.Done()
+					startBeginWg.Wait()
+					delay.Close()
+					doneWg.Done()
+				}()
+			}
+
+			startWaitingWg.Wait() // Wait for ready to go.
+			require.Equal(t, int32(0), finalizerCalls)
+
+			startBeginWg.Done() // Open flood gate.
+			doneWg.Wait()       // Wait for all done.
+
+			require.Equal(t, int32(1), finalizerCalls)
+		})
+	}
 }
 
 func TestLeakDetection(t *testing.T) {

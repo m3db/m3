@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -150,7 +151,10 @@ func TestWriteAnnotation(t *testing.T) {
 }
 
 func getBytes(t *testing.T, e encoding.Encoder) []byte {
-	r, ok := e.Stream(encoding.StreamOptions{})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	r, ok := e.Stream(ctx, encoding.StreamOptions{})
 	if !ok {
 		return nil
 	}
@@ -196,8 +200,11 @@ func TestWriteTimeUnit(t *testing.T) {
 }
 
 func TestEncodeNoAnnotation(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -233,8 +240,11 @@ func TestEncodeNoAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithAnnotation(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -274,8 +284,11 @@ func TestEncodeWithAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithTimeUnit(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -309,8 +322,11 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 }
 
 func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -361,11 +377,14 @@ func TestInitTimeUnit(t *testing.T) {
 }
 
 func TestEncoderResets(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	enc := getTestOptEncoder(testStartTime)
 	defer enc.Close()
 
 	require.Equal(t, 0, enc.os.Len())
-	_, ok := enc.Stream(encoding.StreamOptions{})
+	_, ok := enc.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
@@ -374,7 +393,7 @@ func TestEncoderResets(t *testing.T) {
 	now := time.Now()
 	enc.Reset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok = enc.Stream(encoding.StreamOptions{})
+	_, ok = enc.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
@@ -384,7 +403,7 @@ func TestEncoderResets(t *testing.T) {
 
 	enc.DiscardReset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok = enc.Stream(encoding.StreamOptions{})
+	_, ok = enc.Stream(ctx, encoding.StreamOptions{})
 	require.False(t, ok)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)

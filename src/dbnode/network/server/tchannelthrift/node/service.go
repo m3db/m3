@@ -60,7 +60,6 @@ import (
 
 var (
 	// NB(r): pool sizes are vars to help reduce stress on tests.
-	checkedBytesPoolSize        = 65536
 	segmentArrayPoolSize        = 65536
 	writeBatchPooledReqPoolSize = 1024
 )
@@ -259,13 +258,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	iopts = iopts.SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iopts)
 
-	wrapperPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(checkedBytesPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("node-checked-bytes-wrapper-pool")))
-	wrapperPool := xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
-	wrapperPool.Init()
-
 	segmentPool := newSegmentsArrayPool(segmentsArrayPoolOpts{
 		Capacity:    initSegmentArrayPoolLength,
 		MaxCapacity: maxSegmentArrayPooledLength,
@@ -304,7 +296,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		pools: pools{
 			id:                      opts.IdentifierPool(),
-			checkedBytesWrapper:     wrapperPool,
+			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),
 			tagEncoder:              opts.TagEncoderPool(),
 			tagDecoder:              opts.TagDecoderPool(),
 			segmentsArray:           segmentPool,

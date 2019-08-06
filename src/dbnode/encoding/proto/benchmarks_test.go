@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -70,6 +71,9 @@ func BenchmarkIterator(b *testing.B) {
 }
 
 func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	var (
 		_, messagesBytes = testMessages(100, nonCustomFieldsEnabled)
 		start            = time.Now()
@@ -86,7 +90,7 @@ func benchmarkIterator(b *testing.B, nonCustomFieldsEnabled bool) {
 		}
 	}
 
-	stream, ok := encoder.Stream(encoding.StreamOptions{})
+	stream, ok := encoder.Stream(ctx, encoding.StreamOptions{})
 	if !ok {
 		panic("encoder had no stream")
 	}

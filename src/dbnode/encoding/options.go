@@ -22,6 +22,7 @@ package encoding
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -37,14 +38,15 @@ var (
 )
 
 type options struct {
-	defaultTimeUnit      xtime.Unit
-	timeEncodingSchemes  TimeEncodingSchemes
-	markerEncodingScheme MarkerEncodingScheme
-	encoderPool          EncoderPool
-	readerIteratorPool   ReaderIteratorPool
-	bytesPool            pool.CheckedBytesPool
-	segmentReaderPool    xio.SegmentReaderPool
-	byteFieldDictLRUSize int
+	defaultTimeUnit         xtime.Unit
+	timeEncodingSchemes     TimeEncodingSchemes
+	markerEncodingScheme    MarkerEncodingScheme
+	encoderPool             EncoderPool
+	readerIteratorPool      ReaderIteratorPool
+	bytesPool               pool.CheckedBytesPool
+	segmentReaderPool       xio.SegmentReaderPool
+	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool
+	byteFieldDictLRUSize    int
 }
 
 func newOptions() Options {
@@ -129,6 +131,16 @@ func (o *options) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 
 func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
+}
+
+func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	opts := *o
+	opts.checkedBytesWrapperPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	return o.checkedBytesWrapperPool
 }
 
 func (o *options) SetByteFieldDictionaryLRUSize(value int) Options {

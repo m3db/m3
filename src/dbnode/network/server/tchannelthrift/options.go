@@ -23,6 +23,7 @@ package tchannelthrift
 import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -38,28 +39,38 @@ type options struct {
 	blockMetadataV2SlicePool    BlockMetadataV2SlicePool
 	tagEncoderPool              serialize.TagEncoderPool
 	tagDecoderPool              serialize.TagDecoderPool
+	checkedBytesWrapperPool     xpool.CheckedBytesWrapperPool
 	maxOutstandingWriteRequests int
 	maxOutstandingReadRequests  int
 }
 
 // NewOptions creates new options
 func NewOptions() Options {
+	// Use a zero size pool by default, override from config.
+	poolOptions := pool.NewObjectPoolOptions().
+		SetSize(0)
+
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
 
-	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
+	idPool := ident.NewPool(bytesPool, ident.PoolOptions{
+		IDPoolOptions:           poolOptions,
+		TagsPoolOptions:         poolOptions,
+		TagsIteratorPoolOptions: poolOptions,
+	})
 
 	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions(),
-	)
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions(),
-	)
-
+		serialize.NewTagEncoderOptions(), poolOptions)
 	tagEncoderPool.Init()
+
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(), poolOptions)
 	tagDecoderPool.Init()
+
+	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOptions)
+	bytesWrapperPool.Init()
 
 	return &options{
 		clockOpts:                clock.NewOptions(),
@@ -69,6 +80,7 @@ func NewOptions() Options {
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
+		checkedBytesWrapperPool:  bytesWrapperPool,
 	}
 }
 
@@ -150,6 +162,16 @@ func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
 
 func (o *options) TagDecoderPool() serialize.TagDecoderPool {
 	return o.tagDecoderPool
+}
+
+func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	opts := *o
+	opts.checkedBytesWrapperPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	return o.checkedBytesWrapperPool
 }
 
 func (o *options) SetMaxOutstandingWriteRequests(value int) Options {
