@@ -613,7 +613,7 @@ func (r shardRepairer) shadowCompare(
 		if err != nil {
 			return err
 		}
-		localSeriesDataBlocks, err := xio.FilterEmptyBlockReadersInPlaceSliceOfSlices(unfilteredLocalSeriesDataBlocks)
+		localSeriesDataBlocks, err := xio.FilterEmptyBlockReadersSliceOfSlicesInPlace(unfilteredLocalSeriesDataBlocks)
 		if err != nil {
 			return err
 		}

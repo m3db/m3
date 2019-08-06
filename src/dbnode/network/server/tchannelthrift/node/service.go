@@ -538,7 +538,7 @@ func (s *service) readDatapoints(
 	}
 
 	// Resolve all futures (block reads can be backed by async implementations) and filter out any empty segments.
-	filteredBlockReaderSliceOfSlices, err := xio.FilterEmptyBlockReadersInPlaceSliceOfSlices(encoded)
+	filteredBlockReaderSliceOfSlices, err := xio.FilterEmptyBlockReadersSliceOfSlicesInPlace(encoded)
 	if err != nil {
 		return nil, err
 	}

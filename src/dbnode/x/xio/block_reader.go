@@ -57,13 +57,13 @@ func (b *BlockReader) ResetWindowed(segment ts.Segment, start time.Time, blockSi
 	b.BlockSize = blockSize
 }
 
-// FilterEmptyBlockReadersInPlaceSliceOfSlices filters a [][]BlockReader in place (I.E by modifying
+// FilterEmptyBlockReadersSliceOfSlicesInPlace filters a [][]BlockReader in place (I.E by modifying
 // the existing data structures instead of allocating new ones) such that the returned [][]BlockReader
 // will only contain BlockReaders that contain non-empty segments.
 //
 // Note that if any of the Block/Segment readers are backed by async implementations then this function
 // will not return until all of the async execution has completed.
-func FilterEmptyBlockReadersInPlaceSliceOfSlices(brSliceOfSlices [][]BlockReader) ([][]BlockReader, error) {
+func FilterEmptyBlockReadersSliceOfSlicesInPlace(brSliceOfSlices [][]BlockReader) ([][]BlockReader, error) {
 	filteredSliceOfSlices := brSliceOfSlices[:0]
 	for _, brSlice := range brSliceOfSlices {
 		filteredBrSlice, err := FilterEmptyBlockReadersInPlace(brSlice)
@@ -77,11 +77,14 @@ func FilterEmptyBlockReadersInPlaceSliceOfSlices(brSliceOfSlices [][]BlockReader
 	return filteredSliceOfSlices, nil
 }
 
-// FilterEmptyBlockReadersInPlace is the same as FilterEmptyBlockReadersInPlaceSliceOfSlices except for
+// FilterEmptyBlockReadersInPlace is the same as FilterEmptyBlockReadersSliceOfSlicesInPlace except for
 // one dimensional slices instead of two.
 func FilterEmptyBlockReadersInPlace(brs []BlockReader) ([]BlockReader, error) {
 	filtered := brs[:0]
 	for _, br := range brs {
+		if br.SegmentReader == nil {
+			continue
+		}
 		segment, err := br.Segment()
 		if err != nil {
 			return nil, err
