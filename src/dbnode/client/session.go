@@ -225,7 +225,7 @@ type newHostQueueFn func(
 	hostQueueOpts hostQueueOpts,
 ) (hostQueue, error)
 
-func newSession(opts SingleOptions) (clientSession, error) {
+func newSession(opts Options) (clientSession, error) {
 	topo, err := opts.TopologyInitializer().Init()
 	if err != nil {
 		return nil, err

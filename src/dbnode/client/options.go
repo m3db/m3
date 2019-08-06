@@ -198,6 +198,7 @@ type options struct {
 	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
+	topologyInitializer                     topology.Initializer
 	readConsistencyLevel                    topology.ReadConsistencyLevel
 	writeConsistencyLevel                   topology.ConsistencyLevel
 	bootstrapConsistencyLevel               topology.ReadConsistencyLevel
@@ -329,6 +330,9 @@ func newOptions() *options {
 }
 
 func validate(opts *options) error {
+	if opts.topologyInitializer == nil {
+		return errNoTopologyInitializerSet
+	}
 	if opts.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
@@ -406,6 +410,16 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
+	opts := *o
+	opts.topologyInitializer = value
+	return &opts
+}
+
+func (o *options) TopologyInitializer() topology.Initializer {
+	return o.topologyInitializer
 }
 
 func (o *options) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {

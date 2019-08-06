@@ -190,11 +190,11 @@ type ConfigurationParameters struct {
 
 // CustomOption is a programatic method for setting a client
 // option after all the options have been set by configuration.
-type CustomOption func(v MultiOptions) MultiOptions
+type CustomOption func(v MultiClusterOptions) MultiClusterOptions
 
 // CustomAdminOption is a programatic method for setting a client
 // admin option after all the options have been set by configuration.
-type CustomAdminOption func(v AdminMultiOptions) AdminMultiOptions
+type CustomAdminOption func(v AdminMultiClusterOptions) AdminMultiClusterOptions
 
 // NewClient creates a new M3DB client using
 // specified params and custom options.
@@ -204,8 +204,8 @@ func (c Configuration) NewClient(
 ) (Client, error) {
 	customAdmin := make([]CustomAdminOption, 0, len(custom))
 	for _, opt := range custom {
-		customAdmin = append(customAdmin, func(v AdminMultiOptions) AdminMultiOptions {
-			return opt(MultiOptions(v)).(AdminMultiOptions)
+		customAdmin = append(customAdmin, func(v AdminMultiClusterOptions) AdminMultiClusterOptions {
+			return opt(MultiClusterOptions(v)).(AdminMultiClusterOptions)
 		})
 	}
 
@@ -236,10 +236,11 @@ func (c Configuration) NewAdminClient(
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	topInits := []topology.Initializer{}
+	var topoInit topology.Initializer
+	asyncTopoInits := []topology.Initializer{}
 	if params.TopologyInitializer != nil {
 		// Custom topology initializer provided in params.
-		topInits := append(topInits, params.TopologyInitializer)
+		topoInit = params.TopologyInitializer
 	} else if len(c.EnvironmentConfig.Services) > 0 {
 		// Dynamic topology specified in configuration.
 		cfgParams := environment.ConfigurationParameters{
@@ -256,7 +257,12 @@ func (c Configuration) NewAdminClient(
 		}
 
 		for _, envCfg := range envCfgs {
-			topInits := append(topInits, envCfg.TopologyInitializer)
+			// TODO(srobb): check if async or not
+			if true {
+				topoInit = envCfg.TopologyInitializer
+			} else {
+				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+			}
 		}
 	} else if c.EnvironmentConfig.Static != nil {
 		// Static topology specified in configuration.
@@ -267,7 +273,12 @@ func (c Configuration) NewAdminClient(
 		}
 
 		for _, envCfg := range envCfgs {
-			topInits := append(topInits, envCfg.TopologyInitializer)
+			// TODO(srobb): check if async or not
+			if true {
+				topoInit = envCfg.TopologyInitializer
+			} else {
+				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+			}
 		}
 	} else {
 		return nil, errConfigurationMustSupplyConfig
@@ -276,8 +287,9 @@ func (c Configuration) NewAdminClient(
 		envCfg.TopologyInitializer = params.TopologyInitializer
 	}
 
-	v := NewAdminMultiOptions().
-		SetTopologyInitializers(topInits).
+	v := NewAdminMultiClusterOptions().
+		SetAsyncTopologyInitializers(asyncTopoInits).
+		SetTopologyInitializer(topoInit).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
 
@@ -337,7 +349,7 @@ func (c Configuration) NewAdminClient(
 	}
 
 	// Apply programtic custom options last
-	opts := v.(AdminMultiOptions)
+	opts := v.(AdminMultiClusterOptions)
 	for _, opt := range custom {
 		opts = opt(opts)
 	}

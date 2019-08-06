@@ -41,14 +41,25 @@ type replicatedSession struct {
 // Ensure replicatedSession implements the clientSession interface.
 var _ clientSession = (*replicatedSession)(nil)
 
-func newReplicatedSession(opts MultiOptions) (*replicatedSession, error) {
+func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 	session, err := newSession(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO(srobb): do the asyncs
-	return &replicatedSession{session: session}, nil
+	asyncSessions := make([]AdminSession, 0, len(opts.AsyncTopologyInitializers()))
+	for _, opts := range opts.OptionsForAsyncClusters() {
+		asyncSession, err := newSession(opts)
+		if err != nil {
+			return nil, err
+		}
+		asyncSessions = append(asyncSessions, asyncSession)
+	}
+
+	return &replicatedSession{
+		session:       session,
+		asyncSessions: asyncSessions,
+	}, nil
 }
 
 // Write value to the database for an ID

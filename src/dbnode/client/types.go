@@ -257,6 +257,12 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
+	// SetTopologyInitializer sets the TopologyInitializer.
+	SetTopologyInitializer(value topology.Initializer) Options
+
+	// TopologyInitializer returns the TopologyInitializer.
+	TopologyInitializer() topology.Initializer
+
 	// SetReadConsistencyLevel sets the read consistency level.
 	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
@@ -504,37 +510,6 @@ type Options interface {
 	SchemaRegistry() namespace.SchemaRegistry
 }
 
-type BarOptions interface {
-	// SetTopologyInitializers sets the TopologyInitializers
-	SetTopologyInitializers(value []topology.Initializer) Options
-
-	// TopologyInitializers returns the TopologyInitializers
-	TopologyInitializers() []topology.Initializer
-
-	// SetAsyncTopologyInitializers sets the TopologyInitializers
-	SetAsyncTopologyInitializers(value []topology.Initializer) Options
-
-	// AsyncTopologyInitializers returns the TopologyInitializers
-	AsyncTopologyInitializers() []topology.Initializer
-}
-
-type MultiOptions interface {
-	Options
-	BarOptions
-}
-
-type FooOptions interface {
-	// SetTopologyInitializer sets the TopologyInitializer
-	SetTopologyInitializer(value topology.Initializer) Options
-
-	// TopologyInitializer returns the TopologyInitializer
-	TopologyInitializer() topology.Initializer
-}
-type SingleOptions interface {
-	Options
-	FooOptions
-}
-
 // AdminOptions is a set of administration client options.
 type AdminOptions interface {
 	Options
@@ -588,14 +563,29 @@ type AdminOptions interface {
 	StreamBlocksRetrier() xretry.Retrier
 }
 
-type AdminMultiOptions interface {
-	AdminOptions
-	BarOptions
+// CommonMultiClusterOptions is the set of options which apply only to multi cluster clients
+type CommonMultiClusterOptions interface {
+	// SetAsyncTopologyInitializers sets the TopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions
+
+	// AsyncTopologyInitializers returns the TopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
+
+	// OptionsForAsyncClusters returns a slice of Options, where each is the set of client
+	// for a given async client.
+	OptionsForAsyncClusters() []Options
 }
 
-type AdminSingleOptions interface {
+// MultiClusterOptions is a set of multi cluster client options
+type MultiClusterOptions interface {
+	Options
+	CommonMultiClusterOptions
+}
+
+// AdminMultiClusterOptions is a set of administration multi cluster client options
+type AdminMultiClusterOptions interface {
 	AdminOptions
-	FooOptions
+	CommonMultiClusterOptions
 }
 
 // The rest of these types are internal types that mocks are generated for
