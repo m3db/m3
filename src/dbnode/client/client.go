@@ -20,33 +20,36 @@
 
 package client
 
-import "sync"
+import (
+	"sync"
+)
 
 type client struct {
 	sync.Mutex
 
-	opts         Options
+	opts         MultiOptions
 	newSessionFn newSessionFn
 	session      AdminSession // default cached session
 }
 
-type newSessionFn func(opts Options) (clientSession, error)
+// type newSessionFn func(opts MultiOptions) (replicatedSession, error)
+type newSessionFn func(opts MultiOptions) (*replicatedSession, error)
 
 // NewClient creates a new client
-func NewClient(opts Options) (Client, error) {
+func NewClient(opts MultiOptions) (Client, error) {
 	return newClient(opts)
 }
 
 // NewAdminClient creates a new administrative client
-func NewAdminClient(opts AdminOptions) (AdminClient, error) {
+func NewAdminClient(opts AdminMultiOptions) (AdminClient, error) {
 	return newClient(opts)
 }
 
-func newClient(opts Options) (*client, error) {
+func newClient(opts MultiOptions) (*client, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	return &client{opts: opts, newSessionFn: newSession}, nil
+	return &client{opts: opts, newSessionFn: newReplicatedSession}, nil
 }
 
 func (c *client) newSession() (AdminSession, error) {

@@ -257,12 +257,6 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetTopologyInitializer sets the TopologyInitializer.
-	SetTopologyInitializer(value topology.Initializer) Options
-
-	// TopologyInitializer returns the TopologyInitializer.
-	TopologyInitializer() topology.Initializer
-
 	// SetReadConsistencyLevel sets the read consistency level.
 	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
@@ -510,6 +504,37 @@ type Options interface {
 	SchemaRegistry() namespace.SchemaRegistry
 }
 
+type BarOptions interface {
+	// SetTopologyInitializers sets the TopologyInitializers
+	SetTopologyInitializers(value []topology.Initializer) Options
+
+	// TopologyInitializers returns the TopologyInitializers
+	TopologyInitializers() []topology.Initializer
+
+	// SetAsyncTopologyInitializers sets the TopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the TopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
+}
+
+type MultiOptions interface {
+	Options
+	BarOptions
+}
+
+type FooOptions interface {
+	// SetTopologyInitializer sets the TopologyInitializer
+	SetTopologyInitializer(value topology.Initializer) Options
+
+	// TopologyInitializer returns the TopologyInitializer
+	TopologyInitializer() topology.Initializer
+}
+type SingleOptions interface {
+	Options
+	FooOptions
+}
+
 // AdminOptions is a set of administration client options.
 type AdminOptions interface {
 	Options
@@ -561,6 +586,16 @@ type AdminOptions interface {
 
 	// StreamBlocksRetrier returns the retrier for streaming blocks.
 	StreamBlocksRetrier() xretry.Retrier
+}
+
+type AdminMultiOptions interface {
+	AdminOptions
+	BarOptions
+}
+
+type AdminSingleOptions interface {
+	AdminOptions
+	FooOptions
 }
 
 // The rest of these types are internal types that mocks are generated for

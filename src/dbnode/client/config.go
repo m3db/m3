@@ -190,11 +190,11 @@ type ConfigurationParameters struct {
 
 // CustomOption is a programatic method for setting a client
 // option after all the options have been set by configuration.
-type CustomOption func(v Options) Options
+type CustomOption func(v MultiOptions) MultiOptions
 
 // CustomAdminOption is a programatic method for setting a client
 // admin option after all the options have been set by configuration.
-type CustomAdminOption func(v AdminOptions) AdminOptions
+type CustomAdminOption func(v AdminMultiOptions) AdminMultiOptions
 
 // NewClient creates a new M3DB client using
 // specified params and custom options.
@@ -204,8 +204,8 @@ func (c Configuration) NewClient(
 ) (Client, error) {
 	customAdmin := make([]CustomAdminOption, 0, len(custom))
 	for _, opt := range custom {
-		customAdmin = append(customAdmin, func(v AdminOptions) AdminOptions {
-			return opt(Options(v)).(AdminOptions)
+		customAdmin = append(customAdmin, func(v AdminMultiOptions) AdminMultiOptions {
+			return opt(MultiOptions(v)).(AdminMultiOptions)
 		})
 	}
 
@@ -236,40 +236,48 @@ func (c Configuration) NewAdminClient(
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	var envCfg environment.ConfigureResults
-
-	// Initialize envCfg.
-	if c.EnvironmentConfig != nil {
-		if c.EnvironmentConfig.Service != nil {
-			cfgParams := environment.ConfigurationParameters{
-				InstrumentOpts: iopts,
-			}
-			if c.HashingConfiguration != nil {
-				cfgParams.HashingSeed = c.HashingConfiguration.Seed
-			}
-
-			envCfg, err = c.EnvironmentConfig.Configure(cfgParams)
-			if err != nil {
-				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
-				return nil, err
-			}
-		} else if c.EnvironmentConfig.Static != nil {
-			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
-
-			if err != nil {
-				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
-				return nil, err
-			}
-		} else {
-			return nil, errConfigurationMustSupplyConfig
+	topInits := []topology.Initializer{}
+	if params.TopologyInitializer != nil {
+		// Custom topology initializer provided in params.
+		topInits := append(topInits, params.TopologyInitializer)
+	} else if len(c.EnvironmentConfig.Services) > 0 {
+		// Dynamic topology specified in configuration.
+		cfgParams := environment.ConfigurationParameters{
+			InstrumentOpts: iopts,
 		}
+		if c.HashingConfiguration != nil {
+			cfgParams.HashingSeed = c.HashingConfiguration.Seed
+		}
+
+		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
+		if err != nil {
+			err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
+			return nil, err
+		}
+
+		for _, envCfg := range envCfgs {
+			topInits := append(topInits, envCfg.TopologyInitializer)
+		}
+	} else if c.EnvironmentConfig.Static != nil {
+		// Static topology specified in configuration.
+		envCfgs, err := c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+		if err != nil {
+			err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
+			return nil, err
+		}
+
+		for _, envCfg := range envCfgs {
+			topInits := append(topInits, envCfg.TopologyInitializer)
+		}
+	} else {
+		return nil, errConfigurationMustSupplyConfig
 	}
 	if params.TopologyInitializer != nil {
 		envCfg.TopologyInitializer = params.TopologyInitializer
 	}
 
-	v := NewAdminOptions().
-		SetTopologyInitializer(envCfg.TopologyInitializer).
+	v := NewAdminMultiOptions().
+		SetTopologyInitializers(topInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
 
@@ -329,7 +337,7 @@ func (c Configuration) NewAdminClient(
 	}
 
 	// Apply programtic custom options last
-	opts := v.(AdminOptions)
+	opts := v.(AdminMultiOptions)
 	for _, opt := range custom {
 		opts = opt(opts)
 	}
