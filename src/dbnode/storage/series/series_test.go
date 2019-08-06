@@ -220,33 +220,26 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 // TestSeriesLoad tests the behavior the Bootstrap()/Load()s method by ensuring that they actually load
 // data into the series and that the data (merged with any existing data) can be retrieved.
 //
-// It also ensures that blocks for blockStarts that have not been warm flushed yet are loaded as
-// warm write and block for blockStarts that have already been warm flushed are loaded as cold writes.
+// It also ensures that blocks for the bootstrap path blockStarts that have not been warm flushed yet
+// are loaded as warm writes and block for blockStarts that have already been warm flushed are loaded as
+// cold writes and that for the load path everything is loaded as cold writes.
 func TestSeriesBootstrapAndLoad(t *testing.T) {
 	testCases := []struct {
-		title string
-		f     func(
+		title    string
+		loadOpts LoadOptions
+		f        func(
 			series DatabaseSeries,
 			blocks block.DatabaseSeriesBlocks,
 			blockStates BootstrappedBlockStateSnapshot)
 	}{
 		{
-			title: "load",
-			f: func(series DatabaseSeries,
-				blocks block.DatabaseSeriesBlocks,
-				blockStates BootstrappedBlockStateSnapshot,
-			) {
-				series.Load(LoadOptions{}, blocks, blockStates)
-			}},
+			title:    "load",
+			loadOpts: LoadOptions{},
+		},
 		{
-			title: "bootstrap",
-			f: func(series DatabaseSeries,
-				blocks block.DatabaseSeriesBlocks,
-				blockStates BootstrappedBlockStateSnapshot,
-			) {
-				_, err := series.Load(LoadOptions{Bootstrap: true}, blocks, blockStates)
-				require.NoError(t, err)
-			}},
+			title:    "bootstrap",
+			loadOpts: LoadOptions{Bootstrap: true},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -309,7 +302,8 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blocks.AddBlock(dbBlock)
 			}
 
-			tc.f(series, blocks, blockStates)
+			_, err := series.Load(tc.loadOpts, blocks, blockStates)
+			require.NoError(t, err)
 
 			t.Run("Data can be read", func(t *testing.T) {
 				ctx := context.NewContext()
@@ -322,16 +316,26 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				requireReaderValuesEqual(t, expectedData, results, opts, nsCtx)
 			})
 
-			t.Run("Unflushed blocks loaded as warm writes and flushed blocks loaded as cold writes", func(t *testing.T) {
+			t.Run("blocks loaded as warm/cold writes correctly", func(t *testing.T) {
 				optimizedTimes := series.ColdFlushBlockStarts(blockStates)
-
 				coldFlushBlockStarts := []xtime.UnixNano{}
 				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
 					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
 				})
-
-				expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
-				require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				if tc.loadOpts.Bootstrap {
+					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
+					// correctly based on the flush state.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
+					require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				} else {
+					// If its just a regular load then everything should be loaded as cold writes for correctness
+					// since flushes and loads can happen concurrently.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart),
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart),
+					}
+					require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				}
 			})
 		})
 	}

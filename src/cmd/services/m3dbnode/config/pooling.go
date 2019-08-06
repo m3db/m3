@@ -178,7 +178,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 			capacity:            4096,
 		},
-		"hostBlockMetadataSlice": poolPolicyDefault{
+		"replicaMetadataSlice": poolPolicyDefault{
 			size:                131072,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
@@ -320,8 +320,8 @@ type PoolingPolicy struct {
 	// The policy for the FetchBlocksMetadataResults pool.
 	FetchBlocksMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
 
-	// The policy for the HostBlockMetadataSlice pool.
-	HostBlockMetadataSlicePool CapacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
+	// The policy for the ReplicaMetadataSlicePool pool.
+	ReplicaMetadataSlicePool CapacityPoolPolicy `yaml:"replicaMetadataSlicePool"`
 
 	// The policy for the BlockMetadat pool.
 	BlockMetadataPool PoolPolicy `yaml:"blockMetadataPool"`
@@ -401,7 +401,7 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 	if err := p.FetchBlocksMetadataResultsPool.initDefaultsAndValidate("fetchBlocksMetadataResults"); err != nil {
 		return err
 	}
-	if err := p.HostBlockMetadataSlicePool.initDefaultsAndValidate("hostBlockMetadataSlice"); err != nil {
+	if err := p.ReplicaMetadataSlicePool.initDefaultsAndValidate("replicaMetadataSlice"); err != nil {
 		return err
 	}
 	if err := p.BlockMetadataPool.initDefaultsAndValidate("blockMetadata"); err != nil {

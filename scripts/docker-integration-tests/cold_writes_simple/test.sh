@@ -35,7 +35,6 @@ function write_data {
     }
   }')
 
-  
   if [[ $respCode -eq "200" ]]; then
     return 0
   else
@@ -63,17 +62,17 @@ function read_all {
 }
 
 echo "Write data for 'now - 2 * bufferPast' (testing cold writes from memory)"
-write_data "coldWritesNoIndex" "foo" "$(($(date +"%s") - 60 * 10 * 2))" 12.3456789
+write_data "coldWritesRepairAndNoIndex" "foo" "$(($(date +"%s") - 60 * 10 * 2))" 12.3456789
 
 echo "Expect to read 1 datapoint"
-read_all "coldWritesNoIndex" "foo" 1
+read_all "coldWritesRepairAndNoIndex" "foo" 1
 
 echo "Write data for 'now - 2 * blockSize' (testing compaction to disk)"
-write_data "coldWritesNoIndex" "foo" "$(($(date +"%s") - 60 * 60 * 2))" 98.7654321
+write_data "coldWritesRepairAndNoIndex" "foo" "$(($(date +"%s") - 60 * 60 * 2))" 98.7654321
 
 echo "Wait until cold writes are flushed"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  '[ -n "$(docker-compose -f ${COMPOSE_FILE} exec dbnode01 find /var/lib/m3db/data/coldWritesNoIndex -name "*1-checkpoint.db")" ]'
+  '[ -n "$(docker-compose -f ${COMPOSE_FILE} exec dbnode01 find /var/lib/m3db/data/coldWritesRepairAndNoIndex -name "*1-checkpoint.db")" ]'
 
 echo "Restart DB (test bootstrapping cold writes)"
 docker-compose -f ${COMPOSE_FILE} restart dbnode01
@@ -83,4 +82,4 @@ ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Expect to read 2 datapoints"
-read_all "coldWritesNoIndex" "foo" 2
+read_all "coldWritesRepairAndNoIndex" "foo" 2

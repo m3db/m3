@@ -166,10 +166,16 @@ func TestRoundTripProp(t *testing.T) {
 		ctx := context.NewContext()
 		defer ctx.Close()
 
+		// Ensure that the Len() method always returns the length of the final stream that would
+		// be returned by a call to Stream().
+		encLen := enc.Len()
 		stream, ok := enc.Stream(ctx)
 		if !ok {
 			return true, nil
 		}
+		segment, err := stream.Segment()
+		require.NoError(t, err)
+		require.Equal(t, segment.Len(), encLen)
 
 		iter.Reset(stream, schemaDescr)
 

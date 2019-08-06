@@ -508,6 +508,7 @@ type databaseShard interface {
 	Repair(
 		ctx context.Context,
 		nsCtx namespace.Context,
+		nsMeta namespace.Metadata,
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
@@ -681,6 +682,7 @@ type databaseShardRepairer interface {
 	Repair(
 		ctx context.Context,
 		nsCtx namespace.Context,
+		nsMeta namespace.Metadata,
 		tr xtime.Range,
 		shard databaseShard,
 	) (repair.MetadataComparisonResult, error)
