@@ -31,12 +31,6 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 )
 
-const (
-	refFinalizeWaitDelay int32 = -1
-	refFinalizeDelayDone int32 = -2
-	refDelayDone         int32 = -1
-)
-
 // RefCount is an embeddable checked.Ref.
 type RefCount struct {
 	ref           int32
