@@ -30,18 +30,29 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
+	m3sync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	maxReplicationConcurrency = 128
+)
+
+// replicatedSession is an implementation of clientSession which replicates
+// session read/writes to a set of clusters asynchronously.
 type replicatedSession struct {
 	session       AdminSession
 	asyncSessions []AdminSession
+	workerPool    m3sync.WorkerPool
 }
 
 // Ensure replicatedSession implements the clientSession interface.
 var _ clientSession = (*replicatedSession)(nil)
 
 func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
+	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
+	workerPool.Init()
+
 	session, err := newSession(opts)
 	if err != nil {
 		return nil, err
@@ -59,21 +70,37 @@ func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 	return &replicatedSession{
 		session:       session,
 		asyncSessions: asyncSessions,
+		workerPool:    workerPool,
 	}, nil
+}
+
+type writeFunc func(Session) error
+
+func (s replicatedSession) replicate(fn writeFunc) error {
+	for _, asyncSession := range s.asyncSessions {
+		if s.workerPool.GoIfAvailable(func() {
+			fn(asyncSession)
+		}) {
+			// TODO(srobb): instrument
+		} else {
+			// TODO(srobb): instrument
+		}
+	}
+	return fn(s.session)
 }
 
 // Write value to the database for an ID
 func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	syncErr := s.session.Write(namespace, id, t, value, unit, annotation)
-	// if err := s.workerPool.DoIfAvailable(fn); err != nil {
-	// emit metric
-	// }
-	return syncErr
+	return s.replicate(func(session Session) error {
+		return session.Write(namespace, id, t, value, unit, annotation)
+	})
 }
 
 // WriteTagged value to the database for an ID and given tags.
 func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	return nil
+	return s.replicate(func(session Session) error {
+		return session.WriteTagged(namespace, id, tags, t, value, unit, annotation)
+	})
 }
 
 // Fetch values from the database for an ID
@@ -119,12 +146,12 @@ func (s replicatedSession) Close() error {
 
 // Origin returns the host that initiated the session.
 func (s replicatedSession) Origin() topology.Host {
-	return nil
+	return s.session.Origin()
 }
 
 // Replicas returns the replication factor.
 func (s replicatedSession) Replicas() int {
-	return 0
+	return s.session.Replicas()
 }
 
 // TopologyMap returns the current topology map. Note that the session
@@ -132,12 +159,12 @@ func (s replicatedSession) Replicas() int {
 // values can be out of sync and this method should not be relied upon
 // if the current view of the topology as seen by the database is required.
 func (s replicatedSession) TopologyMap() (topology.Map, error) {
-	return nil, nil
+	return s.session.TopologyMap()
 }
 
 // Truncate will truncate the namespace for a given shard.
 func (s replicatedSession) Truncate(namespace ident.ID) (int64, error) {
-	return 0, nil
+	return s.session.Truncate(namespace)
 }
 
 // FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
@@ -148,7 +175,7 @@ func (s replicatedSession) FetchBootstrapBlocksFromPeers(
 	start, end time.Time,
 	opts result.Options,
 ) (result.ShardResult, error) {
-	return nil, nil
+	return s.session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, opts)
 }
 
 // FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from
@@ -159,7 +186,7 @@ func (s replicatedSession) FetchBootstrapBlocksMetadataFromPeers(
 	start, end time.Time,
 	result result.Options,
 ) (PeerBlockMetadataIter, error) {
-	return nil, nil
+	return s.session.FetchBootstrapBlocksMetadataFromPeers(namespace, shard, start, end, result)
 }
 
 // FetchBlocksMetadataFromPeers will fetch the blocks metadata from
@@ -171,7 +198,7 @@ func (s replicatedSession) FetchBlocksMetadataFromPeers(
 	consistencyLevel topology.ReadConsistencyLevel,
 	result result.Options,
 ) (PeerBlockMetadataIter, error) {
-	return nil, nil
+	return s.session.FetchBlocksMetadataFromPeers(namespace, shard, start, end, consistencyLevel, result)
 }
 
 // FetchBlocksFromPeers will fetch the required blocks from the
@@ -183,7 +210,7 @@ func (s replicatedSession) FetchBlocksFromPeers(
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
-	return nil, nil
+	return s.session.FetchBlocksFromPeers(namespace, shard, consistencyLevel, metadataIter, opts)
 }
 
 func (s replicatedSession) Open() error {
