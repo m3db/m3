@@ -225,17 +225,18 @@ func (c *ctx) close(mode closeMode, returnMode returnToPoolMode) {
 	}
 
 	c.done = true
-	c.Unlock()
-
-	if c.finalizeables == nil {
-		c.tryReturnToPool(returnMode)
-		return
-	}
 
 	// Capture finalizeables to avoid concurrent r/w if Reset
 	// is used after a caller waits for the finalizers to finish
 	f := c.finalizeables
 	c.finalizeables = nil
+
+	c.Unlock()
+
+	if f == nil {
+		c.tryReturnToPool(returnMode)
+		return
+	}
 
 	switch mode {
 	case closeAsync:
