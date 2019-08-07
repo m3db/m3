@@ -228,6 +228,16 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 					}
 				}
 
+				if hm.Metadata.Checksum == nil {
+					// Skip metadata that doesn't have a checksum. This usually means that the
+					// metadata represents unmerged or pending data. Better to skip for now and
+					// repair it once it has been merged as opposed to repairing it now and
+					// ping-ponging the same data back and forth between all the repairing nodes.
+					//
+					// TODO(rartoul): Consider skipping series with duplicate metadata as well?
+					continue
+				}
+
 				// Check size.
 				if firstSize {
 					sizeVal = hm.Metadata.Size
