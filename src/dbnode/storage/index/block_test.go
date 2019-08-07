@@ -364,6 +364,25 @@ func TestBlockQueryAfterClose(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestBlockQueryWithCancelledQuery(t *testing.T) {
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	b, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, start, b.StartTime())
+	require.Equal(t, start.Add(time.Hour), b.EndTime())
+
+	// Precancel query.
+	cancellable := resource.NewCancellableLifetime()
+	cancellable.Cancel()
+
+	_, err = b.Query(context.NewContext(), cancellable,
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+	require.Error(t, err)
+	require.Equal(t, errCancelledQuery, err)
+}
+
 func TestBlockQueryExecutorError(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
