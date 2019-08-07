@@ -440,6 +440,10 @@ type RPCConfiguration struct {
 	// NB: this is deprecated in favor of using RemoteZones, as setting
 	// RemoteListenAddresses will only allow for a single remote zone to be used.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+
+	// ReflectionEnabled will enable reflection on the GRPC server, useful
+	// for testing connectivity with grpcurl, etc.
+	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options
