@@ -83,4 +83,4 @@ ATTEMPTS=30 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
 
 echo "Wait for the data to become available (via repairs) from dbnode03"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
-  read_all "coldWritesRepairAndNoIndex" "foo" 1 9022
+  read_all "coldWritesRepairAndNoIndex" "foo" 1 9032
