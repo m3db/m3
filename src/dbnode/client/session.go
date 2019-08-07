@@ -110,6 +110,8 @@ var (
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
+	// errEnqueueChIsClosed is returned when attempting to use a closed enqueuCh.
+	errEnqueueChIsClosed = errors.New("error enqueCh is cosed")
 )
 
 // sessionState is volatile state that is protected by a
@@ -255,7 +257,25 @@ func newSession(opts Options) (clientSession, error) {
 		},
 		metrics: newSessionMetrics(scope),
 	}
-	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
+	s.reattemptStreamBlocksFromPeersFn = func(
+		reattemptBlocks []receivedBlockMetadata,
+		reEnqueueCh enqueueChannel,
+		err error,
+		reattemptReason reason,
+		reattemptType reattemptType,
+		m *streamFromPeersMetrics,
+	) {
+		if err := s.streamBlocksReattemptFromPeers(
+			reattemptBlocks, reEnqueueCh, err,
+			reattemptReason, reattemptType, m); err != nil {
+			instrument.EmitAndLogInvariantViolation(
+				s.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.Error(
+						"failed to reattempt stream blocks from peers in select peers process",
+						zap.Error(err))
+				})
+		}
+	}
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
 	writeAttemptPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.WriteOpPoolSize()).
@@ -2404,7 +2424,18 @@ func (s *session) streamBlocksFromPeers(
 			enqueueCh.trackProcessed(1)
 		}
 	)
-	for perPeerBlocksMetadata := range enqueueCh.get() {
+	enqueueChInputs, err := enqueueCh.get()
+	if err != nil {
+		instrument.EmitAndLogInvariantViolation(
+			s.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error(
+					"failed to get enqueueCh input channel",
+					zap.Error(err))
+			})
+		return
+	}
+
+	for perPeerBlocksMetadata := range enqueueChInputs {
 		// Filter and select which blocks to retrieve from which peers
 		selected, pooled = s.selectPeersFromPerPeerBlockMetadatas(
 			perPeerBlocksMetadata, peerQueues, enqueueCh, consistencyLevel, peers,
@@ -3040,7 +3071,7 @@ func (s *session) streamBlocksReattemptFromPeers(
 	reason reason,
 	reattemptType reattemptType,
 	m *streamFromPeersMetrics,
-) {
+) error {
 	switch reason {
 	case reqErrReason:
 		m.fetchBlockRetriesReqError.Inc(int64(len(blocks)))
@@ -3054,15 +3085,19 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// where cannot enqueue into the reattempt channel because no more work is
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
-	enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
+	if err != nil {
+		return err
+	}
 	go s.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, reattemptType, enqueue)
+	return nil
 }
 
 func (s *session) streamBlocksReattemptFromPeersEnqueue(
 	blocks []receivedBlockMetadata,
 	attemptErr error,
 	reattemptType reattemptType,
-	enqueueFn func([]receivedBlockMetadata),
+	enqueueFn func([]receivedBlockMetadata) error,
 ) {
 	for i := range blocks {
 		var reattemptPeersMetadata []receivedBlockMetadata
@@ -3109,7 +3144,14 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 
 		// Re-enqueue the block to be fetched from all peers requested
 		// to reattempt from
-		enqueueFn(reattemptBlocksMetadata)
+		if err := enqueueFn(reattemptBlocksMetadata); err != nil {
+			instrument.EmitAndLogInvariantViolation(
+				s.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.Error(
+						"failed to re-enqueue blocks metadata",
+						zap.Error(err))
+				})
+		}
 	}
 }
 
@@ -3463,11 +3505,13 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 }
 
 type enqueueCh struct {
-	enqueued         uint64
-	processed        uint64
+	sync.Mutex
+	sending          int
+	enqueued         int
+	processed        int
 	peersMetadataCh  chan []receivedBlockMetadata
-	closed           int64
-	enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+	closed           bool
+	enqueueDelayedFn func(peersMetadata []receivedBlockMetadata) error
 	metrics          *streamFromPeersMetrics
 }
 
@@ -3476,61 +3520,117 @@ const enqueueChannelDefaultLen = 32768
 func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
 	c := &enqueueCh{
 		peersMetadataCh: make(chan []receivedBlockMetadata, enqueueChannelDefaultLen),
-		closed:          0,
 		metrics:         m,
 	}
+
 	// Allocate the enqueue delayed fn just once
-	c.enqueueDelayedFn = func(peersMetadata []receivedBlockMetadata) {
+	c.enqueueDelayedFn = func(peersMetadata []receivedBlockMetadata) error {
+		c.Lock()
+		if c.closed {
+			c.Unlock()
+			return errEnqueueChIsClosed
+		}
+		c.sending++
+		c.Unlock()
 		c.peersMetadataCh <- peersMetadata
+		c.Lock()
+		c.sending--
+		c.Unlock()
+		return nil
 	}
+
 	go func() {
-		for atomic.LoadInt64(&c.closed) == 0 {
-			m.blocksEnqueueChannel.Update(float64(len(c.peersMetadataCh)))
+		for {
+			c.Lock()
+			closed := c.closed
+			numEnqueued := float64(len(c.peersMetadataCh))
+			c.Unlock()
+			if closed {
+				return
+			}
+			m.blocksEnqueueChannel.Update(numEnqueued)
 			time.Sleep(gaugeReportInterval)
 		}
 	}()
 	return c
 }
 
-func (c *enqueueCh) enqueue(peersMetadata []receivedBlockMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
+func (c *enqueueCh) enqueue(peersMetadata []receivedBlockMetadata) error {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return errEnqueueChIsClosed
+	}
+	c.enqueued++
+	c.sending++
+	c.Unlock()
 	c.peersMetadataCh <- peersMetadata
+	c.Lock()
+	c.sending--
+	c.Unlock()
+	return nil
 }
 
-func (c *enqueueCh) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
-	atomic.AddUint64(&c.enqueued, uint64(numToEnqueue))
-	return c.enqueueDelayedFn
+func (c *enqueueCh) enqueueDelayed(numToEnqueue int) (func([]receivedBlockMetadata) error, error) {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return nil, errEnqueueChIsClosed
+	}
+	c.enqueued += (numToEnqueue)
+	c.Unlock()
+	return c.enqueueDelayedFn, nil
 }
 
-func (c *enqueueCh) get() <-chan []receivedBlockMetadata {
-	return c.peersMetadataCh
+func (c *enqueueCh) get() (<-chan []receivedBlockMetadata, error) {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return nil, errEnqueueChIsClosed
+	}
+	c.Unlock()
+	metadataCh := c.peersMetadataCh
+	return metadataCh, nil
 }
 
 func (c *enqueueCh) trackPending(amount int) {
-	atomic.AddUint64(&c.enqueued, uint64(amount))
+	c.Lock()
+	c.enqueued += amount
+	c.Unlock()
 }
 
 func (c *enqueueCh) trackProcessed(amount int) {
-	atomic.AddUint64(&c.processed, uint64(amount))
+	c.Lock()
+	c.processed += amount
+	c.Unlock()
 }
 
 func (c *enqueueCh) unprocessedLen() int {
-	return int(atomic.LoadUint64(&c.enqueued) - atomic.LoadUint64(&c.processed))
+	c.Lock()
+	unprocessed := c.unprocessedLenWithLock()
+	c.Unlock()
+	return unprocessed
+}
+
+func (c *enqueueCh) unprocessedLenWithLock() int {
+	return c.enqueued - c.processed
 }
 
 func (c *enqueueCh) closeOnAllProcessed() {
 	defer func() {
-		atomic.StoreInt64(&c.closed, 1)
+		c.Lock()
+		c.closed = true
+		c.Unlock()
 	}()
+
 	for {
-		if c.unprocessedLen() == 0 {
-			// Will only ever be zero after all is processed if called
-			// after enqueueing the desired set of entries as long as
-			// the guarantee that reattempts are enqueued before the
-			// failed attempt is marked as processed is upheld
+		c.Lock()
+		if c.unprocessedLenWithLock() == 0 && c.sending == 0 {
 			close(c.peersMetadataCh)
-			break
+			c.Unlock()
+			return
 		}
+		c.Unlock()
 		time.Sleep(100 * time.Millisecond)
 	}
 }

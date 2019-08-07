@@ -26,11 +26,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -644,9 +644,9 @@ type op interface {
 }
 
 type enqueueChannel interface {
-	enqueue(peersMetadata []receivedBlockMetadata)
-	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
-	get() <-chan []receivedBlockMetadata
+	enqueue(peersMetadata []receivedBlockMetadata) error
+	enqueueDelayed(numToEnqueue int) (func([]receivedBlockMetadata) error, error)
+	get() (<-chan []receivedBlockMetadata, error)
 	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int

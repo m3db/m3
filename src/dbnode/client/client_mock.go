@@ -4390,9 +4390,11 @@ func (m *MockenqueueChannel) EXPECT() *MockenqueueChannelMockRecorder {
 }
 
 // enqueue mocks base method
-func (m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) {
+func (m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "enqueue", peersMetadata)
+	ret := m.ctrl.Call(m, "enqueue", peersMetadata)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // enqueue indicates an expected call of enqueue
@@ -4402,11 +4404,12 @@ func (mr *MockenqueueChannelMockRecorder) enqueue(peersMetadata interface{}) *go
 }
 
 // enqueueDelayed mocks base method
-func (m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
+func (m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) (func([]receivedBlockMetadata) error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "enqueueDelayed", numToEnqueue)
-	ret0, _ := ret[0].(func([]receivedBlockMetadata))
-	return ret0
+	ret0, _ := ret[0].(func([]receivedBlockMetadata) error)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // enqueueDelayed indicates an expected call of enqueueDelayed
@@ -4416,11 +4419,12 @@ func (mr *MockenqueueChannelMockRecorder) enqueueDelayed(numToEnqueue interface{
 }
 
 // get mocks base method
-func (m *MockenqueueChannel) get() <-chan []receivedBlockMetadata {
+func (m *MockenqueueChannel) get() (<-chan []receivedBlockMetadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "get")
 	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // get indicates an expected call of get
