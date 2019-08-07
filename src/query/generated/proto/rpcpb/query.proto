@@ -7,10 +7,15 @@ option go_package = "rpcpb";
 import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
 
 service Query {
+	rpc Health()                          returns (HealthResponse);
 	rpc Fetch(FetchRequest)               returns (stream FetchResponse);
-
 	rpc Search(SearchRequest)             returns (stream SearchResponse);
 	rpc CompleteTags(CompleteTagsRequest) returns (stream CompleteTagsResponse);
+}
+
+message HealthResponse {
+	string uptimeDuration = 1;
+	int64 uptimeNanoseconds = 2;
 }
 
 message FetchRequest {
