@@ -41,8 +41,8 @@ const (
 // replicatedSession is an implementation of clientSession which replicates
 // session read/writes to a set of clusters asynchronously.
 type replicatedSession struct {
-	session       AdminSession
-	asyncSessions []AdminSession
+	session       clientSession
+	asyncSessions []clientSession
 	workerPool    m3sync.WorkerPool
 }
 
@@ -58,7 +58,7 @@ func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 		return nil, err
 	}
 
-	asyncSessions := make([]AdminSession, 0, len(opts.AsyncTopologyInitializers()))
+	asyncSessions := make([]clientSession, 0, len(opts.AsyncTopologyInitializers()))
 	for _, opts := range opts.OptionsForAsyncClusters() {
 		asyncSession, err := newSession(opts)
 		if err != nil {
@@ -214,5 +214,11 @@ func (s replicatedSession) FetchBlocksFromPeers(
 }
 
 func (s replicatedSession) Open() error {
+	if err := s.session.Open(); err != nil {
+		return err
+	}
+	for _, asyncSession := range s.asyncSessions {
+		asyncSession.Open()
+	}
 	return nil
 }
