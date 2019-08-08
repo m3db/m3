@@ -147,18 +147,16 @@ func TestEmptyTagIterEncode(t *testing.T) {
 		return mockBytes
 	}
 
-	clonedIter := ident.NewMockTagIterator(ctrl)
 	iter := ident.NewMockTagIterator(ctrl)
 
 	mockBytes.EXPECT().IncRef()
 	mockBytes.EXPECT().Reset(gomock.Any())
 	gomock.InOrder(
+		iter.EXPECT().Remaining().Return(0),
 		mockBytes.EXPECT().NumRef().Return(0),
-		iter.EXPECT().Duplicate().Return(clonedIter),
-		clonedIter.EXPECT().Remaining().Return(0),
-		clonedIter.EXPECT().Next().Return(false),
-		clonedIter.EXPECT().Err().Return(nil),
-		clonedIter.EXPECT().Close(),
+		iter.EXPECT().Restart(),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
 	)
 
 	enc := newTagEncoder(newBytesFn, newTestEncoderOpts(), nil)
@@ -169,15 +167,12 @@ func TestTooManyTags(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	clonedIter := ident.NewMockTagIterator(ctrl)
 	iter := ident.NewMockTagIterator(ctrl)
 	testOpts := newTestEncoderOpts()
 
 	maxNumTags := testOpts.TagSerializationLimits().MaxNumberTags()
 	gomock.InOrder(
-		iter.EXPECT().Duplicate().Return(clonedIter),
-		clonedIter.EXPECT().Remaining().Return(1+int(maxNumTags)),
-		clonedIter.EXPECT().Close(),
+		iter.EXPECT().Remaining().Return(1 + int(maxNumTags)),
 	)
 
 	enc := newTagEncoder(defaultNewCheckedBytesFn, testOpts, nil)

@@ -315,6 +315,18 @@ func (mr *MockTagDecoderMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockTagDecoder)(nil).Reset), arg0)
 }
 
+// Restart mocks base method
+func (m *MockTagDecoder) Restart() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Restart")
+}
+
+// Restart indicates an expected call of Restart
+func (mr *MockTagDecoderMockRecorder) Restart() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockTagDecoder)(nil).Restart))
+}
+
 // MockTagDecoderPool is a mock of TagDecoderPool interface
 type MockTagDecoderPool struct {
 	ctrl     *gomock.Controller

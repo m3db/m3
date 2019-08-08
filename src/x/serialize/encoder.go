@@ -101,18 +101,25 @@ func (e *encoder) Encode(tagsIter ident.TagIterator) error {
 		return err
 	}
 
-	encoded := 0
 	if sliceIter, ok := tagsIter.(interface {
 		SliceIter() []ident.Tag
 	}); ok {
-		for _, tag := range sliceIter.SliceIter() {
+		// Optimized pathway for interfaces that support it.
+		tagsSlice := sliceIter.SliceIter()
+		if len(tagsSlice) != numTags {
+			e.buf = e.buf[:0]
+			return fmt.Errorf("iterator returned %d tags but expected %d",
+				len(tagsSlice), numTags)
+		}
+
+		for _, tag := range tagsSlice {
 			if err := e.encodeTag(tag.Name.Bytes(), tag.Value.Bytes()); err != nil {
 				e.buf = e.buf[:0]
 				return err
 			}
-			encoded++
 		}
 	} else {
+		encoded := 0
 		tagsIter.Restart()
 		for tagsIter.Next() {
 			tag := tagsIter.Current()
@@ -124,19 +131,19 @@ func (e *encoder) Encode(tagsIter ident.TagIterator) error {
 			}
 			encoded++
 		}
-	}
 
-	if encoded != numTags {
-		tagsIter.Restart()
-		e.buf = e.buf[:0]
-		return fmt.Errorf("iterator returned %d tags but expected %d",
-			encoded, numTags)
-	}
+		if err := tagsIter.Err(); err != nil {
+			tagsIter.Restart()
+			e.buf = e.buf[:0]
+			return err
+		}
 
-	if err := tagsIter.Err(); err != nil {
-		tagsIter.Restart()
-		e.buf = e.buf[:0]
-		return err
+		if encoded != numTags {
+			tagsIter.Restart()
+			e.buf = e.buf[:0]
+			return fmt.Errorf("iterator returned %d tags but expected %d",
+				encoded, numTags)
+		}
 	}
 
 	e.checkedBytes.IncRef()
