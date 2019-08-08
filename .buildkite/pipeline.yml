@@ -9,6 +9,9 @@ common: &common
     # Allow manual retries.
     manual: true
 
+  artifact_paths:
+    - "*junit.xml"
+
 steps:
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
@@ -20,6 +23,7 @@ steps:
           import: github.com/m3db/m3
     <<: *common
   - name: "Unit %n"
+    label: "unit"
     command: make clean install-vendor test-ci-unit
     parallelism: 4
     plugins:
@@ -115,3 +119,22 @@ steps:
       automatic:
         limit: 1
       manual: true
+  - wait: ~
+    continue_on_failure: true
+  - label: annotate
+    plugins:
+      - bugcrowd/test-summary#v1.9.1:
+          inputs:
+            - label: unit
+              artifact_path: test_junit.xml
+              type: junit
+            - label: big-unit
+              artifact_path: test_big_junit.xml
+              type: junit
+            - label: integration
+              artifact_path: "*test_integration_junit.xml"
+              type: junit
+          formatter:
+            type: details
+          context: test-summary
+    <<: *common
