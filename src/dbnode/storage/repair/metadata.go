@@ -223,9 +223,23 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 
 			for _, hm := range bm {
 				if !originContainsBlock {
-					if hm.Host.String() == m.origin.String() {
+					if hm.Host.ID() == m.origin.ID() {
 						originContainsBlock = true
 					}
+				}
+
+				if hm.Metadata.Checksum == nil {
+					// Skip metadata that doesn't have a checksum. This usually means that the
+					// metadata represents unmerged or pending data. Better to skip for now and
+					// repair it once it has been merged as opposed to repairing it now and
+					// ping-ponging the same data back and forth between all the repairing nodes.
+					//
+					// The impact of this is that recently modified data may take longer to be
+					// repaired, but it saves a ton of work by preventing nodes from repairing
+					// from each other unnecessarily even when they have identical data.
+					//
+					// TODO(rartoul): Consider skipping series with duplicate metadata as well?
+					continue
 				}
 
 				// Check size.

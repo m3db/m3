@@ -30,7 +30,9 @@ import (
 )
 
 const (
-	defaultRepairConsistencyLevel           = topology.ReadConsistencyLevelMajority
+	// Allow repairs to progress when a single peer is down (I.E during single node failure
+	// or deployments).
+	defaultRepairConsistencyLevel           = topology.ReadConsistencyLevelUnstrictMajority
 	defaultRepairCheckInterval              = time.Minute
 	defaultRepairThrottle                   = 90 * time.Second
 	defaultRepairShardConcurrency           = 1
