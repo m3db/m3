@@ -234,6 +234,10 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 					// repair it once it has been merged as opposed to repairing it now and
 					// ping-ponging the same data back and forth between all the repairing nodes.
 					//
+					// The impact of this is that recently modified data may take longer to be
+					// repaired, but it saves a ton of work by preventing nodes from repairing
+					// from each other unnecessarily even when they have identical data.
+					//
 					// TODO(rartoul): Consider skipping series with duplicate metadata as well?
 					continue
 				}
