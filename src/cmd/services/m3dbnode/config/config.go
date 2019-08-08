@@ -217,6 +217,7 @@ type TransformConfiguration struct {
 	ForcedValue *float64 `yaml:"forceValue"`
 }
 
+// Validate validates the transform configuration.
 func (c *TransformConfiguration) Validate() error {
 	if c == nil {
 		return nil
@@ -319,6 +320,51 @@ type RepairPolicy struct {
 	DebugShadowComparisonsPercentage float64 `yaml:"debugShadowComparisonsPercentage"`
 }
 
+// ReplicationPolicy is the replication policy.
+type ReplicationPolicy struct {
+	Clusters []ReplicatedCluster
+}
+
+// Validate validates the replication policy.
+func (r *ReplicationPolicy) Validate() error {
+	names := map[string]bool{}
+	for _, c := range r.Clusters {
+		if err := c.Validate(); err != nil {
+			return err
+		}
+
+		if _, ok := names[c.Name]; ok {
+			return fmt.Errorf(
+				"replicated cluster names must be unique, but %s was repeated",
+				c.Name)
+		}
+		names[c.Name] = true
+	}
+
+	return nil
+}
+
+// ReplicatedCluster defines a cluster to replicate data from.
+type ReplicatedCluster struct {
+	Name   string                `yaml:"name"`
+	Repair *RepairPolicy         `yaml:"repair"`
+	Client *client.Configuration `yaml:"client"`
+}
+
+// Validate validates the configuration for a replicated cluster.
+func (r *ReplicatedCluster) Validate() error {
+	if r.Name == "" {
+		return errors.New("replicated cluster must be assigned a name")
+	}
+
+	if r.Repair != nil && r.Repair.Enabled && r.Client == nil {
+		return fmt.Errorf(
+			"replicated cluster: %s has repair enabled but not client configuration", r.Name)
+	}
+
+	return nil
+}
+
 // HashingConfiguration is the configuration for hashing.
 type HashingConfiguration struct {
 	// Murmur32 seed value.
@@ -332,6 +378,7 @@ type ProtoConfiguration struct {
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
+// NamespaceProtoSchema is the namespace protobuf schema.
 type NamespaceProtoSchema struct {
 	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
 	// we allow loading user schema from local file into schema registry.

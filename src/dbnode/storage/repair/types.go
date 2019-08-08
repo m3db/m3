@@ -145,10 +145,10 @@ type MetadataComparisonResult struct {
 // Options are the repair options
 type Options interface {
 	// SetAdminClient sets the admin client.
-	SetAdminClient(value client.AdminClient) Options
+	SetAdminClients(value []client.AdminClient) Options
 
 	// AdminClient returns the admin client.
-	AdminClient() client.AdminClient
+	AdminClients() []client.AdminClient
 
 	// SetRepairConsistencyLevel sets the repair read level consistency
 	// for which to repair shards with.

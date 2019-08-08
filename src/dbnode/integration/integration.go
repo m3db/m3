@@ -262,7 +262,7 @@ func newDefaultBootstrappableTestSetups(
 
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
-				SetAdminClient(adminClient).
+				SetAdminClients([]client.AdminClient{adminClient}).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
@@ -301,7 +301,7 @@ func newDefaultBootstrappableTestSetups(
 					setup.storageOpts.RepairOptions().
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
-						SetAdminClient(adminClient).
+						SetAdminClients([]client.AdminClient{adminClient}).
 						SetDebugShadowComparisonsPercentage(1.0).
 						// Avoid log spam.
 						SetDebugShadowComparisonsEnabled(false))

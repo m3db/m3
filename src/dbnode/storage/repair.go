@@ -61,7 +61,7 @@ type recordFn func(namespace ident.ID, shard databaseShard, diffRes repair.Metad
 type shardRepairer struct {
 	opts     Options
 	rpopts   repair.Options
-	client   client.AdminClient
+	clients  []client.AdminClient
 	recordFn recordFn
 	logger   *zap.Logger
 	scope    tally.Scope
@@ -73,12 +73,12 @@ func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer
 	scope := iopts.MetricsScope().SubScope("repair")
 
 	r := shardRepairer{
-		opts:   opts,
-		rpopts: rpopts,
-		client: rpopts.AdminClient(),
-		logger: iopts.Logger(),
-		scope:  scope,
-		nowFn:  opts.ClockOptions().NowFn(),
+		opts:    opts,
+		rpopts:  rpopts,
+		clients: rpopts.AdminClients(),
+		logger:  iopts.Logger(),
+		scope:   scope,
+		nowFn:   opts.ClockOptions().NowFn(),
 	}
 	r.recordFn = r.recordDifferences
 
@@ -96,15 +96,23 @@ func (r shardRepairer) Repair(
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
-	session, err := r.client.DefaultAdminSession()
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
+	var sessions []client.AdminSession
+	for _, c := range r.clients {
+		session, err := c.DefaultAdminSession()
+		if err != nil {
+			fmtErr := fmt.Errorf("error obtaining default admin session: %v", err)
+			return repair.MetadataComparisonResult{}, fmtErr
+		}
+		sessions = append(sessions, session)
 	}
+
 
 	var (
 		start  = tr.Start
 		end    = tr.End
-		origin = session.Origin()
+		// Guaranteed to have at least one session and all should have an identical
+		// origin (both assumptions guaranteed by options validation).
+		origin = sessions[0].Origin()
 	)
 
 	metadata := repair.NewReplicaMetadataComparer(origin, r.rpopts)
@@ -118,6 +126,7 @@ func (r shardRepairer) Repair(
 	var (
 		accumLocalMetadata = block.NewFetchBlocksMetadataResults()
 		pageToken          PageToken
+		err error
 	)
 	// Safe to register since by the time this function completes we won't be using the metadata
 	// for anything anymore.

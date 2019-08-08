@@ -116,7 +116,8 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
 
 	var (
-		rpOpts = testRepairOptions(ctrl).SetAdminClient(mockClient)
+		rpOpts = testRepairOptions(ctrl).
+			SetAdminClients([]client.AdminClient{mockClient})
 		now    = time.Now()
 		nowFn  = func() time.Time { return now }
 		opts   = DefaultTestOptions()
