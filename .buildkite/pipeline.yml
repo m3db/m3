@@ -45,6 +45,7 @@ steps:
         formatter:
           type: details
         context: test-summary
+    <<: *common
   - name: "Big Unit %n"
     command: make clean install-vendor test-ci-big-unit
     parallelism: 2
