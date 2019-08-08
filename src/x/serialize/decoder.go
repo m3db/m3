@@ -237,3 +237,15 @@ func (d *decoder) Duplicate() ident.TagIterator {
 	}
 	return iter
 }
+
+func (d *decoder) Restart() {
+	// Take ref to the checked data before calling reset to avoid
+	// it being collected when resetForReuse is called.
+	data := d.checkedData
+	data.IncRef()
+
+	d.Reset(data)
+
+	// After reset we don't need this extra ref anymore.
+	data.DecRef()
+}

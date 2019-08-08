@@ -218,6 +218,9 @@ type TagIterator interface {
 
 	// Dupe returns an independent duplicate of the iterator.
 	Duplicate() TagIterator
+
+	// Restarts the iterator back at the beginning.
+	Restart()
 }
 
 // TagsIterator represents a TagIterator that can be reset with a Tags

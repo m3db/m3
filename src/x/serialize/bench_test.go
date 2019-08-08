@@ -23,6 +23,7 @@ package serialize
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -30,22 +31,37 @@ func benchmarkTags() ident.Tags {
 	return ident.NewTags(
 		ident.StringTag("abc", "Def"),
 		ident.StringTag("ghifsdf", "andson"),
+		ident.StringTag("abc", "Def"),
+		ident.StringTag("ghifsdf", "andson"),
+		ident.StringTag("abc", "Def"),
+		ident.StringTag("ghifsdf", "andson"),
+		ident.StringTag("abc", "Def"),
+		ident.StringTag("ghifsdf", "andson"),
+		ident.StringTag("abc", "Def"),
+		ident.StringTag("ghifsdf", "andson"),
+		ident.StringTag("abc", "Def"),
+		ident.StringTag("ghifsdf", "andson"),
+		ident.StringTag("abc", "Def"),
+		ident.StringTag("ghifsdf", "andson"),
 	)
 }
+
+var global checked.Bytes
 
 func BenchmarkCustomReadWrite(b *testing.B) {
 	tags := benchmarkTags()
 	iter := ident.NewTagsIterator(tags)
 	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestEncoderOpts(), nil)
-	dec := newTagDecoder(testDecodeOpts, nil)
+	// dec := newTagDecoder(testDecodeOpts, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		copy := iter.Duplicate()
+		// copy := iter.Duplicate()
 		enc.Reset()
-		enc.Encode(copy)
+		enc.Encode(iter)
 		data, _ := enc.Data()
-		dec.Reset(data)
+		global = data
+		// dec.Reset(data)
 	}
 }

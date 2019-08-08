@@ -498,6 +498,13 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 	}
 }
 
+func (w *writeTaggedIter) Restart() {
+	rawRequest := w.rawRequest
+	*w = writeTaggedIter{}
+	w.rawRequest = rawRequest
+	w.currentIdx = -1
+}
+
 // FromRPCQuery will create a m3ninx index query from an RPC query.
 // NB: a nil query is considered equivalent to an `All` query.
 func FromRPCQuery(query *rpc.Query) (idx.Query, error) {
