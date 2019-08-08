@@ -1,5 +1,5 @@
 hash: 105536886b45a56d0e59ffc500254941bbe3d0ca9355e32bd94fb2d7a4deb9f8
-updated: 2019-06-14T18:40:46.052161434Z
+updated: 2019-08-07T20:21:13.76842-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -63,7 +63,6 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
-  - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
   - pkg/fileutil
@@ -156,7 +155,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: b5d812f8a3706043e23a9cd5babf2e5423744d30
+  version: 6c65a5562fc06764971b7c5d05c76c75e84bdbf7
   subpackages:
   - jsonpb
   - proto
@@ -174,7 +173,7 @@ imports:
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/google/go-cmp
-  version: 6f77996f0c42f7b84e5a2b252227263f93432e9b
+  version: 2d0692c2e9617365a95b295612ac0d4415ba4627
   subpackages:
   - cmp
   - cmp/cmpopts
@@ -185,7 +184,7 @@ imports:
 - name: github.com/google/uuid
   version: c2e93f3ae59f2904160ceaab466009f965df46d6
 - name: github.com/gorilla/mux
-  version: ed099d42384823742bba0bf9a72b53b55c9e2e38
+  version: 00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -221,8 +220,6 @@ imports:
   - internal
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-- name: github.com/kr/logfmt
-  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
   version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
@@ -394,7 +391,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: df976f2515e274675050de7b3f42545de80594fd
 - name: github.com/uber-go/tally
-  version: 24c699f78afd17db5aac42f83c1c5cad70254294
+  version: 3332297784e46cd346ab6d9894fd4ea027dc9368
   subpackages:
   - m3
   - m3/customtransports
@@ -402,6 +399,7 @@ imports:
   - m3/thriftudp
   - multi
   - prometheus
+  - thirdparty/github.com/apache/thrift/lib/go/thrift
 - name: github.com/uber/jaeger-client-go
   version: 2f47546e3facd43297739439600bcf43f44cce5d
   subpackages:
@@ -568,8 +566,6 @@ testImports:
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/glycerine/go-unsnap-stream
   version: f9677308dec2b35e76737f9713df328ad11b1fea
-- name: github.com/mschoch/smat
-  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
