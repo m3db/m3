@@ -254,9 +254,14 @@ SUBDIR_TARGETS := \
 	all-gen         \
 	metalint
 
+
+install-go-junit-report:
+	go get github.com/jstemmer/go-junit-report
+
 .PHONY: test-ci-unit
-test-ci-unit: test-base
+test-ci-unit: install-go-junit-report test-base
 	$(process_coverfile) $(coverfile)
+	go-junit-report < $(test_log) > test_junit.xml
 
 .PHONY: test-ci-big-unit
 test-ci-big-unit: test-big-base
@@ -355,6 +360,8 @@ test-ci-unit-$(SUBDIR):
 	SRC_ROOT=./src/$(SUBDIR) make test-base
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+	go-junit-report < $(test_log) > test_junit.xml
+
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
