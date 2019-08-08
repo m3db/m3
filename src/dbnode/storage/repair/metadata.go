@@ -223,7 +223,7 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 
 			for _, hm := range bm {
 				if !originContainsBlock {
-					if hm.Host.String() == m.origin.String() {
+					if hm.Host.ID() == m.origin.ID() {
 						originContainsBlock = true
 					}
 				}
