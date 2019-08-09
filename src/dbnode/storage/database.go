@@ -398,7 +398,15 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		ns.AssignShardSet(shardSet)
 	}
 
-	d.queueBootstrapWithLock()
+	if receivedNewShards {
+		// Only trigger a bootstrap if the node received new shards otherwise
+		// the nodes will perform lots of small bootstraps (that accomplish nothing)
+		// during topology changes as other nodes mark their shards as available.
+		//
+		// These small bootstraps can significantly delay topology changes as they prevent
+		// the nodes from marking themselves as bootstrapped and durable, for example.
+		d.queueBootstrapWithLock()
+	}
 }
 
 func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
