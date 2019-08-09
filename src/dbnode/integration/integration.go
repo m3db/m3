@@ -262,7 +262,7 @@ func newDefaultBootstrappableTestSetups(
 
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
-				SetAdminClients([]client.AdminClient{adminClient}).
+				SetAdminClient(adminClient).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).

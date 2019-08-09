@@ -39,6 +39,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -70,6 +71,7 @@ var (
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
+	testClientOptions  = client.NewOptions()
 )
 
 type nsMapCh chan namespace.Map
@@ -126,7 +128,12 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 }
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
-	mockClient := client.NewMockAdminClient(ctrl)
+	var (
+		origin     = topology.NewHost("some-id", "some-address")
+		clientOpts = testClientOptions.(client.AdminOptions).SetOrigin(origin)
+		mockClient = client.NewMockAdminClient(ctrl)
+	)
+	mockClient.EXPECT().Options().Return(clientOpts).AnyTimes()
 	return repair.NewOptions().
 		SetAdminClients([]client.AdminClient{mockClient}).
 		SetRepairCheckInterval(100 * time.Millisecond)

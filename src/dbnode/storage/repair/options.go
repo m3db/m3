@@ -170,9 +170,15 @@ func (o *options) Validate() error {
 	if len(o.adminClients) == 0 {
 		return errNoAdminClient
 	}
+
 	var prevOrigin string
 	for _, c := range o.adminClients {
 		currOrigin := c.Options().(client.AdminOptions).Origin().ID()
+		if prevOrigin == "" {
+			prevOrigin = currOrigin
+			continue
+		}
+
 		if currOrigin != prevOrigin {
 			return fmt.Errorf(
 				"all repair clients should have the same origin, prev: %s, curr: %s",

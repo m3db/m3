@@ -105,12 +105,14 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	require.Nil(t, repairer.Repair())
 }
 
+// TODO(rartoul): Add test case for multi-session case.
 func TestDatabaseShardRepairerRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	session := client.NewMockAdminSession(ctrl)
 	session.EXPECT().Origin().Return(topology.NewHost("0", "addr0")).AnyTimes()
+	session.EXPECT().TopologyMap()
 
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
