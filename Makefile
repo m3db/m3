@@ -255,15 +255,15 @@ SUBDIR_TARGETS := \
 	metalint
 
 .PHONY: test-ci-unit
-test-ci-unit: install-go-junit-report test-base
+test-ci-unit: test-base
 	$(process_coverfile) $(coverfile)
 
 .PHONY: test-ci-big-unit
-test-ci-big-unit: install-go-junit-report test-big-base
+test-ci-big-unit: test-big-base
 	$(process_coverfile) $(coverfile)
 
 .PHONY: test-ci-integration
-test-ci-integration: install-go-junit-report
+test-ci-integration:
 	INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
@@ -343,7 +343,6 @@ test-html-$(SUBDIR):
 test-integration-$(SUBDIR):
 	@echo test-integration $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base-integration
-	mv
 
 # Usage: make test-single-integration name=<test_name>
 .PHONY: test-single-integration-$(SUBDIR)
@@ -368,12 +367,10 @@ test-ci-big-unit-$(SUBDIR):
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration \
-		|| touch test.failed
+	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) \
+		make test-base-ci-integration-$(SUBDIR)
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
-	mv $(test_integration_junit_xml) $(SUBDIR)_$(test_integration_junit_xml)
-	@exit $(call test_exit_code)
 
 .PHONY: metalint-$(SUBDIR)
 metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
