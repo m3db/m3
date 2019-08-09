@@ -323,6 +323,8 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
 					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
 				})
+				// Cold flush block starts don't come back in any particular order so
+				// sort them for easier comparisons.
 				sort.Slice(coldFlushBlockStarts, func(i, j int) bool {
 					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
 				})
