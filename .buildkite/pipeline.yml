@@ -9,9 +9,8 @@ common: &common
     # Allow manual retries.
     manual: true
 
-test-artifacts: &test_artifacts
   artifact_paths:
-    - "test_junit.xml"
+    - "*junit.xml"
 
 steps:
   - name: "Codegen"
@@ -31,20 +30,6 @@ steps:
       docker-compose#v2.5.1:
         run: app
         workdir: /go/src/github.com/m3db/m3
-    <<: *common
-    <<: *test_artifacts
-  - wait: ~
-    continue_on_failure: true
-  - label: annotate
-    plugins:
-      - bugcrowd/test-summary#v1.9.1:
-        inputs:
-          - label: unit
-            artifact_path: test_junit.xml
-            type: junit
-        formatter:
-          type: details
-        context: test-summary
     <<: *common
   - name: "Big Unit %n"
     command: make clean install-vendor test-ci-big-unit
@@ -123,3 +108,21 @@ steps:
       automatic:
         limit: 1
       manual: true
+  - wait: ~
+    continue_on_failure: true
+  - label: annotate
+    plugins:
+      - bugcrowd/test-summary#v1.9.1:
+          inputs:
+            - label: unit
+              artifact_path: test_junit.xml
+              type: junit
+            - label: big-unit
+              artifact_path: test_big_junit.xml
+              type: junit
+            - label: unit
+              artifact_path: "*test_integration_junit.xml"
+              type: junit
+          formatter:
+            type: details
+          context: test-summary
