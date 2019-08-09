@@ -23,6 +23,7 @@ package series
 import (
 	"errors"
 	"io"
+	"sort"
 	"testing"
 	"time"
 
@@ -322,6 +323,12 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
 					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
 				})
+				// Cold flush block starts don't come back in any particular order so
+				// sort them for easier comparisons.
+				sort.Slice(coldFlushBlockStarts, func(i, j int) bool {
+					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
+				})
+
 				if tc.loadOpts.Bootstrap {
 					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
 					// correctly based on the flush state.
