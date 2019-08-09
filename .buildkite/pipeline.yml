@@ -126,3 +126,4 @@ steps:
           formatter:
             type: details
           context: test-summary
+    <<: *common
