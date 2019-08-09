@@ -120,7 +120,7 @@ steps:
             - label: big-unit
               artifact_path: test_big_junit.xml
               type: junit
-            - label: unit
+            - label: integration
               artifact_path: "*test_integration_junit.xml"
               type: junit
           formatter:
