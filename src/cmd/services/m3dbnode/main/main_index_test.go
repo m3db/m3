@@ -52,6 +52,10 @@ import (
 	"go.uber.org/zap"
 )
 
+func TestFailure(t *testing.T) {
+	t.Fatal("Fail now; remove me")
+}
+
 // TestIndexEnabledServer tests booting a server using file based configuration.
 func TestIndexEnabledServer(t *testing.T) {
 	if testing.Short() {

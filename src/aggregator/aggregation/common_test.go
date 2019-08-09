@@ -28,6 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFailure(t *testing.T) {
+	t.Fatal("Fail now; remove me")
+}
+
 func TestStdev(t *testing.T) {
 	require.InDelta(t, 29.01149, stdev(100, 338350, 5050), 0.001)
 }

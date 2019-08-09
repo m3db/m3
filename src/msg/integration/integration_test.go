@@ -38,6 +38,10 @@ const (
 	maxRF        = 3
 )
 
+func TestFailure(t *testing.T) {
+	t.Fatal("Fail now; remove me")
+}
+
 func TestSharedConsumer(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
