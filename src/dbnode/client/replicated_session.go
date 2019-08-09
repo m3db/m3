@@ -53,6 +53,8 @@ func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
+	scope := opts.InstrumentOptions().MetricsScope()
+
 	session, err := newSession(opts)
 	if err != nil {
 		return nil, err
@@ -79,7 +81,9 @@ type writeFunc func(Session) error
 func (s replicatedSession) replicate(fn writeFunc) error {
 	for _, asyncSession := range s.asyncSessions {
 		if s.workerPool.GoIfAvailable(func() {
-			fn(asyncSession)
+			if err := fn(asyncSession); err != nil {
+				// TODO(srobb): instrument/log
+			}
 		}) {
 			// TODO(srobb): instrument
 		} else {
@@ -218,7 +222,9 @@ func (s replicatedSession) Open() error {
 		return err
 	}
 	for _, asyncSession := range s.asyncSessions {
-		asyncSession.Open()
+		if err := asyncSession.Open(); err != nil {
+			// TODO(srobb): log the error
+		}
 	}
 	return nil
 }
