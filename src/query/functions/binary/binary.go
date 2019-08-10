@@ -85,8 +85,7 @@ func processBinary(
 			func(t time.Time) float64 {
 				return fn(lVal, scalarR.Value(t))
 			},
-			lIter.Meta().Bounds,
-			lIter.Meta().Tags.Opts,
+			lIter.Meta(),
 		), nil
 	}
 

@@ -185,14 +185,20 @@ func NewBlockFromValuesWithMetaAndSeriesMeta(
 		seriesMeta,
 	)
 
-	if err := columnBuilder.AddCols(len(seriesValues[0])); err != nil {
+	if err := columnBuilder.AddCols(meta.Bounds.Steps()); err != nil {
 		panic(err)
 	}
 
-	for _, seriesVal := range seriesValues {
-		for idx, val := range seriesVal {
-			if err := columnBuilder.AppendValue(idx, val); err != nil {
-				panic(err)
+	if len(seriesValues) > 0 {
+		for _, seriesVal := range seriesValues {
+			if meta.Bounds.Steps() != len(seriesVal) {
+				panic("invalid bounds for test series")
+			}
+
+			for idx, val := range seriesVal {
+				if err := columnBuilder.AppendValue(idx, val); err != nil {
+					panic(err)
+				}
 			}
 		}
 	}
@@ -227,4 +233,22 @@ func GenerateValuesAndBounds(
 	}
 
 	return values, bounds
+}
+
+// MustMakeTags creates tags given that the number of args is even.
+func MustMakeTags(tag ...string) models.Tags {
+	if len(tag)%2 != 0 {
+		panic("must have even tag length")
+	}
+
+	tagLength := len(tag) / 2
+	t := models.NewTags(tagLength, models.NewTagOptions())
+	for i := 0; i < tagLength; i++ {
+		t = t.AddTag(models.Tag{
+			Name:  []byte(tag[i*2]),
+			Value: []byte(tag[i*2+1]),
+		})
+	}
+
+	return t
 }

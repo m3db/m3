@@ -53,7 +53,7 @@ func (o absentOp) OpType() string {
 
 // String representation.
 func (o absentOp) String() string {
-	return fmt.Sprintf("type: absent")
+	return "type: absent"
 }
 
 // Node creates an execution node.
@@ -82,7 +82,6 @@ func (n *absentNode) Params() parser.Params {
 	return n.op
 }
 
-// Process the block
 func (n *absentNode) Process(queryCtx *models.QueryContext,
 	ID parser.NodeID, b block.Block) error {
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
@@ -95,7 +94,6 @@ func (n *absentNode) ProcessBlock(queryCtx *models.QueryContext,
 		return nil, err
 	}
 
-	// Absent should
 	var (
 		meta        = stepIter.Meta()
 		seriesMetas = stepIter.SeriesMeta()
@@ -106,50 +104,78 @@ func (n *absentNode) ProcessBlock(queryCtx *models.QueryContext,
 	if len(seriesMetas) == 0 {
 		return block.NewScalar(
 			func(_ time.Time) float64 { return 1 },
-			meta.Bounds,
-			tagOpts,
+			meta,
 		), nil
 	}
 
 	// NB: pull any common tags out into the created series.
 	dupeTags, _ := utils.DedupeMetadata(seriesMetas, tagOpts)
-	mergedCommonTags := meta.Tags.Add(dupeTags)
-	meta.Tags = models.NewTags(0, tagOpts)
+	meta.Tags = meta.Tags.Add(dupeTags).Normalize()
 	emptySeriesMeta := []block.SeriesMeta{
 		block.SeriesMeta{
-			Tags: mergedCommonTags,
+			Tags: models.NewTags(0, tagOpts),
 			Name: []byte{},
 		},
 	}
 
-	builder, err := n.controller.BlockBuilder(queryCtx, meta, emptySeriesMeta)
-	if err != nil {
-		return nil, err
+	setupBuilderWithValuesToIndex := func(idx int) (block.Builder, error) {
+		builder, err := n.controller.BlockBuilder(queryCtx, meta, emptySeriesMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		if err = builder.AddCols(stepIter.StepCount()); err != nil {
+			return nil, err
+		}
+
+		for i := 0; i < idx; i++ {
+			if err := builder.AppendValue(i, math.NaN()); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := builder.AppendValue(idx, 1); err != nil {
+			return nil, err
+		}
+
+		return builder, err
 	}
 
-	if err = builder.AddCols(1); err != nil {
-		return nil, err
-	}
-
-	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
-		values := step.Values()
-
-		var val float64 = 1
+	var builder block.Builder
+	for idx := 0; stepIter.Next(); idx++ {
+		var (
+			step           = stepIter.Current()
+			values         = step.Values()
+			val    float64 = 1
+		)
+		fmt.Println(values)
 		for _, v := range values {
 			if !math.IsNaN(v) {
-				val = 0
+				val = math.NaN()
 				break
 			}
 		}
 
-		if err := builder.AppendValue(index, val); err != nil {
-			return nil, err
+		if builder == nil {
+			if !math.IsNaN(val) {
+				builder, err = setupBuilderWithValuesToIndex(idx)
+				if err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			if err := builder.AppendValue(idx, val); err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	if err = stepIter.Err(); err != nil {
 		return nil, err
+	}
+
+	if builder == nil {
+		return block.NewEmptyBlock(meta), nil
 	}
 
 	return builder.Build(), nil
