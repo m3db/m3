@@ -512,53 +512,39 @@ func (m *seekerManager) RelinquishShard(
 		)
 	}
 
-	// Retrieve seekers
-	seekers := m.seekersByTime(shard)
+	byTime := m.seekersByTime(shard)
 
-	m.Lock()
-	defer m.Unlock()
+	byTime.Lock()
+	defer byTime.Unlock()
 
-	multiErr := xerrors.NewMultiError()
-	doneCh := make(chan bool, 2)
-	meCh := make(chan bool, 1)
+	for _, seekers := range byTime.seekers {
+		for _, t := range []seekersAndBloom{seekers.active, seekers.inactive} {
+			for _, s := range t.seekers {
+				// Return all seekers first
+				returned, err := m.returnSeekerWithLock(seekers, s.seeker)
+				if err != nil {
+					return err
+				}
 
-	// Close all inactive seekers
-	go func() {
-		for _, seek := range seekers.seekers {
-			if wg := seek.inactive.wg; wg != nil {
-				wg.Wait()
-			}
-			for _, s := range seek.inactive.seekers {
-				if err := s.seeker.Close(); err != nil {
-					<-meCh
-					multiErr = multiErr.Add(err)
-					meCh <- true
+				if !returned {
+					return errReturnedUnmanagedSeeker
+				}
+
+				// Close seekers
+				err = s.seeker.Close()
+				if err != nil {
+					m.logger.Error(
+						"error closing seeker in relinquish shard",
+						zap.Error(err),
+						zap.String("namespace", namespace.String()),
+						zap.Int("shard", int(shard)),
+					)
 				}
 			}
 		}
-		doneCh <- true
-	}()
+	}
 
-	// Close all active seekers
-	go func() {
-		for _, seek := range seekers.seekers {
-			if wg := seek.active.wg; wg != nil {
-				wg.Wait()
-			}
-			for _, s := range seek.active.seekers {
-				if err := s.seeker.Close(); err != nil {
-					<-meCh
-					multiErr = multiErr.Add(err)
-					meCh <- true
-				}
-			}
-		}
-		doneCh <- true
-	}()
-
-	<-doneCh
-	close(meCh)
-	return multiErr
+	return nil
 }
 
 func (m *seekerManager) acquireByTimeLockWaitGroupAware(

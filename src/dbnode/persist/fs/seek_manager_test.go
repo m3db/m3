@@ -396,3 +396,50 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// to prevent the test itself from interfering with the goroutine leak test
 	close(cleanupCh)
 }
+
+func TestSeekerManagerRelinquishShard(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	var (
+		ctrl   = gomock.NewController(t)
+		shards = []uint32{2, 5}
+		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	)
+	defer ctrl.Finish()
+
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		mock := NewMockDataFileSetSeeker(ctrl)
+		mock.EXPECT().ConcurrentClone().Return(mock, nil)
+		for i := 0; i < defaultFetchConcurrency; i++ {
+			mock.EXPECT().Close().Return(nil).AnyTimes()
+			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		}
+		return mock, nil
+	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
+	metadata := testNs1Metadata(t)
+	require.NoError(t, m.Open(metadata))
+
+	for _, shard := range shards {
+		_, err := m.Borrow(shard, time.Time{})
+		require.NoError(t, err)
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 0, seekers.active.volume)
+		byTime.RUnlock()
+		require.NoError(t, m.RelinquishShard(metadata.ID(), shard))
+	}
+
+	// Calling again shouldn't throw errors
+	require.NoError(t, m.RelinquishShard(metadata.ID(), shards[0]))
+
+	require.NoError(t, m.Close())
+}
