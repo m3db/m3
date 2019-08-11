@@ -442,6 +442,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) (*sync.WaitGroup, block.UpdateOpenLeaseResult, error) {
+	// Retrieve new seekers
 	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
 	if err != nil {
 		return nil, 0, err
@@ -452,6 +453,8 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
 		updateOpenLeaseResult = block.NoOpenLease
 	)
+
+	// Attempt to retrieve existing seekers
 	seekers, ok := m.acquireByTimeLockWaitGroupAware(blockStartNano, byTime)
 	defer byTime.Unlock()
 	if !ok {
@@ -469,6 +472,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		return nil, 0, errOutOfOrderUpdateOpenLease
 	}
 
+	// Hot-swap
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
@@ -496,6 +500,65 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	byTime.seekers[blockStartNano] = seekers
 
 	return wg, updateOpenLeaseResult, nil
+}
+
+func (m *seekerManager) RelinquishShard(
+	namespace ident.ID,
+	shard uint32,
+) error {
+	if !m.namespace.Equal(namespace) {
+		return fmt.Errorf("seekerManager's namespace %q != provided namespace %q",
+			m.namespace.String(), namespace,
+		)
+	}
+
+	// Retrieve seekers
+	seekers := m.seekersByTime(shard)
+
+	m.Lock()
+	defer m.Unlock()
+
+	multiErr := xerrors.NewMultiError()
+	doneCh := make(chan bool, 2)
+	meCh := make(chan bool, 1)
+
+	// Close all inactive seekers
+	go func() {
+		for _, seek := range seekers.seekers {
+			if wg := seek.inactive.wg; wg != nil {
+				wg.Wait()
+			}
+			for _, s := range seek.inactive.seekers {
+				if err := s.seeker.Close(); err != nil {
+					<-meCh
+					multiErr = multiErr.Add(err)
+					meCh <- true
+				}
+			}
+		}
+		doneCh <- true
+	}()
+
+	// Close all active seekers
+	go func() {
+		for _, seek := range seekers.seekers {
+			if wg := seek.active.wg; wg != nil {
+				wg.Wait()
+			}
+			for _, s := range seek.active.seekers {
+				if err := s.seeker.Close(); err != nil {
+					<-meCh
+					multiErr = multiErr.Add(err)
+					meCh <- true
+				}
+			}
+		}
+		doneCh <- true
+	}()
+
+	<-doneCh
+	close(meCh)
+	return multiErr
 }
 
 func (m *seekerManager) acquireByTimeLockWaitGroupAware(
