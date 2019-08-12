@@ -130,8 +130,11 @@ type DBConfiguration struct {
 	// The commit log policy for the node.
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
-	// The repair policy for repairing in-memory data.
+	// The repair policy for repairing data within a cluster.
 	Repair *RepairPolicy `yaml:"repair"`
+
+	// The replication policy for replicating data between clusters.
+	ReplicationPolicy *ReplicationPolicy `yaml:"replication"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
@@ -346,9 +349,9 @@ func (r *ReplicationPolicy) Validate() error {
 
 // ReplicatedCluster defines a cluster to replicate data from.
 type ReplicatedCluster struct {
-	Name   string                `yaml:"name"`
-	Repair *RepairPolicy         `yaml:"repair"`
-	Client *client.Configuration `yaml:"client"`
+	Name          string                `yaml:"name"`
+	RepairEnabled bool                  `yaml:"repairEnabled"`
+	Client        *client.Configuration `yaml:"client"`
 }
 
 // Validate validates the configuration for a replicated cluster.
@@ -357,7 +360,7 @@ func (r *ReplicatedCluster) Validate() error {
 		return errors.New("replicated cluster must be assigned a name")
 	}
 
-	if r.Repair != nil && r.Repair.Enabled && r.Client == nil {
+	if r.RepairEnabled && r.Client == nil {
 		return fmt.Errorf(
 			"replicated cluster: %s has repair enabled but not client configuration", r.Name)
 	}
