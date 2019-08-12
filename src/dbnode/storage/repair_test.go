@@ -105,7 +105,6 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	require.Nil(t, repairer.Repair())
 }
 
-// TODO(rartoul): Add test case for multi-session case.
 func TestDatabaseShardRepairerRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -288,6 +287,13 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	require.Equal(t, expected, currBlock.Metadata())
 }
 
+type multiSessionTestMock struct {
+	host    topology.Host
+	client  *client.MockAdminClient
+	session *client.MockAdminSession
+	topoMap *topology.MockMap
+}
+
 func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -295,34 +301,34 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	// Origin is always zero (on both clients) and hosts[0] and hosts[1]
 	// represents other nodes in different clusters.
 	origin := topology.NewHost("0", "addr0")
-	hosts := []topology.Host{
-		topology.NewHost("1", "addr1"),
-		topology.NewHost("2", "addr2"),
+	mocks := []multiSessionTestMock{
+		multiSessionTestMock{
+			host:    topology.NewHost("1", "addr1"),
+			client:  client.NewMockAdminClient(ctrl),
+			session: client.NewMockAdminSession(ctrl),
+			topoMap: topology.NewMockMap(ctrl),
+		},
+		multiSessionTestMock{
+			host:    topology.NewHost("2", "addr2"),
+			client:  client.NewMockAdminClient(ctrl),
+			session: client.NewMockAdminSession(ctrl),
+			topoMap: topology.NewMockMap(ctrl),
+		},
 	}
-	mockClients := []*client.MockAdminClient{
-		client.NewMockAdminClient(ctrl),
-		client.NewMockAdminClient(ctrl),
-	}
-	mockSessions := []*client.MockAdminSession{
-		client.NewMockAdminSession(ctrl),
-		client.NewMockAdminSession(ctrl),
-	}
-	mockTopoMaps := []*topology.MockMap{
-		topology.NewMockMap(ctrl),
-		topology.NewMockMap(ctrl),
-	}
-	mockSessions[0].EXPECT().Origin().Return(origin).AnyTimes()
-	mockSessions[1].EXPECT().Origin().Return(origin).AnyTimes()
-	mockSessions[0].EXPECT().TopologyMap().Return(mockTopoMaps[0], nil)
-	mockSessions[1].EXPECT().TopologyMap().Return(mockTopoMaps[1], nil)
 
-	for i := range mockClients {
-		mockClients[i].EXPECT().DefaultAdminSession().Return(mockSessions[i], nil)
+	var mockClients []client.AdminClient
+	var hosts []topology.Host
+	for _, mock := range mocks {
+		mock.session.EXPECT().Origin().Return(origin).AnyTimes()
+		mock.client.EXPECT().DefaultAdminSession().Return(mock.session, nil)
+		mock.session.EXPECT().TopologyMap().Return(mock.topoMap, nil)
+		mockClients = append(mockClients, mock.client)
+		hosts = append(hosts, mock.host)
 	}
 
 	var (
 		rpOpts = testRepairOptions(ctrl).
-			SetAdminClients([]client.AdminClient{mockClients[0], mockClients[1]})
+			SetAdminClients(mockClients)
 		now    = time.Now()
 		nowFn  = func() time.Time { return now }
 		opts   = DefaultTestOptions()
@@ -381,23 +387,20 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	shard.EXPECT().Load(gomock.Any())
 
 	inputBlocks := []block.ReplicaMetadata{
-		// TODO: Maybe remove host from here?
 		{
-			Host:     hosts[1],
 			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead),
 		},
 		{
-			Host:     hosts[1],
 			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[0], &checksums[1], lastRead),
 		},
 		{
-			Host: hosts[1],
 			// Mismatch checksum so should trigger repair of this series.
 			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[3], lastRead),
 		},
 	}
 
-	for i, mockTopoMap := range mockTopoMaps {
+	for i, mock := range mocks {
+		mockTopoMap := mock.topoMap
 		for _, host := range hosts {
 			iClosure := i
 			mockTopoMap.EXPECT().LookupHostShardSet(host.ID()).DoAndReturn(func(id string) (topology.HostShardSet, bool) {
@@ -413,7 +416,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	}
 
 	nsMeta, err := namespace.NewMetadata(namespaceID, namespace.NewOptions())
-	for i, session := range mockSessions {
+	for i, mock := range mocks {
+		session := mock.session
 		// Make a copy of the input blocks where the host is set to the host for
 		// the cluster associated with the current session.
 		inputBlocksForSession := make([]block.ReplicaMetadata, len(inputBlocks))
@@ -443,8 +447,9 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		dbBlock1.EXPECT().StartTime().Return(inputBlocksForSession[2].Metadata.Start).AnyTimes()
 		dbBlock2 := block.NewMockDatabaseBlock(ctrl)
 		dbBlock2.EXPECT().StartTime().Return(inputBlocksForSession[2].Metadata.Start).AnyTimes()
-		// Ensure merging logic works.
-		// TODO: Need any times?
+		// Ensure merging logic works. Nede AnyTimes() because the Merge() will only be called on dbBlock1
+		// for the first session (all subsequent blocks from other sessions will get merged into dbBlock1
+		// from the first session.)
 		dbBlock1.EXPECT().Merge(dbBlock2).AnyTimes()
 		gomock.InOrder(
 			peerBlocksIter.EXPECT().Next().Return(true),
@@ -496,7 +501,6 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	require.Equal(t, now.Add(30*time.Minute), currBlock.Start())
 	expected := []block.ReplicaMetadata{
 		// Checksum difference for series "bar".
-		// TODO: Does this need to be custom?
 		{Host: origin, Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
 		{Host: hosts[0], Metadata: inputBlocks[2].Metadata},
 		{Host: hosts[1], Metadata: inputBlocks[2].Metadata},
