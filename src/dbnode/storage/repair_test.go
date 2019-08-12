@@ -288,6 +288,239 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	require.Equal(t, expected, currBlock.Metadata())
 }
 
+func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Origin is always zero (on both clients) and hosts[0] and hosts[1]
+	// represents other nodes in different clusters.
+	origin := topology.NewHost("0", "addr0")
+	hosts := []topology.Host{
+		topology.NewHost("1", "addr1"),
+		topology.NewHost("2", "addr2"),
+	}
+	mockClients := []*client.MockAdminClient{
+		client.NewMockAdminClient(ctrl),
+		client.NewMockAdminClient(ctrl),
+	}
+	mockSessions := []*client.MockAdminSession{
+		client.NewMockAdminSession(ctrl),
+		client.NewMockAdminSession(ctrl),
+	}
+	mockTopoMaps := []*topology.MockMap{
+		topology.NewMockMap(ctrl),
+		topology.NewMockMap(ctrl),
+	}
+	mockSessions[0].EXPECT().Origin().Return(origin).AnyTimes()
+	mockSessions[1].EXPECT().Origin().Return(origin).AnyTimes()
+	mockSessions[0].EXPECT().TopologyMap().Return(mockTopoMaps[0], nil)
+	mockSessions[1].EXPECT().TopologyMap().Return(mockTopoMaps[1], nil)
+
+	for i := range mockClients {
+		mockClients[i].EXPECT().DefaultAdminSession().Return(mockSessions[i], nil)
+	}
+
+	var (
+		rpOpts = testRepairOptions(ctrl).
+			SetAdminClients([]client.AdminClient{mockClients[0], mockClients[1]})
+		now    = time.Now()
+		nowFn  = func() time.Time { return now }
+		opts   = DefaultTestOptions()
+		copts  = opts.ClockOptions()
+		iopts  = opts.InstrumentOptions()
+		rtopts = defaultTestRetentionOpts
+	)
+
+	opts = opts.
+		SetClockOptions(copts.SetNowFn(nowFn)).
+		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
+
+	var (
+		namespaceID     = ident.StringID("testNamespace")
+		start           = now
+		end             = now.Add(rtopts.BlockSize())
+		repairTimeRange = xtime.Range{Start: start, End: end}
+		fetchOpts       = block.FetchBlocksMetadataOptions{
+			IncludeSizes:     true,
+			IncludeChecksums: true,
+			IncludeLastRead:  false,
+		}
+
+		sizes     = []int64{1, 2, 3, 4}
+		checksums = []uint32{4, 5, 6, 7}
+		lastRead  = now.Add(-time.Minute)
+		shardID   = uint32(0)
+		shard     = NewMockdatabaseShard(ctrl)
+	)
+
+	expectedResults := block.NewFetchBlocksMetadataResults()
+	results := block.NewFetchBlockMetadataResults()
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute),
+		sizes[0], &checksums[0], lastRead, nil))
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(time.Hour),
+		sizes[1], &checksums[1], lastRead, nil))
+	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("foo"), nil, results))
+	results = block.NewFetchBlockMetadataResults()
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute),
+		sizes[2], &checksums[2], lastRead, nil))
+	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, results))
+
+	var (
+		any             = gomock.Any()
+		nonNilPageToken = PageToken("non-nil-page-token")
+	)
+	// Ensure that the Repair logic will call FetchBlocksMetadataV2 in a loop until
+	// it receives a nil page token.
+	shard.EXPECT().
+		FetchBlocksMetadataV2(any, start, end, any, nil, fetchOpts).
+		Return(nil, nonNilPageToken, nil)
+	shard.EXPECT().
+		FetchBlocksMetadataV2(any, start, end, any, nonNilPageToken, fetchOpts).
+		Return(expectedResults, nil, nil)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().Load(gomock.Any())
+
+	inputBlocks := []block.ReplicaMetadata{
+		// TODO: Maybe remove host from here?
+		{
+			Host:     hosts[1],
+			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead),
+		},
+		{
+			Host:     hosts[1],
+			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[0], &checksums[1], lastRead),
+		},
+		{
+			Host: hosts[1],
+			// Mismatch checksum so should trigger repair of this series.
+			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[3], lastRead),
+		},
+	}
+
+	for i, mockTopoMap := range mockTopoMaps {
+		for _, host := range hosts {
+			iClosure := i
+			mockTopoMap.EXPECT().LookupHostShardSet(host.ID()).DoAndReturn(func(id string) (topology.HostShardSet, bool) {
+				if iClosure == 0 && id == hosts[0].ID() {
+					return nil, true
+				}
+				if iClosure == 1 && id == hosts[1].ID() {
+					return nil, true
+				}
+				return nil, false
+			}).AnyTimes()
+		}
+	}
+
+	nsMeta, err := namespace.NewMetadata(namespaceID, namespace.NewOptions())
+	for i, session := range mockSessions {
+		// Make a copy of the input blocks where the host is set to the host for
+		// the cluster associated with the current session.
+		inputBlocksForSession := make([]block.ReplicaMetadata, len(inputBlocks))
+		copy(inputBlocksForSession, inputBlocks)
+		for j := range inputBlocksForSession {
+			inputBlocksForSession[j].Host = hosts[i]
+		}
+
+		peerIter := client.NewMockPeerBlockMetadataIter(ctrl)
+		gomock.InOrder(
+			peerIter.EXPECT().Next().Return(true),
+			peerIter.EXPECT().Current().Return(inputBlocksForSession[0].Host, inputBlocks[0].Metadata),
+			peerIter.EXPECT().Next().Return(true),
+			peerIter.EXPECT().Current().Return(inputBlocksForSession[1].Host, inputBlocks[1].Metadata),
+			peerIter.EXPECT().Next().Return(true),
+			peerIter.EXPECT().Current().Return(inputBlocksForSession[2].Host, inputBlocks[2].Metadata),
+			peerIter.EXPECT().Next().Return(false),
+			peerIter.EXPECT().Err().Return(nil),
+		)
+		session.EXPECT().
+			FetchBlocksMetadataFromPeers(namespaceID, shardID, start, end,
+				rpOpts.RepairConsistencyLevel(), gomock.Any()).
+			Return(peerIter, nil)
+
+		peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
+		dbBlock1 := block.NewMockDatabaseBlock(ctrl)
+		dbBlock1.EXPECT().StartTime().Return(inputBlocksForSession[2].Metadata.Start).AnyTimes()
+		dbBlock2 := block.NewMockDatabaseBlock(ctrl)
+		dbBlock2.EXPECT().StartTime().Return(inputBlocksForSession[2].Metadata.Start).AnyTimes()
+		// Ensure merging logic works.
+		// TODO: Need any times?
+		dbBlock1.EXPECT().Merge(dbBlock2).AnyTimes()
+		gomock.InOrder(
+			peerBlocksIter.EXPECT().Next().Return(true),
+			peerBlocksIter.EXPECT().Current().Return(inputBlocksForSession[2].Host, inputBlocks[2].Metadata.ID, dbBlock1),
+			peerBlocksIter.EXPECT().Next().Return(true),
+			peerBlocksIter.EXPECT().Current().Return(inputBlocksForSession[2].Host, inputBlocks[2].Metadata.ID, dbBlock2),
+			peerBlocksIter.EXPECT().Next().Return(false),
+		)
+		require.NoError(t, err)
+		session.EXPECT().
+			FetchBlocksFromPeers(nsMeta, shardID, rpOpts.RepairConsistencyLevel(), inputBlocksForSession[2:], gomock.Any()).
+			Return(peerBlocksIter, nil)
+	}
+
+	var (
+		resNamespace ident.ID
+		resShard     databaseShard
+		resDiff      repair.MetadataComparisonResult
+	)
+
+	databaseShardRepairer := newShardRepairer(opts, rpOpts)
+	repairer := databaseShardRepairer.(shardRepairer)
+	repairer.recordFn = func(nsID ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+		resNamespace = nsID
+		resShard = shard
+		resDiff = diffRes
+	}
+
+	var (
+		ctx   = context.NewContext()
+		nsCtx = namespace.Context{ID: namespaceID}
+	)
+	require.NoError(t, err)
+	repairer.Repair(ctx, nsCtx, nsMeta, repairTimeRange, shard)
+
+	require.Equal(t, namespaceID, resNamespace)
+	require.Equal(t, resShard, shard)
+	require.Equal(t, int64(2), resDiff.NumSeries)
+	require.Equal(t, int64(3), resDiff.NumBlocks)
+
+	checksumDiffSeries := resDiff.ChecksumDifferences.Series()
+	require.Equal(t, 1, checksumDiffSeries.Len())
+	series, exists := checksumDiffSeries.Get(ident.StringID("bar"))
+	require.True(t, exists)
+	blocks := series.Metadata.Blocks()
+	require.Equal(t, 1, len(blocks))
+	currBlock, exists := blocks[xtime.ToUnixNano(now.Add(30*time.Minute))]
+	require.True(t, exists)
+	require.Equal(t, now.Add(30*time.Minute), currBlock.Start())
+	expected := []block.ReplicaMetadata{
+		// Checksum difference for series "bar".
+		// TODO: Does this need to be custom?
+		{Host: origin, Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
+		{Host: hosts[0], Metadata: inputBlocks[2].Metadata},
+		{Host: hosts[1], Metadata: inputBlocks[2].Metadata},
+	}
+	require.Equal(t, expected, currBlock.Metadata())
+
+	sizeDiffSeries := resDiff.SizeDifferences.Series()
+	require.Equal(t, 1, sizeDiffSeries.Len())
+	series, exists = sizeDiffSeries.Get(ident.StringID("foo"))
+	require.True(t, exists)
+	blocks = series.Metadata.Blocks()
+	require.Equal(t, 1, len(blocks))
+	currBlock, exists = blocks[xtime.ToUnixNano(now.Add(time.Hour))]
+	require.True(t, exists)
+	require.Equal(t, now.Add(time.Hour), currBlock.Start())
+	expected = []block.ReplicaMetadata{
+		// Size difference for series "foo".
+		{Host: origin, Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[1], &checksums[1], lastRead)},
+		{Host: hosts[0], Metadata: inputBlocks[1].Metadata},
+		{Host: hosts[1], Metadata: inputBlocks[1].Metadata},
+	}
+	require.Equal(t, expected, currBlock.Metadata())
+}
+
 type expectedRepair struct {
 	repairRange xtime.Range
 }
