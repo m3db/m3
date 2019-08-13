@@ -679,10 +679,14 @@ func Run(runOpts RunOptions) {
 
 		if cfg.Repair != nil {
 			repairOpts = repairOpts.
-				SetRepairThrottle(cfg.Repair.Throttle).
-				SetRepairCheckInterval(cfg.Repair.CheckInterval).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
+			if cfg.Repair.Throttle > 0 {
+				repairOpts = repairOpts.SetRepairThrottle(cfg.Repair.Throttle)
+			}
+			if cfg.Repair.CheckInterval > 0 {
+				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			}
 
 			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
 				// Set conditionally to avoid stomping on the default value of 1.0.

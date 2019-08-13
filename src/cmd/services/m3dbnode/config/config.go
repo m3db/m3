@@ -310,10 +310,10 @@ type RepairPolicy struct {
 	Enabled bool `yaml:"enabled"`
 
 	// The repair throttle.
-	Throttle time.Duration `yaml:"throttle" validate:"nonzero"`
+	Throttle time.Duration `yaml:"throttle"`
 
 	// The repair check interval.
-	CheckInterval time.Duration `yaml:"checkInterval" validate:"nonzero"`
+	CheckInterval time.Duration `yaml:"checkInterval"`
 
 	// Whether debug shadow comparisons are enabled.
 	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`
