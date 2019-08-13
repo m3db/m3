@@ -50,6 +50,7 @@ type replicatedSession struct {
 var _ clientSession = (*replicatedSession)(nil)
 
 func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
+	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
