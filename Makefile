@@ -238,6 +238,9 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/carbon/test.sh
 	@./scripts/docker-integration-tests/aggregator/test.sh
 	@./scripts/docker-integration-tests/query_fanout/test.sh
+	@./scripts/docker-integration-tests/repair/test.sh
+	@./scripts/docker-integration-tests/replication/test.sh
+	@./scripts/docker-integration-tests/repair_and_replication/test.sh
 
 .PHONY: site-build
 site-build:

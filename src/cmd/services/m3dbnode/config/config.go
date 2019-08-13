@@ -325,7 +325,7 @@ type RepairPolicy struct {
 
 // ReplicationPolicy is the replication policy.
 type ReplicationPolicy struct {
-	Clusters []ReplicatedCluster
+	Clusters []ReplicatedCluster `yaml:"clusters"`
 }
 
 // Validate validates the replication policy.
