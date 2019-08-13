@@ -81,6 +81,10 @@ db:
   # Disable repairs (within cluster b).
   repair:
     enabled: false
+    # Repair settings still impact replication even if repairs
+    # within the cluster are disabled.
+    throttle: 1ms
+    checkInterval: 1ms
 
   # Enable replication (from cluster a).
   replication:
