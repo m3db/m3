@@ -134,7 +134,7 @@ type DBConfiguration struct {
 	Repair *RepairPolicy `yaml:"repair"`
 
 	// The replication policy for replicating data between clusters.
-	ReplicationPolicy *ReplicationPolicy `yaml:"replication"`
+	Replication *ReplicationPolicy `yaml:"replication"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
@@ -179,6 +179,10 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 	}
 
 	if err := c.Transforms.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Replication.Validate(); err != nil {
 		return err
 	}
 

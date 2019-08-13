@@ -184,7 +184,6 @@ func (o *options) Validate() error {
 				"all repair clients should have the same origin, prev: %s, curr: %s",
 				prevOrigin, currOrigin)
 		}
-		prevOrigin = currOrigin
 	}
 
 	if o.repairCheckInterval < 0 {

@@ -237,6 +237,7 @@ func (r shardRepairer) Repair(
 
 				// If there is more than one session then we need to match up all of the metadata to the
 				// session it belongs to so that we can fetch the corresponding blocks of data.
+				foundSessionForMetadata := false
 				for i, sesTopo := range sessions {
 					_, ok := sesTopo.topo.LookupHostShardSet(metadataHostID)
 					if !ok {
@@ -244,16 +245,19 @@ func (r shardRepairer) Repair(
 						continue
 					}
 					metadatasToFetchBlocksForPerSession[i] = append(metadatasToFetchBlocksForPerSession[i], replicaMetadata)
+					foundSessionForMetadata = true
 					break
 				}
 
-				// Could happen during topology changes (I.E node is kicked out of the cluster in-between
-				// fetching its metadata and this step).
-				r.logger.Debug(
-					"could not identify which session mismatched metadata belong to",
-					zap.String("hostID", metadataHostID),
-					zap.Time("blockStart", blStartTime),
-				)
+				if !foundSessionForMetadata {
+					// Could happen during topology changes (I.E node is kicked out of the cluster in-between
+					// fetching its metadata and this step).
+					r.logger.Debug(
+						"could not identify which session mismatched metadata belong to",
+						zap.String("hostID", metadataHostID),
+						zap.Time("blockStart", blStartTime),
+					)
+				}
 			}
 		}
 	}

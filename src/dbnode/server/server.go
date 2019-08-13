@@ -644,13 +644,12 @@ func Run(runOpts RunOptions) {
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
 		SetIndexMutableSegmentAllocator(mutableSegmentAlloc)
 
-	opts = opts.SetRepairEnabled(false)
 	var repairClients []client.AdminClient
 	if cfg.Repair != nil && cfg.Repair.Enabled {
 		repairClients = append(repairClients, m3dbClient)
 	}
-	if cfg.ReplicationPolicy != nil {
-		for _, cluster := range cfg.ReplicationPolicy.Clusters {
+	if cfg.Replication != nil {
+		for _, cluster := range cfg.Replication.Clusters {
 			if !cluster.RepairEnabled {
 				continue
 			}
@@ -697,6 +696,8 @@ func Run(runOpts RunOptions) {
 		opts = opts.
 			SetRepairEnabled(true).
 			SetRepairOptions(repairOpts)
+	} else {
+		opts = opts.SetRepairEnabled(false)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
