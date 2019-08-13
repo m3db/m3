@@ -71,7 +71,6 @@ function write_data {
   if [[ $respCode -eq "200" ]]; then
     return 0
   else
-    sleep 30
     return 1
   fi
 }
