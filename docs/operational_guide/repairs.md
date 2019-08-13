@@ -1,0 +1,34 @@
+# Background Repairs (beta)
+
+## Overview
+
+An M3DB cluster can be configured to passively repair itself in the background. If the background repairs feature is enabled, then M3DB nodes will passively scan each other's metadata and when a mismatch is detected the nodes will perform a repair such that each node in the cluster eventually settles on a consistent view of the data.
+
+## Configuration
+
+The feature can be enabled by adding the following configuration to `m3dbnode.yml` under the `db` section:
+
+```yaml
+db:
+	... (other configuration)
+	repair:
+		enabled: true
+```
+
+In addition, the following two optional fields can also be configured:
+
+```yaml
+db:
+	... (other configuration)
+	repair:
+		enabled: true
+		throttle: 10s
+		checkInterval: 10s
+```
+
+The `throttle` field controls how long the M3DB node will pause between repairing each shard/blockStart combination and the `checkInterval` field controls how often M3DB will run the scheduling/prioritization algorithm that determines which blocks to repair next. In most situations operators should omit these fields and rely on the default values.
+
+## Caveats and Limitations
+
+1. The background repairs feature does not currently support M3DB's inverted index. This means that it can only be used for clusters / namespaces where the indexing feature is disabled.
+2. The background repairs feature will wait until (block start + block size + buffer past) has elapsed before attempting to repair a block. This means that if M3DB is configured with a 2 hour block size and a 20 minute buffer past that M3DB will not attempt to repair the 12PM->2PM block until at least 2:20PM. This limitation is in place primarily to reduce "churn" caused by repairing mutable data that is actively being modified. **Note**: This limitation has no impact or negative interaction with M3DB's cold writes feature. I.E even though it may take some time before a block becomes available for repairs, M3DB will repair the same block repeatedly until it falls out of retention so mismatches between nodes that were caused by "cold" writes will still eventually be repaired.
