@@ -93,7 +93,7 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    databaseNamespaceWatch
+	nsWatch    namespace.NamespaceWatch
 	namespaces *databaseNamespacesMap
 
 	commitLog commitlog.CommitLog
@@ -207,7 +207,10 @@ func NewDatabase(
 	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
-	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
+	dbUpdater := func(namespaces namespace.Map) error {
+		return d.UpdateOwnedNamespaces(namespaces)
+	}
+	d.nsWatch = namespace.NewNamespaceWatch(dbUpdater, watch, databaseIOpts)
 	nsMap := watch.Get()
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		// Log the error and proceed in case some namespace is miss-configured, e.g. missing schema.
