@@ -442,7 +442,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) (*sync.WaitGroup, block.UpdateOpenLeaseResult, error) {
-	// Retrieve new seekers
+	// Retrieve new seekers.
 	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
 	if err != nil {
 		return nil, 0, err
@@ -454,7 +454,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		updateOpenLeaseResult = block.NoOpenLease
 	)
 
-	// Attempt to retrieve existing seekers
+	// Attempt to retrieve existing seekers.
 	seekers, ok := m.acquireByTimeLockWaitGroupAware(blockStartNano, byTime)
 	defer byTime.Unlock()
 	if !ok {
@@ -472,7 +472,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		return nil, 0, errOutOfOrderUpdateOpenLease
 	}
 
-	// Hot-swap
+	// Hot-swap.
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
@@ -502,44 +502,57 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	return wg, updateOpenLeaseResult, nil
 }
 
-func (m *seekerManager) RelinquishShard(
-	namespace ident.ID,
-	shard uint32,
-) error {
-	if !m.namespace.Equal(namespace) {
-		return fmt.Errorf("seekerManager's namespace %q != provided namespace %q",
-			m.namespace.String(), namespace,
-		)
-	}
-
+func (m *seekerManager) RelinquishShard(shard uint32) error {
 	byTime := m.seekersByTime(shard)
-
 	byTime.Lock()
 	defer byTime.Unlock()
 
 	for _, seekers := range byTime.seekers {
-		for _, t := range []seekersAndBloom{seekers.active, seekers.inactive} {
-			for _, s := range t.seekers {
-				// Return all seekers first
-				returned, err := m.returnSeekerWithLock(seekers, s.seeker)
-				if err != nil {
-					return err
-				}
+		// 	Mark all seekers as inactive.
+		seekers.inactive = seekers.active
+		seekers.active = seekersAndBloom{}
 
-				if !returned {
-					return errReturnedUnmanagedSeeker
-				}
+		// Check if any are borrowed.
+		anySeekersAreBorrowed := false
+		for _, seeker := range seekers.inactive.seekers {
+			if seeker.isBorrowed {
+				anySeekersAreBorrowed = true
+				break
+			}
+		}
 
-				// Close seekers
-				err = s.seeker.Close()
-				if err != nil {
-					m.logger.Error(
-						"error closing seeker in relinquish shard",
-						zap.Error(err),
-						zap.String("namespace", namespace.String()),
-						zap.Int("shard", int(shard)),
-					)
-				}
+		if anySeekersAreBorrowed {
+			// If any of the seekers are borrowed setup a waitgroup which will be used to
+			// signal when they've all been returned (the last seeker that is returned via
+			// the Return() API will call wg.Done()).
+			if seekers.inactive.wg != nil {
+				wg := &sync.WaitGroup{}
+				wg.Add(1)
+				seekers.inactive.wg = wg
+			} else {
+				seekers.inactive.wg.Add(1)
+			}
+		}
+
+		// Wait until all inactive seekers are returned.
+		if seekers.inactive.wg != nil {
+			seekers.inactive.wg.Wait()
+		}
+
+		for _, inactiveSeeker := range seekers.inactive.seekers {
+			// This is usually a noop since all seekers should be returned at
+			// this point.
+			if inactiveSeeker.isBorrowed {
+				return fmt.Errorf("unable to relinquish shard: seekers still borrowed")
+			}
+
+			err := inactiveSeeker.seeker.Close()
+			if err != nil {
+				m.logger.Error(
+					"error closing seeker in relinquish shard",
+					zap.Error(err),
+					zap.Int("shard", int(shard)),
+				)
 			}
 		}
 	}
