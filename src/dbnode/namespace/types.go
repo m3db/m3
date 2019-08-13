@@ -268,3 +268,5 @@ type NamespaceWatch interface {
 	// close stops the watch, and releases any held resources.
 	Close() error
 }
+
+type NamespaceUpdater func(Map) error

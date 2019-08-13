@@ -36,7 +36,6 @@ var (
 	errNotWatching     = errors.New("database is not watching for namespace updates")
 )
 
-type updateFunc func(newNamespaces Map) error
 type dbNamespaceWatch struct {
 	sync.Mutex
 
@@ -45,7 +44,7 @@ type dbNamespaceWatch struct {
 	doneCh   chan struct{}
 	closedCh chan struct{}
 
-	updater updateFunc
+	update NamespaceUpdater
 
 	log            *zap.Logger
 	metrics        dbNamespaceWatchMetrics
@@ -68,14 +67,14 @@ func newWatchMetrics(
 }
 
 func NewNamespaceWatch(
-	updater updateFunc,
+	update NamespaceUpdater,
 	w Watch,
 	iopts instrument.Options,
 ) NamespaceWatch {
 	scope := iopts.MetricsScope()
 	return &dbNamespaceWatch{
 		watch:          w,
-		updater:        updater,
+		update:         update,
 		log:            iopts.Logger(),
 		metrics:        newWatchMetrics(scope),
 		reportInterval: iopts.ReportInterval(),
@@ -143,7 +142,7 @@ func (w *dbNamespaceWatch) startWatch() {
 			w.metrics.updates.Inc(1)
 			newMap := w.watch.Get()
 			w.log.Info("received update from kv namespace watch")
-			if err := w.updater(newMap); err != nil {
+			if err := w.update(newMap); err != nil {
 				w.log.Error("failed to update owned namespaces",
 					zap.Error(err))
 			}

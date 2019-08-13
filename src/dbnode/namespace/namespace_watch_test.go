@@ -32,7 +32,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller, updater updateFunc) (
+func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller, updater NamespaceUpdater) (
 	NamespaceWatch,
 	*MockWatch,
 ) {
