@@ -53,7 +53,7 @@ func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
-	scope := opts.InstrumentOptions().MetricsScope()
+	// scope := opts.InstrumentOptions().MetricsScope()
 
 	session, err := newSession(opts)
 	if err != nil {
@@ -214,7 +214,7 @@ func (s replicatedSession) FetchBlocksFromPeers(
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
-	return s.session.FetchBlocksFromPeers(namespace, shard, consistencyLevel, metadataIter, opts)
+	return s.session.FetchBlocksFromPeers(namespace, shard, consistencyLevel, metadatas, opts)
 }
 
 func (s replicatedSession) Open() error {

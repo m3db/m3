@@ -232,22 +232,22 @@ func (c Configuration) NewAdminClient(
 	if iopts == nil {
 		iopts = instrument.NewOptions()
 	}
-
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	var topoInit topology.Initializer
+	cfgParams := environment.ConfigurationParameters{
+		InstrumentOpts: iopts,
+	}
+	if c.HashingConfiguration != nil {
+		cfgParams.HashingSeed = c.HashingConfiguration.Seed
+	}
+
+	topoInit := params.TopologyInitializer
 	asyncTopoInits := []topology.Initializer{}
-	if params.TopologyInitializer != nil {
-		// Custom topology initializer provided in params.
-		topoInit = params.TopologyInitializer
-	} else if len(c.EnvironmentConfig.Services) > 0 {
-		// Dynamic topology specified in configuration.
-		cfgParams := environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-		}
-		if c.HashingConfiguration != nil {
-			cfgParams.HashingSeed = c.HashingConfiguration.Seed
+
+	if topoInit == nil {
+		if len(c.EnvironmentConfig.Services) == 0 && c.EnvironmentConfig.Static == nil {
+			return nil, errConfigurationMustSupplyConfig
 		}
 
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
@@ -257,31 +257,12 @@ func (c Configuration) NewAdminClient(
 		}
 
 		for _, envCfg := range envCfgs {
-			// TODO(srobb): check if async or not
-			if true {
-				topoInit = envCfg.TopologyInitializer
-			} else {
+			if envCfg.Async {
 				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+			} else {
+				topoInit = envCfg.TopologyInitializer
 			}
 		}
-	} else if c.EnvironmentConfig.Static != nil {
-		// Static topology specified in configuration.
-		envCfgs, err := c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
-		if err != nil {
-			err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
-			return nil, err
-		}
-
-		for _, envCfg := range envCfgs {
-			// TODO(srobb): check if async or not
-			if true {
-				topoInit = envCfg.TopologyInitializer
-			} else {
-				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
-			}
-		}
-	} else {
-		return nil, errConfigurationMustSupplyConfig
 	}
 	if params.TopologyInitializer != nil {
 		envCfg.TopologyInitializer = params.TopologyInitializer

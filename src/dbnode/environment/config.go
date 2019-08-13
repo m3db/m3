@@ -108,6 +108,7 @@ type ConfigureResult struct {
 	TopologyInitializer  topology.Initializer
 	ClusterClient        clusterclient.Client
 	KVStore              kv.Store
+	Async                bool
 }
 
 // ConfigureResults stores initializers and kv store for dynamic and static configs
