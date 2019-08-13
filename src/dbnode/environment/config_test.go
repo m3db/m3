@@ -77,20 +77,22 @@ func TestConfigureStatic(t *testing.T) {
 
 func TestConfigureDynamic(t *testing.T) {
 	config := Configuration{
-		Services: []*etcdclient.Configuration{
-			&etcdclient.Configuration{
-				Zone:     "local",
-				Env:      "test",
-				Service:  "m3dbnode_test",
-				CacheDir: "/",
-				ETCDClusters: []etcdclient.ClusterConfig{
-					etcdclient.ClusterConfig{
-						Zone:      "local",
-						Endpoints: []string{"localhost:1111"},
+		Services: DynamicConfiguration{
+			&DynamicCluster{
+				Service: &etcdclient.Configuration{
+					Zone:     "local",
+					Env:      "test",
+					Service:  "m3dbnode_test",
+					CacheDir: "/",
+					ETCDClusters: []etcdclient.ClusterConfig{
+						etcdclient.ClusterConfig{
+							Zone:      "local",
+							Endpoints: []string{"localhost:1111"},
+						},
 					},
-				},
-				SDConfig: services.Configuration{
-					InitTimeout: &initTimeout,
+					SDConfig: services.Configuration{
+						InitTimeout: &initTimeout,
+					},
 				},
 			},
 		},

@@ -87,7 +87,13 @@ type SeedNodeSecurityConfig struct {
 }
 
 // DynamicConfiguration is used for running M3DB with a dynamic config
-type DynamicConfiguration []*etcdclient.Configuration
+type DynamicConfiguration []*DynamicCluster
+
+// DynamicCluster is a single cluster in a dynamic configuration
+type DynamicCluster struct {
+	Async   bool                      `yaml:"async"`
+	Service *etcdclient.Configuration `yaml:"service"`
+}
 
 // StaticConfiguration is used for running M3DB with a static config
 type StaticConfiguration struct {
@@ -146,7 +152,9 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	c.SeedNodes = cfg.SeedNodes
 	c.Services = cfg.Services
 	if cfg.Service != nil {
-		c.Services = DynamicConfiguration{cfg.Service}
+		c.Services = DynamicConfiguration{
+			&DynamicCluster{Service: cfg.Service},
+		}
 	}
 	return c.Services.Validate()
 }
@@ -172,8 +180,8 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 
 func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	cfgResults := make(ConfigureResults, 0, len(c.Services))
-	for _, svc := range c.Services {
-		configSvcClientOpts := svc.NewOptions().
+	for _, cluster := range c.Services {
+		configSvcClientOpts := cluster.Service.NewOptions().
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			// Set timeout to zero so it will wait indefinitely for the
 			// initial value.
@@ -192,9 +200,9 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 		serviceID := services.NewServiceID().
-			SetName(svc.Service).
-			SetEnvironment(svc.Env).
-			SetZone(svc.Zone)
+			SetName(cluster.Service.Service).
+			SetEnvironment(cluster.Service.Env).
+			SetZone(cluster.Service.Zone)
 
 		topoOpts := topology.NewDynamicOptions().
 			SetConfigServiceClient(configSvcClient).
