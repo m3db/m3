@@ -50,7 +50,7 @@ function setup_single_m3db_node {
 function setup_three_m3db_nodes {
   local dbnode_id_1=${DBNODE_ID_01:-m3db_local_1}
   local dbnode_id_2=${DBNODE_ID_02:-m3db_local_2}
-  local dbnode_id_3=${DBNODE_ID_03:-m3db_local_1}
+  local dbnode_id_3=${DBNODE_ID_03:-m3db_local_3}
   local dbnode_host_1=${DBNODE_HOST_01:-dbnode01}
   local dbnode_host_2=${DBNODE_HOST_02:-dbnode02}
   local dbnode_host_3=${DBNODE_HOST_03:-dbnode03}
