@@ -442,6 +442,7 @@ func TestConfiguration(t *testing.T) {
     checkInterval: 1m0s
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
     type: simple
