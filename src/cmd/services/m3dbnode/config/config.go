@@ -182,8 +182,10 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 		return err
 	}
 
-	if err := c.Replication.Validate(); err != nil {
-		return err
+	if c.Replication != nil {
+		if err := c.Replication.Validate(); err != nil {
+			return err
+		}
 	}
 
 	return nil
