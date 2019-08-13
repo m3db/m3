@@ -224,6 +224,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			TopologyInitializer:  topoInit,
 			ClusterClient:        configSvcClient,
 			KVStore:              kv,
+			Async:                cluster.Async,
 		}
 		cfgResults = append(cfgResults, result)
 	}

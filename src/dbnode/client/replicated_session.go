@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
+	xlog "github.com/m3db/m3x/log"
 	m3sync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -44,6 +46,23 @@ type replicatedSession struct {
 	session       clientSession
 	asyncSessions []clientSession
 	workerPool    m3sync.WorkerPool
+	scope         tally.Scope
+	log           xlog.Logger
+	metrics       replicatedSessionMetrics
+}
+
+type replicatedSessionMetrics struct {
+	replicateExecuted    tally.Counter
+	replicateNotExecuted tally.Counter
+	replicateError       tally.Counter
+}
+
+func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
+	return replicatedSessionMetrics{
+		replicateExecuted:    scope.Counter("replicate.executed"),
+		replicateNotExecuted: scope.Counter("replicate.not-executed"),
+		replicateError:       scope.Counter("replicate.error"),
+	}
 }
 
 // Ensure replicatedSession implements the clientSession interface.
@@ -54,7 +73,7 @@ func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
-	// scope := opts.InstrumentOptions().MetricsScope()
+	scope := opts.InstrumentOptions().MetricsScope()
 
 	session, err := newSession(opts)
 	if err != nil {
@@ -74,6 +93,9 @@ func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
 		session:       session,
 		asyncSessions: asyncSessions,
 		workerPool:    workerPool,
+		scope:         scope,
+		log:           opts.InstrumentOptions().Logger(),
+		metrics:       newReplicatedSessionMetrics(scope),
 	}, nil
 }
 
@@ -83,12 +105,13 @@ func (s replicatedSession) replicate(fn writeFunc) error {
 	for _, asyncSession := range s.asyncSessions {
 		if s.workerPool.GoIfAvailable(func() {
 			if err := fn(asyncSession); err != nil {
-				// TODO(srobb): instrument/log
+				s.metrics.replicateError.Inc(1)
+				s.log.Errorf("could not replicate write: %v", err)
 			}
 		}) {
-			// TODO(srobb): instrument
+			s.metrics.replicateNotExecuted.Inc(1)
 		} else {
-			// TODO(srobb): instrument
+			s.metrics.replicateExecuted.Inc(1)
 		}
 	}
 	return fn(s.session)
@@ -224,7 +247,7 @@ func (s replicatedSession) Open() error {
 	}
 	for _, asyncSession := range s.asyncSessions {
 		if err := asyncSession.Open(); err != nil {
-			// TODO(srobb): log the error
+			s.log.Errorf("could not open session to async cluster: %v", err)
 		}
 	}
 	return nil
