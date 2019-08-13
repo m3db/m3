@@ -6,7 +6,7 @@ M3DB clusters can be configured to passively replicate data from other clusters.
 
 The cross-cluster replication feature is built on-top of the [background repairs](repairs.md) feature. As a result, it has all the same caveats and limitations. cifically, it does not currently work with clusters that use M3DB's indexing feature and the replication delay between two clusters will be at least (`block size` + `bufferPast`) for data written at the beginning of a block for a given namespace. For use-cases where a large replication delay is unacceptable, the current recommendation is to dual-write to both clusters in parallel and then rely upon the cross-cluster replication feature to repair any discrepancies between the clusters caused by failed dual-writes. This recommendation is likely to change in the future once support for low-latency replication is added to M3DB in the form of commitlog tailing.
 
-While cross-cluster replication is built on-top of the background repairs feature, background repairs do not need to be enabled for cross-cluster replication to be enabled. In other words, clusters can be configured such that:
+While cross-cluster replication is built on top of the background repairs feature, background repairs do not need to be enabled for cross-cluster replication to be enabled. In other words, clusters can be configured such that:
 
 1. Background repairs (within a cluster) are disabled and replication is also disabled.
 2. Background repairs (within a cluster) are enabled, but replication is disabled.
