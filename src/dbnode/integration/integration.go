@@ -301,7 +301,7 @@ func newDefaultBootstrappableTestSetups(
 					setup.storageOpts.RepairOptions().
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
-						SetAdminClient(adminClient).
+						SetAdminClients([]client.AdminClient{adminClient}).
 						SetDebugShadowComparisonsPercentage(1.0).
 						// Avoid log spam.
 						SetDebugShadowComparisonsEnabled(false))
