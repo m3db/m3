@@ -33,7 +33,6 @@ import (
 	m3clusterkvmem "github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -186,8 +185,8 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			// Set timeout to zero so it will wait indefinitely for the
 			// initial value.
-			SetServicesOptions(services.NewOptions().SetInitTimeout(0))
-		SetNewDirectoryMode(cfgParams.NewDirectoryMode)
+			SetServicesOptions(services.NewOptions().SetInitTimeout(0)).
+			SetNewDirectoryMode(cfgParams.NewDirectoryMode)
 		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 		if err != nil {
 			err = fmt.Errorf("could not create m3cluster client: %v", err)
