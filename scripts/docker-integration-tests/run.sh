@@ -27,5 +27,5 @@ for test in "${TESTS[@]}"; do
 		echo "running $test"
 		"$test"
 	fi
-	ITER="$((ITER+1))"
+	((ITER++))
 done
