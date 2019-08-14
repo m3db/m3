@@ -47,17 +47,14 @@ function setup_single_m3db_node {
   wait_for_db_init
 }
 
-function setup_three_m3db_nodes {
+function setup_two_m3db_nodes {
   local dbnode_id_1=${DBNODE_ID_01:-m3db_local_1}
   local dbnode_id_2=${DBNODE_ID_02:-m3db_local_2}
-  local dbnode_id_3=${DBNODE_ID_03:-m3db_local_3}
   local dbnode_host_1=${DBNODE_HOST_01:-dbnode01}
   local dbnode_host_2=${DBNODE_HOST_02:-dbnode02}
-  local dbnode_host_3=${DBNODE_HOST_03:-dbnode03}
   local dbnode_port=${DBNODE_PORT:-9000}
   local dbnode_host_1_health_port=${DBNODE_HEALTH_PORT_01:-9012}
   local dbnode_host_2_health_port=${DBNODE_HEALTH_PORT_02:-9022}
-  local dbnode_host_3_health_port=${DBNODE_HEALTH_PORT_03:-9032}
   local coordinator_port=${COORDINATOR_PORT:-7201}
 
   echo "Wait for API to be available"
@@ -69,8 +66,8 @@ function setup_three_m3db_nodes {
     "type": "cluster",
     "namespaceName": "agg",
     "retentionTime": "6h",
-    "num_shards": 3,
-    "replicationFactor": 3,
+    "num_shards": 2,
+    "replicationFactor": 2,
     "hosts": [
       {
           "id": "'"${dbnode_id_1}"'",
@@ -87,14 +84,6 @@ function setup_three_m3db_nodes {
           "weight": 1024,
           "address": "'"${dbnode_host_2}"'",
           "port": '"${dbnode_port}"'
-      },
-      {
-          "id": "'"${dbnode_id_3}"'",
-          "isolation_group": "rack-c",
-          "zone": "embedded",
-          "weight": 1024,
-          "address": "'"${dbnode_host_3}"'",
-          "port": '"${dbnode_port}"'
       }
     ]
   }'
@@ -110,8 +99,6 @@ function setup_three_m3db_nodes {
     '[ "$(curl -sSf 0.0.0.0:'"${dbnode_host_1_health_port}"'/health | jq .bootstrapped)" == true ]'
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${dbnode_host_2_health_port}"'/health | jq .bootstrapped)" == true ]'
-  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 0.0.0.0:'"${dbnode_host_3_health_port}"'/health | jq .bootstrapped)" == true ]'
 }
 
 function wait_for_db_init {

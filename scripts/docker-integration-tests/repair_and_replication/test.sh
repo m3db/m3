@@ -11,12 +11,10 @@ export REVISION
 echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_a_dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_a_dbnode02
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_a_dbnode03
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_a_coordinator01
 
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_b_dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_b_dbnode02
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_b_dbnode03
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes cluster_b_coordinator01
 
 # Think of this as a defer func() in golang
@@ -28,28 +26,22 @@ trap defer EXIT
 # Setup cluster A.
 DBNODE_ID_01=cluster_a_m3db_local_1 \
 DBNODE_ID_02=cluster_a_m3db_local_2 \
-DBNODE_ID_03=cluster_a_m3db_local_3 \
 DBNODE_HOST_01=cluster_a_dbnode01 \
 DBNODE_HOST_02=cluster_a_dbnode02 \
-DBNODE_HOST_03=cluster_a_dbnode03 \
 DBNODE_HEALTH_PORT_01=9012 \
 DBNODE_HEALTH_PORT_02=9022 \
-DBNODE_HEALTH_PORT_03=9032 \
 COORDINATOR_PORT=7201 \
-  setup_three_m3db_nodes
+  setup_two_m3db_nodes
 
 # Setup cluster B.
 DBNODE_ID_01=cluster_b_m3db_local_1 \
 DBNODE_ID_02=cluster_b_m3db_local_2 \
-DBNODE_ID_03=cluster_b_m3db_local_3 \
 DBNODE_HOST_01=cluster_b_dbnode01 \
 DBNODE_HOST_02=cluster_b_dbnode02 \
-DBNODE_HOST_03=cluster_b_dbnode03 \
 DBNODE_HEALTH_PORT_01=9112 \
 DBNODE_HEALTH_PORT_02=9122 \
-DBNODE_HEALTH_PORT_03=9132 \
 COORDINATOR_PORT=17201 \
-  setup_three_m3db_nodes
+  setup_two_m3db_nodes
 
 function write_data {
   namespace=$1
@@ -105,17 +97,13 @@ write_data "coldWritesRepairAndNoIndex" "foo" "$(($(date +"%s") - 60 * 60 * 2))"
 echo "Expect to read the data back from dbnode01"
 read_all "coldWritesRepairAndNoIndex" "foo" 1 9012
 
-# These two should eventually succeed once a repair detects the mismatch
+# This should eventually succeed once a repair detects the mismatch
 # and repairs the data within the cluster.
 echo "Wait for the data to become available (via repairs) from cluster_a_dbnode02"
 ATTEMPTS=30 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
   read_all "coldWritesRepairAndNoIndex" "foo" 1 9022
 
-echo "Wait for the data to become available (via repairs) from cluster_a_dbnode03"
-ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
-  read_all "coldWritesRepairAndNoIndex" "foo" 1 9032
-
-# These three should eventually succeed once the replication feature detects
+# These two should eventually succeed once the replication feature detects
 # the mismatch and repairs the data across the clusters.
 echo "Wait for the data to become available (via replication) from cluster_b_dbnode01"
 ATTEMPTS=30 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
@@ -125,6 +113,3 @@ echo "Wait for the data to become available (via replication) from cluster_b_dbn
 ATTEMPTS=30 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
   read_all "coldWritesRepairAndNoIndex" "foo" 1 9122
 
-echo "Wait for the data to become available (via replication) from cluster_b_dbnode03"
-ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
-  read_all "coldWritesRepairAndNoIndex" "foo" 1 9132
