@@ -288,13 +288,13 @@ func TestBijectivityProp(t *testing.T) {
 			}
 			clone := dynamic.NewMessage(input.schema)
 			clone.MergeFrom(m.message)
-			cloneBytes, err := clone.Marshal()
+			mBytes, err := clone.Marshal()
 			if err != nil {
 				return false, fmt.Errorf("error marshalling proto message: %v", err)
 			}
 			// Generate times up-front so they're the same for each iteration.
 			messageTimes = append(messageTimes, time.Now())
-			messageBytes = append(messageBytes, cloneBytes)
+			messageBytes = append(messageBytes, mBytes)
 		}
 
 		// First verify that if the same input byte slices are passed then the same stream will always
