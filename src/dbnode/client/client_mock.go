@@ -3743,6 +3743,2889 @@ func (mr *MockAdminOptionsMockRecorder) StreamBlocksRetrier() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).StreamBlocksRetrier))
 }
 
+// MockCommonMultiClusterOptions is a mock of CommonMultiClusterOptions interface
+type MockCommonMultiClusterOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockCommonMultiClusterOptionsMockRecorder
+}
+
+// MockCommonMultiClusterOptionsMockRecorder is the mock recorder for MockCommonMultiClusterOptions
+type MockCommonMultiClusterOptionsMockRecorder struct {
+	mock *MockCommonMultiClusterOptions
+}
+
+// NewMockCommonMultiClusterOptions creates a new mock instance
+func NewMockCommonMultiClusterOptions(ctrl *gomock.Controller) *MockCommonMultiClusterOptions {
+	mock := &MockCommonMultiClusterOptions{ctrl: ctrl}
+	mock.recorder = &MockCommonMultiClusterOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockCommonMultiClusterOptions) EXPECT() *MockCommonMultiClusterOptionsMockRecorder {
+	return m.recorder
+}
+
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockCommonMultiClusterOptions) SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(MultiClusterOptions)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockCommonMultiClusterOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockCommonMultiClusterOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockCommonMultiClusterOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockCommonMultiClusterOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockCommonMultiClusterOptions)(nil).AsyncTopologyInitializers))
+}
+
+// OptionsForAsyncClusters mocks base method
+func (m *MockCommonMultiClusterOptions) OptionsForAsyncClusters() []Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OptionsForAsyncClusters")
+	ret0, _ := ret[0].([]Options)
+	return ret0
+}
+
+// OptionsForAsyncClusters indicates an expected call of OptionsForAsyncClusters
+func (mr *MockCommonMultiClusterOptionsMockRecorder) OptionsForAsyncClusters() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptionsForAsyncClusters", reflect.TypeOf((*MockCommonMultiClusterOptions)(nil).OptionsForAsyncClusters))
+}
+
+// MockMultiClusterOptions is a mock of MultiClusterOptions interface
+type MockMultiClusterOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockMultiClusterOptionsMockRecorder
+}
+
+// MockMultiClusterOptionsMockRecorder is the mock recorder for MockMultiClusterOptions
+type MockMultiClusterOptionsMockRecorder struct {
+	mock *MockMultiClusterOptions
+}
+
+// NewMockMultiClusterOptions creates a new mock instance
+func NewMockMultiClusterOptions(ctrl *gomock.Controller) *MockMultiClusterOptions {
+	mock := &MockMultiClusterOptions{ctrl: ctrl}
+	mock.recorder = &MockMultiClusterOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockMultiClusterOptions) EXPECT() *MockMultiClusterOptionsMockRecorder {
+	return m.recorder
+}
+
+// Validate mocks base method
+func (m *MockMultiClusterOptions) Validate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (mr *MockMultiClusterOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockMultiClusterOptions)(nil).Validate))
+}
+
+// SetEncodingM3TSZ mocks base method
+func (m *MockMultiClusterOptions) SetEncodingM3TSZ() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingM3TSZ")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
+func (mr *MockMultiClusterOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetEncodingProto mocks base method
+func (m *MockMultiClusterOptions) SetEncodingProto(encodingOpts encoding.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingProto", encodingOpts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingProto indicates an expected call of SetEncodingProto
+func (mr *MockMultiClusterOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetEncodingProto), encodingOpts)
+}
+
+// IsSetEncodingProto mocks base method
+func (m *MockMultiClusterOptions) IsSetEncodingProto() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSetEncodingProto")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSetEncodingProto indicates an expected call of IsSetEncodingProto
+func (mr *MockMultiClusterOptionsMockRecorder) IsSetEncodingProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSetEncodingProto", reflect.TypeOf((*MockMultiClusterOptions)(nil).IsSetEncodingProto))
+}
+
+// SetRuntimeOptionsManager mocks base method
+func (m *MockMultiClusterOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
+func (mr *MockMultiClusterOptionsMockRecorder) SetRuntimeOptionsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetRuntimeOptionsManager), value)
+}
+
+// RuntimeOptionsManager mocks base method
+func (m *MockMultiClusterOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
+func (mr *MockMultiClusterOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockMultiClusterOptions)(nil).RuntimeOptionsManager))
+}
+
+// SetClockOptions mocks base method
+func (m *MockMultiClusterOptions) SetClockOptions(value clock.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClockOptions indicates an expected call of SetClockOptions
+func (mr *MockMultiClusterOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetClockOptions), value)
+}
+
+// ClockOptions mocks base method
+func (m *MockMultiClusterOptions) ClockOptions() clock.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+// ClockOptions indicates an expected call of ClockOptions
+func (mr *MockMultiClusterOptionsMockRecorder) ClockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).ClockOptions))
+}
+
+// SetInstrumentOptions mocks base method
+func (m *MockMultiClusterOptions) SetInstrumentOptions(value instrument.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
+func (mr *MockMultiClusterOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetInstrumentOptions), value)
+}
+
+// InstrumentOptions mocks base method
+func (m *MockMultiClusterOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+// InstrumentOptions indicates an expected call of InstrumentOptions
+func (mr *MockMultiClusterOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).InstrumentOptions))
+}
+
+// SetTopologyInitializer mocks base method
+func (m *MockMultiClusterOptions) SetTopologyInitializer(value topology.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTopologyInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTopologyInitializer indicates an expected call of SetTopologyInitializer
+func (mr *MockMultiClusterOptionsMockRecorder) SetTopologyInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTopologyInitializer", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetTopologyInitializer), value)
+}
+
+// TopologyInitializer mocks base method
+func (m *MockMultiClusterOptions) TopologyInitializer() topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TopologyInitializer")
+	ret0, _ := ret[0].(topology.Initializer)
+	return ret0
+}
+
+// TopologyInitializer indicates an expected call of TopologyInitializer
+func (mr *MockMultiClusterOptionsMockRecorder) TopologyInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyInitializer", reflect.TypeOf((*MockMultiClusterOptions)(nil).TopologyInitializer))
+}
+
+// SetReadConsistencyLevel mocks base method
+func (m *MockMultiClusterOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
+func (mr *MockMultiClusterOptionsMockRecorder) SetReadConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetReadConsistencyLevel), value)
+}
+
+// ReadConsistencyLevel mocks base method
+func (m *MockMultiClusterOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
+func (mr *MockMultiClusterOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockMultiClusterOptions)(nil).ReadConsistencyLevel))
+}
+
+// SetWriteConsistencyLevel mocks base method
+func (m *MockMultiClusterOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteConsistencyLevel indicates an expected call of SetWriteConsistencyLevel
+func (mr *MockMultiClusterOptionsMockRecorder) SetWriteConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteConsistencyLevel", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetWriteConsistencyLevel), value)
+}
+
+// WriteConsistencyLevel mocks base method
+func (m *MockMultiClusterOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	return ret0
+}
+
+// WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
+func (mr *MockMultiClusterOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockMultiClusterOptions)(nil).WriteConsistencyLevel))
+}
+
+// SetChannelOptions mocks base method
+func (m *MockMultiClusterOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChannelOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetChannelOptions indicates an expected call of SetChannelOptions
+func (mr *MockMultiClusterOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChannelOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetChannelOptions), value)
+}
+
+// ChannelOptions mocks base method
+func (m *MockMultiClusterOptions) ChannelOptions() *tchannel_go.ChannelOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ChannelOptions")
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
+	return ret0
+}
+
+// ChannelOptions indicates an expected call of ChannelOptions
+func (mr *MockMultiClusterOptionsMockRecorder) ChannelOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChannelOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).ChannelOptions))
+}
+
+// SetMaxConnectionCount mocks base method
+func (m *MockMultiClusterOptions) SetMaxConnectionCount(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMaxConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMaxConnectionCount indicates an expected call of SetMaxConnectionCount
+func (mr *MockMultiClusterOptionsMockRecorder) SetMaxConnectionCount(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxConnectionCount", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetMaxConnectionCount), value)
+}
+
+// MaxConnectionCount mocks base method
+func (m *MockMultiClusterOptions) MaxConnectionCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MaxConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MaxConnectionCount indicates an expected call of MaxConnectionCount
+func (mr *MockMultiClusterOptionsMockRecorder) MaxConnectionCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxConnectionCount", reflect.TypeOf((*MockMultiClusterOptions)(nil).MaxConnectionCount))
+}
+
+// SetMinConnectionCount mocks base method
+func (m *MockMultiClusterOptions) SetMinConnectionCount(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMinConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMinConnectionCount indicates an expected call of SetMinConnectionCount
+func (mr *MockMultiClusterOptionsMockRecorder) SetMinConnectionCount(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMinConnectionCount", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetMinConnectionCount), value)
+}
+
+// MinConnectionCount mocks base method
+func (m *MockMultiClusterOptions) MinConnectionCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MinConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MinConnectionCount indicates an expected call of MinConnectionCount
+func (mr *MockMultiClusterOptionsMockRecorder) MinConnectionCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinConnectionCount", reflect.TypeOf((*MockMultiClusterOptions)(nil).MinConnectionCount))
+}
+
+// SetHostConnectTimeout mocks base method
+func (m *MockMultiClusterOptions) SetHostConnectTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostConnectTimeout indicates an expected call of SetHostConnectTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) SetHostConnectTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostConnectTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetHostConnectTimeout), value)
+}
+
+// HostConnectTimeout mocks base method
+func (m *MockMultiClusterOptions) HostConnectTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostConnectTimeout indicates an expected call of HostConnectTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) HostConnectTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostConnectTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).HostConnectTimeout))
+}
+
+// SetClusterConnectTimeout mocks base method
+func (m *MockMultiClusterOptions) SetClusterConnectTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectTimeout indicates an expected call of SetClusterConnectTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) SetClusterConnectTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterConnectTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetClusterConnectTimeout), value)
+}
+
+// ClusterConnectTimeout mocks base method
+func (m *MockMultiClusterOptions) ClusterConnectTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClusterConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// ClusterConnectTimeout indicates an expected call of ClusterConnectTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterConnectTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).ClusterConnectTimeout))
+}
+
+// SetClusterConnectConsistencyLevel mocks base method
+func (m *MockMultiClusterOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterConnectConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectConsistencyLevel indicates an expected call of SetClusterConnectConsistencyLevel
+func (mr *MockMultiClusterOptionsMockRecorder) SetClusterConnectConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterConnectConsistencyLevel", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetClusterConnectConsistencyLevel), value)
+}
+
+// ClusterConnectConsistencyLevel mocks base method
+func (m *MockMultiClusterOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClusterConnectConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
+	return ret0
+}
+
+// ClusterConnectConsistencyLevel indicates an expected call of ClusterConnectConsistencyLevel
+func (mr *MockMultiClusterOptionsMockRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterConnectConsistencyLevel", reflect.TypeOf((*MockMultiClusterOptions)(nil).ClusterConnectConsistencyLevel))
+}
+
+// SetWriteRequestTimeout mocks base method
+func (m *MockMultiClusterOptions) SetWriteRequestTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRequestTimeout indicates an expected call of SetWriteRequestTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) SetWriteRequestTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteRequestTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetWriteRequestTimeout), value)
+}
+
+// WriteRequestTimeout mocks base method
+func (m *MockMultiClusterOptions) WriteRequestTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// WriteRequestTimeout indicates an expected call of WriteRequestTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) WriteRequestTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRequestTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).WriteRequestTimeout))
+}
+
+// SetFetchRequestTimeout mocks base method
+func (m *MockMultiClusterOptions) SetFetchRequestTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRequestTimeout indicates an expected call of SetFetchRequestTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) SetFetchRequestTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchRequestTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetFetchRequestTimeout), value)
+}
+
+// FetchRequestTimeout mocks base method
+func (m *MockMultiClusterOptions) FetchRequestTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchRequestTimeout indicates an expected call of FetchRequestTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) FetchRequestTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRequestTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).FetchRequestTimeout))
+}
+
+// SetTruncateRequestTimeout mocks base method
+func (m *MockMultiClusterOptions) SetTruncateRequestTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTruncateRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateRequestTimeout indicates an expected call of SetTruncateRequestTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) SetTruncateRequestTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateRequestTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetTruncateRequestTimeout), value)
+}
+
+// TruncateRequestTimeout mocks base method
+func (m *MockMultiClusterOptions) TruncateRequestTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TruncateRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// TruncateRequestTimeout indicates an expected call of TruncateRequestTimeout
+func (mr *MockMultiClusterOptionsMockRecorder) TruncateRequestTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateRequestTimeout", reflect.TypeOf((*MockMultiClusterOptions)(nil).TruncateRequestTimeout))
+}
+
+// SetBackgroundConnectInterval mocks base method
+func (m *MockMultiClusterOptions) SetBackgroundConnectInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundConnectInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectInterval indicates an expected call of SetBackgroundConnectInterval
+func (mr *MockMultiClusterOptionsMockRecorder) SetBackgroundConnectInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundConnectInterval", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetBackgroundConnectInterval), value)
+}
+
+// BackgroundConnectInterval mocks base method
+func (m *MockMultiClusterOptions) BackgroundConnectInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundConnectInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectInterval indicates an expected call of BackgroundConnectInterval
+func (mr *MockMultiClusterOptionsMockRecorder) BackgroundConnectInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundConnectInterval", reflect.TypeOf((*MockMultiClusterOptions)(nil).BackgroundConnectInterval))
+}
+
+// SetBackgroundConnectStutter mocks base method
+func (m *MockMultiClusterOptions) SetBackgroundConnectStutter(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundConnectStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectStutter indicates an expected call of SetBackgroundConnectStutter
+func (mr *MockMultiClusterOptionsMockRecorder) SetBackgroundConnectStutter(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundConnectStutter", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetBackgroundConnectStutter), value)
+}
+
+// BackgroundConnectStutter mocks base method
+func (m *MockMultiClusterOptions) BackgroundConnectStutter() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundConnectStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectStutter indicates an expected call of BackgroundConnectStutter
+func (mr *MockMultiClusterOptionsMockRecorder) BackgroundConnectStutter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundConnectStutter", reflect.TypeOf((*MockMultiClusterOptions)(nil).BackgroundConnectStutter))
+}
+
+// SetBackgroundHealthCheckInterval mocks base method
+func (m *MockMultiClusterOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckInterval indicates an expected call of SetBackgroundHealthCheckInterval
+func (mr *MockMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckInterval", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetBackgroundHealthCheckInterval), value)
+}
+
+// BackgroundHealthCheckInterval mocks base method
+func (m *MockMultiClusterOptions) BackgroundHealthCheckInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckInterval indicates an expected call of BackgroundHealthCheckInterval
+func (mr *MockMultiClusterOptionsMockRecorder) BackgroundHealthCheckInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckInterval", reflect.TypeOf((*MockMultiClusterOptions)(nil).BackgroundHealthCheckInterval))
+}
+
+// SetBackgroundHealthCheckStutter mocks base method
+func (m *MockMultiClusterOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckStutter indicates an expected call of SetBackgroundHealthCheckStutter
+func (mr *MockMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckStutter(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckStutter", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetBackgroundHealthCheckStutter), value)
+}
+
+// BackgroundHealthCheckStutter mocks base method
+func (m *MockMultiClusterOptions) BackgroundHealthCheckStutter() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckStutter indicates an expected call of BackgroundHealthCheckStutter
+func (mr *MockMultiClusterOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckStutter", reflect.TypeOf((*MockMultiClusterOptions)(nil).BackgroundHealthCheckStutter))
+}
+
+// SetBackgroundHealthCheckFailLimit mocks base method
+func (m *MockMultiClusterOptions) SetBackgroundHealthCheckFailLimit(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckFailLimit", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailLimit indicates an expected call of SetBackgroundHealthCheckFailLimit
+func (mr *MockMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckFailLimit(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckFailLimit", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetBackgroundHealthCheckFailLimit), value)
+}
+
+// BackgroundHealthCheckFailLimit mocks base method
+func (m *MockMultiClusterOptions) BackgroundHealthCheckFailLimit() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckFailLimit")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// BackgroundHealthCheckFailLimit indicates an expected call of BackgroundHealthCheckFailLimit
+func (mr *MockMultiClusterOptionsMockRecorder) BackgroundHealthCheckFailLimit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckFailLimit", reflect.TypeOf((*MockMultiClusterOptions)(nil).BackgroundHealthCheckFailLimit))
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor mocks base method
+func (m *MockMultiClusterOptions) SetBackgroundHealthCheckFailThrottleFactor(value float64) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckFailThrottleFactor", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor indicates an expected call of SetBackgroundHealthCheckFailThrottleFactor
+func (mr *MockMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckFailThrottleFactor(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetBackgroundHealthCheckFailThrottleFactor), value)
+}
+
+// BackgroundHealthCheckFailThrottleFactor mocks base method
+func (m *MockMultiClusterOptions) BackgroundHealthCheckFailThrottleFactor() float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckFailThrottleFactor")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// BackgroundHealthCheckFailThrottleFactor indicates an expected call of BackgroundHealthCheckFailThrottleFactor
+func (mr *MockMultiClusterOptionsMockRecorder) BackgroundHealthCheckFailThrottleFactor() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockMultiClusterOptions)(nil).BackgroundHealthCheckFailThrottleFactor))
+}
+
+// SetWriteRetrier mocks base method
+func (m *MockMultiClusterOptions) SetWriteRetrier(value retry.Retrier) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRetrier indicates an expected call of SetWriteRetrier
+func (mr *MockMultiClusterOptionsMockRecorder) SetWriteRetrier(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteRetrier", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetWriteRetrier), value)
+}
+
+// WriteRetrier mocks base method
+func (m *MockMultiClusterOptions) WriteRetrier() retry.Retrier {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// WriteRetrier indicates an expected call of WriteRetrier
+func (mr *MockMultiClusterOptionsMockRecorder) WriteRetrier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRetrier", reflect.TypeOf((*MockMultiClusterOptions)(nil).WriteRetrier))
+}
+
+// SetFetchRetrier mocks base method
+func (m *MockMultiClusterOptions) SetFetchRetrier(value retry.Retrier) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRetrier indicates an expected call of SetFetchRetrier
+func (mr *MockMultiClusterOptionsMockRecorder) SetFetchRetrier(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetFetchRetrier), value)
+}
+
+// FetchRetrier mocks base method
+func (m *MockMultiClusterOptions) FetchRetrier() retry.Retrier {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// FetchRetrier indicates an expected call of FetchRetrier
+func (mr *MockMultiClusterOptionsMockRecorder) FetchRetrier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockMultiClusterOptions)(nil).FetchRetrier))
+}
+
+// SetTagEncoderOptions mocks base method
+func (m *MockMultiClusterOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagEncoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
+func (mr *MockMultiClusterOptionsMockRecorder) SetTagEncoderOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetTagEncoderOptions), value)
+}
+
+// TagEncoderOptions mocks base method
+func (m *MockMultiClusterOptions) TagEncoderOptions() serialize.TagEncoderOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagEncoderOptions")
+	ret0, _ := ret[0].(serialize.TagEncoderOptions)
+	return ret0
+}
+
+// TagEncoderOptions indicates an expected call of TagEncoderOptions
+func (mr *MockMultiClusterOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).TagEncoderOptions))
+}
+
+// SetTagEncoderPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetTagEncoderPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagEncoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetTagEncoderPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetTagEncoderPoolSize), value)
+}
+
+// TagEncoderPoolSize mocks base method
+func (m *MockMultiClusterOptions) TagEncoderPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagEncoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).TagEncoderPoolSize))
+}
+
+// SetTagDecoderOptions mocks base method
+func (m *MockMultiClusterOptions) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagDecoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderOptions indicates an expected call of SetTagDecoderOptions
+func (mr *MockMultiClusterOptionsMockRecorder) SetTagDecoderOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagDecoderOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetTagDecoderOptions), value)
+}
+
+// TagDecoderOptions mocks base method
+func (m *MockMultiClusterOptions) TagDecoderOptions() serialize.TagDecoderOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagDecoderOptions")
+	ret0, _ := ret[0].(serialize.TagDecoderOptions)
+	return ret0
+}
+
+// TagDecoderOptions indicates an expected call of TagDecoderOptions
+func (mr *MockMultiClusterOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagDecoderOptions", reflect.TypeOf((*MockMultiClusterOptions)(nil).TagDecoderOptions))
+}
+
+// SetTagDecoderPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetTagDecoderPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagDecoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderPoolSize indicates an expected call of SetTagDecoderPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetTagDecoderPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagDecoderPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetTagDecoderPoolSize), value)
+}
+
+// TagDecoderPoolSize mocks base method
+func (m *MockMultiClusterOptions) TagDecoderPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagDecoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagDecoderPoolSize indicates an expected call of TagDecoderPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) TagDecoderPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagDecoderPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).TagDecoderPoolSize))
+}
+
+// SetWriteBatchSize mocks base method
+func (m *MockMultiClusterOptions) SetWriteBatchSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteBatchSize indicates an expected call of SetWriteBatchSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetWriteBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteBatchSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetWriteBatchSize), value)
+}
+
+// WriteBatchSize mocks base method
+func (m *MockMultiClusterOptions) WriteBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteBatchSize indicates an expected call of WriteBatchSize
+func (mr *MockMultiClusterOptionsMockRecorder) WriteBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).WriteBatchSize))
+}
+
+// SetFetchBatchSize mocks base method
+func (m *MockMultiClusterOptions) SetFetchBatchSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchSize indicates an expected call of SetFetchBatchSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetFetchBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBatchSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetFetchBatchSize), value)
+}
+
+// FetchBatchSize mocks base method
+func (m *MockMultiClusterOptions) FetchBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchSize indicates an expected call of FetchBatchSize
+func (mr *MockMultiClusterOptionsMockRecorder) FetchBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).FetchBatchSize))
+}
+
+// SetWriteOpPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetWriteOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteOpPoolSize indicates an expected call of SetWriteOpPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetWriteOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteOpPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetWriteOpPoolSize), value)
+}
+
+// WriteOpPoolSize mocks base method
+func (m *MockMultiClusterOptions) WriteOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteOpPoolSize indicates an expected call of WriteOpPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).WriteOpPoolSize))
+}
+
+// SetWriteTaggedOpPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetWriteTaggedOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteTaggedOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetWriteTaggedOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetWriteTaggedOpPoolSize), value)
+}
+
+// WriteTaggedOpPoolSize mocks base method
+func (m *MockMultiClusterOptions) WriteTaggedOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).WriteTaggedOpPoolSize))
+}
+
+// SetFetchBatchOpPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetFetchBatchOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchBatchOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchOpPoolSize indicates an expected call of SetFetchBatchOpPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetFetchBatchOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBatchOpPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetFetchBatchOpPoolSize), value)
+}
+
+// FetchBatchOpPoolSize mocks base method
+func (m *MockMultiClusterOptions) FetchBatchOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBatchOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetCheckedBytesWrapperPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPoolSize indicates an expected call of SetCheckedBytesWrapperPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetCheckedBytesWrapperPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesWrapperPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetCheckedBytesWrapperPoolSize), value)
+}
+
+// CheckedBytesWrapperPoolSize mocks base method
+func (m *MockMultiClusterOptions) CheckedBytesWrapperPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesWrapperPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesWrapperPoolSize indicates an expected call of CheckedBytesWrapperPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) CheckedBytesWrapperPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapperPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).CheckedBytesWrapperPoolSize))
+}
+
+// SetHostQueueOpsFlushSize mocks base method
+func (m *MockMultiClusterOptions) SetHostQueueOpsFlushSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueOpsFlushSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushSize indicates an expected call of SetHostQueueOpsFlushSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetHostQueueOpsFlushSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueOpsFlushSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetHostQueueOpsFlushSize), value)
+}
+
+// HostQueueOpsFlushSize mocks base method
+func (m *MockMultiClusterOptions) HostQueueOpsFlushSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueOpsFlushSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsFlushSize indicates an expected call of HostQueueOpsFlushSize
+func (mr *MockMultiClusterOptionsMockRecorder) HostQueueOpsFlushSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsFlushSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).HostQueueOpsFlushSize))
+}
+
+// SetHostQueueOpsFlushInterval mocks base method
+func (m *MockMultiClusterOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueOpsFlushInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushInterval indicates an expected call of SetHostQueueOpsFlushInterval
+func (mr *MockMultiClusterOptionsMockRecorder) SetHostQueueOpsFlushInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueOpsFlushInterval", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetHostQueueOpsFlushInterval), value)
+}
+
+// HostQueueOpsFlushInterval mocks base method
+func (m *MockMultiClusterOptions) HostQueueOpsFlushInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueOpsFlushInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostQueueOpsFlushInterval indicates an expected call of HostQueueOpsFlushInterval
+func (mr *MockMultiClusterOptionsMockRecorder) HostQueueOpsFlushInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsFlushInterval", reflect.TypeOf((*MockMultiClusterOptions)(nil).HostQueueOpsFlushInterval))
+}
+
+// SetContextPool mocks base method
+func (m *MockMultiClusterOptions) SetContextPool(value context.Pool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetContextPool indicates an expected call of SetContextPool
+func (mr *MockMultiClusterOptionsMockRecorder) SetContextPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContextPool", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetContextPool), value)
+}
+
+// ContextPool mocks base method
+func (m *MockMultiClusterOptions) ContextPool() context.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+// ContextPool indicates an expected call of ContextPool
+func (mr *MockMultiClusterOptionsMockRecorder) ContextPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextPool", reflect.TypeOf((*MockMultiClusterOptions)(nil).ContextPool))
+}
+
+// SetIdentifierPool mocks base method
+func (m *MockMultiClusterOptions) SetIdentifierPool(value ident.Pool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIdentifierPool indicates an expected call of SetIdentifierPool
+func (mr *MockMultiClusterOptionsMockRecorder) SetIdentifierPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetIdentifierPool), value)
+}
+
+// IdentifierPool mocks base method
+func (m *MockMultiClusterOptions) IdentifierPool() ident.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IdentifierPool")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// IdentifierPool indicates an expected call of IdentifierPool
+func (mr *MockMultiClusterOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IdentifierPool", reflect.TypeOf((*MockMultiClusterOptions)(nil).IdentifierPool))
+}
+
+// SetHostQueueOpsArrayPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueOpsArrayPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsArrayPoolSize indicates an expected call of SetHostQueueOpsArrayPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetHostQueueOpsArrayPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueOpsArrayPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetHostQueueOpsArrayPoolSize), value)
+}
+
+// HostQueueOpsArrayPoolSize mocks base method
+func (m *MockMultiClusterOptions) HostQueueOpsArrayPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueOpsArrayPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsArrayPoolSize indicates an expected call of HostQueueOpsArrayPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).HostQueueOpsArrayPoolSize))
+}
+
+// SetSeriesIteratorPoolSize mocks base method
+func (m *MockMultiClusterOptions) SetSeriesIteratorPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSeriesIteratorPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorPoolSize indicates an expected call of SetSeriesIteratorPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SetSeriesIteratorPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesIteratorPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetSeriesIteratorPoolSize), value)
+}
+
+// SeriesIteratorPoolSize mocks base method
+func (m *MockMultiClusterOptions) SeriesIteratorPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesIteratorPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// SeriesIteratorPoolSize indicates an expected call of SeriesIteratorPoolSize
+func (mr *MockMultiClusterOptionsMockRecorder) SeriesIteratorPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIteratorPoolSize", reflect.TypeOf((*MockMultiClusterOptions)(nil).SeriesIteratorPoolSize))
+}
+
+// SetSeriesIteratorArrayPoolBuckets mocks base method
+func (m *MockMultiClusterOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSeriesIteratorArrayPoolBuckets", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorArrayPoolBuckets indicates an expected call of SetSeriesIteratorArrayPoolBuckets
+func (mr *MockMultiClusterOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetSeriesIteratorArrayPoolBuckets), value)
+}
+
+// SeriesIteratorArrayPoolBuckets mocks base method
+func (m *MockMultiClusterOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesIteratorArrayPoolBuckets")
+	ret0, _ := ret[0].([]pool.Bucket)
+	return ret0
+}
+
+// SeriesIteratorArrayPoolBuckets indicates an expected call of SeriesIteratorArrayPoolBuckets
+func (mr *MockMultiClusterOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockMultiClusterOptions)(nil).SeriesIteratorArrayPoolBuckets))
+}
+
+// SetReaderIteratorAllocate mocks base method
+func (m *MockMultiClusterOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReaderIteratorAllocate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReaderIteratorAllocate indicates an expected call of SetReaderIteratorAllocate
+func (mr *MockMultiClusterOptionsMockRecorder) SetReaderIteratorAllocate(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReaderIteratorAllocate", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetReaderIteratorAllocate), value)
+}
+
+// ReaderIteratorAllocate mocks base method
+func (m *MockMultiClusterOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReaderIteratorAllocate")
+	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
+	return ret0
+}
+
+// ReaderIteratorAllocate indicates an expected call of ReaderIteratorAllocate
+func (mr *MockMultiClusterOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockMultiClusterOptions)(nil).ReaderIteratorAllocate))
+}
+
+// SetSchemaRegistry mocks base method
+func (m *MockMultiClusterOptions) SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", registry)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockMultiClusterOptionsMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetSchemaRegistry), registry)
+}
+
+// SchemaRegistry mocks base method
+func (m *MockMultiClusterOptions) SchemaRegistry() namespace.SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockMultiClusterOptionsMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockMultiClusterOptions)(nil).SchemaRegistry))
+}
+
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockMultiClusterOptions) SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(MultiClusterOptions)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockMultiClusterOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockMultiClusterOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockMultiClusterOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockMultiClusterOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockMultiClusterOptions)(nil).AsyncTopologyInitializers))
+}
+
+// OptionsForAsyncClusters mocks base method
+func (m *MockMultiClusterOptions) OptionsForAsyncClusters() []Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OptionsForAsyncClusters")
+	ret0, _ := ret[0].([]Options)
+	return ret0
+}
+
+// OptionsForAsyncClusters indicates an expected call of OptionsForAsyncClusters
+func (mr *MockMultiClusterOptionsMockRecorder) OptionsForAsyncClusters() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptionsForAsyncClusters", reflect.TypeOf((*MockMultiClusterOptions)(nil).OptionsForAsyncClusters))
+}
+
+// MockAdminMultiClusterOptions is a mock of AdminMultiClusterOptions interface
+type MockAdminMultiClusterOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockAdminMultiClusterOptionsMockRecorder
+}
+
+// MockAdminMultiClusterOptionsMockRecorder is the mock recorder for MockAdminMultiClusterOptions
+type MockAdminMultiClusterOptionsMockRecorder struct {
+	mock *MockAdminMultiClusterOptions
+}
+
+// NewMockAdminMultiClusterOptions creates a new mock instance
+func NewMockAdminMultiClusterOptions(ctrl *gomock.Controller) *MockAdminMultiClusterOptions {
+	mock := &MockAdminMultiClusterOptions{ctrl: ctrl}
+	mock.recorder = &MockAdminMultiClusterOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockAdminMultiClusterOptions) EXPECT() *MockAdminMultiClusterOptionsMockRecorder {
+	return m.recorder
+}
+
+// Validate mocks base method
+func (m *MockAdminMultiClusterOptions) Validate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (mr *MockAdminMultiClusterOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).Validate))
+}
+
+// SetEncodingM3TSZ mocks base method
+func (m *MockAdminMultiClusterOptions) SetEncodingM3TSZ() Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingM3TSZ")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetEncodingProto mocks base method
+func (m *MockAdminMultiClusterOptions) SetEncodingProto(encodingOpts encoding.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetEncodingProto", encodingOpts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingProto indicates an expected call of SetEncodingProto
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetEncodingProto), encodingOpts)
+}
+
+// IsSetEncodingProto mocks base method
+func (m *MockAdminMultiClusterOptions) IsSetEncodingProto() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSetEncodingProto")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSetEncodingProto indicates an expected call of IsSetEncodingProto
+func (mr *MockAdminMultiClusterOptionsMockRecorder) IsSetEncodingProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSetEncodingProto", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).IsSetEncodingProto))
+}
+
+// SetRuntimeOptionsManager mocks base method
+func (m *MockAdminMultiClusterOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetRuntimeOptionsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetRuntimeOptionsManager), value)
+}
+
+// RuntimeOptionsManager mocks base method
+func (m *MockAdminMultiClusterOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
+func (mr *MockAdminMultiClusterOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).RuntimeOptionsManager))
+}
+
+// SetClockOptions mocks base method
+func (m *MockAdminMultiClusterOptions) SetClockOptions(value clock.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClockOptions indicates an expected call of SetClockOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetClockOptions), value)
+}
+
+// ClockOptions mocks base method
+func (m *MockAdminMultiClusterOptions) ClockOptions() clock.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+// ClockOptions indicates an expected call of ClockOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ClockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ClockOptions))
+}
+
+// SetInstrumentOptions mocks base method
+func (m *MockAdminMultiClusterOptions) SetInstrumentOptions(value instrument.Options) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetInstrumentOptions), value)
+}
+
+// InstrumentOptions mocks base method
+func (m *MockAdminMultiClusterOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+// InstrumentOptions indicates an expected call of InstrumentOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).InstrumentOptions))
+}
+
+// SetTopologyInitializer mocks base method
+func (m *MockAdminMultiClusterOptions) SetTopologyInitializer(value topology.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTopologyInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTopologyInitializer indicates an expected call of SetTopologyInitializer
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetTopologyInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTopologyInitializer", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetTopologyInitializer), value)
+}
+
+// TopologyInitializer mocks base method
+func (m *MockAdminMultiClusterOptions) TopologyInitializer() topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TopologyInitializer")
+	ret0, _ := ret[0].(topology.Initializer)
+	return ret0
+}
+
+// TopologyInitializer indicates an expected call of TopologyInitializer
+func (mr *MockAdminMultiClusterOptionsMockRecorder) TopologyInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyInitializer", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).TopologyInitializer))
+}
+
+// SetReadConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetReadConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetReadConsistencyLevel), value)
+}
+
+// ReadConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ReadConsistencyLevel))
+}
+
+// SetWriteConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteConsistencyLevel indicates an expected call of SetWriteConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetWriteConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetWriteConsistencyLevel), value)
+}
+
+// WriteConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	return ret0
+}
+
+// WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).WriteConsistencyLevel))
+}
+
+// SetChannelOptions mocks base method
+func (m *MockAdminMultiClusterOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChannelOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetChannelOptions indicates an expected call of SetChannelOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetChannelOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChannelOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetChannelOptions), value)
+}
+
+// ChannelOptions mocks base method
+func (m *MockAdminMultiClusterOptions) ChannelOptions() *tchannel_go.ChannelOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ChannelOptions")
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
+	return ret0
+}
+
+// ChannelOptions indicates an expected call of ChannelOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ChannelOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChannelOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ChannelOptions))
+}
+
+// SetMaxConnectionCount mocks base method
+func (m *MockAdminMultiClusterOptions) SetMaxConnectionCount(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMaxConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMaxConnectionCount indicates an expected call of SetMaxConnectionCount
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetMaxConnectionCount(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxConnectionCount", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetMaxConnectionCount), value)
+}
+
+// MaxConnectionCount mocks base method
+func (m *MockAdminMultiClusterOptions) MaxConnectionCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MaxConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MaxConnectionCount indicates an expected call of MaxConnectionCount
+func (mr *MockAdminMultiClusterOptionsMockRecorder) MaxConnectionCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxConnectionCount", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).MaxConnectionCount))
+}
+
+// SetMinConnectionCount mocks base method
+func (m *MockAdminMultiClusterOptions) SetMinConnectionCount(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMinConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMinConnectionCount indicates an expected call of SetMinConnectionCount
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetMinConnectionCount(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMinConnectionCount", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetMinConnectionCount), value)
+}
+
+// MinConnectionCount mocks base method
+func (m *MockAdminMultiClusterOptions) MinConnectionCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MinConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MinConnectionCount indicates an expected call of MinConnectionCount
+func (mr *MockAdminMultiClusterOptionsMockRecorder) MinConnectionCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinConnectionCount", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).MinConnectionCount))
+}
+
+// SetHostConnectTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetHostConnectTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostConnectTimeout indicates an expected call of SetHostConnectTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetHostConnectTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostConnectTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetHostConnectTimeout), value)
+}
+
+// HostConnectTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) HostConnectTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostConnectTimeout indicates an expected call of HostConnectTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) HostConnectTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostConnectTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).HostConnectTimeout))
+}
+
+// SetClusterConnectTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetClusterConnectTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectTimeout indicates an expected call of SetClusterConnectTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetClusterConnectTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterConnectTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetClusterConnectTimeout), value)
+}
+
+// ClusterConnectTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) ClusterConnectTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClusterConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// ClusterConnectTimeout indicates an expected call of ClusterConnectTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterConnectTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ClusterConnectTimeout))
+}
+
+// SetClusterConnectConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterConnectConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectConsistencyLevel indicates an expected call of SetClusterConnectConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetClusterConnectConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterConnectConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetClusterConnectConsistencyLevel), value)
+}
+
+// ClusterConnectConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClusterConnectConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
+	return ret0
+}
+
+// ClusterConnectConsistencyLevel indicates an expected call of ClusterConnectConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterConnectConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ClusterConnectConsistencyLevel))
+}
+
+// SetWriteRequestTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetWriteRequestTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRequestTimeout indicates an expected call of SetWriteRequestTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetWriteRequestTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteRequestTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetWriteRequestTimeout), value)
+}
+
+// WriteRequestTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) WriteRequestTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// WriteRequestTimeout indicates an expected call of WriteRequestTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) WriteRequestTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRequestTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).WriteRequestTimeout))
+}
+
+// SetFetchRequestTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchRequestTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRequestTimeout indicates an expected call of SetFetchRequestTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchRequestTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchRequestTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchRequestTimeout), value)
+}
+
+// FetchRequestTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) FetchRequestTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchRequestTimeout indicates an expected call of FetchRequestTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchRequestTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRequestTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchRequestTimeout))
+}
+
+// SetTruncateRequestTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetTruncateRequestTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTruncateRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateRequestTimeout indicates an expected call of SetTruncateRequestTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetTruncateRequestTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTruncateRequestTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetTruncateRequestTimeout), value)
+}
+
+// TruncateRequestTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) TruncateRequestTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TruncateRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// TruncateRequestTimeout indicates an expected call of TruncateRequestTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) TruncateRequestTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TruncateRequestTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).TruncateRequestTimeout))
+}
+
+// SetBackgroundConnectInterval mocks base method
+func (m *MockAdminMultiClusterOptions) SetBackgroundConnectInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundConnectInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectInterval indicates an expected call of SetBackgroundConnectInterval
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBackgroundConnectInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundConnectInterval", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBackgroundConnectInterval), value)
+}
+
+// BackgroundConnectInterval mocks base method
+func (m *MockAdminMultiClusterOptions) BackgroundConnectInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundConnectInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectInterval indicates an expected call of BackgroundConnectInterval
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BackgroundConnectInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundConnectInterval", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BackgroundConnectInterval))
+}
+
+// SetBackgroundConnectStutter mocks base method
+func (m *MockAdminMultiClusterOptions) SetBackgroundConnectStutter(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundConnectStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectStutter indicates an expected call of SetBackgroundConnectStutter
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBackgroundConnectStutter(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundConnectStutter", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBackgroundConnectStutter), value)
+}
+
+// BackgroundConnectStutter mocks base method
+func (m *MockAdminMultiClusterOptions) BackgroundConnectStutter() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundConnectStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectStutter indicates an expected call of BackgroundConnectStutter
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BackgroundConnectStutter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundConnectStutter", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BackgroundConnectStutter))
+}
+
+// SetBackgroundHealthCheckInterval mocks base method
+func (m *MockAdminMultiClusterOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckInterval indicates an expected call of SetBackgroundHealthCheckInterval
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckInterval", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBackgroundHealthCheckInterval), value)
+}
+
+// BackgroundHealthCheckInterval mocks base method
+func (m *MockAdminMultiClusterOptions) BackgroundHealthCheckInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckInterval indicates an expected call of BackgroundHealthCheckInterval
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BackgroundHealthCheckInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckInterval", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BackgroundHealthCheckInterval))
+}
+
+// SetBackgroundHealthCheckStutter mocks base method
+func (m *MockAdminMultiClusterOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckStutter indicates an expected call of SetBackgroundHealthCheckStutter
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckStutter(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckStutter", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBackgroundHealthCheckStutter), value)
+}
+
+// BackgroundHealthCheckStutter mocks base method
+func (m *MockAdminMultiClusterOptions) BackgroundHealthCheckStutter() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckStutter indicates an expected call of BackgroundHealthCheckStutter
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckStutter", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BackgroundHealthCheckStutter))
+}
+
+// SetBackgroundHealthCheckFailLimit mocks base method
+func (m *MockAdminMultiClusterOptions) SetBackgroundHealthCheckFailLimit(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckFailLimit", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailLimit indicates an expected call of SetBackgroundHealthCheckFailLimit
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckFailLimit(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckFailLimit", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBackgroundHealthCheckFailLimit), value)
+}
+
+// BackgroundHealthCheckFailLimit mocks base method
+func (m *MockAdminMultiClusterOptions) BackgroundHealthCheckFailLimit() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckFailLimit")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// BackgroundHealthCheckFailLimit indicates an expected call of BackgroundHealthCheckFailLimit
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BackgroundHealthCheckFailLimit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckFailLimit", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BackgroundHealthCheckFailLimit))
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor mocks base method
+func (m *MockAdminMultiClusterOptions) SetBackgroundHealthCheckFailThrottleFactor(value float64) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundHealthCheckFailThrottleFactor", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor indicates an expected call of SetBackgroundHealthCheckFailThrottleFactor
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBackgroundHealthCheckFailThrottleFactor(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBackgroundHealthCheckFailThrottleFactor), value)
+}
+
+// BackgroundHealthCheckFailThrottleFactor mocks base method
+func (m *MockAdminMultiClusterOptions) BackgroundHealthCheckFailThrottleFactor() float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundHealthCheckFailThrottleFactor")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// BackgroundHealthCheckFailThrottleFactor indicates an expected call of BackgroundHealthCheckFailThrottleFactor
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BackgroundHealthCheckFailThrottleFactor() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BackgroundHealthCheckFailThrottleFactor))
+}
+
+// SetWriteRetrier mocks base method
+func (m *MockAdminMultiClusterOptions) SetWriteRetrier(value retry.Retrier) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRetrier indicates an expected call of SetWriteRetrier
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetWriteRetrier(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteRetrier", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetWriteRetrier), value)
+}
+
+// WriteRetrier mocks base method
+func (m *MockAdminMultiClusterOptions) WriteRetrier() retry.Retrier {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// WriteRetrier indicates an expected call of WriteRetrier
+func (mr *MockAdminMultiClusterOptionsMockRecorder) WriteRetrier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteRetrier", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).WriteRetrier))
+}
+
+// SetFetchRetrier mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchRetrier(value retry.Retrier) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRetrier indicates an expected call of SetFetchRetrier
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchRetrier(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchRetrier), value)
+}
+
+// FetchRetrier mocks base method
+func (m *MockAdminMultiClusterOptions) FetchRetrier() retry.Retrier {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// FetchRetrier indicates an expected call of FetchRetrier
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchRetrier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchRetrier))
+}
+
+// SetTagEncoderOptions mocks base method
+func (m *MockAdminMultiClusterOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagEncoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetTagEncoderOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetTagEncoderOptions), value)
+}
+
+// TagEncoderOptions mocks base method
+func (m *MockAdminMultiClusterOptions) TagEncoderOptions() serialize.TagEncoderOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagEncoderOptions")
+	ret0, _ := ret[0].(serialize.TagEncoderOptions)
+	return ret0
+}
+
+// TagEncoderOptions indicates an expected call of TagEncoderOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).TagEncoderOptions))
+}
+
+// SetTagEncoderPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetTagEncoderPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagEncoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetTagEncoderPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetTagEncoderPoolSize), value)
+}
+
+// TagEncoderPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) TagEncoderPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagEncoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).TagEncoderPoolSize))
+}
+
+// SetTagDecoderOptions mocks base method
+func (m *MockAdminMultiClusterOptions) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagDecoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderOptions indicates an expected call of SetTagDecoderOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetTagDecoderOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagDecoderOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetTagDecoderOptions), value)
+}
+
+// TagDecoderOptions mocks base method
+func (m *MockAdminMultiClusterOptions) TagDecoderOptions() serialize.TagDecoderOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagDecoderOptions")
+	ret0, _ := ret[0].(serialize.TagDecoderOptions)
+	return ret0
+}
+
+// TagDecoderOptions indicates an expected call of TagDecoderOptions
+func (mr *MockAdminMultiClusterOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagDecoderOptions", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).TagDecoderOptions))
+}
+
+// SetTagDecoderPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetTagDecoderPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTagDecoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderPoolSize indicates an expected call of SetTagDecoderPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetTagDecoderPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTagDecoderPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetTagDecoderPoolSize), value)
+}
+
+// TagDecoderPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) TagDecoderPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TagDecoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagDecoderPoolSize indicates an expected call of TagDecoderPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) TagDecoderPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagDecoderPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).TagDecoderPoolSize))
+}
+
+// SetWriteBatchSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetWriteBatchSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteBatchSize indicates an expected call of SetWriteBatchSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetWriteBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteBatchSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetWriteBatchSize), value)
+}
+
+// WriteBatchSize mocks base method
+func (m *MockAdminMultiClusterOptions) WriteBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteBatchSize indicates an expected call of WriteBatchSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) WriteBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).WriteBatchSize))
+}
+
+// SetFetchBatchSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchBatchSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchSize indicates an expected call of SetFetchBatchSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBatchSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchBatchSize), value)
+}
+
+// FetchBatchSize mocks base method
+func (m *MockAdminMultiClusterOptions) FetchBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchSize indicates an expected call of FetchBatchSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchBatchSize))
+}
+
+// SetWriteOpPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetWriteOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteOpPoolSize indicates an expected call of SetWriteOpPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetWriteOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteOpPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetWriteOpPoolSize), value)
+}
+
+// WriteOpPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) WriteOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteOpPoolSize indicates an expected call of WriteOpPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).WriteOpPoolSize))
+}
+
+// SetWriteTaggedOpPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetWriteTaggedOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteTaggedOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetWriteTaggedOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetWriteTaggedOpPoolSize), value)
+}
+
+// WriteTaggedOpPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) WriteTaggedOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).WriteTaggedOpPoolSize))
+}
+
+// SetFetchBatchOpPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchBatchOpPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchBatchOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchOpPoolSize indicates an expected call of SetFetchBatchOpPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchBatchOpPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBatchOpPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchBatchOpPoolSize), value)
+}
+
+// FetchBatchOpPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) FetchBatchOpPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBatchOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetCheckedBytesWrapperPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPoolSize indicates an expected call of SetCheckedBytesWrapperPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetCheckedBytesWrapperPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesWrapperPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetCheckedBytesWrapperPoolSize), value)
+}
+
+// CheckedBytesWrapperPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) CheckedBytesWrapperPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesWrapperPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesWrapperPoolSize indicates an expected call of CheckedBytesWrapperPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) CheckedBytesWrapperPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapperPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).CheckedBytesWrapperPoolSize))
+}
+
+// SetHostQueueOpsFlushSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetHostQueueOpsFlushSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueOpsFlushSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushSize indicates an expected call of SetHostQueueOpsFlushSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetHostQueueOpsFlushSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueOpsFlushSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetHostQueueOpsFlushSize), value)
+}
+
+// HostQueueOpsFlushSize mocks base method
+func (m *MockAdminMultiClusterOptions) HostQueueOpsFlushSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueOpsFlushSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsFlushSize indicates an expected call of HostQueueOpsFlushSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) HostQueueOpsFlushSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsFlushSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).HostQueueOpsFlushSize))
+}
+
+// SetHostQueueOpsFlushInterval mocks base method
+func (m *MockAdminMultiClusterOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueOpsFlushInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushInterval indicates an expected call of SetHostQueueOpsFlushInterval
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetHostQueueOpsFlushInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueOpsFlushInterval", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetHostQueueOpsFlushInterval), value)
+}
+
+// HostQueueOpsFlushInterval mocks base method
+func (m *MockAdminMultiClusterOptions) HostQueueOpsFlushInterval() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueOpsFlushInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostQueueOpsFlushInterval indicates an expected call of HostQueueOpsFlushInterval
+func (mr *MockAdminMultiClusterOptionsMockRecorder) HostQueueOpsFlushInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsFlushInterval", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).HostQueueOpsFlushInterval))
+}
+
+// SetContextPool mocks base method
+func (m *MockAdminMultiClusterOptions) SetContextPool(value context.Pool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetContextPool indicates an expected call of SetContextPool
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetContextPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContextPool", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetContextPool), value)
+}
+
+// ContextPool mocks base method
+func (m *MockAdminMultiClusterOptions) ContextPool() context.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+// ContextPool indicates an expected call of ContextPool
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ContextPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextPool", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ContextPool))
+}
+
+// SetIdentifierPool mocks base method
+func (m *MockAdminMultiClusterOptions) SetIdentifierPool(value ident.Pool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIdentifierPool indicates an expected call of SetIdentifierPool
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetIdentifierPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetIdentifierPool), value)
+}
+
+// IdentifierPool mocks base method
+func (m *MockAdminMultiClusterOptions) IdentifierPool() ident.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IdentifierPool")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// IdentifierPool indicates an expected call of IdentifierPool
+func (mr *MockAdminMultiClusterOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IdentifierPool", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).IdentifierPool))
+}
+
+// SetHostQueueOpsArrayPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueOpsArrayPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsArrayPoolSize indicates an expected call of SetHostQueueOpsArrayPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetHostQueueOpsArrayPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetHostQueueOpsArrayPoolSize), value)
+}
+
+// HostQueueOpsArrayPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) HostQueueOpsArrayPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueOpsArrayPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsArrayPoolSize indicates an expected call of HostQueueOpsArrayPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).HostQueueOpsArrayPoolSize))
+}
+
+// SetSeriesIteratorPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetSeriesIteratorPoolSize(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSeriesIteratorPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorPoolSize indicates an expected call of SetSeriesIteratorPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetSeriesIteratorPoolSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesIteratorPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetSeriesIteratorPoolSize), value)
+}
+
+// SeriesIteratorPoolSize mocks base method
+func (m *MockAdminMultiClusterOptions) SeriesIteratorPoolSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesIteratorPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// SeriesIteratorPoolSize indicates an expected call of SeriesIteratorPoolSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SeriesIteratorPoolSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIteratorPoolSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SeriesIteratorPoolSize))
+}
+
+// SetSeriesIteratorArrayPoolBuckets mocks base method
+func (m *MockAdminMultiClusterOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSeriesIteratorArrayPoolBuckets", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorArrayPoolBuckets indicates an expected call of SetSeriesIteratorArrayPoolBuckets
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetSeriesIteratorArrayPoolBuckets), value)
+}
+
+// SeriesIteratorArrayPoolBuckets mocks base method
+func (m *MockAdminMultiClusterOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeriesIteratorArrayPoolBuckets")
+	ret0, _ := ret[0].([]pool.Bucket)
+	return ret0
+}
+
+// SeriesIteratorArrayPoolBuckets indicates an expected call of SeriesIteratorArrayPoolBuckets
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SeriesIteratorArrayPoolBuckets))
+}
+
+// SetReaderIteratorAllocate mocks base method
+func (m *MockAdminMultiClusterOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReaderIteratorAllocate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReaderIteratorAllocate indicates an expected call of SetReaderIteratorAllocate
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetReaderIteratorAllocate(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReaderIteratorAllocate", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetReaderIteratorAllocate), value)
+}
+
+// ReaderIteratorAllocate mocks base method
+func (m *MockAdminMultiClusterOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReaderIteratorAllocate")
+	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
+	return ret0
+}
+
+// ReaderIteratorAllocate indicates an expected call of ReaderIteratorAllocate
+func (mr *MockAdminMultiClusterOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).ReaderIteratorAllocate))
+}
+
+// SetSchemaRegistry mocks base method
+func (m *MockAdminMultiClusterOptions) SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSchemaRegistry", registry)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetSchemaRegistry indicates an expected call of SetSchemaRegistry
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetSchemaRegistry(registry interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSchemaRegistry", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetSchemaRegistry), registry)
+}
+
+// SchemaRegistry mocks base method
+func (m *MockAdminMultiClusterOptions) SchemaRegistry() namespace.SchemaRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaRegistry")
+	ret0, _ := ret[0].(namespace.SchemaRegistry)
+	return ret0
+}
+
+// SchemaRegistry indicates an expected call of SchemaRegistry
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SchemaRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SchemaRegistry))
+}
+
+// SetOrigin mocks base method
+func (m *MockAdminMultiClusterOptions) SetOrigin(value topology.Host) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetOrigin", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetOrigin indicates an expected call of SetOrigin
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetOrigin(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOrigin", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetOrigin), value)
+}
+
+// Origin mocks base method
+func (m *MockAdminMultiClusterOptions) Origin() topology.Host {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Origin")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+// Origin indicates an expected call of Origin
+func (mr *MockAdminMultiClusterOptionsMockRecorder) Origin() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Origin", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).Origin))
+}
+
+// SetBootstrapConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBootstrapConsistencyLevel", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetBootstrapConsistencyLevel indicates an expected call of SetBootstrapConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetBootstrapConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetBootstrapConsistencyLevel), value)
+}
+
+// BootstrapConsistencyLevel mocks base method
+func (m *MockAdminMultiClusterOptions) BootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrapConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// BootstrapConsistencyLevel indicates an expected call of BootstrapConsistencyLevel
+func (mr *MockAdminMultiClusterOptionsMockRecorder) BootstrapConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapConsistencyLevel", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).BootstrapConsistencyLevel))
+}
+
+// SetFetchSeriesBlocksMaxBlockRetries mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchSeriesBlocksMaxBlockRetries", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksMaxBlockRetries indicates an expected call of SetFetchSeriesBlocksMaxBlockRetries
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchSeriesBlocksMaxBlockRetries(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchSeriesBlocksMaxBlockRetries", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchSeriesBlocksMaxBlockRetries), value)
+}
+
+// FetchSeriesBlocksMaxBlockRetries mocks base method
+func (m *MockAdminMultiClusterOptions) FetchSeriesBlocksMaxBlockRetries() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchSeriesBlocksMaxBlockRetries")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchSeriesBlocksMaxBlockRetries indicates an expected call of FetchSeriesBlocksMaxBlockRetries
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchSeriesBlocksMaxBlockRetries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSeriesBlocksMaxBlockRetries", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchSeriesBlocksMaxBlockRetries))
+}
+
+// SetFetchSeriesBlocksBatchSize mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchSeriesBlocksBatchSize", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksBatchSize indicates an expected call of SetFetchSeriesBlocksBatchSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchSeriesBlocksBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchSeriesBlocksBatchSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchSeriesBlocksBatchSize), value)
+}
+
+// FetchSeriesBlocksBatchSize mocks base method
+func (m *MockAdminMultiClusterOptions) FetchSeriesBlocksBatchSize() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchSeriesBlocksBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchSeriesBlocksBatchSize indicates an expected call of FetchSeriesBlocksBatchSize
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchSeriesBlocksBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSeriesBlocksBatchSize", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchSeriesBlocksBatchSize))
+}
+
+// SetFetchSeriesBlocksMetadataBatchTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchSeriesBlocksMetadataBatchTimeout", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksMetadataBatchTimeout indicates an expected call of SetFetchSeriesBlocksMetadataBatchTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchSeriesBlocksMetadataBatchTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchSeriesBlocksMetadataBatchTimeout), value)
+}
+
+// FetchSeriesBlocksMetadataBatchTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchSeriesBlocksMetadataBatchTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchSeriesBlocksMetadataBatchTimeout indicates an expected call of FetchSeriesBlocksMetadataBatchTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchSeriesBlocksMetadataBatchTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchSeriesBlocksMetadataBatchTimeout))
+}
+
+// SetFetchSeriesBlocksBatchTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchSeriesBlocksBatchTimeout", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksBatchTimeout indicates an expected call of SetFetchSeriesBlocksBatchTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchSeriesBlocksBatchTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchSeriesBlocksBatchTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchSeriesBlocksBatchTimeout), value)
+}
+
+// FetchSeriesBlocksBatchTimeout mocks base method
+func (m *MockAdminMultiClusterOptions) FetchSeriesBlocksBatchTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchSeriesBlocksBatchTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchSeriesBlocksBatchTimeout indicates an expected call of FetchSeriesBlocksBatchTimeout
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchSeriesBlocksBatchTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSeriesBlocksBatchTimeout", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchSeriesBlocksBatchTimeout))
+}
+
+// SetFetchSeriesBlocksBatchConcurrency mocks base method
+func (m *MockAdminMultiClusterOptions) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFetchSeriesBlocksBatchConcurrency", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksBatchConcurrency indicates an expected call of SetFetchSeriesBlocksBatchConcurrency
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetFetchSeriesBlocksBatchConcurrency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchSeriesBlocksBatchConcurrency", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetFetchSeriesBlocksBatchConcurrency), value)
+}
+
+// FetchSeriesBlocksBatchConcurrency mocks base method
+func (m *MockAdminMultiClusterOptions) FetchSeriesBlocksBatchConcurrency() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchSeriesBlocksBatchConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchSeriesBlocksBatchConcurrency indicates an expected call of FetchSeriesBlocksBatchConcurrency
+func (mr *MockAdminMultiClusterOptionsMockRecorder) FetchSeriesBlocksBatchConcurrency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSeriesBlocksBatchConcurrency", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).FetchSeriesBlocksBatchConcurrency))
+}
+
+// SetStreamBlocksRetrier mocks base method
+func (m *MockAdminMultiClusterOptions) SetStreamBlocksRetrier(value retry.Retrier) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetStreamBlocksRetrier", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetStreamBlocksRetrier indicates an expected call of SetStreamBlocksRetrier
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetStreamBlocksRetrier(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStreamBlocksRetrier", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetStreamBlocksRetrier), value)
+}
+
+// StreamBlocksRetrier mocks base method
+func (m *MockAdminMultiClusterOptions) StreamBlocksRetrier() retry.Retrier {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamBlocksRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// StreamBlocksRetrier indicates an expected call of StreamBlocksRetrier
+func (mr *MockAdminMultiClusterOptionsMockRecorder) StreamBlocksRetrier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamBlocksRetrier", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).StreamBlocksRetrier))
+}
+
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockAdminMultiClusterOptions) SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(MultiClusterOptions)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockAdminMultiClusterOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockAdminMultiClusterOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockAdminMultiClusterOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).AsyncTopologyInitializers))
+}
+
+// OptionsForAsyncClusters mocks base method
+func (m *MockAdminMultiClusterOptions) OptionsForAsyncClusters() []Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OptionsForAsyncClusters")
+	ret0, _ := ret[0].([]Options)
+	return ret0
+}
+
+// OptionsForAsyncClusters indicates an expected call of OptionsForAsyncClusters
+func (mr *MockAdminMultiClusterOptionsMockRecorder) OptionsForAsyncClusters() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptionsForAsyncClusters", reflect.TypeOf((*MockAdminMultiClusterOptions)(nil).OptionsForAsyncClusters))
+}
+
 // MockclientSession is a mock of clientSession interface
 type MockclientSession struct {
 	ctrl     *gomock.Controller

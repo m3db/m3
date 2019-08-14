@@ -28,12 +28,12 @@ type client struct {
 	sync.Mutex
 
 	opts         MultiClusterOptions
-	newSessionFn newSessionFn
+	newSessionFn newReplicatedSessionFn
 	session      AdminSession // default cached session
 }
 
-// type newSessionFn func(opts MultiClusterOptions) (replicatedSession, error)
-type newSessionFn func(opts MultiClusterOptions) (clientSession, error)
+// type newReplicatedSessionFn func(MultiClusterOptions) (replicatedSession, error)
+type newReplicatedSessionFn func(MultiClusterOptions, ...replicatedSessionOption) (clientSession, error)
 
 // NewClient creates a new client
 func NewClient(opts MultiClusterOptions) (Client, error) {

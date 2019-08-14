@@ -24,30 +24,33 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 	m3sync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
 	maxReplicationConcurrency = 128
 )
 
+type newSessionFn func(Options) (clientSession, error)
+
 // replicatedSession is an implementation of clientSession which replicates
 // session read/writes to a set of clusters asynchronously.
 type replicatedSession struct {
 	session       clientSession
 	asyncSessions []clientSession
+	newSessionFn  newSessionFn
 	workerPool    m3sync.WorkerPool
 	scope         tally.Scope
-	log           xlog.Logger
+	log           *zap.Logger
 	metrics       replicatedSessionMetrics
 }
 
@@ -68,45 +71,73 @@ func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
 // Ensure replicatedSession implements the clientSession interface.
 var _ clientSession = (*replicatedSession)(nil)
 
-func newReplicatedSession(opts MultiClusterOptions) (clientSession, error) {
+type replicatedSessionOption func(*replicatedSession)
+
+func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
+	return func(session *replicatedSession) {
+		session.newSessionFn = fn
+	}
+}
+
+func newReplicatedSession(opts MultiClusterOptions, options ...replicatedSessionOption) (clientSession, error) {
 	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	session, err := newSession(opts)
-	if err != nil {
+	session := replicatedSession{
+		workerPool: workerPool,
+		scope:      scope,
+		log:        opts.InstrumentOptions().Logger(),
+		metrics:    newReplicatedSessionMetrics(scope),
+	}
+
+	// Apply options
+	for _, option := range options {
+		option(&session)
+	}
+
+	if err := session.setSession(opts); err != nil {
+		return nil, err
+	}
+	if err := session.setAsyncSessions(opts.OptionsForAsyncClusters()); err != nil {
 		return nil, err
 	}
 
-	asyncSessions := make([]clientSession, 0, len(opts.AsyncTopologyInitializers()))
-	for _, opts := range opts.OptionsForAsyncClusters() {
-		asyncSession, err := newSession(opts)
-		if err != nil {
-			return nil, err
-		}
-		asyncSessions = append(asyncSessions, asyncSession)
-	}
-
-	return &replicatedSession{
-		session:       session,
-		asyncSessions: asyncSessions,
-		workerPool:    workerPool,
-		scope:         scope,
-		log:           opts.InstrumentOptions().Logger(),
-		metrics:       newReplicatedSessionMetrics(scope),
-	}, nil
+	return &session, nil
 }
 
 type writeFunc func(Session) error
+
+func (s replicatedSession) setSession(opts Options) error {
+	session, err := s.newSessionFn(opts)
+	if err != nil {
+		return err
+	}
+	s.session = session
+	return nil
+}
+
+func (s replicatedSession) setAsyncSessions(opts []Options) error {
+	sessions := make([]clientSession, 0, len(opts))
+	for _, oo := range opts {
+		session, err := s.newSessionFn(oo)
+		if err != nil {
+			return err
+		}
+		sessions = append(sessions, session)
+	}
+	s.asyncSessions = sessions
+	return nil
+}
 
 func (s replicatedSession) replicate(fn writeFunc) error {
 	for _, asyncSession := range s.asyncSessions {
 		if s.workerPool.GoIfAvailable(func() {
 			if err := fn(asyncSession); err != nil {
 				s.metrics.replicateError.Inc(1)
-				s.log.Errorf("could not replicate write: %v", err)
+				s.log.Error("could not replicate write: %v", zap.Error(err))
 			}
 		}) {
 			s.metrics.replicateNotExecuted.Inc(1)
@@ -139,6 +170,12 @@ func (s replicatedSession) Fetch(namespace, id ident.ID, startInclusive, endExcl
 // FetchIDs values from the database for a set of IDs
 func (s replicatedSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	return s.session.FetchIDs(namespace, ids, startInclusive, endExclusive)
+}
+
+func (s replicatedSession) Aggregate(
+	ns ident.ID, q index.Query, opts index.AggregationOptions,
+) (AggregatedTagsIterator, bool, error) {
+	return s.session.Aggregate(ns, q, opts)
 }
 
 // FetchTagged resolves the provided query to known IDs, and fetches the data for them.
@@ -247,7 +284,7 @@ func (s replicatedSession) Open() error {
 	}
 	for _, asyncSession := range s.asyncSessions {
 		if err := asyncSession.Open(); err != nil {
-			s.log.Errorf("could not open session to async cluster: %v", err)
+			s.log.Error("could not open session to async cluster: %v", zap.Error(err))
 		}
 	}
 	return nil
