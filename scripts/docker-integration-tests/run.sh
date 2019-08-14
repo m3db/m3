@@ -23,7 +23,9 @@ MAX_IDX=$(((NUM_TESTS*(BUILDKITE_PARALLEL_JOB+1)/BUILDKITE_PARALLEL_JOB_COUNT)-1
 ITER=0
 for test in "${TESTS[@]}"; do
 	if [[ $ITER -ge $MIN_IDX && $ITER -le $MAX_IDX ]]; then
-		./"$test"
+		echo "----------------------------------------------"
+		echo "running $test"
+		"$test"
 	fi
 	((ITER++))
 done
