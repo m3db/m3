@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -131,10 +130,6 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 1})
 		require.NoError(t, err)
-		if updateResult != block.UpdateOpenLease {
-			fmt.Println("expected: ", block.UpdateOpenLease)
-			fmt.Println("got: ", updateResult)
-		}
 		require.Equal(t, block.UpdateOpenLease, updateResult)
 
 		byTime := m.seekersByTime(shard)
