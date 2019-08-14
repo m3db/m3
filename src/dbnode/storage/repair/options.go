@@ -22,6 +22,7 @@ package repair
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
@@ -50,7 +51,7 @@ var (
 )
 
 type options struct {
-	adminClient                      client.AdminClient
+	adminClients                     []client.AdminClient
 	repairConsistencyLevel           topology.ReadConsistencyLevel
 	repairShardConcurrency           int
 	repairCheckInterval              time.Duration
@@ -75,14 +76,14 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) SetAdminClient(value client.AdminClient) Options {
+func (o *options) SetAdminClients(value []client.AdminClient) Options {
 	opts := *o
-	opts.adminClient = value
+	opts.adminClients = value
 	return &opts
 }
 
-func (o *options) AdminClient() client.AdminClient {
-	return o.adminClient
+func (o *options) AdminClients() []client.AdminClient {
+	return o.adminClients
 }
 
 func (o *options) SetRepairConsistencyLevel(value topology.ReadConsistencyLevel) Options {
@@ -166,9 +167,25 @@ func (o *options) DebugShadowComparisonsPercentage() float64 {
 }
 
 func (o *options) Validate() error {
-	if o.adminClient == nil {
+	if len(o.adminClients) == 0 {
 		return errNoAdminClient
 	}
+
+	var prevOrigin string
+	for _, c := range o.adminClients {
+		currOrigin := c.Options().(client.AdminOptions).Origin().ID()
+		if prevOrigin == "" {
+			prevOrigin = currOrigin
+			continue
+		}
+
+		if currOrigin != prevOrigin {
+			return fmt.Errorf(
+				"all repair clients should have the same origin, prev: %s, curr: %s",
+				prevOrigin, currOrigin)
+		}
+	}
+
 	if o.repairCheckInterval < 0 {
 		return errInvalidRepairCheckInterval
 	}
