@@ -42,8 +42,10 @@ type TimestampEncoder struct {
 
 	TimeUnit xtime.Unit
 
-	timeUnitWasWritten bool
-	hasWrittenFirst    bool // Only taken into account if using the WriteTime() API.
+	// Used to keep track of time unit changes that occur directly via the WriteTimeUnit()
+	// API as opposed to indirectly via the WriteTime() API.
+	timeUnitChanged bool
+	hasWrittenFirst bool // Only taken into account if using the WriteTime() API.
 }
 
 // NewTimestampEncoder creates a new TimestampEncoder.
@@ -53,7 +55,6 @@ func NewTimestampEncoder(
 		PrevTime: start,
 		TimeUnit: initialTimeUnit(start, timeUnit),
 		Options:  opts,
-		// skipTimeUnitWrites: true,
 	}
 }
 
@@ -89,14 +90,14 @@ func (enc *TimestampEncoder) WriteNextTime(
 
 	timeDelta := currTime.Sub(enc.PrevTime)
 	enc.PrevTime = currTime
-	if tuChanged || enc.timeUnitWasWritten {
+	if tuChanged || enc.timeUnitChanged {
 		enc.writeDeltaOfDeltaTimeUnitChanged(stream, enc.PrevTimeDelta, timeDelta)
 		// NB(xichen): if the time unit has changed, we reset the time delta to zero
 		// because we can't guarantee that dt is a multiple of the new time unit, which
 		// means we can't guarantee that the delta of delta when encoding the next
 		// data point is a multiple of the new time unit.
 		enc.PrevTimeDelta = 0
-		enc.timeUnitWasWritten = false
+		enc.timeUnitChanged = false
 		return nil
 	}
 	err := enc.writeDeltaOfDeltaTimeUnitUnchanged(
@@ -110,7 +111,7 @@ func (enc *TimestampEncoder) WriteNextTime(
 func (enc *TimestampEncoder) WriteTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) {
 	stream.WriteByte(byte(timeUnit))
 	enc.TimeUnit = timeUnit
-	enc.timeUnitWasWritten = true
+	enc.timeUnitChanged = true
 }
 
 // maybeWriteTimeUnitChange encodes the time unit and returns true if the time unit has
