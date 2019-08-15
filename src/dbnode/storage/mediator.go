@@ -45,10 +45,11 @@ const (
 )
 
 var (
-	errMediatorAlreadyOpen               = errors.New("mediator is already open")
-	errMediatorNotOpen                   = errors.New("mediator is not open")
-	errMediatorAlreadyClosed             = errors.New("mediator is already closed")
-	errMediatorTimeBarrierAlreadyWaiting = errors.New("mediator time barrier already has a waiter")
+	errMediatorAlreadyOpen                  = errors.New("mediator is already open")
+	errMediatorNotOpen                      = errors.New("mediator is not open")
+	errMediatorAlreadyClosed                = errors.New("mediator is already closed")
+	errMediatorTimeBarrierAlreadyWaiting    = errors.New("mediator time barrier already has a waiter")
+	errMediatorTimeTriedToProgressBackwards = errors.New("mediator time tried to progress backwards")
 )
 
 type mediatorMetrics struct {
@@ -85,7 +86,11 @@ type mediator struct {
 }
 
 func newMediator(database database, commitlog commitlog.CommitLog, opts Options) (databaseMediator, error) {
-	scope := opts.InstrumentOptions().MetricsScope()
+	var (
+		iOpts = opts.InstrumentOptions()
+		scope = iOpts.MetricsScope()
+		nowFn = opts.ClockOptions().NowFn()
+	)
 	d := &mediator{
 		database:            database,
 		opts:                opts,
@@ -93,7 +98,7 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		sleepFn:             time.Sleep,
 		metrics:             newMediatorMetrics(scope),
 		state:               mediatorNotOpen,
-		mediatorTimeBarrier: newMediatorTimeBarrier(),
+		mediatorTimeBarrier: newMediatorTimeBarrier(nowFn, iOpts),
 		closedCh:            make(chan struct{}),
 	}
 
@@ -167,7 +172,7 @@ func (m *mediator) Close() error {
 // 		1) currentTime > blockStart.Add(blockSize).Add(bufferPast)
 // 		2) node is not bootstrapping (technically shard is not bootstrapping)
 //
-// For example, there is logic in the Tick flow for removing shard flush states from a map so that it doesn't
+// Similarly, there is logic in the Tick flow for removing shard flush states from a map so that it doesn't
 // grow infinitely for nodes that are not restarted. If the Tick path measured the current time when it made that
 // decision instead of using the same measurement that is shared with the flush logic, it might end up removing
 // a shard flush state (due to it expiring), but since the flush logic is using a slightly more stale timestamp it
@@ -184,7 +189,7 @@ func (m *mediator) ongoingFilesystemProcesses() {
 		default:
 			m.sleepFn(tickCheckInterval)
 			// See comment over mediatorTimeBarrier for an explanation of this logic.
-			mediatorTime, err := m.mediatorTimeBarrier.wait()
+			mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
 			if err != nil {
 				log.Error("error within ongoingFilesystemProcesses waiting for next mediatorTime", zap.Error(err))
 			}
@@ -197,7 +202,7 @@ func (m *mediator) ongoingFilesystemProcesses() {
 func (m *mediator) ongoingTick() {
 	var (
 		log          = m.opts.InstrumentOptions().Logger()
-		mediatorTime = m.nowFn()
+		mediatorTime = m.mediatorTimeBarrier.initialMediatorTime()
 	)
 	for {
 		select {
@@ -207,24 +212,14 @@ func (m *mediator) ongoingTick() {
 			m.sleepFn(tickCheckInterval)
 
 			// See comment over mediatorTimeBarrier for an explanation of this logic.
-			fsProcessWaiting := m.mediatorTimeBarrier.hasWaiter()
-			if fsProcessWaiting {
-				newMediatorTime := m.nowFn()
-				if newMediatorTime.Before(mediatorTime) {
-					instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(), func(l *zap.Logger) {
-						l.Error(
-							"mediator time attempted to move backwards in time",
-							zap.Time("prevTime", mediatorTime), zap.Time("newTime", mediatorTime))
-					})
-
-					// Ignore new time so we can continue looping and hopefully get one thats actually in the future
-					// next time since moving backwards in time could cause undefined behavior.
-					continue
-				} else {
-					mediatorTime = m.nowFn()
-					m.mediatorTimeBarrier.release(mediatorTime)
-				}
+			newMediatorTime, err := m.mediatorTimeBarrier.maybeRelease()
+			if err != nil {
+				log.Error(
+					"ongoing tick was unable to release time barrier", zap.Error(err))
+				continue
 			}
+			mediatorTime = newMediatorTime
+
 			if err := m.Tick(force, mediatorTime); err != nil {
 				log.Error("error within tick", zap.Error(err))
 			}
@@ -249,19 +244,20 @@ func (m *mediator) reportLoop() {
 
 // mediatorTimeBarrier is used to prevent the tick process and the filesystem processes from ever running
 // concurrently with an inconsistent view of time. Each time the filesystem processes want to run they first
-// register for the next barrier by calling wait(). Once a tick completes it will detect that the filesystem
-// processes are waiting for the next barrier by calling hasWaiter() at which point it will update the mediator
-// time and propagate that information to the filesystem processes via a call to release(). If the filesystem
-// processes are still running when the tick completes, it will just tick again but use the same startTime as
-// the previous run.
+// register for the next barrier by calling fsProcessesWait(). Once a tick completes it will call maybeRelease()
+// which will detect that the filesystem processes are waiting for the next barrier at which point it will update
+// the mediator time and propagate that information to the filesystem processes via the releaseCh. If the filesystem
+// processes are still running when the tick completes, the call to maybeRelease() will just return the same time
+// as the previous run and another tick will run with the same timestamp as the previous one.
 //
 // This cooperation ensures that multiple ticks can run during a single run of filesystem processes (although
 // each tick will run with the same startTime), but that if a tick and run of filesystem processes are executing
 // concurrently they will always have the same value for startTime.
 //
-// One implication of this scheme is that once a run of filesystem processes completes it will always have to wait
-// until the currently executing tick completes before performing the next run, but in practice this should not be
-// much of an issue.
+// Note that this scheme (specifically the tick process calling maybeRelease() and the fs processes waiting instead
+// of vice versa) is specifically designed such that the ticking process is never blocked and is constantly running.
+// This means that once a run of filesystem processes completes it will always have to wait until the currently
+// executing tick completes before performing the next run, but in practice this should not be much of an issue.
 //
 //  ____________       ___________
 // | Flush (t0) |     | Tick (t0) |
@@ -294,40 +290,75 @@ func (m *mediator) reportLoop() {
 // ------------------------------------
 type mediatorTimeBarrier struct {
 	sync.Mutex
-	isWaiting bool
-	doneCh    chan time.Time
+	mediatorTime       time.Time
+	nowFn              func() time.Time
+	iOpts              instrument.Options
+	fsProcessesWaiting bool
+	releaseCh          chan time.Time
 }
 
-func (b *mediatorTimeBarrier) wait() (time.Time, error) {
+// initialMediatorTime should only be used to obtain the initial time for
+// the ongoing tick loop. All subsequent updates should come from the
+// release method.
+func (b *mediatorTimeBarrier) initialMediatorTime() time.Time {
 	b.Lock()
-	if b.isWaiting {
+	defer b.Unlock()
+	return b.mediatorTime
+}
+
+func (b *mediatorTimeBarrier) fsProcessesWait() (time.Time, error) {
+	b.Lock()
+	if b.fsProcessesWaiting {
 		b.Unlock()
 		return time.Time{}, errMediatorTimeBarrierAlreadyWaiting
 	}
-	b.isWaiting = true
+	b.fsProcessesWaiting = true
 	b.Unlock()
 
-	t := <-b.doneCh
+	t := <-b.releaseCh
 
 	b.Lock()
-	b.isWaiting = false
+	b.fsProcessesWaiting = false
 	b.Unlock()
 	return t, nil
 }
 
-func (b *mediatorTimeBarrier) release(t time.Time) {
-	b.doneCh <- t
-}
-
-func (b *mediatorTimeBarrier) hasWaiter() bool {
+func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 	b.Lock()
-	isWaiting := b.isWaiting
+	hasWaiter := b.fsProcessesWaiting
+	mediatorTime := b.mediatorTime
 	b.Unlock()
-	return isWaiting
+
+	if !hasWaiter {
+		// If there isn't a waiter yet then the filesystem processes may still
+		// be ongoing in which case we don't want to release the barrier / update
+		// the current time yet. Allow the tick to run again with the same time
+		// as before.
+		return mediatorTime, nil
+	}
+
+	// If the filesystem processes are waiting then update the time and allow
+	// both the filesystem processes and the tick to proceed with the new time.
+	newMediatorTime := b.nowFn()
+	if newMediatorTime.Before(b.mediatorTime) {
+		instrument.EmitAndLogInvariantViolation(b.iOpts, func(l *zap.Logger) {
+			l.Error(
+				"mediator time attempted to move backwards in time",
+				zap.Time("prevTime", b.mediatorTime), zap.Time("newTime", newMediatorTime))
+		})
+		return time.Time{}, errMediatorTimeTriedToProgressBackwards
+	}
+
+	b.mediatorTime = newMediatorTime
+	b.releaseCh <- b.mediatorTime
+	return b.mediatorTime, nil
 }
 
-func newMediatorTimeBarrier() mediatorTimeBarrier {
+func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options) mediatorTimeBarrier {
 	return mediatorTimeBarrier{
-		doneCh: make(chan time.Time, 0),
+		mediatorTime: nowFn(),
+		nowFn:        nowFn,
+		iOpts:        iOpts,
+		releaseCh:    make(chan time.Time, 0),
 	}
 }
