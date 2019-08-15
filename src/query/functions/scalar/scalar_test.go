@@ -22,7 +22,6 @@ package scalar
 
 import (
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -35,14 +34,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScalarTime(t *testing.T) {
+func TestScalar(t *testing.T) {
+	val := 10.0
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
-	baseOp := baseOp{
-		fn:           func(t time.Time) float64 { return float64(t.Unix()) },
-		operatorType: TimeType,
-	}
+	op, err := NewScalarOp(val, models.NewTagOptions())
+	require.NoError(t, err)
 
+	baseOp, ok := op.(*scalarOp)
+	require.True(t, ok)
 	start := bounds.Start
 	step := bounds.StepSize
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
@@ -52,13 +52,14 @@ func TestScalarTime(t *testing.T) {
 			Step:  step,
 		},
 	}))
-	err := node.Execute(models.NoopQueryContext())
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 1)
 
-	for _, vals := range sink.Values {
-		for i, val := range vals {
-			assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), val)
-		}
+	err = node.Execute(models.NoopQueryContext())
+	require.NoError(t, err)
+	require.Equal(t, 1, len(sink.Values))
+
+	vals := sink.Values[0]
+	assert.Equal(t, bounds.Steps(), len(vals))
+	for _, v := range vals {
+		assert.Equal(t, val, v)
 	}
 }

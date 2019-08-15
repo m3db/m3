@@ -42,7 +42,7 @@ var (
 
 func TestScalarBlock(t *testing.T) {
 	block := NewScalar(
-		func(_ time.Time) float64 { return val },
+		val,
 		bounds,
 		models.NewTagOptions(),
 	)

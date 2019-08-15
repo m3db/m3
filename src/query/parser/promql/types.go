@@ -22,7 +22,6 @@ package promql
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -145,11 +144,7 @@ func newScalarOperator(
 	expr *promql.NumberLiteral,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	return scalar.NewScalarOp(
-		func(_ time.Time) float64 { return expr.Val },
-		scalar.ScalarType,
-		tagOpts,
-	)
+	return scalar.NewScalarOp(expr.Val, tagOpts)
 }
 
 // NewBinaryOperator creates a new binary operator based on the type.
@@ -262,12 +257,7 @@ func NewFunctionExpr(
 		return p, true, err
 
 	case scalar.TimeType:
-		p, err = scalar.NewScalarOp(
-			func(t time.Time) float64 { return float64(t.Unix()) },
-			scalar.TimeType,
-			tagOptions,
-		)
-
+		p, err = scalar.NewTimeOp(tagOptions)
 		return p, true, err
 
 	// NB: no-ops.

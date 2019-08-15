@@ -119,22 +119,14 @@ func TestScalars(t *testing.T) {
 			err = node.Process(
 				models.NoopQueryContext(),
 				parser.NodeID(0),
-				block.NewScalar(
-					func(_ time.Time) float64 { return tt.lVal },
-					bounds,
-					models.NewTagOptions(),
-				),
+				block.NewScalar(tt.lVal, bounds, models.NewTagOptions()),
 			)
 
 			require.NoError(t, err)
 			err = node.Process(
 				models.NoopQueryContext(),
 				parser.NodeID(1),
-				block.NewScalar(
-					func(_ time.Time) float64 { return tt.rVal },
-					bounds,
-					models.NewTagOptions(),
-				),
+				block.NewScalar(tt.rVal, bounds, models.NewTagOptions()),
 			)
 
 			expected := [][]float64{{
@@ -178,22 +170,14 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			err = node.Process(
 				models.NoopQueryContext(),
 				parser.NodeID(0),
-				block.NewScalar(
-					func(_ time.Time) float64 { return tt.lVal },
-					bounds,
-					models.NewTagOptions(),
-				),
+				block.NewScalar(tt.lVal, bounds, models.NewTagOptions()),
 			)
 
 			require.NoError(t, err)
 			err = node.Process(
 				models.NoopQueryContext(),
 				parser.NodeID(1),
-				block.NewScalar(
-					func(_ time.Time) float64 { return tt.rVal },
-					bounds,
-					models.NewTagOptions(),
-				),
+				block.NewScalar(tt.rVal, bounds, models.NewTagOptions()),
 			)
 
 			if tt.opType == EqType || tt.opType == NotEqType ||
@@ -584,11 +568,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 				err = node.Process(
 					models.NoopQueryContext(),
 					parser.NodeID(1),
-					block.NewScalar(
-						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
-					),
+					block.NewScalar(tt.scalarVal, bounds, models.NewTagOptions()),
 				)
 
 				require.NoError(t, err)
@@ -596,11 +576,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 				err = node.Process(
 					models.NoopQueryContext(),
 					parser.NodeID(0),
-					block.NewScalar(
-						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
-					),
+					block.NewScalar(tt.scalarVal, bounds, models.NewTagOptions()),
 				)
 
 				require.NoError(t, err)
@@ -656,11 +632,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 				err = node.Process(
 					models.NoopQueryContext(),
 					parser.NodeID(1),
-					block.NewScalar(
-						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
-					),
+					block.NewScalar(tt.scalarVal, bounds, models.NewTagOptions()),
 				)
 
 				require.NoError(t, err)
@@ -668,11 +640,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 				err = node.Process(
 					models.NoopQueryContext(),
 					parser.NodeID(0),
-					block.NewScalar(
-						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
-					),
+					block.NewScalar(tt.scalarVal, bounds, models.NewTagOptions()),
 				)
 
 				require.NoError(t, err)
