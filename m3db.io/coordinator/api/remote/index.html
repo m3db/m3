@@ -1484,14 +1484,15 @@
 <h4 id="optional">Optional</h4>
 <ul>
 <li><code>M3-Metrics-Type</code>:<br />
- If header is set it determines what type of metric to store this metric value as. Otherwise by default metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting <code>downsample</code> options to <code>all: false</code> for a namespace in the coordinator config, for more see <a href="../../../how_to/query/#disabling-automatic-aggregation">disabling automatic aggregation</a>.<br /><br />
+ If this header is set, it determines what type of metric to store this metric value as. Otherwise by default, metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting <code>downsample</code> options to <code>all: false</code> for a namespace in the coordinator config, for more see <a href="../../../how_to/query/#disabling-automatic-aggregation">disabling automatic aggregation</a>.<br /><br />
  Must be one of:<br />
 <code>unaggregated</code>: Write metrics directly to configured unaggregated namespace.<br />
 <code>aggregated</code>: Write metrics directly to a configured aggregated namespace (bypassing any aggregation), this requires the <code>M3-Storage-Policy</code> header to be set to resolve which namespace to write metrics to.<br />
 <br /></li>
 <li><code>M3-Storage-Policy</code>:<br />
- If header is set it determines which aggregated namespace to write metrics directly to (bypassing any aggregation).<br />
- The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".</li>
+ If this header is set, it determines which aggregated namespace to read/write metrics directly to/from (bypassing any aggregation).<br />
+ The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".<br /><br />
+Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146">an example</a> of querying metrics from a specific namespace. </li>
 </ul>
 <h3 id="data-params">Data Params</h3>
 <p>Binary <a href="http://google.github.io/snappy/">snappy compressed</a> Prometheus <a href="https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L22-L24">WriteRequest protobuf message</a>.</p>
@@ -1538,14 +1539,15 @@ promremotecli_log <span class="m">2019</span>/06/25 <span class="m">04</span>:13
 <h4 id="optional_1">Optional</h4>
 <ul>
 <li><code>M3-Metrics-Type</code>:<br />
- If header is set it determines what type of metric to store this metric value as. Otherwise by default metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting <code>downsample</code> options to <code>all: false</code> for a namespace in the coordinator config, for more see <a href="../../../how_to/query/#disabling-automatic-aggregation">disabling automatic aggregation</a>.<br /><br />
+ If this header is set, it determines what type of metric to store this metric value as. Otherwise by default, metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting <code>downsample</code> options to <code>all: false</code> for a namespace in the coordinator config, for more see <a href="../../../how_to/query/#disabling-automatic-aggregation">disabling automatic aggregation</a>.<br /><br />
  Must be one of:<br />
 <code>unaggregated</code>: Write metrics directly to configured unaggregated namespace.<br />
 <code>aggregated</code>: Write metrics directly to a configured aggregated namespace (bypassing any aggregation), this requires the <code>M3-Storage-Policy</code> header to be set to resolve which namespace to write metrics to.<br />
 <br /></li>
 <li><code>M3-Storage-Policy</code>:<br />
- If header is set it determines which aggregated namespace to write metrics directly to (bypassing any aggregation).<br />
- The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".</li>
+ If this header is set, it determines which aggregated namespace to read/write metrics directly to/from (bypassing any aggregation).<br />
+ The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".<br /><br />
+Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146">an example</a> of querying metrics from a specific namespace. </li>
 </ul>
 <h3 id="data-params_1">Data Params</h3>
 <p>Binary <a href="http://google.github.io/snappy/">snappy compressed</a> Prometheus <a href="https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L26-L28">WriteRequest protobuf message</a>.</p>
