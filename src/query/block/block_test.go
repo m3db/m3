@@ -21,7 +21,6 @@
 package block
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/query/models"
@@ -29,24 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// MustMakeTags creates tags given that the number of args is even.
-func MustMakeTags(tag ...string) models.Tags {
-	if len(tag)%2 != 0 {
-		panic("must have even tag length")
-	}
-
-	tagLength := len(tag) / 2
-	t := models.NewTags(tagLength, models.NewTagOptions())
-	for i := 0; i < tagLength; i++ {
-		t = t.AddTag(models.Tag{
-			Name:  []byte(tag[i*2]),
-			Value: []byte(tag[i*2+1]),
-		})
-	}
-
-	return t
-}
 
 // MustMakeMeta creates metadata with given bounds and tags provided the number
 // is even.
@@ -70,8 +51,6 @@ func CompareMeta(t *testing.T, ex, ac Metadata) {
 	actualTags := ac.Tags.Tags
 	require.Equal(t, len(expectedTags), len(actualTags))
 	for i, tag := range expectedTags {
-		fmt.Println("x", string(tag.Name), ":", string(tag.Value))
-		fmt.Println("a", string(actualTags[i].Name), ":", string(actualTags[i].Value))
 		assert.Equal(t, string(tag.Name), string(actualTags[i].Name))
 		assert.Equal(t, string(tag.Value), string(actualTags[i].Value))
 	}
