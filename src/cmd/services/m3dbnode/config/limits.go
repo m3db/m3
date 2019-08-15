@@ -32,4 +32,11 @@ type Limits struct {
 	// the server will allow before it begins rejecting requests. Just like MaxOutstandingWriteRequests
 	// this value is independent of the number of time series being read.
 	MaxOutstandingReadRequests int `yaml:"maxOutstandingReadRequests" validate:"min=0"`
+
+	// MaxOutstandingRepairedBytes controls the maximum number of bytes that can be loaded into memory
+	// as part of the repair process. For example if the value was set to 2^31 then up to 2GiB of
+	// repaired data could be "outstanding" in memory at one time. Once that limit was hit, the repair
+	// process would pause until some of the repaired bytes had been persisted to disk (and subsequently
+	// evicted from memory) at which point it would resume.
+	MaxOutstandingRepairedBytes int `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
 }
