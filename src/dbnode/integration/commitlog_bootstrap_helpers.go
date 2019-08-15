@@ -146,7 +146,7 @@ func writeCommitLogDataBase(
 		pred = generate.WriteAllPredicate
 	}
 
-	// ensure commit log is flushing frequently
+	// ensure commit log is flushing frequently.
 	require.Equal(
 		t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
@@ -155,14 +155,8 @@ func writeCommitLogDataBase(
 		shardSet     = s.shardSet
 	)
 
-	// Write out commit log data
+	// Write out commit log data.
 	for currTs, blk := range data {
-		if specifiedTS != nil {
-			s.setNowFn(*specifiedTS)
-		} else {
-			s.setNowFn(currTs.ToTime())
-		}
-
 		ctx := context.NewContext()
 		defer ctx.Close()
 
@@ -174,12 +168,12 @@ func writeCommitLogDataBase(
 			ToPointsByTime(m).
 			Dearrange(defaultDerrangementPercent)
 
-		// create new commit log
+		// create new commit log.
 		commitLog, err := commitlog.NewCommitLog(opts)
 		require.NoError(t, err)
 		require.NoError(t, commitLog.Open())
 
-		// write points
+		// write points.
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
@@ -195,7 +189,7 @@ func writeCommitLogDataBase(
 			}
 		}
 
-		// ensure writes finished
+		// ensure writes finished.
 		require.NoError(t, commitLog.Close())
 	}
 }
