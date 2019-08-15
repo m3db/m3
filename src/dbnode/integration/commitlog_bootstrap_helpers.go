@@ -157,6 +157,11 @@ func writeCommitLogDataBase(
 
 	// Write out commit log data.
 	for currTs, blk := range data {
+		if specifiedTS != nil {
+			s.setNowFn(*specifiedTS)
+		} else {
+			s.setNowFn(currTs.ToTime())
+		}
 		ctx := context.NewContext()
 		defer ctx.Close()
 
@@ -177,7 +182,7 @@ func writeCommitLogDataBase(
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
-			cId := ts.Series{
+			cID := ts.Series{
 				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
@@ -185,7 +190,7 @@ func writeCommitLogDataBase(
 				UniqueIndex: series.uniqueIndex,
 			}
 			if pred(point.Value) {
-				require.NoError(t, commitLog.Write(ctx, cId, point.Value.Datapoint, xtime.Second, point.Value.Annotation))
+				require.NoError(t, commitLog.Write(ctx, cID, point.Value.Datapoint, xtime.Second, point.Value.Annotation))
 			}
 		}
 
