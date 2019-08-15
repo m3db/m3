@@ -160,7 +160,7 @@ func TestRoundTrip(t *testing.T) {
 
 	rawBytes, err := enc.Bytes()
 	require.NoError(t, err)
-	// require.Equal(t, numExpectedBytes, len(rawBytes))
+	require.Equal(t, numExpectedBytes, len(rawBytes))
 
 	buff := bytes.NewBuffer(rawBytes)
 	iter := NewIterator(buff, namespace.GetTestSchemaDescr(testVLSchema), testEncodingOptions)
