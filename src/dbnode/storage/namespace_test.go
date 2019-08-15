@@ -454,7 +454,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	}
 	for i, s := range states {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().ID().Return(testShardIDs[i].ID())
+		shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 		shard.EXPECT().FlushState(blockStart).Return(s, nil)
 		if s.WarmStatus != fileOpSuccess {
 			shard.EXPECT().WarmFlush(blockStart, gomock.Any(), gomock.Any()).Return(nil)
