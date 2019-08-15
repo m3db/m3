@@ -1901,6 +1901,14 @@ func (s *dbShard) loadSeries(
 		return dbShardBootstrapResult{}, nil
 	}
 
+	if !bootstrap {
+		memTracker := s.opts.MemoryTracker()
+		ok := memTracker.IncNumLoadedBytes(seriesToLoad.BytesLength())
+		if !ok {
+			return dbShardBootstrapResult{}, fmt.Errorf("exceeded limit blah blah blah")
+		}
+	}
+
 	var (
 		// Only used for the bootstrap path.
 		shardBootstrapResult = dbShardBootstrapResult{}

@@ -968,6 +968,12 @@ type Options interface {
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
+
+	// SetMemoryTracker sets the MemoryTracker.
+	SetMemoryTracker(memTracker memTracker) Options
+
+	// BlockLeaseManager returns the block leaser.
+	BlockLeaseManager() block.LeaseManager
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all
