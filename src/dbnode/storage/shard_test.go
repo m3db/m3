@@ -291,7 +291,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	for i, blockStart := range blockStarts {
 		flushState, err := s.FlushState(blockStart)
 		require.NoError(t, err)
-		require.Equal(t, i, flushState.ColdVersion)
+		require.Equal(t, i, flushState.ColdVersionFlushed)
 	}
 }
 
@@ -352,7 +352,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 
 	flushState, err := s.FlushState(start)
 	require.NoError(t, err)
-	require.Equal(t, numVolumes-1, flushState.ColdVersion)
+	require.Equal(t, numVolumes-1, flushState.ColdVersionFlushed)
 }
 
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
