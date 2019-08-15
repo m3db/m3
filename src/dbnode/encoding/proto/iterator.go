@@ -168,6 +168,7 @@ func (it *iterator) Next() bool {
 		}
 
 		if timeUnitHasChangedControlBit == opCodeTimeUnitChange {
+			fmt.Println("iterator found time unit change control bit, reading new time unit")
 			if err := it.tsIterator.ReadTimeUnit(it.stream); err != nil {
 				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
 				return false
