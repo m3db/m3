@@ -4,6 +4,8 @@
 
 M3DB supports both deploying across multiple zones in a region or deploying to a single zone with rack-level isolation. It can also be deployed across multiple regions for a global view of data, though both latency and bandwidth costs may increase as a result.
 
+In addition, M3DB has support for automatically replicating data between isolated M3DB clusters (potentially running in different zones / regions). More details can be found in the [Replication between clusters](./replication_between_clusters.md) operational guide.
+
 ### Replication
 
 A replication factor of at least 3 is highly recommended for any M3DB deployment, due to the consistency levels (for both reads and writes) that require quorum in order to complete an operation. For more information on consistency levels, see the documentation concerning [tuning availability, consistency and durability](availability_consistency_durability.md).
