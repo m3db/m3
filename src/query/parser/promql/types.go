@@ -147,16 +147,26 @@ func newScalarOperator(
 	return scalar.NewScalarOp(expr.Val, tagOpts)
 }
 
+func isTime(expr promql.Expr) bool {
+	return expr.String() == "time()"
+}
+
 // NewBinaryOperator creates a new binary operator based on the type.
 func NewBinaryOperator(expr *promql.BinaryExpr,
 	lhs, rhs parser.NodeID) (parser.Params, error) {
 	matching := promMatchingToM3(expr.VectorMatching)
+	// NB: Prometheus handles `time()` in a way that's not entirely compatible
+	// with the query engine; special handling is required here.
+	lTime, rTime := isTime(expr.LHS), isTime(expr.RHS)
+	if matching == nil {
+		matching = timeMatcher(lTime, rTime)
+	}
 
 	nodeParams := binary.NodeParams{
 		LNode:          lhs,
 		RNode:          rhs,
-		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar,
-		RIsScalar:      expr.RHS.Type() == promql.ValueTypeScalar,
+		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar && !lTime,
+		RIsScalar:      expr.RHS.Type() == promql.ValueTypeScalar && !rTime,
 		ReturnBool:     expr.ReturnBool,
 		VectorMatching: matching,
 	}
@@ -413,4 +423,30 @@ func promMatchingToM3(
 		On:             vectorMatching.On,
 		Include:        vectorMatching.Include,
 	}
+}
+
+// Iff one of left or right is a time() function, match match one to many
+// against it, and match everything.
+func timeMatcher(left, right bool) *binary.VectorMatching {
+	if left {
+		if right {
+			return &binary.VectorMatching{
+				Card: binary.CardOneToOne,
+			}
+		}
+
+		return &binary.VectorMatching{
+			Card: binary.CardOneToMany,
+			On:   true,
+		}
+	}
+
+	if right {
+		return &binary.VectorMatching{
+			Card: binary.CardManyToOne,
+			On:   true,
+		}
+	}
+
+	return nil
 }

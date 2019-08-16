@@ -84,7 +84,7 @@ func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 		return fn, nil
 	}
 
-	return nil, errNoMatching
+	return nil, fmt.Errorf("no arithmetic function found for type: %s", opType)
 }
 
 // NewOp creates a new binary operation.
