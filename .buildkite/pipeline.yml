@@ -44,6 +44,7 @@ steps:
     <<: *common
   - name: "Integration (:docker:)"
     command: make clean install-vendor docker-integration-test
+    parallelism: 2
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.12.x

@@ -93,7 +93,7 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    databaseNamespaceWatch
+	nsWatch    namespace.NamespaceWatch
 	namespaces *databaseNamespacesMap
 
 	commitLog commitlog.CommitLog
@@ -207,7 +207,10 @@ func NewDatabase(
 	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
-	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
+	dbUpdater := func(namespaces namespace.Map) error {
+		return d.UpdateOwnedNamespaces(namespaces)
+	}
+	d.nsWatch = namespace.NewNamespaceWatch(dbUpdater, watch, databaseIOpts)
 	nsMap := watch.Get()
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		// Log the error and proceed in case some namespace is miss-configured, e.g. missing schema.
@@ -227,55 +230,13 @@ func NewDatabase(
 	return d, nil
 }
 
-func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
-	schemaReg := d.opts.SchemaRegistry()
-	schemaUpdates := newNamespaces.Metadatas()
-	merr := xerrors.NewMultiError()
-	for _, metadata := range schemaUpdates {
-		curSchemaID := "none"
-		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
-		if curSchema != nil {
-			curSchemaID = curSchema.DeployId()
-			if len(curSchemaID) == 0 {
-				d.log.Warn("can not update namespace schema with empty deploy ID", zap.Stringer("namespace", metadata.ID()),
-					zap.String("currentSchemaID", curSchemaID))
-				merr.Add(fmt.Errorf("can not update namespace(%v) schema with empty deploy ID", metadata.ID().String()))
-				continue
-			}
-		}
-		// Log schema update.
-		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
-		if !found {
-			d.log.Warn("can not update namespace schema to empty", zap.Stringer("namespace", metadata.ID()),
-				zap.String("currentSchema", curSchemaID))
-			merr.Add(fmt.Errorf("can not update namespace(%v) schema to empty", metadata.ID().String()))
-			continue
-		}
-		d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
-			zap.String("currentSchema", curSchemaID), zap.String("latestSchema", latestSchema.DeployId()))
-
-		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
-		if err != nil {
-			d.log.Warn("failed to update latest schema for namespace",
-				zap.Stringer("namespace", metadata.ID()),
-				zap.Error(err))
-			merr.Add(fmt.Errorf("failed to update latest schema for namespace %v, error: %v",
-				metadata.ID().String(), err))
-		}
-	}
-	if merr.Empty() {
-		return nil
-	}
-	return merr
-}
-
 func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	if newNamespaces == nil {
 		return nil
 	}
 
 	// Always update schema registry before owned namespaces.
-	if err := d.updateSchemaRegistry(newNamespaces); err != nil {
+	if err := namespace.UpdateSchemaRegistry(newNamespaces, d.opts.SchemaRegistry(), d.log); err != nil {
 		// Log schema update error and proceed.
 		// In a multi-namespace database, schema update failure for one namespace be isolated.
 		d.log.Error("failed to update schema registry", zap.Error(err))
