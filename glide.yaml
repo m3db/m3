@@ -125,8 +125,6 @@ import:
     subpackages:
       - require
 
-  - package: github.com/facebookgo/clock
-
   - package: github.com/fortytw2/leaktest
     version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 
