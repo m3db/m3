@@ -1,5 +1,5 @@
-hash: 174390f9c76361926e47491aeda1055647022e3f783c8dd9137b8c743159c1e0
-updated: 2019-08-11T11:34:06.950958-04:00
+hash: b87408f5ccab483e54a2627f39fbc395c4f5c7cac9f3014aabd110af2de4c20b
+updated: 2019-08-16T22:03:27.199359-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -120,8 +120,6 @@ imports:
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/fsnotify/fsnotify
@@ -129,7 +127,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-kit/kit
-  version: 9c9c0914dcdccf2223bdc3bb6552bfcfeb5329f1
+  version: dc489b75b9cdbf29c739534c2aa777cabb034954
   subpackages:
   - log
   - log/level
@@ -354,7 +352,7 @@ imports:
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
-  version: df298267d3e5c232b8b7bdf28d891d0b57253843
+  version: 4208ad825dda03a6a3d2197df8ec57948aebcc12
 - name: github.com/russross/blackfriday
   version: d3b5b032dc8e8927d31a5071b56e14c89f045135
 - name: github.com/satori/go.uuid
@@ -487,7 +485,7 @@ imports:
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: 51ab0e2deafac1f46c46ad59cf0921be2f180c3d
+  version: fde4db37ae7ad8191b03d30d27f258b5291ae4e3
   subpackages:
   - unix
 - name: golang.org/x/text
