@@ -489,7 +489,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		wg.Add(1)
 		seekers.inactive.wg = wg
 	} else {
-		// If none of the existing seekers were borrowed then we can just close them all.
+		// If none of the existing seekers are currently borrowed then we can just close them all.
 		m.closeSeekersAndLogError(descriptor, seekers.inactive.seekers)
 		seekers.inactive = seekersAndBloom{}
 	}
