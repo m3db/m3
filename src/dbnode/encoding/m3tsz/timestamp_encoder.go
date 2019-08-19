@@ -45,7 +45,8 @@ type TimestampEncoder struct {
 	// Used to keep track of time unit changes that occur directly via the WriteTimeUnit()
 	// API as opposed to indirectly via the WriteTime() API.
 	timeUnitEncodedManually bool
-	hasWrittenFirst         bool // Only taken into account if using the WriteTime() API.
+	// Only taken into account if using the WriteTime() API.
+	hasWrittenFirst bool
 }
 
 // NewTimestampEncoder creates a new TimestampEncoder.
