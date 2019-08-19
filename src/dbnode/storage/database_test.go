@@ -1112,7 +1112,7 @@ func TestDatabaseFlushState(t *testing.T) {
 		shardID            = uint32(0)
 		blockStart         = time.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
-			ColdVersion: 2,
+			ColdVersionRetrievable: 2,
 		}
 		nsID = "testns1"
 		ns   = dbAddNewMockNamespace(ctrl, d, nsID)
