@@ -13,14 +13,14 @@ var (
 var _ MultiClusterOptions = (*multiClusterOptions)(nil)
 
 type multiClusterOptions struct {
-	options
+	options                   Options
 	asyncTopologyInitializers []topology.Initializer
 }
 
 // NewMultiClusterOptions creates a new set of multi cluster options
 func NewMultiClusterOptions() MultiClusterOptions {
 	return &multiClusterOptions{
-		options:                   *newOptions(),
+		options:                   newOptions(),
 		asyncTopologyInitializers: []topology.Initializer{},
 	}
 }
@@ -28,9 +28,19 @@ func NewMultiClusterOptions() MultiClusterOptions {
 // NewAdminMultiClusterOptions creates a new set of administration multi cluster options
 func NewAdminMultiClusterOptions() AdminMultiClusterOptions {
 	return &multiClusterOptions{
-		options:                   *newOptions(),
+		options:                   newOptions(),
 		asyncTopologyInitializers: []topology.Initializer{},
 	}
+}
+
+func (o *multiClusterOptions) SetOptions(value Options) MultiClusterOptions {
+	opts := *o
+	opts.options = value
+	return &opts
+}
+
+func (o *multiClusterOptions) Options() Options {
+	return o.options
 }
 
 func (o *multiClusterOptions) SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions {
@@ -46,7 +56,8 @@ func (o *multiClusterOptions) AsyncTopologyInitializers() []topology.Initializer
 func (o *multiClusterOptions) OptionsForAsyncClusters() []Options {
 	result := make([]Options, 0, len(o.asyncTopologyInitializers))
 	for _, topoInit := range o.asyncTopologyInitializers {
-		result = append(result, o.SetTopologyInitializer(topoInit))
+		options := o.Options().SetTopologyInitializer(topoInit)
+		result = append(result, options)
 	}
 	return result
 }

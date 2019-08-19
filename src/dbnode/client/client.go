@@ -46,7 +46,7 @@ func NewAdminClient(opts AdminMultiClusterOptions) (AdminClient, error) {
 }
 
 func newClient(opts MultiClusterOptions) (*client, error) {
-	if err := opts.Validate(); err != nil {
+	if err := opts.Options().Validate(); err != nil {
 		return nil, err
 	}
 	return &client{opts: opts, newSessionFn: newReplicatedSession}, nil
@@ -89,7 +89,7 @@ func (c *client) defaultSession() (AdminSession, error) {
 	return session, nil
 }
 
-func (c *client) Options() Options {
+func (c *client) Options() MultiClusterOptions {
 	return c.opts
 }
 

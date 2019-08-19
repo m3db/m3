@@ -31,10 +31,12 @@ import (
 )
 
 func testClient(t *testing.T, ctrl *gomock.Controller) Client {
-	opts := NewMockMultiClusterOptions(ctrl)
+	multiOpts := NewMockMultiClusterOptions(ctrl)
+	opts := NewMockOptions(ctrl)
+	multiOpts.EXPECT().Options().Return(opts)
 	opts.EXPECT().Validate().Return(nil)
 
-	client, err := NewClient(opts)
+	client, err := NewClient(multiOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 
@@ -48,10 +50,12 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	testClient(t, ctrl)
 
 	anError := fmt.Errorf("an error")
-	opts := NewMockMultiClusterOptions(ctrl)
-	opts.EXPECT().Validate().Return(anError)
+	multiOpts := NewMockMultiClusterOptions(ctrl)
+	opts := NewMockOptions(ctrl)
+	multiOpts.EXPECT().Options().Return(opts)
+	opts.EXPECT().Validate().Return(nil)
 
-	_, err := NewClient(opts)
+	_, err := NewClient(multiOpts)
 	assert.Error(t, err)
 	assert.Equal(t, anError, err)
 }

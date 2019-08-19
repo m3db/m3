@@ -263,8 +263,7 @@ func (c Configuration) NewAdminClient(
 		}
 	}
 
-	v := NewAdminMultiClusterOptions().
-		SetAsyncTopologyInitializers(asyncTopoInits).
+	v := NewAdminOptions().
 		SetTopologyInitializer(topoInit).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
@@ -340,8 +339,12 @@ func (c Configuration) NewAdminClient(
 	// 	v = v.SetSchemaRegistry(schemaRegistry)
 	// }
 
+	u := NewAdminMultiClusterOptions().
+		SetOptions(v).
+		SetAsyncTopologyInitializers(asyncTopoInits)
+
 	// Apply programtic custom options last
-	opts := v.(AdminMultiClusterOptions)
+	opts := u.(AdminMultiClusterOptions)
 	for _, opt := range custom {
 		opts = opt(opts)
 	}

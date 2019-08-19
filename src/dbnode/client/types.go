@@ -46,7 +46,7 @@ import (
 // Client can create sessions to write and read to a cluster.
 type Client interface {
 	// Options returns the Client Options.
-	Options() Options
+	Options() MultiClusterOptions
 
 	// NewSession creates a new session.
 	NewSession() (Session, error)
@@ -565,6 +565,7 @@ type AdminOptions interface {
 
 // CommonMultiClusterOptions is the set of options which apply only to multi cluster clients
 type CommonMultiClusterOptions interface {
+
 	// SetAsyncTopologyInitializers sets the TopologyInitializers
 	SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions
 
@@ -578,14 +579,20 @@ type CommonMultiClusterOptions interface {
 
 // MultiClusterOptions is a set of multi cluster client options
 type MultiClusterOptions interface {
-	Options
 	CommonMultiClusterOptions
+
+	SetOptions(Options) MultiClusterOptions
+
+	Options() Options
 }
 
 // AdminMultiClusterOptions is a set of administration multi cluster client options
 type AdminMultiClusterOptions interface {
-	AdminOptions
 	CommonMultiClusterOptions
+
+	SetOptions(Options) MultiClusterOptions
+
+	Options() Options
 }
 
 // The rest of these types are internal types that mocks are generated for

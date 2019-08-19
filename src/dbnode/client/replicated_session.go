@@ -52,6 +52,7 @@ type replicatedSession struct {
 	scope         tally.Scope
 	log           *zap.Logger
 	metrics       replicatedSessionMetrics
+	outCh         chan error
 }
 
 type replicatedSessionMetrics struct {
@@ -84,13 +85,14 @@ func newReplicatedSession(opts MultiClusterOptions, options ...replicatedSession
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
-	scope := opts.InstrumentOptions().MetricsScope()
+	scope := opts.Options().InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
 		workerPool: workerPool,
 		scope:      scope,
-		log:        opts.InstrumentOptions().Logger(),
+		log:        opts.Options().InstrumentOptions().Logger(),
 		metrics:    newReplicatedSessionMetrics(scope),
+		outCh:      make(chan error),
 	}
 
 	// Apply options
@@ -98,7 +100,7 @@ func newReplicatedSession(opts MultiClusterOptions, options ...replicatedSession
 		option(&session)
 	}
 
-	if err := session.setSession(opts); err != nil {
+	if err := session.setSession(opts.Options()); err != nil {
 		return nil, err
 	}
 	if err := session.setAsyncSessions(opts.OptionsForAsyncClusters()); err != nil {
@@ -110,7 +112,11 @@ func newReplicatedSession(opts MultiClusterOptions, options ...replicatedSession
 
 type writeFunc func(Session) error
 
-func (s replicatedSession) setSession(opts Options) error {
+func (s *replicatedSession) setSession(opts Options) error {
+	if opts.TopologyInitializer() == nil {
+		return nil
+	}
+
 	session, err := s.newSessionFn(opts)
 	if err != nil {
 		return err
@@ -119,7 +125,7 @@ func (s replicatedSession) setSession(opts Options) error {
 	return nil
 }
 
-func (s replicatedSession) setAsyncSessions(opts []Options) error {
+func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 	sessions := make([]clientSession, 0, len(opts))
 	for _, oo := range opts {
 		session, err := s.newSessionFn(oo)
@@ -134,15 +140,18 @@ func (s replicatedSession) setAsyncSessions(opts []Options) error {
 
 func (s replicatedSession) replicate(fn writeFunc) error {
 	for _, asyncSession := range s.asyncSessions {
+		asyncSession := asyncSession // capture var
 		if s.workerPool.GoIfAvailable(func() {
-			if err := fn(asyncSession); err != nil {
+			err := fn(asyncSession)
+			if err != nil {
 				s.metrics.replicateError.Inc(1)
 				s.log.Error("could not replicate write: %v", zap.Error(err))
 			}
+			s.outCh <- err
 		}) {
-			s.metrics.replicateNotExecuted.Inc(1)
-		} else {
 			s.metrics.replicateExecuted.Inc(1)
+		} else {
+			s.metrics.replicateNotExecuted.Inc(1)
 		}
 	}
 	return fn(s.session)
