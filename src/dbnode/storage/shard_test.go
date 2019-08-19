@@ -400,6 +400,49 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
+func TestShardLoadLimitEnforcedIfSet(t *testing.T) {
+	testShardLoadLimit(t, 1, true)
+}
+
+func TestShardLoadLimitNotEnforcedIfNotSet(t *testing.T) {
+	testShardLoadLimit(t, 0, false)
+}
+
+func testShardLoadLimit(t *testing.T, limit int, shouldReturnError bool) {
+	var (
+		memTrackerOptions = NewMemoryTrackerOptions(limit)
+		memTracker        = NewMemoryTracker(memTrackerOptions)
+		opts              = DefaultTestOptions().SetMemoryTracker(memTracker)
+		s                 = testDatabaseShard(t, opts)
+		blOpts            = opts.DatabaseBlockOptions()
+		testBlockSize     = 2 * time.Hour
+		start             = time.Now().Truncate(testBlockSize)
+		threeBytes        = checked.NewBytes([]byte("123"), nil)
+
+		sr      = result.NewShardResult(0, result.NewOptions())
+		fooTags = ident.NewTags(ident.StringTag("foo", "foe"))
+		barTags = ident.NewTags(ident.StringTag("bar", "baz"))
+	)
+	defer s.Close()
+	threeBytes.IncRef()
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{Head: threeBytes}, blOpts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blOpts, namespace.Context{}),
+	}
+
+	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
+	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
+
+	seriesMap := sr.AllSeries()
+	require.NoError(t, s.Bootstrap(nil))
+
+	if shouldReturnError {
+		require.Error(t, s.Load(seriesMap))
+	} else {
+		require.NoError(t, s.Load(seriesMap))
+	}
+}
+
 func TestShardFlushSeriesFlushError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
