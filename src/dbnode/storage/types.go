@@ -743,18 +743,6 @@ type databaseMediator interface {
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
-// databaseNamespaceWatch watches for namespace updates.
-type databaseNamespaceWatch interface {
-	// Start starts the namespace watch.
-	Start() error
-
-	// Stop stops the namespace watch.
-	Stop() error
-
-	// close stops the watch, and releases any held resources.
-	Close() error
-}
-
 // Options represents the options for storage.
 type Options interface {
 	// Validate validates assumptions baked into the code.

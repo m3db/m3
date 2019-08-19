@@ -472,8 +472,6 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
-	// If any of the previous seekers are still borrowed this function will need to wait for
-	// them to be returned.
 	anySeekersAreBorrowed := false
 	for _, seeker := range seekers.inactive.seekers {
 		if seeker.isBorrowed {
@@ -490,6 +488,10 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		wg = &sync.WaitGroup{}
 		wg.Add(1)
 		seekers.inactive.wg = wg
+	} else {
+		// If none of the existing seekers are currently borrowed then we can just close them all.
+		m.closeSeekersAndLogError(descriptor, seekers.inactive.seekers)
+		seekers.inactive = seekersAndBloom{}
 	}
 	byTime.seekers[blockStartNano] = seekers
 

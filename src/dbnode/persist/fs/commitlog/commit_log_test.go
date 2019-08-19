@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/m3db/bitset"
+	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -40,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	mclock "github.com/facebookgo/clock"
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -62,8 +62,25 @@ func readAllSeriesPredicateTest() SeriesFilterPredicate {
 	}
 }
 
+type mockTime struct {
+	sync.Mutex
+	t time.Time
+}
+
+func (m *mockTime) Now() time.Time {
+	m.Lock()
+	defer m.Unlock()
+	return m.t
+}
+
+func (m *mockTime) Add(d time.Duration) {
+	m.Lock()
+	defer m.Unlock()
+	m.t = m.t.Add(d)
+}
+
 type overrides struct {
-	clock            *mclock.Mock
+	nowFn            clock.NowFn
 	flushInterval    *time.Duration
 	backlogQueueSize *int
 	strategy         Strategy
@@ -85,17 +102,17 @@ func newTestOptions(
 	dir, err := ioutil.TempDir("", "foo")
 	require.NoError(t, err)
 
-	var c mclock.Clock
-	if overrides.clock != nil {
-		c = overrides.clock
+	var nowFn clock.NowFn
+	if overrides.nowFn != nil {
+		nowFn = overrides.nowFn
 	} else {
-		c = mclock.New()
+		nowFn = func() time.Time { return time.Now() }
 	}
 
 	scope := tally.NewTestScope("", nil)
 
 	opts := testOpts.
-		SetClockOptions(testOpts.ClockOptions().SetNowFn(c.Now)).
+		SetClockOptions(testOpts.ClockOptions().SetNowFn(nowFn)).
 		SetInstrumentOptions(testOpts.InstrumentOptions().SetMetricsScope(scope)).
 		SetFilesystemOptions(testOpts.FilesystemOptions().SetFilePathPrefix(dir))
 
@@ -486,13 +503,12 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 }
 
 func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
-	clock := mclock.NewMock()
+	start := time.Now()
+	ft := &mockTime{t: start}
 	opts, scope := newTestOptions(t, overrides{
-		clock:    clock,
+		nowFn:    ft.Now,
 		strategy: StrategyWriteWait,
 	})
-
-	start := clock.Now()
 
 	// Writes spaced apart by block size.
 	writes := []testWrite{
@@ -508,7 +524,8 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 	for _, write := range writes {
 		// Modify the time to make sure we're generating commitlog files with different
 		// start times.
-		clock.Add(write.t.Sub(clock.Now()))
+		now := ft.Now()
+		ft.Add(write.t.Sub(now))
 		// Rotate frequently to ensure we're generating multiple files.
 		_, err := commitLog.RotateLogs()
 		require.NoError(t, err)
@@ -546,9 +563,10 @@ func TestCommitLogIteratorUsesPredicateFilterForNonCorruptFiles(t *testing.T) {
 }
 
 func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
-	clock := mclock.NewMock()
+	now := time.Now()
+	ft := &mockTime{t: now}
 	opts, _ := newTestOptions(t, overrides{
-		clock:    clock,
+		nowFn:    ft.Now,
 		strategy: StrategyWriteWait,
 	})
 	defer cleanup(t, opts)
@@ -916,9 +934,10 @@ func TestCommitLogActiveLogs(t *testing.T) {
 
 func TestCommitLogRotateLogs(t *testing.T) {
 	var (
-		clock       = mclock.NewMock()
+		start       = time.Now()
+		clock       = &mockTime{t: start}
 		opts, scope = newTestOptions(t, overrides{
-			clock:    clock,
+			nowFn:    clock.Now,
 			strategy: StrategyWriteWait,
 		})
 	)
@@ -926,7 +945,6 @@ func TestCommitLogRotateLogs(t *testing.T) {
 
 	var (
 		commitLog = newTestCommitLog(t, opts)
-		start     = clock.Now()
 	)
 
 	// Writes spaced such that they should appear within the same commitlog block.
@@ -938,8 +956,7 @@ func TestCommitLogRotateLogs(t *testing.T) {
 
 	for i, write := range writes {
 		// Set clock to align with the write.
-		clock.Add(write.t.Sub(clock.Now()))
-
+		clock.Add(write.t.Sub(start))
 		// Write entry.
 		writeCommitLogs(t, scope, commitLog, []testWrite{write})
 
@@ -991,8 +1008,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 
 	writes := ts.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
 
-	clock := mclock.NewMock()
-	alignedStart := clock.Now().Truncate(time.Hour)
+	alignedStart := time.Now().Truncate(time.Hour)
 	for i := 0; i < 4; i++ {
 		tt := alignedStart.Add(time.Minute * time.Duration(i))
 		writes.Add(i, ident.StringID(fmt.Sprint(i)), tt, float64(i)*10.5, xtime.Second, nil)
