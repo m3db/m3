@@ -1902,11 +1902,11 @@ func (s *dbShard) loadSeries(
 	}
 
 	if !bootstrap {
-		// memTracker := s.opts.MemoryTracker()
-		// ok := memTracker.IncNumLoadedBytes(seriesToLoad.BytesLength())
-		// if !ok {
-		// 	return dbShardBootstrapResult{}, fmt.Errorf("exceeded limit blah blah blah")
-		// }
+		memTracker := s.opts.MemoryTracker()
+		ok := memTracker.IncNumLoadedBytes(seriesToLoad.BytesLength())
+		if !ok {
+			return dbShardBootstrapResult{}, fmt.Errorf("exceeded limit blah blah blah")
+		}
 	}
 
 	var (

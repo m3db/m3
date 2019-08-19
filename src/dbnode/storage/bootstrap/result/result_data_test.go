@@ -27,12 +27,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var testBlockSize = 2 * time.Hour
@@ -488,4 +489,27 @@ func TestShardTimeRangesSummaryString(t *testing.T) {
 	expected := "{0: 6h0m0s, 1: 4h0m0s}"
 
 	assert.Equal(t, expected, str.SummaryString())
+}
+
+func TestEstimateMapBytesSize(t *testing.T) {
+	opts := testResultOptions()
+	blopts := opts.DatabaseBlockOptions()
+
+	start := time.Now().Truncate(testBlockSize)
+
+	threeBytes := checked.NewBytes([]byte("123"), nil)
+	threeBytes.IncRef()
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{Head: threeBytes}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blopts, namespace.Context{}),
+	}
+
+	sr := NewShardResult(0, opts)
+	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
+	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
+
+	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
+	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
+
+	require.Equal(t, 24, EstimateMapBytesSize(sr.AllSeries()))
 }
