@@ -137,6 +137,28 @@ curl -X POST localhost:7201/api/v1/placement/init -d '{
 }'
 ```
 
+### Replication factor (RF)
+
+Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones) for more specifics.
+
+### Shards
+
+The number of shards that M3DB uses is configurable and there are a couple of key points to note when deciding the number to use. The
+more nodes you have, the more shards you want because you want the shards to be evenly distributed amongst your nodes. However,
+because each shard requires more files to be created, you also don’t want to have too many shards per node. Below are some guidelines 
+depending on how many nodes you will have in your cluster eventually - you will need to decide the number of shards up front, you
+cannot change this once the cluster is created. 
+
+| Number of Nodes | Number of Shards |
+|-----------------|------------------|
+| 3               | 64               |
+| 6               | 128              |
+| 12              | 256              |
+| 24              | 512              |
+| 48              | 1024             |
+
+**Note**: For production clusters with high-resource nodes (over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: `4096 shards`
+
 ## Create namespace(s)
 A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.
 
@@ -183,7 +205,17 @@ Shortly after, you should see your node complete bootstrapping:
 20:10:14.764771[I] successfully updated topology to 3 hosts
 ```
 
-Read more about namespaces and the various knobs in the docs.
+Below are recommendations for block size based on the resolution and retention of the namespace:
+
+| Retention / Resolution | 10s | 1m  | 10m | 1h  |
+|------------------------|-----|-----|-----|-----|
+| 12h                    | 30m | 2h  | N/A | N/A |
+| 24h                    | 1h  | 4h  | N/A | N/A |
+| 168h                   | 6h  | 12h | 24h | 48h |
+| 720h                   | 24h | 24h | 48h | 96h |
+| 8760h                  | 24h | 24h | 48h | 96h |
+
+For more information on namespace configuration, [see here](../operational_guide/namespace_configuration.md).
 
 ## Test it out
 

@@ -1,4 +1,4 @@
-# Troubleshooting
+.# Troubleshooting
 
 Some common problems and resolutions
 
@@ -17,3 +17,10 @@ If an m3db node hasn't been able to snapshot for awhile, or is stuck in the comm
 ## Nodes a crashing with memory allocation errors, but there's plenty of available memory
 
 Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Find out more in the [Clustering the Hard Way](../how_to/cluster_hard_way.md#kernel) document.
+
+## What to do if my M3DB node is OOM’ing?
+
+1. Ensure that you are not co-locating coordinator, etcd or query nodes with your m3db nodes. Colocation or embedded mode is fine for a development environment, but highly not recommended in production.
+2. Check to make sure you are running adequate block sizes based on the retention of your namespace. See above.
+3. Ensure that you have 30-40% memory overhead in the normal running state. You want to ensure enough overhead to handle bursts of metrics, especially ones with new IDs as those will take more memory initially.
+4. Ensure that you do not have high cardinality metrics - a unique metric is defined by a unique combination of tags and values. If some metrics have UUIDs, timestamps or durations as the tag value, then the cardinality of your metrics will be extremely high and this will generally lead to OOMs. If you have high cardinality tag values, you should consider moving values into the  

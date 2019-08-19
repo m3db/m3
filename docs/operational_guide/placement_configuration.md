@@ -8,9 +8,21 @@ Before reading the rest of this document, we recommend familiarizing yourself wi
 
 **Note**: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards. Picking an appropriate number of shards is more of an art than a science, but our recommendation is as follows:
 
-- Resource Constrained / Development clusters: `64 shards`
-- Production clusters: `1024 shards`
-- Production clusters with high-resource nodes (Over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: `4096 shards`
+The number of shards that M3DB uses is configurable and there are a couple of key points to note when deciding the number to use. The
+more nodes you have, the more shards you want because you want the shards to be evenly distributed amongst your nodes. However,
+because each shard requires more files to be created, you also don’t want to have too many shards per node. Below are some guidelines 
+depending on how many nodes you will have in your cluster eventually - you will need to decide the number of shards up front, you
+cannot change this once the cluster is created. 
+
+| Number of Nodes | Number of Shards |
+|-----------------|------------------|
+| 3               | 64               |
+| 6               | 128              |
+| 12              | 256              |
+| 24              | 512              |
+| 48              | 1024             |
+
+**Note**: For production clusters with high-resource nodes (over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: `4096 shards`
 
 After performing any of the instructions documented below a new placement will automatically be generated to distribute the shards among the M3DB nodes such that the isolation group and replication factor constraints are met.
 
