@@ -22,8 +22,7 @@ package storage
 
 import "sync"
 
-// MemoryTracker tracks memory.
-type MemoryTracker struct {
+type memoryTracker struct {
 	sync.Mutex
 
 	opts MemoryTrackerOptions
@@ -32,9 +31,7 @@ type MemoryTracker struct {
 	numPendingLoadedBytes int
 }
 
-// IncNumLoadedBytes increments the number of bytes that have been loaded
-// into memory via the "Load()" API.
-func (m *MemoryTracker) IncNumLoadedBytes(x int) (okToLoad bool) {
+func (m *memoryTracker) IncNumLoadedBytes(x int) (okToLoad bool) {
 	m.Lock()
 	defer m.Unlock()
 	limit := m.opts.numLoadedBytesLimit
@@ -45,19 +42,19 @@ func (m *MemoryTracker) IncNumLoadedBytes(x int) (okToLoad bool) {
 	return true
 }
 
-// MarkLoadedAsPending marks the current number of loaded bytes as pending
-// so that a subsequent call to DecPendingLoadedBytes() will decrement the
-// number of loaded bytes by the number that was set when this function was
-// last executed.
-func (m *MemoryTracker) MarkLoadedAsPending() {
+func (m *memoryTracker) NumLoadedBytes() int {
+	m.Lock()
+	defer m.Unlock()
+	return m.numLoadedBytes
+}
+
+func (m *memoryTracker) MarkLoadedAsPending() {
 	m.Lock()
 	m.numPendingLoadedBytes = m.numLoadedBytes
 	m.Unlock()
 }
 
-// DecPendingLoadedBytes decrements the number of loaded bytes by the number
-// of pending bytes that were captured by the last call to MarkLoadedAsPending().
-func (m *MemoryTracker) DecPendingLoadedBytes() {
+func (m *memoryTracker) DecPendingLoadedBytes() {
 	m.Lock()
 	m.numLoadedBytes -= m.numPendingLoadedBytes
 	m.Unlock()
@@ -76,8 +73,8 @@ func NewMemoryTrackerOptions(numLoadedBytesLimit int) MemoryTrackerOptions {
 }
 
 // NewMemoryTracker creates a new MemoryTracker.
-func NewMemoryTracker(opts MemoryTrackerOptions) *MemoryTracker {
-	return &MemoryTracker{
+func NewMemoryTracker(opts MemoryTrackerOptions) MemoryTracker {
+	return &memoryTracker{
 		opts: opts,
 	}
 }

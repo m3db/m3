@@ -163,7 +163,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		}
 		// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
 		// value by however many bytes had been tracked when the cold flush began.
-		m.memTracker.DecPendingLoadedBytes()
+		memTracker.DecPendingLoadedBytes()
 
 		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
