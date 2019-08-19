@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -133,6 +132,17 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 	testBlockRetrieverHighConcurrentSeeks(t, true)
 }
 
+type seekerTrackCloses struct {
+	DataFileSetSeeker
+
+	trackCloseFn func()
+}
+
+func (s seekerTrackCloses) Close() error {
+	s.trackCloseFn()
+	return s.DataFileSetSeeker.Close()
+}
+
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -164,8 +174,12 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	defer cleanup()
 
 	// Setup the open seeker function to fail sometimes to exercise that code path.
-	seekerMgr := retriever.seekerMgr.(*seekerManager)
-	existingNewOpenSeekerFn := seekerMgr.newOpenSeekerFn
+	var (
+		seekerMgr               = retriever.seekerMgr.(*seekerManager)
+		existingNewOpenSeekerFn = seekerMgr.newOpenSeekerFn
+		seekerCloseLock         sync.Mutex
+		numSeekerCloses         int
+	)
 	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
 		// Artificially slow down how long it takes to open a seeker to exercise the logic where
 		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
@@ -175,7 +189,18 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		if val := rand.Intn(100); val >= 90 {
 			return nil, errors.New("some-error")
 		}
-		return existingNewOpenSeekerFn(shard, blockStart, volume)
+		seeker, err := existingNewOpenSeekerFn(shard, blockStart, volume)
+		if err != nil {
+			return nil, err
+		}
+		return &seekerTrackCloses{
+			DataFileSetSeeker: seeker,
+			trackCloseFn: func() {
+				seekerCloseLock.Lock()
+				numSeekerCloses++
+				seekerCloseLock.Unlock()
+			},
+		}, nil
 	}
 	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
 
@@ -409,6 +434,13 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Wait until done.
 	enqueueWg.Wait()
+
+	seekerCloseLock.Lock()
+	// Don't multiply by fetchConcurrency because the tracking doesn't take concurrent
+	// clones into account.
+	numExpectedCloses := len(shards) * len(volumes) * len(blockStarts)
+	require.Equal(t, numExpectedCloses, numSeekerCloses)
+	seekerCloseLock.Unlock()
 
 	// Verify the onRetrieve callback was called properly for everything.
 	for _, shard := range shardIDStrings {
