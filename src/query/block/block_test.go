@@ -23,28 +23,9 @@ package block
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// MustMakeMeta creates metadata with given bounds and tags provided the number
-// is even.
-func MustMakeMeta(bounds models.Bounds, tags ...string) Metadata {
-	return Metadata{
-		Tags:   MustMakeTags(tags...),
-		Bounds: bounds,
-	}
-}
-
-// MustMakeSeriesMeta creates series metadata with given bounds and tags
-// provided the number is even.
-func MustMakeSeriesMeta(tags ...string) SeriesMeta {
-	return SeriesMeta{
-		Tags: MustMakeTags(tags...),
-	}
-}
 
 func CompareMeta(t *testing.T, ex, ac Metadata) {
 	expectedTags := ex.Tags.Tags

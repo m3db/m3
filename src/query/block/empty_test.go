@@ -40,8 +40,28 @@ var (
 	}
 )
 
+func mustMakeTags(tag ...string) models.Tags {
+	if len(tag)%2 != 0 {
+		panic("must have even tag length")
+	}
+
+	tagLength := len(tag) / 2
+	t := models.NewTags(tagLength, models.NewTagOptions())
+	for i := 0; i < tagLength; i++ {
+		t = t.AddTag(models.Tag{
+			Name:  []byte(tag[i*2]),
+			Value: []byte(tag[i*2+1]),
+		})
+	}
+
+	return t
+}
+
 func mustMakeMeta(tags ...string) Metadata {
-	return MustMakeMeta(testBound, tags...)
+	return Metadata{
+		Tags:   mustMakeTags(tags...),
+		Bounds: testBound,
+	}
 }
 
 func TestEmptyBlock(t *testing.T) {
