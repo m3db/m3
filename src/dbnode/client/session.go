@@ -59,6 +59,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -2265,15 +2266,18 @@ func (s *session) streamBlocksMetadataFromPeer(
 			data.IncRef()
 			data.AppendAll(elem.ID)
 			data.DecRef()
-
 			clonedID := idPool.BinaryID(data)
+			// Return thrift bytes to pool once the ID has been copied.
+			apachethrift.BytesPoolPut(elem.ID)
 
 			var encodedTags checked.Bytes
-			if bytes := elem.EncodedTags; len(bytes) != 0 {
-				encodedTags = bytesPool.Get(len(bytes))
+			if tagBytes := elem.EncodedTags; len(tagBytes) != 0 {
+				encodedTags = bytesPool.Get(len(tagBytes))
 				encodedTags.IncRef()
-				encodedTags.AppendAll(bytes)
+				encodedTags.AppendAll(tagBytes)
 				encodedTags.DecRef()
+				// Return thrift bytes to pool once the tags have been copied.
+				apachethrift.BytesPoolPut(tagBytes)
 			}
 
 			// Error occurred retrieving block metadata, use default values
