@@ -291,12 +291,20 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions()
-	iopts := opts.InstrumentOptions().
-		SetLogger(logger).
-		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
-		SetTracer(tracer)
+	var (
+		// Limit of zero means no limit so this will only take effect if the user configures a non-zero
+		// value.
+		// TODO(rartoul): Setup reasonable code limit and only override if value is larger than zero.
+		memTrackerOptions = storage.NewMemoryTrackerOptions(cfg.Limits.MaxOutstandingRepairedBytes)
+		memTracker        = storage.NewMemoryTracker(memTrackerOptions)
+		opts              = storage.NewOptions().
+					SetMemoryTracker(memTracker)
+		iopts = opts.InstrumentOptions().
+			SetLogger(logger).
+			SetMetricsScope(scope).
+			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTracer(tracer)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
 
 	opentracing.SetGlobalTracer(tracer)
