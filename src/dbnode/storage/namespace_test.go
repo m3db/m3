@@ -421,7 +421,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(time.Now(), nil, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(time.Now(), nil))
 	require.Equal(t, errNamespaceNotBootstrapped, ns.ColdFlush(nil))
 }
 
@@ -431,7 +431,7 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
-	require.NoError(t, ns.WarmFlush(time.Now(), nil, nil))
+	require.NoError(t, ns.WarmFlush(time.Now(), nil))
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
@@ -454,7 +454,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	}
 	for i, s := range states {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().ID().Return(testShardIDs[i].ID())
+		shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 		shard.EXPECT().FlushState(blockStart).Return(s, nil)
 		if s.WarmStatus != fileOpSuccess {
 			shard.EXPECT().WarmFlush(blockStart, gomock.Any(), gomock.Any()).Return(nil)
@@ -462,15 +462,10 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	ShardBootstrapStates := ShardBootstrapStates{}
-	for i := range states {
-		ShardBootstrapStates[testShardIDs[i].ID()] = Bootstrapped
-	}
-
-	require.NoError(t, ns.WarmFlush(blockStart, ShardBootstrapStates, nil))
+	require.NoError(t, ns.WarmFlush(blockStart, nil))
 }
 
-func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
+func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -485,12 +480,10 @@ func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(testShardIDs[0].ID()).AnyTimes()
+	shard.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	shardBootstrapStates := ShardBootstrapStates{}
-	shardBootstrapStates[testShardIDs[0].ID()] = Bootstrapping
-
-	require.NoError(t, ns.WarmFlush(blockStart, shardBootstrapStates, nil))
+	require.NoError(t, ns.WarmFlush(blockStart, nil))
 }
 
 type snapshotTestCase struct {
@@ -635,7 +628,7 @@ func TestNamespaceRepair(t *testing.T) {
 			}
 		}
 		shard.EXPECT().
-			Repair(gomock.Any(), gomock.Any(), repairTimeRange, repairer).
+			Repair(gomock.Any(), gomock.Any(), gomock.Any(), repairTimeRange, repairer).
 			Return(res, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -1253,7 +1246,7 @@ func TestNamespaceFlushState(t *testing.T) {
 	var (
 		blockStart         = time.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
-			ColdVersion: 2,
+			ColdVersionRetrievable: 2,
 		}
 		shard0 = NewMockdatabaseShard(ctrl)
 	)

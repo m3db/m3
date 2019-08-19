@@ -537,12 +537,20 @@ func (s *service) readDatapoints(
 		return nil, err
 	}
 
+	// Resolve all futures (block reads can be backed by async implementations) and filter out any empty segments.
+	filteredBlockReaderSliceOfSlices, err := xio.FilterEmptyBlockReadersSliceOfSlicesInPlace(encoded)
+	if err != nil {
+		return nil, err
+	}
+
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	datapoints := make([]*rpc.Datapoint, 0)
 
 	multiIt := db.Options().MultiReaderIteratorPool().Get()
 	nsCtx := namespace.NewContextFor(nsID, db.Options().SchemaRegistry())
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded), nsCtx.Schema)
+	multiIt.ResetSliceOfSlices(
+		xio.NewReaderSliceOfSlicesFromBlockReadersIterator(
+			filteredBlockReaderSliceOfSlices), nsCtx.Schema)
 	defer multiIt.Close()
 
 	for multiIt.Next() {

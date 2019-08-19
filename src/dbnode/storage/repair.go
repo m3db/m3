@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -34,14 +33,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/dice"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/jhump/protoreflect/dynamic"
@@ -56,10 +58,11 @@ var (
 
 type recordFn func(namespace ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
 
+// TODO(rartoul): See if we can find a way to guard against too much metadata.
 type shardRepairer struct {
 	opts     Options
 	rpopts   repair.Options
-	client   client.AdminClient
+	clients  []client.AdminClient
 	recordFn recordFn
 	logger   *zap.Logger
 	scope    tally.Scope
@@ -71,12 +74,12 @@ func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer
 	scope := iopts.MetricsScope().SubScope("repair")
 
 	r := shardRepairer{
-		opts:   opts,
-		rpopts: rpopts,
-		client: rpopts.AdminClient(),
-		logger: iopts.Logger(),
-		scope:  scope,
-		nowFn:  opts.ClockOptions().NowFn(),
+		opts:    opts,
+		rpopts:  rpopts,
+		clients: rpopts.AdminClients(),
+		logger:  iopts.Logger(),
+		scope:   scope,
+		nowFn:   opts.ClockOptions().NowFn(),
 	}
 	r.recordFn = r.recordDifferences
 
@@ -90,22 +93,38 @@ func (r shardRepairer) Options() repair.Options {
 func (r shardRepairer) Repair(
 	ctx context.Context,
 	nsCtx namespace.Context,
+	nsMeta namespace.Metadata,
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
-	session, err := r.client.DefaultAdminSession()
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
+	var sessions []sessionAndTopo
+	for _, c := range r.clients {
+		session, err := c.DefaultAdminSession()
+		if err != nil {
+			fmtErr := fmt.Errorf("error obtaining default admin session: %v", err)
+			return repair.MetadataComparisonResult{}, fmtErr
+		}
+		topo, err := session.TopologyMap()
+		if err != nil {
+			fmtErr := fmt.Errorf("error obtaining topology map: %v", err)
+			return repair.MetadataComparisonResult{}, fmtErr
+		}
+
+		sessions = append(sessions, sessionAndTopo{
+			session: session,
+			topo:    topo,
+		})
 	}
 
 	var (
-		start    = tr.Start
-		end      = tr.End
-		origin   = session.Origin()
-		replicas = session.Replicas()
+		start = tr.Start
+		end   = tr.End
+		// Guaranteed to have at least one session and all should have an identical
+		// origin (both assumptions guaranteed by options validation).
+		origin = sessions[0].session.Origin()
 	)
 
-	metadata := repair.NewReplicaMetadataComparer(replicas, r.rpopts)
+	metadata := repair.NewReplicaMetadataComparer(origin, r.rpopts)
 	ctx.RegisterFinalizer(metadata)
 
 	// Add local metadata
@@ -116,7 +135,10 @@ func (r shardRepairer) Repair(
 	var (
 		accumLocalMetadata = block.NewFetchBlocksMetadataResults()
 		pageToken          PageToken
+		err                error
 	)
+	// Safe to register since by the time this function completes we won't be using the metadata
+	// for anything anymore.
 	ctx.RegisterCloser(accumLocalMetadata)
 
 	for {
@@ -143,35 +165,134 @@ func (r shardRepairer) Repair(
 	}
 
 	if r.rpopts.DebugShadowComparisonsEnabled() {
-		// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
-		// issues with the repair feature. It should not be enabled for production use-cases.
-		err := r.shadowCompare(start, end, accumLocalMetadata, session, shard, nsCtx)
-		if err != nil {
-			r.logger.Error(
-				"Shadow compare failed",
-				zap.Error(err))
-			return repair.MetadataComparisonResult{}, err
+		for _, sesTopo := range sessions {
+			// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
+			// issues with the repair feature. It should not be enabled for production use-cases.
+			err := r.shadowCompare(start, end, accumLocalMetadata, sesTopo.session, shard, nsCtx)
+			if err != nil {
+				r.logger.Error(
+					"Shadow compare failed",
+					zap.Error(err))
+			}
 		}
 	}
 
 	localIter := block.NewFilteredBlocksMetadataIter(accumLocalMetadata)
-	err = metadata.AddLocalMetadata(origin, localIter)
+	err = metadata.AddLocalMetadata(localIter)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	// Add peer metadata
-	level := r.rpopts.RepairConsistencyLevel()
-	peerIter, err := session.FetchBlocksMetadataFromPeers(nsCtx.ID, shard.ID(), start, end,
-		level, result.NewOptions())
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
-	}
-	if err := metadata.AddPeerMetadata(peerIter); err != nil {
-		return repair.MetadataComparisonResult{}, err
+	var (
+		rsOpts = r.opts.RepairOptions().ResultOptions()
+		level  = r.rpopts.RepairConsistencyLevel()
+	)
+	for _, sesTopo := range sessions {
+		// Add peer metadata.
+		peerIter, err := sesTopo.session.FetchBlocksMetadataFromPeers(nsCtx.ID, shard.ID(), start, end,
+			level, rsOpts)
+		if err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
+		if err := metadata.AddPeerMetadata(peerIter); err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
 	}
 
-	metadataRes := metadata.Compare()
+	var (
+		// TODO(rartoul): Pool these slices.
+		metadatasToFetchBlocksForPerSession = make([][]block.ReplicaMetadata, len(sessions))
+		metadataRes                         = metadata.Compare()
+		seriesWithChecksumMismatches        = metadataRes.ChecksumDifferences.Series()
+	)
+
+	originID := origin.ID()
+	for _, e := range seriesWithChecksumMismatches.Iter() {
+		for blockStart, replicaMetadataBlocks := range e.Value().Metadata.Blocks() {
+			blStartTime := blockStart.ToTime()
+			blStartRange := xtime.Range{Start: blStartTime, End: blStartTime}
+			if !tr.Contains(blStartRange) {
+				instrument.EmitAndLogInvariantViolation(r.opts.InstrumentOptions(), func(l *zap.Logger) {
+					l.With(
+						zap.Time("blockStart", blockStart.ToTime()),
+						zap.String("namespace", nsMeta.ID().String()),
+						zap.Uint32("shard", shard.ID()),
+					).Error("repair received replica metadata for unrequested blockStart")
+				})
+				continue
+			}
+
+			for _, replicaMetadata := range replicaMetadataBlocks.Metadata() {
+				metadataHostID := replicaMetadata.Host.ID()
+				if metadataHostID == originID {
+					// Don't request blocks for self metadata.
+					continue
+				}
+
+				if len(sessions) == 1 {
+					// Optimized path for single session case.
+					metadatasToFetchBlocksForPerSession[0] = append(metadatasToFetchBlocksForPerSession[0], replicaMetadata)
+					continue
+				}
+
+				// If there is more than one session then we need to match up all of the metadata to the
+				// session it belongs to so that we can fetch the corresponding blocks of data.
+				foundSessionForMetadata := false
+				for i, sesTopo := range sessions {
+					_, ok := sesTopo.topo.LookupHostShardSet(metadataHostID)
+					if !ok {
+						// The host this metadata came from is not part of the cluster this session is connected to.
+						continue
+					}
+					metadatasToFetchBlocksForPerSession[i] = append(metadatasToFetchBlocksForPerSession[i], replicaMetadata)
+					foundSessionForMetadata = true
+					break
+				}
+
+				if !foundSessionForMetadata {
+					// Could happen during topology changes (I.E node is kicked out of the cluster in-between
+					// fetching its metadata and this step).
+					r.logger.Debug(
+						"could not identify which session mismatched metadata belong to",
+						zap.String("hostID", metadataHostID),
+						zap.Time("blockStart", blStartTime),
+					)
+				}
+			}
+		}
+	}
+
+	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
+	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
+	numMismatchSeries := seriesWithChecksumMismatches.Len()
+	results := result.NewShardResult(numMismatchSeries, rsOpts)
+	for i, metadatasToFetchBlocksFor := range metadatasToFetchBlocksForPerSession {
+		if len(metadatasToFetchBlocksFor) == 0 {
+			continue
+		}
+
+		session := sessions[i].session
+		perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatasToFetchBlocksFor, rsOpts)
+		if err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
+
+		for perSeriesReplicaIter.Next() {
+			_, id, block := perSeriesReplicaIter.Current()
+			// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
+			if existing, ok := results.BlockAt(id, block.StartTime()); ok {
+				if err := existing.Merge(block); err != nil {
+					return repair.MetadataComparisonResult{}, err
+				}
+			} else {
+				results.AddBlock(id, ident.Tags{}, block)
+			}
+		}
+	}
+
+	if err := shard.Load(results.AllSeries()); err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
 
 	r.recordFn(nsCtx.ID, shard, metadataRes)
 
@@ -219,8 +340,8 @@ const (
 )
 
 type repairState struct {
+	LastAttempt time.Time
 	Status      repairStatus
-	NumFailures int
 }
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
@@ -270,6 +391,7 @@ func (r repairStatesByNs) setRepairState(
 // it with a mutex.
 type dbRepairer struct {
 	database         database
+	opts             Options
 	ropts            repair.Options
 	shardRepairer    databaseShardRepairer
 	repairStatesByNs repairStatesByNs
@@ -278,11 +400,8 @@ type dbRepairer struct {
 	sleepFn             sleepFn
 	nowFn               clock.NowFn
 	logger              *zap.Logger
-	repairInterval      time.Duration
-	repairTimeOffset    time.Duration
-	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
-	repairMaxRetries    int
+	scope               tally.Scope
 	status              tally.Gauge
 
 	closedLock sync.Mutex
@@ -291,9 +410,11 @@ type dbRepairer struct {
 }
 
 func newDatabaseRepairer(database database, opts Options) (databaseRepairer, error) {
-	nowFn := opts.ClockOptions().NowFn()
-	scope := opts.InstrumentOptions().MetricsScope()
-	ropts := opts.RepairOptions()
+	var (
+		nowFn = opts.ClockOptions().NowFn()
+		scope = opts.InstrumentOptions().MetricsScope().SubScope("repair")
+		ropts = opts.RepairOptions()
+	)
 	if ropts == nil {
 		return nil, errNoRepairOptions
 	}
@@ -303,25 +424,17 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 
 	shardRepairer := newShardRepairer(opts, ropts)
 
-	var jitter time.Duration
-	if repairJitter := ropts.RepairTimeJitter(); repairJitter > 0 {
-		src := rand.NewSource(nowFn().UnixNano())
-		jitter = time.Duration(float64(repairJitter) * (float64(src.Int63()) / float64(math.MaxInt64)))
-	}
-
 	r := &dbRepairer{
 		database:            database,
+		opts:                opts,
 		ropts:               ropts,
 		shardRepairer:       shardRepairer,
 		repairStatesByNs:    newRepairStates(),
 		sleepFn:             time.Sleep,
 		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
-		repairInterval:      ropts.RepairInterval(),
-		repairTimeOffset:    ropts.RepairTimeOffset(),
-		repairTimeJitter:    jitter,
 		repairCheckInterval: ropts.RepairCheckInterval(),
-		repairMaxRetries:    ropts.RepairMaxRetries(),
+		scope:               scope,
 		status:              scope.Gauge("repair"),
 	}
 	r.repairFn = r.Repair
@@ -330,8 +443,6 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 }
 
 func (r *dbRepairer) run() {
-	var curIntervalStart time.Time
-
 	for {
 		r.closedLock.Lock()
 		closed := r.closed
@@ -343,61 +454,23 @@ func (r *dbRepairer) run() {
 
 		r.sleepFn(r.repairCheckInterval)
 
-		now := r.nowFn()
-		intervalStart := now.Truncate(r.repairInterval)
-
-		// If we haven't reached the offset yet, skip
-		target := intervalStart.Add(r.repairTimeOffset + r.repairTimeJitter)
-		if now.Before(target) {
-			continue
-		}
-
-		// If we are in the same interval, we must have already repaired, skip
-		if intervalStart.Equal(curIntervalStart) {
-			continue
-		}
-
-		curIntervalStart = intervalStart
 		if err := r.repairFn(); err != nil {
 			r.logger.Error("error repairing database", zap.Error(err))
 		}
 	}
 }
 
-func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Ranges {
+func (r *dbRepairer) namespaceRepairTimeRange(ns databaseNamespace) xtime.Range {
 	var (
-		now       = r.nowFn()
-		rtopts    = ns.Options().RetentionOptions()
-		blockSize = rtopts.BlockSize()
-		start     = now.Add(-rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
+		now    = r.nowFn()
+		rtopts = ns.Options().RetentionOptions()
 	)
-
-	targetRanges := xtime.NewRanges(xtime.Range{Start: start, End: end})
-	for tNano := range r.repairStatesByNs[ns.ID().String()] {
-		t := tNano.ToTime()
-		if !r.needsRepair(ns.ID(), t) {
-			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})
-		}
-	}
-
-	return targetRanges
-}
-
-func (r *dbRepairer) needsRepair(ns ident.ID, t time.Time) bool {
-	repairState, exists := r.repairStatesByNs.repairStates(ns, t)
-	if !exists {
-		return true
-	}
-	return repairState.Status == repairNotStarted ||
-		(repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries)
+	return xtime.Range{
+		Start: retention.FlushTimeStart(rtopts, now),
+		End:   retention.FlushTimeEnd(rtopts, now)}
 }
 
 func (r *dbRepairer) Start() {
-	if r.repairInterval <= 0 {
-		return
-	}
-
 	go r.run()
 }
 
@@ -407,6 +480,19 @@ func (r *dbRepairer) Stop() {
 	r.closedLock.Unlock()
 }
 
+// Repair will analyze the current repair state for each namespace/blockStart combination and pick one blockStart
+// per namespace to repair. It will prioritize blocks that have never been repaired over those that have been
+// repaired before, and it will prioritize more recent blocks over older ones. If all blocks have been repaired
+// before then it will prioritize the least recently repaired block.
+//
+// The Repair function only attempts to repair one block at a time because this allows the background repair process
+// to run its prioritization logic more frequently. For example, if we attempted to repair all blocks in one pass,
+// even with appropriate backpressure, this could lead to situations where recent blocks are not repaired for a
+// substantial amount of time whereas with the current approach the longest delay between running the prioritization
+// logic is the amount of time it takes to repair one block for all shards.
+//
+// Long term we will want to move to a model that actually tracks state for individual shard/blockStart combinations,
+// not just blockStarts.
 func (r *dbRepairer) Repair() error {
 	// Don't attempt a repair if the database is not bootstrapped yet
 	if !r.database.IsBootstrapped() {
@@ -426,12 +512,77 @@ func (r *dbRepairer) Repair() error {
 	if err != nil {
 		return err
 	}
+
 	for _, n := range namespaces {
-		iter := r.namespaceRepairTimeRanges(n).Iter()
-		for iter.Next() {
-			multiErr = multiErr.Add(r.repairNamespaceWithTimeRange(n, iter.Value()))
+		repairRange := r.namespaceRepairTimeRange(n)
+		blockSize := n.Options().RetentionOptions().BlockSize()
+
+		// Iterating backwards will be exclusive on the start, but we want to be inclusive on the
+		// start so subtract a blocksize.
+		repairRange.Start = repairRange.Start.Add(-blockSize)
+
+		var (
+			numUnrepairedBlocks                           = 0
+			hasRepairedABlockStart                        = false
+			leastRecentlyRepairedBlockStart               time.Time
+			leastRecentlyRepairedBlockStartLastRepairTime time.Time
+		)
+		repairRange.IterateBackward(blockSize, func(blockStart time.Time) bool {
+			repairState, ok := r.repairStatesByNs.repairStates(n.ID(), blockStart)
+			if ok && (leastRecentlyRepairedBlockStart.IsZero() ||
+				repairState.LastAttempt.Before(leastRecentlyRepairedBlockStartLastRepairTime)) {
+				leastRecentlyRepairedBlockStart = blockStart
+				leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
+			}
+
+			if ok && repairState.Status == repairSuccess {
+				return true
+			}
+
+			// Failed or unrepair block from this point onwards.
+			numUnrepairedBlocks++
+			if hasRepairedABlockStart {
+				// Only want to repair one namespace/blockStart per call to Repair()
+				// so once we've repaired a single blockStart we don't perform any
+				// more actual repairs although we do keep iterating so that we can
+				// emit an accurate value for the "num-unrepaired-blocks" gauge.
+				return true
+			}
+
+			if err := r.repairNamespaceBlockstart(n, blockStart); err != nil {
+				multiErr = multiErr.Add(err)
+			}
+			hasRepairedABlockStart = true
+
+			return true
+		})
+
+		// Update metrics with statistics about repair status.
+		r.scope.Tagged(map[string]string{
+			"namespace": n.ID().String(),
+		}).Gauge("num-unrepaired-blocks").Update(float64(numUnrepairedBlocks))
+
+		secondsSinceLastRepair := r.nowFn().Sub(leastRecentlyRepairedBlockStartLastRepairTime).Seconds()
+		r.scope.Tagged(map[string]string{
+			"namespace": n.ID().String(),
+		}).Gauge("max-seconds-since-last-block-repair").Update(secondsSinceLastRepair)
+
+		if hasRepairedABlockStart {
+			// Previous loop performed a repair which means we've hit our limit of repairing
+			// one block per namespace per call to Repair() so we can skip the logic below.
+			continue
+		}
+
+		// If we've made it this far that means that there were no unrepaired blocks which means we should
+		// repair the least recently repaired block instead.
+		if leastRecentlyRepairedBlockStart.IsZero() {
+			continue
+		}
+		if err := r.repairNamespaceBlockstart(n, leastRecentlyRepairedBlockStart); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
+
 	return multiErr.FinalError()
 }
 
@@ -443,31 +594,38 @@ func (r *dbRepairer) Report() {
 	}
 }
 
-func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
+func (r *dbRepairer) repairNamespaceBlockstart(n databaseNamespace, blockStart time.Time) error {
 	var (
-		rtopts    = n.Options().RetentionOptions()
-		blockSize = rtopts.BlockSize()
-		err       error
+		blockSize   = n.Options().RetentionOptions().BlockSize()
+		repairRange = xtime.Range{Start: blockStart, End: blockStart.Add(blockSize)}
+		repairTime  = r.nowFn()
 	)
-
-	// repair the namespace
-	if err = n.Repair(r.shardRepairer, tr); err != nil {
-		err = fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
+	if err := r.repairNamespaceWithTimeRange(n, repairRange); err != nil {
+		r.markRepairAttempt(n.ID(), blockStart, repairTime, repairFailed)
+		return err
 	}
 
-	// update repairer state
-	for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
-		repairState, _ := r.repairStatesByNs.repairStates(n.ID(), t)
-		if err == nil {
-			repairState.Status = repairSuccess
-		} else {
-			repairState.Status = repairFailed
-			repairState.NumFailures++
-		}
-		r.repairStatesByNs.setRepairState(n.ID(), t, repairState)
+	r.markRepairAttempt(n.ID(), blockStart, repairTime, repairSuccess)
+	return nil
+}
+
+func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
+	if err := n.Repair(r.shardRepairer, tr); err != nil {
+		return fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
 	}
 
-	return err
+	return nil
+}
+
+func (r *dbRepairer) markRepairAttempt(
+	namespace ident.ID,
+	blockStart time.Time,
+	repairTime time.Time,
+	repairStatus repairStatus) {
+	repairState, _ := r.repairStatesByNs.repairStates(namespace, blockStart)
+	repairState.Status = repairStatus
+	repairState.LastAttempt = repairTime
+	r.repairStatesByNs.setRepairState(namespace, blockStart, repairState)
 }
 
 var noOpRepairer databaseRepairer = repairerNoOp{}
@@ -512,10 +670,16 @@ func (r shardRepairer) shadowCompare(
 
 		tmpCtx.Reset()
 		defer tmpCtx.BlockingClose()
-		localSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
+
+		unfilteredLocalSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
 		}
+		localSeriesDataBlocks, err := xio.FilterEmptyBlockReadersSliceOfSlicesInPlace(unfilteredLocalSeriesDataBlocks)
+		if err != nil {
+			return err
+		}
+
 		localSeriesSliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(localSeriesDataBlocks)
 		localSeriesIter := r.opts.MultiReaderIteratorPool().Get()
 		localSeriesIter.ResetSliceOfSlices(localSeriesSliceOfSlices, nsCtx.Schema)
@@ -659,4 +823,9 @@ func (r shardRepairer) shadowCompare(
 	}
 
 	return nil
+}
+
+type sessionAndTopo struct {
+	session client.AdminSession
+	topo    topology.Map
 }

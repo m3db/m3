@@ -25,6 +25,7 @@ package integration
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -199,6 +200,22 @@ func verifyForTime(
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
 ) {
+	err := checkForTime(
+		storageOpts, reader, shardSet, iteratorPool, timestamp,
+		nsCtx, filesetType, expected)
+	require.NoError(t, err)
+}
+
+func checkForTime(
+	storageOpts storage.Options,
+	reader fs.DataFileSetReader,
+	shardSet sharding.ShardSet,
+	iteratorPool encoding.ReaderIteratorPool,
+	timestamp time.Time,
+	nsCtx ns.Context,
+	filesetType persist.FileSetType,
+	expected generate.SeriesBlock,
+) error {
 	shards := make(map[uint32]struct{})
 	for _, series := range expected {
 		shard := shardSet.Lookup(series.ID)
@@ -220,24 +237,39 @@ func verifyForTime(
 		// Identify the latest volume for this block start.
 		case persist.FileSetSnapshotType:
 			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, nsCtx.ID, shard)
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 			latest, ok := snapshotFiles.LatestVolumeForBlock(timestamp)
-			require.True(t, ok)
+			if !ok {
+				return fmt.Errorf("no latest snapshot volume for block: %v", timestamp)
+			}
 			rOpts.Identifier.VolumeIndex = latest.ID.VolumeIndex
 		case persist.FileSetFlushType:
 			dataFiles, err := fs.DataFiles(filePathPrefix, nsCtx.ID, shard)
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 			latest, ok := dataFiles.LatestVolumeForBlock(timestamp)
-			require.True(t, ok)
+			if !ok {
+				return fmt.Errorf("no latest data volume for block: %v", timestamp)
+			}
 			rOpts.Identifier.VolumeIndex = latest.ID.VolumeIndex
 		}
-		require.NoError(t, reader.Open(rOpts))
+		if err := reader.Open(rOpts); err != nil {
+			return err
+		}
+
 		for i := 0; i < reader.Entries(); i++ {
 			id, tagsIter, data, _, err := reader.Read()
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 
 			tags, err := testutil.NewTagsFromTagIterator(tagsIter)
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 
 			data.IncRef()
 
@@ -248,7 +280,9 @@ func verifyForTime(
 				dp, _, ann := it.Current()
 				datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: ann})
 			}
-			require.NoError(t, it.Err())
+			if err := it.Err(); err != nil {
+				return err
+			}
 			it.Close()
 
 			actual = append(actual, generate.Series{
@@ -260,10 +294,12 @@ func verifyForTime(
 			data.DecRef()
 			data.Finalize()
 		}
-		require.NoError(t, reader.Close())
+		if err := reader.Close(); err != nil {
+			return err
+		}
 	}
 
-	compareSeriesList(t, expected, actual)
+	return compareSeriesList(expected, actual)
 }
 
 func verifyFlushedDataFiles(
@@ -273,16 +309,33 @@ func verifyFlushedDataFiles(
 	nsID ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
+	err := checkFlushedDataFiles(shardSet, storageOpts, nsID, seriesMaps)
+	require.NoError(t, err)
+}
+
+func checkFlushedDataFiles(
+	shardSet sharding.ShardSet,
+	storageOpts storage.Options,
+	nsID ident.ID,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) error {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	iteratorPool := storageOpts.ReaderIteratorPool()
 	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(
-			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
+		err := checkForTime(
+			storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
 			nsCtx, persist.FileSetFlushType, seriesList)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func verifySnapshottedDataFiles(

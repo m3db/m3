@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -127,9 +128,6 @@ db:
 
   repair:
       enabled: false
-      interval: 2h
-      offset: 30m
-      jitter: 1h
       throttle: 2m
       checkInterval: 1m
 
@@ -175,7 +173,7 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
           capacity: 4096
-      hostBlockMetadataSlicePool:
+      replicaMetadataSlicePool:
           size: 131072
           capacity: 3
           lowWatermark: 0.01
@@ -440,13 +438,11 @@ func TestConfiguration(t *testing.T) {
     blockSize: null
   repair:
     enabled: false
-    interval: 2h0m0s
-    offset: 30m0s
-    jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
     type: simple
@@ -527,7 +523,7 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
       capacity: 4096
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
       size: 131072
       lowWatermark: 0.01
       highWatermark: 0.02
@@ -989,6 +985,6 @@ db:
 	adminClient := client.NewMockAdminClient(ctrl)
 
 	_, err = cfg.DB.Bootstrap.New(validator,
-		storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
 	require.NoError(t, err)
 }

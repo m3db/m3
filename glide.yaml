@@ -125,6 +125,9 @@ import:
     subpackages:
       - require
 
+  - package: github.com/fortytw2/leaktest
+    version: b433bbd6d743c1854040b39062a3916ed5f78fe8
+
   - package: github.com/sergi/go-diff
     version: feef008d51ad2b3778f85d387ccf91735543008d
 
@@ -241,7 +244,3 @@ import:
 
   - package: github.com/leanovate/gopter
     version: e2604588f4db2d2e5eb78ae75d615516f55873e3
-
-testImport:
-  - package: github.com/fortytw2/leaktest
-    version: b433bbd6d743c1854040b39062a3916ed5f78fe8

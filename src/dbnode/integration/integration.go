@@ -114,6 +114,7 @@ type bootstrappableTestSetupOptions struct {
 	testStatsReporter           xmetrics.TestStatsReporter
 	disablePeersBootstrapper    bool
 	useTChannelClientForWriting bool
+	enableRepairs               bool
 }
 
 type closeFn func()
@@ -159,6 +160,7 @@ func newDefaultBootstrappableTestSetups(
 			bootstrapConsistencyLevel   = setupOpts[i].bootstrapConsistencyLevel
 			topologyInitializer         = setupOpts[i].topologyInitializer
 			testStatsReporter           = setupOpts[i].testStatsReporter
+			enableRepairs               = setupOpts[i].enableRepairs
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 		)
@@ -291,6 +293,19 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
+
+		if enableRepairs {
+			setup.storageOpts = setup.storageOpts.
+				SetRepairEnabled(true).
+				SetRepairOptions(
+					setup.storageOpts.RepairOptions().
+						SetRepairThrottle(time.Millisecond).
+						SetRepairCheckInterval(time.Millisecond).
+						SetAdminClients([]client.AdminClient{adminClient}).
+						SetDebugShadowComparisonsPercentage(1.0).
+						// Avoid log spam.
+						SetDebugShadowComparisonsEnabled(false))
+		}
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {

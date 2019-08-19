@@ -386,7 +386,7 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 	if err != nil {
 		return -1, err
 	}
-	return flushState.ColdVersion, nil
+	return flushState.ColdVersionFlushed, nil
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -403,7 +403,10 @@ func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
 			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
-			ColdVersion:     state.ColdVersion,
+			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
+			// will be used to make eviction decisions and we don't want to evict data before
+			// it is retrievable.
+			ColdVersion: state.ColdVersionRetrievable,
 		}
 	}
 
@@ -631,8 +634,8 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error) {
-	s.removeAnyFlushStatesTooEarly(tickStart)
+func (s *dbShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+	s.removeAnyFlushStatesTooEarly(startTime)
 	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
 }
 
@@ -1581,12 +1584,12 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	if cachePolicy == series.CacheAll {
 		// If we are using a series cache policy that caches all block metadata
 		// in memory then we only ever perform the active phase as all metadata
-		// is actively held in memory
+		// is actively held in memory.
 		indexCursor := int64(0)
 		if activePhase != nil {
 			indexCursor = activePhase.IndexCursor
 		}
-		// We always include cached blocks
+		// We always include cached blocks.
 		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
 			FetchBlocksMetadataOptions: opts,
 			IncludeCachedBlocks:        true,
@@ -1599,7 +1602,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 		if nextIndexCursor == nil {
 			// No more results and only enacting active phase since we are using
-			// series policy that caches all block metadata in memory
+			// series policy that caches all block metadata in memory.
 			return result, nil, nil
 		}
 		token = &pagetoken.PageToken{
@@ -1634,13 +1637,13 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	if flushedPhase == nil {
 		// If first phase started or no phases started then return active
 		// series metadata until we find a block start time that we have fileset
-		// files for
+		// files for.
 		indexCursor := int64(0)
 		if activePhase != nil {
 			indexCursor = activePhase.IndexCursor
 		}
 		// We do not include cached blocks because we'll send metadata for
-		// those blocks when we send metadata directly from the flushed files
+		// those blocks when we send metadata directly from the flushed files.
 		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
 			FetchBlocksMetadataOptions: opts,
 			IncludeCachedBlocks:        false,
@@ -1651,14 +1654,14 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			return nil, nil, err
 		}
 
-		// Encode the next page token
+		// Encode the next page token.
 		if nextIndexCursor == nil {
-			// Next phase, no more results from active series
+			// Next phase, no more results from active series.
 			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{},
 			}
 		} else {
-			// This phase is still active
+			// This phase is still active.
 			token = &pagetoken.PageToken{
 				ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
 					IndexCursor: *nextIndexCursor,
@@ -1680,7 +1683,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		result    = s.opts.FetchBlocksMetadataResultsPool().Get()
 		ropts     = s.namespace.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
-		// Subtract one blocksize because all fetch requests are exclusive on the end side
+		// Subtract one blocksize because all fetch requests are exclusive on the end side.
 		blockStart      = end.Truncate(blockSize).Add(-1 * blockSize)
 		tokenBlockStart time.Time
 		numResults      int64
@@ -1690,7 +1693,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		blockStart = tokenBlockStart
 	}
 
-	// Work backwards while in requested range and not before retention
+	// Work backwards while in requested range and not before retention.
 	for !blockStart.Before(start) &&
 		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
 		exists, err := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
@@ -1698,7 +1701,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			return nil, nil, err
 		}
 		if !exists {
-			// No fileset files here
+			// No fileset files here.
 			blockStart = blockStart.Add(-1 * blockSize)
 			continue
 		}
@@ -1706,7 +1709,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		var pos readerPosition
 		if !tokenBlockStart.IsZero() {
 			// Was previously seeking through a previous block, need to validate
-			// this is the correct one we found otherwise the file just went missing
+			// this is the correct one we found otherwise the file just went missing.
 			if !blockStart.Equal(tokenBlockStart) {
 				return nil, nil, fmt.Errorf(
 					"was reading block at %v but next available block is: %v",
@@ -1714,13 +1717,14 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			}
 
 			// Do not need to check if we move onto the next block that it matches
-			// the token's block start on next iteration
+			// the token's block start on next iteration.
 			tokenBlockStart = time.Time{}
 
 			pos.metadataIdx = int(flushedPhase.CurrBlockEntryIdx)
+			pos.volume = int(flushedPhase.Volume)
 		}
 
-		// Open a reader at this position, potentially from cache
+		// Open a reader at this position, potentially from cache.
 		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, pos)
 		if err != nil {
 			return nil, nil, err
@@ -1729,7 +1733,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		for numResults < limit {
 			id, tags, size, checksum, err := reader.ReadMetadata()
 			if err == io.EOF {
-				// Clean end of volume, we can break now
+				// Clean end of volume, we can break now.
 				if err := reader.Close(); err != nil {
 					return nil, nil, fmt.Errorf(
 						"could not close metadata reader for block %v: %v",
@@ -1738,7 +1742,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 				break
 			}
 			if err != nil {
-				// Best effort to close the reader on a read error
+				// Best effort to close the reader on a read error.
 				if err := reader.Close(); err != nil {
 					s.logger.Error("could not close reader on unexpected err", zap.Error(err))
 				}
@@ -1765,16 +1769,29 @@ func (s *dbShard) FetchBlocksMetadataV2(
 				blockResult))
 		}
 
-		// Return the reader to the cache
 		endPos := int64(reader.MetadataRead())
-		s.namespaceReaderMgr.put(reader)
+		// This volume may be different from the one initially requested,
+		// e.g. if there was a compaction between the last call and this
+		// one, so be sure to update the state of the pageToken. If this is not
+		// updated, the request would have to start from the beginning since it
+		// would be requesting a stale volume, which could result in an infinite
+		// loop of requests that never complete.
+		volume := int64(reader.Status().Volume)
+
+		// Return the reader to the cache. Since this is effectively putting
+		// the reader into a shared pool, don't use the reader after this call.
+		err = s.namespaceReaderMgr.put(reader)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		if numResults >= limit {
-			// We hit the limit, return results with page token
+			// We hit the limit, return results with page token.
 			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
 					CurrBlockStartUnixNanos: blockStart.UnixNano(),
 					CurrBlockEntryIdx:       endPos,
+					Volume:                  volume,
 				},
 			}
 			data, err := proto.Marshal(token)
@@ -1784,11 +1801,11 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			return result, PageToken(data), nil
 		}
 
-		// Otherwise we move on to the previous block
+		// Otherwise we move on to the previous block.
 		blockStart = blockStart.Add(-1 * blockSize)
 	}
 
-	// No more results if we fall through
+	// No more results if we fall through.
 	return result, nil, nil
 }
 
@@ -1987,8 +2004,9 @@ func (s *dbShard) bootstrapFlushStates() error {
 		// Note that there can be multiple info files for the same block, for
 		// example if the database didn't get to clean up compacted filesets
 		// before terminating.
-		if fs.ColdVersion < info.VolumeIndex {
-			s.setFlushStateColdVersion(at, info.VolumeIndex)
+		if fs.ColdVersionRetrievable < info.VolumeIndex {
+			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
+			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
 		}
 	}
 
@@ -2191,11 +2209,13 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 
-		// After writing the full block successfully, update the cold version
-		// in the flush state. Once this function completes block leasers will
-		// no longer be able to acquire leases on previous volumes for the given
-		// namespace/shard/blockstart.
-		s.setFlushStateColdVersion(startTime, nextVersion)
+		// After writing the full block successfully update the ColdVersionFlushed number. This will
+		// allow the SeekerManager to open a lease on the latest version of the fileset files because
+		// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
+		// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
+		// evicted (which is the desired behavior because we haven't updated the open leases yet which
+		// means the newly written data is not available for querying via the SeekerManager yet.)
+		s.setFlushStateColdVersionFlushed(startTime, nextVersion)
 
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
@@ -2205,6 +2225,17 @@ func (s *dbShard) ColdFlush(
 			Shard:      s.ID(),
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
+		// After writing the full block successfully **and** propagating the new lease to the
+		// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
+		// completes concurrent ticks will be able to evict the data from memory that was just flushed
+		// (which is now safe to do since the SeekerManager has been notified of the presence of new
+		// files).
+		//
+		// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
+		// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
+		// which would increase the complexity of the code to address a situation that is probably not
+		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
+		s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.With(
@@ -2345,17 +2376,25 @@ func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.ColdVersion = version
+	state.ColdVersionRetrievable = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
+func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
 	s.flushState.Lock()
-	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), tickStart)
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.ColdVersionFlushed = version
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) removeAnyFlushStatesTooEarly(startTime time.Time) {
+	s.flushState.Lock()
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), startTime)
 	for t := range s.flushState.statesByTime {
 		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)
@@ -2407,10 +2446,11 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 func (s *dbShard) Repair(
 	ctx context.Context,
 	nsCtx namespace.Context,
+	nsMeta namespace.Metadata,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, nsCtx, tr, s)
+	return repairer.Repair(ctx, nsCtx, nsMeta, tr, s)
 }
 
 func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
