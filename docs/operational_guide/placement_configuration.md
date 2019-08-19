@@ -21,8 +21,7 @@ cannot change this once the cluster is created.
 | 12              | 256              |
 | 24              | 512              |
 | 48              | 1024             |
-
-**Note**: For production clusters with high-resource nodes (over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: `4096 shards`
+| 128+            | 4096             |
 
 After performing any of the instructions documented below a new placement will automatically be generated to distribute the shards among the M3DB nodes such that the isolation group and replication factor constraints are met.
 

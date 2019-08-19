@@ -156,8 +156,7 @@ cannot change this once the cluster is created.
 | 12              | 256              |
 | 24              | 512              |
 | 48              | 1024             |
-
-**Note**: For production clusters with high-resource nodes (over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: `4096 shards`
+| 128+            | 4096             |
 
 ## Create namespace(s)
 A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.
