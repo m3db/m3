@@ -253,6 +253,10 @@ func (r ShardResults) Equal(other ShardResults) bool {
 
 // EstimateMapBytesSize estimates the size (in bytes) of the results map.
 func EstimateMapBytesSize(m *Map) int {
+	if m == nil {
+		return 0
+	}
+
 	var sum int
 	for _, elem := range m.Iter() {
 		id := elem.Key()
@@ -260,8 +264,13 @@ func EstimateMapBytesSize(m *Map) int {
 
 		blocks := elem.Value()
 		for _, tag := range blocks.Tags.Values() {
-			sum += len(tag.Name.Bytes())
-			sum += len(tag.Value.Bytes())
+			// Name/Value should never be nil but be precautious.
+			if tag.Name != nil {
+				sum += len(tag.Name.Bytes())
+			}
+			if tag.Value != nil {
+				sum += len(tag.Value.Bytes())
+			}
 		}
 		for _, block := range blocks.Blocks.AllBlocks() {
 			sum += block.Len()

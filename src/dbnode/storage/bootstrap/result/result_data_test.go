@@ -513,3 +513,7 @@ func TestEstimateMapBytesSize(t *testing.T) {
 
 	require.Equal(t, 24, EstimateMapBytesSize(sr.AllSeries()))
 }
+
+func TestEstimateMapBytesSizeEmpty(t *testing.T) {
+	require.Equal(t, 0, EstimateMapBytesSize(nil))
+}

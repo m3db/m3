@@ -1903,9 +1903,12 @@ func (s *dbShard) loadSeries(
 
 	if !bootstrap {
 		memTracker := s.opts.MemoryTracker()
-		ok := memTracker.IncNumLoadedBytes(seriesToLoad.BytesLength())
+		estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
+		ok := memTracker.IncNumLoadedBytes(estimatedSize)
 		if !ok {
-			return dbShardBootstrapResult{}, fmt.Errorf("exceeded limit blah blah blah")
+			return dbShardBootstrapResult{}, fmt.Errorf(
+				"failed to load estimated %d bytes, database is at limit",
+				estimatedSize)
 		}
 	}
 
