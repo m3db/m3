@@ -20,7 +20,7 @@ Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Fin
 
 ## What to do if my M3DB node is OOM’ing?
 
-1. Ensure that you are not co-locating coordinator, etcd or query nodes with your m3db nodes. Colocation or embedded mode is fine for a development environment, but highly discouraged in production.
+1. Ensure that you are not co-locating coordinator, etcd or query nodes with your M3DB nodes. Colocation or embedded mode is fine for a development environment, but highly discouraged in production.
 2. Check to make sure you are running adequate block sizes based on the retention of your namespace. See [namespace configuration](../operational_guide/namespace_configuration.md) for more information.
-3. Ensure that you have 30-40% memory overhead in the normal running state. You want to ensure enough overhead to handle bursts of metrics, especially ones with new IDs as those will take more memory initially.
-4. High cardinality metrics can also lead to OOMs especially if you are not adequatly provisioned. If you have high cardinality metrics such as ones containing UUIDs or timestamps as tag values, you should consider eliminating or lessening these. 
+3. Ensure that you use at most 50-60% memory utilization in the normal running state. You want to ensure enough overhead to handle bursts of metrics, especially ones with new IDs as those will take more memory initially.
+4. High cardinality metrics can also lead to OOMs especially if you are not adequately provisioned. If you have many unique timeseries such as ones containing UUIDs or timestamps as tag values, you should consider mitigating their cardinality. 

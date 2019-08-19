@@ -96,16 +96,21 @@ m3dbnode -f <config-name.yml>
 
 Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc
 
-## Initialize Topology
-M3DB calls its cluster topology ‘placement’. Run the command below on any of the seed nodes to initialize your first placement.
+## Create Namespace and Initialize Topology
 
-Note: Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones `us-east1-a`, `us-east1-b`, `us-east1-c` as our isolation groups which matches our replication factor of 3.
+The recommended way to create a namespace and initialize a topology is to use the `/database/create` api. Below is an example.
+
+**Note:** In order to create a more custom setup, please refer to the [namespace configuration](../operational_guide/namespace_configuration.md) and 
+[placement configuration](../operational_guide/placement_configuration.md) guides, though this is discouraged.
 
 ```json
-curl -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 1024,
-    "replication_factor": 3,
-    "instances": [
+curl -X POST http://localhost:7201/api/v1/database/create -d '{
+  "type": "cluster",
+  "namespaceName": "1week_namespace",
+  "retentionTime": "168h",
+  "numShards": "1024",
+  "replicationFactor": "3",
+  "hosts": [
         {
             "id": "m3db001",
             "isolation_group": "us-east1-a",
@@ -137,57 +142,7 @@ curl -X POST localhost:7201/api/v1/placement/init -d '{
 }'
 ```
 
-### Replication factor (RF)
-
-Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones) for more specifics.
-
-### Shards
-
-The number of shards that M3DB uses is configurable and there are a couple of key points to note when deciding the number to use. The
-more nodes you have, the more shards you want because you want the shards to be evenly distributed amongst your nodes. However,
-because each shard requires more files to be created, you also don’t want to have too many shards per node. Below are some guidelines 
-depending on how many nodes you will have in your cluster eventually - you will need to decide the number of shards up front, you
-cannot change this once the cluster is created. 
-
-| Number of Nodes | Number of Shards |
-|-----------------|------------------|
-| 3               | 64               |
-| 6               | 128              |
-| 12              | 256              |
-| 24              | 512              |
-| 48              | 1024             |
-| 128+            | 4096             |
-
-## Create namespace(s)
-A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.
-
-Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:
-
-```json
-curl -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "metrics",
-  "options": {
-    "bootstrapEnabled": true,
-    "flushEnabled": true,
-    "writesToCommitLog": true,
-    "cleanupEnabled": true,
-    "snapshotEnabled": true,
-    "repairEnabled": false,
-    "retentionOptions": {
-      "retentionPeriodDuration": "720h",
-      "blockSizeDuration": "12h",
-      "bufferFutureDuration": "1h",
-      "bufferPastDuration": "1h",
-      "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
-    },
-    "indexOptions": {
-      "enabled": true,
-      "blockSizeDuration": "12h"
-    }
-  }
-}'
-```
+**Note:** Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones `us-east1-a`, `us-east1-b`, `us-east1-c` as our isolation groups which matches our replication factor of 3.
 
 Shortly after, you should see your node complete bootstrapping:
 
@@ -204,17 +159,13 @@ Shortly after, you should see your node complete bootstrapping:
 20:10:14.764771[I] successfully updated topology to 3 hosts
 ```
 
-Below are recommendations for block size based on the resolution and retention of the namespace:
+### Replication factor (RF)
 
-| Retention / Resolution | 10s | 1m  | 10m | 1h  |
-|------------------------|-----|-----|-----|-----|
-| 12h                    | 30m | 2h  | N/A | N/A |
-| 24h                    | 1h  | 4h  | N/A | N/A |
-| 168h                   | 6h  | 12h | 24h | 48h |
-| 720h                   | 24h | 24h | 48h | 96h |
-| 8760h                  | 24h | 24h | 48h | 96h |
+Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones) for more specifics.
 
-For more information on namespace configuration, [see here](../operational_guide/namespace_configuration.md).
+### Shards
+
+See [placement configuration](../operational_guide/placement_configuration.md) to determine the appropriate number of shards to specify.
 
 ## Test it out
 
