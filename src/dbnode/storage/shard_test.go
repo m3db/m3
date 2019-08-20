@@ -291,7 +291,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	for i, blockStart := range blockStarts {
 		flushState, err := s.FlushState(blockStart)
 		require.NoError(t, err)
-		require.Equal(t, i, flushState.ColdVersion)
+		require.Equal(t, i, flushState.ColdVersionFlushed)
 	}
 }
 
@@ -352,7 +352,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 
 	flushState, err := s.FlushState(start)
 	require.NoError(t, err)
-	require.Equal(t, numVolumes-1, flushState.ColdVersion)
+	require.Equal(t, numVolumes-1, flushState.ColdVersionFlushed)
 }
 
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
@@ -528,9 +528,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:  fileOpSuccess,
-		ColdVersion: 0,
-		NumFailures: 0,
+		WarmStatus:             fileOpSuccess,
+		ColdVersionRetrievable: 0,
+		NumFailures:            0,
 	}, flushState)
 }
 
@@ -622,7 +622,8 @@ func TestShardColdFlush(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, coldVersion)
 	}
-	shard.ColdFlush(preparer, resources, nsCtx)
+	err = shard.ColdFlush(preparer, resources, nsCtx)
+	require.NoError(t, err)
 	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
 	for i := t0; i.Before(t6.Add(blockSize)); i = i.Add(blockSize) {

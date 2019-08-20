@@ -172,12 +172,6 @@ func (it *iterator) Next() bool {
 				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
 				return false
 			}
-
-			if !it.consumedFirstMessage {
-				// Don't interpret the initial time unit as a "change" since the encoder special
-				// cases the first one.
-				it.tsIterator.TimeUnitChanged = false
-			}
 		}
 
 		if schemaHasChangedControlBit == opCodeSchemaChange {
