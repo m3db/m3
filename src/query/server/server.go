@@ -378,7 +378,7 @@ func Run(runOpts RunOptions) {
 
 	if cfg.DebugListenAddress != "" {
 		go func() {
-			mux := http.DefaultServeMux
+			mux := http.NewServeMux()
 			if debugWriter != nil {
 				if err := debugWriter.RegisterHandler(debugEndpoint, mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
