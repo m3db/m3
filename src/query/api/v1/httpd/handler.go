@@ -266,13 +266,9 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(graphite.FindHTTPMethods...)
 
 	if h.clusterClient != nil {
-		placementOpts, err := placement.NewHandlerOptions(
-			h.clusterClient,
-			h.config,
-			h.m3AggServiceOptions(),
-			h.instrumentOpts)
+		placementOpts, err := h.PlacementOpts()
 		if err != nil {
-			return err
+			return nil
 		}
 
 		err = database.RegisterRoutes(h.router, h.clusterClient,
@@ -291,6 +287,20 @@ func (h *Handler) RegisterRoutes() error {
 	h.registerRoutesEndpoint()
 
 	return nil
+}
+
+// PlacementOpts returns placement opts used in the various placement APIs.
+func (h *Handler) PlacementOpts() (placement.HandlerOptions, error) {
+	placementOpts, err := placement.NewHandlerOptions(
+		h.clusterClient,
+		h.config,
+		h.m3AggServiceOptions(),
+		h.instrumentOpts)
+	if err != nil {
+		return placement.HandlerOptions{}, err
+	}
+
+	return placementOpts, nil
 }
 
 func (h *Handler) m3AggServiceOptions() *handler.M3AggServiceOptions {

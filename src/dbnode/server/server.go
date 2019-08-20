@@ -68,6 +68,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -315,6 +316,7 @@ func Run(runOpts RunOptions) {
 		cpuProfileDuration,
 		iopts,
 		nil,
+		placement.HandlerOptions{},
 	)
 	if err != nil {
 		logger.Error("unable to create debug writer", zap.Error(err))

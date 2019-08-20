@@ -361,10 +361,16 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	placementOpts, err := handler.PlacementOpts()
+	if err != nil {
+		logger.Fatal("unable to get placement opts", zap.Error(err))
+	}
+
 	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
 		cpuProfileDuration,
 		instrumentOptions,
 		clusterClient,
+		placementOpts,
 	)
 	if err != nil {
 		logger.Error("unable to create debug writer", zap.Error(err))

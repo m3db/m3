@@ -29,6 +29,7 @@ import (
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -76,6 +77,7 @@ func NewZipWriterWithDefaultSources(
 	cpuProfileDuration time.Duration,
 	iopts instrument.Options,
 	clusterClient clusterclient.Client,
+	placementsOpts placement.HandlerOptions,
 ) (ZipWriter, error) {
 	zw := NewZipWriter(iopts)
 
@@ -84,6 +86,15 @@ func NewZipWriterWithDefaultSources(
 		err = zw.RegisterSource("namespaceSource", NewNamespaceInfoSource(iopts, clusterClient))
 		if err != nil {
 			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
+		}
+
+		placementInfoSource, err := NewPlacementInfoSource(iopts, placementsOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create placementInfoSource: %v", err)
+		}
+		err = zw.RegisterSource("placementSource", placementInfoSource)
+		if err != nil {
+			return nil, fmt.Errorf("unable to register placementSource: %s", err)
 		}
 	}
 
