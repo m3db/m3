@@ -68,6 +68,10 @@ const (
 
 	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
+
+	// defaultNumLoadedBytesLimit is the default limit (2GiB) for the number of outstanding loaded bytes that
+	// the memory tracker will allow.
+	defaultNumLoadedBytesLimit = 2 << 30
 )
 
 var (
@@ -206,7 +210,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
-		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(0)),
+		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
