@@ -28,8 +28,10 @@ import (
 	"net/http"
 	"time"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
 	"go.uber.org/zap"
 )
 
@@ -69,11 +71,23 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 }
 
 // NewZipWriterWithDefaultSources returns a zipWriter with the following
-// debug sources already registered: CPU, heap, host, goroutines.
-func NewZipWriterWithDefaultSources(cpuProfileDuration time.Duration, iopts instrument.Options) (ZipWriter, error) {
+// debug sources already registered: CPU, heap, host, goroutines, namespace info.
+func NewZipWriterWithDefaultSources(
+	cpuProfileDuration time.Duration,
+	iopts instrument.Options,
+	clusterClient clusterclient.Client,
+) (ZipWriter, error) {
 	zw := NewZipWriter(iopts)
 
-	err := zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))
+	var err error
+	if clusterClient != nil {
+		err = zw.RegisterSource("namespaceSource", NewNamespaceInfoSource(iopts, clusterClient))
+		if err != nil {
+			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
+		}
+	}
+
+	err = zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))
 	if err != nil {
 		return nil, fmt.Errorf("unable to register CPUProfileSource: %s", err)
 	}

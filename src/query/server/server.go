@@ -56,6 +56,7 @@ import (
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
@@ -72,7 +73,9 @@ import (
 )
 
 const (
-	serviceName = "m3query"
+	serviceName        = "m3query"
+	cpuProfileDuration = 5 * time.Second
+	debugEndpoint      = "/debug/dump"
 )
 
 var (
@@ -356,6 +359,35 @@ func Run(runOpts RunOptions) {
 		if ok {
 			defer server.Close()
 		}
+	}
+
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+		cpuProfileDuration,
+		instrumentOptions,
+		clusterClient,
+	)
+	if err != nil {
+		logger.Error("unable to create debug writer", zap.Error(err))
+	}
+
+	if cfg.DebugListenAddress != "" {
+		go func() {
+			mux := http.DefaultServeMux
+			if debugWriter != nil {
+				if err := debugWriter.RegisterHandler(debugEndpoint, mux); err != nil {
+					logger.Error("unable to register debug writer endpoint", zap.Error(err))
+				}
+			}
+
+			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
+				logger.Error("debug server could not listen",
+					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
+			} else {
+				logger.Info("debug server listening",
+					zap.String("address", cfg.DebugListenAddress),
+				)
+			}
+		}()
 	}
 
 	// Wait for process interrupt.

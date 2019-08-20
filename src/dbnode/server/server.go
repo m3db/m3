@@ -314,6 +314,7 @@ func Run(runOpts RunOptions) {
 	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
 		cpuProfileDuration,
 		iopts,
+		nil,
 	)
 	if err != nil {
 		logger.Error("unable to create debug writer", zap.Error(err))
