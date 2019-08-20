@@ -53,7 +53,7 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	multiOpts := NewMockMultiClusterOptions(ctrl)
 	opts := NewMockOptions(ctrl)
 	multiOpts.EXPECT().Options().Return(opts)
-	opts.EXPECT().Validate().Return(nil)
+	opts.EXPECT().Validate().Return(anError)
 
 	_, err := NewClient(multiOpts)
 	assert.Error(t, err)

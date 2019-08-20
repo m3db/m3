@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 )
@@ -240,6 +242,7 @@ func (c Configuration) NewAdminClient(
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
 	}
 
+	var syncEnvCfg environment.ConfigureResult
 	topoInit := params.TopologyInitializer
 	asyncTopoInits := []topology.Initializer{}
 
@@ -258,6 +261,7 @@ func (c Configuration) NewAdminClient(
 			if envCfg.Async {
 				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
 			} else {
+				syncEnvCfg = envCfg
 				topoInit = envCfg.TopologyInitializer
 			}
 		}
@@ -309,35 +313,35 @@ func (c Configuration) NewAdminClient(
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})
 
-	// if c.Proto != nil && c.Proto.Enabled {
-	// 	v = v.SetEncodingProto(encodingOpts)
+	if c.Proto != nil && c.Proto.Enabled {
+		v = v.SetEncodingProto(encodingOpts)
 
-	// 	schemaRegistry := namespace.NewSchemaRegistry(true, nil)
-	// 	if c.Proto.TestOnly {
-	// 		// Load schema registry from file.
-	// 		deployID := "fromfile"
-	// 		for nsID, protoConfig := range c.Proto.SchemaRegistry {
-	// 			err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
-	// 			if err != nil {
-	// 				return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
-	// 			}
-	// 		}
-	// 	} else {
-	// 		// Load schema registry from m3db metadata store.
-	// 		err := loadSchemaRegistryFromKVStore(schemaRegistry, envCfg.KVStore)
-	// 		if err != nil {
-	// 			return nil, xerrors.Wrap(err, "could not load schema registry from m3db metadata store")
-	// 		}
-	// 		// Validate the schema deploy ID.
-	// 		for nsID, protoConfig := range c.Proto.SchemaRegistry {
-	// 			_, err := schemaRegistry.GetSchema(ident.StringID(nsID), protoConfig.SchemaDeployID)
-	// 			if err != nil {
-	// 				return nil, xerrors.Wrapf(err, "could not find schema for namespace: %s with schema deploy ID: %s", nsID, protoConfig.SchemaDeployID)
-	// 			}
-	// 		}
-	// 	}
-	// 	v = v.SetSchemaRegistry(schemaRegistry)
-	// }
+		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
+		if c.Proto.TestOnly {
+			// Load schema registry from file.
+			deployID := "fromfile"
+			for nsID, protoConfig := range c.Proto.SchemaRegistry {
+				err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
+				}
+			}
+		} else {
+			// Load schema registry from m3db metadata store.
+			err := loadSchemaRegistryFromKVStore(schemaRegistry, syncEnvCfg.KVStore)
+			if err != nil {
+				return nil, xerrors.Wrap(err, "could not load schema registry from m3db metadata store")
+			}
+			// Validate the schema deploy ID.
+			for nsID, protoConfig := range c.Proto.SchemaRegistry {
+				_, err := schemaRegistry.GetSchema(ident.StringID(nsID), protoConfig.SchemaDeployID)
+				if err != nil {
+					return nil, xerrors.Wrapf(err, "could not find schema for namespace: %s with schema deploy ID: %s", nsID, protoConfig.SchemaDeployID)
+				}
+			}
+		}
+		v = v.SetSchemaRegistry(schemaRegistry)
+	}
 
 	u := NewAdminMultiClusterOptions().
 		SetOptions(v).
