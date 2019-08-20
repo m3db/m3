@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
+	m3sync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	m3sync "github.com/m3db/m3x/sync"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
