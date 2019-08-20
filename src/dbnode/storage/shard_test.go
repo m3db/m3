@@ -436,6 +436,9 @@ func testShardLoadLimit(t *testing.T, limit int, shouldReturnError bool) {
 	seriesMap := sr.AllSeries()
 	require.NoError(t, s.Bootstrap(nil))
 
+	// First load will never trigger the limit.
+	require.NoError(t, s.Load(seriesMap))
+
 	if shouldReturnError {
 		require.Error(t, s.Load(seriesMap))
 	} else {

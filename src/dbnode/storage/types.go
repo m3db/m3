@@ -995,6 +995,9 @@ type MemoryTracker interface {
 	// DecPendingLoadedBytes decrements the number of loaded bytes by the number
 	// of pending bytes that were captured by the last call to MarkLoadedAsPending().
 	DecPendingLoadedBytes()
+
+	// WaitForDec waits for the next call to DecPendingLoadedBytes before returning.
+	WaitForDec()
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

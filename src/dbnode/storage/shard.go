@@ -77,6 +77,8 @@ var (
 	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
 	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
 	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
+
+	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 )
 
 type filesetsFn func(
@@ -1906,9 +1908,7 @@ func (s *dbShard) loadSeries(
 		estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
 		ok := memTracker.IncNumLoadedBytes(estimatedSize)
 		if !ok {
-			return dbShardBootstrapResult{}, fmt.Errorf(
-				"failed to load estimated %d bytes, database is at limit",
-				estimatedSize)
+			return dbShardBootstrapResult{}, ErrDatabaseLoadLimitHit
 		}
 	}
 
