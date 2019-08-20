@@ -314,6 +314,7 @@ func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardR
 		for {
 			select {
 			case <-doneCh:
+				waitingGauge.Update(0)
 				return
 			default:
 				waitingLock.Lock()
