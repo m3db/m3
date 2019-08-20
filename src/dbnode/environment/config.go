@@ -50,7 +50,7 @@ type Configuration struct {
 	Services DynamicConfiguration `yaml:"services"`
 
 	// StaticConfiguration is used for running M3DB with static configs
-	Static *StaticConfiguration `yaml:"statics"`
+	Statics StaticConfiguration `yaml:"statics"`
 
 	// Presence of a (etcd) server in this config denotes an embedded cluster
 	SeedNodes *SeedNodesConfig `yaml:"seedNodes"`
@@ -95,10 +95,28 @@ type DynamicCluster struct {
 }
 
 // StaticConfiguration is used for running M3DB with a static config
-type StaticConfiguration struct {
+type StaticConfiguration []*StaticCluster
+
+// StaticCluster is a single cluster in a static configuration
+type StaticCluster struct {
+	Async          bool                              `yaml:"async"`
 	Namespaces     []namespace.MetadataConfiguration `yaml:"namespaces"`
 	TopologyConfig *topology.StaticConfiguration     `yaml:"topology"`
 	ListenAddress  string                            `yaml:"listenAddress"`
+}
+
+// Validate validates the StaticConfiguration
+func (c StaticConfiguration) Validate() error {
+	syncCount := 0
+	for _, cfg := range c {
+		if !cfg.Async {
+			syncCount++
+		}
+	}
+	if syncCount != 1 {
+		return errInvalidSyncCount
+	}
+	return nil
 }
 
 // ConfigureResult stores initializers and kv store for dynamic and static configs
@@ -140,7 +158,8 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var cfg struct {
 		Services  DynamicConfiguration      `yaml:"services"`
 		Service   *etcdclient.Configuration `yaml:"service"`
-		Static    *StaticConfiguration      `yaml:"statics"`
+		Static    *StaticCluster            `yaml:"static"`
+		Statics   StaticConfiguration       `yaml:"statics"`
 		SeedNodes *SeedNodesConfig          `yaml:"seedNodes"`
 	}
 
@@ -148,22 +167,25 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	c.Static = cfg.Static
 	c.SeedNodes = cfg.SeedNodes
+	c.Statics = cfg.Statics
+	if cfg.Static != nil {
+		c.Statics = StaticConfiguration{cfg.Static}
+	}
 	c.Services = cfg.Services
 	if cfg.Service != nil {
 		c.Services = DynamicConfiguration{
 			&DynamicCluster{Service: cfg.Service},
 		}
 	}
-	return c.Services.Validate()
+	return nil
 }
 
 // Configure creates a new ConfigureResults
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
-	if c.Services != nil && c.Static != nil {
+	if c.Services != nil && c.Statics != nil {
 		return emptyConfig, errInvalidConfig
 	}
 
@@ -171,7 +193,7 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 		return c.configureDynamic(cfgParams)
 	}
 
-	if c.Static != nil {
+	if c.Statics != nil {
 		return c.configureStatic(cfgParams)
 	}
 
@@ -179,6 +201,11 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 }
 
 func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
+	var emptyConfig ConfigureResults
+	if err := c.Services.Validate(); err != nil {
+		return emptyConfig, err
+	}
+
 	cfgResults := make(ConfigureResults, 0, len(c.Services))
 	for _, cluster := range c.Services {
 		configSvcClientOpts := cluster.Service.NewOptions().
@@ -190,7 +217,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 		if err != nil {
 			err = fmt.Errorf("could not create m3cluster client: %v", err)
-			return ConfigureResults{}, err
+			return emptyConfig, err
 		}
 
 		dynamicOpts := namespace.NewDynamicOptions().
@@ -215,7 +242,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		kv, err := configSvcClient.KV()
 		if err != nil {
 			err = fmt.Errorf("could not create KV client, %v", err)
-			return ConfigureResults{}, err
+			return emptyConfig, err
 		}
 
 		result := ConfigureResult{
@@ -234,54 +261,62 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
-	nsList := []namespace.Metadata{}
-	for _, ns := range c.Static.Namespaces {
-		md, err := ns.Metadata()
-		if err != nil {
-			err = fmt.Errorf("unable to create metadata for static config: %v", err)
-			return emptyConfig, err
-		}
-		nsList = append(nsList, md)
-	}
-
-	nsInitStatic := namespace.NewStaticInitializer(nsList)
-
-	shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
-	if err != nil {
-		err = fmt.Errorf("unable to create shard set for static config: %v", err)
+	if err := c.Statics.Validate(); err != nil {
 		return emptyConfig, err
 	}
-	staticOptions := topology.NewStaticOptions().
-		SetHostShardSets(hostShardSets).
-		SetShardSet(shardSet)
 
-	numHosts := len(c.Static.TopologyConfig.Hosts)
-	numReplicas := c.Static.TopologyConfig.Replicas
+	cfgResults := make(ConfigureResults, 0, len(c.Services))
+	for _, cluster := range c.Statics {
+		nsList := []namespace.Metadata{}
+		for _, ns := range cluster.Namespaces {
+			md, err := ns.Metadata()
+			if err != nil {
+				err = fmt.Errorf("unable to create metadata for static config: %v", err)
+				return emptyConfig, err
+			}
+			nsList = append(nsList, md)
+		}
 
-	switch numReplicas {
-	case 0:
-		if numHosts != 1 {
-			err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
+		nsInitStatic := namespace.NewStaticInitializer(nsList)
+
+		shardSet, hostShardSets, err := newStaticShardSet(cluster.TopologyConfig.Shards, cluster.TopologyConfig.Hosts)
+		if err != nil {
+			err = fmt.Errorf("unable to create shard set for static config: %v", err)
 			return emptyConfig, err
 		}
-		staticOptions = staticOptions.SetReplicas(1)
-	default:
-		if numHosts != numReplicas {
-			err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
-			return emptyConfig, err
+		staticOptions := topology.NewStaticOptions().
+			SetHostShardSets(hostShardSets).
+			SetShardSet(shardSet)
+
+		numHosts := len(cluster.TopologyConfig.Hosts)
+		numReplicas := cluster.TopologyConfig.Replicas
+
+		switch numReplicas {
+		case 0:
+			if numHosts != 1 {
+				err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
+				return emptyConfig, err
+			}
+			staticOptions = staticOptions.SetReplicas(1)
+		default:
+			if numHosts != numReplicas {
+				err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
+				return emptyConfig, err
+			}
+			staticOptions = staticOptions.SetReplicas(cluster.TopologyConfig.Replicas)
 		}
-		staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
-	}
 
-	topoInit := topology.NewStaticInitializer(staticOptions)
-
-	return ConfigureResults{
-		{
+		topoInit := topology.NewStaticInitializer(staticOptions)
+		result := ConfigureResult{
 			NamespaceInitializer: nsInitStatic,
 			TopologyInitializer:  topoInit,
 			KVStore:              m3clusterkvmem.NewStore(),
-		},
-	}, nil
+			Async:                cluster.Async,
+		}
+		cfgResults = append(cfgResults, result)
+	}
+
+	return cfgResults, nil
 }
 
 func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {

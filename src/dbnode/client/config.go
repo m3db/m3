@@ -247,13 +247,13 @@ func (c Configuration) NewAdminClient(
 	asyncTopoInits := []topology.Initializer{}
 
 	if topoInit == nil {
-		if len(c.EnvironmentConfig.Services) == 0 && c.EnvironmentConfig.Static == nil {
+		if len(c.EnvironmentConfig.Services) == 0 && len(c.EnvironmentConfig.Statics) == 0 {
 			return nil, errConfigurationMustSupplyConfig
 		}
 
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
-			err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
+			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
 			return nil, err
 		}
 
