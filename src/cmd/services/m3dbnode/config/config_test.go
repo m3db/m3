@@ -133,6 +133,7 @@ db:
 
   pooling:
       blockAllocSize: 16
+      thriftBytesPoolMaxAllocSize: 2048
       type: simple
       seriesPool:
           size: 5242880
@@ -445,6 +446,7 @@ func TestConfiguration(t *testing.T) {
   replication: null
   pooling:
     blockAllocSize: 16
+    thriftBytesPoolMaxAllocSize: 2048
     type: simple
     bytesPool:
       buckets:
