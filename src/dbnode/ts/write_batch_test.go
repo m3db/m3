@@ -238,9 +238,13 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 
 func TestBatchWriterFinalizer(t *testing.T) {
 	var (
+		numEncodedTagsFinalized = 0
 		numAnnotationsFinalized = 0
 		numFinalized            = 0
 
+		finalizeEncodedTagsFn = func(b []byte) {
+			numEncodedTagsFinalized++
+		}
 		finalizeAnnotationFn = func(b []byte) {
 			numAnnotationsFinalized++
 		}
@@ -250,6 +254,7 @@ func TestBatchWriterFinalizer(t *testing.T) {
 	)
 
 	writeBatch := NewWriteBatch(batchSize, namespace, finalizeFn)
+	writeBatch.SetFinalizeEncodedTagsFn(finalizeAnnotationFn)
 	writeBatch.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, write := range writes {
@@ -267,5 +272,6 @@ func TestBatchWriterFinalizer(t *testing.T) {
 	writeBatch.Finalize()
 	require.Equal(t, 0, len(writeBatch.Iter()))
 	require.Equal(t, 1, numFinalized)
+	require.Equal(t, 3, numEncodedTagsFinalized)
 	require.Equal(t, 3, numAnnotationsFinalized)
 }

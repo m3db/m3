@@ -1163,6 +1163,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
+
 	// The lifecycle of the annotations is more involved than the rest of the data
 	// so we set the annotation pool put method as the finalization function and
 	// let the database take care of returning them to the pool.
@@ -1247,9 +1248,12 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
-	// The lifecycle of the annotations is more involved than the rest of the data
-	// so we set the annotation pool put method as the finalization function and
-	// let the database take care of returning them to the pool.
+
+	// The lifecycle of the encoded tags and annotations is more involved than
+	// the rest of the data so we set the encoded tags and annotation pool put
+	// calls as finalization functions and let the database take care of
+	// returning them to the pool.
+	batchWriter.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
 	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
@@ -1279,6 +1283,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			i,
 			seriesID,
 			dec,
+			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
@@ -1764,7 +1769,11 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			apachethrift.BytesPoolPut(elem.EncodedTags)
+			// Ownership of the encoded tagts has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+
 			// See comment above about not finalizing annotations here.
 		}
 		r.writeTaggedReq = nil
@@ -1872,6 +1881,13 @@ func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 	p.pool.Put(v)
+}
+
+// finalizeEncodedTagsFn implements ts.FinalizeEncodedTagsFn because
+// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
+// does not.
+func finalizeEncodedTagsFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
 
 // finalizeAnnotationFn implements ts.FinalizeAnnotationFn because
