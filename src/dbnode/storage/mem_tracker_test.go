@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -9,8 +11,10 @@ import (
 func TestMemoryTrackerLoadLimitEnforcedIfSet(t *testing.T) {
 	limit := 100
 	memTracker := NewMemoryTracker(NewMemoryTrackerOptions(limit))
-	require.False(t, memTracker.IncNumLoadedBytes(limit+1))
+	// First one will always be allowed, see comment in IncNumLoadedBytes()
+	// for explanation.
 	require.True(t, memTracker.IncNumLoadedBytes(limit))
+	require.False(t, memTracker.IncNumLoadedBytes(1))
 }
 
 func TestMemoryTrackerLoadLimitNotEnforcedIfNotSet(t *testing.T) {
@@ -77,4 +81,65 @@ func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 	memTracker.MarkLoadedAsPending()
 	memTracker.DecPendingLoadedBytes()
 	require.Equal(t, 0, memTracker.NumLoadedBytes())
+}
+
+// TestMemTrackerWaitForDec spins up several goroutines that call MarkLoadedAsPending,
+// DecPendingLoadedBytes, and WaitForDec in a loop to ensure that there are no deadlocks
+// or race conditions.
+func TestMemTrackerWaitForDec(t *testing.T) {
+	var (
+		memTracker = NewMemoryTracker(NewMemoryTrackerOptions(100))
+		doneCh     = make(chan struct{})
+		wg         sync.WaitGroup
+	)
+
+	// Start a goroutine to call MarkLoadedAsPending() in a loop.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+				memTracker.MarkLoadedAsPending()
+			}
+		}
+	}()
+
+	// Start a goroutine to call DecPendingLoadedBytes() in a loop.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+				memTracker.DecPendingLoadedBytes()
+			}
+		}
+	}()
+
+	// Start a goroutine to call WaitForDec() in a loop.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+				memTracker.WaitForDec()
+			}
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop the background goroutines.
+	close(doneCh)
+
+	// Ensure all the goroutines exit cleanly (ensuring no deadlocks.)
+	wg.Wait()
 }

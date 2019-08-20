@@ -29,17 +29,34 @@ type memoryTracker struct {
 
 	numLoadedBytes        int
 	numPendingLoadedBytes int
+
+	waitForDecWg *sync.WaitGroup
 }
 
 func (m *memoryTracker) IncNumLoadedBytes(x int) (okToLoad bool) {
 	m.Lock()
 	defer m.Unlock()
 	limit := m.opts.numLoadedBytesLimit
-	if limit > 0 && m.numLoadedBytes+x > limit {
-		return false
+	if limit == 0 {
+		// Limit of 0 means no limit.
+		return true
 	}
-	m.numLoadedBytes += x
-	return true
+	// This check is optimistic in the sense that as long as the number of loaded bytes
+	// is currently under the limit then x is accepted, regardless of how far over the
+	// limit it bring the value of numLoadedBytes.
+	//
+	// The reason for this is to avoid scenarios where some process gets permanently
+	// stuck because the amount of data it needs to load at once is larger than the limit
+	// and as a result its never able to make any progress.
+	//
+	// In practice this implementation should be fine for the vast majority of configurations
+	// and workloads.
+	if m.numLoadedBytes < limit {
+		m.numLoadedBytes += x
+		return true
+	}
+
+	return false
 }
 
 func (m *memoryTracker) NumLoadedBytes() int {
@@ -57,7 +74,22 @@ func (m *memoryTracker) MarkLoadedAsPending() {
 func (m *memoryTracker) DecPendingLoadedBytes() {
 	m.Lock()
 	m.numLoadedBytes -= m.numPendingLoadedBytes
+	if m.waitForDecWg != nil {
+		m.waitForDecWg.Done()
+		m.waitForDecWg = nil
+	}
 	m.Unlock()
+}
+
+func (m *memoryTracker) WaitForDec() {
+	m.Lock()
+	if m.waitForDecWg == nil {
+		m.waitForDecWg = &sync.WaitGroup{}
+		m.waitForDecWg.Add(1)
+	}
+	wg := m.waitForDecWg
+	m.Unlock()
+	wg.Wait()
 }
 
 // MemoryTrackerOptions are the options for the MemoryTracker.
