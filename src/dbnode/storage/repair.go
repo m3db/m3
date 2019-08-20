@@ -299,6 +299,11 @@ func (r shardRepairer) Repair(
 	return metadataRes, nil
 }
 
+// TODO(rartoul): Currently throttling via the MemoryTracker can only occur at the level of an entire
+// block for a given namespace/shard/blockStart. For almost all practical use-cases this is fine, but
+// this could be improved and made more granular by breaking data that is being loaded into the shard
+// into smaller batches (less than one complete block). This would improve the granularity of throttling
+// for clusters where the number of shards is low.
 func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardResult) error {
 	var (
 		waitingGauge  = r.scope.Gauge("waiting-for-limit")
