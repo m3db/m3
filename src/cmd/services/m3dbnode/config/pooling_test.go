@@ -52,12 +52,12 @@ func TestContextPoolMaxFinalizerCapacityOrDefault(t *testing.T) {
 	require.Equal(t, 10, cpp.MaxFinalizerCapacityOrDefault())
 }
 
-func TestPoolingPolicyThriftBytesPoolMaxAllocSizeOrDefault(t *testing.T) {
+func TestPoolingPolicyThriftBytesPoolAllocSizeOrDefault(t *testing.T) {
 	policy := PoolingPolicy{}
-	require.Equal(t, defaultThriftBytesPoolMaxAllocSize,
-		policy.ThriftBytesPoolMaxAllocSizeOrDefault())
+	require.Equal(t, defaultThriftBytesPoolAllocSize,
+		policy.ThriftBytesPoolAllocSizeOrDefault())
 
 	value := 42
-	policy.ThriftBytesPoolMaxAllocSize = &value
-	require.Equal(t, 42, policy.ThriftBytesPoolMaxAllocSizeOrDefault())
+	policy.ThriftBytesPoolAllocSize = &value
+	require.Equal(t, 42, policy.ThriftBytesPoolAllocSizeOrDefault())
 }

@@ -33,9 +33,9 @@ const (
 )
 
 const (
-	defaultMaxFinalizerCapacity        = 4
-	defaultBlockAllocSize              = 16
-	defaultThriftBytesPoolMaxAllocSize = 1024
+	defaultMaxFinalizerCapacity     = 4
+	defaultBlockAllocSize           = 16
+	defaultThriftBytesPoolAllocSize = 1024
 )
 
 type poolPolicyDefault struct {
@@ -254,7 +254,7 @@ type PoolingPolicy struct {
 	BlockAllocSize *int `yaml:"blockAllocSize"`
 
 	// The thrift bytes pool max bytes slice allocation for a single binary field.
-	ThriftBytesPoolMaxAllocSize *int `yaml:"thriftBytesPoolMaxAllocSize"`
+	ThriftBytesPoolAllocSize *int `yaml:"thriftBytesPoolAllocSize"`
 
 	// The general pool type (currently only supported: simple).
 	Type *PoolingType `yaml:"type"`
@@ -422,14 +422,14 @@ func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
 	return defaultBlockAllocSize
 }
 
-// ThriftBytesPoolMaxAllocSizeOrDefault returns the configured thrift bytes pool
+// ThriftBytesPoolAllocSizeOrDefault returns the configured thrift bytes pool
 // max alloc size if provided, or a default value otherwise.
-func (p *PoolingPolicy) ThriftBytesPoolMaxAllocSizeOrDefault() int {
-	if p.ThriftBytesPoolMaxAllocSize != nil {
-		return *p.ThriftBytesPoolMaxAllocSize
+func (p *PoolingPolicy) ThriftBytesPoolAllocSizeOrDefault() int {
+	if p.ThriftBytesPoolAllocSize != nil {
+		return *p.ThriftBytesPoolAllocSize
 	}
 
-	return defaultThriftBytesPoolMaxAllocSize
+	return defaultThriftBytesPoolAllocSize
 }
 
 // TypeOrDefault returns the configured pooling type if provided, or a default

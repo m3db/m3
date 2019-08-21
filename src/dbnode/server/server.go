@@ -1149,7 +1149,7 @@ func withEncodingAndPoolingOptions(
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	// Set the max bytes pool byte slice alloc size for the thrift pooling.
-	apachethrift.SetMaxBytesPoolAlloc(policy.ThriftBytesPoolMaxAllocSizeOrDefault())
+	apachethrift.SetMaxBytesPoolAlloc(policy.ThriftBytesPoolAllocSizeOrDefault())
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))

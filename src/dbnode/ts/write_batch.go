@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	errTagsAndEncodedTagsRequired = errors.New("tags iterator and encoded tags required to be provided")
+	errTagsAndEncodedTagsRequired = errors.New("tags iterator and encoded tags must be provided")
 )
 
 type writeBatch struct {

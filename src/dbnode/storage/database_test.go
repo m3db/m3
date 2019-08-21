@@ -48,6 +48,8 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
@@ -964,8 +966,25 @@ func testDatabaseWriteBatch(t *testing.T,
 	var (
 		namespace = ident.StringID("testns")
 		ctx       = context.NewContext()
-		tagsIter  = ident.EmptyTagIterator
+		tags      = ident.NewTags(ident.Tag{
+			Name:  ident.StringID("foo"),
+			Value: ident.StringID("bar"),
+		}, ident.Tag{
+			Name:  ident.StringID("baz"),
+			Value: ident.StringID("qux"),
+		})
+		tagsIter = ident.NewTagsIterator(tags)
 	)
+
+	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool.Init()
+	encoder := testTagEncodingPool.Get()
+	err := encoder.Encode(tagsIter)
+	require.NoError(t, err)
+
+	encodedTags, ok := encoder.Data()
+	require.True(t, ok)
 
 	writes := []struct {
 		series string
@@ -1025,7 +1044,8 @@ func testDatabaseWriteBatch(t *testing.T,
 		// ErrorHandler is called with the provided index, not the actual position
 		// in the WriteBatch slice.
 		if tagged {
-			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			batchWriter.AddTagged(i*2, ident.StringID(write.series),
+				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
 				write.t, write.v, xtime.Second, nil).Return(
@@ -1035,7 +1055,8 @@ func testDatabaseWriteBatch(t *testing.T,
 					Tags:      ident.Tags{},
 				}, wasWritten, write.err)
 		} else {
-			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			batchWriter.Add(i*2, ident.StringID(write.series),
+				write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
 				write.t, write.v, xtime.Second, nil).Return(

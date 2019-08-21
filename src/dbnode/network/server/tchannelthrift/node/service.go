@@ -1769,7 +1769,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			// Ownership of the encoded tagts has been transferred to the BatchWriter
+			// Ownership of the encoded tags has been transferred to the BatchWriter
 			// so they will get returned the pool automatically by the commitlog once
 			// it finishes writing them to disk via the finalization function that
 			// gets set on the WriteBatch.

@@ -72,7 +72,7 @@ func (mr *MockWriteBatchMockRecorder) Add(originalIndex, id, timestamp, value, u
 }
 
 // AddTagged mocks base method
-func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, tags ident.TagsIterator, encodedTags EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, tags ident.TagIterator, encodedTags EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -223,7 +223,7 @@ func (mr *MockBatchWriterMockRecorder) Add(originalIndex, id, timestamp, value, 
 }
 
 // AddTagged mocks base method
-func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, tags ident.TagsIterator, encodedTags EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, tags ident.TagIterator, encodedTags EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
