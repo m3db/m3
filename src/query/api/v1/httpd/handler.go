@@ -268,7 +268,7 @@ func (h *Handler) RegisterRoutes() error {
 	if h.clusterClient != nil {
 		placementOpts, err := h.PlacementOpts()
 		if err != nil {
-			return nil
+			return err
 		}
 
 		err = database.RegisterRoutes(h.router, h.clusterClient,
@@ -289,18 +289,14 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-// PlacementOpts returns placement opts used in the various placement APIs.
+// PlacementOpts returns placement options used in the various placement APIs.
 func (h *Handler) PlacementOpts() (placement.HandlerOptions, error) {
-	placementOpts, err := placement.NewHandlerOptions(
+	return placement.NewHandlerOptions(
 		h.clusterClient,
 		h.config,
 		h.m3AggServiceOptions(),
-		h.instrumentOpts)
-	if err != nil {
-		return placement.HandlerOptions{}, err
-	}
-
-	return placementOpts, nil
+		h.instrumentOpts,
+	)
 }
 
 func (h *Handler) m3AggServiceOptions() *handler.M3AggServiceOptions {

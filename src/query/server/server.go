@@ -366,22 +366,23 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to get placement opts", zap.Error(err))
 	}
 
-	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
-		cpuProfileDuration,
-		instrumentOptions,
-		clusterClient,
-		placementOpts,
-	)
-	if err != nil {
-		logger.Error("unable to create debug writer", zap.Error(err))
-	}
-
 	if cfg.DebugListenAddress != "" {
+		debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+			cpuProfileDuration,
+			instrumentOptions,
+			clusterClient,
+			placementOpts,
+		)
+		if err != nil {
+			logger.Error("unable to create debug writer", zap.Error(err))
+		}
+
 		go func() {
 			mux := http.NewServeMux()
 			if debugWriter != nil {
 				if err := debugWriter.RegisterHandler(debugEndpoint, mux); err != nil {
-					logger.Error("unable to register debug writer endpoint", zap.Error(err))
+					logger.Error("unable to register debug writer endpoint",
+						zap.String("address", cfg.DebugListenAddress), zap.Error(err))
 				}
 			}
 
