@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -ex
 
 TESTS=(
 	scripts/docker-integration-tests/simple/test.sh
@@ -23,12 +23,12 @@ MAX_IDX=$(((NUM_TESTS*(BUILDKITE_PARALLEL_JOB+1)/BUILDKITE_PARALLEL_JOB_COUNT)-1
 ITER=0
 for test in "${TESTS[@]}"; do
 	if [[ $ITER -ge $MIN_IDX && $ITER -le $MAX_IDX ]]; then
+		# Ensure all docker containers have been stopped so we don't run into issues
+		# trying to bind ports.
+		docker rm -f $(docker ps -aq) 2>/dev/null || true
 		echo "----------------------------------------------"
 		echo "running $test"
 		"$test"
-		# Ensure all docker containers have been stopped so we don't run into issues
-		# trying to bind ports.
-		docker stop $(docker ps -a -q)
 	fi
 	ITER="$((ITER+1))"
 done
