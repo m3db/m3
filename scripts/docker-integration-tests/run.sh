@@ -26,6 +26,9 @@ for test in "${TESTS[@]}"; do
 		echo "----------------------------------------------"
 		echo "running $test"
 		"$test"
+		# Ensure all docker containers have been stopped so we don't run into issues
+		# trying to bind ports.
+		docker stop $(docker ps -a -q)
 	fi
 	ITER="$((ITER+1))"
 done
