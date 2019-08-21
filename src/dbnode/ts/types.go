@@ -136,7 +136,7 @@ type BatchWriter interface {
 	AddTagged(
 		originalIndex int,
 		id ident.ID,
-		tags ident.TagsIterator,
+		tags ident.TagIterator,
 		encodedTags EncodedTags,
 		timestamp time.Time,
 		value float64,

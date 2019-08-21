@@ -79,7 +79,7 @@ func (b *writeBatch) Add(
 func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
-	tagIter ident.TagsIterator,
+	tagIter ident.TagIterator,
 	encodedTags EncodedTags,
 	timestamp time.Time,
 	value float64,
@@ -183,7 +183,7 @@ func newBatchWriterWrite(
 	originalIndex int,
 	namespace ident.ID,
 	id ident.ID,
-	tagIter ident.TagsIterator,
+	tagIter ident.TagIterator,
 	encodedTags EncodedTags,
 	timestamp time.Time,
 	value float64,
