@@ -109,10 +109,6 @@ func (c *colBlockIter) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
 
-func (c *colBlockIter) Meta() Metadata {
-	return c.meta
-}
-
 func (c *colBlockIter) StepCount() int {
 	return len(c.columns)
 }
@@ -246,10 +242,6 @@ type columnBlockSeriesIter struct {
 	values     []float64
 	columns    []column
 	seriesMeta []SeriesMeta
-}
-
-func (m *columnBlockSeriesIter) Meta() Metadata {
-	return m.blockMeta
 }
 
 func newColumnBlockSeriesIter(

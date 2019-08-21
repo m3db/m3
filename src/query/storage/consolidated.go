@@ -99,10 +99,6 @@ func (c *consolidatedStepIter) SeriesMeta() []block.SeriesMeta {
 	return c.unconsolidated.SeriesMeta()
 }
 
-func (c *consolidatedStepIter) Meta() block.Metadata {
-	return c.unconsolidated.Meta()
-}
-
 type consolidatedSeriesIter struct {
 	unconsolidated    block.UnconsolidatedSeriesIter
 	consolidationFunc block.ConsolidationFunc
@@ -131,8 +127,4 @@ func (c *consolidatedSeriesIter) SeriesCount() int {
 
 func (c *consolidatedSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return c.unconsolidated.SeriesMeta()
-}
-
-func (c *consolidatedSeriesIter) Meta() block.Metadata {
-	return c.unconsolidated.Meta()
 }

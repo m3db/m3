@@ -134,19 +134,25 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		return emptySeriesList, nil
 	}
 
-	firstBlock := blockList[0].block
+	var (
+		firstBlock = blockList[0].block
+		meta       = firstBlock.Meta()
+		bounds     = meta.Bounds
+		commonTags = meta.Tags.Tags
+	)
+
 	firstSeriesIter, err := firstBlock.SeriesIter()
 	if err != nil {
 		return nil, err
 	}
 
-	numSeries := firstSeriesIter.SeriesCount()
-	seriesMeta := firstSeriesIter.SeriesMeta()
-	bounds := firstSeriesIter.Meta().Bounds
-	commonTags := firstSeriesIter.Meta().Tags.Tags
+	var (
+		numSeries   = firstSeriesIter.SeriesCount()
+		seriesMeta  = firstSeriesIter.SeriesMeta()
+		seriesList  = make([]*ts.Series, numSeries)
+		seriesIters = make([]block.SeriesIter, len(blockList))
+	)
 
-	seriesList := make([]*ts.Series, numSeries)
-	seriesIters := make([]block.SeriesIter, len(blockList))
 	// To create individual series, we iterate over seriesIterators for each block in the block list.
 	// For each iterator, the nth current() will be combined to give the nth series
 	for i, b := range blockList {
@@ -209,11 +215,11 @@ func insertSortedBlock(
 		return nil, err
 	}
 
-	blockMeta := blockSeriesIter.Meta()
+	meta := b.Meta()
 	if len(blockList) == 0 {
 		blockList = append(blockList, blockWithMeta{
 			block: b,
-			meta:  blockMeta,
+			meta:  meta,
 		})
 		return blockList, nil
 	}
@@ -226,7 +232,7 @@ func insertSortedBlock(
 
 	// Binary search to keep the start times sorted
 	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.After(blockMeta.Bounds.Start)
+		return blockList[i].meta.Bounds.Start.After(meta.Bounds.Start)
 	})
 
 	// Append here ensures enough size in the slice
@@ -234,7 +240,7 @@ func insertSortedBlock(
 	copy(blockList[index+1:], blockList[index:])
 	blockList[index] = blockWithMeta{
 		block: b,
-		meta:  blockMeta,
+		meta:  meta,
 	}
 
 	return blockList, nil

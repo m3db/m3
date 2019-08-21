@@ -64,6 +64,10 @@ type multiBlockWrapper struct {
 	unconsolidated   block.UnconsolidatedBlock
 }
 
+func (m *multiBlockWrapper) Meta() block.Metadata {
+	return m.unconsolidated.Meta()
+}
+
 func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return m.unconsolidated, nil
 }
@@ -163,10 +167,6 @@ func NewMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery, lookbackDu
 	return multiSeriesBlock{seriesList: seriesList, meta: meta, lookbackDuration: lookbackDuration}, nil
 }
 
-func (m multiSeriesBlock) Meta() block.Metadata {
-	return m.meta
-}
-
 func (m multiSeriesBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
@@ -218,6 +218,10 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 	}, nil
 }
 
+func (c *consolidatedBlock) Meta() block.Metadata {
+	return c.unconsolidated.Meta()
+}
+
 func (c *consolidatedBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
@@ -239,6 +243,10 @@ func (c *consolidatedBlock) WithMetadata(
 // TODO: Actually free up resources
 func (m multiSeriesBlock) Close() error {
 	return nil
+}
+
+func (m multiSeriesBlock) Meta() block.Metadata {
+	return m.meta
 }
 
 type multiSeriesBlockStepIter struct {
@@ -267,10 +275,6 @@ func newMultiSeriesBlockStepIter(b multiSeriesBlock) block.UnconsolidatedStepIte
 
 func (m *multiSeriesBlockStepIter) SeriesMeta() []block.SeriesMeta {
 	return m.block.SeriesMeta()
-}
-
-func (m *multiSeriesBlockStepIter) Meta() block.Metadata {
-	return m.block.Meta()
 }
 
 func (m *multiSeriesBlockStepIter) Next() bool {
@@ -310,10 +314,6 @@ type multiSeriesBlockSeriesIter struct {
 	block        multiSeriesBlock
 	index        int
 	consolidated bool
-}
-
-func (m *multiSeriesBlockSeriesIter) Meta() block.Metadata {
-	return m.block.Meta()
 }
 
 func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {

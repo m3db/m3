@@ -53,7 +53,12 @@ func NewScalar(
 
 // Unconsolidated returns the unconsolidated version for the block
 func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
+	return nil, fmt.Errorf(
+		"unconsolidated view not implemented for scalar block, meta: %s", b.meta)
+}
+
+func (b *Scalar) Meta() Metadata {
+	return b.meta
 }
 
 // WithMetadata updates this blocks metadata, and the metadatas for each series.
@@ -126,7 +131,6 @@ func buildSeriesMeta(meta Metadata) SeriesMeta {
 func (it *scalarStepIter) Close()         { /* No-op*/ }
 func (it *scalarStepIter) Err() error     { return it.err }
 func (it *scalarStepIter) StepCount() int { return it.numVals }
-func (it *scalarStepIter) Meta() Metadata { return it.meta }
 func (it *scalarStepIter) SeriesMeta() []SeriesMeta {
 	return []SeriesMeta{buildSeriesMeta(it.meta)}
 }
@@ -142,7 +146,7 @@ func (it *scalarStepIter) Next() bool {
 		return false
 	}
 
-	it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
+	it.stepTime, it.err = it.meta.Bounds.TimeForIndex(it.idx)
 	if it.err != nil {
 		return false
 	}
@@ -175,7 +179,6 @@ type scalarSeriesIter struct {
 func (it *scalarSeriesIter) Close()           { /* No-op*/ }
 func (it *scalarSeriesIter) Err() error       { return nil }
 func (it *scalarSeriesIter) SeriesCount() int { return 1 }
-func (it *scalarSeriesIter) Meta() Metadata   { return it.meta }
 func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta {
 	return []SeriesMeta{buildSeriesMeta(it.meta)}
 }

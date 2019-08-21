@@ -41,6 +41,11 @@ func NewLazyBlock(block Block, opts LazyOptions) Block {
 
 func (b *lazyBlock) Close() error { return b.block.Close() }
 
+func (b *lazyBlock) Meta() Metadata {
+	mt := b.opts.MetaTransform()
+	return mt(b.block.Meta())
+}
+
 func (b *lazyBlock) WithMetadata(
 	meta Metadata,
 	sm []SeriesMeta,
@@ -76,11 +81,6 @@ func (it *lazyStepIter) Err() error               { return it.it.Err() }
 func (it *lazyStepIter) StepCount() int           { return it.it.StepCount() }
 func (it *lazyStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *lazyStepIter) Next() bool               { return it.it.Next() }
-
-func (it *lazyStepIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
-}
 
 func (it *lazyStepIter) Current() Step {
 	var (
@@ -139,11 +139,6 @@ func (it *lazySeriesIter) Current() Series {
 	return c
 }
 
-func (it *lazySeriesIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
-}
-
 // Unconsolidated returns the unconsolidated version for the block
 func (b *lazyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	unconsolidated, err := b.block.Unconsolidated()
@@ -163,6 +158,11 @@ type ucLazyBlock struct {
 }
 
 func (b *ucLazyBlock) Close() error { return b.block.Close() }
+
+func (b *ucLazyBlock) Meta() Metadata {
+	mt := b.opts.MetaTransform()
+	return mt(b.block.Meta())
+}
 
 func (b *ucLazyBlock) WithMetadata(
 	meta Metadata,
@@ -213,11 +213,6 @@ func (it *ucLazyStepIter) Err() error               { return it.it.Err() }
 func (it *ucLazyStepIter) StepCount() int           { return it.it.StepCount() }
 func (it *ucLazyStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
 func (it *ucLazyStepIter) Next() bool               { return it.it.Next() }
-
-func (it *ucLazyStepIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
-}
 
 type unconsolidatedStep struct {
 	time   time.Time
@@ -305,9 +300,4 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 
 	c.datapoints = dpList
 	return c
-}
-
-func (it *ucLazySeriesIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
 }

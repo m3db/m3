@@ -28,6 +28,7 @@ import (
 
 type makeBlockFn func(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
@@ -86,5 +87,6 @@ func processLogical(
 		return nil, errMismatchedStepCounts
 	}
 
-	return makeBlock(queryCtx, lIter, rIter, controller, matching)
+	return makeBlock(queryCtx, lhs.Meta(), rhs.Meta(), lIter, rIter,
+		controller, matching)
 }

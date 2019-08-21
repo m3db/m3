@@ -65,6 +65,7 @@ func NewEncodedBlock(
 		lastBlock,
 		opts,
 	)
+
 	err := bl.generateMetas()
 	if err != nil {
 		return nil, err
@@ -104,6 +105,10 @@ func (b *encodedBlock) Close() error {
 	}
 
 	return nil
+}
+
+func (b *encodedBlock) Meta() block.Metadata {
+	return b.meta
 }
 
 func (b *encodedBlock) buildSeriesMeta() error {

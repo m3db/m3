@@ -22,6 +22,7 @@ package fanout
 
 import (
 	"context"
+	"sync"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -91,35 +93,60 @@ func (s *fanoutStorage) FetchBlocks(
 		return stores[0].FetchBlocks(ctx, query, options)
 	}
 
-	// TODO(arnikola): use a genny map here instead, also execute in parallel.
-	blockResult := make(map[string]block.Block, 10)
-	for _, store := range stores {
-		result, err := store.FetchBlocks(ctx, query, options)
-		if err != nil {
-			return block.Result{}, err
-		}
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+	)
 
-		for _, bl := range result.Blocks {
-			it, err := bl.SeriesIter()
+	blockResult := make(map[string]block.Block, len(stores))
+	wg.Add(len(stores))
+	for _, store := range stores {
+		store := store
+		go func() {
+			defer wg.Done()
+			result, err := store.FetchBlocks(ctx, query, options)
 			if err != nil {
-				return block.Result{}, err
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+				return
 			}
 
-			key := it.Meta().Bounds.String()
-			if foundBlock, found := blockResult[key]; found {
-				// this block exists. Check to see if it's already an appendable block.
-				if acc, ok := foundBlock.(block.AccumulatorBlock); ok {
-					// already an accumulator block, add current block.
-					if err := acc.AddBlock(bl); err != nil {
-						return block.Result{}, err
+			mu.Lock()
+			defer mu.Unlock()
+			for _, bl := range result.Blocks {
+				key := bl.Meta().String()
+				if foundBlock, found := blockResult[key]; found {
+					// this block exists. Check to see if it's already an appendable block.
+					if acc, ok := foundBlock.(block.AccumulatorBlock); ok {
+						// already an accumulator block, add current block.
+						if err := acc.AddBlock(bl); err != nil {
+							mu.Lock()
+							multiErr = multiErr.Add(err)
+							mu.Unlock()
+							return
+						}
+					} else {
+						var err error
+						blockResult[key], err = block.NewContainerBlock(foundBlock, bl)
+						if err != nil {
+							mu.Lock()
+							multiErr = multiErr.Add(err)
+							mu.Unlock()
+							return
+						}
 					}
 				} else {
-					blockResult[key] = block.NewContainerBlock(foundBlock, bl)
+					blockResult[key] = bl
 				}
-			} else {
-				blockResult[key] = bl
 			}
-		}
+		}()
+	}
+
+	wg.Wait()
+	if err := multiErr.FinalError(); err != nil {
+		return block.Result{}, err
 	}
 
 	blocks := make([]block.Block, 0, len(blockResult))

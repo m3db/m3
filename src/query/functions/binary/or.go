@@ -34,14 +34,15 @@ const OrType = "or"
 
 func makeOrBlock(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
 ) (block.Block, error) {
-	lMeta, lSeriesMetas := lIter.Meta(), lIter.SeriesMeta()
+	lSeriesMetas := lIter.SeriesMeta()
 	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
 
-	rMeta, rSeriesMetas := rIter.Meta(), rIter.SeriesMeta()
+	rSeriesMetas := rIter.SeriesMeta()
 	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
 
 	meta, lSeriesMetas, rSeriesMetas, err := combineMetaAndSeriesMeta(

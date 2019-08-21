@@ -131,7 +131,7 @@ func (n *baseNode) ProcessBlock(
 	}
 
 	params := n.op.params
-	meta := stepIter.Meta()
+	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
