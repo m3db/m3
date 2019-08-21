@@ -84,6 +84,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	)
 	defer ctrl.Finish()
 
+	var (
+		mockSeekerStatsLock sync.Mutex
+		numMockSeekerCloses int
+	)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
@@ -96,7 +100,12 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 			mock.EXPECT().ConcurrentClone().Return(mock, nil)
 		}
 		for i := 0; i < defaultFetchConcurrency; i++ {
-			mock.EXPECT().Close().Return(nil)
+			mock.EXPECT().Close().DoAndReturn(func() error {
+				mockSeekerStatsLock.Lock()
+				numMockSeekerCloses++
+				mockSeekerStatsLock.Unlock()
+				return nil
+			})
 			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
 		}
 		return mock, nil
@@ -139,6 +148,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		require.Equal(t, 1, seekers.active.volume)
 		byTime.RUnlock()
 	}
+	// Ensure that the old seekers actually get closed.
+	mockSeekerStatsLock.Lock()
+	require.Equal(t, len(shards)*defaultFetchConcurrency, numMockSeekerCloses)
+	mockSeekerStatsLock.Unlock()
 
 	// Ensure that UpdateOpenLease() ignores updates for the wrong namespace.
 	for _, shard := range shards {
