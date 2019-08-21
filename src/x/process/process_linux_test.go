@@ -84,9 +84,9 @@ func TestNumFDs(t *testing.T) {
 func verifyNumFDsWithinMarginOfError(t *testing.T, expected, actual int) {
 	require.True(
 		t,
-		numFDs-numExpectedFds <= allowedMarginOfError,
+		actual-expected <= allowedMarginOfError,
 		fmt.Sprintf("expected: %d, actual: %d, allowed margin of error: %d",
-			numExpectedFds, numFDs, allowedMarginOfError),
+			expected, actual, allowedMarginOfError),
 	)
 }
 
