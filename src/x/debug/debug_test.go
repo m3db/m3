@@ -214,16 +214,7 @@ func TestHTTPEndpoint(t *testing.T) {
 	})
 }
 
-func TestDefaultSources(t *testing.T) {
-	defaultSources := []string{
-		"cpuSource",
-		"heapSource",
-		"hostSource",
-		"goroutineProfile",
-		"namespaceSource",
-		"placementSource",
-	}
-
+func newHandlerOptsAndClient(t *testing.T) (placement.HandlerOptions, *clusterclient.MockClient) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"host1": &placementpb.Instance{
@@ -260,22 +251,37 @@ func TestDefaultSources(t *testing.T) {
 	require.NotNil(t, mockServices)
 
 	mockPlacement := clusterplacement.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Proto().Return(placementProto, nil)
-	mockPlacement.EXPECT().Version().Return(0)
+	mockPlacement.EXPECT().Proto().Return(placementProto, nil).AnyTimes()
+	mockPlacement.EXPECT().Version().Return(0).AnyTimes()
 
 	mockPlacementService := clusterplacement.NewMockService(ctrl)
 	require.NotNil(t, mockPlacementService)
 
-	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
-	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
-	mockPlacementService.EXPECT().Placement().Return(mockPlacement, nil)
+	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil).AnyTimes()
+	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil).AnyTimes()
+	mockPlacementService.EXPECT().Placement().Return(mockPlacement, nil).AnyTimes()
 
 	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
-	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).AnyTimes()
 
 	handlerOpts, err := placement.NewHandlerOptions(
 		mockClient, config.Configuration{}, nil, instrument.NewOptions())
 	require.NoError(t, err)
+
+	return handlerOpts, mockClient
+}
+
+func TestDefaultSources(t *testing.T) {
+	defaultSources := []string{
+		"cpuSource",
+		"heapSource",
+		"hostSource",
+		"goroutineProfile",
+		"namespaceSource",
+		"placementSource",
+	}
+
+	handlerOpts, mockClient := newHandlerOptsAndClient(t)
 
 	zw, err := NewZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions(), mockClient, handlerOpts)
 	require.NoError(t, err)
