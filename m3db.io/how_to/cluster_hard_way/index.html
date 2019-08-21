@@ -852,16 +852,29 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#initialize-topology" title="Initialize Topology" class="md-nav__link">
-    Initialize Topology
+  <a href="#create-namespace-and-initialize-topology" title="Create Namespace and Initialize Topology" class="md-nav__link">
+    Create Namespace and Initialize Topology
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#replication-factor-rf" title="Replication factor (RF)" class="md-nav__link">
+    Replication factor (RF)
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#create-namespaces" title="Create namespace(s)" class="md-nav__link">
-    Create namespace(s)
+        
+          <li class="md-nav__item">
+  <a href="#shards" title="Shards" class="md-nav__link">
+    Shards
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1356,16 +1369,29 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#initialize-topology" title="Initialize Topology" class="md-nav__link">
-    Initialize Topology
+  <a href="#create-namespace-and-initialize-topology" title="Create Namespace and Initialize Topology" class="md-nav__link">
+    Create Namespace and Initialize Topology
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#replication-factor-rf" title="Replication factor (RF)" class="md-nav__link">
+    Replication factor (RF)
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#create-namespaces" title="Create namespace(s)" class="md-nav__link">
-    Create namespace(s)
+        
+          <li class="md-nav__item">
+  <a href="#shards" title="Shards" class="md-nav__link">
+    Shards
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1478,13 +1504,17 @@
 </pre></div>
 
 <p>Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc</p>
-<h2 id="initialize-topology">Initialize Topology</h2>
-<p>M3DB calls its cluster topology ‘placement’. Run the command below on any of the seed nodes to initialize your first placement.</p>
-<p>Note: Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones <code>us-east1-a</code>, <code>us-east1-b</code>, <code>us-east1-c</code> as our isolation groups which matches our replication factor of 3.</p>
-<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/placement/init</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
-    <span class="nt">&quot;num_shards&quot;</span><span class="p">:</span> <span class="mi">1024</span><span class="p">,</span>
-    <span class="nt">&quot;replication_factor&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-    <span class="nt">&quot;instances&quot;</span><span class="p">:</span> <span class="p">[</span>
+<h2 id="create-namespace-and-initialize-topology">Create Namespace and Initialize Topology</h2>
+<p>The recommended way to create a namespace and initialize a topology is to use the <code>/database/create</code> api. Below is an example.</p>
+<p><strong>Note:</strong> In order to create a more custom setup, please refer to the <a href="../../operational_guide/namespace_configuration/">namespace configuration</a> and 
+<a href="../../operational_guide/placement_configuration/">placement configuration</a> guides, though this is discouraged.</p>
+<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">http://localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/database/create</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
+  <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;cluster&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;namespaceName&quot;</span><span class="p">:</span> <span class="s2">&quot;1week_namespace&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;retentionTime&quot;</span><span class="p">:</span> <span class="s2">&quot;168h&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;numShards&quot;</span><span class="p">:</span> <span class="s2">&quot;1024&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;replicationFactor&quot;</span><span class="p">:</span> <span class="s2">&quot;3&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;hosts&quot;</span><span class="p">:</span> <span class="p">[</span>
         <span class="p">{</span>
             <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;m3db001&quot;</span><span class="p">,</span>
             <span class="nt">&quot;isolation_group&quot;</span><span class="p">:</span> <span class="s2">&quot;us-east1-a&quot;</span><span class="p">,</span>
@@ -1516,34 +1546,7 @@
 <span class="p">}</span><span class="err">&#39;</span>
 </pre></div>
 
-<h2 id="create-namespaces">Create namespace(s)</h2>
-<p>A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.</p>
-<p>Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:</p>
-<div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/namespace</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
-  <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;metrics&quot;</span><span class="p">,</span>
-  <span class="nt">&quot;options&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;bootstrapEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-    <span class="nt">&quot;flushEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-    <span class="nt">&quot;writesToCommitLog&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-    <span class="nt">&quot;cleanupEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-    <span class="nt">&quot;snapshotEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-    <span class="nt">&quot;repairEnabled&quot;</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
-    <span class="nt">&quot;retentionOptions&quot;</span><span class="p">:</span> <span class="p">{</span>
-      <span class="nt">&quot;retentionPeriodDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;720h&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;blockSizeDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;bufferFutureDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;1h&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;bufferPastDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;1h&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;blockDataExpiry&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-      <span class="nt">&quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;5m&quot;</span>
-    <span class="p">},</span>
-    <span class="nt">&quot;indexOptions&quot;</span><span class="p">:</span> <span class="p">{</span>
-      <span class="nt">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
-      <span class="nt">&quot;blockSizeDuration&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-<span class="p">}</span><span class="err">&#39;</span>
-</pre></div>
-
+<p><strong>Note:</strong> Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones <code>us-east1-a</code>, <code>us-east1-b</code>, <code>us-east1-c</code> as our isolation groups which matches our replication factor of 3.</p>
 <p>Shortly after, you should see your node complete bootstrapping:</p>
 <div class="highlight"><pre><span></span>20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
 20:10:13.462798[I] node tchannelthrift: listening on 0.0.0.0:9000
@@ -1557,7 +1560,10 @@
 20:10:14.764771[I] successfully updated topology to 3 hosts
 </pre></div>
 
-<p>Read more about namespaces and the various knobs in the docs.</p>
+<h3 id="replication-factor-rf">Replication factor (RF)</h3>
+<p>Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See <a href="../../operational_guide/replication_and_deployment_in_zones/">Replication Factor Recommendations</a> for more specifics.</p>
+<h3 id="shards">Shards</h3>
+<p>See <a href="../../operational_guide/placement_configuration/">placement configuration</a> to determine the appropriate number of shards to specify.</p>
 <h2 id="test-it-out">Test it out</h2>
 <p>Now you can experiment with writing tagged metrics:</p>
 <div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-sS</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">localhost:</span><span class="mi">9003</span><span class="err">/writetagged</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>

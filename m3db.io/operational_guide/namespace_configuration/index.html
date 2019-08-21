@@ -1605,6 +1605,37 @@ in duration format as opposed to nanoseconds (default).</p>
 <h4 id="blocksize">blockSize</h4>
 <p>This is the most important value to consider when tuning the performance of an M3DB namespace. Read the <a href="../../m3db/architecture/storage/">storage engine documentation</a> for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.</p>
 <p>Can be modified without creating a new namespace: <code>no</code></p>
+<p>Below are recommendations for block size based on retention:</p>
+<table>
+<thead>
+<tr>
+<th>Retention</th>
+<th>Block Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>12h</td>
+<td>30m</td>
+</tr>
+<tr>
+<td>24h</td>
+<td>1h</td>
+</tr>
+<tr>
+<td>168h</td>
+<td>2h</td>
+</tr>
+<tr>
+<td>720h</td>
+<td>12h</td>
+</tr>
+<tr>
+<td>8760h</td>
+<td>24h</td>
+</tr>
+</tbody>
+</table>
 <h4 id="bufferfuture-and-bufferpast">bufferFuture and bufferPast</h4>
 <p>These values control how far into the future and the past (compared to the system time on an M3DB node) writes for the namespace will be accepted. For example, consider the following configuration:</p>
 <div class="highlight"><pre><span></span>bufferPast: 10m
