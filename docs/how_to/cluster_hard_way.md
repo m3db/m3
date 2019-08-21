@@ -161,7 +161,7 @@ Shortly after, you should see your node complete bootstrapping:
 
 ### Replication factor (RF)
 
-Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones) for more specifics.
+Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones.md) for more specifics.
 
 ### Shards
 
