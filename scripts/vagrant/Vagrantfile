@@ -31,11 +31,11 @@ Vagrant.configure("2") do |config|
 
   config.vm.provider :google do |google, override|
     # Normal benchmarks:
-    google.machine_type = "n2-standard-16"
+    # google.machine_type = "n1-standard-16"
     google.preemptible = false
 
-    # For heavy benchmarks, use pre-emptible n2-standard-64:
-    # google.machine_type = "n2-standard-64"
+    # For heavy benchmarks, use pre-emptible n1-standard-64:
+    google.machine_type = "n1-standard-64"
     # google.preemptible = true
     # google.auto_restart = false
     # google.on_host_maintenance = "TERMINATE"
