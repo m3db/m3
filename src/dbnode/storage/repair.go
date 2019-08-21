@@ -343,6 +343,7 @@ func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardR
 			waiting = true
 			waitingLock.Unlock()
 			// Wait for some of the outstanding data to be flushed before trying again.
+			r.logger.Info("repair throttled due to memory load limits, waiting for data to be flushed before continuing")
 			r.opts.MemoryTracker().WaitForDec()
 			continue
 		}
