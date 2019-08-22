@@ -38,8 +38,12 @@ func makeAndBlock(
 	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error) {
+	if !matching.Set {
+		return nil, errNoMatching
+	}
+
 	lSeriesMetas := lIter.SeriesMeta()
 	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
 
@@ -101,10 +105,10 @@ func makeAndBlock(
 
 // intersect returns the slice of lhs indices matching rhs indices.
 func andIntersect(
-	matching *VectorMatching,
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]indexMatcher, []block.SeriesMeta) {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
 	for idx, meta := range rhs {

@@ -21,8 +21,6 @@
 package scalar
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -46,63 +44,56 @@ const (
 	TimeType = "time"
 )
 
-type baseOp struct {
-	fn           block.ScalarFunc
-	tagOptions   models.TagOptions
-	operatorType string
+type scalarOp struct {
+	val        float64
+	tagOptions models.TagOptions
 }
 
-func (o baseOp) OpType() string {
-	return o.operatorType
+func (o scalarOp) OpType() string {
+	return ScalarType
 }
 
-func (o baseOp) String() string {
-	return fmt.Sprintf("type: %s.", o.OpType())
+func (o scalarOp) String() string {
+	return "type: scalar"
 }
 
-func (o baseOp) Node(
+func (o scalarOp) Node(
 	controller *transform.Controller,
 	opts transform.Options,
 ) parser.Source {
-	return &baseNode{
+	return &scalarNode{
 		op:         o,
 		controller: controller,
 		opts:       opts,
 	}
 }
 
-// NewScalarOp creates a new scalar op.
+// NewScalarOp creates an operation that yields a scalar source.
 func NewScalarOp(
-	fn block.ScalarFunc,
-	opType string,
+	val float64,
 	tagOptions models.TagOptions,
 ) (parser.Params, error) {
-	if opType != ScalarType && opType != TimeType {
-		return nil, fmt.Errorf("unknown scalar type: %s", opType)
-	}
-
-	return &baseOp{
-		fn:           fn,
-		tagOptions:   tagOptions,
-		operatorType: opType,
+	return &scalarOp{
+		val:        val,
+		tagOptions: tagOptions,
 	}, nil
 }
 
-// scalarNode is the execution node
-type baseNode struct {
-	op         baseOp
+// scalarNode is the execution node for time source.
+type scalarNode struct {
+	op         scalarOp
 	controller *transform.Controller
 	opts       transform.Options
 }
 
-// Execute runs the scalar node operation
-func (n *baseNode) Execute(queryCtx *models.QueryContext) error {
+// Execute runs the scalar source's pipeline.
+func (n *scalarNode) Execute(queryCtx *models.QueryContext) error {
 	meta := block.Metadata{
 		Bounds: n.opts.TimeSpec().Bounds(),
 		Tags:   models.NewTags(0, n.op.tagOptions),
 	}
 
-	block := block.NewScalar(n.op.fn, meta)
+	block := block.NewScalar(n.op.val, meta)
 	if n.opts.Debug() {
 		// Ignore any errors
 		iter, _ := block.StepIter()

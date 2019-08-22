@@ -42,6 +42,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/pkg/profile"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,9 +152,10 @@ func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 
 		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
 		j := 0
-		for i, block := range blocks {
-			iters, err := block.StepIter()
+		for i, bl := range blocks {
+			iters, err := bl.StepIter()
 			require.NoError(t, err)
+			assert.Equal(t, block.BlockM3TSZCompressed, bl.Info().Type())
 
 			require.True(t, bounds.Equals(block.Meta().Bounds))
 			verifyMetas(t, i, block.Meta(), iters.SeriesMeta())

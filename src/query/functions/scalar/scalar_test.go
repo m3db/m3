@@ -18,32 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package block
+package scalar
 
-import "github.com/m3db/m3/src/query/cost"
+import (
+	"testing"
 
-// AccountedBlock is a wrapper for a block which enforces limits on the number
-// of datapoints used by the block.
-type AccountedBlock struct {
-	Block
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
 
-	enforcer cost.ChainedEnforcer
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-// NewAccountedBlock wraps the given block and enforces datapoint limits.
-func NewAccountedBlock(
-	wrapped Block,
-	enforcer cost.ChainedEnforcer,
-) *AccountedBlock {
-	return &AccountedBlock{
-		Block:    wrapped,
-		enforcer: enforcer,
+func TestScalar(t *testing.T) {
+	val := 10.0
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	op, err := NewScalarOp(val, models.NewTagOptions())
+	require.NoError(t, err)
+
+	baseOp, ok := op.(*scalarOp)
+	require.True(t, ok)
+	start := bounds.Start
+	step := bounds.StepSize
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
+		TimeSpec: transform.TimeSpec{
+			Start: start,
+			End:   bounds.End(),
+			Step:  step,
+		},
+	}))
+
+	err = node.Execute(models.NoopQueryContext())
+	require.NoError(t, err)
+	require.Equal(t, 1, len(sink.Values))
+
+	vals := sink.Values[0]
+	assert.Equal(t, bounds.Steps(), len(vals))
+	for _, v := range vals {
+		assert.Equal(t, val, v)
 	}
-}
-
-// Close closes the block, and marks the number of datapoints used
-// by this block as finished.
-func (ab *AccountedBlock) Close() error {
-	ab.enforcer.Close()
-	return ab.Block.Close()
 }

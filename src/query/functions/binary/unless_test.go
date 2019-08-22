@@ -105,7 +105,7 @@ var distinctLeftTests = []struct {
 }
 
 func TestMatchingIndices(t *testing.T) {
-	matching := &VectorMatching{}
+	matching := VectorMatching{}
 	for _, tt := range distinctLeftTests {
 		t.Run(tt.name, func(t *testing.T) {
 			excluded := matchingIndices(matching, tt.lhs, tt.rhs)
@@ -213,9 +213,9 @@ func TestUnless(t *testing.T) {
 			op, err := NewOp(
 				UnlessType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)

@@ -68,6 +68,10 @@ func (m *multiBlockWrapper) Meta() block.Metadata {
 	return m.unconsolidated.Meta()
 }
 
+func (m *multiBlockWrapper) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockMultiSeries)
+}
+
 func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return m.unconsolidated, nil
 }

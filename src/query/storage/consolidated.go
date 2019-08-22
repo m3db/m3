@@ -31,6 +31,10 @@ type consolidatedBlock struct {
 	consolidationFunc block.ConsolidationFunc
 }
 
+func (c *consolidatedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockConsolidated)
+}
+
 func (c *consolidatedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return nil, errors.New("unconsolidated blocks are not supported")
 }
