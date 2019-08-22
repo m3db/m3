@@ -22,6 +22,7 @@ package fanout
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
@@ -126,10 +127,11 @@ func (s *fanoutStorage) FetchBlocks(
 				// This block exists. Check to see if it's already an appendable block.
 				// FIXME: (arnikola) use Block.Info() here to determine if it's an
 				// accumulator once #1888 merges.
-				accumulator, ok := foundBlock.(block.AccumulatorBlock)
-				if ok {
-					// Already an accumulator block, add current block.
-					if err := accumulator.AddBlock(bl); err != nil {
+				blockType := foundBlock.Info().Type()
+				if blockType != block.BlockContainer {
+					var err error
+					blockResult[key], err = block.NewContainerBlock(foundBlock, bl)
+					if err != nil {
 						multiErr = multiErr.Add(err)
 						return
 					}
@@ -137,9 +139,13 @@ func (s *fanoutStorage) FetchBlocks(
 					continue
 				}
 
-				var err error
-				blockResult[key], err = block.NewContainerBlock(foundBlock, bl)
-				if err != nil {
+				accumulator, ok := foundBlock.(block.AccumulatorBlock)
+				if !ok {
+					multiErr = multiErr.Add(fmt.Errorf("container block has incorrect type"))
+				}
+
+				// Already an accumulator block, add current block.
+				if err := accumulator.AddBlock(bl); err != nil {
 					multiErr = multiErr.Add(err)
 					return
 				}
