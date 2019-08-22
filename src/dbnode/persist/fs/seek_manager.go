@@ -53,6 +53,7 @@ var (
 	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
 	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
 	errOutOfOrderUpdateOpenLease                     = errors.New("received update open lease volumes out of order")
+	errShardClosed                                   = errors.New("shard is closed")
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -121,6 +122,7 @@ type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
+	closed   bool
 	seekers  map[xtime.UnixNano]rotatableSeekers
 }
 
@@ -504,55 +506,59 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 
 func (m *seekerManager) RelinquishShard(shard uint32) error {
 	byTime := m.seekersByTime(shard)
+
+	// Indicate this shard is closed so it can't be borrowed and no seekers
+	// can be opened from now on.
 	byTime.Lock()
-	defer byTime.Unlock()
+	byTime.closed = true
+	byTime.Unlock()
 
 	for _, seekers := range byTime.seekers {
-		// 	Mark all seekers as inactive.
-		seekers.inactive = seekers.active
-		seekers.active = seekersAndBloom{}
-
-		// Check if any are borrowed.
-		anySeekersAreBorrowed := false
-		for _, seeker := range seekers.inactive.seekers {
-			if seeker.isBorrowed {
-				anySeekersAreBorrowed = true
-				break
-			}
-		}
-
-		if anySeekersAreBorrowed {
-			// If any of the seekers are borrowed setup a waitgroup which will be used to
-			// signal when they've all been returned (the last seeker that is returned via
-			// the Return() API will call wg.Done()).
-			if seekers.inactive.wg != nil {
-				wg := &sync.WaitGroup{}
-				wg.Add(1)
-				seekers.inactive.wg = wg
-			} else {
-				seekers.inactive.wg.Add(1)
-			}
-		}
-
-		// Wait until all inactive seekers are returned.
-		if seekers.inactive.wg != nil {
-			seekers.inactive.wg.Wait()
-		}
-
-		for _, inactiveSeeker := range seekers.inactive.seekers {
-			// This is usually a noop since all seekers should be returned at
-			// this point.
-			if inactiveSeeker.isBorrowed {
-				return fmt.Errorf("unable to relinquish shard: seekers still borrowed")
+		for _, s := range []seekersAndBloom{seekers.active, seekers.inactive} {
+			anySeekersAreBorrowed := false
+			for _, seeker := range s.seekers {
+				if seeker.isBorrowed {
+					anySeekersAreBorrowed = true
+					break
+				}
 			}
 
-			err := inactiveSeeker.seeker.Close()
-			if err != nil {
-				m.logger.Error(
-					"error closing seeker in relinquish shard",
-					zap.Error(err),
-					zap.Int("shard", int(shard)),
-				)
+			if anySeekersAreBorrowed {
+				// If any of the seekers are borrowed setup a waitgroup which will be used to
+				// signal when they've all been returned (the last seeker that is returned via
+				// the Return() API will call wg.Done()).
+				byTime.Lock()
+				if s.wg != nil {
+					wg := &sync.WaitGroup{}
+					wg.Add(1)
+					s.wg = wg
+				} else {
+					s.wg.Add(1)
+				}
+				byTime.Unlock()
+			}
+
+			// Wait until all seekers are returned.
+			if s.wg != nil {
+				s.wg.Wait()
+			}
+
+			// Iterate over them again to close.
+			for _, seeker := range s.seekers {
+				// This is usually a noop since all seekers should be returned at
+				// this point.
+				if seeker.isBorrowed {
+					return fmt.Errorf("unable to relinquish shard: seekers still borrowed")
+				}
+
+				err := seeker.seeker.Close()
+				if err != nil {
+					m.logger.Error(
+						"error closing seeker in relinquish shard",
+						zap.Error(err),
+						zap.Int("shard", int(shard)),
+					)
+				}
 			}
 		}
 	}
@@ -620,6 +626,13 @@ func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor
 // open the Seeker (I/O heavy), re-acquire the lock (so that the waiting goroutines don't get it before us),
 // and then notify the waiting goroutines that we've finished.
 func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
+	// If the shard is marked as closed we're not allowing any operations,
+	// other than closing already open seekers. For more details see
+	// RelinquishShard().
+	if byTime.closed {
+		return seekersAndBloom{}, errShardClosed
+	}
+
 	seekers, ok := byTime.seekers[start]
 	if ok && seekers.active.wg == nil {
 		// Seekers are already open
