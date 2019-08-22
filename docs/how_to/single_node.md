@@ -35,7 +35,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 Placement initialization may take a minute or two and you can check on the status of this by running the following:
 
 ```
-curl http://localhost:7201/api/v1/placement | jq .`
+curl http://localhost:7201/api/v1/placement | jq .
 ```
 
 Once all of the shards become `AVAILABLE`, you should see your node complete bootstrapping! Don't worry if you see warnings or errors related to a local cache file, such as `[W] could not load cache from file
