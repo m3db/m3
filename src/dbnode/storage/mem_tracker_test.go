@@ -42,6 +42,19 @@ func TestMemoryTrackerLoadLimitNotEnforcedIfNotSet(t *testing.T) {
 	require.True(t, memTracker.IncNumLoadedBytes(100))
 }
 
+// TestMemoryTrackerDoubleDec ensures that calling Dec twice in a row (which
+// should not happen anyways with a well behaved caller) does not cause the
+// number of loaded bytes to decrement twice.
+func TestMemoryTrackerDoubleDec(t *testing.T) {
+	limit := int64(100)
+	memTracker := NewMemoryTracker(NewMemoryTrackerOptions(limit))
+	require.True(t, memTracker.IncNumLoadedBytes(50))
+	memTracker.MarkLoadedAsPending()
+	memTracker.DecPendingLoadedBytes()
+	memTracker.DecPendingLoadedBytes()
+	require.Equal(t, int64(0), memTracker.NumLoadedBytes())
+}
+
 func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 	var (
 		limit         = int64(100)

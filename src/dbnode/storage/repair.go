@@ -314,7 +314,7 @@ func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardR
 	)
 	defer close(doneCh)
 
-	// Emit a gauge constantly that indicates whether or not the repair processed is blocking waiting.
+	// Emit a gauge constantly that indicates whether or not the repair process is blocked waiting.
 	go func() {
 		for {
 			select {

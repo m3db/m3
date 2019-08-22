@@ -43,11 +43,11 @@ func (m *memoryTracker) IncNumLoadedBytes(x int64) (okToLoad bool) {
 	}
 	// This check is optimistic in the sense that as long as the number of loaded bytes
 	// is currently under the limit then x is accepted, regardless of how far over the
-	// limit it bring the value of numLoadedBytes.
+	// limit it brings the value of numLoadedBytes.
 	//
 	// The reason for this is to avoid scenarios where some process gets permanently
 	// stuck because the amount of data it needs to load at once is larger than the limit
-	// and as a result its never able to make any progress.
+	// and as a result it's never able to make any progress.
 	//
 	// In practice this implementation should be fine for the vast majority of configurations
 	// and workloads.
@@ -74,6 +74,7 @@ func (m *memoryTracker) MarkLoadedAsPending() {
 func (m *memoryTracker) DecPendingLoadedBytes() {
 	m.Lock()
 	m.numLoadedBytes -= m.numPendingLoadedBytes
+	m.numPendingLoadedBytes = 0
 	if m.waitForDecWg != nil {
 		m.waitForDecWg.Done()
 		m.waitForDecWg = nil
