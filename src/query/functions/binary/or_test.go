@@ -45,9 +45,9 @@ func TestOrWithExactValues(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
@@ -76,9 +76,9 @@ func TestOrWithSomeValues(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
@@ -263,9 +263,9 @@ func TestOrs(t *testing.T) {
 			op, err := NewOp(
 				OrType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -313,9 +313,9 @@ func TestOrsBoundsError(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
@@ -353,9 +353,9 @@ func TestOrCombinedMetadata(t *testing.T) {
 	op, err := NewOp(
 		OrType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)

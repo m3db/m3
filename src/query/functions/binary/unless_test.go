@@ -213,9 +213,9 @@ func TestUnless(t *testing.T) {
 			op, err := NewOp(
 				UnlessType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)

@@ -30,6 +30,19 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
+type BlockType uint8
+
+const (
+	BlockM3TSZCompressed BlockType = iota
+	BlockDecompressed
+	BlockScalar
+	BlockLazy
+	BlockTime
+	BlockContainer
+	BlockWrapper
+	BlockConsolidated
+)
+
 // Block represents a group of series across a time bound.
 type Block interface {
 	io.Closer
@@ -43,6 +56,8 @@ type Block interface {
 	SeriesIter() (SeriesIter, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
+	// Info returns information about the block.
+	Info() BlockInformation
 }
 
 type AccumulatorBlock interface {
@@ -167,6 +182,7 @@ func (m Metadata) String() string {
 type Builder interface {
 	AppendValue(idx int, value float64) error
 	AppendValues(idx int, values []float64) error
+	SetBlockType(blockType BlockType)
 	Build() Block
 	AddCols(num int) error
 }

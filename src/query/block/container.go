@@ -58,6 +58,10 @@ func (b *containerBlock) AddBlock(bl Block) error {
 	return nil
 }
 
+func (c *containerBlock) Info() BlockInformation {
+	return NewBlockInformation(BlockContainer)
+}
+
 func (b *containerBlock) Close() error {
 	multiErr := xerrors.NewMultiError()
 	multiErr = multiErr.Add(b.err)

@@ -36,6 +36,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func nilVectorMatcherBuilder(_, _ block.Block) *VectorMatching { return nil }
+func emptyVectorMatcherBuilder(_, _ block.Block) *VectorMatching {
+	return &VectorMatching{}
+}
+
 func TestAndWithExactValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	block1 := test.NewBlockFromValues(bounds, values)
@@ -44,9 +49,9 @@ func TestAndWithExactValues(t *testing.T) {
 	op, err := NewOp(
 		AndType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
@@ -76,9 +81,9 @@ func TestAndWithSomeValues(t *testing.T) {
 	op, err := NewOp(
 		AndType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
@@ -196,9 +201,9 @@ func TestAnd(t *testing.T) {
 			op, err := NewOp(
 				AndType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)

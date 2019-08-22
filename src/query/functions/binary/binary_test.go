@@ -103,12 +103,10 @@ func TestScalars(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      true,
-					RIsScalar:      true,
-					ReturnBool:     true,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           true,
+					VectorMatcherBuilder: nilVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -154,12 +152,10 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      true,
-					RIsScalar:      true,
-					ReturnBool:     false,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           false,
+					VectorMatcherBuilder: nilVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -538,12 +534,10 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      !tt.seriesLeft,
-					RIsScalar:      tt.seriesLeft,
-					ReturnBool:     true,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           true,
+					VectorMatcherBuilder: nilVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -602,12 +596,10 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      !tt.seriesLeft,
-					RIsScalar:      tt.seriesLeft,
-					ReturnBool:     false,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           false,
+					VectorMatcherBuilder: nilVectorMatcherBuilder,
 				},
 			)
 
@@ -879,12 +871,10 @@ func TestBothSeries(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      false,
-					RIsScalar:      false,
-					ReturnBool:     tt.returnBool,
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           tt.returnBool,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -956,11 +946,9 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	op, err := NewOp(
 		PlusType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			LIsScalar:      false,
-			RIsScalar:      false,
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)

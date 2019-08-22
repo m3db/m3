@@ -27,8 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// Function is a function that applies on two floats.
-type Function func(x, y float64) float64
+type binaryFunction func(x, y float64) float64
 type singleScalarFunc func(x float64) float64
 
 // processes two logical blocks, performing a logical operation on them.
@@ -38,14 +37,14 @@ func processBinary(
 	params NodeParams,
 	controller *transform.Controller,
 	isComparison bool,
-	fn Function,
+	fn binaryFunction,
 ) (block.Block, error) {
 	lIter, err := lhs.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	if params.LIsScalar {
+	if lhs.Info().Type() == block.BlockScalar {
 		scalarL, ok := lhs.(*block.Scalar)
 		if !ok {
 			return nil, errLeftScalar
@@ -53,7 +52,7 @@ func processBinary(
 
 		lVal := scalarL.Value()
 		// rhs is a series; use rhs metadata and series meta
-		if !params.RIsScalar {
+		if rhs.Info().Type() != block.BlockScalar {
 			return processSingleBlock(
 				queryCtx,
 				rhs,
@@ -85,7 +84,7 @@ func processBinary(
 		), nil
 	}
 
-	if params.RIsScalar {
+	if rhs.Info().Type() == block.BlockScalar {
 		scalarR, ok := rhs.(*block.Scalar)
 		if !ok {
 			return nil, errRightScalar
@@ -109,14 +108,15 @@ func processBinary(
 		return nil, err
 	}
 
+	matcher := params.VectorMatcherBuilder(lhs, rhs)
 	// NB(arnikola): this is a sanity check, as functions between
 	// two series missing vector matching should have previously
 	// errored out during the parsing step.
-	if params.VectorMatching == nil {
+	if matcher == nil {
 		return nil, errNoMatching
 	}
 
-	return processBothSeries(queryCtx, lIter, rIter, controller, params.VectorMatching, fn)
+	return processBothSeries(queryCtx, lIter, rIter, controller, matcher, fn)
 }
 
 func processSingleBlock(
@@ -163,7 +163,7 @@ func processBothSeries(
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
-	fn Function,
+	fn binaryFunction,
 ) (block.Block, error) {
 	if lIter.StepCount() != rIter.StepCount() {
 		return nil, errMismatchedStepCounts
@@ -226,7 +226,7 @@ func intersect(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]int, []int, []block.SeriesMeta) {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
 	for idx, meta := range rhs {

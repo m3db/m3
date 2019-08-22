@@ -78,6 +78,11 @@ func TestValidOffset(t *testing.T) {
 	offset := time.Minute
 	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
 
+	b.EXPECT().Info().Return(NewBlockInformation(BlockM3TSZCompressed))
+	info := off.Info()
+	assert.Equal(t, BlockLazy, info.Type())
+	assert.Equal(t, BlockM3TSZCompressed, info.BaseType())
+
 	// ensure functions are marshalled to the underlying block.
 	b.EXPECT().Close().Return(nil)
 	err := off.Close()

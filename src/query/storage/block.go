@@ -64,6 +64,11 @@ type multiBlockWrapper struct {
 	unconsolidated   block.UnconsolidatedBlock
 }
 
+func (m *multiBlockWrapper) Info() block.BlockInformation {
+	return block.NewWrappedBlockInformation(block.BlockWrapper,
+		m.consolidated.Info())
+}
+
 func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return m.unconsolidated, nil
 }

@@ -23,6 +23,8 @@ package promql
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/query/block"
+
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
@@ -147,28 +149,15 @@ func newScalarOperator(
 	return scalar.NewScalarOp(expr.Val, tagOpts)
 }
 
-func isTime(expr promql.Expr) bool {
-	return expr.String() == "time()"
-}
-
 // NewBinaryOperator creates a new binary operator based on the type.
 func NewBinaryOperator(expr *promql.BinaryExpr,
 	lhs, rhs parser.NodeID) (parser.Params, error) {
-	matching := promMatchingToM3(expr.VectorMatching)
-	// NB: Prometheus handles `time()` in a way that's not entirely compatible
-	// with the query engine; special handling is required here.
-	lTime, rTime := isTime(expr.LHS), isTime(expr.RHS)
-	if matching == nil {
-		matching = timeMatcher(lTime, rTime)
-	}
-
+	matcherBuilder := promMatchingToM3(expr.VectorMatching)
 	nodeParams := binary.NodeParams{
-		LNode:          lhs,
-		RNode:          rhs,
-		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar && !lTime,
-		RIsScalar:      expr.RHS.Type() == promql.ValueTypeScalar && !rTime,
-		ReturnBool:     expr.ReturnBool,
-		VectorMatching: matching,
+		LNode:                lhs,
+		RNode:                rhs,
+		ReturnBool:           expr.ReturnBool,
+		VectorMatcherBuilder: matcherBuilder,
 	}
 
 	op := getBinaryOpType(expr.Op)
@@ -406,7 +395,7 @@ func promVectorCardinalityToM3(
 
 func promMatchingToM3(
 	vectorMatching *promql.VectorMatching,
-) *binary.VectorMatching {
+) binary.VectorMatcherBuilder {
 	// vectorMatching can be nil iff at least one of the sides is a scalar.
 	if vectorMatching == nil {
 		return nil
@@ -417,36 +406,12 @@ func promMatchingToM3(
 		byteMatchers[i] = []byte(label)
 	}
 
-	return &binary.VectorMatching{
-		Card:           promVectorCardinalityToM3(vectorMatching.Card),
-		MatchingLabels: byteMatchers,
-		On:             vectorMatching.On,
-		Include:        vectorMatching.Include,
-	}
-}
-
-// Iff one of left or right is a time() function, match match one to many
-// against it, and match everything.
-func timeMatcher(left, right bool) *binary.VectorMatching {
-	if left {
-		if right {
-			return &binary.VectorMatching{
-				Card: binary.CardOneToOne,
-			}
-		}
-
+	return func(_, _ block.Block) *binary.VectorMatching {
 		return &binary.VectorMatching{
-			Card: binary.CardOneToMany,
-			On:   true,
+			Card:           promVectorCardinalityToM3(vectorMatching.Card),
+			MatchingLabels: byteMatchers,
+			On:             vectorMatching.On,
+			Include:        vectorMatching.Include,
 		}
 	}
-
-	if right {
-		return &binary.VectorMatching{
-			Card: binary.CardManyToOne,
-			On:   true,
-		}
-	}
-
-	return nil
 }

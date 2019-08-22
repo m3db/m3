@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,30 +20,27 @@
 
 package block
 
-import "github.com/m3db/m3/src/query/cost"
+import (
+	"context"
+	"testing"
 
-// AccountedBlock is a wrapper for a block which enforces limits on the number
-// of datapoints used by the block.
-type AccountedBlock struct {
-	Block
+	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/stretchr/testify/assert"
 
-	enforcer cost.ChainedEnforcer
-}
+	"github.com/uber-go/tally"
+)
 
-// NewAccountedBlock wraps the given block and enforces datapoint limits.
-func NewAccountedBlock(
-	wrapped Block,
-	enforcer cost.ChainedEnforcer,
-) *AccountedBlock {
-	return &AccountedBlock{
-		Block:    wrapped,
-		enforcer: enforcer,
-	}
-}
+func TestColumnBuilderInfoTypes(t *testing.T) {
+	ctx := models.NewQueryContext(context.Background(),
+		tally.NoopScope, cost.NoopChainedEnforcer(),
+		models.QueryContextOptions{})
 
-// Close closes the block, and marks the number of datapoints used
-// by this block as finished.
-func (ab *AccountedBlock) Close() error {
-	ab.enforcer.Close()
-	return ab.Block.Close()
+	builder := NewColumnBlockBuilder(ctx, Metadata{}, []SeriesMeta{})
+	block := builder.Build()
+	assert.Equal(t, BlockDecompressed, block.Info().blockType)
+
+	block = builder.Build()
+	builder.SetBlockType(BlockScalar)
+	assert.Equal(t, BlockScalar, block.Info().blockType)
 }

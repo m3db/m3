@@ -118,7 +118,7 @@ func mergeIndices(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]int, []block.SeriesMeta) {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
 	for i, meta := range lhs {

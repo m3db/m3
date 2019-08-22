@@ -101,6 +101,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 		}
 	}
 
+	builder.SetBlockType(block.BlockTime)
 	block := builder.Build()
 	if n.opts.Debug() {
 		// Ignore any errors

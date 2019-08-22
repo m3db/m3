@@ -39,6 +39,7 @@ type ColumnBlockBuilder struct {
 }
 
 type columnBlock struct {
+	blockType  BlockType
 	columns    []column
 	meta       Metadata
 	seriesMeta []SeriesMeta
@@ -78,6 +79,7 @@ func (c *columnBlock) WithMetadata(
 		columns:    c.columns,
 		meta:       meta,
 		seriesMeta: seriesMetas,
+		blockType:  BlockDecompressed,
 	}, nil
 }
 
@@ -88,6 +90,10 @@ func (c *columnBlock) SeriesMeta() []SeriesMeta {
 
 func (c *columnBlock) StepCount() int {
 	return len(c.columns)
+}
+
+func (c *columnBlock) Info() BlockInformation {
+	return NewBlockInformation(c.blockType)
 }
 
 // Close frees up any resources
@@ -182,8 +188,13 @@ func NewColumnBlockBuilder(
 		block: &columnBlock{
 			meta:       meta,
 			seriesMeta: seriesMeta,
+			blockType:  BlockDecompressed,
 		},
 	}
+}
+
+func (cb ColumnBlockBuilder) SetBlockType(blockType BlockType) {
+	cb.block.blockType = blockType
 }
 
 // AppendValue adds a value to a column at index

@@ -103,7 +103,7 @@ func matchingIndices(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) []indexMatcher {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
 	for idx, meta := range lhs {

@@ -103,7 +103,7 @@ func andIntersect(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]indexMatcher, []block.SeriesMeta) {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
 	for idx, meta := range rhs {

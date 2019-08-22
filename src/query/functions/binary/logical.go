@@ -61,7 +61,7 @@ func createLogicalProcessingStep(
 	return func(queryCtx *models.QueryContext, lhs, rhs block.Block,
 		controller *transform.Controller) (block.Block, error) {
 		return processLogical(queryCtx, lhs, rhs, controller,
-			params.VectorMatching, fn)
+			params.VectorMatcherBuilder, fn)
 	}
 }
 
@@ -69,7 +69,7 @@ func processLogical(
 	queryCtx *models.QueryContext,
 	lhs, rhs block.Block,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matcherBuilder VectorMatcherBuilder,
 	makeBlock makeBlockFn,
 ) (block.Block, error) {
 	lIter, err := lhs.StepIter()
@@ -86,5 +86,6 @@ func processLogical(
 		return nil, errMismatchedStepCounts
 	}
 
+	matching := matcherBuilder(lhs, rhs)
 	return makeBlock(queryCtx, lIter, rIter, controller, matching)
 }

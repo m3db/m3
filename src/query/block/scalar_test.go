@@ -47,6 +47,7 @@ func TestScalarBlock(t *testing.T) {
 		models.NewTagOptions(),
 	)
 
+	assert.Equal(t, BlockScalar, block.Info().Type())
 	require.IsType(t, block, &Scalar{})
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)

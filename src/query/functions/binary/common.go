@@ -38,40 +38,9 @@ type indexMatcher struct {
 	rhsIndex int
 }
 
-// VectorMatchCardinality describes the cardinality relationship
-// of two Vectors in a binary operation.
-type VectorMatchCardinality int
-
-const (
-	// CardOneToOne is used for one-one relationship
-	CardOneToOne VectorMatchCardinality = iota
-	// CardManyToOne is used for many-one relationship
-	CardManyToOne
-	// CardOneToMany is used for one-many relationship
-	CardOneToMany
-	// CardManyToMany is used for many-many relationship
-	CardManyToMany
-)
-
-// VectorMatching describes how elements from two Vectors in a binary
-// operation are supposed to be matched.
-type VectorMatching struct {
-	// The cardinality of the two Vectors.
-	Card VectorMatchCardinality
-	// MatchingLabels contains the labels which define equality of a pair of
-	// elements from the Vectors.
-	MatchingLabels [][]byte
-	// On includes the given label names from matching,
-	// rather than excluding them.
-	On bool
-	// Include contains additional labels that should be included in
-	// the result from the side with the lower cardinality.
-	Include []string
-}
-
-// HashFunc returns a function that calculates the signature for a metric
+// hashFunc returns a function that calculates the signature for a metric
 // ignoring the provided labels. If on, then only the given labels are used.
-func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
+func hashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 	if on {
 		return func(tags models.Tags) uint64 {
 			return tags.TagsWithKeys(names).HashedID()
@@ -105,6 +74,34 @@ func tagMap(t models.Tags) map[string]models.Tag {
 	}
 
 	return m
+}
+
+// Iff one of left or right is a time block, match match one to many
+// against it, and match everything.
+func defaultVectorMatcherBuilder(lhs, rhs block.Block) *VectorMatching {
+	left := lhs.Info().BaseType() == block.BlockTime
+	right := rhs.Info().BaseType() == block.BlockTime
+	if left {
+		if right {
+			return &VectorMatching{
+				Card: CardOneToOne,
+			}
+		}
+
+		return &VectorMatching{
+			Card: CardOneToMany,
+			On:   true,
+		}
+	}
+
+	if right {
+		return &VectorMatching{
+			Card: CardManyToOne,
+			On:   true,
+		}
+	}
+
+	return nil
 }
 
 func combineMetaAndSeriesMeta(

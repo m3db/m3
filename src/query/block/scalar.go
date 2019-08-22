@@ -51,6 +51,10 @@ func NewScalar(
 	}
 }
 
+func (c *Scalar) Info() BlockInformation {
+	return NewBlockInformation(BlockScalar)
+}
+
 func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil,
 		fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s",
