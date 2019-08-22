@@ -31,7 +31,6 @@ import (
 )
 
 var (
-	start  = time.Time{}
 	val    = 13.37
 	bounds = models.Bounds{
 		Start:    start,
@@ -41,19 +40,25 @@ var (
 )
 
 func TestScalarBlock(t *testing.T) {
+	tagOpts := models.NewTagOptions().SetBucketName([]byte("custom_bucket"))
+	tags := models.NewTags(1, tagOpts).AddTag(models.Tag{
+		Name:  []byte("a"),
+		Value: []byte("b"),
+	})
+
 	block := NewScalar(
 		func(_ time.Time) float64 { return val },
-		bounds,
-		models.NewTagOptions(),
+		Metadata{
+			Bounds: bounds,
+			Tags:   tags,
+		},
 	)
 
 	require.IsType(t, block, &Scalar{})
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)
 	require.NotNil(t, stepIter)
-
-	verifyMetas(t, block.Meta(), stepIter.SeriesMeta())
-
+	verifyMetas(t, block.Meta(), stepIter.SeriesMeta(), tagOpts)
 	assert.Equal(t, 6, stepIter.StepCount())
 	valCounts := 0
 	for stepIter.Next() {
@@ -77,7 +82,7 @@ func TestScalarBlock(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, seriesIter)
 
-	verifyMetas(t, block.Meta(), seriesIter.SeriesMeta())
+	verifyMetas(t, block.Meta(), seriesIter.SeriesMeta(), tagOpts)
 	require.Equal(t, 1, seriesIter.SeriesCount())
 
 	require.True(t, seriesIter.Next())
@@ -100,10 +105,14 @@ func TestScalarBlock(t *testing.T) {
 	require.NoError(t, block.Close())
 }
 
-func verifyMetas(t *testing.T, meta Metadata, seriesMeta []SeriesMeta) {
+func verifyMetas(
+	t *testing.T,
+	meta Metadata,
+	seriesMeta []SeriesMeta,
+	opts models.TagOptions,
+) {
 	// Verify meta
-	assert.Equal(t, bounds, meta.Bounds)
-	assert.Equal(t, 0, meta.Tags.Len())
+	assert.True(t, bounds.Equals(meta.Bounds))
 
 	// Verify seriesMeta
 	assert.Len(t, seriesMeta, 1)

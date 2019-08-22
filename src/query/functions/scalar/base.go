@@ -71,7 +71,7 @@ func (o baseOp) Node(
 	}
 }
 
-// NewScalarOp creates a new scalar op
+// NewScalarOp creates a new scalar op.
 func NewScalarOp(
 	fn block.ScalarFunc,
 	opType string,
@@ -97,9 +97,12 @@ type baseNode struct {
 
 // Execute runs the scalar node operation
 func (n *baseNode) Execute(queryCtx *models.QueryContext) error {
-	bounds := n.opts.TimeSpec().Bounds()
+	meta := block.Metadata{
+		Bounds: n.opts.TimeSpec().Bounds(),
+		Tags:   models.NewTags(0, n.op.tagOptions),
+	}
 
-	block := block.NewScalar(n.op.fn, bounds, n.op.tagOptions)
+	block := block.NewScalar(n.op.fn, meta)
 	if n.opts.Debug() {
 		// Ignore any errors
 		iter, _ := block.StepIter()

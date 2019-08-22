@@ -21,7 +21,9 @@
 package linear
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -32,35 +34,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var emptyArgs = []interface{}{}
+var (
+	emptyArgs = []interface{}{}
+	nan       = math.NaN()
+	step      = time.Second
+	tests     = []struct {
+		name     string
+		v        []float64
+		args     []interface{}
+		expected []float64
+	}{
+		{"default", []float64{1.2, 4.5, 6, nan},
+			emptyArgs, []float64{1, 5, 6, nan}},
+
+		{"1.2", []float64{1.2, 4.5, 6, nan},
+			toArgs(1.2), []float64{1.2, 4.8, 6, nan}},
+
+		{"-3", []float64{1.2, 4.5, 6, nan},
+			toArgs(-3), []float64{0, 3, 6, nan}},
+
+		{"0", []float64{1.2, 4.5, 6, nan},
+			toArgs(0), []float64{nan, nan, nan, nan}},
+	}
+)
 
 func toArgs(f float64) []interface{} { return []interface{}{f} }
-
-var tests = []struct {
-	name     string
-	v        []float64
-	args     []interface{}
-	expected []float64
-}{
-	{"default", []float64{1.2, 4.5, 6, nan},
-		emptyArgs, []float64{1, 5, 6, nan}},
-
-	{"1.2", []float64{1.2, 4.5, 6, nan},
-		toArgs(1.2), []float64{1.2, 4.8, 6, nan}},
-
-	{"-3", []float64{1.2, 4.5, 6, nan},
-		toArgs(-3), []float64{0, 3, 6, nan}},
-
-	{"0", []float64{1.2, 4.5, 6, nan},
-		toArgs(0), []float64{nan, nan, nan, nan}},
-}
 
 func TestRoundWithArgs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			bounds := models.Bounds{
+				StepSize: step,
+				Duration: step * time.Duration(len(tt.v)),
+			}
+
 			v := [][]float64{tt.v}
-			values, bounds := test.GenerateValuesAndBounds(v, nil)
-			block := test.NewBlockFromValues(bounds, values)
+			block := test.NewBlockFromValues(bounds, v)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 			roundOp, err := NewRoundOp(tt.args)
 			require.NoError(t, err)

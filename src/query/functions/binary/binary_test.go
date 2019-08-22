@@ -121,8 +121,10 @@ func TestScalars(t *testing.T) {
 				parser.NodeID(0),
 				block.NewScalar(
 					func(_ time.Time) float64 { return tt.lVal },
-					bounds,
-					models.NewTagOptions(),
+					block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					},
 				),
 			)
 
@@ -132,8 +134,10 @@ func TestScalars(t *testing.T) {
 				parser.NodeID(1),
 				block.NewScalar(
 					func(_ time.Time) float64 { return tt.rVal },
-					bounds,
-					models.NewTagOptions(),
+					block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					},
 				),
 			)
 
@@ -180,8 +184,10 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 				parser.NodeID(0),
 				block.NewScalar(
 					func(_ time.Time) float64 { return tt.lVal },
-					bounds,
-					models.NewTagOptions(),
+					block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					},
 				),
 			)
 
@@ -191,8 +197,10 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 				parser.NodeID(1),
 				block.NewScalar(
 					func(_ time.Time) float64 { return tt.rVal },
-					bounds,
-					models.NewTagOptions(),
+					block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					},
 				),
 			)
 
@@ -586,8 +594,10 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 					parser.NodeID(1),
 					block.NewScalar(
 						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
+						block.Metadata{
+							Bounds: bounds,
+							Tags:   models.EmptyTags(),
+						},
 					),
 				)
 
@@ -598,8 +608,10 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 					parser.NodeID(0),
 					block.NewScalar(
 						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
+						block.Metadata{
+							Bounds: bounds,
+							Tags:   models.EmptyTags(),
+						},
 					),
 				)
 
@@ -658,8 +670,10 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 					parser.NodeID(1),
 					block.NewScalar(
 						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
+						block.Metadata{
+							Bounds: bounds,
+							Tags:   models.EmptyTags(),
+						},
 					),
 				)
 
@@ -670,8 +684,10 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 					parser.NodeID(0),
 					block.NewScalar(
 						func(_ time.Time) float64 { return tt.scalarVal },
-						bounds,
-						models.NewTagOptions(),
+						block.Metadata{
+							Bounds: bounds,
+							Tags:   models.EmptyTags(),
+						},
 					),
 				)
 
