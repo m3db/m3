@@ -35,7 +35,7 @@ import (
 )
 
 type namespaceInfoSource struct {
-	getHandler *namespace.GetHandler
+	handler *namespace.GetHandler
 }
 
 // NewNamespaceInfoSource returns a Source for namespace information.
@@ -45,14 +45,14 @@ func NewNamespaceInfoSource(
 ) Source {
 	handler := namespace.NewGetHandler(clusterClient, iopts)
 	return &namespaceInfoSource{
-		getHandler: handler,
+		handler: handler,
 	}
 }
 
 // Write fetches data about the namespace and writes it in the given writer.
 // The data is formatted in json.
 func (n *namespaceInfoSource) Write(w io.Writer) error {
-	nsRegistry, err := n.getHandler.Get()
+	nsRegistry, err := n.handler.Get()
 	if err != nil {
 		return err
 	}
