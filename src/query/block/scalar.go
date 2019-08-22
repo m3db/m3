@@ -28,30 +28,27 @@ import (
 )
 
 // Scalar is a block containing a single value over a certain bound
-// This represents constant values; it greatly simplifies downstream operations by
-// allowing them to treat this as a regular block, while at the same time
-// having an option to optimize by accessing the scalar value directly instead
+// This represents constant values; it greatly simplifies downstream operations
+// by allowing them to treat this as a regular block, while at the same time
+// having an option to optimize by accessing the scalar value directly instead.
 type Scalar struct {
 	s    ScalarFunc
 	meta Metadata
 }
 
-// NewScalar creates a scalar block containing val over the bounds
+// NewScalar creates a scalar block whose value is given by the function over
+// the metadata bounds.
 func NewScalar(
 	s ScalarFunc,
-	bounds models.Bounds,
-	tagOptions models.TagOptions,
+	meta Metadata,
 ) Block {
 	return &Scalar{
-		s: s,
-		meta: Metadata{
-			Bounds: bounds,
-			Tags:   models.NewTags(0, tagOptions),
-		},
+		s:    s,
+		meta: meta,
 	}
 }
 
-// Unconsolidated returns the unconsolidated version for the block
+// Unconsolidated returns the unconsolidated version for the block.
 func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
 }

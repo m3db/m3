@@ -292,8 +292,8 @@ func (m *columnBlockSeriesIter) Next() bool {
 	}
 
 	cols := m.columns
-	for i := 0; i < len(cols); i++ {
-		m.values[i] = cols[i].Values[m.idx]
+	for i, col := range cols {
+		m.values[i] = col.Values[m.idx]
 	}
 
 	return next

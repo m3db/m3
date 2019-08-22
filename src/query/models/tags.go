@@ -432,21 +432,62 @@ func (t Tags) Normalize() Tags {
 }
 
 // HashedID returns the hashed ID for the tags.
+func (t Tags) Reset() Tags {
+	t.Tags = t.Tags[:0]
+	return t
+}
+
+// HashedID returns the hashed ID for the tags.
 func (t Tags) HashedID() uint64 {
 	return xxhash.Sum64(t.ID())
 }
 
-func (t Tags) String() string {
-	tags := make([]string, len(t.Tags))
-	for i, tt := range t.Tags {
-		tags[i] = tt.String()
+// Equals returns a boolean reporting whether the compared tags have the same
+// values.
+//
+// NB: does not check that compared tags have the same underlying bytes.
+func (t Tags) Equals(other Tags) bool {
+	if t.Len() != other.Len() {
+		return false
 	}
 
-	return strings.Join(tags, ", ")
+	if !t.Opts.Equals(other.Opts) {
+		return false
+	}
+
+	for i, t := range t.Tags {
+		if !t.Equals(other.Tags[i]) {
+			return false
+		}
+	}
+
+	return true
 }
 
+var tagSeperator = []byte(", ")
+
+// String returns the string representation of the tags.
+func (t Tags) String() string {
+	var sb strings.Builder
+	for i, tt := range t.Tags {
+		if i != 0 {
+			sb.Write(tagSeperator)
+		}
+		sb.WriteString(tt.String())
+	}
+	return sb.String()
+}
+
+// String returns the string representation of the tag.
 func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
+}
+
+// Equals returns a boolean indicating whether the provided tags are equal.
+//
+// NB: does not check that compared tags have the same underlying bytes.
+func (t Tag) Equals(other Tag) bool {
+	return bytes.Equal(t.Name, other.Name) && bytes.Equal(t.Value, other.Value)
 }
 
 // Clone returns a copy of the tag.
