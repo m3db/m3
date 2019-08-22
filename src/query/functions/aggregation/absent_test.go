@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	blocktest "github.com/m3db/m3/src/query/block/test"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -58,62 +57,62 @@ var absentTests = []struct {
 }{
 	{
 		"no series",
-		blocktest.MustMakeMeta(testBound),
+		block.MustMakeMeta(testBound),
 		[]block.SeriesMeta{},
 		[][]float64{},
-		blocktest.MustMakeMeta(testBound),
+		block.MustMakeMeta(testBound),
 		[]float64{1, 1, 1, 1},
 	},
 	{
 		"no series with tags",
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
 		[]block.SeriesMeta{},
 		[][]float64{},
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
 		[]float64{1, 1, 1, 1},
 	},
 	{
 		"series with tags and values",
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{blocktest.MustMakeSeriesMeta("B", "B")},
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		[]block.SeriesMeta{block.MustMakeSeriesMeta("B", "B")},
 		[][]float64{{1, 1, 1, 1}},
-		blocktest.MustMakeMeta(testBound, "A", "B", "B", "B", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "B", "B", "C", "D"),
 		nil,
 	},
 	{
 		"series with tags and some missing",
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{blocktest.MustMakeSeriesMeta("bar", "baz")},
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		[]block.SeriesMeta{block.MustMakeSeriesMeta("bar", "baz")},
 		[][]float64{{1, 1, 1, math.NaN()}},
-		blocktest.MustMakeMeta(testBound, "A", "B", "bar", "baz", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "bar", "baz", "C", "D"),
 		[]float64{nan, nan, nan, 1},
 	},
 	{
 		"series with mismatched tags",
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
 		[]block.SeriesMeta{
-			blocktest.MustMakeSeriesMeta("B", "B"),
-			blocktest.MustMakeSeriesMeta("F", "F"),
+			block.MustMakeSeriesMeta("B", "B"),
+			block.MustMakeSeriesMeta("F", "F"),
 		},
 		[][]float64{
 			{1, 1, 1, math.NaN()},
 			{math.NaN(), 1, 1, math.NaN()},
 		},
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
 		[]float64{nan, nan, nan, 1},
 	},
 	{
 		"series with no missing values",
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		block.MustMakeMeta(testBound, "A", "B", "C", "D"),
 		[]block.SeriesMeta{
-			blocktest.MustMakeSeriesMeta("F", "F"),
-			blocktest.MustMakeSeriesMeta("F", "F"),
+			block.MustMakeSeriesMeta("F", "F"),
+			block.MustMakeSeriesMeta("F", "F"),
 		},
 		[][]float64{
 			{1, math.NaN(), math.NaN(), 2},
 			{math.NaN(), 1, 1, math.NaN()},
 		},
-		blocktest.MustMakeMeta(testBound, "A", "B", "C", "D", "F", "F"),
+		block.MustMakeMeta(testBound, "A", "B", "C", "D", "F", "F"),
 		nil,
 	},
 }

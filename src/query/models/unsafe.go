@@ -18,20 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package test
-
-import "github.com/m3db/m3/src/query/models"
+package models
 
 // MustMakeTags creates tags given that the number of args is even.
-func MustMakeTags(tag ...string) models.Tags {
+func MustMakeTags(tag ...string) Tags {
 	if len(tag)%2 != 0 {
 		panic("must have even tag length")
 	}
 
 	tagLength := len(tag) / 2
-	t := models.NewTags(tagLength, models.NewTagOptions())
+	t := NewTags(tagLength, NewTagOptions())
 	for i := 0; i < tagLength; i++ {
-		t = t.AddTag(models.Tag{
+		t = t.AddTag(Tag{
 			Name:  []byte(tag[i*2]),
 			Value: []byte(tag[i*2+1]),
 		})

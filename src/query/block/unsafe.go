@@ -18,25 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package test
+package block
 
 import (
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/models/test"
 )
 
-// MustMakeMeta returns block metadata or panics.
-func MustMakeMeta(bounds models.Bounds, tags ...string) block.Metadata {
-	return block.Metadata{
-		Tags:   test.MustMakeTags(tags...),
+// MustMakeMeta returns block metadata or panics (unsafe for use).
+func MustMakeMeta(bounds models.Bounds, tags ...string) Metadata {
+	return Metadata{
+		Tags:   models.MustMakeTags(tags...),
 		Bounds: bounds,
 	}
 }
 
-// MustMakeSeriesMeta returns series metadata or panics.
-func MustMakeSeriesMeta(tags ...string) block.SeriesMeta {
-	return block.SeriesMeta{
-		Tags: test.MustMakeTags(tags...),
+// MustMakeSeriesMeta returns series metadata or panics (unsafe for use).
+func MustMakeSeriesMeta(tags ...string) SeriesMeta {
+	return SeriesMeta{
+		Tags: models.MustMakeTags(tags...),
 	}
 }

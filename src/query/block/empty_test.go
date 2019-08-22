@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/block/test"
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +41,7 @@ var (
 )
 
 func TestEmptyBlock(t *testing.T) {
-	meta := test.MustMakeMeta(testBound, "a", "b")
+	meta := MustMakeMeta(testBound, "a", "b")
 	bl := NewEmptyBlock(meta)
 
 	series, err := bl.SeriesIter()
@@ -70,7 +69,7 @@ func TestEmptyBlock(t *testing.T) {
 }
 
 func TestEmptyUnconsolidatedBlock(t *testing.T) {
-	meta := test.MustMakeMeta(testBound, "a", "b")
+	meta := MustMakeMeta(testBound, "a", "b")
 	b := NewEmptyBlock(meta)
 	bl, err := b.Unconsolidated()
 	assert.NoError(t, err)
