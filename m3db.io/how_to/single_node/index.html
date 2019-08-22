@@ -1193,20 +1193,24 @@ containing:</p>
 <p>To begin, first start up a Docker container with port <code>7201</code> (used to manage the cluster topology), port <code>7203</code> which is where Prometheus scrapes metrics produced by <code>M3DB</code> and <code>M3Coordinator</code>, and port <code>9003</code> (used to read and write metrics) exposed. We recommend you create a persistent data
 directory on your host for durability:</p>
 <div class="highlight"><pre><span></span>docker pull quay.io/m3db/m3dbnode:latest
-docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v &lt;PATH_TO_M3DB_CONFIG.yml&gt;:/etc/m3dbnode/m3dbnode.yml quay.io/m3db/m3dbnode:latest
+docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3dbnode:latest
 </pre></div>
 
-<p><strong>Note:</strong> For the single node case, we recommend that you start with this <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml">sample config file</a>. If you inspect the file, you'll see that all the configuration is namespaced by <code>coordinator</code> or <code>db</code>. That's because this setup runs <code>M3DB</code> and <code>M3Coordinator</code> as one application. While this is convenient for testing and development, you'll want to run clustered <code>M3DB</code> with a separate <code>M3Coordinator</code> in production. You can read more about that <a href="../cluster_hard_way/">here.</a>.</p>
+<p><strong>Note:</strong> For the single node case, we use this <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml">sample config file</a>. If you inspect the file, you'll see that all the configuration is namespaced by <code>coordinator</code> or <code>db</code>. That's because this setup runs <code>M3DB</code> and <code>M3Coordinator</code> as one application. While this is convenient for testing and development, you'll want to run clustered <code>M3DB</code> with a separate <code>M3Coordinator</code> in production. You can read more about that <a href="../cluster_hard_way/">here.</a>.</p>
 <p>Next, create an initial namespace for your metrics in the database using the cURL below. Keep in mind that the provided <code>namespaceName</code> must match the namespace in the <code>local</code> section of the <code>M3Coordinator</code> YAML configuration, and if you choose to <a href="../../operational_guide/namespace_configuration/">add any additional namespaces</a> you'll need to add them to the <code>local</code> section of <code>M3Coordinator</code>'s YAML config as well.</p>
 <div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">http://localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/database/create</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
   <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;local&quot;</span><span class="p">,</span>
   <span class="nt">&quot;namespaceName&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span>
-  <span class="nt">&quot;retentionTime&quot;</span><span class="p">:</span> <span class="s2">&quot;48h&quot;</span>
+  <span class="nt">&quot;retentionTime&quot;</span><span class="p">:</span> <span class="s2">&quot;12h&quot;</span>
 <span class="p">}</span><span class="err">&#39;</span>
 </pre></div>
 
 <p><strong>Note</strong>: The <code>api/v1/database/create</code> endpoint is abstraction over two concepts in M3DB called <a href="../../operational_guide/placement/">placements</a> and <a href="../../operational_guide/namespace_configuration/">namespaces</a>. If a placement doesn't exist, it will create one based on the <code>type</code> argument, otherwise if the placement already exists, it just creates the specified namespace. For now it's enough to just understand that it creates M3DB namespaces (tables), but if you're going to run a clustered M3 setup in production, make sure you familiarize yourself with the links above.</p>
-<p>Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or errors related to a local cache file, such as <code>[W] could not load cache from file
+<p>Placement initialization may take a minute or two and you can check on the status of this by running the following:</p>
+<div class="highlight"><pre><span></span>curl http://localhost:7201/api/v1/placement | jq .
+</pre></div>
+
+<p>Once all of the shards become <code>AVAILABLE</code>, you should see your node complete bootstrapping! Don't worry if you see warnings or errors related to a local cache file, such as <code>[W] could not load cache from file
 /var/lib/m3kv/m3db_embedded.json</code>. Those are expected for a local instance and in general any
 warn-level errors (prefixed with <code>[W]</code>) should not block bootstrapping.</p>
 <div class="highlight"><pre><span></span>02:28:30.008072[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
