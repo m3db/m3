@@ -142,6 +142,7 @@ func (s *fanoutStorage) FetchBlocks(
 				accumulator, ok := foundBlock.(block.AccumulatorBlock)
 				if !ok {
 					multiErr = multiErr.Add(fmt.Errorf("container block has incorrect type"))
+					return
 				}
 
 				// Already an accumulator block, add current block.
