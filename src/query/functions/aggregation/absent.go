@@ -23,7 +23,6 @@ package aggregation
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -102,10 +101,7 @@ func (n *absentNode) ProcessBlock(queryCtx *models.QueryContext,
 
 	// If no series in the input, return a scalar block with value 1.
 	if len(seriesMetas) == 0 {
-		return block.NewScalar(
-			func(_ time.Time) float64 { return 1 },
-			meta,
-		), nil
+		return block.NewScalar(1, meta), nil
 	}
 
 	// NB: pull any common tags out into the created series.

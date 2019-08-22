@@ -70,6 +70,20 @@ func (mr *MockBlockMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBlock)(nil).Close))
 }
 
+// Info mocks base method
+func (m *MockBlock) Info() BlockInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Info")
+	ret0, _ := ret[0].(BlockInfo)
+	return ret0
+}
+
+// Info indicates an expected call of Info
+func (mr *MockBlockMockRecorder) Info() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockBlock)(nil).Info))
+}
+
 // SeriesIter mocks base method
 func (m *MockBlock) SeriesIter() (SeriesIter, error) {
 	m.ctrl.T.Helper()
@@ -445,6 +459,20 @@ func (m *MockBuilder) Build() Block {
 func (mr *MockBuilderMockRecorder) Build() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockBuilder)(nil).Build))
+}
+
+// BuildAsType mocks base method
+func (m *MockBuilder) BuildAsType(arg0 BlockType) Block {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BuildAsType", arg0)
+	ret0, _ := ret[0].(Block)
+	return ret0
+}
+
+// BuildAsType indicates an expected call of BuildAsType
+func (mr *MockBuilderMockRecorder) BuildAsType(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildAsType", reflect.TypeOf((*MockBuilder)(nil).BuildAsType), arg0)
 }
 
 // MockStep is a mock of Step interface

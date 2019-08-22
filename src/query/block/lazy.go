@@ -39,6 +39,10 @@ func NewLazyBlock(block Block, opts LazyOptions) Block {
 	}
 }
 
+func (c *lazyBlock) Info() BlockInfo {
+	return NewWrappedBlockInfo(BlockLazy, c.block.Info())
+}
+
 func (b *lazyBlock) Close() error { return b.block.Close() }
 
 func (b *lazyBlock) WithMetadata(

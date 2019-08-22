@@ -47,13 +47,14 @@ func TestScalarBlock(t *testing.T) {
 	})
 
 	block := NewScalar(
-		func(_ time.Time) float64 { return val },
+		val,
 		Metadata{
 			Bounds: bounds,
 			Tags:   tags,
 		},
 	)
 
+	assert.Equal(t, BlockScalar, block.Info().Type())
 	require.IsType(t, block, &Scalar{})
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)

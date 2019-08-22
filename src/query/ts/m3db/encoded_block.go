@@ -141,6 +141,10 @@ func (b *encodedBlock) generateMetas() error {
 	return nil
 }
 
+func (b *encodedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockM3TSZCompressed)
+}
+
 func (b *encodedBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -35,14 +36,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScalarTime(t *testing.T) {
+func TestTime(t *testing.T) {
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
-	baseOp := baseOp{
-		fn:           func(t time.Time) float64 { return float64(t.Unix()) },
-		operatorType: TimeType,
-	}
+	op, err := NewTimeOp(models.NewTagOptions())
+	require.NoError(t, err)
 
+	baseOp, ok := op.(*timeOp)
+	require.True(t, ok)
 	start := bounds.Start
 	step := bounds.StepSize
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
@@ -52,13 +53,13 @@ func TestScalarTime(t *testing.T) {
 			Step:  step,
 		},
 	}))
-	err := node.Execute(models.NoopQueryContext())
+
+	err = node.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 1)
+	assert.Equal(t, block.BlockTime, sink.Info.Type())
 
-	for _, vals := range sink.Values {
-		for i, val := range vals {
-			assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), val)
-		}
+	for i, vals := range sink.Values {
+		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), vals[0])
 	}
 }

@@ -18,67 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package scalar
 
 import (
-	"github.com/m3db/m3/src/query/block"
+	"testing"
+
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// NewControllerWithSink creates a new controller which has a sink useful for comparison in tests
-func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) {
-	c := &transform.Controller{
-		ID: ID,
+func TestScalar(t *testing.T) {
+	val := 10.0
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	op, err := NewScalarOp(val, models.NewTagOptions())
+	require.NoError(t, err)
+
+	baseOp, ok := op.(*scalarOp)
+	require.True(t, ok)
+	start := bounds.Start
+	step := bounds.StepSize
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
+		TimeSpec: transform.TimeSpec{
+			Start: start,
+			End:   bounds.End(),
+			Step:  step,
+		},
+	}))
+
+	err = node.Execute(models.NoopQueryContext())
+	require.NoError(t, err)
+	require.Equal(t, 1, len(sink.Values))
+
+	vals := sink.Values[0]
+	assert.Equal(t, bounds.Steps(), len(vals))
+	for _, v := range vals {
+		assert.Equal(t, val, v)
 	}
-
-	node := &SinkNode{
-		Values: make([][]float64, 0),
-		Metas:  make([]block.SeriesMeta, 0),
-	}
-	c.AddTransform(node)
-	return c, node
-}
-
-// SinkNode is a test node useful for comparisons
-type SinkNode struct {
-	Values [][]float64
-	Meta   block.Metadata
-	Metas  []block.SeriesMeta
-	Info   block.BlockInfo
-}
-
-// Process processes and stores the last block output in the sink node
-func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block.Block) error {
-	iter, err := block.SeriesIter()
-	if err != nil {
-		return err
-	}
-
-	anySeries := false
-	for iter.Next() {
-		anySeries = true
-		val := iter.Current()
-
-		values := make([]float64, val.Len())
-		for i := 0; i < val.Len(); i++ {
-			values[i] = val.ValueAtStep(i)
-		}
-		s.Values = append(s.Values, values)
-		s.Metas = append(s.Metas, val.Meta)
-	}
-
-	if err = iter.Err(); err != nil {
-		return err
-	}
-
-	if !anySeries {
-		s.Metas = iter.SeriesMeta()
-	}
-
-	s.Meta = iter.Meta()
-	s.Info = block.Info()
-
-	return nil
 }
