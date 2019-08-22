@@ -69,9 +69,9 @@ func (s *fanoutStorage) Fetch(
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
-	requests := make([]execution.Request, len(stores))
-	for idx, store := range stores {
-		requests[idx] = newFetchRequest(store, query, options)
+	requests := make([]execution.Request, 0, len(stores))
+	for _, store := range stores {
+		requests = append(requests, newFetchRequest(store, query, options))
 	}
 
 	err := execution.ExecuteParallel(ctx, requests)
@@ -99,6 +99,7 @@ func (s *fanoutStorage) FetchBlocks(
 		multiErr xerrors.MultiError
 	)
 
+	// TODO(arnikola): update this to use a genny map
 	blockResult := make(map[string]block.Block, len(stores))
 	wg.Add(len(stores))
 	for _, store := range stores {
@@ -106,39 +107,41 @@ func (s *fanoutStorage) FetchBlocks(
 		go func() {
 			defer wg.Done()
 			result, err := store.FetchBlocks(ctx, query, options)
+			mu.Lock()
+			defer mu.Unlock()
+
 			if err != nil {
-				mu.Lock()
 				multiErr = multiErr.Add(err)
-				mu.Unlock()
 				return
 			}
 
-			mu.Lock()
-			defer mu.Unlock()
 			for _, bl := range result.Blocks {
 				key := bl.Meta().String()
-				if foundBlock, found := blockResult[key]; found {
-					// this block exists. Check to see if it's already an appendable block.
-					if acc, ok := foundBlock.(block.AccumulatorBlock); ok {
-						// already an accumulator block, add current block.
-						if err := acc.AddBlock(bl); err != nil {
-							mu.Lock()
-							multiErr = multiErr.Add(err)
-							mu.Unlock()
-							return
-						}
-					} else {
-						var err error
-						blockResult[key], err = block.NewContainerBlock(foundBlock, bl)
-						if err != nil {
-							mu.Lock()
-							multiErr = multiErr.Add(err)
-							mu.Unlock()
-							return
-						}
-					}
-				} else {
+				foundBlock, found := blockResult[key]
+				if !found {
 					blockResult[key] = bl
+					continue
+				}
+
+				// This block exists. Check to see if it's already an appendable block.
+				// FIXME: (arnikola) use Block.Info() here to determine if it's an
+				// accumulator once #1888 merges.
+				accumulator, ok := foundBlock.(block.AccumulatorBlock)
+				if ok {
+					// Already an accumulator block, add current block.
+					if err := accumulator.AddBlock(bl); err != nil {
+						multiErr = multiErr.Add(err)
+						return
+					}
+
+					continue
+				}
+
+				var err error
+				blockResult[key], err = block.NewContainerBlock(foundBlock, bl)
+				if err != nil {
+					multiErr = multiErr.Add(err)
+					return
 				}
 			}
 		}()
@@ -234,9 +237,9 @@ func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 		return stores[0].Write(ctx, query)
 	}
 
-	requests := make([]execution.Request, len(stores))
-	for idx, store := range stores {
-		requests[idx] = newWriteRequest(store, query)
+	requests := make([]execution.Request, 0, len(stores))
+	for _, store := range stores {
+		requests = append(requests, newWriteRequest(store, query))
 	}
 
 	return execution.ExecuteParallel(ctx, requests)

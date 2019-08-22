@@ -43,6 +43,7 @@ var (
 func TestEmptyBlock(t *testing.T) {
 	meta := MustMakeMeta(testBound, "a", "b")
 	bl := NewEmptyBlock(meta)
+	assert.True(t, meta.Equals(bl.Meta()))
 
 	series, err := bl.SeriesIter()
 	assert.NoError(t, err)
@@ -50,7 +51,6 @@ func TestEmptyBlock(t *testing.T) {
 	assert.False(t, series.Next())
 	assert.Equal(t, 0, series.SeriesCount())
 	assert.Equal(t, []SeriesMeta{}, series.SeriesMeta())
-	assert.True(t, meta.Equals(series.Meta()))
 
 	step, err := bl.StepIter()
 	assert.NoError(t, err)
@@ -58,7 +58,6 @@ func TestEmptyBlock(t *testing.T) {
 	assert.False(t, step.Next())
 	assert.Equal(t, steps, step.StepCount())
 	assert.Equal(t, []SeriesMeta{}, step.SeriesMeta())
-	assert.True(t, meta.Equals(step.Meta()))
 
 	assert.NotPanics(t, func() {
 		series.Close()
@@ -73,6 +72,7 @@ func TestEmptyUnconsolidatedBlock(t *testing.T) {
 	b := NewEmptyBlock(meta)
 	bl, err := b.Unconsolidated()
 	assert.NoError(t, err)
+	assert.True(t, meta.Equals(bl.Meta()))
 
 	series, err := bl.SeriesIter()
 	assert.NoError(t, err)
@@ -80,7 +80,6 @@ func TestEmptyUnconsolidatedBlock(t *testing.T) {
 	assert.False(t, series.Next())
 	assert.Equal(t, 0, series.SeriesCount())
 	assert.Equal(t, []SeriesMeta{}, series.SeriesMeta())
-	assert.True(t, meta.Equals(series.Meta()))
 
 	step, err := bl.StepIter()
 	assert.NoError(t, err)
@@ -88,7 +87,6 @@ func TestEmptyUnconsolidatedBlock(t *testing.T) {
 	assert.False(t, step.Next())
 	assert.Equal(t, steps, step.StepCount())
 	assert.Equal(t, []SeriesMeta{}, step.SeriesMeta())
-	assert.True(t, meta.Equals(step.Meta()))
 
 	assert.NotPanics(t, func() {
 		series.Close()

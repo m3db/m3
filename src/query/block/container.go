@@ -52,8 +52,7 @@ func newContainerBlock(blocks []Block) (AccumulatorBlock, error) {
 	meta := blocks[0].Meta()
 	for _, b := range blocks[1:] {
 		m := b.Meta()
-		// FIXME ARNIKOLA use actual equality here
-		if m.String() != meta.String() {
+		if !m.Equals(meta) {
 			return nil, fmt.Errorf("mismatched metadata in container block: "+
 				"expected %s, got %s", meta.String(), m.String())
 		}
@@ -81,10 +80,10 @@ func (b *containerBlock) AddBlock(bl Block) error {
 		return b.err
 	}
 
-	// FIXME ARNIKOLA
-	if b.Meta().String() != bl.Meta().String() {
+	m, blockMeta := b.Meta(), bl.Meta()
+	if !m.Equals(blockMeta) {
 		return fmt.Errorf("mismatched metadata adding block to container block: "+
-			"expected %s, got %s", bl.Meta().String(), b.Meta().String())
+			"expected %s, got %s", m.String(), blockMeta.String())
 	}
 
 	b.blocks = append(b.blocks, bl)

@@ -83,8 +83,11 @@ func (o baseOp) Node(
 
 // baseNode is an execution node.
 type baseNode struct {
-	op            baseOp
+	// controller uses an interface here so we can mock it out in tests.
+	// TODO: use an exported interface everywhere instead of *transform.Controller.
+	// https://github.com/m3db/m3/issues/1430
 	controller    controller
+	op            baseOp
 	cache         *blockCache
 	processor     Processor
 	transformOpts transform.Options

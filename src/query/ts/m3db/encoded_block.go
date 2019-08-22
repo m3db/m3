@@ -66,8 +66,7 @@ func NewEncodedBlock(
 		opts,
 	)
 
-	err := bl.generateMetas()
-	if err != nil {
+	if err := bl.generateMetas(); err != nil {
 		return nil, err
 	}
 

@@ -115,9 +115,8 @@ func TestContainerStepIter(t *testing.T) {
 	container, err := NewContainerBlock(block, blockTwo)
 	require.NoError(t, err)
 
-	// FIXME to use better equality arnikola
-	assert.Equal(t, containerBounds, container.Meta().Bounds)
-	assert.Equal(t, opts, container.Meta().Tags.Opts)
+	assert.True(t, containerBounds.Equals(container.Meta().Bounds))
+	assert.True(t, opts.Equals(container.Meta().Tags.Opts))
 
 	it, err := container.StepIter()
 	require.NoError(t, err)
@@ -182,9 +181,8 @@ func TestContainerSeriesIter(t *testing.T) {
 	container, err := NewContainerBlock(block, blockTwo)
 	require.NoError(t, err)
 
-	// FIXME to use better equality arnikola
-	assert.Equal(t, containerBounds, container.Meta().Bounds)
-	assert.Equal(t, opts, container.Meta().Tags.Opts)
+	assert.True(t, containerBounds.Equals(container.Meta().Bounds))
+	assert.True(t, opts.Equals(container.Meta().Tags.Opts))
 
 	it, err := container.SeriesIter()
 	require.NoError(t, err)
@@ -267,9 +265,8 @@ func TestUnconsolidatedContainerStepIter(t *testing.T) {
 	consolidated, err := c.Unconsolidated()
 	require.NoError(t, err)
 
-	// FIXME to use better equality arnikola
-	assert.Equal(t, containerBounds, consolidated.Meta().Bounds)
-	assert.Equal(t, opts, consolidated.Meta().Tags.Opts)
+	assert.True(t, containerBounds.Equals(consolidated.Meta().Bounds))
+	assert.True(t, opts.Equals(consolidated.Meta().Tags.Opts))
 
 	it, err := consolidated.StepIter()
 	require.NoError(t, err)
@@ -304,11 +301,6 @@ func TestUnconsolidatedContainerStepIter(t *testing.T) {
 	assert.NoError(t, it.Err())
 	assert.NotPanics(t, func() { it.Close() })
 }
-
-//
-//
-//
-//
 
 func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	v float64, first bool) Block {
@@ -360,9 +352,8 @@ func TestUnconsolidatedContainerSeriesIter(t *testing.T) {
 	consolidated, err := c.Unconsolidated()
 	require.NoError(t, err)
 
-	// FIXME to use better equality arnikola
-	assert.Equal(t, containerBounds, consolidated.Meta().Bounds)
-	assert.Equal(t, opts, consolidated.Meta().Tags.Opts)
+	assert.True(t, containerBounds.Equals(consolidated.Meta().Bounds))
+	assert.True(t, opts.Equals(consolidated.Meta().Tags.Opts))
 
 	it, err := consolidated.SeriesIter()
 	require.NoError(t, err)

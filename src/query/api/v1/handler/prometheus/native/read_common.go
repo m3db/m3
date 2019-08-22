@@ -62,7 +62,7 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	// Detect clients closing connections
+	// Detect clients closing connections.
 	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
 
 	// TODO: Capture timing
@@ -76,7 +76,7 @@ func read(
 		return nil, err
 	}
 
-	// Block slices are sorted by start time
+	// Block slices are sorted by start time.
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
 	resultChan := result.ResultChan()
@@ -112,16 +112,19 @@ func read(
 		}
 
 		// Insert blocks sorted by start time
-		sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
+		sortedBlockList, err = insertSortedBlock(b, sortedBlockList,
+			numSteps, numSeries)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
+	// Ensure that the blocks are closed. Can't do this above since
+	// sortedBlockList might change.
 	defer func() {
 		for _, b := range sortedBlockList {
-			// FIXME: this will double close blocks that have gone through the function pipeline
+			// FIXME: this will double close blocks that have gone through the
+			// function pipeline.
 			b.block.Close()
 		}
 	}()
@@ -149,19 +152,20 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	var (
 		numSeries   = firstSeriesIter.SeriesCount()
 		seriesMeta  = firstSeriesIter.SeriesMeta()
-		seriesList  = make([]*ts.Series, numSeries)
-		seriesIters = make([]block.SeriesIter, len(blockList))
+		seriesList  = make([]*ts.Series, 0, numSeries)
+		seriesIters = make([]block.SeriesIter, 0, len(blockList))
 	)
 
-	// To create individual series, we iterate over seriesIterators for each block in the block list.
-	// For each iterator, the nth current() will be combined to give the nth series
-	for i, b := range blockList {
+	// To create individual series, we iterate over seriesIterators for each
+	// block in the block list.  For each iterator, the nth current() will
+	// be combined to give the nth series.
+	for _, b := range blockList {
 		seriesIter, err := b.block.SeriesIter()
 		if err != nil {
 			return nil, err
 		}
 
-		seriesIters[i] = seriesIter
+		seriesIters = append(seriesIters, seriesIter)
 	}
 
 	numValues := 0
@@ -175,7 +179,8 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	}
 
 	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
+		values := ts.NewFixedStepValues(bounds.StepSize, numValues,
+			math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
@@ -183,7 +188,8 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 					return nil, err
 				}
 
-				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
+				return nil, fmt.Errorf(
+					"invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
 			if err = iter.Err(); err != nil {
@@ -197,8 +203,13 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 			}
 		}
 
-		tags := seriesMeta[i].Tags.AddTags(commonTags)
-		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, tags)
+		var (
+			meta   = seriesMeta[i]
+			tags   = meta.Tags.AddTags(commonTags)
+			series = ts.NewSeries(meta.Name, values, tags)
+		)
+
+		seriesList = append(seriesList, series)
 	}
 
 	return seriesList, nil
