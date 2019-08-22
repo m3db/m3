@@ -38,7 +38,7 @@ type namespaceInfoSource struct {
 	getHandler *namespace.GetHandler
 }
 
-// NewNamespaceInfoSource returns a Source for namespace information
+// NewNamespaceInfoSource returns a Source for namespace information.
 func NewNamespaceInfoSource(
 	iopts instrument.Options,
 	clusterClient clusterclient.Client,

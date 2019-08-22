@@ -367,7 +367,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.DebugListenAddress != "" {
-		debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+		debugWriter, err := xdebug.NewPlacementZipWriterWithDefaultSources(
 			cpuProfileDuration,
 			instrumentOptions,
 			clusterClient,
@@ -391,7 +391,7 @@ func Run(runOpts RunOptions) {
 					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
 			} else {
 				logger.Info("debug server listening",
-					zap.String("address", cfg.DebugListenAddress),
+					zap.String("endpoint", fmt.Sprintf("%s%s", cfg.DebugListenAddress, debugEndpoint)),
 				)
 			}
 		}()

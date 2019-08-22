@@ -71,17 +71,19 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 	}
 }
 
-// NewZipWriterWithDefaultSources returns a zipWriter with the following
-// debug sources already registered: CPU, heap, host, goroutines, namespace info.
-func NewZipWriterWithDefaultSources(
+// NewPlacementZipWriterWithDefaultSources returns a zipWriter with the following
+// debug sources already registered: CPU, heap, host, goroutines, namespace and placement info.
+func NewPlacementZipWriterWithDefaultSources(
 	cpuProfileDuration time.Duration,
 	iopts instrument.Options,
 	clusterClient clusterclient.Client,
 	placementsOpts placement.HandlerOptions,
 ) (ZipWriter, error) {
-	zw := NewZipWriter(iopts)
+	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration, iopts)
+	if err != nil {
+		return nil, err
+	}
 
-	var err error
 	if clusterClient != nil {
 		err = zw.RegisterSource("namespaceSource", NewNamespaceInfoSource(iopts, clusterClient))
 		if err != nil {
@@ -98,7 +100,18 @@ func NewZipWriterWithDefaultSources(
 		}
 	}
 
-	err = zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))
+	return zw, nil
+}
+
+// NewZipWriterWithDefaultSources returns a zipWriter with the following
+// debug sources already registered: CPU, heap, host, goroutines.
+func NewZipWriterWithDefaultSources(
+	cpuProfileDuration time.Duration,
+	iopts instrument.Options,
+) (ZipWriter, error) {
+	zw := NewZipWriter(iopts)
+
+	err := zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))
 	if err != nil {
 		return nil, fmt.Errorf("unable to register CPUProfileSource: %s", err)
 	}
