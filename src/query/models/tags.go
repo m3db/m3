@@ -469,17 +469,13 @@ var tagSeperator = []byte(", ")
 // String returns the string representation of the tags.
 func (t Tags) String() string {
 	var sb strings.Builder
-	// tags := make([]string, len(t.Tags))
 	for i, tt := range t.Tags {
 		if i != 0 {
 			sb.Write(tagSeperator)
 		}
-
 		sb.WriteString(tt.String())
 	}
-
 	return sb.String()
-	// return strings.Join(tags, ", ")
 }
 
 // String returns the string representation of the tag.

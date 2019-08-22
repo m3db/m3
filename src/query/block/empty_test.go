@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block/test"
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
@@ -40,32 +41,8 @@ var (
 	}
 )
 
-func mustMakeTags(tag ...string) models.Tags {
-	if len(tag)%2 != 0 {
-		panic("must have even tag length")
-	}
-
-	tagLength := len(tag) / 2
-	t := models.NewTags(tagLength, models.NewTagOptions())
-	for i := 0; i < tagLength; i++ {
-		t = t.AddTag(models.Tag{
-			Name:  []byte(tag[i*2]),
-			Value: []byte(tag[i*2+1]),
-		})
-	}
-
-	return t
-}
-
-func mustMakeMeta(tags ...string) Metadata {
-	return Metadata{
-		Tags:   mustMakeTags(tags...),
-		Bounds: testBound,
-	}
-}
-
 func TestEmptyBlock(t *testing.T) {
-	meta := mustMakeMeta("a", "b")
+	meta := test.MustMakeMeta(testBound, "a", "b")
 	bl := NewEmptyBlock(meta)
 
 	series, err := bl.SeriesIter()
@@ -93,7 +70,7 @@ func TestEmptyBlock(t *testing.T) {
 }
 
 func TestEmptyUnconsolidatedBlock(t *testing.T) {
-	meta := mustMakeMeta("a", "b")
+	meta := test.MustMakeMeta(testBound, "a", "b")
 	b := NewEmptyBlock(meta)
 	bl, err := b.Unconsolidated()
 	assert.NoError(t, err)

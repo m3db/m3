@@ -29,7 +29,7 @@ import (
 
 // Scalar is a block containing a single value over a certain bound
 // This represents constant values; it greatly simplifies downstream operations
-// vy allowing them to treat this as a regular block, while at the same time
+// by allowing them to treat this as a regular block, while at the same time
 // having an option to optimize by accessing the scalar value directly instead.
 type Scalar struct {
 	s    ScalarFunc
