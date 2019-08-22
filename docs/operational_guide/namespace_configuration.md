@@ -128,6 +128,16 @@ This is the most important value to consider when tuning the performance of an M
 
 Can be modified without creating a new namespace: `no`
 
+Below are recommendations for block size based on retention:
+
+| Retention | Block Size |
+|-----------|------------|
+| 12h       | 30m        |
+| 24h       | 1h         |
+| 168h      | 2h         |
+| 720h      | 12h        |
+| 8760h     | 24h        |
+
 #### bufferFuture and bufferPast
 
 These values control how far into the future and the past (compared to the system time on an M3DB node) writes for the namespace will be accepted. For example, consider the following configuration:

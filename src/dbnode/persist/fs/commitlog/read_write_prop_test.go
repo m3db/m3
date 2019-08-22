@@ -33,6 +33,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
+
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -114,6 +117,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 		write := seriesWrites.writes[seriesWrites.readPosition]
 
 		require.Equal(t, write.series.ID.String(), series.ID.String())
+		require.True(t, write.series.Tags.Equal(series.Tags))
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
 		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
@@ -555,22 +559,63 @@ func (w generatedWrite) String() string {
 
 // generator for commit log write
 func genWrite() gopter.Gen {
+	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool.Init()
+
 	return gopter.CombineGens(
 		gen.Identifier(),
 		gen.TimeRange(time.Now(), 15*time.Minute),
 		gen.Float64(),
 		gen.Identifier(),
 		gen.UInt32(),
+		gen.Identifier(),
+		gen.Identifier(),
+		gen.Identifier(),
+		gen.Identifier(),
+		gen.Bool(),
 	).Map(func(val []interface{}) generatedWrite {
 		id := val[0].(string)
 		t := val[1].(time.Time)
 		v := val[2].(float64)
 		ns := val[3].(string)
 		shard := val[4].(uint32)
+		tags := map[string]string{
+			val[5].(string): val[6].(string),
+			val[7].(string): val[8].(string),
+		}
+		encodeTags := val[9].(bool)
+
+		var (
+			seriesTags        ident.Tags
+			seriesEncodedTags []byte
+		)
+		for k, v := range tags {
+			seriesTags.Append(ident.Tag{
+				Name:  ident.StringID(k),
+				Value: ident.StringID(v),
+			})
+		}
+
+		if encodeTags {
+			encoder := testTagEncodingPool.Get()
+			if err := encoder.Encode(ident.NewTagsIterator(seriesTags)); err != nil {
+				panic(err)
+			}
+			data, ok := encoder.Data()
+			if !ok {
+				panic("could not encode tags")
+			}
+
+			// Set encoded tags so the "fast" path is activated.
+			seriesEncodedTags = data.Bytes()
+		}
 
 		return generatedWrite{
 			series: ts.Series{
 				ID:          ident.StringID(id),
+				Tags:        seriesTags,
+				EncodedTags: seriesEncodedTags,
 				Namespace:   ident.StringID(ns),
 				Shard:       shard,
 				UniqueIndex: uniqueID(ns, id),
