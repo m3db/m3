@@ -40,7 +40,7 @@ func TestAccountedBlock_Close(t *testing.T) {
 
 	block := NewAccountedBlock(wrapped, mockEnforcer)
 
-	wrapped.EXPECT().Info().Return(NewBlockInformation(BlockM3TSZCompressed))
+	wrapped.EXPECT().Info().Return(NewBlockInfo(BlockM3TSZCompressed))
 	assert.Equal(t, BlockM3TSZCompressed, block.Info().Type())
 	assert.NotPanics(t, func() { block.Close() })
 }

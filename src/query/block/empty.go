@@ -31,6 +31,10 @@ func NewEmptyBlock(meta Metadata) Block {
 
 func (b *emptyBlock) Close() error { return nil }
 
+func (b *emptyBlock) Info() BlockInfo {
+	return NewBlockInfo(BlockEmpty)
+}
+
 func (b *emptyBlock) WithMetadata(meta Metadata, _ []SeriesMeta) (Block, error) {
 	return NewEmptyBlock(meta), nil
 }

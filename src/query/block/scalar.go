@@ -48,8 +48,8 @@ func NewScalar(
 	}
 }
 
-func (c *Scalar) Info() BlockInformation {
-	return NewBlockInformation(BlockScalar)
+func (c *Scalar) Info() BlockInfo {
+	return NewBlockInfo(BlockScalar)
 }
 
 // Unconsolidated returns the unconsolidated version for the block.

@@ -37,8 +37,12 @@ func makeAndBlock(
 	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error) {
+	if !matching.Set {
+		return nil, errNoMatching
+	}
+
 	lMeta, lSeriesMetas := lIter.Meta(), lIter.SeriesMeta()
 	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
 
@@ -100,7 +104,7 @@ func makeAndBlock(
 
 // intersect returns the slice of lhs indices matching rhs indices.
 func andIntersect(
-	matching *VectorMatching,
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]indexMatcher, []block.SeriesMeta) {
 	idFunction := hashFunc(matching.On, matching.MatchingLabels...)

@@ -71,10 +71,10 @@ func (mr *MockBlockMockRecorder) Close() *gomock.Call {
 }
 
 // Info mocks base method
-func (m *MockBlock) Info() BlockInformation {
+func (m *MockBlock) Info() BlockInfo {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Info")
-	ret0, _ := ret[0].(BlockInformation)
+	ret0, _ := ret[0].(BlockInfo)
 	return ret0
 }
 
@@ -461,16 +461,18 @@ func (mr *MockBuilderMockRecorder) Build() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockBuilder)(nil).Build))
 }
 
-// SetBlockType mocks base method
-func (m *MockBuilder) SetBlockType(arg0 BlockType) {
+// BuildAsType mocks base method
+func (m *MockBuilder) BuildAsType(arg0 BlockType) Block {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetBlockType", arg0)
+	ret := m.ctrl.Call(m, "BuildAsType", arg0)
+	ret0, _ := ret[0].(Block)
+	return ret0
 }
 
-// SetBlockType indicates an expected call of SetBlockType
-func (mr *MockBuilderMockRecorder) SetBlockType(arg0 interface{}) *gomock.Call {
+// BuildAsType indicates an expected call of BuildAsType
+func (mr *MockBuilderMockRecorder) BuildAsType(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockType", reflect.TypeOf((*MockBuilder)(nil).SetBlockType), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildAsType", reflect.TypeOf((*MockBuilder)(nil).BuildAsType), arg0)
 }
 
 // MockStep is a mock of Step interface

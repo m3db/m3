@@ -46,7 +46,7 @@ type SinkNode struct {
 	Values [][]float64
 	Meta   block.Metadata
 	Metas  []block.SeriesMeta
-	Info   block.BlockInformation
+	Info   block.BlockInfo
 }
 
 // Process processes and stores the last block output in the sink node

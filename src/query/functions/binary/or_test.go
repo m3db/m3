@@ -152,8 +152,7 @@ var indexMatchingTests = []struct {
 }
 
 func TestIndexMerging(t *testing.T) {
-	matching := &VectorMatching{}
-
+	matching := VectorMatching{}
 	for _, tt := range indexMatchingTests {
 		t.Run(tt.name, func(t *testing.T) {
 			matching, _ := mergeIndices(matching, tt.lhs, tt.rhs)

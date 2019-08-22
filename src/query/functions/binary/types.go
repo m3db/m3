@@ -43,7 +43,9 @@ const (
 // VectorMatching describes how elements from two Vectors in a binary
 // operation are supposed to be matched.
 type VectorMatching struct {
-	// The cardinality of the two Vectors.
+	// Set determines if this has been set or is using default values.
+	Set bool
+	// Card is the cardinality of the two Vectors.
 	Card VectorMatchCardinality
 	// MatchingLabels contains the labels which define equality of a pair of
 	// elements from the Vectors.
@@ -57,7 +59,7 @@ type VectorMatching struct {
 }
 
 // VectorMatcherBuilder creates a vector matcher based on incoming block types.
-type VectorMatcherBuilder func(lhs, rhs block.Block) *VectorMatching
+type VectorMatcherBuilder func(lhs, rhs block.Block) VectorMatching
 
 // NodeParams describes the types of nodes used for binary operations.
 type NodeParams struct {

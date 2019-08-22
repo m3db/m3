@@ -58,8 +58,8 @@ func (b *containerBlock) AddBlock(bl Block) error {
 	return nil
 }
 
-func (c *containerBlock) Info() BlockInformation {
-	return NewBlockInformation(BlockContainer)
+func (c *containerBlock) Info() BlockInfo {
+	return NewBlockInfo(BlockContainer)
 }
 
 func (b *containerBlock) Close() error {

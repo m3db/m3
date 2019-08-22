@@ -29,16 +29,33 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
+// BlockType describes a block type.
 type BlockType uint8
 
 const (
+	// BlockM3TSZCompressed is an M3TSZ compressed block.
 	BlockM3TSZCompressed BlockType = iota
+	// BlockDecompressed is a decompressed raw data block.
 	BlockDecompressed
+	// BlockScalar is a scalar block with a single value throughout its range.
 	BlockScalar
-	BlockLazy
+	// BlockTime is a block with datapoint values given by a function of their
+	// timestamps.
 	BlockTime
+	// BlockLazy is a wrapper for an inner block that lazily applies transforms.
+	BlockLazy
+	// BlockContainer is a block that contains multiple inner blocks that share
+	// common metadata.
 	BlockContainer
-	BlockWrapper
+	// BlockEmpty is a block with metadata but no series or values.
+	BlockEmpty
+	//
+	// TODO: (arnikola) do some refactoring to remove the blocks and types below,
+	// as they can be better handled by the above block types.
+	//
+	// BlockMultiSeries is a block containing series with common metadata.
+	BlockMultiSeries
+	// BlockConsolidated is a consolidated block.
 	BlockConsolidated
 )
 
@@ -56,7 +73,7 @@ type Block interface {
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
 	// Info returns information about the block.
-	Info() BlockInformation
+	Info() BlockInfo
 }
 
 type AccumulatorBlock interface {
@@ -168,11 +185,16 @@ type UnconsolidatedStep interface {
 
 // Builder builds a new block.
 type Builder interface {
-	AppendValue(idx int, value float64) error
-	AppendValues(idx int, values []float64) error
-	SetBlockType(blockType BlockType)
-	Build() Block
+	// AddCols adds the given number of columns to the block.
 	AddCols(num int) error
+	// AppendValue adds a single value to the column at the given index.
+	AppendValue(idx int, value float64) error
+	// AppendValues adds a slice of values to the column at the given index.
+	AppendValues(idx int, values []float64) error
+	// Build builds the block.
+	Build() Block
+	// BuildAsType builds the block, forcing it to the given BlockType.
+	BuildAsType(blockType BlockType) Block
 }
 
 // Result is the result from a block query.

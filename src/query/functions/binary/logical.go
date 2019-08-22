@@ -30,7 +30,7 @@ type makeBlockFn func(
 	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error)
 
 // Builds a logical processing function if able. If wrong opType supplied,

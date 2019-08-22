@@ -23,7 +23,7 @@ package block
 func (t BlockType) String() string {
 	switch t {
 	case BlockM3TSZCompressed:
-		return "M3TSZ_compressed"
+		return "compressed_m3tsz"
 	case BlockDecompressed:
 		return "decompressed"
 	case BlockScalar:
@@ -34,8 +34,10 @@ func (t BlockType) String() string {
 		return "time"
 	case BlockContainer:
 		return "container"
-	case BlockWrapper:
-		return "wrapper"
+	case BlockEmpty:
+		return "empty"
+	case BlockMultiSeries:
+		return "multiseries"
 	case BlockConsolidated:
 		return "consolidated"
 	}
@@ -43,33 +45,33 @@ func (t BlockType) String() string {
 	return "unknown"
 }
 
-type BlockInformation struct {
+type BlockInfo struct {
 	blockType BlockType
 	inner     []BlockType
 }
 
-func NewBlockInformation(blockType BlockType) BlockInformation {
-	return BlockInformation{blockType: blockType}
+func NewBlockInfo(blockType BlockType) BlockInfo {
+	return BlockInfo{blockType: blockType}
 }
 
-func NewWrappedBlockInformation(
+func NewWrappedBlockInfo(
 	blockType BlockType,
-	wrap BlockInformation,
-) BlockInformation {
+	wrap BlockInfo,
+) BlockInfo {
 	inner := make([]BlockType, len(wrap.inner)+1)
 	copy(inner[:1], wrap.inner)
 	inner[0] = wrap.blockType
-	return BlockInformation{
+	return BlockInfo{
 		blockType: blockType,
 		inner:     inner,
 	}
 }
 
-func (b BlockInformation) Type() BlockType {
+func (b BlockInfo) Type() BlockType {
 	return b.blockType
 }
 
-func (b BlockInformation) InnerType() BlockType {
+func (b BlockInfo) InnerType() BlockType {
 	if b.inner == nil {
 		return b.Type()
 	}
@@ -77,7 +79,7 @@ func (b BlockInformation) InnerType() BlockType {
 	return b.inner[0]
 }
 
-func (b BlockInformation) BaseType() BlockType {
+func (b BlockInfo) BaseType() BlockType {
 	if b.inner == nil {
 		return b.Type()
 	}

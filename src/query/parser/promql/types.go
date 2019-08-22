@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
-
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
@@ -406,8 +405,9 @@ func promMatchingToM3(
 		byteMatchers[i] = []byte(label)
 	}
 
-	return func(_, _ block.Block) *binary.VectorMatching {
-		return &binary.VectorMatching{
+	return func(_, _ block.Block) binary.VectorMatching {
+		return binary.VectorMatching{
+			Set:            true,
 			Card:           promVectorCardinalityToM3(vectorMatching.Card),
 			MatchingLabels: byteMatchers,
 			On:             vectorMatching.On,

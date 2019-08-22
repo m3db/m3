@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/stretchr/testify/assert"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 )
 
@@ -40,7 +40,6 @@ func TestColumnBuilderInfoTypes(t *testing.T) {
 	block := builder.Build()
 	assert.Equal(t, BlockDecompressed, block.Info().blockType)
 
-	block = builder.Build()
-	builder.SetBlockType(BlockScalar)
+	block = builder.BuildAsType(BlockScalar)
 	assert.Equal(t, BlockScalar, block.Info().blockType)
 }

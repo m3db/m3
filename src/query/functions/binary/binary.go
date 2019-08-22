@@ -111,7 +111,7 @@ func processBinary(
 	// NB(arnikola): this is a sanity check, as functions between
 	// two series missing vector matching should have previously
 	// errored out during the parsing step.
-	if matcher == nil {
+	if !matcher.Set {
 		return nil, errNoMatching
 	}
 
@@ -161,9 +161,13 @@ func processBothSeries(
 	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 	fn binaryFunction,
 ) (block.Block, error) {
+	if !matching.Set {
+		return nil, errNoMatching
+	}
+
 	if lIter.StepCount() != rIter.StepCount() {
 		return nil, errMismatchedStepCounts
 	}
@@ -222,7 +226,7 @@ func processBothSeries(
 // intersect returns the slice of lhs indices that are shared with rhs,
 // the indices of the corresponding rhs values, and the metas for taken indices.
 func intersect(
-	matching *VectorMatching,
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]int, []int, []block.SeriesMeta) {
 	idFunction := hashFunc(matching.On, matching.MatchingLabels...)

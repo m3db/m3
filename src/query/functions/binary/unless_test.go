@@ -105,7 +105,7 @@ var distinctLeftTests = []struct {
 }
 
 func TestMatchingIndices(t *testing.T) {
-	matching := &VectorMatching{}
+	matching := VectorMatching{}
 	for _, tt := range distinctLeftTests {
 		t.Run(tt.name, func(t *testing.T) {
 			excluded := matchingIndices(matching, tt.lhs, tt.rhs)

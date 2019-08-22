@@ -141,8 +141,8 @@ func (b *encodedBlock) generateMetas() error {
 	return nil
 }
 
-func (b *encodedBlock) Info() block.BlockInformation {
-	return block.NewBlockInformation(block.BlockM3TSZCompressed)
+func (b *encodedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockM3TSZCompressed)
 }
 
 func (b *encodedBlock) WithMetadata(

@@ -36,8 +36,12 @@ func makeOrBlock(
 	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error) {
+	if !matching.Set {
+		return nil, errNoMatching
+	}
+
 	lMeta, lSeriesMetas := lIter.Meta(), lIter.SeriesMeta()
 	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
 
@@ -115,7 +119,7 @@ func makeOrBlock(
 // added after all lhs series have been added.
 // This function also combines the series metadatas for the entire block.
 func mergeIndices(
-	matching *VectorMatching,
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]int, []block.SeriesMeta) {
 	idFunction := hashFunc(matching.On, matching.MatchingLabels...)

@@ -92,8 +92,8 @@ func (c *columnBlock) StepCount() int {
 	return len(c.columns)
 }
 
-func (c *columnBlock) Info() BlockInformation {
-	return NewBlockInformation(c.blockType)
+func (c *columnBlock) Info() BlockInfo {
+	return NewBlockInfo(c.blockType)
 }
 
 // Close frees up any resources
@@ -193,10 +193,6 @@ func NewColumnBlockBuilder(
 	}
 }
 
-func (cb ColumnBlockBuilder) SetBlockType(blockType BlockType) {
-	cb.block.blockType = blockType
-}
-
 // AppendValue adds a value to a column at index
 func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 	columns := cb.block.columns
@@ -233,16 +229,18 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 	return nil
 }
 
-// AddCols adds new columns
 func (cb ColumnBlockBuilder) AddCols(num int) error {
 	newCols := make([]column, num)
 	cb.block.columns = append(cb.block.columns, newCols...)
 	return nil
 }
 
-// Build extracts the block
-// TODO: Return an immutable copy
 func (cb ColumnBlockBuilder) Build() Block {
+	return NewAccountedBlock(cb.block, cb.enforcer)
+}
+
+func (cb ColumnBlockBuilder) BuildAsType(blockType BlockType) Block {
+	cb.block.blockType = blockType
 	return NewAccountedBlock(cb.block, cb.enforcer)
 }
 

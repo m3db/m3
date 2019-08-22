@@ -106,7 +106,7 @@ func TestScalars(t *testing.T) {
 					LNode:                parser.NodeID(0),
 					RNode:                parser.NodeID(1),
 					ReturnBool:           true,
-					VectorMatcherBuilder: nilVectorMatcherBuilder,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 					LNode:                parser.NodeID(0),
 					RNode:                parser.NodeID(1),
 					ReturnBool:           false,
-					VectorMatcherBuilder: nilVectorMatcherBuilder,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -549,7 +549,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 					LNode:                parser.NodeID(0),
 					RNode:                parser.NodeID(1),
 					ReturnBool:           true,
-					VectorMatcherBuilder: nilVectorMatcherBuilder,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -617,7 +617,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 					LNode:                parser.NodeID(0),
 					RNode:                parser.NodeID(1),
 					ReturnBool:           false,
-					VectorMatcherBuilder: nilVectorMatcherBuilder,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 

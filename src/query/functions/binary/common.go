@@ -78,30 +78,34 @@ func tagMap(t models.Tags) map[string]models.Tag {
 
 // Iff one of left or right is a time block, match match one to many
 // against it, and match everything.
-func defaultVectorMatcherBuilder(lhs, rhs block.Block) *VectorMatching {
+func defaultVectorMatcherBuilder(lhs, rhs block.Block) VectorMatching {
 	left := lhs.Info().BaseType() == block.BlockTime
 	right := rhs.Info().BaseType() == block.BlockTime
+
 	if left {
 		if right {
-			return &VectorMatching{
+			return VectorMatching{
+				Set:  true,
 				Card: CardOneToOne,
 			}
 		}
 
-		return &VectorMatching{
+		return VectorMatching{
+			Set:  true,
 			Card: CardOneToMany,
 			On:   true,
 		}
 	}
 
 	if right {
-		return &VectorMatching{
+		return VectorMatching{
+			Set:  true,
 			Card: CardManyToOne,
 			On:   true,
 		}
 	}
 
-	return nil
+	return VectorMatching{Set: false}
 }
 
 func combineMetaAndSeriesMeta(

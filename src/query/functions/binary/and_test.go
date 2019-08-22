@@ -36,9 +36,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func nilVectorMatcherBuilder(_, _ block.Block) *VectorMatching { return nil }
-func emptyVectorMatcherBuilder(_, _ block.Block) *VectorMatching {
-	return &VectorMatching{}
+func emptyVectorMatcherBuilder(_, _ block.Block) VectorMatching {
+	return VectorMatching{Set: true}
 }
 
 func TestAndWithExactValues(t *testing.T) {

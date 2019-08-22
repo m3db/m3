@@ -31,8 +31,8 @@ type consolidatedBlock struct {
 	consolidationFunc block.ConsolidationFunc
 }
 
-func (c *consolidatedBlock) Info() block.BlockInformation {
-	return block.NewBlockInformation(block.BlockConsolidated)
+func (c *consolidatedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockConsolidated)
 }
 
 func (c *consolidatedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
