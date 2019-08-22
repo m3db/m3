@@ -408,7 +408,7 @@ func TestShardLoadLimitNotEnforcedIfNotSet(t *testing.T) {
 	testShardLoadLimit(t, 0, false)
 }
 
-func testShardLoadLimit(t *testing.T, limit int, shouldReturnError bool) {
+func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 	var (
 		memTrackerOptions = NewMemoryTrackerOptions(limit)
 		memTracker        = NewMemoryTracker(memTrackerOptions)

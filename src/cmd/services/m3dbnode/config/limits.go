@@ -38,5 +38,5 @@ type Limits struct {
 	// repaired data could be "outstanding" in memory at one time. Once that limit was hit, the repair
 	// process would pause until some of the repaired bytes had been persisted to disk (and subsequently
 	// evicted from memory) at which point it would resume.
-	MaxOutstandingRepairedBytes int `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
+	MaxOutstandingRepairedBytes int64 `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
 }

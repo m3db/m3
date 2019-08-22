@@ -27,13 +27,13 @@ type memoryTracker struct {
 
 	opts MemoryTrackerOptions
 
-	numLoadedBytes        int
-	numPendingLoadedBytes int
+	numLoadedBytes        int64
+	numPendingLoadedBytes int64
 
 	waitForDecWg *sync.WaitGroup
 }
 
-func (m *memoryTracker) IncNumLoadedBytes(x int) (okToLoad bool) {
+func (m *memoryTracker) IncNumLoadedBytes(x int64) (okToLoad bool) {
 	m.Lock()
 	defer m.Unlock()
 	limit := m.opts.numLoadedBytesLimit
@@ -59,7 +59,7 @@ func (m *memoryTracker) IncNumLoadedBytes(x int) (okToLoad bool) {
 	return false
 }
 
-func (m *memoryTracker) NumLoadedBytes() int {
+func (m *memoryTracker) NumLoadedBytes() int64 {
 	m.Lock()
 	defer m.Unlock()
 	return m.numLoadedBytes
@@ -94,11 +94,11 @@ func (m *memoryTracker) WaitForDec() {
 
 // MemoryTrackerOptions are the options for the MemoryTracker.
 type MemoryTrackerOptions struct {
-	numLoadedBytesLimit int
+	numLoadedBytesLimit int64
 }
 
 // NewMemoryTrackerOptions creates a new MemoryTrackerOptions.
-func NewMemoryTrackerOptions(numLoadedBytesLimit int) MemoryTrackerOptions {
+func NewMemoryTrackerOptions(numLoadedBytesLimit int64) MemoryTrackerOptions {
 	return MemoryTrackerOptions{
 		numLoadedBytesLimit: numLoadedBytesLimit,
 	}

@@ -980,11 +980,11 @@ type Options interface {
 type MemoryTracker interface {
 	// IncNumLoadedBytes increments the number of bytes that have been loaded
 	// into memory via the "Load()" API.
-	IncNumLoadedBytes(x int) (okToLoad bool)
+	IncNumLoadedBytes(x int64) (okToLoad bool)
 
 	// NumLoadedBytes returns the number of bytes that have been loaded into memory via the
 	// "Load()" API.
-	NumLoadedBytes() int
+	NumLoadedBytes() int64
 
 	// MarkLoadedAsPending marks the current number of loaded bytes as pending
 	// so that a subsequent call to DecPendingLoadedBytes() will decrement the

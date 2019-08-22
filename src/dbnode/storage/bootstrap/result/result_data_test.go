@@ -511,9 +511,9 @@ func TestEstimateMapBytesSize(t *testing.T) {
 	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
 	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
 
-	require.Equal(t, 24, EstimateMapBytesSize(sr.AllSeries()))
+	require.Equal(t, int64(24), EstimateMapBytesSize(sr.AllSeries()))
 }
 
 func TestEstimateMapBytesSizeEmpty(t *testing.T) {
-	require.Equal(t, 0, EstimateMapBytesSize(nil))
+	require.Equal(t, int64(0), EstimateMapBytesSize(nil))
 }

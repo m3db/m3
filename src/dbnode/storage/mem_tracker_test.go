@@ -29,7 +29,7 @@ import (
 )
 
 func TestMemoryTrackerLoadLimitEnforcedIfSet(t *testing.T) {
-	limit := 100
+	limit := int64(100)
 	memTracker := NewMemoryTracker(NewMemoryTrackerOptions(limit))
 	// First one will always be allowed, see comment in IncNumLoadedBytes()
 	// for explanation.
@@ -44,7 +44,7 @@ func TestMemoryTrackerLoadLimitNotEnforcedIfNotSet(t *testing.T) {
 
 func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 	var (
-		limit         = 100
+		limit         = int64(100)
 		oneTenthLimit = limit / 10
 		memTracker    = NewMemoryTracker(NewMemoryTrackerOptions(limit))
 	)
@@ -62,14 +62,14 @@ func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 	require.False(t, memTracker.IncNumLoadedBytes(1))
 	memTracker.DecPendingLoadedBytes()
 	// Ensure num loaded is affected by combination of mark + dec.
-	require.Equal(t, 0, memTracker.NumLoadedBytes())
+	require.Equal(t, int64(0), memTracker.NumLoadedBytes())
 	// Ensure limit is reset after a combination mark + dec.
 	require.True(t, memTracker.IncNumLoadedBytes(limit))
 
 	// Clear.
 	memTracker.MarkLoadedAsPending()
 	memTracker.DecPendingLoadedBytes()
-	require.Equal(t, 0, memTracker.NumLoadedBytes())
+	require.Equal(t, int64(0), memTracker.NumLoadedBytes())
 
 	// Ensure interactions between concurrent loads and marks/decs behave as expected.
 	require.True(t, memTracker.IncNumLoadedBytes(oneTenthLimit))
@@ -85,7 +85,7 @@ func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 	// Clear.
 	memTracker.MarkLoadedAsPending()
 	memTracker.DecPendingLoadedBytes()
-	require.Equal(t, 0, memTracker.NumLoadedBytes())
+	require.Equal(t, int64(0), memTracker.NumLoadedBytes())
 
 	// Ensure calling mark multiple times before a single dec behaves
 	// as expected.
@@ -100,7 +100,7 @@ func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 	require.Equal(t, 2*oneTenthLimit, memTracker.NumLoadedBytes())
 	memTracker.MarkLoadedAsPending()
 	memTracker.DecPendingLoadedBytes()
-	require.Equal(t, 0, memTracker.NumLoadedBytes())
+	require.Equal(t, int64(0), memTracker.NumLoadedBytes())
 }
 
 // TestMemTrackerWaitForDec spins up several goroutines that call MarkLoadedAsPending,
