@@ -88,8 +88,12 @@ type scalarNode struct {
 
 // Execute runs the scalar source's pipeline.
 func (n *scalarNode) Execute(queryCtx *models.QueryContext) error {
-	bounds := n.opts.TimeSpec().Bounds()
-	block := block.NewScalar(n.op.val, bounds, n.op.tagOptions)
+	meta := block.Metadata{
+		Bounds: n.opts.TimeSpec().Bounds(),
+		Tags:   models.NewTags(0, n.op.tagOptions),
+	}
+
+	block := block.NewScalar(n.op.val, meta)
 	if n.opts.Debug() {
 		// Ignore any errors
 		iter, _ := block.StepIter()

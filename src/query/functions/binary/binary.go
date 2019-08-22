@@ -79,8 +79,7 @@ func processBinary(
 
 		return block.NewScalar(
 			fn(lVal, scalarR.Value()),
-			lIter.Meta().Bounds,
-			lIter.Meta().Tags.Opts,
+			lIter.Meta(),
 		), nil
 	}
 

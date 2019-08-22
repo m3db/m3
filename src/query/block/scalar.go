@@ -36,18 +36,15 @@ type Scalar struct {
 	meta Metadata
 }
 
-// NewScalar creates a scalar block containing val over the bounds
+// NewScalar creates a scalar block whose value is given by the function over
+// the metadata bounds.
 func NewScalar(
 	val float64,
-	bounds models.Bounds,
-	tagOptions models.TagOptions,
+	meta Metadata,
 ) Block {
 	return &Scalar{
-		val: val,
-		meta: Metadata{
-			Bounds: bounds,
-			Tags:   models.NewTags(0, tagOptions),
-		},
+		val:  val,
+		meta: meta,
 	}
 }
 
@@ -55,6 +52,7 @@ func (c *Scalar) Info() BlockInformation {
 	return NewBlockInformation(BlockScalar)
 }
 
+// Unconsolidated returns the unconsolidated version for the block.
 func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil,
 		fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s",

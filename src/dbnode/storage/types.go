@@ -117,11 +117,12 @@ type Database interface {
 	// or WriteTaggedBatch.
 	//
 	// Note that when using the BatchWriter the caller owns the lifecycle of the series
-	// IDs and tag iterators (I.E) if they're being pooled its the callers responsibility
-	// to return them to the appropriate pool, but the annotations are owned by the
+	// IDs if they're being pooled its the callers responsibility to return them to the
+	// appropriate pool, but the encoded tags and annotations are owned by the
 	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
-	// due to their lifecycle being more complicated. Callers can still control the pooling
-	// of the annotations by using the SetFinalizeAnnotationFn on the WriteBatch itself.
+	// due to their lifecycle being more complicated.
+	// Callers can still control the pooling of the encoded tags and annotations by using
+	// the SetFinalizeEncodedTagsFn and SetFinalizeAnnotationFn on the WriteBatch itself.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
@@ -269,7 +270,7 @@ type databaseNamespace interface {
 	GetIndex() (namespaceIndex, error)
 
 	// Tick performs any regular maintenance operations.
-	Tick(c context.Cancellable, tickStart time.Time) error
+	Tick(c context.Cancellable, startTime time.Time) error
 
 	// Write writes a data point.
 	Write(
@@ -336,11 +337,7 @@ type databaseNamespace interface {
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(
-		blockStart time.Time,
-		ShardBootstrapStates ShardBootstrapStates,
-		flush persist.FlushPreparer,
-	) error
+	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
@@ -401,7 +398,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error)
+	Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -560,7 +557,7 @@ type namespaceIndex interface {
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
-	Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error)
+	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
 
 	// Flush performs any flushes that the index has outstanding using
 	// the owned shards of the database.
@@ -618,7 +615,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+	Flush(startTime time.Time) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
@@ -643,7 +640,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+	Flush(t time.Time) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status.
@@ -659,7 +656,6 @@ type databaseFileSystemManager interface {
 	// returning true if those operations are performed, and false otherwise.
 	Run(
 		t time.Time,
-		dbBootstrapStateAtTickStart DatabaseBootstrapState,
 		runType runType,
 		forceType forceType,
 	) bool
@@ -707,7 +703,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(forceType forceType, tickStart time.Time) error
+	Tick(forceType forceType, startTime time.Time) error
 }
 
 // databaseMediator mediates actions among various database managers.
@@ -732,7 +728,7 @@ type databaseMediator interface {
 	EnableFileOps()
 
 	// Tick performs a tick.
-	Tick(runType runType, forceType forceType) error
+	Tick(forceType forceType, startTime time.Time) error
 
 	// Repair repairs the database.
 	Repair() error
@@ -746,18 +742,6 @@ type databaseMediator interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
-}
-
-// databaseNamespaceWatch watches for namespace updates.
-type databaseNamespaceWatch interface {
-	// Start starts the namespace watch.
-	Start() error
-
-	// Stop stops the namespace watch.
-	Stop() error
-
-	// close stops the watch, and releases any held resources.
-	Close() error
 }
 
 // Options represents the options for storage.

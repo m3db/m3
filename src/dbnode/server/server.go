@@ -81,6 +81,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/coreos/etcd/embed"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -1146,6 +1147,12 @@ func withEncodingAndPoolingOptions(
 ) storage.Options {
 	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
+
+	// Set the max bytes pool byte slice alloc size for the thrift pooling.
+	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
+	logger.Info("set thrift bytes pool alloc size",
+		zap.Int("size", thriftBytesAllocSize))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))

@@ -203,8 +203,8 @@ func NewFunctionExpr(
 		p, err = linear.NewMathOp(name)
 		return p, true, err
 
-	case linear.AbsentType:
-		p = linear.NewAbsentOp()
+	case aggregation.AbsentType:
+		p = aggregation.NewAbsentOp()
 		return p, true, err
 
 	case linear.ClampMinType, linear.ClampMaxType:

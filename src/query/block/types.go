@@ -21,7 +21,6 @@
 package block
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"time"
@@ -165,17 +164,6 @@ type Step interface {
 type UnconsolidatedStep interface {
 	Time() time.Time
 	Values() []ts.Datapoints
-}
-
-// Metadata is metadata for a block.
-type Metadata struct {
-	Bounds models.Bounds
-	Tags   models.Tags // Common tags across different series
-}
-
-// String returns a string representation of metadata.
-func (m Metadata) String() string {
-	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
 }
 
 // Builder builds a new block.

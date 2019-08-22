@@ -154,6 +154,8 @@ var aggregateParseTests = []struct {
 	{"bottomk(3, up)", aggregation.BottomKType},
 	{"quantile(3, up)", aggregation.QuantileType},
 	{"count_values(\"some_name\", up)", aggregation.CountValuesType},
+
+	{"absent(up)", aggregation.AbsentType},
 }
 
 func TestAggregateParses(t *testing.T) {
@@ -181,7 +183,6 @@ var linearParseTests = []struct {
 	expectedType string
 }{
 	{"abs(up)", linear.AbsType},
-	{"absent(up)", linear.AbsentType},
 	{"ceil(up)", linear.CeilType},
 	{"clamp_min(up, 1)", linear.ClampMinType},
 	{"clamp_max(up, 1)", linear.ClampMaxType},

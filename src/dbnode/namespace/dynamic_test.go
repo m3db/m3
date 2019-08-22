@@ -309,11 +309,19 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 		},
 	}))
 
-	time.Sleep(20 * time.Millisecond)
-	require.Equal(t, int64(0), numInvalidUpdates(opts))
-	require.Equal(t, 2., currentVersionMetrics(opts))
-
-	require.Len(t, rmap.Get().Metadatas(), 2)
+	for {
+		time.Sleep(20 * time.Millisecond)
+		if numInvalidUpdates(opts) != 0 {
+			continue
+		}
+		if currentVersionMetrics(opts) != 2. {
+			continue
+		}
+		if len(rmap.Get().Metadatas()) != 2 {
+			continue
+		}
+		break
+	}
 	require.NoError(t, reg.Close())
 }
 
