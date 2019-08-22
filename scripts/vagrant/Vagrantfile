@@ -8,6 +8,7 @@ require 'etc'
 
 # Boxes available at: https://vagrantcloud.com/search
 $BOX=ENV['BOX']
+$BOX_NUM=ENV['BOX_NUM']
 $GOOGLE_PROJECT_ID = ENV['GOOGLE_PROJECT_ID']
 $GOOGLE_JSON_KEY_LOCATION = ENV['GOOGLE_JSON_KEY_LOCATION']
 $USER = ENV['USER']
@@ -43,12 +44,13 @@ Vagrant.configure("2") do |config|
     google.google_project_id = $GOOGLE_PROJECT_ID
     google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION
 
-    google.name = "m3-dev-" + $USER
+    google.name = "m3-dev" + $BOX_NUM + "-" + $USER
     google.image_family = "ubuntu-1604-lts"
     google.zone = "us-central1-f"
     google.metadata = {}
     google.tags = ['vagrantbox', 'dev']
     google.disk_size = '50' # 50gb
+    google.disk_type = 'pd-ssd'
     google.autodelete_disk = true
 
     override.ssh.username = $USER

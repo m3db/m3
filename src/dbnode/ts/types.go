@@ -57,6 +57,11 @@ type BatchWrite struct {
 	// is usually coming from over the wire) and is superseded by the Tags
 	// in Write.Series which will get set by the Shard object.
 	TagIter ident.TagIterator
+	// EncodedTags is used by the commit log, but also held onto as a reference
+	// here so that it can be returned to the pool after the write to commit log
+	// completes (since the Write.Series gets overwritten in SetOutcome so can't
+	// use the reference there for returning to the pool).
+	EncodedTags EncodedTags
 	// Used to help the caller tie errors back to an index in their
 	// own collection.
 	OriginalIndex int

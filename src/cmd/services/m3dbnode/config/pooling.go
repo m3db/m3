@@ -35,7 +35,7 @@ const (
 const (
 	defaultMaxFinalizerCapacity     = 4
 	defaultBlockAllocSize           = 16
-	defaultThriftBytesPoolAllocSize = 1024
+	defaultThriftBytesPoolAllocSize = 2048
 )
 
 type poolPolicyDefault struct {

@@ -119,6 +119,8 @@ func (b *writeBatch) Iter() []BatchWrite {
 func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
 	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
+	// Make sure that the EncodedTags does not get clobbered
+	b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags
 	b.writes[idx].Err = err
 }
 
@@ -141,7 +143,7 @@ func (b *writeBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
 func (b *writeBatch) Finalize() {
 	if b.finalizeEncodedTagsFn != nil {
 		for _, write := range b.writes {
-			encodedTags := write.Write.Series.EncodedTags
+			encodedTags := write.EncodedTags
 			if encodedTags == nil {
 				continue
 			}
@@ -210,6 +212,7 @@ func newBatchWriterWrite(
 			Annotation: annotation,
 		},
 		TagIter:       tagIter,
+		EncodedTags:   encodedTags,
 		OriginalIndex: originalIndex,
 	}, nil
 }
