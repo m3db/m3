@@ -40,16 +40,18 @@ import (
 
 var emptyOp = baseOp{}
 
-// baseOp stores required properties for logical operations
+// baseOp stores required properties for logical operations.
 type baseOp struct {
 	operatorType string
 	duration     time.Duration
 	processorFn  MakeProcessor
 }
 
-// skipping lint check for a single operator type since we will be adding more
-// nolint : unparam
-func newBaseOp(duration time.Duration, operatorType string, processorFn MakeProcessor) (baseOp, error) {
+func newBaseOp(
+	duration time.Duration,
+	operatorType string,
+	processorFn MakeProcessor,
+) (baseOp, error) {
 	return baseOp{
 		operatorType: operatorType,
 		processorFn:  processorFn,
@@ -57,18 +59,19 @@ func newBaseOp(duration time.Duration, operatorType string, processorFn MakeProc
 	}, nil
 }
 
-// OpType for the operator
 func (o baseOp) OpType() string {
 	return o.operatorType
 }
 
-// String representation
 func (o baseOp) String() string {
 	return fmt.Sprintf("type: %s, duration: %v", o.OpType(), o.duration)
 }
 
-// Node creates an execution node
-func (o baseOp) Node(controller *transform.Controller, opts transform.Options) transform.OpNode {
+// Node creates an execution node.
+func (o baseOp) Node(
+	controller *transform.Controller,
+	opts transform.Options,
+) transform.OpNode {
 	return &baseNode{
 		controller:    controller,
 		cache:         newBlockCache(o, opts),
@@ -78,13 +81,13 @@ func (o baseOp) Node(controller *transform.Controller, opts transform.Options) t
 	}
 }
 
-// baseNode is an execution node
+// baseNode is an execution node.
 type baseNode struct {
-	op baseOp
 	// controller uses an interface here so we can mock it out in tests.
 	// TODO: use an exported interface everywhere instead of *transform.Controller.
 	// https://github.com/m3db/m3/issues/1430
 	controller    controller
+	op            baseOp
 	cache         *blockCache
 	processor     Processor
 	transformOpts transform.Options
@@ -92,27 +95,29 @@ type baseNode struct {
 
 // Process processes a block. The processing steps are as follows:
 // 1. Figure out the maximum blocks needed for the temporal function
-// 2. For the current block, figure out whether we have enough previous blocks which can help process it
-// 3. For the blocks after current block, figure out which can be processed right now
+// 2. For the current block, figure out whether we have enough previous blocks
+//    which can help process it
+// 3. For the blocks after current block, figure out which can be processed
+//    right now
 // 4. Process all valid blocks from #3, #4 and mark them as processed
-// 5. Run a sweep phase to free up blocks which are no longer needed to be cached
-// TODO: Figure out if something else needs to be locked
-func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+// 5. Run a sweep phase to free up blocks which are no longer needed to be
+//    cached
+func (c *baseNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	unconsolidatedBlock, err := b.Unconsolidated()
 	if err != nil {
 		return err
 	}
 
 	if unconsolidatedBlock == nil {
-		return fmt.Errorf("block needs to be unconsolidated for temporal operations: %s", c.op)
+		return fmt.Errorf(
+			"block needs to be unconsolidated for temporal operations: %s", c.op)
 	}
 
-	iter, err := unconsolidatedBlock.StepIter()
-	if err != nil {
-		return err
-	}
-
-	meta := iter.Meta()
+	meta := b.Meta()
 	bounds := meta.Bounds
 	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec().Start)
 	if bounds.Duration == 0 {
@@ -120,41 +125,47 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	}
 
 	if bounds.Start.Before(queryStartBounds.Start) {
-		return fmt.Errorf("block start cannot be before query start, bounds: %v, queryStart: %v", bounds, queryStartBounds)
+		return fmt.Errorf(
+			"block start cannot be before query start, bounds: %v, queryStart: %v",
+			bounds, queryStartBounds)
 	}
 
-	queryEndBounds := bounds.Nearest(c.transformOpts.TimeSpec().End.Add(-1 * bounds.StepSize))
+	queryEndBounds := bounds.
+		Nearest(c.transformOpts.TimeSpec().End.Add(-1 * bounds.StepSize))
 	if bounds.Start.After(queryEndBounds.Start) {
-		return fmt.Errorf("block start cannot be after query end, bounds: %v, query end: %v", bounds, queryEndBounds)
+		return fmt.Errorf(
+			"block start cannot be after query end, bounds: %v, query end: %v",
+			bounds, queryEndBounds)
 	}
 
 	c.cache.init(bounds)
 	blockDuration := bounds.Duration
-	// Figure out the maximum blocks needed for the temporal function
+	// Figure out the maximum blocks needed for the temporal function.
 	maxBlocks := int(math.Ceil(float64(c.op.duration) / float64(blockDuration)))
 
-	// Figure out the leftmost block
+	// Figure out the leftmost block.
 	leftRangeStart := bounds.Previous(maxBlocks)
 
 	if leftRangeStart.Start.Before(queryStartBounds.Start) {
 		leftRangeStart = queryStartBounds
 	}
 
-	// Figure out the rightmost blocks
+	// Figure out the rightmost blocks.
 	rightRangeStart := bounds.Next(maxBlocks)
 
 	if rightRangeStart.Start.After(queryEndBounds.Start) {
 		rightRangeStart = queryEndBounds
 	}
 
-	// Process the current block by figuring out the left range
+	// Process the current block by figuring out the left range.
 	leftBlks, emptyLeftBlocks, err := c.processCurrent(bounds, leftRangeStart)
 	if err != nil {
 		return err
 	}
 
 	processRequests := make([]processRequest, 0, len(leftBlks))
-	// If we have all blocks for the left range in the cache, then process the current block
+	// If we have all blocks for the left range in the cache, then
+	// process the current block.
 	if !emptyLeftBlocks {
 		processRequests = append(processRequests, processRequest{
 			blk:      unconsolidatedBlock,
@@ -166,7 +177,7 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 
 	leftBlks = append(leftBlks, unconsolidatedBlock)
 
-	// Process right side of the range
+	// Process right side of the range.
 	rightBlks, emptyRightBlocks, err := c.processRight(bounds, rightRangeStart)
 	if err != nil {
 		return err
@@ -189,7 +200,8 @@ func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 				queryCtx: queryCtx})
 	}
 
-	// If either the left range or right range wasn't fully processed then cache the current block
+	// If either the left range or right range wasn't fully processed then
+	// cache the current block.
 	if emptyLeftBlocks || emptyRightBlocks {
 		if err := c.cache.add(bounds.Start, unconsolidatedBlock); err != nil {
 			return err
@@ -212,8 +224,12 @@ func closeBlocks(blocks []block.Block) {
 	}
 }
 
-// processCurrent processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
-func (c *baseNode) processCurrent(bounds models.Bounds, leftRangeStart models.Bounds) ([]block.UnconsolidatedBlock, bool, error) {
+// processCurrent processes the current block. For the current block,
+// figure out whether we have enough previous blocks which can help process it.
+func (c *baseNode) processCurrent(
+	bounds models.Bounds,
+	leftRangeStart models.Bounds,
+) ([]block.UnconsolidatedBlock, bool, error) {
 	numBlocks := bounds.Blocks(leftRangeStart.Start)
 	leftBlks, err := c.cache.multiGet(leftRangeStart, numBlocks, true)
 	if err != nil {
@@ -222,8 +238,12 @@ func (c *baseNode) processCurrent(bounds models.Bounds, leftRangeStart models.Bo
 	return leftBlks, len(leftBlks) != numBlocks, nil
 }
 
-// processRight processes blocks after current block. This is done by fetching all contiguous right blocks until the right range
-func (c *baseNode) processRight(bounds models.Bounds, rightRangeStart models.Bounds) ([]block.UnconsolidatedBlock, bool, error) {
+// processRight processes blocks after current block. This is done by fetching
+// all contiguous right blocks until the right range.
+func (c *baseNode) processRight(
+	bounds models.Bounds,
+	rightRangeStart models.Bounds,
+) ([]block.UnconsolidatedBlock, bool, error) {
 	numBlocks := rightRangeStart.Blocks(bounds.Start)
 	rightBlks, err := c.cache.multiGet(bounds.Next(1), numBlocks, false)
 	if err != nil {
@@ -233,7 +253,11 @@ func (c *baseNode) processRight(bounds models.Bounds, rightRangeStart models.Bou
 	return rightBlks, len(rightBlks) != numBlocks, nil
 }
 
-func (c *baseNode) propagateNextBlocks(processRequests []processRequest, blocks []block.Block, maxBlocks int) error {
+func (c *baseNode) propagateNextBlocks(
+	processRequests []processRequest,
+	blocks []block.Block,
+	maxBlocks int,
+) error {
 	processedKeys := make([]time.Time, len(processRequests))
 
 	// propagate blocks downstream
@@ -254,8 +278,13 @@ func (c *baseNode) propagateNextBlocks(processRequests []processRequest, blocks 
 	return nil
 }
 
-// processCompletedBlocks processes all blocks for which all dependent blocks are present
-func (c *baseNode) processCompletedBlocks(queryCtx *models.QueryContext, processRequests []processRequest, maxBlocks int) ([]block.Block, error) {
+// processCompletedBlocks processes all blocks for which all
+// dependent blocks are present.
+func (c *baseNode) processCompletedBlocks(
+	queryCtx *models.QueryContext,
+	processRequests []processRequest,
+	maxBlocks int,
+) ([]block.Block, error) {
 	sp, _ := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
@@ -274,7 +303,9 @@ func (c *baseNode) processCompletedBlocks(queryCtx *models.QueryContext, process
 	return blocks, nil
 }
 
-func (c *baseNode) processSingleRequest(request processRequest) (block.Block, error) {
+func (c *baseNode) processSingleRequest(
+	request processRequest,
+) (block.Block, error) {
 	seriesIter, err := request.blk.SeriesIter()
 	if err != nil {
 		return nil, err
@@ -290,12 +321,13 @@ func (c *baseNode) processSingleRequest(request processRequest) (block.Block, er
 		depIters[i] = iter
 	}
 
-	bounds := seriesIter.Meta().Bounds
+	var (
+		meta       = request.blk.Meta()
+		bounds     = meta.Bounds
+		seriesMeta = seriesIter.SeriesMeta()
+	)
 
-	seriesMeta := seriesIter.SeriesMeta()
-
-	// rename series to exclude their __name__ tag
-	// TODO: why do we do this?
+	// rename series to exclude their __name__ tag as part of function processing.
 	resultSeriesMeta := make([]block.SeriesMeta, len(seriesMeta))
 	for i, m := range seriesMeta {
 		tags := m.Tags.WithoutName()
@@ -305,7 +337,8 @@ func (c *baseNode) processSingleRequest(request processRequest) (block.Block, er
 		}
 	}
 
-	builder, err := c.controller.BlockBuilder(request.queryCtx, seriesIter.Meta(), resultSeriesMeta)
+	builder, err := c.controller.BlockBuilder(request.queryCtx,
+		meta, resultSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +380,7 @@ func (c *baseNode) processSingleRequest(request processRequest) (block.Block, er
 						dp  ts.Datapoint
 					)
 					for idx, dp = range dps {
-						// Keep going until we find datapoints at the oldest timestamp for window
+						// go until we find datapoints at the oldest timestamp for window
 						if !dp.Timestamp.Before(oldestDatapointTimestamp) {
 							break
 						}
@@ -399,12 +432,12 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 	}
 }
 
-// Processor is implemented by the underlying transforms
+// Processor is implemented by the underlying transforms.
 type Processor interface {
 	Process(values ts.Datapoints, evaluationTime time.Time) float64
 }
 
-// MakeProcessor is a way to create a transform
+// MakeProcessor is a way to create a transform.
 type MakeProcessor interface {
 	Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor
 }
