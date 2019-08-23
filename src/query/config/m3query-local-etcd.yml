@@ -1,16 +1,22 @@
 listenAddress:
   type: "config"
-  value: "0.0.0.0:7201"
+  value: "0.0.0.0:7208"
 
 logging:
   level: info
+
+local:
+  namespaces:
+    - namespace: default
+      type: unaggregated
+      retention: 6h
 
 metrics:
   scope:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+    listenAddress: 0.0.0.0:7209 # until https://github.com/m3db/m3/issues/682 is resolved
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
@@ -22,7 +28,7 @@ clusters:
   - namespaces:
       - namespace: default
         type: unaggregated
-        retention: 48h
+        retention: 6h
     client:
       config:
         service:
@@ -33,7 +39,7 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - 127.0.0.1:2379
+                - host.docker.internal:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
       writeTimeout: 10s
@@ -57,3 +63,10 @@ clusters:
 
 # tracing:
 #  backend: jaeger
+
+
+curl -X POST http://localhost:7208/api/v1/database/create -d '{
+  "type": "cluster",
+  "namespaceName": "default",
+  "retentionTime": "12h"
+}'

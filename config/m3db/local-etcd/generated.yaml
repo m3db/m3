@@ -1,0 +1,34 @@
+"clusters":
+- "client":
+    "config":
+      "service":
+        "cacheDir": "/var/lib/m3kv"
+        "env": "default_env"
+        "etcdClusters":
+        - "endpoints":
+          - "127.0.0.1:2379"
+          "zone": "embedded"
+        "service": "m3db"
+        "zone": "embedded"
+    "readConsistencyLevel": "unstrict_majority"
+    "writeConsistencyLevel": "majority"
+  "namespaces":
+  - "namespace": "default"
+    "retention": "48h"
+    "type": "unaggregated"
+"listenAddress":
+  "type": "config"
+  "value": "0.0.0.0:7201"
+"logging":
+  "level": "info"
+"metrics":
+  "extended": "none"
+  "prometheus":
+    "handlerPath": "/metrics"
+    "listenAddress": "0.0.0.0:7203"
+  "samplingRate": 1
+  "sanitization": "prometheus"
+  "scope":
+    "prefix": "coordinator"
+"tagOptions":
+  "idScheme": "quoted"
