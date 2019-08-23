@@ -146,6 +146,18 @@
     </url>
         
     <url>
+     <loc>/operational_guide/replication_between_clusters/</loc>
+     <lastmod>2019-08-23</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
+     <loc>/operational_guide/repairs/</loc>
+     <lastmod>2019-08-23</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
      <loc>/operational_guide/availability_consistency_durability/</loc>
      <lastmod>2019-08-23</lastmod>
      <changefreq>daily</changefreq>
