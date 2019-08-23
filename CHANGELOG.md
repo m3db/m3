@@ -1,6 +1,6 @@
 # Changelog
 
-# 0.11.0 (pending)
+# 0.11.0
 
 ## Migration Disclaimer
 
