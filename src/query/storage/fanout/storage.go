@@ -22,6 +22,8 @@ package fanout
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -31,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -67,9 +70,9 @@ func (s *fanoutStorage) Fetch(
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
-	requests := make([]execution.Request, len(stores))
-	for idx, store := range stores {
-		requests[idx] = newFetchRequest(store, query, options)
+	requests := make([]execution.Request, 0, len(stores))
+	for _, store := range stores {
+		requests = append(requests, newFetchRequest(store, query, options))
 	}
 
 	err := execution.ExecuteParallel(ctx, requests)
@@ -91,35 +94,69 @@ func (s *fanoutStorage) FetchBlocks(
 		return stores[0].FetchBlocks(ctx, query, options)
 	}
 
-	// TODO(arnikola): use a genny map here instead, also execute in parallel.
-	blockResult := make(map[string]block.Block, 10)
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+	)
+
+	// TODO(arnikola): update this to use a genny map
+	blockResult := make(map[string]block.Block, len(stores))
+	wg.Add(len(stores))
 	for _, store := range stores {
-		result, err := store.FetchBlocks(ctx, query, options)
-		if err != nil {
-			return block.Result{}, err
-		}
+		store := store
+		go func() {
+			defer wg.Done()
+			result, err := store.FetchBlocks(ctx, query, options)
+			mu.Lock()
+			defer mu.Unlock()
 
-		for _, bl := range result.Blocks {
-			it, err := bl.SeriesIter()
 			if err != nil {
-				return block.Result{}, err
+				multiErr = multiErr.Add(err)
+				return
 			}
 
-			key := it.Meta().Bounds.String()
-			if foundBlock, found := blockResult[key]; found {
-				// this block exists. Check to see if it's already an appendable block.
-				if acc, ok := foundBlock.(block.AccumulatorBlock); ok {
-					// already an accumulator block, add current block.
-					if err := acc.AddBlock(bl); err != nil {
-						return block.Result{}, err
-					}
-				} else {
-					blockResult[key] = block.NewContainerBlock(foundBlock, bl)
+			for _, bl := range result.Blocks {
+				key := bl.Meta().String()
+				foundBlock, found := blockResult[key]
+				if !found {
+					blockResult[key] = bl
+					continue
 				}
-			} else {
-				blockResult[key] = bl
+
+				// This block exists. Check to see if it's already an appendable block.
+				// FIXME: (arnikola) use Block.Info() here to determine if it's an
+				// accumulator once #1888 merges.
+				blockType := foundBlock.Info().Type()
+				if blockType != block.BlockContainer {
+					var err error
+					blockResult[key], err = block.NewContainerBlock(foundBlock, bl)
+					if err != nil {
+						multiErr = multiErr.Add(err)
+						return
+					}
+
+					continue
+				}
+
+				accumulator, ok := foundBlock.(block.AccumulatorBlock)
+				if !ok {
+					multiErr = multiErr.Add(fmt.Errorf("container block has incorrect type"))
+					return
+				}
+
+				// Already an accumulator block, add current block.
+				if err := accumulator.AddBlock(bl); err != nil {
+					multiErr = multiErr.Add(err)
+					return
+				}
 			}
-		}
+		}()
+	}
+
+	wg.Wait()
+	if err := multiErr.FinalError(); err != nil {
+		return block.Result{}, err
 	}
 
 	blocks := make([]block.Block, 0, len(blockResult))
@@ -207,9 +244,9 @@ func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 		return stores[0].Write(ctx, query)
 	}
 
-	requests := make([]execution.Request, len(stores))
-	for idx, store := range stores {
-		requests[idx] = newWriteRequest(store, query)
+	requests := make([]execution.Request, 0, len(stores))
+	for _, store := range stores {
+		requests = append(requests, newWriteRequest(store, query))
 	}
 
 	return execution.ExecuteParallel(ctx, requests)

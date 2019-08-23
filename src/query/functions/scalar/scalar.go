@@ -99,7 +99,7 @@ func (n *scalarNode) Execute(queryCtx *models.QueryContext) error {
 		iter, _ := block.StepIter()
 		if iter != nil {
 			logging.WithContext(queryCtx.Ctx, n.opts.InstrumentOptions()).
-				Info("scalar node", zap.Any("meta", iter.Meta()))
+				Info("scalar node", zap.Any("meta", block.Meta()))
 		}
 	}
 

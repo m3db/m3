@@ -132,10 +132,6 @@ func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
 }
 
-func (it *encodedSeriesIter) Meta() block.Metadata {
-	return it.meta
-}
-
 func (it *encodedSeriesIter) Close() {
 	// noop, as the resources at the step may still be in use;
 	// instead call Close() on the encodedBlock that generated this

@@ -52,6 +52,7 @@ type SinkNode struct {
 // Process processes and stores the last block output in the sink node
 func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	iter, err := block.SeriesIter()
+	s.Meta = block.Meta()
 	if err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block
 		s.Metas = iter.SeriesMeta()
 	}
 
-	s.Meta = iter.Meta()
+	s.Meta = block.Meta()
 	s.Info = block.Info()
 
 	return nil

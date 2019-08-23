@@ -72,6 +72,8 @@ type Block interface {
 	SeriesIter() (SeriesIter, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
+	// Meta returns the metadata for the block.
+	Meta() Metadata
 	// Info returns information about the block.
 	Info() BlockInfo
 }
@@ -95,6 +97,8 @@ type UnconsolidatedBlock interface {
 	Consolidate() (Block, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
+	// Meta returns the metadata for the block.
+	Meta() Metadata
 }
 
 // SeriesMeta is metadata data for the series.
@@ -117,17 +121,10 @@ type Iterator interface {
 	Close()
 }
 
-// MetaIter is implemented by iterators which provide meta information.
-type MetaIter interface {
-	// SeriesMeta returns the metadata for each series in the block.
-	SeriesMeta() []SeriesMeta
-	// Meta returns the metadata for the block.
-	Meta() Metadata
-}
-
 // SeriesMetaIter is implemented by series iterators which provide meta information.
 type SeriesMetaIter interface {
-	MetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
 	// SeriesCount returns the number of series.
 	SeriesCount() int
 }
@@ -150,7 +147,8 @@ type UnconsolidatedSeriesIter interface {
 
 // StepMetaIter is implemented by step iterators which provide meta information.
 type StepMetaIter interface {
-	MetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
 	// StepCount returns the number of steps.
 	StepCount() int
 }

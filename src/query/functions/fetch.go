@@ -131,7 +131,7 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 			iter, _ := block.StepIter()
 			if iter != nil {
 				logging.WithContext(ctx, n.instrumentOpts).
-					Info("fetch node", zap.Any("meta", iter.Meta()))
+					Info("fetch node", zap.Any("meta", block.Meta()))
 			}
 		}
 

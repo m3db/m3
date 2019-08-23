@@ -107,7 +107,7 @@ func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 		iter, _ := block.StepIter()
 		if iter != nil {
 			logging.WithContext(queryCtx.Ctx, n.opts.InstrumentOptions()).
-				Info("time node", zap.Any("meta", iter.Meta()))
+				Info("time node", zap.String("meta", block.Meta().String()))
 		}
 	}
 
