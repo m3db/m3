@@ -3809,7 +3809,7 @@ func (m *MockMemoryTracker) EXPECT() *MockMemoryTrackerMockRecorder {
 }
 
 // IncNumLoadedBytes mocks base method
-func (m *MockMemoryTracker) IncNumLoadedBytes(x int) bool {
+func (m *MockMemoryTracker) IncNumLoadedBytes(x int64) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IncNumLoadedBytes", x)
 	ret0, _ := ret[0].(bool)
@@ -3823,10 +3823,10 @@ func (mr *MockMemoryTrackerMockRecorder) IncNumLoadedBytes(x interface{}) *gomoc
 }
 
 // NumLoadedBytes mocks base method
-func (m *MockMemoryTracker) NumLoadedBytes() int {
+func (m *MockMemoryTracker) NumLoadedBytes() int64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumLoadedBytes")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(int64)
 	return ret0
 }
 
