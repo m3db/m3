@@ -251,9 +251,9 @@ func (r ShardResults) Equal(other ShardResults) bool {
 	return true
 }
 
-// EstimateMapBytesSize estimates the size (in bytes) of the results map. Its only an
+// EstimateMapBytesSize estimates the size (in bytes) of the results map. It's only an
 // estimate because its impossible to know if some of the references like the series
-// name as well tags are exclusive to this object or shared with other structures in
+// name as well as tags are exclusive to this object or shared with other structures in
 // memory.
 func EstimateMapBytesSize(m *Map) int64 {
 	if m == nil {
