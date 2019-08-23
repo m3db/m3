@@ -3756,3 +3756,118 @@ func (mr *MockOptionsMockRecorder) BlockLeaseManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockLeaseManager", reflect.TypeOf((*MockOptions)(nil).BlockLeaseManager))
 }
+
+// SetMemoryTracker mocks base method
+func (m *MockOptions) SetMemoryTracker(memTracker MemoryTracker) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMemoryTracker", memTracker)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMemoryTracker indicates an expected call of SetMemoryTracker
+func (mr *MockOptionsMockRecorder) SetMemoryTracker(memTracker interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMemoryTracker", reflect.TypeOf((*MockOptions)(nil).SetMemoryTracker), memTracker)
+}
+
+// MemoryTracker mocks base method
+func (m *MockOptions) MemoryTracker() MemoryTracker {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MemoryTracker")
+	ret0, _ := ret[0].(MemoryTracker)
+	return ret0
+}
+
+// MemoryTracker indicates an expected call of MemoryTracker
+func (mr *MockOptionsMockRecorder) MemoryTracker() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemoryTracker", reflect.TypeOf((*MockOptions)(nil).MemoryTracker))
+}
+
+// MockMemoryTracker is a mock of MemoryTracker interface
+type MockMemoryTracker struct {
+	ctrl     *gomock.Controller
+	recorder *MockMemoryTrackerMockRecorder
+}
+
+// MockMemoryTrackerMockRecorder is the mock recorder for MockMemoryTracker
+type MockMemoryTrackerMockRecorder struct {
+	mock *MockMemoryTracker
+}
+
+// NewMockMemoryTracker creates a new mock instance
+func NewMockMemoryTracker(ctrl *gomock.Controller) *MockMemoryTracker {
+	mock := &MockMemoryTracker{ctrl: ctrl}
+	mock.recorder = &MockMemoryTrackerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockMemoryTracker) EXPECT() *MockMemoryTrackerMockRecorder {
+	return m.recorder
+}
+
+// IncNumLoadedBytes mocks base method
+func (m *MockMemoryTracker) IncNumLoadedBytes(x int64) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncNumLoadedBytes", x)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IncNumLoadedBytes indicates an expected call of IncNumLoadedBytes
+func (mr *MockMemoryTrackerMockRecorder) IncNumLoadedBytes(x interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncNumLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).IncNumLoadedBytes), x)
+}
+
+// NumLoadedBytes mocks base method
+func (m *MockMemoryTracker) NumLoadedBytes() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NumLoadedBytes")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// NumLoadedBytes indicates an expected call of NumLoadedBytes
+func (mr *MockMemoryTrackerMockRecorder) NumLoadedBytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).NumLoadedBytes))
+}
+
+// MarkLoadedAsPending mocks base method
+func (m *MockMemoryTracker) MarkLoadedAsPending() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkLoadedAsPending")
+}
+
+// MarkLoadedAsPending indicates an expected call of MarkLoadedAsPending
+func (mr *MockMemoryTrackerMockRecorder) MarkLoadedAsPending() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLoadedAsPending", reflect.TypeOf((*MockMemoryTracker)(nil).MarkLoadedAsPending))
+}
+
+// DecPendingLoadedBytes mocks base method
+func (m *MockMemoryTracker) DecPendingLoadedBytes() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DecPendingLoadedBytes")
+}
+
+// DecPendingLoadedBytes indicates an expected call of DecPendingLoadedBytes
+func (mr *MockMemoryTrackerMockRecorder) DecPendingLoadedBytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecPendingLoadedBytes", reflect.TypeOf((*MockMemoryTracker)(nil).DecPendingLoadedBytes))
+}
+
+// WaitForDec mocks base method
+func (m *MockMemoryTracker) WaitForDec() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "WaitForDec")
+}
+
+// WaitForDec indicates an expected call of WaitForDec
+func (mr *MockMemoryTrackerMockRecorder) WaitForDec() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForDec", reflect.TypeOf((*MockMemoryTracker)(nil).WaitForDec))
+}
