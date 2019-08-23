@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tag
+package linear
 
 import (
 	"fmt"
@@ -29,99 +29,101 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-// Applies the given transform to block tags and series tags.
-type tagTransformFunc func(
-	block.Metadata,
-	[]block.SeriesMeta,
-) (block.Metadata, []block.SeriesMeta)
+var emptyOp = BaseOp{}
 
-// NewTagOp creates a new tag transform operation.
-func NewTagOp(
-	opType string,
-	params []string,
-) (parser.Params, error) {
-	var (
-		fn  tagTransformFunc
-		err error
-	)
-
-	switch opType {
-	case TagJoinType:
-		fn, err = makeTagJoinFunc(params)
-	case TagReplaceType:
-		fn, err = makeTagReplaceFunc(params)
-	default:
-		return nil, fmt.Errorf("operator not supported: %s", opType)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return newBaseOp(opType, fn), nil
+// BaseOp stores required properties for logical operations.
+type BaseOp struct {
+	operatorType string
+	processorFn  makeProcessor
 }
 
-// baseOp stores required properties for the baseOp
-type baseOp struct {
-	opType string
-	tagFn  tagTransformFunc
+func (o BaseOp) OpType() string {
+	return o.operatorType
 }
 
-func (o baseOp) OpType() string {
-	return o.opType
-}
-
-func (o baseOp) String() string {
+func (o BaseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
-// Node creates a tag execution node.
-func (o baseOp) Node(
+func (o BaseOp) Node(
 	controller *transform.Controller,
 	_ transform.Options,
 ) transform.OpNode {
 	return &baseNode{
-		op:         o,
 		controller: controller,
-	}
-}
-
-func newBaseOp(opType string, tagFn tagTransformFunc) baseOp {
-	return baseOp{
-		opType: opType,
-		tagFn:  tagFn,
+		op:         o,
+		processor:  o.processorFn(o, controller),
 	}
 }
 
 type baseNode struct {
-	op         baseOp
+	op         BaseOp
 	controller *transform.Controller
+	processor  Processor
 }
 
-func (n *baseNode) Params() parser.Params {
-	return n.op
+func (c *baseNode) Params() parser.Params {
+	return c.op
 }
 
-func (n *baseNode) Process(
+func (c *baseNode) Process(
 	queryCtx *models.QueryContext,
 	ID parser.NodeID,
 	b block.Block,
 ) error {
-	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
+	return transform.ProcessSimpleBlock(c, c.controller, queryCtx, ID, b)
 }
 
-func (n *baseNode) ProcessBlock(
+func (c *baseNode) ProcessBlock(
 	queryCtx *models.QueryContext,
 	ID parser.NodeID,
 	b block.Block,
 ) (block.Block, error) {
-	it, err := b.StepIter()
+	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	meta := b.Meta()
-	seriesMeta := it.SeriesMeta()
-	meta, seriesMeta = n.op.tagFn(meta, seriesMeta)
-	return b.WithMetadata(meta, seriesMeta)
+	builder, err := c.controller.BlockBuilder(queryCtx,
+		b.Meta(), stepIter.SeriesMeta())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
+		return nil, err
+	}
+
+	for index := 0; stepIter.Next(); index++ {
+		step := stepIter.Current()
+		values := c.processor.Process(step.Values())
+		for _, value := range values {
+			if err := builder.AppendValue(index, value); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err = stepIter.Err(); err != nil {
+		return nil, err
+	}
+
+	return builder.Build(), nil
+}
+
+func (c *baseNode) Meta(meta block.Metadata) block.Metadata {
+	return meta
+}
+
+func (c *baseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
+	return metas
+}
+
+// makeProcessor is a way to create a transform.
+type makeProcessor func(op BaseOp, controller *transform.Controller) Processor
+
+// Processor is implemented by the underlying transforms.
+// todo: remove public visibility
+type Processor interface {
+	Process(values []float64) []float64
 }

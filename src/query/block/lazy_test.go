@@ -137,6 +137,10 @@ func TestStepIter(t *testing.T) {
 	e := errors.New(msg)
 	now := time.Now()
 
+	b.EXPECT().Meta().Return(buildMeta(now))
+	ex := buildMeta(now.Add(offset))
+	require.Equal(t, ex, off.Meta())
+
 	iter := NewMockStepIter(ctrl)
 	b.EXPECT().StepIter().Return(iter, nil)
 	it, err := off.StepIter()
@@ -159,10 +163,6 @@ func TestStepIter(t *testing.T) {
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
 
-	iter.EXPECT().Meta().Return(buildMeta(now))
-	ex := buildMeta(now.Add(offset))
-	require.Equal(t, ex, it.Meta())
-
 	vals := []float64{1, 2, 3}
 	step := NewMockStep(ctrl)
 	step.EXPECT().Values().Return(vals)
@@ -182,7 +182,6 @@ func TestSeriesIter(t *testing.T) {
 	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
 	msg := "err"
 	e := errors.New(msg)
-	now := time.Now()
 
 	iter := NewMockSeriesIter(ctrl)
 	b.EXPECT().SeriesIter().Return(iter, nil)
@@ -206,10 +205,6 @@ func TestSeriesIter(t *testing.T) {
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
 
-	iter.EXPECT().Meta().Return(buildMeta(now))
-	ex := buildMeta(now.Add(offset))
-	require.Equal(t, ex, it.Meta())
-
 	vals := []float64{1, 2, 3}
 	series := Series{
 		Meta:   SeriesMeta{},
@@ -224,6 +219,7 @@ func TestUnconsolidated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	bb := NewMockBlock(ctrl)
 	defer ctrl.Finish()
+	now := time.Now()
 	offset := time.Minute
 	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
 
@@ -233,6 +229,10 @@ func TestUnconsolidated(t *testing.T) {
 
 	off, err := offblock.Unconsolidated()
 	assert.NoError(t, err)
+
+	b.EXPECT().Meta().Return(buildMeta(now))
+	ex := buildMeta(now.Add(offset))
+	require.Equal(t, ex, off.Meta())
 
 	b.EXPECT().Close().Return(nil)
 	err = off.Close()
@@ -263,7 +263,6 @@ func TestUnconsolidated(t *testing.T) {
 	bb.EXPECT().Close().Return(nil)
 	revert.Close()
 
-	now := time.Now()
 	meta := buildMeta(now)
 	seriesMetas := []SeriesMeta{}
 
@@ -322,10 +321,6 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
-
-	iter.EXPECT().Meta().Return(buildMeta(now))
-	ex := buildMeta(now.Add(offset))
-	require.Equal(t, ex, it.Meta())
 
 	vals := []ts.Datapoints{
 		{
@@ -393,10 +388,6 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
-
-	iter.EXPECT().Meta().Return(buildMeta(now))
-	ex := buildMeta(now.Add(offset))
-	require.Equal(t, ex, it.Meta())
 
 	vals := []ts.Datapoints{
 		{

@@ -79,7 +79,7 @@ func processBinary(
 
 		return block.NewScalar(
 			fn(lVal, scalarR.Value()),
-			lIter.Meta(),
+			lhs.Meta(),
 		), nil
 	}
 
@@ -115,7 +115,8 @@ func processBinary(
 		return nil, errNoMatching
 	}
 
-	return processBothSeries(queryCtx, lIter, rIter, controller, matcher, fn)
+	return processBothSeries(queryCtx, lhs.Meta(), rhs.Meta(), lIter, rIter,
+		controller, matcher, fn)
 }
 
 func processSingleBlock(
@@ -129,7 +130,8 @@ func processSingleBlock(
 		return nil, err
 	}
 
-	meta, metas := it.Meta(), it.SeriesMeta()
+	meta := block.Meta()
+	metas := it.SeriesMeta()
 	meta, metas = removeNameTags(meta, metas)
 	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
@@ -159,6 +161,7 @@ func processSingleBlock(
 
 func processBothSeries(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching VectorMatching,
@@ -172,10 +175,10 @@ func processBothSeries(
 		return nil, errMismatchedStepCounts
 	}
 
-	lMeta, lSeriesMeta := lIter.Meta(), lIter.SeriesMeta()
+	lSeriesMeta := lIter.SeriesMeta()
 	lMeta, lSeriesMeta = removeNameTags(lMeta, lSeriesMeta)
 
-	rMeta, rSeriesMeta := rIter.Meta(), rIter.SeriesMeta()
+	rSeriesMeta := rIter.SeriesMeta()
 	rMeta, rSeriesMeta = removeNameTags(rMeta, rSeriesMeta)
 
 	lSeriesMeta = utils.FlattenMetadata(lMeta, lSeriesMeta)

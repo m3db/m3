@@ -86,15 +86,18 @@ func (n *absentNode) Process(queryCtx *models.QueryContext,
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func (n *absentNode) ProcessBlock(queryCtx *models.QueryContext,
-	ID parser.NodeID, b block.Block) (block.Block, error) {
-	stepIter, err := b.StepIter()
+func (n *absentNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	bl block.Block,
+) (block.Block, error) {
+	stepIter, err := bl.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		meta        = stepIter.Meta()
+		meta        = bl.Meta()
 		seriesMetas = stepIter.SeriesMeta()
 		tagOpts     = meta.Tags.Opts
 	)
