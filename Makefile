@@ -275,6 +275,11 @@ all-gen-kube: install-tools
 
 else
 
+.PHONY: config-gen
+config-gen: install-tools
+	@echo "--- Generating configs"
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmdline.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
