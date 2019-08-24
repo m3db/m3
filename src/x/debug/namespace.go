@@ -63,7 +63,9 @@ func (n *namespaceInfoSource) Write(w io.Writer) error {
 
 	marshaler := jsonpb.Marshaler{EmitDefaults: true}
 	buf := new(bytes.Buffer)
-	marshaler.Marshal(buf, resp)
+	if err := marshaler.Marshal(buf, resp); err != nil {
+		return err
+	}
 
 	toDuration, err := xhttp.NanosToDurationBytes(buf)
 	if err != nil {
@@ -75,6 +77,10 @@ func (n *namespaceInfoSource) Write(w io.Writer) error {
 		return err
 	}
 
-	w.Write(jsonData)
+	_, err = w.Write(jsonData)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

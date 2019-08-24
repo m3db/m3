@@ -71,9 +71,9 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 	}
 }
 
-// NewPlacementZipWriterWithDefaultSources returns a zipWriter with the following
+// NewPlacementAndNamespaceZipWriterWithDefaultSources returns a zipWriter with the following
 // debug sources already registered: CPU, heap, host, goroutines, namespace and placement info.
-func NewPlacementZipWriterWithDefaultSources(
+func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	cpuProfileDuration time.Duration,
 	iopts instrument.Options,
 	clusterClient clusterclient.Client,

@@ -283,7 +283,7 @@ func TestDefaultSources(t *testing.T) {
 
 	handlerOpts, mockClient := newHandlerOptsAndClient(t)
 
-	zw, err := NewPlacementZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions(), mockClient, handlerOpts)
+	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions(), mockClient, handlerOpts)
 	require.NoError(t, err)
 	require.NotNil(t, zw)
 
