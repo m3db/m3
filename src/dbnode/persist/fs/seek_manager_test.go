@@ -435,11 +435,11 @@ func TestSeekerManagerRelinquishShard(t *testing.T) {
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
 		require.Equal(t, 0, seekers.active.volume)
 		byTime.RUnlock()
-		require.NoError(t, m.RelinquishShard(metadata.ID(), shard))
+		require.NoError(t, m.RelinquishShard(shard))
 	}
 
 	// Calling again shouldn't throw errors
-	require.NoError(t, m.RelinquishShard(metadata.ID(), shards[0]))
+	require.NoError(t, m.RelinquishShard(shards[0]))
 
 	require.NoError(t, m.Close())
 }
