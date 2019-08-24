@@ -367,7 +367,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.DebugListenAddress != "" {
-		debugWriter, err := xdebug.NewPlacementZipWriterWithDefaultSources(
+		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 			cpuProfileDuration,
 			instrumentOptions,
 			clusterClient,
