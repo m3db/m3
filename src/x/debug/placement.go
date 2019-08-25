@@ -31,34 +31,33 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-const (
-	defaultM3DBServiceName = "m3db"
-)
-
 type placementInfoSource struct {
-	getHandler *placement.GetHandler
+	getHandler  *placement.GetHandler
+	serviceName string
 }
 
 // NewPlacementInfoSource returns a Source for placement information.
 func NewPlacementInfoSource(
 	iopts instrument.Options,
 	placementOpts placement.HandlerOptions,
+	serviceName string,
 ) (Source, error) {
 	handler := placement.NewGetHandler(placementOpts)
 	return &placementInfoSource{
-		getHandler: handler,
+		getHandler:  handler,
+		serviceName: serviceName,
 	}, nil
 }
 
 // Write fetches data about the placement and writes it in the given writer.
 // The data is formatted in json.
 func (p *placementInfoSource) Write(w io.Writer) error {
-	placement, _, err := p.getHandler.Get(defaultM3DBServiceName, nil)
+	placement, _, err := p.getHandler.Get(p.serviceName, nil)
 	if err != nil {
 		return err
 	}
 	if placement == nil {
-		return fmt.Errorf("placement does not exist for service: %s", defaultM3DBServiceName)
+		return fmt.Errorf("placement does not exist for service: %s", p.serviceName)
 	}
 
 	placementProto, err := placement.Proto()
@@ -72,7 +71,5 @@ func (p *placementInfoSource) Write(w io.Writer) error {
 	}
 
 	marshaler := jsonpb.Marshaler{EmitDefaults: true}
-	marshaler.Marshal(w, resp)
-
-	return nil
+	return marshaler.Marshal(w, resp)
 }

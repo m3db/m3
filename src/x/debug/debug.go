@@ -78,6 +78,7 @@ func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	iopts instrument.Options,
 	clusterClient clusterclient.Client,
 	placementsOpts placement.HandlerOptions,
+	serviceNames []string,
 ) (ZipWriter, error) {
 	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration, iopts)
 	if err != nil {
@@ -90,13 +91,15 @@ func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
 		}
 
-		placementInfoSource, err := NewPlacementInfoSource(iopts, placementsOpts)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create placementInfoSource: %v", err)
-		}
-		err = zw.RegisterSource("placementSource", placementInfoSource)
-		if err != nil {
-			return nil, fmt.Errorf("unable to register placementSource: %s", err)
+		for _, serviceName := range serviceNames {
+			placementInfoSource, err := NewPlacementInfoSource(iopts, placementsOpts, serviceName)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create placementInfoSource: %v", err)
+			}
+			err = zw.RegisterSource("placementSource", placementInfoSource)
+			if err != nil {
+				return nil, fmt.Errorf("unable to register placementSource: %s", err)
+			}
 		}
 	}
 

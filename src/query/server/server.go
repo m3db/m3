@@ -73,9 +73,10 @@ import (
 )
 
 const (
-	serviceName        = "m3query"
-	cpuProfileDuration = 5 * time.Second
-	debugEndpoint      = "/debug/dump"
+	serviceName            = "m3query"
+	cpuProfileDuration     = 5 * time.Second
+	debugEndpoint          = "/debug/dump"
+	defaultM3DBServiceName = "m3db"
 )
 
 var (
@@ -372,6 +373,7 @@ func Run(runOpts RunOptions) {
 			instrumentOptions,
 			clusterClient,
 			placementOpts,
+			[]string{defaultM3DBServiceName},
 		)
 		if err != nil {
 			logger.Error("unable to create debug writer", zap.Error(err))
