@@ -2,8 +2,6 @@ listenAddress:
   type: "config"
   value: "0.0.0.0:7201"
 
-debugListenAddress: "0.0.0.0:7205"
-
 logging:
   level: info
 

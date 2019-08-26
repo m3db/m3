@@ -94,9 +94,6 @@ type Configuration struct {
 	// ListenAddress is the server listen address.
 	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
 
-	// The host and port on which to listen for debug endpoints.
-	DebugListenAddress string `yaml:"debugListenAddress"`
-
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
 
