@@ -36,7 +36,7 @@ The `/debug/dump` API returns a number of helpful debugging outputs. Currently, 
 - Namespace: returns information about the namespaces setup in M3DB
 - Placement: returns information about the placement setup in M3DB
 
-This endpoint can be used on both the db nodes as well as the coordinator/query nodes. However, since namespace and placement info are only available on the coordinator, these will not show if you use this API on the db nodes.
+This endpoint can be used on both the db nodes as well as the coordinator/query nodes. However, namespace and placement info are only available on the coordinator debug endpoint. 
 
 To use this, simply run the following on either the M3DB debug listen port or the regular port on M3Coordinator.
 
