@@ -1186,6 +1186,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#using-the-debugdump-api" title="Using the /debug/dump API" class="md-nav__link">
+    Using the /debug/dump API
+  </a>
+  
+</li>
+      
       
       
       
@@ -1269,6 +1276,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#using-the-debugdump-api" title="Using the /debug/dump API" class="md-nav__link">
+    Using the /debug/dump API
+  </a>
+  
+</li>
+      
       
       
       
@@ -1305,6 +1319,32 @@
 <li>Ensure that you use at most 50-60% memory utilization in the normal running state. You want to ensure enough overhead to handle bursts of metrics, especially ones with new IDs as those will take more memory initially.</li>
 <li>High cardinality metrics can also lead to OOMs especially if you are not adequately provisioned. If you have many unique timeseries such as ones containing UUIDs or timestamps as tag values, you should consider mitigating their cardinality. </li>
 </ol>
+<h2 id="using-the-debugdump-api">Using the /debug/dump API</h2>
+<p>The <code>/debug/dump</code> API returns a number of helpful debugging outputs. Currently, we support the following:</p>
+<ul>
+<li>CPU profile: determines where a program spends its time while actively consuming CPU cycles (as opposed to while sleeping or waiting for I/O). Currently set to take a 5 second profile.</li>
+<li>Heap profile: reports memory allocation samples; used to monitor current and historical memory usage, and to check for memory leaks.</li>
+<li>Goroutines profile: reports the stack traces of all current goroutines.</li>
+<li>Host profile: returns data about the underlying host such as PID, working directory, etc.</li>
+<li>Namespace: returns information about the namespaces setup in M3DB</li>
+<li>Placement: returns information about the placement setup in M3DB</li>
+</ul>
+<p>This endpoint can be used on both the db nodes as well as the coordinator/query nodes. However, namespace and placement info are only available on the coordinator debug endpoint. </p>
+<p>To use this, simply run the following on either the M3DB debug listen port or the regular port on M3Coordinator.</p>
+<div class="highlight"><pre><span></span>curl &lt;m3db_or_m3coordinator_ip&gt;:&lt;port&gt;/debug/dump &gt; &lt;tmp_zip_file.zip&gt;
+
+# unzip the file
+unzip &lt;tmp_zip_file.zip&gt;
+</pre></div>
+
+<p>Now, you will have the following files, which you can use for troubleshooting.</p>
+<div class="highlight"><pre><span></span>cpuSource
+heapSource
+goroutineProfile
+hostSource
+namespaceSource
+placementSource
+</pre></div>
                 
                   
                 
