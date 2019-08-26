@@ -32,7 +32,7 @@ import (
 func TestPlacementSource(t *testing.T) {
 	handlerOpts, _ := newHandlerOptsAndClient(t)
 	iOpts := instrument.NewOptions()
-	p, err := NewPlacementInfoSource(iOpts, handlerOpts)
+	p, err := NewPlacementInfoSource(iOpts, handlerOpts, "m3db")
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
