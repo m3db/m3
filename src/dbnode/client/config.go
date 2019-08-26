@@ -190,11 +190,11 @@ type ConfigurationParameters struct {
 
 // CustomOption is a programatic method for setting a client
 // option after all the options have been set by configuration.
-type CustomOption func(v MultiClusterOptions) MultiClusterOptions
+type CustomOption func(v ReplicatedOptions) ReplicatedOptions
 
 // CustomAdminOption is a programatic method for setting a client
 // admin option after all the options have been set by configuration.
-type CustomAdminOption func(v AdminMultiClusterOptions) AdminMultiClusterOptions
+type CustomAdminOption func(v AdminReplicatedOptions) AdminReplicatedOptions
 
 // NewClient creates a new M3DB client using
 // specified params and custom options.
@@ -204,8 +204,8 @@ func (c Configuration) NewClient(
 ) (Client, error) {
 	customAdmin := make([]CustomAdminOption, 0, len(custom))
 	for _, opt := range custom {
-		customAdmin = append(customAdmin, func(v AdminMultiClusterOptions) AdminMultiClusterOptions {
-			return opt(MultiClusterOptions(v)).(AdminMultiClusterOptions)
+		customAdmin = append(customAdmin, func(v AdminReplicatedOptions) AdminReplicatedOptions {
+			return opt(ReplicatedOptions(v)).(AdminReplicatedOptions)
 		})
 	}
 
@@ -343,12 +343,12 @@ func (c Configuration) NewAdminClient(
 		v = v.SetSchemaRegistry(schemaRegistry)
 	}
 
-	u := NewAdminMultiClusterOptions().
+	u := NewAdminReplicatedOptions().
 		SetOptions(v).
 		SetAsyncTopologyInitializers(asyncTopoInits)
 
 	// Apply programtic custom options last
-	opts := u.(AdminMultiClusterOptions)
+	opts := u.(AdminReplicatedOptions)
 	for _, opt := range custom {
 		opts = opt(opts)
 	}

@@ -31,7 +31,7 @@ import (
 )
 
 func testClient(t *testing.T, ctrl *gomock.Controller) Client {
-	multiOpts := NewMockMultiClusterOptions(ctrl)
+	multiOpts := NewMockReplicatedOptions(ctrl)
 	opts := NewMockOptions(ctrl)
 	multiOpts.EXPECT().Options().Return(opts)
 	opts.EXPECT().Validate().Return(nil)
@@ -50,7 +50,7 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	testClient(t, ctrl)
 
 	anError := fmt.Errorf("an error")
-	multiOpts := NewMockMultiClusterOptions(ctrl)
+	multiOpts := NewMockReplicatedOptions(ctrl)
 	opts := NewMockOptions(ctrl)
 	multiOpts.EXPECT().Options().Return(opts)
 	opts.EXPECT().Validate().Return(anError)
@@ -66,7 +66,7 @@ func TestClientNewSessionOpensSession(t *testing.T) {
 
 	var mockSession Session
 	client := testClient(t, ctrl).(*client)
-	client.newSessionFn = func(opts MultiClusterOptions, _ ...replicatedSessionOption) (clientSession, error) {
+	client.newSessionFn = func(opts ReplicatedOptions, _ ...replicatedSessionOption) (clientSession, error) {
 		session := NewMockclientSession(ctrl)
 		session.EXPECT().Open().Return(nil)
 		mockSession = session
@@ -84,7 +84,7 @@ func TestClientNewSessionFailCreateReturnsError(t *testing.T) {
 
 	client := testClient(t, ctrl).(*client)
 	anError := fmt.Errorf("an error")
-	client.newSessionFn = func(opts MultiClusterOptions, _ ...replicatedSessionOption) (clientSession, error) {
+	client.newSessionFn = func(opts ReplicatedOptions, _ ...replicatedSessionOption) (clientSession, error) {
 		return nil, anError
 	}
 
@@ -100,7 +100,7 @@ func TestClientNewSessionFailOpenReturnsError(t *testing.T) {
 
 	client := testClient(t, ctrl).(*client)
 	anError := fmt.Errorf("an error")
-	client.newSessionFn = func(opts MultiClusterOptions, _ ...replicatedSessionOption) (clientSession, error) {
+	client.newSessionFn = func(opts ReplicatedOptions, _ ...replicatedSessionOption) (clientSession, error) {
 		session := NewMockclientSession(ctrl)
 		session.EXPECT().Open().Return(anError)
 		return session, nil
@@ -132,7 +132,7 @@ func TestClientDefaultSessionNotCreatedNoError(t *testing.T) {
 	client := testClient(t, ctrl).(*client)
 	session := NewMockclientSession(ctrl)
 	session.EXPECT().Open().Return(nil)
-	client.newSessionFn = func(opts MultiClusterOptions, _ ...replicatedSessionOption) (clientSession, error) {
+	client.newSessionFn = func(opts ReplicatedOptions, _ ...replicatedSessionOption) (clientSession, error) {
 		return session, nil
 	}
 
@@ -147,7 +147,7 @@ func TestClientDefaultSessionNotCreatedWithError(t *testing.T) {
 
 	client := testClient(t, ctrl).(*client)
 	expectedErr := errors.New("foo")
-	client.newSessionFn = func(opts MultiClusterOptions, _ ...replicatedSessionOption) (clientSession, error) {
+	client.newSessionFn = func(opts ReplicatedOptions, _ ...replicatedSessionOption) (clientSession, error) {
 		return nil, expectedErr
 	}
 
@@ -167,7 +167,7 @@ func TestClientDefaultSessionMultipleSimultaneousRequests(t *testing.T) {
 	)
 
 	client := testClient(t, ctrl).(*client)
-	client.newSessionFn = func(opts MultiClusterOptions, _ ...replicatedSessionOption) (clientSession, error) {
+	client.newSessionFn = func(opts ReplicatedOptions, _ ...replicatedSessionOption) (clientSession, error) {
 		session := NewMockclientSession(ctrl)
 		session.EXPECT().Open().Return(nil)
 		lock.Lock()

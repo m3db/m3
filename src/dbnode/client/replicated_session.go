@@ -80,7 +80,7 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 	}
 }
 
-func newReplicatedSession(opts MultiClusterOptions, options ...replicatedSessionOption) (clientSession, error) {
+func newReplicatedSession(opts ReplicatedOptions, options ...replicatedSessionOption) (clientSession, error) {
 	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()

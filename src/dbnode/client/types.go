@@ -46,7 +46,7 @@ import (
 // Client can create sessions to write and read to a cluster.
 type Client interface {
 	// Options returns the Client Options.
-	Options() MultiClusterOptions
+	Options() ReplicatedOptions
 
 	// NewSession creates a new session.
 	NewSession() (Session, error)
@@ -563,11 +563,11 @@ type AdminOptions interface {
 	StreamBlocksRetrier() xretry.Retrier
 }
 
-// CommonMultiClusterOptions is the set of options which apply only to multi cluster clients
-type CommonMultiClusterOptions interface {
+// CommonReplicatedOptions is the set of options which apply only to multi cluster clients
+type CommonReplicatedOptions interface {
 
 	// SetAsyncTopologyInitializers sets the TopologyInitializers
-	SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions
+	SetAsyncTopologyInitializers(value []topology.Initializer) ReplicatedOptions
 
 	// AsyncTopologyInitializers returns the TopologyInitializers
 	AsyncTopologyInitializers() []topology.Initializer
@@ -577,20 +577,20 @@ type CommonMultiClusterOptions interface {
 	OptionsForAsyncClusters() []Options
 }
 
-// MultiClusterOptions is a set of multi cluster client options
-type MultiClusterOptions interface {
-	CommonMultiClusterOptions
+// ReplicatedOptions is a set of multi cluster client options
+type ReplicatedOptions interface {
+	CommonReplicatedOptions
 
-	SetOptions(Options) MultiClusterOptions
+	SetOptions(Options) ReplicatedOptions
 
 	Options() Options
 }
 
-// AdminMultiClusterOptions is a set of administration multi cluster client options
-type AdminMultiClusterOptions interface {
-	CommonMultiClusterOptions
+// AdminReplicatedOptions is a set of administration multi cluster client options
+type AdminReplicatedOptions interface {
+	CommonReplicatedOptions
 
-	SetOptions(Options) MultiClusterOptions
+	SetOptions(Options) ReplicatedOptions
 
 	Options() Options
 }

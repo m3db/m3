@@ -28,7 +28,7 @@ func newTopologyInitializer() topology.Initializer {
 	return topology.NewStaticInitializer(topology.NewStaticOptions())
 }
 
-func optionsWithAsyncSessions(hasSync bool, asyncCount int) MultiClusterOptions {
+func optionsWithAsyncSessions(hasSync bool, asyncCount int) ReplicatedOptions {
 	topoInits := make([]topology.Initializer, 0, asyncCount)
 	for i := 0; i < asyncCount; i++ {
 		topoInits = append(topoInits, newTopologyInitializer())
@@ -39,12 +39,12 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) MultiClusterOptions 
 		options = options.SetTopologyInitializer(newTopologyInitializer())
 	}
 
-	return NewMultiClusterOptions().
+	return NewReplicatedOptions().
 		SetOptions(options).
 		SetAsyncTopologyInitializers(topoInits)
 }
 
-func (s *replicatedSessionTestSuite) initReplicatedSession(opts MultiClusterOptions, newSessionFunc newSessionFn) {
+func (s *replicatedSessionTestSuite) initReplicatedSession(opts ReplicatedOptions, newSessionFunc newSessionFn) {
 	session, err := newReplicatedSession(
 		opts,
 		withNewSessionFn(newSessionFunc),
@@ -66,7 +66,7 @@ func TestReplicatedSessionTestSuite(t *testing.T) {
 }
 
 var constructorCreatesSessionsTests = []struct {
-	options       MultiClusterOptions
+	options       ReplicatedOptions
 	expectedCount int
 }{
 	{
@@ -219,6 +219,6 @@ func (s *replicatedSessionTestSuite) TestOpenReplicatedSessionAsyncError() {
 // 		return NewMockclientSession(ctrl), nil
 // 	}
 
-// 	opts := NewMockMultiClusterOptions(ctrl)
+// 	opts := NewMockReplicatedOptions(ctrl)
 // 	newReplicatedSession(opts, withNewSessionFn(newMockSession))
 // }

@@ -10,50 +10,50 @@ var (
 	errInvalidSyncCount = errors.New("must supply exactly one synchronous topology initializer")
 )
 
-var _ MultiClusterOptions = (*multiClusterOptions)(nil)
+var _ ReplicatedOptions = (*replicatedOptions)(nil)
 
-type multiClusterOptions struct {
+type replicatedOptions struct {
 	options                   Options
 	asyncTopologyInitializers []topology.Initializer
 }
 
-// NewMultiClusterOptions creates a new set of multi cluster options
-func NewMultiClusterOptions() MultiClusterOptions {
-	return &multiClusterOptions{
+// NewReplicatedOptions creates a new set of multi cluster options
+func NewReplicatedOptions() ReplicatedOptions {
+	return &replicatedOptions{
 		options:                   newOptions(),
 		asyncTopologyInitializers: []topology.Initializer{},
 	}
 }
 
-// NewAdminMultiClusterOptions creates a new set of administration multi cluster options
-func NewAdminMultiClusterOptions() AdminMultiClusterOptions {
-	return &multiClusterOptions{
+// NewAdminReplicatedOptions creates a new set of administration multi cluster options
+func NewAdminReplicatedOptions() AdminReplicatedOptions {
+	return &replicatedOptions{
 		options:                   newOptions(),
 		asyncTopologyInitializers: []topology.Initializer{},
 	}
 }
 
-func (o *multiClusterOptions) SetOptions(value Options) MultiClusterOptions {
+func (o *replicatedOptions) SetOptions(value Options) ReplicatedOptions {
 	opts := *o
 	opts.options = value
 	return &opts
 }
 
-func (o *multiClusterOptions) Options() Options {
+func (o *replicatedOptions) Options() Options {
 	return o.options
 }
 
-func (o *multiClusterOptions) SetAsyncTopologyInitializers(value []topology.Initializer) MultiClusterOptions {
+func (o *replicatedOptions) SetAsyncTopologyInitializers(value []topology.Initializer) ReplicatedOptions {
 	opts := *o
 	opts.asyncTopologyInitializers = value
 	return &opts
 }
 
-func (o *multiClusterOptions) AsyncTopologyInitializers() []topology.Initializer {
+func (o *replicatedOptions) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
 }
 
-func (o *multiClusterOptions) OptionsForAsyncClusters() []Options {
+func (o *replicatedOptions) OptionsForAsyncClusters() []Options {
 	result := make([]Options, 0, len(o.asyncTopologyInitializers))
 	for _, topoInit := range o.asyncTopologyInitializers {
 		options := o.Options().SetTopologyInitializer(topoInit)

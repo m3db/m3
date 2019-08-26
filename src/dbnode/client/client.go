@@ -27,25 +27,25 @@ import (
 type client struct {
 	sync.Mutex
 
-	opts         MultiClusterOptions
+	opts         ReplicatedOptions
 	newSessionFn newReplicatedSessionFn
 	session      AdminSession // default cached session
 }
 
-// type newReplicatedSessionFn func(MultiClusterOptions) (replicatedSession, error)
-type newReplicatedSessionFn func(MultiClusterOptions, ...replicatedSessionOption) (clientSession, error)
+// type newReplicatedSessionFn func(ReplicatedOptions) (replicatedSession, error)
+type newReplicatedSessionFn func(ReplicatedOptions, ...replicatedSessionOption) (clientSession, error)
 
 // NewClient creates a new client
-func NewClient(opts MultiClusterOptions) (Client, error) {
+func NewClient(opts ReplicatedOptions) (Client, error) {
 	return newClient(opts)
 }
 
 // NewAdminClient creates a new administrative client
-func NewAdminClient(opts AdminMultiClusterOptions) (AdminClient, error) {
+func NewAdminClient(opts AdminReplicatedOptions) (AdminClient, error) {
 	return newClient(opts)
 }
 
-func newClient(opts MultiClusterOptions) (*client, error) {
+func newClient(opts ReplicatedOptions) (*client, error) {
 	if err := opts.Options().Validate(); err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (c *client) defaultSession() (AdminSession, error) {
 	return session, nil
 }
 
-func (c *client) Options() MultiClusterOptions {
+func (c *client) Options() ReplicatedOptions {
 	return c.opts
 }
 
