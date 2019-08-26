@@ -241,7 +241,8 @@ func Run(runOpts RunOptions) {
 		logger.Info("no seed nodes set, using dedicated etcd cluster")
 	} else {
 		// Default etcd client clusters if not set already
-		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
+		service := cfg.EnvironmentConfig.Services.SyncCluster()
+		clusters := service.Service.ETCDClusters
 		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterEndpoints(seedNodes)
@@ -249,11 +250,11 @@ func Run(runOpts RunOptions) {
 				logger.Fatal("unable to create etcd clusters", zap.Error(err))
 			}
 
-			zone := cfg.EnvironmentConfig.Service.Zone
+			zone := service.Service.Zone
 
 			logger.Info("using seed nodes etcd cluster",
 				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
-			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			service.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
@@ -525,7 +526,7 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-	if cfg.EnvironmentConfig.Static == nil {
+	if len(cfg.EnvironmentConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
@@ -548,17 +549,18 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	syncCfg := envCfg.SyncCluster()
 	if runOpts.ClusterClientCh != nil {
-		runOpts.ClusterClientCh <- envCfg.ClusterClient
+		runOpts.ClusterClientCh <- syncCfg.ClusterClient
 	}
 
-	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
+	opts = opts.SetNamespaceInitializer(syncCfg.NamespaceInitializer)
 
 	// Set tchannelthrift options.
 	ttopts := tchannelthrift.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetTopologyInitializer(envCfg.TopologyInitializer).
+		SetTopologyInitializer(syncCfg.TopologyInitializer).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
@@ -612,7 +614,7 @@ func Run(runOpts RunOptions) {
 		}()
 	}
 
-	topo, err := envCfg.TopologyInitializer.Init()
+	topo, err := syncCfg.TopologyInitializer.Init()
 	if err != nil {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
@@ -637,8 +639,8 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, envCfg.TopologyInitializer, runtimeOptsMgr,
-		origin, protoEnabled, schemaRegistry, envCfg.KVStore, logger)
+		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
+		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -673,7 +675,7 @@ func Run(runOpts RunOptions) {
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
 				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
-				origin, protoEnabled, schemaRegistry, envCfg.KVStore, logger)
+				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster: %s",
@@ -742,7 +744,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
+	kvWatchBootstrappers(syncCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
 				logger.Error("updated bootstrapper list is empty")
@@ -825,7 +827,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("bootstrapped")
 
 		// Only set the write new series limit after bootstrapping
-		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
+		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 

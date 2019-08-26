@@ -94,6 +94,30 @@ type DynamicCluster struct {
 	Service *etcdclient.Configuration `yaml:"service"`
 }
 
+// Validate validates the DynamicConfiguration.
+func (c DynamicConfiguration) Validate() error {
+	syncCount := 0
+	for _, cfg := range c {
+		if !cfg.Async {
+			syncCount++
+		}
+	}
+	if syncCount != 1 {
+		return errInvalidSyncCount
+	}
+	return nil
+}
+
+// SyncCluster returns the synchronous cluster in the DynamicConfiguration
+func (c DynamicConfiguration) SyncCluster() *DynamicCluster {
+	for _, cluster := range c {
+		if !cluster.Async {
+			return cluster
+		}
+	}
+	return nil
+}
+
 // StaticConfiguration is used for running M3DB with a static config
 type StaticConfiguration []*StaticCluster
 
@@ -131,26 +155,22 @@ type ConfigureResult struct {
 // ConfigureResults stores initializers and kv store for dynamic and static configs
 type ConfigureResults []ConfigureResult
 
+// SyncCluster returns the synchronous cluster in the ConfigureResults
+func (c ConfigureResults) SyncCluster() ConfigureResult {
+	for _, result := range c {
+		if !result.Async {
+			return result
+		}
+	}
+	return ConfigureResult{}
+}
+
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
 	InstrumentOpts   instrument.Options
 	HashingSeed      uint32
 	HostID           string
 	NewDirectoryMode os.FileMode
-}
-
-// Validate validates the DynamicConfiguration.
-func (c DynamicConfiguration) Validate() error {
-	syncCount := 0
-	for _, cfg := range c {
-		if !cfg.Async {
-			syncCount++
-		}
-	}
-	if syncCount != 1 {
-		return errInvalidSyncCount
-	}
-	return nil
 }
 
 // UnmarshalYAML normalizes the config into a list of services.
