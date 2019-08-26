@@ -82,5 +82,5 @@ func NewMathOp(opType string) (parser.Params, error) {
 		return lazy.NewLazyOp(opType, lazyOpts)
 	}
 
-	return emptyOp, fmt.Errorf("unknown math type: %s", opType)
+	return nil, fmt.Errorf("unknown math type: %s", opType)
 }

@@ -81,6 +81,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/coreos/etcd/embed"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -290,13 +291,23 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions()
-	iopts := opts.InstrumentOptions().
-		SetLogger(logger).
-		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
-		SetTracer(tracer)
+	var (
+		opts  = storage.NewOptions()
+		iopts = opts.InstrumentOptions().
+			SetLogger(logger).
+			SetMetricsScope(scope).
+			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTracer(tracer)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
+
+	// Only override the default MemoryTracker (which has default limits) if a custom limit has
+	// been set.
+	if cfg.Limits.MaxOutstandingRepairedBytes > 0 {
+		memTrackerOptions := storage.NewMemoryTrackerOptions(cfg.Limits.MaxOutstandingRepairedBytes)
+		memTracker := storage.NewMemoryTracker(memTrackerOptions)
+		opts = opts.SetMemoryTracker(memTracker)
+	}
 
 	opentracing.SetGlobalTracer(tracer)
 
@@ -585,7 +596,7 @@ func Run(runOpts RunOptions) {
 		go func() {
 			mux := http.DefaultServeMux
 			if debugWriter != nil {
-				if err := debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
+				if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
 				}
 			}
@@ -1146,6 +1157,12 @@ func withEncodingAndPoolingOptions(
 ) storage.Options {
 	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
+
+	// Set the max bytes pool byte slice alloc size for the thrift pooling.
+	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
+	logger.Info("set thrift bytes pool alloc size",
+		zap.Int("size", thriftBytesAllocSize))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))

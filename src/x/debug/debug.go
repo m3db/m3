@@ -28,9 +28,17 @@ import (
 	"net/http"
 	"time"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
 	"go.uber.org/zap"
+)
+
+const (
+	// DebugURL is the url for the debug dump endpoint.
+	DebugURL = "/debug/dump"
 )
 
 // Source is the interface that must be implemented to provide a new debug
@@ -68,9 +76,47 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 	}
 }
 
+// NewPlacementAndNamespaceZipWriterWithDefaultSources returns a zipWriter with the following
+// debug sources already registered: CPU, heap, host, goroutines, namespace and placement info.
+func NewPlacementAndNamespaceZipWriterWithDefaultSources(
+	cpuProfileDuration time.Duration,
+	iopts instrument.Options,
+	clusterClient clusterclient.Client,
+	placementsOpts placement.HandlerOptions,
+	serviceNames []string,
+) (ZipWriter, error) {
+	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration, iopts)
+	if err != nil {
+		return nil, err
+	}
+
+	if clusterClient != nil {
+		err = zw.RegisterSource("namespaceSource", NewNamespaceInfoSource(iopts, clusterClient))
+		if err != nil {
+			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
+		}
+
+		for _, serviceName := range serviceNames {
+			placementInfoSource, err := NewPlacementInfoSource(iopts, placementsOpts, serviceName)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create placementInfoSource: %v", err)
+			}
+			err = zw.RegisterSource("placementSource", placementInfoSource)
+			if err != nil {
+				return nil, fmt.Errorf("unable to register placementSource: %s", err)
+			}
+		}
+	}
+
+	return zw, nil
+}
+
 // NewZipWriterWithDefaultSources returns a zipWriter with the following
 // debug sources already registered: CPU, heap, host, goroutines.
-func NewZipWriterWithDefaultSources(cpuProfileDuration time.Duration, iopts instrument.Options) (ZipWriter, error) {
+func NewZipWriterWithDefaultSources(
+	cpuProfileDuration time.Duration,
+	iopts instrument.Options,
+) (ZipWriter, error) {
 	zw := NewZipWriter(iopts)
 
 	err := zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))

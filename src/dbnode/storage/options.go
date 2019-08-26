@@ -68,6 +68,10 @@ const (
 
 	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
+
+	// defaultNumLoadedBytesLimit is the default limit (2GiB) for the number of outstanding loaded bytes that
+	// the memory tracker will allow.
+	defaultNumLoadedBytesLimit = 2 << 30
 )
 
 var (
@@ -147,6 +151,7 @@ type options struct {
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
 	schemaReg                      namespace.SchemaRegistry
 	blockLeaseManager              block.LeaseManager
+	memoryTracker                  MemoryTracker
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -205,6 +210,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
+		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -691,4 +697,14 @@ func (o *options) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
 
 func (o *options) BlockLeaseManager() block.LeaseManager {
 	return o.blockLeaseManager
+}
+
+func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
+	opts := *o
+	opts.memoryTracker = memTracker
+	return &opts
+}
+
+func (o *options) MemoryTracker() MemoryTracker {
+	return o.memoryTracker
 }

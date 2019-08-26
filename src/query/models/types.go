@@ -97,6 +97,8 @@ type TagOptions interface {
 	SetIDSchemeType(scheme IDSchemeType) TagOptions
 	// IDSchemeType gets the ID generation scheme type.
 	IDSchemeType() IDSchemeType
+	// Equals determines if two tag options are equivalent.
+	Equals(other TagOptions) bool
 }
 
 // Tags represents a set of tags with options.

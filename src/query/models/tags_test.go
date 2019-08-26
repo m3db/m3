@@ -313,6 +313,9 @@ func TestCloneTags(t *testing.T) {
 
 	assert.Equal(t, cloned.Opts, tags.Opts)
 	assert.Equal(t, cloned.Tags, tags.Tags)
+	assert.True(t, cloned.Equals(tags))
+	assert.True(t, tags.Equals(cloned))
+
 	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&cloned.Tags))
 	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tags.Tags))
 	assert.False(t, aHeader.Data == bHeader.Data)
@@ -324,6 +327,37 @@ func TestCloneTags(t *testing.T) {
 	assert.True(t, bytes.Equal(tv, cv))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tn, cn))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tv, cv))
+}
+
+func TestTagsEquals(t *testing.T) {
+	tags, other := createTags(true), createTags(true)
+	assert.True(t, tags.Equals(other))
+
+	bad := []byte("a")
+	n := tags.Opts.BucketName()
+	tags.Opts = tags.Opts.SetBucketName(bad)
+	assert.False(t, tags.Equals(other))
+
+	tags.Opts = tags.Opts.SetBucketName(n)
+	assert.True(t, tags.Equals(other))
+
+	n = tags.Tags[0].Name
+	tags.Tags[0].Name = bad
+	assert.False(t, tags.Equals(other))
+
+	tags.Tags[0].Name = n
+	assert.True(t, tags.Equals(other))
+
+	tags = tags.AddTag(Tag{n, n})
+	assert.False(t, tags.Equals(other))
+}
+
+func TestTagEquals(t *testing.T) {
+	a, b, c := []byte("a"), []byte("b"), []byte("c")
+	assert.True(t, Tag{a, b}.Equals(Tag{a, b}))
+	assert.False(t, Tag{a, b}.Equals(Tag{a, c}))
+	assert.False(t, Tag{a, b}.Equals(Tag{b, c}))
+	assert.False(t, Tag{a, b}.Equals(Tag{b, b}))
 }
 
 func TestTagAppend(t *testing.T) {
