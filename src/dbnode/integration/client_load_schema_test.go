@@ -246,9 +246,6 @@ func TestClientLoadSchemaFromFile(t *testing.T) {
 	}
 
 	mockTopo := topology.NewMockInitializer(ctrl)
-	_, err = cfg.NewAdminClient(client.ConfigurationParameters{TopologyInitializer: mockTopo})
-	require.Error(t, err)
-
 	adminClient, err := cfg.NewAdminClient(client.ConfigurationParameters{TopologyInitializer: mockTopo})
 	require.NoError(t, err)
 
