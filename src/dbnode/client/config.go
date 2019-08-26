@@ -29,15 +29,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/x/ident"
-	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 )
 
 var (
@@ -336,27 +334,4 @@ func (c Configuration) NewAdminClient(
 	}
 
 	return NewAdminClient(opts)
-}
-
-func loadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore kv.Store) error {
-	if kvStore == nil {
-		return errors.New("m3db metadata store is not configured properly")
-	}
-	as := kvadmin.NewAdminService(kvStore, "", nil)
-	nsReg, err := as.GetAll()
-	if err != nil {
-		return xerrors.Wrap(err, "could not get metadata from metadata store")
-	}
-	nsMap, err := namespace.FromProto(*nsReg)
-	if err != nil {
-		return xerrors.Wrap(err, "could not unmarshal metadata")
-	}
-	merr := xerrors.NewMultiError()
-	for _, metadata := range nsMap.Metadatas() {
-		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
-		if err != nil {
-			merr.Add(xerrors.Wrapf(err, "could not set schema history for namespace %s", metadata.ID().String()))
-		}
-	}
-	return merr.FinalError()
 }
