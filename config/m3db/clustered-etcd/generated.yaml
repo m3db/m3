@@ -47,20 +47,20 @@
   "config":
     "seedNodes":
       "initialCluster":
-      - "endpoint": "http://ip1:2380"
-        "hostID": "host_1"
-      - "endpoint": "http://ip2:2380"
-        "hostID": "host_2"
-      - "endpoint": "http://ip3:2380"
-        "hostID": "host_3"
+      - "endpoint": "http://host_ip1:2380"
+        "hostID": "host_name1"
+      - "endpoint": "http://host_ip2:2380"
+        "hostID": "host_name2"
+      - "endpoint": "http://host_ip3:2380"
+        "hostID": "host_name3"
     "service":
       "cacheDir": "/var/lib/m3kv"
       "env": "default_env"
       "etcdClusters":
       - "endpoints":
-        - "http://ip1:2379"
-        - "http://ip2:2379"
-        - "http://ip3:2379"
+        - "http://host_ip1:2379"
+        - "http://host_ip2:2379"
+        - "http://host_ip3:2379"
         "zone": "embedded"
       "service": "m3db"
       "zone": "embedded"

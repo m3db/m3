@@ -1,9 +1,9 @@
-function(ListenAddress={}, Local={}, Logging={},) {
+function() {
   "coordinator": {
     "listenAddress": {
       "type": "config",
       "value": "0.0.0.0:7201"
-    } + ListenAddress,
+    },
     "local": {
       "namespaces": [
         {
@@ -12,10 +12,10 @@ function(ListenAddress={}, Local={}, Logging={},) {
           "retention": "48h"
         }
       ]
-    } + Local,
+    },
     "logging": {
       "level": "info"
-    } + Logging,
+    },
     "metrics": {
       "scope": {
         "prefix": "coordinator"
