@@ -107,7 +107,7 @@ type NamespaceProtoSchema struct {
 // Validate validates the NamespaceProtoSchema.
 func (c NamespaceProtoSchema) Validate() error {
 	if c.SchemaFilePath == "" {
-		return errors.New("schemaFilePath is required for Proto data mode when testOnly is true")
+		return errors.New("schemaFilePath is required for Proto data mode")
 	}
 
 	if c.MessageName == "" {
