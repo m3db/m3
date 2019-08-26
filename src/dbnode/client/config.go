@@ -105,15 +105,9 @@ type NamespaceProtoSchema struct {
 }
 
 // Validate validates the NamespaceProtoSchema.
-func (c NamespaceProtoSchema) Validate(testOnly bool) error {
-	if testOnly {
-		if c.SchemaFilePath == "" {
-			return errors.New("schemaFilePath is required for Proto data mode when testOnly is true")
-		}
-	} else {
-		if c.SchemaDeployID == "" {
-			return errors.New("schemaDeployID is required for Proto data mode")
-		}
+func (c NamespaceProtoSchema) Validate() error {
+	if c.SchemaFilePath == "" {
+		return errors.New("schemaFilePath is required for Proto data mode when testOnly is true")
 	}
 
 	if c.MessageName == "" {
@@ -130,7 +124,7 @@ func (c *ProtoConfiguration) Validate() error {
 	}
 
 	for _, schema := range c.SchemaRegistry {
-		if err := schema.Validate(c.TestOnly); err != nil {
+		if err := schema.Validate(); err != nil {
 			return err
 		}
 	}
