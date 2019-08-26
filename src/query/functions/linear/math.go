@@ -24,24 +24,26 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/lazy"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 const (
-	// AbsType takes absolute value of each datapoint in the series
+	// AbsType takes absolute value of each datapoint in the series.
 	AbsType = "abs"
 
-	// CeilType rounds each value in the timeseries up to the nearest integer
+	// CeilType rounds each value in the timeseries up to the nearest integer.
 	CeilType = "ceil"
 
-	// FloorType rounds each value in the timeseries down to the nearest integer
+	// FloorType rounds each value in the timeseries down to the nearest integer.
 	FloorType = "floor"
 
-	// ExpType calculates the exponential function for all values in the timerseies
+	// ExpType calculates the exponential function for all values.
 	// Special cases are: Exp(+Inf) = +Inf and Exp(NaN) = NaN
 	ExpType = "exp"
 
-	// SqrtType calculates the square root for all values in the timeseries
+	// SqrtType calculates the square root for all values.
 	SqrtType = "sqrt"
 
 	// Special cases for all of the following include:
@@ -50,18 +52,18 @@ const (
 	// ln(x < 0) = NaN
 	// ln(NaN) = NaN
 
-	// LnType calculates the natural logarithm for all values in the timeseries
+	// LnType calculates the natural logarithm for all values.
 	LnType = "ln"
 
-	// Log2Type calculates the binary logarithm for all values in the timeseries
+	// Log2Type calculates the binary logarithm for all values.
 	Log2Type = "log2"
 
-	// Log10Type calculates the decimal logarithm for all values in the timeseries
+	// Log10Type calculates the decimal logarithm for values.
 	Log10Type = "log10"
 )
 
 var (
-	mathFuncs = map[string]func(x float64) float64{
+	mathFuncs = map[string]block.ValueTransform{
 		AbsType:   math.Abs,
 		CeilType:  math.Ceil,
 		FloorType: math.Floor,
@@ -73,32 +75,12 @@ var (
 	}
 )
 
-// NewMathOp creates a new math op based on the type
-func NewMathOp(optype string) (BaseOp, error) {
-	if _, ok := mathFuncs[optype]; !ok {
-		return emptyOp, fmt.Errorf("unknown math type: %s", optype)
+// NewMathOp creates a new math op based on the type.
+func NewMathOp(opType string) (parser.Params, error) {
+	if fn, ok := mathFuncs[opType]; ok {
+		lazyOpts := block.NewLazyOptions().SetValueTransform(fn)
+		return lazy.NewLazyOp(opType, lazyOpts)
 	}
 
-	return BaseOp{
-		operatorType: optype,
-		processorFn:  newMathNode,
-	}, nil
-}
-
-func newMathNode(op BaseOp, controller *transform.Controller) Processor {
-	return &mathNode{op: op, controller: controller, mathFn: mathFuncs[op.operatorType]}
-}
-
-type mathNode struct {
-	op         BaseOp
-	mathFn     func(x float64) float64
-	controller *transform.Controller
-}
-
-func (m *mathNode) Process(values []float64) []float64 {
-	for i := range values {
-		values[i] = m.mathFn(values[i])
-	}
-
-	return values
+	return nil, fmt.Errorf("unknown math type: %s", opType)
 }

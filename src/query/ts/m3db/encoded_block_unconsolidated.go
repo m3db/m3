@@ -53,3 +53,7 @@ func (b *encodedBlockUnconsolidated) Close() error {
 
 	return nil
 }
+
+func (b *encodedBlockUnconsolidated) Meta() block.Metadata {
+	return b.meta
+}

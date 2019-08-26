@@ -62,7 +62,7 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	// Detect clients closing connections
+	// Detect clients closing connections.
 	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
 
 	// TODO: Capture timing
@@ -76,7 +76,7 @@ func read(
 		return nil, false, err
 	}
 
-	// Block slices are sorted by start time
+	// Block slices are sorted by start time.
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
 	resultChan := result.ResultChan()
@@ -116,10 +116,10 @@ func read(
 
 			numSteps = firstStepIter.StepCount()
 			numSeries = firstSeriesIter.SeriesCount()
-			exhaustive = firstStepIter.Meta().Exhaustive
+			exhaustive = b.Meta().Exhaustive
 		}
 
-		// Insert blocks sorted by start time
+		// Insert blocks sorted by start time.
 		sortedBlockList, ex, err = insertSortedBlock(b, sortedBlockList,
 			numSteps, numSeries)
 		if err != nil {
@@ -129,10 +129,12 @@ func read(
 		exhaustive = exhaustive && ex
 	}
 
-	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
+	// Ensure that the blocks are closed. Can't do this above since
+	// sortedBlockList might change.
 	defer func() {
 		for _, b := range sortedBlockList {
-			// FIXME: this will double close blocks that have gone through the function pipeline
+			// FIXME: this will double close blocks that have gone through the
+			// function pipeline.
 			b.block.Close()
 		}
 	}()
@@ -150,28 +152,35 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		return emptySeriesList, nil
 	}
 
-	firstBlock := blockList[0].block
+	var (
+		firstBlock = blockList[0].block
+		meta       = firstBlock.Meta()
+		bounds     = meta.Bounds
+		commonTags = meta.Tags.Tags
+	)
+
 	firstSeriesIter, err := firstBlock.SeriesIter()
 	if err != nil {
 		return nil, err
 	}
 
-	numSeries := firstSeriesIter.SeriesCount()
-	seriesMeta := firstSeriesIter.SeriesMeta()
-	bounds := firstSeriesIter.Meta().Bounds
-	commonTags := firstSeriesIter.Meta().Tags.Tags
+	var (
+		numSeries   = firstSeriesIter.SeriesCount()
+		seriesMeta  = firstSeriesIter.SeriesMeta()
+		seriesList  = make([]*ts.Series, 0, numSeries)
+		seriesIters = make([]block.SeriesIter, 0, len(blockList))
+	)
 
-	seriesList := make([]*ts.Series, numSeries)
-	seriesIters := make([]block.SeriesIter, len(blockList))
-	// To create individual series, we iterate over seriesIterators for each block in the block list.
-	// For each iterator, the nth current() will be combined to give the nth series
-	for i, b := range blockList {
+	// To create individual series, we iterate over seriesIterators for each
+	// block in the block list.  For each iterator, the nth current() will
+	// be combined to give the nth series.
+	for _, b := range blockList {
 		seriesIter, err := b.block.SeriesIter()
 		if err != nil {
 			return nil, err
 		}
 
-		seriesIters[i] = seriesIter
+		seriesIters = append(seriesIters, seriesIter)
 	}
 
 	numValues := 0
@@ -185,7 +194,8 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	}
 
 	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
+		values := ts.NewFixedStepValues(bounds.StepSize, numValues,
+			math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
@@ -193,7 +203,8 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 					return nil, err
 				}
 
-				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
+				return nil, fmt.Errorf(
+					"invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
 			if err = iter.Err(); err != nil {
@@ -207,8 +218,13 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 			}
 		}
 
-		tags := seriesMeta[i].Tags.AddTags(commonTags)
-		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, tags)
+		var (
+			meta   = seriesMeta[i]
+			tags   = meta.Tags.AddTags(commonTags)
+			series = ts.NewSeries(meta.Name, values, tags)
+		)
+
+		seriesList = append(seriesList, series)
 	}
 
 	return seriesList, nil
@@ -225,11 +241,11 @@ func insertSortedBlock(
 		return nil, false, err
 	}
 
-	blockMeta := blockSeriesIter.Meta()
+	meta := b.Meta()
 	if len(blockList) == 0 {
 		blockList = append(blockList, blockWithMeta{
 			block: b,
-			meta:  blockMeta,
+			meta:  meta,
 		})
 		return blockList, false, nil
 	}
@@ -242,7 +258,7 @@ func insertSortedBlock(
 
 	// Binary search to keep the start times sorted
 	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.After(blockMeta.Bounds.Start)
+		return blockList[i].meta.Bounds.Start.After(meta.Bounds.Start)
 	})
 
 	// Append here ensures enough size in the slice
@@ -250,9 +266,9 @@ func insertSortedBlock(
 	copy(blockList[index+1:], blockList[index:])
 	blockList[index] = blockWithMeta{
 		block: b,
-		meta:  blockMeta,
+		meta:  meta,
 	}
 
-	exhaustive := blockSeriesIter.Meta().Exhaustive
+	exhaustive := b.Meta().Exhaustive
 	return blockList, exhaustive, nil
 }

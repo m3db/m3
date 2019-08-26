@@ -133,7 +133,7 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	Tick(versions map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult
+	Tick(versions ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult
 
 	Load(bl block.DatabaseBlock, writeType WriteType)
 
@@ -365,7 +365,7 @@ func (b *dbBuffer) Stats() bufferStats {
 	}
 }
 
-func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult {
+func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult {
 	mergedOutOfOrder := 0
 	var evictedBucketTimes OptimizedTimes
 	for tNano, buckets := range b.bucketsMap {
@@ -377,35 +377,40 @@ func (b *dbBuffer) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespa
 		// 2) remove a lower versioned bucket.
 		// Retrievable and higher versioned buckets will be left to be
 		// collected in the next tick.
-		blockState := blockStates[tNano]
-		if coldVersion := blockState.ColdVersion; blockState.WarmRetrievable || coldVersion > 0 {
-			if blockState.WarmRetrievable {
-				// Buckets for WarmWrites that are retrievable will only be version 1, since
-				// they only get successfully persisted once.
-				buckets.removeBucketsUpToVersion(WarmWrite, 1)
-			}
-			if coldVersion > 0 {
-				buckets.removeBucketsUpToVersion(ColdWrite, coldVersion)
-			}
+		blockStateSnapshot, bootstrapped := blockStates.UnwrapValue()
+		// Only use block state snapshot information to make eviction decisions if the block state
+		// has been properly bootstrapped already.
+		if bootstrapped {
+			blockState := blockStateSnapshot.Snapshot[tNano]
+			if coldVersion := blockState.ColdVersion; blockState.WarmRetrievable || coldVersion > 0 {
+				if blockState.WarmRetrievable {
+					// Buckets for WarmWrites that are retrievable will only be version 1, since
+					// they only get successfully persisted once.
+					buckets.removeBucketsUpToVersion(WarmWrite, 1)
+				}
+				if coldVersion > 0 {
+					buckets.removeBucketsUpToVersion(ColdWrite, coldVersion)
+				}
 
-			if buckets.streamsLen() == 0 {
-				t := tNano.ToTime()
-				// All underlying buckets have been flushed successfully, so we can
-				// just remove the buckets from the bucketsMap.
-				b.removeBucketVersionsAt(t)
-				// Pass which bucket got evicted from the buffer to the series.
-				// Data gets read in order of precedence: buffer -> cache -> disk.
-				// After a bucket gets removed from the buffer, data from the cache
-				// will be served. However, since data just got persisted to disk,
-				// the cached block is now stale. To correct this, we can either:
-				// 1) evict the stale block from cache so that new data will
-				//    be retrieved from disk, or
-				// 2) merge the new data into the cached block.
-				// It's unclear whether recently flushed data would frequently be
-				// read soon afterward, so we're choosing (1) here, since it has a
-				// simpler implementation (just removing from a map).
-				evictedBucketTimes.Add(tNano)
-				continue
+				if buckets.streamsLen() == 0 {
+					t := tNano.ToTime()
+					// All underlying buckets have been flushed successfully, so we can
+					// just remove the buckets from the bucketsMap.
+					b.removeBucketVersionsAt(t)
+					// Pass which bucket got evicted from the buffer to the series.
+					// Data gets read in order of precedence: buffer -> cache -> disk.
+					// After a bucket gets removed from the buffer, data from the cache
+					// will be served. However, since data just got persisted to disk,
+					// the cached block is now stale. To correct this, we can either:
+					// 1) evict the stale block from cache so that new data will
+					//    be retrieved from disk, or
+					// 2) merge the new data into the cached block.
+					// It's unclear whether recently flushed data would frequently be
+					// read soon afterward, so we're choosing (1) here, since it has a
+					// simpler implementation (just removing from a map).
+					evictedBucketTimes.Add(tNano)
+					continue
+				}
 			}
 		}
 
@@ -725,12 +730,24 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if opts.IncludeLastRead {
 			resultLastRead = bv.lastRead()
 		}
-		// NB(r): Ignore if opts.IncludeChecksum because we avoid
-		// calculating checksum since block is open and is being mutated
+
+		var (
+			checksum *uint32
+			err      error
+		)
+		if opts.IncludeChecksums {
+			// Checksum calculations are best effort since we can't calculate one if there
+			// are multiple streams without performing an expensive merge.
+			checksum, err = bv.checksumIfSingleStream()
+			if err != nil {
+				return nil, err
+			}
+		}
 		res.Add(block.FetchBlockMetadataResult{
 			Start:    bv.start,
 			Size:     resultSize,
 			LastRead: resultLastRead,
+			Checksum: checksum,
 		})
 	}
 
@@ -898,6 +915,13 @@ func (b *BufferBucketVersions) streamsLen() int {
 		res += bucket.streamsLen()
 	}
 	return res
+}
+
+func (b *BufferBucketVersions) checksumIfSingleStream() (*uint32, error) {
+	if len(b.buckets) != 1 {
+		return nil, nil
+	}
+	return b.buckets[0].checksumIfSingleStream()
 }
 
 func (b *BufferBucketVersions) write(
@@ -1177,6 +1201,38 @@ func (b *BufferBucket) streamsLen() int {
 		length += b.encoders[i].encoder.Len()
 	}
 	return length
+}
+
+func (b *BufferBucket) checksumIfSingleStream() (*uint32, error) {
+	if b.hasJustSingleEncoder() {
+		enc := b.encoders[0].encoder
+		stream, ok := enc.Stream(encoding.StreamOptions{})
+		if !ok {
+			return nil, nil
+		}
+
+		segment, err := stream.Segment()
+		if err != nil {
+			return nil, err
+		}
+
+		if segment.Len() == 0 {
+			return nil, nil
+		}
+
+		checksum := digest.SegmentChecksum(segment)
+		return &checksum, nil
+	}
+
+	if b.hasJustSingleLoadedBlock() {
+		checksum, err := b.loadedBlocks[0].Checksum()
+		if err != nil {
+			return nil, err
+		}
+		return &checksum, nil
+	}
+
+	return nil, nil
 }
 
 func (b *BufferBucket) resetEncoders() {

@@ -111,4 +111,10 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 		assert.Equal(t, expected[i].Checksum, actual[i].Checksum)
 		assert.Equal(t, expected[i].LastRead, actual[i].LastRead)
 	}
+
+	for _, fetchMetadataResult := range res.Results() {
+		// Ensure that the consumed (and closed) tags are marked as nil so subsequent code paths
+		// can't trigger a double close.
+		require.Nil(t, fetchMetadataResult.Tags)
+	}
 }

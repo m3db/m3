@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,55 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package linear
+package config
 
-import (
-	"math"
-
-	"github.com/m3db/m3/src/query/executor/transform"
-)
-
-// AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
-// and returns a timeseries with the value 1 if the timeseries passed in has no elements
-const AbsentType = "absent"
-
-// NewAbsentOp creates a new base linear transform with an absent node
-func NewAbsentOp() BaseOp {
-	return BaseOp{
-		operatorType: AbsentType,
-		processorFn:  newAbsentNode,
-	}
-}
-
-func newAbsentNode(op BaseOp, controller *transform.Controller) Processor {
-	return &absentNode{
-		op:         op,
-		controller: controller,
-	}
-}
-
-type absentNode struct {
-	op         BaseOp
-	controller *transform.Controller
-}
-
-func (c *absentNode) Process(values []float64) []float64 {
-	num := 1.0
-	if !allNaNs(values) {
-		num = math.NaN()
-	}
-
-	for i := range values {
-		values[i] = num
-	}
-	return values
-}
-
-func allNaNs(vals []float64) bool {
-	for _, i := range vals {
-		if !math.IsNaN(i) {
-			return false
-		}
-	}
-	return true
+// Limits contains configuration for configurable limits that can be applied to M3DB.
+type Limits struct {
+	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
+	// that the server will allow before it begins rejecting requests. Note that this value
+	// is independent of the number of values that are being written (due to variable batch
+	// size from the client) but is still very useful for enforcing backpressure due to the fact
+	// that all writes within a single RPC are single-threaded.
+	MaxOutstandingWriteRequests int `yaml:"maxOutstandingWriteRequests" validate:"min=0"`
+	// MaxOutstandingReadRequests controls the maximum number of outstanding read requests that
+	// the server will allow before it begins rejecting requests. Just like MaxOutstandingWriteRequests
+	// this value is independent of the number of time series being read.
+	MaxOutstandingReadRequests int `yaml:"maxOutstandingReadRequests" validate:"min=0"`
 }

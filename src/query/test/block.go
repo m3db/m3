@@ -185,14 +185,20 @@ func NewBlockFromValuesWithMetaAndSeriesMeta(
 		seriesMeta,
 	)
 
-	if err := columnBuilder.AddCols(len(seriesValues[0])); err != nil {
+	if err := columnBuilder.AddCols(meta.Bounds.Steps()); err != nil {
 		panic(err)
 	}
 
-	for _, seriesVal := range seriesValues {
-		for idx, val := range seriesVal {
-			if err := columnBuilder.AppendValue(idx, val); err != nil {
-				panic(err)
+	if len(seriesValues) > 0 {
+		for _, seriesVal := range seriesValues {
+			if meta.Bounds.Steps() != len(seriesVal) {
+				panic("invalid bounds for test series")
+			}
+
+			for idx, val := range seriesVal {
+				if err := columnBuilder.AppendValue(idx, val); err != nil {
+					panic(err)
+				}
 			}
 		}
 	}

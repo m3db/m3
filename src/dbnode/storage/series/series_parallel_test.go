@@ -46,7 +46,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		series            = NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	)
 
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()

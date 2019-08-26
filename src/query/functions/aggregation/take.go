@@ -127,7 +127,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	}
 
 	params := n.op.params
-	meta := stepIter.Meta()
+	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, _ := utils.GroupSeries(
 		params.MatchingTags,

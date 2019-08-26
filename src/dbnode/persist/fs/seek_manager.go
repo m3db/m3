@@ -209,23 +209,32 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 	return multiErr.FinalError()
 }
 
-func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error) {
+func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
 	byTime := m.seekersByTime(shard)
 
 	// Try fast RLock() first.
 	byTime.RLock()
 	startNano := xtime.ToUnixNano(start)
 	seekers, ok := byTime.seekers[startNano]
-	byTime.RUnlock()
 
+	// Seekers are open: good to test but still hold RLock while doing so
 	if ok && seekers.active.wg == nil {
-		return seekers.active.bloomFilter, nil
+		idExists := seekers.active.bloomFilter.Test(id.Bytes())
+		byTime.RUnlock()
+		return idExists, nil
+	} else {
+		byTime.RUnlock()
 	}
 
 	byTime.Lock()
+	defer byTime.Unlock()
+
 	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
-	byTime.Unlock()
-	return seekersAndBloom.bloomFilter, err
+	if err != nil {
+		return false, err
+	}
+
+	return seekersAndBloom.bloomFilter.Test(id.Bytes()), nil
 }
 
 func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
@@ -463,8 +472,6 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
-	// If any of the previous seekers are still borrowed this function will need to wait for
-	// them to be returned.
 	anySeekersAreBorrowed := false
 	for _, seeker := range seekers.inactive.seekers {
 		if seeker.isBorrowed {
@@ -481,6 +488,10 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		wg = &sync.WaitGroup{}
 		wg.Add(1)
 		seekers.inactive.wg = wg
+	} else {
+		// If none of the existing seekers are currently borrowed then we can just close them all.
+		m.closeSeekersAndLogError(descriptor, seekers.inactive.seekers)
+		seekers.inactive = seekersAndBloom{}
 	}
 	byTime.seekers[blockStartNano] = seekers
 

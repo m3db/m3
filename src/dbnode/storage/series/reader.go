@@ -167,7 +167,11 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 				// No-op, block metadata should have been in-memory
 			case r.retriever != nil:
 				// Try to stream from disk
-				if r.retriever.IsBlockRetrievable(blockAt) {
+				isRetrievable, err := r.retriever.IsBlockRetrievable(blockAt)
+				if err != nil {
+					return nil, err
+				}
+				if isRetrievable {
 					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve, nsCtx)
 					if err != nil {
 						return nil, err
@@ -272,7 +276,17 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 				// No-op, block metadata should have been in-memory
 			case r.retriever != nil:
 				// Try to stream from disk
-				if r.retriever.IsBlockRetrievable(start) {
+				isRetrievable, err := r.retriever.IsBlockRetrievable(start)
+				if err != nil {
+					// Short-circuit this entire blockstart if an error was encountered.
+					r := block.NewFetchBlockResult(start, nil,
+						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
+							r.id.String(), start, err))
+					res = append(res, r)
+					continue
+				}
+
+				if isRetrievable {
 					streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve, nsCtx)
 					if err != nil {
 						// Short-circuit this entire blockstart if an error was encountered.

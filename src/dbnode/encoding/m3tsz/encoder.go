@@ -26,11 +26,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -310,9 +310,26 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
-// Len returns the length of the data stream.
+// Len returns the length of the final data stream that would be generated
+// by a call to Stream().
 func (enc *encoder) Len() int {
-	return enc.os.Len()
+	raw, pos := enc.os.Rawbytes()
+	if len(raw) == 0 {
+		return 0
+	}
+
+	// Calculate how long the stream would be once it was "capped" with a tail.
+	var (
+		lastIdx  = len(raw) - 1
+		lastByte = raw[lastIdx]
+		scheme   = enc.opts.MarkerEncodingScheme()
+		tail     = scheme.Tail(lastByte, pos)
+	)
+	tail.IncRef()
+	tailLen := tail.Len()
+	tail.DecRef()
+
+	return len(raw[:lastIdx]) + tailLen
 }
 
 // Close closes the encoder.

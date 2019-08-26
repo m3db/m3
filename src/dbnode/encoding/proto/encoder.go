@@ -478,12 +478,24 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
 	if enc.schema == nil {
-		enc.nonCustomFields = nil
-		enc.customFields = nil
-	} else {
-		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
-		enc.hasEncodedSchema = false
+		// Clear but don't set to nil so they don't need to be reallocated
+		// next time.
+		customFields := enc.customFields
+		for i := range customFields {
+			customFields[i] = customFieldState{}
+		}
+		enc.customFields = customFields[:0]
+
+		nonCustomFields := enc.nonCustomFields
+		for i := range nonCustomFields {
+			nonCustomFields[i] = marshalledField{}
+		}
+		enc.nonCustomFields = nonCustomFields[:0]
+		return
 	}
+
+	enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
+	enc.hasEncodedSchema = false
 }
 
 // Close closes the encoder.

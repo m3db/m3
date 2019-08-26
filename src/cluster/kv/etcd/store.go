@@ -112,7 +112,7 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 		go func() {
 			for range store.cacheUpdatedCh {
 				if err := store.writeCacheToFile(); err != nil {
-					store.logger.Error("failed to write cache to file", zap.Error(err))
+					store.logger.Warn("failed to write cache to file", zap.Error(err))
 				}
 			}
 		}()

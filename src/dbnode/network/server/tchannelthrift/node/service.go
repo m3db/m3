@@ -51,11 +51,11 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -149,6 +149,12 @@ type serviceState struct {
 	sync.RWMutex
 	db     storage.Database
 	health *rpc.NodeHealthResult_
+
+	numOutstandingWriteRPCs int
+	maxOutstandingWriteRPCs int
+
+	numOutstandingReadRPCs int
+	maxOutstandingReadRPCs int
 }
 
 func (s *serviceState) DB() (storage.Database, bool) {
@@ -163,6 +169,52 @@ func (s *serviceState) Health() (*rpc.NodeHealthResult_, bool) {
 	v := s.health
 	s.RUnlock()
 	return v, v != nil
+}
+
+func (s *serviceState) DBForWriteRPCWithLimit() (
+	db storage.Database, dbInitialized bool, rpcDoesNotExceedLimit bool) {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.db == nil {
+		return nil, false, false
+	}
+	if s.numOutstandingWriteRPCs >= s.maxOutstandingWriteRPCs {
+		return nil, true, false
+	}
+
+	v := s.db
+	s.numOutstandingWriteRPCs++
+	return v, true, true
+}
+
+func (s *serviceState) DecNumOutstandingWriteRPCs() {
+	s.Lock()
+	s.numOutstandingWriteRPCs--
+	s.Unlock()
+}
+
+func (s *serviceState) DBForReadRPCWithLimit() (
+	db storage.Database, dbInitialized bool, requestDoesNotExceedLimit bool) {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.db == nil {
+		return nil, false, false
+	}
+	if s.numOutstandingReadRPCs >= s.maxOutstandingReadRPCs {
+		return nil, true, false
+	}
+
+	v := s.db
+	s.numOutstandingReadRPCs++
+	return v, true, true
+}
+
+func (s *serviceState) DecNumOutstandingReadRPCs() {
+	s.Lock()
+	s.numOutstandingReadRPCs--
+	s.Unlock()
 }
 
 type pools struct {
@@ -224,7 +276,15 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	})
 	segmentPool.Init()
 
-	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
+	writeBatchPoolSize := writeBatchPooledReqPoolSize
+	if maxWriteReqs := opts.MaxOutstandingWriteRequests(); maxWriteReqs > 0 {
+		// If a limit on the number of maximum outstanding write
+		// requests has been set then we know the exact number of
+		// of writeBatchPooledReq objects we need to never have to
+		// allocate one on demand.
+		writeBatchPoolSize = maxWriteReqs
+	}
+	writeBatchPooledReqPool := newWriteBatchPooledReqPool(writeBatchPoolSize, iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
 	return &service{
@@ -235,6 +295,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 				Status:       "up",
 				Bootstrapped: false,
 			},
+			maxOutstandingWriteRPCs: opts.MaxOutstandingWriteRequests(),
+			maxOutstandingReadRPCs:  opts.MaxOutstandingReadRequests(),
 		},
 		logger:  iopts.Logger(),
 		opts:    opts,
@@ -346,10 +408,11 @@ func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.Query)
 	sp.LogFields(
@@ -429,10 +492,11 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	var (
 		callStart = s.nowFn()
@@ -473,12 +537,20 @@ func (s *service) readDatapoints(
 		return nil, err
 	}
 
+	// Resolve all futures (block reads can be backed by async implementations) and filter out any empty segments.
+	filteredBlockReaderSliceOfSlices, err := xio.FilterEmptyBlockReadersSliceOfSlicesInPlace(encoded)
+	if err != nil {
+		return nil, err
+	}
+
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	datapoints := make([]*rpc.Datapoint, 0)
 
 	multiIt := db.Options().MultiReaderIteratorPool().Get()
 	nsCtx := namespace.NewContextFor(nsID, db.Options().SchemaRegistry())
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded), nsCtx.Schema)
+	multiIt.ResetSliceOfSlices(
+		xio.NewReaderSliceOfSlicesFromBlockReadersIterator(
+			filteredBlockReaderSliceOfSlices), nsCtx.Schema)
 	defer multiIt.Close()
 
 	for multiIt.Next() {
@@ -505,10 +577,11 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.FetchTagged)
 	sp.LogFields(
@@ -582,10 +655,11 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -625,10 +699,11 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -692,10 +767,11 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -748,10 +824,11 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	var (
 		callStart = s.nowFn()
@@ -823,10 +900,11 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	defer func() {
@@ -957,10 +1035,11 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1003,10 +1082,11 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1056,10 +1136,11 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1082,6 +1163,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
+
 	// The lifecycle of the annotations is more involved than the rest of the data
 	// so we set the annotation pool put method as the finalization function and
 	// let the database take care of returning them to the pool.
@@ -1139,10 +1221,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1165,9 +1248,12 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
-	// The lifecycle of the annotations is more involved than the rest of the data
-	// so we set the annotation pool put method as the finalization function and
-	// let the database take care of returning them to the pool.
+
+	// The lifecycle of the encoded tags and annotations is more involved than
+	// the rest of the data so we set the encoded tags and annotation pool put
+	// calls as finalization functions and let the database take care of
+	// returning them to the pool.
+	batchWriter.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
 	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
@@ -1197,6 +1283,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			i,
 			seriesID,
 			dec,
+			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
@@ -1442,6 +1529,68 @@ func (s *service) SetDatabase(db storage.Database) error {
 	return nil
 }
 
+func (s *service) startWriteRPCWithDB() (storage.Database, error) {
+	if s.state.maxOutstandingWriteRPCs == 0 {
+		// No limitations on number of outstanding requests.
+		return s.startRPCWithDB()
+	}
+
+	db, dbIsInitialized, requestDoesNotExceedLimit := s.state.DBForWriteRPCWithLimit()
+	if !dbIsInitialized {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+	if !requestDoesNotExceedLimit {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return db, nil
+}
+
+func (s *service) writeRPCCompleted() {
+	if s.state.maxOutstandingWriteRPCs == 0 {
+		// Nothing to do since we're not tracking the number outstanding RPCs.
+		return
+	}
+
+	s.state.DecNumOutstandingWriteRPCs()
+}
+
+func (s *service) startReadRPCWithDB() (storage.Database, error) {
+	if s.state.maxOutstandingReadRPCs == 0 {
+		// No limitations on number of outstanding requests.
+		return s.startRPCWithDB()
+	}
+
+	db, dbIsInitialized, requestDoesNotExceedLimit := s.state.DBForReadRPCWithLimit()
+	if !dbIsInitialized {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+	if !requestDoesNotExceedLimit {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return db, nil
+}
+
+func (s *service) readRPCCompleted() {
+	if s.state.maxOutstandingReadRPCs == 0 {
+		// Nothing to do since we're not tracking the number outstanding RPCs.
+		return
+	}
+
+	s.state.DecNumOutstandingReadRPCs()
+}
+
 func (s *service) startRPCWithDB() (storage.Database, error) {
 	db, ok := s.state.DB()
 	if !ok {
@@ -1620,7 +1769,11 @@ func (r *writeBatchPooledReq) Finalize() {
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			apachethrift.BytesPoolPut(elem.EncodedTags)
+			// Ownership of the encoded tags has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+
 			// See comment above about not finalizing annotations here.
 		}
 		r.writeTaggedReq = nil
@@ -1686,10 +1839,11 @@ type writeBatchPooledReqPool struct {
 }
 
 func newWriteBatchPooledReqPool(
+	size int,
 	iopts instrument.Options,
 ) *writeBatchPooledReqPool {
 	pool := pool.NewObjectPool(pool.NewObjectPoolOptions().
-		SetSize(writeBatchPooledReqPoolSize).
+		SetSize(size).
 		SetInstrumentOptions(iopts.SetMetricsScope(
 			iopts.MetricsScope().SubScope("write-batch-pooled-req-pool"))))
 	return &writeBatchPooledReqPool{pool: pool}
@@ -1727,6 +1881,13 @@ func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 	p.pool.Put(v)
+}
+
+// finalizeEncodedTagsFn implements ts.FinalizeEncodedTagsFn because
+// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
+// does not.
+func finalizeEncodedTagsFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
 
 // finalizeAnnotationFn implements ts.FinalizeAnnotationFn because

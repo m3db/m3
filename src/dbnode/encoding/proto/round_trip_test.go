@@ -60,6 +60,7 @@ func init() {
 func TestRoundTrip(t *testing.T) {
 	testCases := []struct {
 		timestamp  time.Time
+		unit       xtime.Unit
 		latitude   float64
 		longitude  float64
 		epoch      int64
@@ -67,11 +68,13 @@ func TestRoundTrip(t *testing.T) {
 		attributes map[string]string
 	}{
 		{
+			unit:      xtime.Second,
 			latitude:  0.1,
 			longitude: 1.1,
 			epoch:     -1,
 		},
 		{
+			unit:       xtime.Nanosecond,
 			latitude:   0.1,
 			longitude:  1.1,
 			epoch:      0,
@@ -79,6 +82,7 @@ func TestRoundTrip(t *testing.T) {
 			attributes: map[string]string{"key1": "val1"},
 		},
 		{
+			unit:       xtime.Nanosecond,
 			latitude:   0.2,
 			longitude:  2.2,
 			epoch:      1,
@@ -86,18 +90,21 @@ func TestRoundTrip(t *testing.T) {
 			attributes: map[string]string{"key1": "val1"},
 		},
 		{
+			unit:       xtime.Millisecond,
 			latitude:   0.3,
 			longitude:  2.3,
 			epoch:      2,
 			deliveryID: []byte("123123123123"),
 		},
 		{
+			unit:       xtime.Second,
 			latitude:   0.4,
 			longitude:  2.4,
 			epoch:      3,
 			attributes: map[string]string{"key1": "val1"},
 		},
 		{
+			unit:       xtime.Second,
 			latitude:   0.5,
 			longitude:  2.5,
 			epoch:      4,
@@ -108,11 +115,13 @@ func TestRoundTrip(t *testing.T) {
 			},
 		},
 		{
+			unit:       xtime.Millisecond,
 			latitude:   0.6,
 			longitude:  2.6,
 			deliveryID: nil,
 		},
 		{
+			unit:       xtime.Nanosecond,
 			latitude:   0.5,
 			longitude:  2.5,
 			deliveryID: []byte("789789789789"),
@@ -129,10 +138,12 @@ func TestRoundTrip(t *testing.T) {
 		marshalledVL, err := vl.Marshal()
 		require.NoError(t, err)
 
-		currTime := curr.Add(time.Duration(i) * time.Second)
+		duration, err := xtime.DurationFromUnit(tc.unit)
+		require.NoError(t, err)
+		currTime := curr.Add(time.Duration(i) * duration)
 		testCases[i].timestamp = currTime
 		// Encoder should ignore value so we set it to make sure it gets ignored.
-		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, xtime.Second, marshalledVL)
+		err = enc.Encode(ts.Datapoint{Timestamp: currTime, Value: float64(i)}, tc.unit, marshalledVL)
 		require.NoError(t, err)
 
 		lastEncoded, err := enc.LastEncoded()
@@ -144,7 +155,7 @@ func TestRoundTrip(t *testing.T) {
 
 	// Add some sanity to make sure that the compression (especially string compression)
 	// is working properly.
-	numExpectedBytes := 233
+	numExpectedBytes := 281
 	require.Equal(t, numExpectedBytes, enc.Stats().CompressedBytes)
 
 	rawBytes, err := enc.Bytes()
@@ -163,13 +174,14 @@ func TestRoundTrip(t *testing.T) {
 		m := dynamic.NewMessage(testVLSchema)
 		require.NoError(t, m.Unmarshal(annotation))
 
-		fmt.Println(m.String())
-		require.Equal(t, unit, xtime.Second)
-		require.True(t, tc.timestamp.Equal(dp.Timestamp))
+		require.Equal(t, unit, testCases[i].unit)
+		require.True(t,
+			tc.timestamp.Equal(dp.Timestamp),
+			fmt.Sprintf("expected: %s, got: %s", tc.timestamp.String(), dp.Timestamp.String()))
 		// Value is meaningless for proto so should always be zero
 		// regardless of whats written.
 		require.Equal(t, float64(0), dp.Value)
-		require.Equal(t, xtime.Second, unit)
+		require.Equal(t, tc.unit, unit)
 		require.Equal(t, tc.latitude, m.GetFieldByName("latitude"))
 		require.Equal(t, tc.longitude, m.GetFieldByName("longitude"))
 		require.Equal(t, tc.epoch, m.GetFieldByName("epoch"))

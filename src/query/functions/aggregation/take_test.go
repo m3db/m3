@@ -78,7 +78,7 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 		// Taking bottomk(1) of first two series, keeping both series
 		{0, math.NaN(), 2, 3, 4},
 		{math.NaN(), 6, math.NaN(), math.NaN(), math.NaN()},
-		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
+		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
 		{10, 20, 30, 40, 50},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -102,7 +102,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 		// Taking bottomk(1) of first two series, keeping both series
 		{0, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), 6, 7, 8, 9},
-		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
+		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{100, 200, 300, 400, 500},
@@ -126,7 +126,7 @@ func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 		// Taking bottomk(1) of first two series, keeping both series
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
+		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},

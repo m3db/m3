@@ -117,11 +117,12 @@ type Database interface {
 	// or WriteTaggedBatch.
 	//
 	// Note that when using the BatchWriter the caller owns the lifecycle of the series
-	// IDs and tag iterators (I.E) if they're being pooled its the callers responsibility
-	// to return them to the appropriate pool, but the annotations are owned by the
+	// IDs if they're being pooled its the callers responsibility to return them to the
+	// appropriate pool, but the encoded tags and annotations are owned by the
 	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
-	// due to their lifecycle being more complicated. Callers can still control the pooling
-	// of the annotations by using the SetFinalizeAnnotationFn on the WriteBatch itself.
+	// due to their lifecycle being more complicated.
+	// Callers can still control the pooling of the encoded tags and annotations by using
+	// the SetFinalizeEncodedTagsFn and SetFinalizeAnnotationFn on the WriteBatch itself.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
@@ -269,7 +270,7 @@ type databaseNamespace interface {
 	GetIndex() (namespaceIndex, error)
 
 	// Tick performs any regular maintenance operations.
-	Tick(c context.Cancellable, tickStart time.Time) error
+	Tick(c context.Cancellable, startTime time.Time) error
 
 	// Write writes a data point.
 	Write(
@@ -336,11 +337,7 @@ type databaseNamespace interface {
 	Bootstrap(start time.Time, process bootstrap.Process) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(
-		blockStart time.Time,
-		ShardBootstrapStates ShardBootstrapStates,
-		flush persist.FlushPreparer,
-	) error
+	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
@@ -358,7 +355,7 @@ type databaseNamespace interface {
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
-	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
+	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) (bool, error)
 
 	// Truncate truncates the in-memory data for this namespace.
 	Truncate() (int64, error)
@@ -401,7 +398,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs all async updates
-	Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error)
+	Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -466,6 +463,10 @@ type databaseShard interface {
 		bootstrappedSeries *result.Map,
 	) error
 
+	// Load does the same thing as Bootstrap, except it can be called more than once
+	// and after a shard is bootstrapped already.
+	Load(series *result.Map) error
+
 	// WarmFlush flushes the WarmWrites in this shard.
 	WarmFlush(
 		blockStart time.Time,
@@ -489,7 +490,7 @@ type databaseShard interface {
 	) error
 
 	// FlushState returns the flush state for this shard at block start.
-	FlushState(blockStart time.Time) fileOpState
+	FlushState(blockStart time.Time) (fileOpState, error)
 
 	// CleanupExpiredFileSets removes expired fileset files.
 	CleanupExpiredFileSets(earliestToRetain time.Time) error
@@ -503,6 +504,7 @@ type databaseShard interface {
 	Repair(
 		ctx context.Context,
 		nsCtx namespace.Context,
+		nsMeta namespace.Metadata,
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
@@ -513,6 +515,9 @@ type databaseShard interface {
 
 // namespaceIndex indexes namespace writes.
 type namespaceIndex interface {
+	// AssignShardSet sets the shard set assignment and returns immediately.
+	AssignShardSet(shardSet sharding.ShardSet)
+
 	// BlockStartForWriteTime returns the index block start
 	// time for the given writeTime.
 	BlockStartForWriteTime(
@@ -552,7 +557,7 @@ type namespaceIndex interface {
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
-	Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error)
+	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
 
 	// Flush performs any flushes that the index has outstanding using
 	// the owned shards of the database.
@@ -610,7 +615,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+	Flush(startTime time.Time) error
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
@@ -635,7 +640,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+	Flush(t time.Time) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status.
@@ -651,7 +656,6 @@ type databaseFileSystemManager interface {
 	// returning true if those operations are performed, and false otherwise.
 	Run(
 		t time.Time,
-		dbBootstrapStateAtTickStart DatabaseBootstrapState,
 		runType runType,
 		forceType forceType,
 	) bool
@@ -673,6 +677,7 @@ type databaseShardRepairer interface {
 	Repair(
 		ctx context.Context,
 		nsCtx namespace.Context,
+		nsMeta namespace.Metadata,
 		tr xtime.Range,
 		shard databaseShard,
 	) (repair.MetadataComparisonResult, error)
@@ -698,7 +703,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(forceType forceType, tickStart time.Time) error
+	Tick(forceType forceType, startTime time.Time) error
 }
 
 // databaseMediator mediates actions among various database managers.
@@ -723,7 +728,7 @@ type databaseMediator interface {
 	EnableFileOps()
 
 	// Tick performs a tick.
-	Tick(runType runType, forceType forceType) error
+	Tick(forceType forceType, startTime time.Time) error
 
 	// Repair repairs the database.
 	Repair() error
@@ -737,18 +742,6 @@ type databaseMediator interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
-}
-
-// databaseNamespaceWatch watches for namespace updates.
-type databaseNamespaceWatch interface {
-	// Start starts the namespace watch.
-	Start() error
-
-	// Stop stops the namespace watch.
-	Stop() error
-
-	// close stops the watch, and releases any held resources.
-	Close() error
 }
 
 // Options represents the options for storage.

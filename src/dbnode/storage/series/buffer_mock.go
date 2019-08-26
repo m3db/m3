@@ -208,7 +208,7 @@ func (mr *MockdatabaseBufferMockRecorder) Stats() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseBuffer) Tick(versions map[time0.UnixNano]BlockState, nsCtx namespace.Context) bufferTickResult {
+func (m *MockdatabaseBuffer) Tick(versions ShardBlockStateSnapshot, nsCtx namespace.Context) bufferTickResult {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", versions, nsCtx)
 	ret0, _ := ret[0].(bufferTickResult)

@@ -22,6 +22,7 @@ package block
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/query/ts"
@@ -29,24 +30,49 @@ import (
 )
 
 var (
-	errMismatchedStepIter   = errors.New("container step iter has mismatched step size")
-	errMismatchedUcStepIter = errors.New("unconsolidated container step iter has mismatched step size")
+	errMismatchedStepIter = errors.New(
+		"container step iter has mismatched step size")
+	errMismatchedUcStepIter = errors.New(
+		"unconsolidated container step iter has mismatched step size")
+	errNoContainerBlocks = errors.New(
+		"no blocks provided to initialize container block")
 )
 
 type containerBlock struct {
 	err    error
+	meta   Metadata
 	blocks []Block
 }
 
-func newContainerBlock(blocks []Block) AccumulatorBlock {
+func newContainerBlock(blocks []Block) (AccumulatorBlock, error) {
+	if len(blocks) == 0 {
+		return nil, errNoContainerBlocks
+	}
+
+	meta := blocks[0].Meta()
+	for _, b := range blocks[1:] {
+		m := b.Meta()
+		if !m.Equals(meta) {
+			return nil, fmt.Errorf("mismatched metadata in container block: "+
+				"expected %s, got %s", meta.String(), m.String())
+		}
+	}
+
 	return &containerBlock{
 		blocks: blocks,
-	}
+		meta:   meta,
+	}, nil
 }
 
-// NewContainerBlock creates a Container block.
-func NewContainerBlock(blocks ...Block) AccumulatorBlock {
+// NewContainerBlock creates a container block, which allows iterating across
+// blocks incoming from multiple data sources, provided they have the same
+// bounds.
+func NewContainerBlock(blocks ...Block) (AccumulatorBlock, error) {
 	return newContainerBlock(blocks)
+}
+
+func (b *containerBlock) Meta() Metadata {
+	return b.meta
 }
 
 func (b *containerBlock) AddBlock(bl Block) error {
@@ -54,8 +80,18 @@ func (b *containerBlock) AddBlock(bl Block) error {
 		return b.err
 	}
 
+	m, blockMeta := b.Meta(), bl.Meta()
+	if !m.Equals(blockMeta) {
+		return fmt.Errorf("mismatched metadata adding block to container block: "+
+			"expected %s, got %s", m.String(), blockMeta.String())
+	}
+
 	b.blocks = append(b.blocks, bl)
 	return nil
+}
+
+func (c *containerBlock) Info() BlockInfo {
+	return NewBlockInfo(BlockContainer)
 }
 
 func (b *containerBlock) Close() error {
@@ -65,7 +101,12 @@ func (b *containerBlock) Close() error {
 		multiErr = multiErr.Add(bl.Close())
 	}
 
-	return multiErr.FinalError()
+	if err := multiErr.FinalError(); err != nil {
+		b.err = err
+		return err
+	}
+
+	return nil
 }
 
 func (b *containerBlock) StepIter() (StepIter, error) {
@@ -161,21 +202,6 @@ func (it *containerStepIter) Next() bool {
 	}
 
 	return next
-}
-
-func (it *containerStepIter) Meta() Metadata {
-	if len(it.its) == 0 {
-		return Metadata{Exhaustive: true}
-	}
-
-	meta := it.its[0].Meta()
-	exhaustive := meta.Exhaustive
-	for _, iter := range it.its[1:] {
-		exhaustive = exhaustive && iter.Meta().Exhaustive
-	}
-
-	meta.Exhaustive = exhaustive
-	return meta
 }
 
 func (it *containerStepIter) Current() Step {
@@ -296,46 +322,31 @@ func (it *containerSeriesIter) Current() Series {
 	return it.its[it.idx].Current()
 }
 
-func (it *containerSeriesIter) Meta() Metadata {
-	if len(it.its) == 0 {
-		return Metadata{Exhaustive: true}
-	}
-
-	meta := it.its[0].Meta()
-	exhaustive := meta.Exhaustive
-	for _, iter := range it.its[1:] {
-		exhaustive = exhaustive && iter.Meta().Exhaustive
-	}
-
-	meta.Exhaustive = exhaustive
-	return meta
-}
-
-// Unconsolidated returns the unconsolidated version for the block
 func (b *containerBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
 
-	ucBlock := &ucContainerBlock{
-		blocks: make([]UnconsolidatedBlock, 0, len(b.blocks)),
-	}
-
-	for i, bl := range b.blocks {
+	blocks := make([]UnconsolidatedBlock, 0, len(b.blocks))
+	for _, bl := range b.blocks {
 		unconsolidated, err := bl.Unconsolidated()
 		if err != nil {
 			b.err = err
 			return nil, err
 		}
 
-		ucBlock.blocks[i] = unconsolidated
+		blocks = append(blocks, unconsolidated)
 	}
 
-	return ucBlock, nil
+	return &ucContainerBlock{
+		blocks: blocks,
+		meta:   b.meta,
+	}, nil
 }
 
 type ucContainerBlock struct {
 	err    error
+	meta   Metadata
 	blocks []UnconsolidatedBlock
 }
 
@@ -346,7 +357,16 @@ func (b *ucContainerBlock) Close() error {
 		multiErr = multiErr.Add(bl.Close())
 	}
 
-	return multiErr.FinalError()
+	if err := multiErr.FinalError(); err != nil {
+		b.err = err
+		return err
+	}
+
+	return nil
+}
+
+func (b *ucContainerBlock) Meta() Metadata {
+	return b.meta
 }
 
 func (b *ucContainerBlock) Consolidate() (Block, error) {
@@ -365,7 +385,7 @@ func (b *ucContainerBlock) Consolidate() (Block, error) {
 		consolidated = append(consolidated, block)
 	}
 
-	return newContainerBlock(consolidated), nil
+	return newContainerBlock(consolidated)
 }
 
 func (b *ucContainerBlock) StepIter() (UnconsolidatedStepIter, error) {
@@ -463,21 +483,6 @@ func (it *ucContainerStepIter) Next() bool {
 	}
 
 	return next
-}
-
-func (it *ucContainerStepIter) Meta() Metadata {
-	if len(it.its) == 0 {
-		return Metadata{Exhaustive: true}
-	}
-
-	meta := it.its[0].Meta()
-	exhaustive := meta.Exhaustive
-	for _, iter := range it.its[1:] {
-		exhaustive = exhaustive && iter.Meta().Exhaustive
-	}
-
-	meta.Exhaustive = exhaustive
-	return meta
 }
 
 func (it *ucContainerStepIter) Current() UnconsolidatedStep {
@@ -599,19 +604,4 @@ func (it *ucContainerSeriesIter) Next() bool {
 
 func (it *ucContainerSeriesIter) Current() UnconsolidatedSeries {
 	return it.its[it.idx].Current()
-}
-
-func (it *ucContainerSeriesIter) Meta() Metadata {
-	if len(it.its) == 0 {
-		return Metadata{Exhaustive: true}
-	}
-
-	meta := it.its[0].Meta()
-	exhaustive := meta.Exhaustive
-	for _, iter := range it.its[1:] {
-		exhaustive = exhaustive && iter.Meta().Exhaustive
-	}
-
-	meta.Exhaustive = exhaustive
-	return meta
 }

@@ -18,13 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package namespace
 
 import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/fortytw2/leaktest"
@@ -33,22 +32,18 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
-	databaseNamespaceWatch,
-	*Mockdatabase,
-	*namespace.MockWatch,
+func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller, updater NamespaceUpdater) (
+	NamespaceWatch,
+	*MockWatch,
 ) {
 	testScope := tally.NewTestScope("", nil)
 	iopts := instrument.NewOptions().
 		SetMetricsScope(testScope).
 		SetReportInterval(10 * time.Millisecond)
 
-	// NB: Can't use golang.Mock generated database here because we need to use
-	// EXPECT on unexported methods, which fails due to: https://github.com/golang/mock/issues/52
-	mockDB := NewMockdatabase(ctrl)
-	mockWatch := namespace.NewMockWatch(ctrl)
+	mockWatch := NewMockWatch(ctrl)
 
-	return newDatabaseNamespaceWatch(mockDB, mockWatch, iopts), mockDB, mockWatch
+	return NewNamespaceWatch(updater, mockWatch, iopts), mockWatch
 }
 
 func TestNamespaceWatchStartStop(t *testing.T) {
@@ -60,7 +55,8 @@ func TestNamespaceWatchStartStop(t *testing.T) {
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
-	dbWatch, _, mockWatch := newTestNamespaceWatch(t, ctrl)
+	noopUpdater := func(Map) error {return nil}
+	dbWatch, mockWatch := newTestNamespaceWatch(t, ctrl, noopUpdater)
 
 	mockWatch.EXPECT().C().Return(ch).AnyTimes()
 	// start and stop
@@ -81,7 +77,8 @@ func TestNamespaceWatchStopWithoutStart(t *testing.T) {
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
-	dbWatch, _, _ := newTestNamespaceWatch(t, ctrl)
+	noopUpdater := func(Map) error {return nil}
+	dbWatch, _ := newTestNamespaceWatch(t, ctrl, noopUpdater)
 	require.Error(t, dbWatch.Stop())
 	require.NoError(t, dbWatch.Close())
 }
@@ -95,14 +92,15 @@ func TestNamespaceWatchUpdatePropagation(t *testing.T) {
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
-	mockMap := namespace.NewMockMap(ctrl)
-	mockMap.EXPECT().Metadatas().Return([]namespace.Metadata{}).AnyTimes()
-	dbWatch, mockDB, mockWatch := newTestNamespaceWatch(t, ctrl)
+	mockMap := NewMockMap(ctrl)
+	mockMap.EXPECT().Metadatas().Return([]Metadata{}).AnyTimes()
+
+	noopUpdater := func(Map) error {return nil}
+	dbWatch, mockWatch := newTestNamespaceWatch(t, ctrl, noopUpdater)
 	mockWatch.EXPECT().Get().Return(mockMap).AnyTimes()
 	mockWatch.EXPECT().C().Return(ch).AnyTimes()
 	require.NoError(t, dbWatch.Start())
 
-	mockDB.EXPECT().UpdateOwnedNamespaces(mockMap).Return(nil)
 	ch <- struct{}{}
 	time.Sleep(100 * time.Millisecond) // give test a chance to schedule pending go-routines
 	require.NoError(t, dbWatch.Stop())

@@ -39,7 +39,16 @@ func NewLazyBlock(block Block, opts LazyOptions) Block {
 	}
 }
 
+func (c *lazyBlock) Info() BlockInfo {
+	return NewWrappedBlockInfo(BlockLazy, c.block.Info())
+}
+
 func (b *lazyBlock) Close() error { return b.block.Close() }
+
+func (b *lazyBlock) Meta() Metadata {
+	mt := b.opts.MetaTransform()
+	return mt(b.block.Meta())
+}
 
 // StepIter returns a StepIterator
 func (b *lazyBlock) StepIter() (StepIter, error) {
@@ -67,11 +76,6 @@ func (it *lazyStepIter) Next() bool     { return it.it.Next() }
 func (it *lazyStepIter) SeriesMeta() []SeriesMeta {
 	mt := it.opts.SeriesMetaTransform()
 	return mt(it.it.SeriesMeta())
-}
-
-func (it *lazyStepIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
 }
 
 func (it *lazyStepIter) Current() Step {
@@ -135,11 +139,6 @@ func (it *lazySeriesIter) Current() Series {
 	return c
 }
 
-func (it *lazySeriesIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
-}
-
 // Unconsolidated returns the unconsolidated version for the block
 func (b *lazyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	unconsolidated, err := b.block.Unconsolidated()
@@ -159,6 +158,11 @@ type ucLazyBlock struct {
 }
 
 func (b *ucLazyBlock) Close() error { return b.block.Close() }
+
+func (b *ucLazyBlock) Meta() Metadata {
+	mt := b.opts.MetaTransform()
+	return mt(b.block.Meta())
+}
 
 func (b *ucLazyBlock) Consolidate() (Block, error) {
 	block, err := b.block.Consolidate()
@@ -197,11 +201,6 @@ func (it *ucLazyStepIter) Next() bool     { return it.it.Next() }
 func (it *ucLazyStepIter) SeriesMeta() []SeriesMeta {
 	mt := it.opts.SeriesMetaTransform()
 	return mt(it.it.SeriesMeta())
-}
-
-func (it *ucLazyStepIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
 }
 
 type unconsolidatedStep struct {
@@ -294,9 +293,4 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 
 	c.datapoints = dpList
 	return c
-}
-
-func (it *ucLazySeriesIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
 }

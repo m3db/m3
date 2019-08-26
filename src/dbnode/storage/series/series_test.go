@@ -23,6 +23,7 @@ package series
 import (
 	"errors"
 	"io"
+	"sort"
 	"testing"
 	"time"
 
@@ -84,7 +85,7 @@ func newSeriesTestOptions() Options {
 func TestSeriesEmpty(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	assert.True(t, series.IsEmpty())
 }
@@ -106,7 +107,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	data := []value{
@@ -141,7 +142,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	data := []value{
@@ -184,7 +185,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	data := []value{
@@ -220,33 +221,26 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 // TestSeriesLoad tests the behavior the Bootstrap()/Load()s method by ensuring that they actually load
 // data into the series and that the data (merged with any existing data) can be retrieved.
 //
-// It also ensures that blocks for blockStarts that have not been warm flushed yet are loaded as
-// warm write and block for blockStarts that have already been warm flushed are loaded as cold writes.
+// It also ensures that blocks for the bootstrap path blockStarts that have not been warm flushed yet
+// are loaded as warm writes and block for blockStarts that have already been warm flushed are loaded as
+// cold writes and that for the load path everything is loaded as cold writes.
 func TestSeriesBootstrapAndLoad(t *testing.T) {
 	testCases := []struct {
-		title string
-		f     func(
+		title    string
+		loadOpts LoadOptions
+		f        func(
 			series DatabaseSeries,
 			blocks block.DatabaseSeriesBlocks,
-			blockStates map[xtime.UnixNano]BlockState)
+			blockStates BootstrappedBlockStateSnapshot)
 	}{
 		{
-			title: "load",
-			f: func(series DatabaseSeries,
-				blocks block.DatabaseSeriesBlocks,
-				blockStates map[xtime.UnixNano]BlockState,
-			) {
-				series.Load(blocks, blockStates)
-			}},
+			title:    "load",
+			loadOpts: LoadOptions{},
+		},
 		{
-			title: "bootstrap",
-			f: func(series DatabaseSeries,
-				blocks block.DatabaseSeriesBlocks,
-				blockStates map[xtime.UnixNano]BlockState,
-			) {
-				_, err := series.Bootstrap(blocks, blockStates)
-				require.NoError(t, err)
-			}},
+			title:    "bootstrap",
+			loadOpts: LoadOptions{Bootstrap: true},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -285,13 +279,15 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blocks                       = block.NewDatabaseSeriesBlocks(len(loadWrites))
 				alreadyWarmFlushedBlockStart = curr.Add(blockSize).Truncate(blockSize)
 				notYetWarmFlushedBlockStart  = curr.Add(2 * blockSize).Truncate(blockSize)
-				blockStates                  = map[xtime.UnixNano]BlockState{
-					// Exercise both code paths.
-					xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
-						WarmRetrievable: true,
-					},
-					xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
-						WarmRetrievable: false,
+				blockStates                  = BootstrappedBlockStateSnapshot{
+					Snapshot: map[xtime.UnixNano]BlockState{
+						// Exercise both code paths.
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
+							WarmRetrievable: true,
+						},
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
+							WarmRetrievable: false,
+						},
 					},
 				}
 			)
@@ -307,7 +303,8 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				blocks.AddBlock(dbBlock)
 			}
 
-			tc.f(series, blocks, blockStates)
+			_, err := series.Load(tc.loadOpts, blocks, blockStates)
+			require.NoError(t, err)
 
 			t.Run("Data can be read", func(t *testing.T) {
 				ctx := context.NewContext()
@@ -320,16 +317,32 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 				requireReaderValuesEqual(t, expectedData, results, opts, nsCtx)
 			})
 
-			t.Run("Unflushed blocks loaded as warm writes and flushed blocks loaded as cold writes", func(t *testing.T) {
+			t.Run("blocks loaded as warm/cold writes correctly", func(t *testing.T) {
 				optimizedTimes := series.ColdFlushBlockStarts(blockStates)
-
 				coldFlushBlockStarts := []xtime.UnixNano{}
 				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
 					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
 				})
+				// Cold flush block starts don't come back in any particular order so
+				// sort them for easier comparisons.
+				sort.Slice(coldFlushBlockStarts, func(i, j int) bool {
+					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
+				})
 
-				expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
-				require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				if tc.loadOpts.Bootstrap {
+					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
+					// correctly based on the flush state.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
+					require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				} else {
+					// If its just a regular load then everything should be loaded as cold writes for correctness
+					// since flushes and loads can happen concurrently.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart),
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart),
+					}
+					require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				}
 			})
 		})
 	}
@@ -338,7 +351,7 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 func TestSeriesReadEndBeforeStart(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -354,7 +367,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 func TestSeriesFlushNoBlock(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
 	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
@@ -373,7 +386,7 @@ func TestSeriesFlush(t *testing.T) {
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -400,9 +413,9 @@ func TestSeriesFlush(t *testing.T) {
 func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
-	_, err = series.Tick(nil, namespace.Context{})
+	_, err = series.Tick(NewShardBlockStateSnapshot(true, BootstrappedBlockStateSnapshot{}), namespace.Context{})
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -412,13 +425,13 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick(nil, gomock.Any()).Return(bufferTickResult{})
+	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	r, err := series.Tick(nil, namespace.Context{})
+	r, err := series.Tick(NewShardBlockStateSnapshot(true, BootstrappedBlockStateSnapshot{}), namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
@@ -436,7 +449,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
@@ -453,16 +466,19 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(blockStart)] = BlockState{
-		WarmRetrievable: false,
-		ColdVersion:     0,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(blockStart): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
 	}
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: false,
-		ColdVersion:     0,
-	}
-	r, err := series.Tick(blockStates, namespace.Context{})
+	r, err := series.Tick(NewShardBlockStateSnapshot(true, blockStates), namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
@@ -489,7 +505,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	// Test case where block has been read within expiry period - won't be removed
@@ -500,12 +516,16 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
-	tickResult, err := series.Tick(blockStates, namespace.Context{})
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -518,7 +538,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick(blockStates, namespace.Context{})
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -529,12 +549,16 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates = make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: false,
-		ColdVersion:     0,
+	blockStates = BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
 	}
-	tickResult, err = series.Tick(blockStates, namespace.Context{})
+	shardBlockStates = NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -557,7 +581,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	// Test case where block was not retrieved from disk - Will be removed
@@ -567,12 +591,16 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
-	tickResult, err := series.Tick(blockStates, namespace.Context{})
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -584,7 +612,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick(blockStates, namespace.Context{})
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -603,12 +631,16 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	_, expiredBlockExists := series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, true, expiredBlockExists)
 
-	blockStates = make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: false,
-		ColdVersion:     0,
+	blockStates = BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
 	}
-	tickResult, err = series.Tick(blockStates, namespace.Context{})
+	shardBlockStates = NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -632,7 +664,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	// Retrievable blocks should be removed
@@ -641,12 +673,16 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b.EXPECT().Close().Return()
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
-	tickResult, err := series.Tick(blockStates, namespace.Context{})
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -657,12 +693,16 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.cachedBlocks.AddBlock(b)
 
-	blockStates = make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(curr)] = BlockState{
-		WarmRetrievable: false,
-		ColdVersion:     0,
+	blockStates = BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
 	}
-	tickResult, err = series.Tick(blockStates, namespace.Context{})
+	shardBlockStates = NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -716,8 +756,9 @@ func TestSeriesTickCachedBlockRemove(t *testing.T) {
 	series.buffer = buffer
 
 	assert.Equal(t, 3, series.cachedBlocks.Len())
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	_, err := series.Tick(blockStates, namespace.Context{})
+	blockStates := BootstrappedBlockStateSnapshot{}
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	_, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, series.cachedBlocks.Len())
 }
@@ -753,7 +794,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 		Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	series.cachedBlocks = blocks
@@ -823,7 +864,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		Return(expectedResults, nil)
 
 	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	mockBlocks.EXPECT().AllBlocks().Return(blocks)
@@ -961,7 +1002,7 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 		return curr
 	}))
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil, nil)
+	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()

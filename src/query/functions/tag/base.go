@@ -67,12 +67,10 @@ type baseOp struct {
 	tagFn  tagTransformFunc
 }
 
-// OpType for the operator.
 func (o baseOp) OpType() string {
 	return o.opType
 }
 
-// String representation.
 func (o baseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
@@ -104,7 +102,6 @@ func (n *baseNode) Params() parser.Params {
 	return n.op
 }
 
-// Process the block.
 func (n *baseNode) Process(
 	queryCtx *models.QueryContext,
 	ID parser.NodeID,
@@ -123,9 +120,8 @@ func (n *baseNode) ProcessBlock(
 		return nil, err
 	}
 
-	meta := it.Meta()
+	meta := b.Meta()
 	seriesMeta := it.SeriesMeta()
-
 	meta, seriesMeta = n.op.tagFn(meta, seriesMeta)
 	lazyOpts := block.NewLazyOptions().
 		SetMetaTransform(

@@ -44,7 +44,7 @@ import (
 
 func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	now := time.Now().Truncate(time.Hour)
@@ -69,7 +69,7 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	defer func() {
@@ -118,8 +118,8 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
@@ -185,8 +185,8 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpFailed})
+	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpFailed}, nil)
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
@@ -220,13 +220,13 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 
 	mockShard1 := NewMockdatabaseShard(ctrl)
 	mockShard1.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
-	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
 	mockShard2 := NewMockdatabaseShard(ctrl)
 	mockShard2.EXPECT().ID().Return(uint32(1)).AnyTimes()
-	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess})
-	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess})
+	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
 	shards := []databaseShard{mockShard1, mockShard2}
 
@@ -342,7 +342,7 @@ func newTestIndex(t *testing.T, ctrl *gomock.Controller) testIndex {
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	require.NoError(t, err)
 	opts := DefaultTestOptions()
-	index, err := newNamespaceIndex(md, opts)
+	index, err := newNamespaceIndex(md, testShardSet, opts)
 	require.NoError(t, err)
 
 	return testIndex{

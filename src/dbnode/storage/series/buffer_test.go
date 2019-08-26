@@ -771,11 +771,20 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	require.NoError(t, err)
 	res := metadata.Results()
 	require.Equal(t, 1, len(res))
-	assert.Equal(t, b.start, res[0].Start)
-	assert.Equal(t, expectedSize, res[0].Size)
-	// checksum is never available for buffer block.
-	assert.Equal(t, (*uint32)(nil), res[0].Checksum)
-	assert.True(t, expectedLastRead.Equal(res[0].LastRead))
+	require.Equal(t, b.start, res[0].Start)
+	require.Equal(t, expectedSize, res[0].Size)
+	// Checksum not available since there are multiple streams.
+	require.Equal(t, (*uint32)(nil), res[0].Checksum)
+	require.True(t, expectedLastRead.Equal(res[0].LastRead))
+
+	// Tick to merge all of the streams into one.
+	buffer.Tick(ShardBlockStateSnapshot{}, namespace.Context{})
+	metadata, err = buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts)
+	require.NoError(t, err)
+	res = metadata.Results()
+	require.Equal(t, 1, len(res))
+	// Checksum should be available now since there was only one stream.
+	require.NotNil(t, res[0].Checksum)
 }
 
 func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
@@ -825,13 +834,17 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	assert.Equal(t, 2, len(encoders))
 
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(start): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
+	shardBlockState := NewShardBlockStateSnapshot(true, blockStates)
 	// Perform a tick and ensure merged out of order blocks.
-	r := buffer.Tick(blockStates, namespace.Context{})
+	r := buffer.Tick(shardBlockState, namespace.Context{})
 	assert.Equal(t, 1, r.mergedOutOfOrderBlocks)
 
 	// Check values correct.
@@ -901,17 +914,21 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	// Simulate that a flush has fully completed on this bucket so that it will.
 	// get removed from the bucket.
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(start): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
+	shardBlockState := NewShardBlockStateSnapshot(true, blockStates)
 	bucket.version = 1
 
 	// False because we just wrote to it.
 	assert.False(t, buffer.IsEmpty())
 	// Perform a tick to remove the bucket which has been flushed.
-	buffer.Tick(blockStates, namespace.Context{})
+	buffer.Tick(shardBlockState, namespace.Context{})
 	// True because we just removed the bucket.
 	assert.True(t, buffer.IsEmpty())
 }

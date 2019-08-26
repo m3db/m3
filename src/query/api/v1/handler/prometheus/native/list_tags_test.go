@@ -116,6 +116,7 @@ func testListTags(t *testing.T, exhaustive bool) {
 			Return(storeResult, nil)
 
 		req := httptest.NewRequest(method, "/labels", nil)
+		w := httptest.NewRecorder()
 
 		h.ServeHTTP(w, req)
 		body := w.Result().Body

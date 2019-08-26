@@ -333,7 +333,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	storageOpts = storageOpts.SetPersistManager(pm)
 
 	// Set up repair options
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
+	storageOpts = storageOpts.
+		SetRepairOptions(storageOpts.RepairOptions().
+			SetAdminClients([]client.AdminClient{adminClient}))
 
 	// Set up block retriever manager
 	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {

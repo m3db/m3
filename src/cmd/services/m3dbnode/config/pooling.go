@@ -33,8 +33,9 @@ const (
 )
 
 const (
-	defaultMaxFinalizerCapacity = 4
-	defaultBlockAllocSize       = 16
+	defaultMaxFinalizerCapacity     = 4
+	defaultBlockAllocSize           = 16
+	defaultThriftBytesPoolAllocSize = 2048
 )
 
 type poolPolicyDefault struct {
@@ -149,7 +150,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 			capacity:            4096,
 		},
-		"hostBlockMetadataSlice": poolPolicyDefault{
+		"replicaMetadataSlice": poolPolicyDefault{
 			size:                131072,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
@@ -252,6 +253,9 @@ type PoolingPolicy struct {
 	// The initial alloc size for a block.
 	BlockAllocSize *int `yaml:"blockAllocSize"`
 
+	// The thrift bytes pool max bytes slice allocation for a single binary field.
+	ThriftBytesPoolAllocSize *int `yaml:"thriftBytesPoolAllocSize"`
+
 	// The general pool type (currently only supported: simple).
 	Type *PoolingType `yaml:"type"`
 
@@ -288,8 +292,8 @@ type PoolingPolicy struct {
 	// The policy for the FetchBlocksMetadataResults pool.
 	FetchBlocksMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
 
-	// The policy for the HostBlockMetadataSlice pool.
-	HostBlockMetadataSlicePool CapacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
+	// The policy for the ReplicaMetadataSlicePool pool.
+	ReplicaMetadataSlicePool CapacityPoolPolicy `yaml:"replicaMetadataSlicePool"`
 
 	// The policy for the BlockMetadat pool.
 	BlockMetadataPool PoolPolicy `yaml:"blockMetadataPool"`
@@ -363,7 +367,7 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 	if err := p.FetchBlocksMetadataResultsPool.initDefaultsAndValidate("fetchBlocksMetadataResults"); err != nil {
 		return err
 	}
-	if err := p.HostBlockMetadataSlicePool.initDefaultsAndValidate("hostBlockMetadataSlice"); err != nil {
+	if err := p.ReplicaMetadataSlicePool.initDefaultsAndValidate("replicaMetadataSlice"); err != nil {
 		return err
 	}
 	if err := p.BlockMetadataPool.initDefaultsAndValidate("blockMetadata"); err != nil {
@@ -416,6 +420,16 @@ func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
 	}
 
 	return defaultBlockAllocSize
+}
+
+// ThriftBytesPoolAllocSizeOrDefault returns the configured thrift bytes pool
+// max alloc size if provided, or a default value otherwise.
+func (p *PoolingPolicy) ThriftBytesPoolAllocSizeOrDefault() int {
+	if p.ThriftBytesPoolAllocSize != nil {
+		return *p.ThriftBytesPoolAllocSize
+	}
+
+	return defaultThriftBytesPoolAllocSize
 }
 
 // TypeOrDefault returns the configured pooling type if provided, or a default

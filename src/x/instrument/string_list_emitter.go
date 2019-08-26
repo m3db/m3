@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	// stringListEmitterWaitInterval defines the time to wait between emitting the value of the Gauge
-	// again.
+	// stringListEmitterWaitInterval defines the time to wait between emitting
+	// the value of the Gauge again.
 	stringListEmitterWaitInterval = 10 * time.Second
 )
 
@@ -40,65 +40,71 @@ var (
 	errStringListEmitterNotStarted     = errors.New("string list emitter: not running")
 )
 
-// StringListEmitter emits a gauge where its tags indicate the order of a
-// list of strings.
+// StringListEmitter emits a gauges indicating the order of a list of strings.
 type StringListEmitter struct {
 	sync.Mutex
 	running   bool
 	doneCh    chan bool
 	scope     tally.Scope
-	gauge     tally.Gauge
+	gauges    []tally.Gauge
 	name      string
 	tagPrefix string
 }
 
-// NewStringListEmitter returns a StringListEmitter. The name and tagPrefix
-// arguments are used by the Start() and UpdateStringList() function to set
-// the name and tags on the gauge.
-func NewStringListEmitter(scope tally.Scope, name, tagPrefix string) *StringListEmitter {
-	gauge := tally.NoopScope.Gauge("blackhole")
+// NewStringListEmitter returns a StringListEmitter.
+func NewStringListEmitter(scope tally.Scope, name string) *StringListEmitter {
+	gauge := []tally.Gauge{tally.NoopScope.Gauge("blackhole")}
 	return &StringListEmitter{
-		running:   false,
-		doneCh:    make(chan bool, 1),
-		scope:     scope,
-		gauge:     gauge,
-		name:      name,
-		tagPrefix: tagPrefix,
+		running: false,
+		doneCh:  make(chan bool, 1),
+		scope:   scope,
+		gauges:  gauge,
+		name:    name,
 	}
 }
 
-func (bge *StringListEmitter) newGauge(scope tally.Scope, sl []string) tally.Gauge {
-	tags := make(map[string]string, len(sl))
+// newGauges creates a gauge per string in a passed list of strings.
+func (sle *StringListEmitter) newGauges(scope tally.Scope, sl []string) []tally.Gauge {
+	gauges := make([]tally.Gauge, len(sl))
 	for i, v := range sl {
-		tags[fmt.Sprintf("%s%d", bge.tagPrefix, i)] = v
+		name := fmt.Sprintf("%s_%d", sle.name, i)
+		g := scope.Tagged(map[string]string{"type": v}).Gauge(name)
+		g.Update(1)
+		gauges[i] = g
 	}
-	g := scope.Tagged(tags).Gauge(bge.name)
-	g.Update(1)
 
-	return g
+	return gauges
 }
 
-// Start starts a goroutine that continuously emits the value of the gauge.
-func (bge *StringListEmitter) Start(sl []string) error {
-	bge.Lock()
-	defer bge.Unlock()
+// update updates the Gauges on the StringListEmitter. Client should acquire a
+// Lock before updating.
+func (sle *StringListEmitter) update(val float64) {
+	for _, gauge := range sle.gauges {
+		gauge.Update(val)
+	}
+}
 
-	if bge.running {
+// Start starts a goroutine that continuously emits the value of the gauges
+func (sle *StringListEmitter) Start(sl []string) error {
+	sle.Lock()
+	defer sle.Unlock()
+
+	if sle.running {
 		return errStringListEmitterAlreadyRunning
 	}
 
-	bge.gauge = bge.newGauge(bge.scope, sl)
+	sle.gauges = sle.newGauges(sle.scope, sl)
 
-	bge.running = true
+	sle.running = true
 	go func() {
 		for {
 			select {
-			case <-bge.doneCh:
+			case <-sle.doneCh:
 				return
 			default:
-				bge.Lock()
-				bge.gauge.Update(1)
-				bge.Unlock()
+				sle.Lock()
+				sle.update(1)
+				sle.Unlock()
 				time.Sleep(stringListEmitterWaitInterval)
 			}
 		}
@@ -106,35 +112,35 @@ func (bge *StringListEmitter) Start(sl []string) error {
 	return nil
 }
 
-// UpdateStringList updates the gauge with new tags according to the passed
-// list of strings. It will first set the old gauge to 0, then emit a
-// new metric with the same name but different tags.
-func (bge *StringListEmitter) UpdateStringList(sl []string) error {
-	bge.Lock()
-	defer bge.Unlock()
+// UpdateStringList updates the gauges according to the passed
+// list of strings. It will first set the old gauges to 0, then emit
+// new metrics with different values for the "type" label.
+func (sle *StringListEmitter) UpdateStringList(sl []string) error {
+	sle.Lock()
+	defer sle.Unlock()
 
-	if !bge.running {
+	if !sle.running {
 		return errStringListEmitterNotStarted
 	}
 
-	bge.gauge.Update(0)
+	sle.update(0)
 
-	bge.gauge = bge.newGauge(bge.scope, sl)
+	sle.gauges = sle.newGauges(sle.scope, sl)
 
 	return nil
 }
 
 // Close stops emitting the gauge.
-func (bge *StringListEmitter) Close() error {
-	bge.Lock()
-	defer bge.Unlock()
+func (sle *StringListEmitter) Close() error {
+	sle.Lock()
+	defer sle.Unlock()
 
-	if !bge.running {
+	if !sle.running {
 		return errStringListEmitterNotStarted
 	}
 
-	bge.running = false
-	close(bge.doneCh)
+	sle.running = false
+	close(sle.doneCh)
 
 	return nil
 }

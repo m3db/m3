@@ -34,14 +34,19 @@ const UnlessType = "unless"
 
 func makeUnlessBlock(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error) {
-	lMeta, lSeriesMetas := lIter.Meta(), lIter.SeriesMeta()
+	if !matching.Set {
+		return nil, errNoMatching
+	}
+
+	lSeriesMetas := lIter.SeriesMeta()
 	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
 
-	rMeta, rSeriesMetas := rIter.Meta(), rIter.SeriesMeta()
+	rSeriesMetas := rIter.SeriesMeta()
 	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
 
 	// NB: need to flatten metadata for cases where
@@ -103,10 +108,10 @@ func makeUnlessBlock(
 // matchingIndices returns a slice representing which index in the lhs the rhs
 // series maps to. If it does not map to an existing index, this is set to -1.
 func matchingIndices(
-	matching *VectorMatching,
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) []indexMatcher {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
 	for idx, meta := range lhs {

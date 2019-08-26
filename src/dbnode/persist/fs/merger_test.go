@@ -604,3 +604,18 @@ func datapointsFromSegment(t *testing.T, seg ts.Segment) []ts.Datapoint {
 
 	return dps
 }
+
+func blockReaderFromData(
+	data checked.Bytes,
+	segReader xio.SegmentReader,
+	startTime time.Time,
+	blockSize time.Duration,
+) xio.BlockReader {
+	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	segReader.Reset(seg)
+	return xio.BlockReader{
+		SegmentReader: segReader,
+		Start:         startTime,
+		BlockSize:     blockSize,
+	}
+}

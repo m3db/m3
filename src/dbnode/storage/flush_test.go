@@ -124,7 +124,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	// Goroutine 1 should successfully flush.
 	go func() {
 		defer wg.Done()
-		require.NoError(t, fm.Flush(now, DatabaseBootstrapState{}))
+		require.NoError(t, fm.Flush(now))
 	}()
 
 	// Goroutine 2 should indicate already flushing.
@@ -135,7 +135,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 		<-startCh
 
 		// Ensure it doesn't allow a parallel flush.
-		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now, DatabaseBootstrapState{}))
+		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now))
 
 		// Allow the flush to finish.
 		doneCh <- struct{}{}
@@ -144,7 +144,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 		<-startCh
 
 		// Ensure it doesn't allow a parallel flush.
-		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now, DatabaseBootstrapState{}))
+		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now))
 
 		// Allow the compaction to finish.
 		doneCh <- struct{}{}
@@ -195,7 +195,7 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
+	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 // TestFlushManagerFlushDoneSnapshotError makes sure that snapshot errors do not
@@ -233,7 +233,7 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
+	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 func TestFlushManagerFlushDoneIndexError(t *testing.T) {
@@ -269,7 +269,7 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
+	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
@@ -280,8 +280,8 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
-	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
@@ -313,12 +313,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	bootstrapStates := DatabaseBootstrapState{
-		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
-			ns.ID().String(): ShardBootstrapStates{},
-		},
-	}
-	require.NoError(t, fm.Flush(now, bootstrapStates))
+	require.NoError(t, fm.Flush(now))
 }
 
 func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
@@ -329,8 +324,8 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
-	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil)
@@ -363,12 +358,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	bootstrapStates := DatabaseBootstrapState{
-		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
-			ns.ID().String(): ShardBootstrapStates{},
-		},
-	}
-	require.NoError(t, fm.Flush(now, bootstrapStates))
+	require.NoError(t, fm.Flush(now))
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
@@ -418,8 +408,9 @@ func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	now := time.Now()
 
-	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
-	flushTimes := fm.namespaceFlushTimes(ns1, now)
+	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	flushTimes, err := fm.namespaceFlushTimes(ns1, now)
+	require.NoError(t, err)
 	require.Empty(t, flushTimes)
 }
 
@@ -430,8 +421,9 @@ func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
 	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	now := time.Now()
 
-	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
-	times := fm.namespaceFlushTimes(ns1, now)
+	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	times, err := fm.namespaceFlushTimes(ns1, now)
+	require.NoError(t, err)
 	sort.Sort(timesInOrder(times))
 
 	blockSize := ns1.Options().RetentionOptions().BlockSize()
@@ -462,15 +454,16 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 
 		// skip 1/3 of input
 		if i%3 == 0 {
-			ns1.EXPECT().NeedsFlush(st, st).Return(false)
+			ns1.EXPECT().NeedsFlush(st, st).Return(false, nil)
 			continue
 		}
 
-		ns1.EXPECT().NeedsFlush(st, st).Return(true)
+		ns1.EXPECT().NeedsFlush(st, st).Return(true, nil)
 		expectedTimes = append(expectedTimes, st)
 	}
 
-	times := fm.namespaceFlushTimes(ns1, now)
+	times, err := fm.namespaceFlushTimes(ns1, now)
+	require.NoError(t, err)
 	require.NotEmpty(t, times)
 	sort.Sort(timesInOrder(times))
 	require.Equal(t, expectedTimes, times)
@@ -494,7 +487,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(false)
+			ns.EXPECT().NeedsFlush(st, st).Return(false, nil)
 		}
 
 		ns.EXPECT().ColdFlush(gomock.Any())
@@ -503,18 +496,12 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		num = numIntervals(start, snapshotEnd, blockSize)
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(true)
+			ns.EXPECT().NeedsFlush(st, st).Return(true, nil)
 			ns.EXPECT().Snapshot(st, now, gomock.Any())
 		}
 	}
 
-	bootstrapStates := DatabaseBootstrapState{
-		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
-			ns1.ID().String(): ShardBootstrapStates{},
-			ns2.ID().String(): ShardBootstrapStates{},
-		},
-	}
-	require.NoError(t, fm.Flush(now, bootstrapStates))
+	require.NoError(t, fm.Flush(now))
 
 	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
 	require.True(t, ok)

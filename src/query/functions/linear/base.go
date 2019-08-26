@@ -31,27 +31,26 @@ import (
 
 var emptyOp = BaseOp{}
 
-// BaseOp stores required properties for logical operations
+// BaseOp stores required properties for logical operations.
 type BaseOp struct {
 	operatorType string
 	processorFn  makeProcessor
 }
 
-// OpType for the operator
 func (o BaseOp) OpType() string {
 	return o.operatorType
 }
 
-// String representation
 func (o BaseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
-// Node creates an execution node
-func (o BaseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
+func (o BaseOp) Node(
+	controller *transform.Controller,
+	_ transform.Options,
+) transform.OpNode {
 	return &baseNode{
 		controller: controller,
-		cache:      transform.NewBlockCache(),
 		op:         o,
 		processor:  o.processorFn(o, controller),
 	}
@@ -60,7 +59,6 @@ func (o BaseOp) Node(controller *transform.Controller, _ transform.Options) tran
 type baseNode struct {
 	op         BaseOp
 	controller *transform.Controller
-	cache      *transform.BlockCache
 	processor  Processor
 }
 
@@ -68,35 +66,26 @@ func (c *baseNode) Params() parser.Params {
 	return c.op
 }
 
-// Ensure baseNode implements the types for lazy evaluation
-var _ transform.StepNode = (*baseNode)(nil)
-var _ transform.SeriesNode = (*baseNode)(nil)
-
-// ProcessStep allows step iteration
-func (c *baseNode) ProcessStep(step block.Step) (block.Step, error) {
-	processedValue := c.processor.Process(step.Values())
-	return block.NewColStep(step.Time(), processedValue), nil
-}
-
-// ProcessSeries allows series iteration
-func (c *baseNode) ProcessSeries(series block.Series) (block.Series, error) {
-	processedValue := c.processor.Process(series.Values())
-	return block.NewSeries(processedValue, series.Meta), nil
-}
-
-// Process the block
-func (c *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func (c *baseNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	return transform.ProcessSimpleBlock(c, c.controller, queryCtx, ID, b)
 }
 
-// ProcessBlock applies the linear function time Step-wise to each value in the block.
-func (c *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+func (c *baseNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	builder, err := c.controller.BlockBuilder(queryCtx, stepIter.Meta(), stepIter.SeriesMeta())
+	builder, err := c.controller.BlockBuilder(queryCtx,
+		b.Meta(), stepIter.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}
@@ -122,20 +111,19 @@ func (c *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	return builder.Build(), nil
 }
 
-// Meta returns the metadata for the block
 func (c *baseNode) Meta(meta block.Metadata) block.Metadata {
 	return meta
 }
 
-// SeriesMeta returns the metadata for each series in the block
 func (c *baseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
 	return metas
 }
 
-// makeProcessor is a way to create a transform
+// makeProcessor is a way to create a transform.
 type makeProcessor func(op BaseOp, controller *transform.Controller) Processor
 
-// Processor is implemented by the underlying transforms
+// Processor is implemented by the underlying transforms.
+// todo: remove public visibility
 type Processor interface {
 	Process(values []float64) []float64
 }

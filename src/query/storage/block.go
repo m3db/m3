@@ -68,8 +68,15 @@ type multiBlockWrapper struct {
 	unconsolidated   block.UnconsolidatedBlock
 }
 
-func (m *multiBlockWrapper) Unconsolidated() (
-	block.UnconsolidatedBlock, error) {
+func (m *multiBlockWrapper) Meta() block.Metadata {
+	return m.unconsolidated.Meta()
+}
+
+func (m *multiBlockWrapper) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockMultiSeries)
+}
+
+func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return m.unconsolidated, nil
 }
 
@@ -175,6 +182,10 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 	}, nil
 }
 
+func (c *consolidatedBlock) Meta() block.Metadata {
+	return c.unconsolidated.Meta()
+}
+
 // TODO: Actually free up resources
 func (m multiSeriesBlock) Close() error {
 	return nil
@@ -209,10 +220,6 @@ func newMultiSeriesBlockStepIter(
 
 func (m *multiSeriesBlockStepIter) SeriesMeta() []block.SeriesMeta {
 	return m.block.SeriesMeta()
-}
-
-func (m *multiSeriesBlockStepIter) Meta() block.Metadata {
-	return m.block.Meta()
 }
 
 func (m *multiSeriesBlockStepIter) Next() bool {
@@ -252,10 +259,6 @@ type multiSeriesBlockSeriesIter struct {
 	block        multiSeriesBlock
 	index        int
 	consolidated bool
-}
-
-func (m *multiSeriesBlockSeriesIter) Meta() block.Metadata {
-	return m.block.Meta()
 }
 
 func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {

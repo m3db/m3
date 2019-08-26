@@ -134,8 +134,8 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()

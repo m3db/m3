@@ -231,12 +231,7 @@ docs-test:
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
-	@./scripts/docker-integration-tests/setup.sh
-	@./scripts/docker-integration-tests/simple/test.sh
-	@./scripts/docker-integration-tests/prometheus/test.sh
-	@./scripts/docker-integration-tests/carbon/test.sh
-	@./scripts/docker-integration-tests/aggregator/test.sh
-	@./scripts/docker-integration-tests/query_fanout/test.sh
+	./scripts/docker-integration-tests/run.sh
 
 .PHONY: site-build
 site-build:
