@@ -29,7 +29,7 @@ Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Fin
 
 The `/debug/dump` API returns a number of helpful debugging outputs. Currently, we support the following:
 
-- CPU profile: determines where a program spends its time while actively consuming CPU cycles (as opposed to while sleeping or waiting for I/O).
+- CPU profile: determines where a program spends its time while actively consuming CPU cycles (as opposed to while sleeping or waiting for I/O). Currently set to take a 5 second profile.
 - Heap profile: reports memory allocation samples; used to monitor current and historical memory usage, and to check for memory leaks.
 - Goroutines profile: reports the stack traces of all current goroutines.
 - Host profile: returns data about the underlying host such as PID, working directory, etc.
@@ -38,7 +38,7 @@ The `/debug/dump` API returns a number of helpful debugging outputs. Currently, 
 
 This endpoint can be used on both the db nodes as well as the coordinator/query nodes. However, since namespace and placement info are only available on the coordinator, these will not show if you use this API on the db nodes.
 
-To use this, simply run the followin on either the M3DB debug listen port or the regular port on M3Coordinator.
+To use this, simply run the following on either the M3DB debug listen port or the regular port on M3Coordinator.
 
 ```
 curl <m3db_or_m3coordinator_ip>:<port>/debug/dump > <tmp_zip_file.zip>
