@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	// DebugURL is the url for the debug dump endpoint
+	// DebugURL is the url for the debug dump endpoint.
 	DebugURL = "/debug/dump"
 )
 
