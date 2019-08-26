@@ -28,12 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
@@ -54,8 +53,10 @@ import (
 
 var (
 	// Created by init().
-	testWorkerPool          xsync.PooledWorkerPool
-	defaultLookbackDuration = time.Minute
+	testWorkerPool            xsync.PooledWorkerPool
+	defaultLookbackDuration   = time.Minute
+	defaultCPUProfileduration = 5 * time.Second
+	defaultPlacementServices  = []string{"m3db"}
 )
 
 func makeTagOptions() models.TagOptions {
@@ -92,7 +93,9 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		nil,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
-		instrumentOpts)
+		instrumentOpts,
+		defaultCPUProfileduration,
+		defaultPlacementServices)
 }
 
 func TestHandlerFetchTimeoutError(t *testing.T) {
@@ -106,7 +109,7 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
 		cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, instrument.NewOptions())
+		models.QueryContextOptions{}, instrument.NewOptions(), defaultCPUProfileduration, defaultPlacementServices)
 
 	require.Error(t, err)
 }
@@ -122,7 +125,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
 	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
 		nil, nil, cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, instrument.NewOptions())
+		models.QueryContextOptions{}, instrument.NewOptions(), defaultCPUProfileduration, defaultPlacementServices)
 	require.NoError(t, err)
 	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }
