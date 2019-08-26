@@ -36,6 +36,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	DebugURL = "/debug/dump"
+)
+
 // Source is the interface that must be implemented to provide a new debug
 // source. Each debug source's Write method will be called to write out a debug
 // file for that source into the overall debug zip file.

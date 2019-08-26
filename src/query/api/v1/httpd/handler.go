@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
@@ -73,22 +74,24 @@ var (
 
 // Handler represents an HTTP handler.
 type Handler struct {
-	router               *mux.Router
-	handler              http.Handler
-	storage              storage.Storage
-	downsamplerAndWriter ingest.DownsamplerAndWriter
-	engine               executor.Engine
-	clusters             m3.Clusters
-	clusterClient        clusterclient.Client
-	config               config.Configuration
-	embeddedDbCfg        *dbconfig.DBConfiguration
-	createdAt            time.Time
-	tagOptions           models.TagOptions
-	timeoutOpts          *prometheus.TimeoutOpts
-	enforcer             cost.ChainedEnforcer
-	fetchOptionsBuilder  handler.FetchOptionsBuilder
-	queryContextOptions  models.QueryContextOptions
-	instrumentOpts       instrument.Options
+	router                *mux.Router
+	handler               http.Handler
+	storage               storage.Storage
+	downsamplerAndWriter  ingest.DownsamplerAndWriter
+	engine                executor.Engine
+	clusters              m3.Clusters
+	clusterClient         clusterclient.Client
+	config                config.Configuration
+	embeddedDbCfg         *dbconfig.DBConfiguration
+	createdAt             time.Time
+	tagOptions            models.TagOptions
+	timeoutOpts           *prometheus.TimeoutOpts
+	enforcer              cost.ChainedEnforcer
+	fetchOptionsBuilder   handler.FetchOptionsBuilder
+	queryContextOptions   models.QueryContextOptions
+	instrumentOpts        instrument.Options
+	cpuProfileDuration    time.Duration
+	placementServiceNames []string
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -109,6 +112,8 @@ func NewHandler(
 	fetchOptionsBuilder handler.FetchOptionsBuilder,
 	queryContextOptions models.QueryContextOptions,
 	instrumentOpts instrument.Options,
+	cpuProfileDuration time.Duration,
+	placementServiceNames []string,
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
@@ -126,22 +131,24 @@ func NewHandler(
 	}
 
 	return &Handler{
-		router:               r,
-		handler:              handlerWithMiddleware,
-		storage:              downsamplerAndWriter.Storage(),
-		downsamplerAndWriter: downsamplerAndWriter,
-		engine:               engine,
-		clusters:             m3dbClusters,
-		clusterClient:        clusterClient,
-		config:               cfg,
-		embeddedDbCfg:        embeddedDbCfg,
-		createdAt:            time.Now(),
-		tagOptions:           tagOptions,
-		timeoutOpts:          timeoutOpts,
-		enforcer:             enforcer,
-		fetchOptionsBuilder:  fetchOptionsBuilder,
-		queryContextOptions:  queryContextOptions,
-		instrumentOpts:       instrumentOpts,
+		router:                r,
+		handler:               handlerWithMiddleware,
+		storage:               downsamplerAndWriter.Storage(),
+		downsamplerAndWriter:  downsamplerAndWriter,
+		engine:                engine,
+		clusters:              m3dbClusters,
+		clusterClient:         clusterClient,
+		config:                cfg,
+		embeddedDbCfg:         embeddedDbCfg,
+		createdAt:             time.Now(),
+		tagOptions:            tagOptions,
+		timeoutOpts:           timeoutOpts,
+		enforcer:              enforcer,
+		fetchOptionsBuilder:   fetchOptionsBuilder,
+		queryContextOptions:   queryContextOptions,
+		instrumentOpts:        instrumentOpts,
+		cpuProfileDuration:    cpuProfileDuration,
+		placementServiceNames: placementServiceNames,
 	}, nil
 }
 
@@ -266,10 +273,25 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(graphite.FindHTTPMethods...)
 
 	if h.clusterClient != nil {
-		placementOpts, err := h.PlacementOpts()
+		placementOpts, err := h.placementOpts()
 		if err != nil {
 			return err
 		}
+
+		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+			h.cpuProfileDuration,
+			h.instrumentOpts,
+			h.clusterClient,
+			placementOpts,
+			h.placementServiceNames,
+		)
+		if err != nil {
+			return fmt.Errorf("unable to create debug writer: %v", err)
+		}
+
+		// Register debug dump handler.
+		h.router.HandleFunc(xdebug.DebugURL,
+			wrapped(debugWriter.HTTPHandler()).ServeHTTP)
 
 		err = database.RegisterRoutes(h.router, h.clusterClient,
 			h.config, h.embeddedDbCfg, h.instrumentOpts)
@@ -289,8 +311,7 @@ func (h *Handler) RegisterRoutes() error {
 	return nil
 }
 
-// PlacementOpts returns placement options used in the various placement APIs.
-func (h *Handler) PlacementOpts() (placement.HandlerOptions, error) {
+func (h *Handler) placementOpts() (placement.HandlerOptions, error) {
 	return placement.NewHandlerOptions(
 		h.clusterClient,
 		h.config,

@@ -56,7 +56,6 @@ import (
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
-	xdebug "github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/instrument"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
@@ -75,7 +74,6 @@ import (
 const (
 	serviceName            = "m3query"
 	cpuProfileDuration     = 5 * time.Second
-	debugEndpoint          = "/debug/dump"
 	defaultM3DBServiceName = "m3db"
 )
 
@@ -287,7 +285,8 @@ func Run(runOpts RunOptions) {
 
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, perQueryEnforcer,
-		fetchOptsBuilder, queryCtxOpts, instrumentOptions)
+		fetchOptsBuilder, queryCtxOpts, instrumentOptions, cpuProfileDuration,
+		[]string{defaultM3DBServiceName})
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
@@ -360,43 +359,6 @@ func Run(runOpts RunOptions) {
 		if ok {
 			defer server.Close()
 		}
-	}
-
-	placementOpts, err := handler.PlacementOpts()
-	if err != nil {
-		logger.Fatal("unable to get placement opts", zap.Error(err))
-	}
-
-	if cfg.DebugListenAddress != "" {
-		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
-			cpuProfileDuration,
-			instrumentOptions,
-			clusterClient,
-			placementOpts,
-			[]string{defaultM3DBServiceName},
-		)
-		if err != nil {
-			logger.Error("unable to create debug writer", zap.Error(err))
-		}
-
-		go func() {
-			mux := http.NewServeMux()
-			if debugWriter != nil {
-				if err := debugWriter.RegisterHandler(debugEndpoint, mux); err != nil {
-					logger.Error("unable to register debug writer endpoint",
-						zap.String("address", cfg.DebugListenAddress), zap.Error(err))
-				}
-			}
-
-			if err := http.ListenAndServe(cfg.DebugListenAddress, mux); err != nil {
-				logger.Error("debug server could not listen",
-					zap.String("address", cfg.DebugListenAddress), zap.Error(err))
-			} else {
-				logger.Info("debug server listening",
-					zap.String("endpoint", fmt.Sprintf("%s%s", cfg.DebugListenAddress, debugEndpoint)),
-				)
-			}
-		}()
 	}
 
 	// Wait for process interrupt.
