@@ -1,4 +1,4 @@
-function() {
+function(coordinator={}, db={}) {
   "coordinator": {
     "listenAddress": {
       "type": "config",
@@ -35,7 +35,7 @@ function() {
       // Configuration setting for generating metric IDs from tags.
       "idScheme": "quoted"
     }
-  },
+  } + coordinator,
   "db": {
     "logging": {
       "level": "info"
@@ -119,5 +119,5 @@ function() {
         ]
       }
     }
-  }
+  } + db,
 }

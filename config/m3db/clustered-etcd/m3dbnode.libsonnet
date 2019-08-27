@@ -1,4 +1,4 @@
-local Cluster = {
+local cluster = {
   HOST1_ETCD_ID: "host1",
   HOST1_ETCD_IP_ADDRESS: "HOST1_STATIC_IP_ADDRESS",
   HOST2_ETCD_ID: "host2",
@@ -7,7 +7,7 @@ local Cluster = {
   HOST3_ETCD_IP_ADDRESS: "HOST3_STATIC_IP_ADDRESS",
 };
 
-function(Cluster) {
+function(cluster, coordinator={}, db={}) {
   "coordinator": {
     "listenAddress": {
       "type": "config",
@@ -40,7 +40,7 @@ function(Cluster) {
     "tagOptions": {
       "idScheme": "quoted"
     }
-  },
+  } + coordinator,
   "db": {
     "logging": {
       "level": "info"
@@ -66,9 +66,9 @@ function(Cluster) {
           {
             "zone": "embedded",
             "endpoints": [
-              "http://"+Cluster.HOST1_ETCD_IP_ADDRESS+":2379",
-              "http://"+Cluster.HOST2_ETCD_IP_ADDRESS+":2379",
-              "http://"+Cluster.HOST3_ETCD_IP_ADDRESS+":2379"
+              "http://"+cluster.HOST1_ETCD_IP_ADDRESS+":2379",
+              "http://"+cluster.HOST2_ETCD_IP_ADDRESS+":2379",
+              "http://"+cluster.HOST3_ETCD_IP_ADDRESS+":2379"
             ]
           }
         ]
@@ -76,16 +76,16 @@ function(Cluster) {
       "seedNodes": {
         "initialCluster": [
           {
-            "hostID": Cluster.HOST1_ETCD_ID,
-            "endpoint": "http://"+Cluster.HOST1_ETCD_IP_ADDRESS+":2380"
+            "hostID": cluster.HOST1_ETCD_ID,
+            "endpoint": "http://"+cluster.HOST1_ETCD_IP_ADDRESS+":2380"
           },
           {
-            "hostID": Cluster.HOST2_ETCD_ID,
-            "endpoint": "http://"+Cluster.HOST2_ETCD_IP_ADDRESS+":2380"
+            "hostID": cluster.HOST2_ETCD_ID,
+            "endpoint": "http://"+cluster.HOST2_ETCD_IP_ADDRESS+":2380"
           },
           {
-            "hostID": Cluster.HOST3_ETCD_ID,
-            "endpoint": "http://"+Cluster.HOST3_ETCD_IP_ADDRESS+":2380"
+            "hostID": cluster.HOST3_ETCD_ID,
+            "endpoint": "http://"+cluster.HOST3_ETCD_IP_ADDRESS+":2380"
           }
         ]
       }
@@ -133,5 +133,5 @@ function(Cluster) {
     "fs": {
       "filePathPrefix": "/var/lib/m3db"
     }
-  }
+  } + db,
 }

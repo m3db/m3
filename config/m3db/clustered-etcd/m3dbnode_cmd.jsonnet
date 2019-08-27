@@ -1,6 +1,6 @@
 local lib = import 'm3dbnode.libsonnet';
 
-local Cluster = {
+local cluster = {
   HOST1_ETCD_ID: "host_name1",
   HOST1_ETCD_IP_ADDRESS: "host_ip1",
   HOST2_ETCD_ID: "host_name2",
@@ -9,4 +9,4 @@ local Cluster = {
   HOST3_ETCD_IP_ADDRESS: "host_ip3",
 };
 
-std.manifestYamlDoc(lib(Cluster))
+std.manifestYamlDoc(lib(cluster))
