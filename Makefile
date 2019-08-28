@@ -152,8 +152,8 @@ install-retool:
 .PHONY: install-tools
 install-tools: install-retool
 	@echo "Installing retool dependencies"
-	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) sync
-	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) build
+	PATH=$(PATH):$(gopath_bin_path) retool -verbose $(retool_base_args) sync
+	PATH=$(PATH):$(gopath_bin_path) retool -verbose $(retool_base_args) build
 
 	@# NB(r): to ensure correct version of mock-gen is present we match the version
 	@# of the retool installed mockgen, and if not a match in binary contents, then
