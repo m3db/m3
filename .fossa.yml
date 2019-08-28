@@ -12,71 +12,89 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3aggregator/main
     path: src/cmd/services/m3aggregator/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3collector/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3collector/main
     path: src/cmd/services/m3collector/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3coordinator/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
     path: src/cmd/services/m3coordinator/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3dbnode/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3dbnode/main
     path: src/cmd/services/m3dbnode/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3em_agent/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3em_agent/main
     path: src/cmd/services/m3em_agent/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3nsch_client/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3nsch_client/main
     path: src/cmd/services/m3nsch_client/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3nsch_server/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3nsch_server/main
     path: src/cmd/services/m3nsch_server/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/services/m3query/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3query/main
     path: src/cmd/services/m3query/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/clone_fileset/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/clone_fileset/main
     path: src/cmd/tools/clone_fileset/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/read_data_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_data_files/main
     path: src/cmd/tools/read_data_files/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/read_ids/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_ids/main
     path: src/cmd/tools/read_ids/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/read_index_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_index_files/main
     path: src/cmd/tools/read_index_files/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/read_index_ids/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_index_ids/main
     path: src/cmd/tools/read_index_ids/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/verify_commitlogs/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/verify_commitlogs/main
     path: src/cmd/tools/verify_commitlogs/main
+    strategy: glide
   - name: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     path: src/cmd/tools/verify_index_files/main
+    strategy: glide
   - name: github.com/m3db/m3/src/query/benchmark/benchmarker/main
     type: go
     target: github.com/m3db/m3/src/query/benchmark/benchmarker/main
     path: src/query/benchmark/benchmarker/main
+    strategy: glide
   - name: github.com/m3db/m3/src/query/benchmark/read/main
     type: go
     target: github.com/m3db/m3/src/query/benchmark/read/main
     path: src/query/benchmark/read/main
+    strategy: glide
   - name: github.com/m3db/m3/src/query/benchmark/write/main
     type: go
     target: github.com/m3db/m3/src/query/benchmark/write/main
     path: src/query/benchmark/write/main
+    strategy: glide
