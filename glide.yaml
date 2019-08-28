@@ -177,6 +177,9 @@ import:
 
   - package: github.com/prometheus/tsdb
     version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
+
+  - package: github.com/go-stack/stack
+    version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
   # END_PROMETHEUS_DEPS
 
   # START_TALLY_PROMETHEUS_DEPS

@@ -16,11 +16,10 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3collector/main
     path: src/cmd/services/m3collector/main
-  # Disable coordinator scans
-  # - name: github.com/m3db/m3/src/cmd/services/m3coordinator/main
-  #   type: go
-  #   target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
-  #   path: src/cmd/services/m3coordinator/main
+  - name: github.com/m3db/m3/src/cmd/services/m3coordinator/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
+    path: src/cmd/services/m3coordinator/main
   - name: github.com/m3db/m3/src/cmd/services/m3dbnode/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3dbnode/main
