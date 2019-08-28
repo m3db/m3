@@ -1,5 +1,5 @@
-hash: e3913073455782555cd0a77e57498990faeb60be60f5c98880a58e182593d909
-updated: 2019-08-28T15:25:54.176035-04:00
+hash: b87408f5ccab483e54a2627f39fbc395c4f5c7cac9f3014aabd110af2de4c20b
+updated: 2019-08-16T22:03:27.199359-04:00
 imports:
 - name: github.com/apache/thrift
   version: 05b5a2227fe44056ce829fe59583126fd6478a58
@@ -109,7 +109,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: dc222902e86f298bfae0b3dec6ba8b9d874ad5f8
+  version: 41f2deade2cfab59facd263e918d7c05f656c2e9
   subpackages:
   - utf8
 - name: github.com/davecgh/go-spew
@@ -294,7 +294,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 51b37a889aa54ade487a5ff530b0afb3dfa5c917
+  version: 84da2c4a25c585816f2c4211b699228d111d18ab
 - name: github.com/pilosa/pilosa
   version: bc9747cc0f19702d9753de7ea9375d8311dfc706
   subpackages:
@@ -485,7 +485,7 @@ imports:
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: c7b8b68b14567162c6602a7c5659ee0f26417c18
+  version: fde4db37ae7ad8191b03d30d27f258b5291ae4e3
   subpackages:
   - unix
 - name: golang.org/x/text
