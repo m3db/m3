@@ -450,7 +450,7 @@ test-all-gen: all-gen
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(combined_bin_paths):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+	PATH=$(combined_bin_paths):$(PATH) fossa --no-ansi --option allow-nested-vendor:true --option allow-deep-vendor:true
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
