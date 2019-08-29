@@ -43,6 +43,16 @@ func (o *replicatedOptions) Options() Options {
 	return o.options
 }
 
+func (o *replicatedOptions) SetAdminOptions(value AdminOptions) AdminReplicatedOptions {
+	opts := *o
+	opts.options = value
+	return &opts
+}
+
+func (o *replicatedOptions) AdminOptions() AdminOptions {
+	return o.options.(AdminOptions)
+}
+
 func (o *replicatedOptions) SetAsyncTopologyInitializers(value []topology.Initializer) ReplicatedOptions {
 	opts := *o
 	opts.asyncTopologyInitializers = value

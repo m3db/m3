@@ -593,6 +593,10 @@ type AdminReplicatedOptions interface {
 	SetOptions(Options) ReplicatedOptions
 
 	Options() Options
+
+	SetAdminOptions(AdminOptions) AdminReplicatedOptions
+
+	AdminOptions() AdminOptions
 }
 
 // The rest of these types are internal types that mocks are generated for
