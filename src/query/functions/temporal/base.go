@@ -44,13 +44,13 @@ var emptyOp = baseOp{}
 type baseOp struct {
 	operatorType string
 	duration     time.Duration
-	processorFn  MakeProcessor
+	processorFn  makeProcessor
 }
 
 func newBaseOp(
 	duration time.Duration,
 	operatorType string,
-	processorFn MakeProcessor,
+	processorFn makeProcessor,
 ) (baseOp, error) {
 	return baseOp{
 		operatorType: operatorType,
@@ -76,7 +76,7 @@ func (o baseOp) Node(
 		controller:    controller,
 		cache:         newBlockCache(o, opts),
 		op:            o,
-		processor:     o.processorFn.Init(o, controller, opts),
+		processor:     o.processorFn.initialize(o.duration, controller, opts),
 		transformOpts: opts,
 	}
 }
@@ -89,7 +89,7 @@ type baseNode struct {
 	controller    controller
 	op            baseOp
 	cache         *blockCache
-	processor     Processor
+	processor     processor
 	transformOpts transform.Options
 }
 
@@ -138,7 +138,7 @@ func (c *baseNode) Process(
 			bounds, queryEndBounds)
 	}
 
-	c.cache.init(bounds)
+	c.cache.initialize(bounds)
 	blockDuration := bounds.Duration
 	// Figure out the maximum blocks needed for the temporal function.
 	maxBlocks := int(math.Ceil(float64(c.op.duration) / float64(blockDuration)))
@@ -303,6 +303,51 @@ func (c *baseNode) processCompletedBlocks(
 	return blocks, nil
 }
 
+func getIndices(
+	dp []ts.Datapoint,
+	lBound,
+	rBound time.Time,
+	init int,
+) (int, int, bool) {
+	if init > len(dp) || init < 0 {
+		return -1, -1, false
+	}
+
+	var (
+		l, r      = init, -1
+		leftBound = true
+	)
+
+	for i, dp := range dp[init:] {
+		ts := dp.Timestamp
+		if !leftBound {
+			// Trying to set left bound.
+			if ts.Before(lBound) {
+				// data point before 0.
+				continue
+			}
+
+			leftBound = true
+			l = i
+		}
+
+		if ts.Before(rBound) {
+			continue
+		}
+
+		r = i
+		break
+	}
+
+	if r == -1 {
+		r = len(dp)
+	} else {
+		r = r + init
+	}
+
+	return l, r, true
+}
+
 func (c *baseNode) processSingleRequest(
 	request processRequest,
 ) (block.Block, error) {
@@ -349,7 +394,7 @@ func (c *baseNode) processSingleRequest(
 
 	aggDuration := c.op.duration
 	steps := int((aggDuration + bounds.Duration) / bounds.StepSize)
-	values := make([]ts.Datapoints, 0, steps)
+	values := make(ts.Datapoints, 0, steps)
 	desiredLength := int(math.Ceil(float64(aggDuration) / float64(bounds.StepSize)))
 	for seriesIter.Next() {
 		values = values[:0]
@@ -359,37 +404,38 @@ func (c *baseNode) processSingleRequest(
 			}
 
 			s := iter.Current()
-			values = append(values, s.Datapoints()...)
+			for _, dps := range s.Datapoints() {
+				values = append(values, dps...)
+			}
 		}
 
-		series := seriesIter.Current()
+		var (
+			newVal float64
+			init   = 0
+			series = seriesIter.Current()
+		)
+
 		for i := 0; i < series.Len(); i++ {
 			val := series.DatapointsAtStep(i)
-			values = append(values, val)
-			newVal := math.NaN()
+			values = append(values, val...)
 			alignedTime, _ := bounds.TimeForIndex(i)
 			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
-			// Remove the older values from slice as newer values are pushed in.
-			// TODO: Consider using a rotating slice since this is inefficient
-			if desiredLength <= len(values) {
-				values = values[len(values)-desiredLength:]
-				flattenedValues := make(ts.Datapoints, 0, len(values))
-				for _, dps := range values {
-					var (
-						idx int
-						dp  ts.Datapoint
-					)
-					for idx, dp = range dps {
-						// go until we find datapoints at the oldest timestamp for window
-						if !dp.Timestamp.Before(oldestDatapointTimestamp) {
-							break
-						}
-					}
+			l, r, b := getIndices(values, oldestDatapointTimestamp,
+				alignedTime, init)
 
-					flattenedValues = append(flattenedValues, dps[idx:]...)
+			if b {
+				if r >= desiredLength {
+					l = r - desiredLength
+				} else {
+					b = false
 				}
+			}
 
-				newVal = c.processor.Process(flattenedValues, alignedTime)
+			if !b {
+				newVal = c.processor.process(ts.Datapoints{}, alignedTime)
+			} else {
+				init = l
+				newVal = c.processor.process(values[l:r], alignedTime)
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {
@@ -432,14 +478,19 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 	}
 }
 
-// Processor is implemented by the underlying transforms.
-type Processor interface {
-	Process(values ts.Datapoints, evaluationTime time.Time) float64
+// processor is implemented by the underlying transforms.
+type processor interface {
+	process(values ts.Datapoints, evaluationTime time.Time) float64
 }
 
-// MakeProcessor is a way to create a transform.
-type MakeProcessor interface {
-	Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor
+// makeProcessor is a way to create a transform.
+type makeProcessor interface {
+	// initialize initializes the processor.
+	initialize(
+		duration time.Duration,
+		controller *transform.Controller,
+		opts transform.Options,
+	) processor
 }
 
 type processRequest struct {
@@ -468,7 +519,7 @@ func newBlockCache(op baseOp, transformOpts transform.Options) *blockCache {
 	}
 }
 
-func (c *blockCache) init(bounds models.Bounds) {
+func (c *blockCache) initialize(bounds models.Bounds) {
 	if c.initialized {
 		return
 	}

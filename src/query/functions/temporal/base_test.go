@@ -39,14 +39,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type processor struct {
-}
+type noopProcessor struct{}
 
-func (p processor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (p noopProcessor) initialize(
+	_ time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &p
 }
 
-func (p *processor) Process(dps ts.Datapoints, _ time.Time) float64 {
+func (p *noopProcessor) process(dps ts.Datapoints, _ time.Time) float64 {
 	vals := dps.Values()
 	sum := 0.0
 	for _, n := range vals {
@@ -56,7 +59,8 @@ func (p *processor) Process(dps ts.Datapoints, _ time.Time) float64 {
 	return sum
 }
 
-func compareCacheState(t *testing.T, node *baseNode, bounds models.Bounds, state []bool, debugMsg string) {
+func compareCacheState(t *testing.T, node *baseNode,
+	bounds models.Bounds, state []bool, debugMsg string) {
 	actualState := make([]bool, len(state))
 	for i := range state {
 		_, exists := node.cache.get(bounds.Next(i).Start)
@@ -74,7 +78,7 @@ func TestBaseWithB0(t *testing.T) {
 	baseOp := baseOp{
 		operatorType: "dummy",
 		duration:     5 * time.Minute,
-		processorFn:  processor{},
+		processorFn:  noopProcessor{},
 	}
 
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
@@ -342,7 +346,7 @@ func setup(
 	baseOp := baseOp{
 		operatorType: "dummy",
 		duration:     duration,
-		processorFn:  processor{},
+		processorFn:  noopProcessor{},
 	}
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
@@ -546,7 +550,7 @@ func TestSingleProcessRequest(t *testing.T) {
 	baseOp := baseOp{
 		operatorType: "dummy",
 		duration:     5 * time.Minute,
-		processorFn:  processor{},
+		processorFn:  noopProcessor{},
 	}
 
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
