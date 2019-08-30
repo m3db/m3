@@ -567,7 +567,7 @@ func TestSingleProcessRequest(t *testing.T) {
 		deps:     []block.UnconsolidatedBlock{block1},
 		queryCtx: models.NoopQueryContext(),
 	}
-	bl, err := bNode.processSingleRequest(request)
+	bl, err := bNode.processSingleRequest(request, ts.Datapoints{})
 	require.NoError(t, err)
 
 	bNode.propagateNextBlocks([]processRequest{request}, []block.Block{bl}, 1)

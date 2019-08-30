@@ -289,8 +289,11 @@ func (c *baseNode) processCompletedBlocks(
 	defer sp.Finish()
 
 	blocks := make([]block.Block, 0, len(processRequests))
+	// NB: valueBuffer gets populated and re-used within the processSingleRequest
+	// function call.
+	var valueBuffer ts.Datapoints
 	for _, req := range processRequests {
-		bl, err := c.processSingleRequest(req)
+		bl, err := c.processSingleRequest(req, valueBuffer)
 		if err != nil {
 			// cleanup any blocks we opened
 			closeBlocks(blocks)
@@ -309,7 +312,7 @@ func getIndices(
 	rBound time.Time,
 	init int,
 ) (int, int, bool) {
-	if init > len(dp) || init < 0 {
+	if init >= len(dp) || init < 0 {
 		return -1, -1, false
 	}
 
@@ -348,22 +351,31 @@ func getIndices(
 	return l, r, true
 }
 
+func buildValueBuffer(
+	currentLen int,
+	iters []block.UnconsolidatedSeriesIter,
+) ts.Datapoints {
+	len := currentLen
+	for _, it := range iters {
+		len += it.Current().Len()
+	}
+
+	// NB: sanity check; theoretically this should never happen
+	// as empty series should not exist.
+	if len < 1 {
+		return ts.Datapoints{}
+	}
+
+	return make(ts.Datapoints, 0, len)
+}
+
 func (c *baseNode) processSingleRequest(
 	request processRequest,
+	valueBuffer ts.Datapoints,
 ) (block.Block, error) {
 	seriesIter, err := request.blk.SeriesIter()
 	if err != nil {
 		return nil, err
-	}
-
-	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
-	for i, blk := range request.deps {
-		iter, err := blk.SeriesIter()
-		if err != nil {
-			return nil, err
-		}
-
-		depIters[i] = iter
 	}
 
 	var (
@@ -393,34 +405,50 @@ func (c *baseNode) processSingleRequest(
 	}
 
 	aggDuration := c.op.duration
-	steps := int((aggDuration + bounds.Duration) / bounds.StepSize)
-	values := make(ts.Datapoints, 0, steps)
 	desiredLength := int(math.Ceil(float64(aggDuration) / float64(bounds.StepSize)))
+	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
+	for i, blk := range request.deps {
+		iter, err := blk.SeriesIter()
+		if err != nil {
+			return nil, err
+		}
+
+		depIters[i] = iter
+	}
+
 	for seriesIter.Next() {
-		values = values[:0]
+		series := seriesIter.Current()
+		// First, advance the iterators to ensure they all have this series.
 		for i, iter := range depIters {
 			if !iter.Next() {
 				return nil, fmt.Errorf("incorrect number of series for block: %d", i)
 			}
+		}
 
+		// If valueBuffer is still unset, build it here; if it's been set in a
+		// previous iteration, reset it for this processing step.
+		if valueBuffer == nil {
+			valueBuffer = buildValueBuffer(series.Len(), depIters)
+		} else {
+			valueBuffer = valueBuffer[:0]
+		}
+
+		// Write datapoints into value buffer.
+		for _, iter := range depIters {
 			s := iter.Current()
 			for _, dps := range s.Datapoints() {
-				values = append(values, dps...)
+				valueBuffer = append(valueBuffer, dps...)
 			}
 		}
 
-		var (
-			newVal float64
-			init   = 0
-			series = seriesIter.Current()
-		)
-
+		var newVal float64
+		init := 0
 		for i := 0; i < series.Len(); i++ {
 			val := series.DatapointsAtStep(i)
-			values = append(values, val...)
+			valueBuffer = append(valueBuffer, val...)
 			alignedTime, _ := bounds.TimeForIndex(i)
 			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
-			l, r, b := getIndices(values, oldestDatapointTimestamp,
+			l, r, b := getIndices(valueBuffer, oldestDatapointTimestamp,
 				alignedTime, init)
 
 			if b {
@@ -435,7 +463,7 @@ func (c *baseNode) processSingleRequest(
 				newVal = c.processor.process(ts.Datapoints{}, alignedTime)
 			} else {
 				init = l
-				newVal = c.processor.process(values[l:r], alignedTime)
+				newVal = c.processor.process(valueBuffer[l:r], alignedTime)
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {
@@ -480,7 +508,7 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 
 // processor is implemented by the underlying transforms.
 type processor interface {
-	process(values ts.Datapoints, evaluationTime time.Time) float64
+	process(valueBuffer ts.Datapoints, evaluationTime time.Time) float64
 }
 
 // makeProcessor is a way to create a transform.
