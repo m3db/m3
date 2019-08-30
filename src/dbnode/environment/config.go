@@ -109,13 +109,13 @@ func (c DynamicConfiguration) Validate() error {
 }
 
 // SyncCluster returns the synchronous cluster in the DynamicConfiguration
-func (c DynamicConfiguration) SyncCluster() *DynamicCluster {
+func (c DynamicConfiguration) SyncCluster() (*DynamicCluster, error) {
 	for _, cluster := range c {
 		if !cluster.Async {
-			return cluster
+			return cluster, nil
 		}
 	}
-	return nil
+	return nil, errInvalidSyncCount
 }
 
 // StaticConfiguration is used for running M3DB with a static config
@@ -156,13 +156,13 @@ type ConfigureResult struct {
 type ConfigureResults []ConfigureResult
 
 // SyncCluster returns the synchronous cluster in the ConfigureResults
-func (c ConfigureResults) SyncCluster() ConfigureResult {
+func (c ConfigureResults) SyncCluster() (ConfigureResult, error) {
 	for _, result := range c {
 		if !result.Async {
-			return result
+			return result, nil
 		}
 	}
-	return ConfigureResult{}
+	return ConfigureResult{}, errInvalidSyncCount
 }
 
 // ConfigurationParameters are options used to create new ConfigureResults

@@ -241,7 +241,11 @@ func Run(runOpts RunOptions) {
 		logger.Info("no seed nodes set, using dedicated etcd cluster")
 	} else {
 		// Default etcd client clusters if not set already
-		service := cfg.EnvironmentConfig.Services.SyncCluster()
+		service, err := cfg.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			logger.Fatal("invalid cluster configuration", zap.Error(err))
+		}
+
 		clusters := service.Service.ETCDClusters
 		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
@@ -549,7 +553,10 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	syncCfg := envCfg.SyncCluster()
+	syncCfg, err := envCfg.SyncCluster()
+	if err != nil {
+		logger.Fatal("invalid cluster config", zap.Error(err))
+	}
 	if runOpts.ClusterClientCh != nil {
 		runOpts.ClusterClientCh <- syncCfg.ClusterClient
 	}

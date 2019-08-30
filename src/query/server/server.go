@@ -407,7 +407,7 @@ func newM3DBStorage(
 
 		case len(cfg.Clusters) == 1 &&
 			cfg.Clusters[0].Client.EnvironmentConfig != nil:
-			if syncCfg := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster(); syncCfg != nil {
+			if syncCfg, err := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster(); err != nil {
 				etcdCfg = syncCfg.Service
 			}
 		}

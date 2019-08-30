@@ -770,14 +770,19 @@ func newClients(
 		verificationAdminOpts = verificationAdminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
 	}
 
+	adminReplicatedOpts := client.NewAdminReplicatedOptions().
+		SetOptions(adminOpts).(client.AdminReplicatedOptions)
+	verificationAdminReplicatedOpts := client.NewAdminReplicatedOptions().
+		SetOptions(verificationAdminOpts).(client.AdminReplicatedOptions)
+
 	// Set up m3db client
-	adminClient, err := m3dbAdminClient(adminOpts)
+	adminClient, err := m3dbAdminClient(adminReplicatedOpts)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Set up m3db verification client
-	verificationAdminClient, err := m3dbAdminClient(verificationAdminOpts)
+	verificationAdminClient, err := m3dbAdminClient(verificationAdminReplicatedOpts)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -104,7 +104,7 @@ func tchannelClientHealth(client rpc.TChanNode) (*rpc.NodeHealthResult_, error) 
 	return client.Health(ctx)
 }
 
-func m3dbAdminClient(opts client.AdminOptions) (client.AdminClient, error) {
+func m3dbAdminClient(opts client.AdminReplicatedOptions) (client.AdminClient, error) {
 	return client.NewAdminClient(opts)
 }
 
