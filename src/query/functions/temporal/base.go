@@ -318,7 +318,7 @@ func getIndices(
 
 	var (
 		l, r      = init, -1
-		leftBound = true
+		leftBound = false
 	)
 
 	for i, dp := range dp[init:] {
@@ -346,6 +346,10 @@ func getIndices(
 		r = len(dp)
 	} else {
 		r = r + init
+	}
+
+	if l < init {
+		l = l + init
 	}
 
 	return l, r, true
@@ -405,7 +409,6 @@ func (c *baseNode) processSingleRequest(
 	}
 
 	aggDuration := c.op.duration
-	desiredLength := int(math.Ceil(float64(aggDuration) / float64(bounds.StepSize)))
 	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
 	for i, blk := range request.deps {
 		iter, err := blk.SeriesIter()
@@ -450,14 +453,6 @@ func (c *baseNode) processSingleRequest(
 			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
 			l, r, b := getIndices(valueBuffer, oldestDatapointTimestamp,
 				alignedTime, init)
-
-			if b {
-				if r >= desiredLength {
-					l = r - desiredLength
-				} else {
-					b = false
-				}
-			}
 
 			if !b {
 				newVal = c.processor.process(ts.Datapoints{}, alignedTime)
