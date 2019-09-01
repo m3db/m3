@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.11.1 (pending)
+
+## Features
+
+- **m3aggregator:** Make YAML serialization roundtrip for config related types (#1864)
+
 # 0.11.0
 
 ## Migration Disclaimer

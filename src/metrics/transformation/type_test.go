@@ -21,9 +21,12 @@
 package transformation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
+	"github.com/m3db/m3/src/x/test/testmarshal"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -209,7 +212,7 @@ func TestTypeFromProtoBadProto(t *testing.T) {
 	require.Error(t, res.FromProto(testBadTypeProto))
 }
 
-func TestTypeRoundTrip(t *testing.T) {
+func TestTypeRoundTripProto(t *testing.T) {
 	var (
 		pb  transformationpb.TransformationType
 		res Type
@@ -217,4 +220,73 @@ func TestTypeRoundTrip(t *testing.T) {
 	require.NoError(t, testType.ToProto(&pb))
 	require.NoError(t, res.FromProto(pb))
 	require.Equal(t, testType, res)
+}
+
+func TestTypeMarshalling(t *testing.T) {
+	cases := []struct {
+		Example      Type
+		Text         string
+		NotCanonical bool
+	}{{
+		Example: Absolute,
+		Text:    "Absolute",
+	}}
+
+	t.Run("roundtrips", func(t *testing.T) {
+		examples := make([]Type, 0, len(cases))
+		for _, tc := range cases {
+			examples = append(examples, tc.Example)
+		}
+		testmarshal.TestMarshalersRoundtrip(t, examples,
+			[]testmarshal.Marshaler{testmarshal.TextMarshaler,
+				testmarshal.JSONMarshaler,
+				testmarshal.YAMLMarshaler})
+	})
+
+	t.Run("text/marshals", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertMarshals(t, testmarshal.TextMarshaler, tc.Example, []byte(tc.Text))
+		}
+	})
+
+	t.Run("text/unmarshals", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertUnmarshals(t, testmarshal.TextMarshaler, tc.Example, []byte(tc.Text))
+		}
+	})
+
+	mustJSONMarshal := func(i interface{}) []byte {
+		d, err := json.Marshal(i)
+		require.NoError(t, err)
+		return d
+	}
+	t.Run("json/marshals", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertMarshals(t, testmarshal.JSONMarshaler, tc.Example, mustJSONMarshal(tc.Text))
+		}
+	})
+
+	t.Run("json/unmarshals", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertUnmarshals(t, testmarshal.JSONMarshaler, tc.Example, mustJSONMarshal(tc.Text))
+		}
+	})
+
+	mustYAMLMarshal := func(i interface{}) []byte {
+		d, err := yaml.Marshal(i)
+		require.NoError(t, err)
+		return d
+	}
+
+	t.Run("yaml/marshals", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertMarshals(t, testmarshal.YAMLMarshaler, tc.Example, mustYAMLMarshal(tc.Text))
+		}
+	})
+
+	t.Run("yaml/unmarshals", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertUnmarshals(t, testmarshal.YAMLMarshaler, tc.Example, mustYAMLMarshal(tc.Text))
+		}
+	})
 }
