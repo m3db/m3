@@ -577,8 +577,9 @@ func TestSingleProcessRequest(t *testing.T) {
 	bNode.propagateNextBlocks([]processRequest{request}, []block.Block{bl}, 1)
 	assert.Len(t, sink.Values, 2, "block processed")
 	/*
-		NB: This test is a little weird to understand; worked example for expected
-		values below. Keep in mind the
+		NB: This test is a little weird to understand; it's simulating a test where
+		blocks come in out of order. Worked example for expected values below. As
+		a processing function, it simply adds all values together.
 
 		For series 1:
 			Previous Block:   10 11 12 13 14, with 10 being outside of the period.
@@ -586,11 +587,10 @@ func TestSingleProcessRequest(t *testing.T) {
 
 			1st value of processed block uses values: [11, 12, 13, 14], [0] = 50
 			2nd value of processed block uses values: [12, 13, 14], [0, 1] = 40
-			3rd value of processed block uses values: [12, 13, 14], [0, 1, 2] = 42
-			4th value of processed block uses values: [12, 13, 14], [0, 1, 2, 3] = 45
+			3rd value of processed block uses values: [13, 14], [0, 1, 2] = 30
+			4th value of processed block uses values: [14], [0, 1, 2, 3] = 20
+			5th value of processed block uses values: [0, 1, 2, 3, 4] = 10
 	*/
-	// i = 0; prev values [11, 12, 13, 14, 15], current values [0], sum = 50
-	// i = 1; prev values [12, 13, 14, 15], current values [0, 1], sum = 40
 	require.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10})
 	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35})
 

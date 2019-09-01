@@ -306,6 +306,13 @@ func (c *baseNode) processCompletedBlocks(
 	return blocks, nil
 }
 
+// getIndices returns the index of the points on the left and the right of the
+// datapoint list given a starting index, as well as a boolean indicating if
+// the returned indices are valid.
+//
+// NB: return values from getIndices should be used as subslice indices rather
+// than direct index accesses, as that may cause panics when reaching the end of
+// the datapoint list.
 func getIndices(
 	dp []ts.Datapoint,
 	lBound time.Time,
@@ -371,7 +378,7 @@ func buildValueBuffer(
 	}
 
 	// NB: sanity check; theoretically this should never happen
-	// as empty series should not exist.
+	// as empty series should not exist when building the value buffer.
 	if l < 1 {
 		return ts.Datapoints{}
 	}
@@ -395,13 +402,13 @@ func (c *baseNode) processSingleRequest(
 	)
 
 	// rename series to exclude their __name__ tag as part of function processing.
-	resultSeriesMeta := make([]block.SeriesMeta, len(seriesMeta))
-	for i, m := range seriesMeta {
+	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesMeta))
+	for _, m := range seriesMeta {
 		tags := m.Tags.WithoutName()
-		resultSeriesMeta[i] = block.SeriesMeta{
+		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
 			Name: tags.ID(),
 			Tags: tags,
-		}
+		})
 	}
 
 	builder, err := c.controller.BlockBuilder(request.queryCtx,
@@ -415,14 +422,14 @@ func (c *baseNode) processSingleRequest(
 	}
 
 	aggDuration := c.op.duration
-	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
-	for i, blk := range request.deps {
-		iter, err := blk.SeriesIter()
+	depIters := make([]block.UnconsolidatedSeriesIter, 0, len(request.deps))
+	for _, b := range request.deps {
+		iter, err := b.SeriesIter()
 		if err != nil {
 			return nil, err
 		}
 
-		depIters[i] = iter
+		depIters = append(depIters, iter)
 	}
 
 	for seriesIter.Next() {
