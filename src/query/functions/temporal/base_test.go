@@ -22,6 +22,7 @@ package temporal
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -56,6 +57,7 @@ func (p *noopProcessor) process(dps ts.Datapoints, _ time.Time) float64 {
 		sum += n
 	}
 
+	fmt.Println(vals, sum)
 	return sum
 }
 
@@ -518,6 +520,7 @@ func (b *closeSpyBlock) Close() error {
 
 func TestSingleProcessRequest(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	bounds.Start = bounds.Start.Truncate(time.Hour)
 	boundStart := bounds.Start
 
 	seriesMetas := []block.SeriesMeta{{
@@ -567,19 +570,29 @@ func TestSingleProcessRequest(t *testing.T) {
 		deps:     []block.UnconsolidatedBlock{block1},
 		queryCtx: models.NoopQueryContext(),
 	}
-	bl, err := bNode.processSingleRequest(request, ts.Datapoints{})
+
+	bl, err := bNode.processSingleRequest(request, nil)
 	require.NoError(t, err)
 
 	bNode.propagateNextBlocks([]processRequest{request}, []block.Block{bl}, 1)
 	assert.Len(t, sink.Values, 2, "block processed")
-	// Current Block:     0  1  2  3  4  5
-	// Previous Block:   10 11 12 13 14 15
+	/*
+		NB: This test is a little weird to understand; worked example for expected
+		values below. Keep in mind the
+
+		For series 1:
+			Previous Block:   10 11 12 13 14, with 10 being outside of the period.
+			Current Block:     0  1  2  3  4
+
+			1st value of processed block uses values: [11, 12, 13, 14], [0] = 50
+			2nd value of processed block uses values: [12, 13, 14], [0, 1] = 40
+			3rd value of processed block uses values: [12, 13, 14], [0, 1, 2] = 42
+			4th value of processed block uses values: [12, 13, 14], [0, 1, 2, 3] = 45
+	*/
 	// i = 0; prev values [11, 12, 13, 14, 15], current values [0], sum = 50
 	// i = 1; prev values [12, 13, 14, 15], current values [0, 1], sum = 40
-	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10},
-		"first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
-	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35},
-		"second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
+	require.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10})
+	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35})
 
 	// processSingleRequest renames the series to use their ids; reflect this in our expectation.
 	expectedSeriesMetas := make([]block.SeriesMeta, len(seriesMetas))

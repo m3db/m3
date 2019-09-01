@@ -308,7 +308,7 @@ func (c *baseNode) processCompletedBlocks(
 
 func getIndices(
 	dp []ts.Datapoint,
-	lBound,
+	lBound time.Time,
 	rBound time.Time,
 	init int,
 ) (int, int, bool) {
@@ -348,7 +348,7 @@ func getIndices(
 		r = r + init
 	}
 
-	if l < init {
+	if leftBound {
 		l = l + init
 	}
 
@@ -356,21 +356,27 @@ func getIndices(
 }
 
 func buildValueBuffer(
-	currentLen int,
+	current block.UnconsolidatedSeries,
 	iters []block.UnconsolidatedSeriesIter,
 ) ts.Datapoints {
-	len := currentLen
+	l := 0
+	for _, dps := range current.Datapoints() {
+		l += len(dps)
+	}
+
 	for _, it := range iters {
-		len += it.Current().Len()
+		for _, dps := range it.Current().Datapoints() {
+			l += len(dps)
+		}
 	}
 
 	// NB: sanity check; theoretically this should never happen
 	// as empty series should not exist.
-	if len < 1 {
+	if l < 1 {
 		return ts.Datapoints{}
 	}
 
-	return make(ts.Datapoints, 0, len)
+	return make(ts.Datapoints, 0, l)
 }
 
 func (c *baseNode) processSingleRequest(
@@ -431,7 +437,7 @@ func (c *baseNode) processSingleRequest(
 		// If valueBuffer is still unset, build it here; if it's been set in a
 		// previous iteration, reset it for this processing step.
 		if valueBuffer == nil {
-			valueBuffer = buildValueBuffer(series.Len(), depIters)
+			valueBuffer = buildValueBuffer(series, depIters)
 		} else {
 			valueBuffer = valueBuffer[:0]
 		}
@@ -444,16 +450,17 @@ func (c *baseNode) processSingleRequest(
 			}
 		}
 
-		var newVal float64
-		init := 0
+		var (
+			newVal      float64
+			init        = 0
+			alignedTime = bounds.Start
+			start       = alignedTime.Add(-1 * aggDuration)
+		)
+
 		for i := 0; i < series.Len(); i++ {
 			val := series.DatapointsAtStep(i)
 			valueBuffer = append(valueBuffer, val...)
-			alignedTime, _ := bounds.TimeForIndex(i)
-			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
-			l, r, b := getIndices(valueBuffer, oldestDatapointTimestamp,
-				alignedTime, init)
-
+			l, r, b := getIndices(valueBuffer, start, alignedTime, init)
 			if !b {
 				newVal = c.processor.process(ts.Datapoints{}, alignedTime)
 			} else {
@@ -464,6 +471,9 @@ func (c *baseNode) processSingleRequest(
 			if err := builder.AppendValue(i, newVal); err != nil {
 				return nil, err
 			}
+
+			start = start.Add(bounds.StepSize)
+			alignedTime = alignedTime.Add(bounds.StepSize)
 		}
 	}
 

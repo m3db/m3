@@ -213,7 +213,8 @@ func stdvarOverTime(values []float64) float64 {
 		}
 	}
 
-	if count == 0 {
+	// NB: stdvar and stddev are undefined unless there are more than 2 points.
+	if count < 2 {
 		return math.NaN()
 	}
 

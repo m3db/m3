@@ -7,6 +7,7 @@ RUN mkdir -p /tmp/grafana_dashboards
 COPY ./integrations/grafana/m3query_dashboard.json /tmp/grafana_dashboards/m3query_dashboard.json
 COPY ./integrations/grafana/m3coordinator_dashboard.json /tmp/grafana_dashboards/m3coordinator_dashboard.json
 COPY ./integrations/grafana/m3db_dashboard.json /tmp/grafana_dashboards/m3db_dashboard.json
+COPY ./integrations/grafana/temporal_function_comparison.json /tmp/grafana_dashboards/temporal_function_comparison.json
 
 # Need to replace datasource template variable with name of actual data source so auto-import
 # JustWorksTM. Use a temporary directory to host the dashboards since the default
