@@ -22,7 +22,6 @@ package temporal
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -57,7 +56,6 @@ func (p *noopProcessor) process(dps ts.Datapoints, _ time.Time) float64 {
 		sum += n
 	}
 
-	fmt.Println(vals, sum)
 	return sum
 }
 
