@@ -39,14 +39,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type processor struct {
-}
+type noopProcessor struct{}
 
-func (p processor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (p noopProcessor) initialize(
+	_ time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &p
 }
 
-func (p *processor) Process(dps ts.Datapoints, _ time.Time) float64 {
+func (p *noopProcessor) process(dps ts.Datapoints, _ time.Time) float64 {
 	vals := dps.Values()
 	sum := 0.0
 	for _, n := range vals {
@@ -56,7 +59,8 @@ func (p *processor) Process(dps ts.Datapoints, _ time.Time) float64 {
 	return sum
 }
 
-func compareCacheState(t *testing.T, node *baseNode, bounds models.Bounds, state []bool, debugMsg string) {
+func compareCacheState(t *testing.T, node *baseNode,
+	bounds models.Bounds, state []bool, debugMsg string) {
 	actualState := make([]bool, len(state))
 	for i := range state {
 		_, exists := node.cache.get(bounds.Next(i).Start)
@@ -74,7 +78,7 @@ func TestBaseWithB0(t *testing.T) {
 	baseOp := baseOp{
 		operatorType: "dummy",
 		duration:     5 * time.Minute,
-		processorFn:  processor{},
+		processorFn:  noopProcessor{},
 	}
 
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
@@ -342,7 +346,7 @@ func setup(
 	baseOp := baseOp{
 		operatorType: "dummy",
 		duration:     duration,
-		processorFn:  processor{},
+		processorFn:  noopProcessor{},
 	}
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
 		TimeSpec: transform.TimeSpec{
@@ -514,6 +518,7 @@ func (b *closeSpyBlock) Close() error {
 
 func TestSingleProcessRequest(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	bounds.Start = bounds.Start.Truncate(time.Hour)
 	boundStart := bounds.Start
 
 	seriesMetas := []block.SeriesMeta{{
@@ -546,7 +551,7 @@ func TestSingleProcessRequest(t *testing.T) {
 	baseOp := baseOp{
 		operatorType: "dummy",
 		duration:     5 * time.Minute,
-		processorFn:  processor{},
+		processorFn:  noopProcessor{},
 	}
 
 	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
@@ -563,19 +568,29 @@ func TestSingleProcessRequest(t *testing.T) {
 		deps:     []block.UnconsolidatedBlock{block1},
 		queryCtx: models.NoopQueryContext(),
 	}
-	bl, err := bNode.processSingleRequest(request)
+
+	bl, err := bNode.processSingleRequest(request, nil)
 	require.NoError(t, err)
 
 	bNode.propagateNextBlocks([]processRequest{request}, []block.Block{bl}, 1)
 	assert.Len(t, sink.Values, 2, "block processed")
-	// Current Block:     0  1  2  3  4  5
-	// Previous Block:   10 11 12 13 14 15
-	// i = 0; prev values [11, 12, 13, 14, 15], current values [0], sum = 50
-	// i = 1; prev values [12, 13, 14, 15], current values [0, 1], sum = 40
-	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10},
-		"first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
-	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35},
-		"second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
+	/*
+		NB: This test is a little weird to understand; it's simulating a test where
+		blocks come in out of order. Worked example for expected values below. As
+		a processing function, it simply adds all values together.
+
+		For series 1:
+			Previous Block:   10 11 12 13 14, with 10 being outside of the period.
+			Current Block:     0  1  2  3  4
+
+			1st value of processed block uses values: [11, 12, 13, 14], [0] = 50
+			2nd value of processed block uses values: [12, 13, 14], [0, 1] = 40
+			3rd value of processed block uses values: [13, 14], [0, 1, 2] = 30
+			4th value of processed block uses values: [14], [0, 1, 2, 3] = 20
+			5th value of processed block uses values: [0, 1, 2, 3, 4] = 10
+	*/
+	require.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10})
+	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35})
 
 	// processSingleRequest renames the series to use their ids; reflect this in our expectation.
 	expectedSeriesMetas := make([]block.SeriesMeta, len(seriesMetas))

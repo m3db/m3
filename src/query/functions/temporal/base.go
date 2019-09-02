@@ -44,13 +44,13 @@ var emptyOp = baseOp{}
 type baseOp struct {
 	operatorType string
 	duration     time.Duration
-	processorFn  MakeProcessor
+	processorFn  makeProcessor
 }
 
 func newBaseOp(
 	duration time.Duration,
 	operatorType string,
-	processorFn MakeProcessor,
+	processorFn makeProcessor,
 ) (baseOp, error) {
 	return baseOp{
 		operatorType: operatorType,
@@ -76,7 +76,7 @@ func (o baseOp) Node(
 		controller:    controller,
 		cache:         newBlockCache(o, opts),
 		op:            o,
-		processor:     o.processorFn.Init(o, controller, opts),
+		processor:     o.processorFn.initialize(o.duration, controller, opts),
 		transformOpts: opts,
 	}
 }
@@ -89,7 +89,7 @@ type baseNode struct {
 	controller    controller
 	op            baseOp
 	cache         *blockCache
-	processor     Processor
+	processor     processor
 	transformOpts transform.Options
 }
 
@@ -138,7 +138,7 @@ func (c *baseNode) Process(
 			bounds, queryEndBounds)
 	}
 
-	c.cache.init(bounds)
+	c.cache.initialize(bounds)
 	blockDuration := bounds.Duration
 	// Figure out the maximum blocks needed for the temporal function.
 	maxBlocks := int(math.Ceil(float64(c.op.duration) / float64(blockDuration)))
@@ -289,8 +289,11 @@ func (c *baseNode) processCompletedBlocks(
 	defer sp.Finish()
 
 	blocks := make([]block.Block, 0, len(processRequests))
+	// NB: valueBuffer gets populated and re-used within the processSingleRequest
+	// function call.
+	var valueBuffer ts.Datapoints
 	for _, req := range processRequests {
-		bl, err := c.processSingleRequest(req)
+		bl, err := c.processSingleRequest(req, valueBuffer)
 		if err != nil {
 			// cleanup any blocks we opened
 			closeBlocks(blocks)
@@ -303,22 +306,93 @@ func (c *baseNode) processCompletedBlocks(
 	return blocks, nil
 }
 
+// getIndices returns the index of the points on the left and the right of the
+// datapoint list given a starting index, as well as a boolean indicating if
+// the returned indices are valid.
+//
+// NB: return values from getIndices should be used as subslice indices rather
+// than direct index accesses, as that may cause panics when reaching the end of
+// the datapoint list.
+func getIndices(
+	dp []ts.Datapoint,
+	lBound time.Time,
+	rBound time.Time,
+	init int,
+) (int, int, bool) {
+	if init >= len(dp) || init < 0 {
+		return -1, -1, false
+	}
+
+	var (
+		l, r      = init, -1
+		leftBound = false
+	)
+
+	for i, dp := range dp[init:] {
+		ts := dp.Timestamp
+		if !leftBound {
+			// Trying to set left bound.
+			if ts.Before(lBound) {
+				// data point before 0.
+				continue
+			}
+
+			leftBound = true
+			l = i
+		}
+
+		if ts.Before(rBound) {
+			continue
+		}
+
+		r = i
+		break
+	}
+
+	if r == -1 {
+		r = len(dp)
+	} else {
+		r = r + init
+	}
+
+	if leftBound {
+		l = l + init
+	}
+
+	return l, r, true
+}
+
+func buildValueBuffer(
+	current block.UnconsolidatedSeries,
+	iters []block.UnconsolidatedSeriesIter,
+) ts.Datapoints {
+	l := 0
+	for _, dps := range current.Datapoints() {
+		l += len(dps)
+	}
+
+	for _, it := range iters {
+		for _, dps := range it.Current().Datapoints() {
+			l += len(dps)
+		}
+	}
+
+	// NB: sanity check; theoretically this should never happen
+	// as empty series should not exist when building the value buffer.
+	if l < 1 {
+		return ts.Datapoints{}
+	}
+
+	return make(ts.Datapoints, 0, l)
+}
+
 func (c *baseNode) processSingleRequest(
 	request processRequest,
+	valueBuffer ts.Datapoints,
 ) (block.Block, error) {
 	seriesIter, err := request.blk.SeriesIter()
 	if err != nil {
 		return nil, err
-	}
-
-	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
-	for i, blk := range request.deps {
-		iter, err := blk.SeriesIter()
-		if err != nil {
-			return nil, err
-		}
-
-		depIters[i] = iter
 	}
 
 	var (
@@ -328,13 +402,13 @@ func (c *baseNode) processSingleRequest(
 	)
 
 	// rename series to exclude their __name__ tag as part of function processing.
-	resultSeriesMeta := make([]block.SeriesMeta, len(seriesMeta))
-	for i, m := range seriesMeta {
+	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesMeta))
+	for _, m := range seriesMeta {
 		tags := m.Tags.WithoutName()
-		resultSeriesMeta[i] = block.SeriesMeta{
+		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
 			Name: tags.ID(),
 			Tags: tags,
-		}
+		})
 	}
 
 	builder, err := c.controller.BlockBuilder(request.queryCtx,
@@ -348,53 +422,65 @@ func (c *baseNode) processSingleRequest(
 	}
 
 	aggDuration := c.op.duration
-	steps := int((aggDuration + bounds.Duration) / bounds.StepSize)
-	values := make([]ts.Datapoints, 0, steps)
-	desiredLength := int(math.Ceil(float64(aggDuration) / float64(bounds.StepSize)))
+	depIters := make([]block.UnconsolidatedSeriesIter, 0, len(request.deps))
+	for _, b := range request.deps {
+		iter, err := b.SeriesIter()
+		if err != nil {
+			return nil, err
+		}
+
+		depIters = append(depIters, iter)
+	}
+
 	for seriesIter.Next() {
-		values = values[:0]
+		series := seriesIter.Current()
+		// First, advance the iterators to ensure they all have this series.
 		for i, iter := range depIters {
 			if !iter.Next() {
 				return nil, fmt.Errorf("incorrect number of series for block: %d", i)
 			}
-
-			s := iter.Current()
-			values = append(values, s.Datapoints()...)
 		}
 
-		series := seriesIter.Current()
+		// If valueBuffer is still unset, build it here; if it's been set in a
+		// previous iteration, reset it for this processing step.
+		if valueBuffer == nil {
+			valueBuffer = buildValueBuffer(series, depIters)
+		} else {
+			valueBuffer = valueBuffer[:0]
+		}
+
+		// Write datapoints into value buffer.
+		for _, iter := range depIters {
+			s := iter.Current()
+			for _, dps := range s.Datapoints() {
+				valueBuffer = append(valueBuffer, dps...)
+			}
+		}
+
+		var (
+			newVal      float64
+			init        = 0
+			alignedTime = bounds.Start
+			start       = alignedTime.Add(-1 * aggDuration)
+		)
+
 		for i := 0; i < series.Len(); i++ {
 			val := series.DatapointsAtStep(i)
-			values = append(values, val)
-			newVal := math.NaN()
-			alignedTime, _ := bounds.TimeForIndex(i)
-			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
-			// Remove the older values from slice as newer values are pushed in.
-			// TODO: Consider using a rotating slice since this is inefficient
-			if desiredLength <= len(values) {
-				values = values[len(values)-desiredLength:]
-				flattenedValues := make(ts.Datapoints, 0, len(values))
-				for _, dps := range values {
-					var (
-						idx int
-						dp  ts.Datapoint
-					)
-					for idx, dp = range dps {
-						// go until we find datapoints at the oldest timestamp for window
-						if !dp.Timestamp.Before(oldestDatapointTimestamp) {
-							break
-						}
-					}
-
-					flattenedValues = append(flattenedValues, dps[idx:]...)
-				}
-
-				newVal = c.processor.Process(flattenedValues, alignedTime)
+			valueBuffer = append(valueBuffer, val...)
+			l, r, b := getIndices(valueBuffer, start, alignedTime, init)
+			if !b {
+				newVal = c.processor.process(ts.Datapoints{}, alignedTime)
+			} else {
+				init = l
+				newVal = c.processor.process(valueBuffer[l:r], alignedTime)
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {
 				return nil, err
 			}
+
+			start = start.Add(bounds.StepSize)
+			alignedTime = alignedTime.Add(bounds.StepSize)
 		}
 	}
 
@@ -432,14 +518,19 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 	}
 }
 
-// Processor is implemented by the underlying transforms.
-type Processor interface {
-	Process(values ts.Datapoints, evaluationTime time.Time) float64
+// processor is implemented by the underlying transforms.
+type processor interface {
+	process(valueBuffer ts.Datapoints, evaluationTime time.Time) float64
 }
 
-// MakeProcessor is a way to create a transform.
-type MakeProcessor interface {
-	Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor
+// makeProcessor is a way to create a transform.
+type makeProcessor interface {
+	// initialize initializes the processor.
+	initialize(
+		duration time.Duration,
+		controller *transform.Controller,
+		opts transform.Options,
+	) processor
 }
 
 type processRequest struct {
@@ -468,7 +559,7 @@ func newBlockCache(op baseOp, transformOpts transform.Options) *blockCache {
 	}
 }
 
-func (c *blockCache) init(bounds models.Bounds) {
+func (c *blockCache) initialize(bounds models.Bounds) {
 	if c.initialized {
 		return
 	}

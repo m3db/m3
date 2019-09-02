@@ -94,27 +94,32 @@ func parseParams(
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
-	params.Timeout = t
 
+	params.Timeout = t
 	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
 	}
-	params.Start = start
 
+	params.Start = start
 	end, err := parseTime(r, endParam, params.Now)
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
 	}
-	params.End = end
 
+	if start.After(end) {
+		return params, xhttp.NewParseError(fmt.Errorf("start (%s) must be before end (%s)",
+			start, end), http.StatusBadRequest)
+	}
+
+	params.End = end
 	step := fetchOpts.Step
 	if step <= 0 {
 		err := fmt.Errorf("expected postive step size, instead got: %d", step)
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, handler.StepParam, err), http.StatusBadRequest)
 	}
-	params.Step = fetchOpts.Step
 
+	params.Step = fetchOpts.Step
 	query, err := parseQuery(r)
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)

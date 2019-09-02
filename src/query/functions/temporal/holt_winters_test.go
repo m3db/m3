@@ -40,8 +40,8 @@ var holtWintersTestCases = []testCase{
 	{
 		name: "holt_winters",
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
+			{math.NaN(), math.NaN(), 2, 3, 4},
+			{math.NaN(), 6, 7, 8, 9},
 		},
 		afterAllBlocks: [][]float64{
 			{4, 3.64, 3.1824, -4.8224, 4},

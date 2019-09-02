@@ -226,6 +226,10 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 }
 
 func (cb ColumnBlockBuilder) AddCols(num int) error {
+	if num < 1 {
+		return fmt.Errorf("must add more than 0 columns, adding: %d", num)
+	}
+
 	newCols := make([]column, num)
 	cb.block.columns = append(cb.block.columns, newCols...)
 	return nil

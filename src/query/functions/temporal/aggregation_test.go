@@ -49,8 +49,8 @@ var testCases = []testCase{
 		name:   "avg_over_time",
 		opType: AvgType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
+			{math.NaN(), 1, 1.5, 2, 2.5},
+			{5, 5.5, 6, 6.5, 7},
 		},
 		afterAllBlocks: [][]float64{
 			{2, 2, 2, 2, 2},
@@ -61,8 +61,8 @@ var testCases = []testCase{
 		name:   "count_over_time",
 		opType: CountType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
+			{math.NaN(), 1, 2, 3, 4},
+			{1, 2, 3, 4, 5},
 		},
 		afterAllBlocks: [][]float64{
 			{5, 5, 5, 5, 5},
@@ -73,8 +73,8 @@ var testCases = []testCase{
 		name:   "min_over_time",
 		opType: MinType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
+			{math.NaN(), 1, 1, 1, 1},
+			{5, 5, 5, 5, 5},
 		},
 		afterAllBlocks: [][]float64{
 			{0, 0, 0, 0, 0},
@@ -85,8 +85,8 @@ var testCases = []testCase{
 		name:   "max_over_time",
 		opType: MaxType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
+			{math.NaN(), 1, 2, 3, 4},
+			{5, 6, 7, 8, 9},
 		},
 		afterAllBlocks: [][]float64{
 			{4, 4, 4, 4, 4},
@@ -97,8 +97,8 @@ var testCases = []testCase{
 		name:   "sum_over_time",
 		opType: SumType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
+			{math.NaN(), 1, 3, 6, 10},
+			{5, 11, 18, 26, 35},
 		},
 		afterAllBlocks: [][]float64{
 			{10, 10, 10, 10, 10},
@@ -109,8 +109,8 @@ var testCases = []testCase{
 		name:   "stddev_over_time",
 		opType: StdDevType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
+			{math.NaN(), math.NaN(), 0.5, 0.81649, 1.1180},
+			{math.NaN(), 0.5, 0.81649, 1.11803, 1.4142},
 		},
 		afterAllBlocks: [][]float64{
 			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
@@ -121,8 +121,8 @@ var testCases = []testCase{
 		name:   "stdvar_over_time",
 		opType: StdVarType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
+			{math.NaN(), math.NaN(), 0.25, 0.666666, 1.25},
+			{math.NaN(), 0.25, 0.66666, 1.25, 2},
 		},
 		afterAllBlocks: [][]float64{
 			{2, 2, 2, 2, 2},
@@ -133,8 +133,8 @@ var testCases = []testCase{
 		name:   "quantile_over_time",
 		opType: QuantileType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.6},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.8},
+			{math.NaN(), 1, 1.2, 1.4, 1.6},
+			{5, 5.2, 5.4, 5.6, 5.8},
 		},
 		afterAllBlocks: [][]float64{
 			{0.8, 0.8, 0.8, 0.8, 0.8},
