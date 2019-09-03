@@ -90,8 +90,7 @@ type Configuration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
-	Enabled  bool `yaml:"enabled"`
-	TestOnly bool `yaml:"testOnly"`
+	Enabled bool `yaml:"enabled"`
 	// load user schema from client configuration into schema registry
 	// at startup/initialization time.
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
@@ -315,33 +314,15 @@ func (c Configuration) NewAdminClient(
 
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
-
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
-		if c.Proto.TestOnly {
-			// Load schema registry from file.
-			deployID := "fromfile"
-			for nsID, protoConfig := range c.Proto.SchemaRegistry {
-				err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
-				if err != nil {
-					return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
-				}
-			}
-		} else {
-			// Load schema registry from m3db metadata store.
-			err := loadSchemaRegistryFromKVStore(schemaRegistry, syncEnvCfg.KVStore)
+		// Load schema registry from file.
+		deployID := "fromfile"
+		for nsID, protoConfig := range c.Proto.SchemaRegistry {
+			err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
 			if err != nil {
-				return nil, xerrors.Wrap(err, "could not load schema registry from m3db metadata store")
-			}
-			// Validate the schema deploy ID.
-			for nsID, protoConfig := range c.Proto.SchemaRegistry {
-				_, err := schemaRegistry.GetSchema(ident.StringID(nsID), protoConfig.SchemaDeployID)
-				if err != nil {
-					return nil, xerrors.Wrapf(err, "could not find schema for namespace: %s with schema deploy ID: %s", nsID, protoConfig.SchemaDeployID)
-				}
+				return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
 			}
 		}
-		v = v.SetSchemaRegistry(schemaRegistry)
-	}
 
 	u := NewAdminReplicatedOptions().
 		SetOptions(v).
