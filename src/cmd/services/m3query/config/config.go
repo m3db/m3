@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -111,6 +112,9 @@ type Configuration struct {
 
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+
+	// WriteForwarding is the write forwarding options.
+	WriteForwarding remote.PromWriteHandlerForwardingOptions `yaml:"writeForwarding"`
 
 	// Downsample configurates how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
