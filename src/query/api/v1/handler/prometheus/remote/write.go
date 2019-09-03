@@ -61,10 +61,6 @@ const (
 	// emptyStoragePolicyVar for code readability.
 	emptyStoragePolicyVar = ""
 
-	// defaultForwardingWorkers sets the default amount of pooled workers to use,
-	// note this is not a hard limit unless max concurrency is set.
-	defaultForwardingWorkers = 32
-
 	// defaultForwardingTimeout is the default forwarding timeout.
 	defaultForwardingTimeout = 15 * time.Second
 )
@@ -78,13 +74,15 @@ var (
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
-	downsamplerAndWriter ingest.DownsamplerAndWriter
-	tagOptions           models.TagOptions
-	forwarding           PromWriteHandlerForwardingOptions
-	forwardingWorkerPool xsync.PooledWorkerPool
-	nowFn                clock.NowFn
-	instrumentOpts       instrument.Options
-	metrics              promWriteMetrics
+	downsamplerAndWriter   ingest.DownsamplerAndWriter
+	tagOptions             models.TagOptions
+	forwarding             PromWriteHandlerForwardingOptions
+	forwardTimeout         time.Duration
+	forwardHTTPClient      *http.Client
+	forwardingBoundWorkers xsync.WorkerPool
+	nowFn                  clock.NowFn
+	instrumentOpts         instrument.Options
+	metrics                promWriteMetrics
 }
 
 // PromWriteHandlerForwardingOptions is the forwarding options for prometheus write handler.
@@ -126,36 +124,33 @@ func NewPromWriteHandler(
 		return nil, err
 	}
 
-	// Configure forwarding using single shard for exact GoIfAvailable
-	// semantics. Otherwise GoIfAvailable might return false depending
-	// on which shard of the worker pool it selected. Since this is a batch
-	// of metrics the contention should not be nearly as contended as a
-	// pool that is accessed per metric processed.
-	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetNumShards(1)
-	workerPoolSize := defaultForwardingWorkers
-	if forwarding.MaxConcurrency > 0 {
-		workerPoolSize = forwarding.MaxConcurrency
-		workerPoolOpts = workerPoolOpts.SetGrowOnDemand(false)
-	} else {
-		// No limit, let it grow on demand.
-		workerPoolOpts = workerPoolOpts.SetGrowOnDemand(true)
+	// Only use a forwarding worker pool if concurrency is bound, otherwise
+	// if unlimited we just spin up a goroutine for each incoming write.
+	var forwardingBoundWorkers xsync.WorkerPool
+	if v := forwarding.MaxConcurrency; v > 0 {
+		forwardingBoundWorkers = xsync.NewWorkerPool(v)
+		forwardingBoundWorkers.Init()
 	}
-	forwardingWorkerPool, err := xsync.NewPooledWorkerPool(workerPoolSize,
-		workerPoolOpts)
-	if err != nil {
-		return nil, err
+
+	forwardTimeout := defaultForwardingTimeout
+	if v := forwarding.Timeout; v > 0 {
+		forwardTimeout = v
 	}
-	forwardingWorkerPool.Init()
+
+	forwardHTTPOpts := xhttp.DefaultHTTPClientOptions()
+	forwardHTTPOpts.DisableCompression = true // Already snappy compressed.
+	forwardHTTPOpts.RequestTimeout = forwardTimeout
 
 	return &PromWriteHandler{
-		downsamplerAndWriter: downsamplerAndWriter,
-		tagOptions:           tagOptions,
-		forwarding:           forwarding,
-		forwardingWorkerPool: forwardingWorkerPool,
-		nowFn:                nowFn,
-		metrics:              metrics,
-		instrumentOpts:       instrumentOpts,
+		downsamplerAndWriter:   downsamplerAndWriter,
+		tagOptions:             tagOptions,
+		forwarding:             forwarding,
+		forwardTimeout:         forwardTimeout,
+		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
+		forwardingBoundWorkers: forwardingBoundWorkers,
+		nowFn:                  nowFn,
+		metrics:                metrics,
+		instrumentOpts:         instrumentOpts,
 	}, nil
 }
 
@@ -238,22 +233,34 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Kick of forwarding.
+	// Begin async forwarding.
 	// NB(r): Be careful about not returning buffers to pool
 	// if the request bodies ever get pooled until after
 	// forwarding completes.
 	if targets := h.forwarding.Targets; len(targets) > 0 {
+		ctx := r.Context()
 		for _, target := range targets {
-			target := target
-			spawned := h.forwardingWorkerPool.GoIfAvailable(func() {
-				if err := h.forward(r.Context(), result, target); err != nil {
+			target := target // Capture for lambda.
+			forward := func() {
+				ctx, cancel := context.WithTimeout(ctx, h.forwardTimeout)
+				defer cancel()
+
+				if err := h.forward(ctx, result, target); err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(r.Context(), h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
 					return
 				}
 				h.metrics.forwardSuccess.Inc(1)
-			})
+			}
+
+			spawned := false
+			if h.forwarding.MaxConcurrency > 0 {
+				spawned = h.forwardingBoundWorkers.GoIfAvailable(forward)
+			} else {
+				go forward()
+				spawned = true
+			}
 			if !spawned {
 				h.metrics.forwardDropped.Inc(1)
 			}
@@ -424,14 +431,10 @@ func (h *PromWriteHandler) forward(
 		timeout = h.forwarding.Timeout
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return err
 	}
-
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("expected status code 2XX: actual=%v", resp.StatusCode)
 	}

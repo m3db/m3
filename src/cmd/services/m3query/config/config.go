@@ -114,7 +114,7 @@ type Configuration struct {
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
 	// WriteForwarding is the write forwarding options.
-	WriteForwarding remote.PromWriteHandlerForwardingOptions `yaml:"writeForwarding"`
+	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
 
 	// Downsample configurates how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
@@ -142,6 +142,11 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
+}
+
+// WriteForwardingConfiguration is the write forwarding configuration.
+type WriteForwardingConfiguration struct {
+	PromRemoteWrite remote.PromWriteHandlerForwardingOptions `yaml:"promRemoteWrite"`
 }
 
 // Filter is a query filter type.
