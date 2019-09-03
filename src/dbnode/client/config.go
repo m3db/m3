@@ -323,6 +323,8 @@ func (c Configuration) NewAdminClient(
 				return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
 			}
 		}
+		v = v.SetSchemaRegistry(schemaRegistry)
+	}
 
 	u := NewAdminReplicatedOptions().
 		SetOptions(v).
