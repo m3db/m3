@@ -68,7 +68,7 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 		workChs:               workChs,
 		numShards:             numShards,
 		killWorkerProbability: opts.KillWorkerProbability(),
-		nowFn:                 opts.NowFn(),
+		nowFn: opts.NowFn(),
 	}, nil
 }
 
@@ -81,15 +81,7 @@ func (p *pooledWorkerPool) Init() {
 	}
 }
 
-func (p *pooledWorkerPool) GoIfAvailable(work Work) bool {
-	return p.work(work, true)
-}
-
 func (p *pooledWorkerPool) Go(work Work) {
-	p.work(work, false)
-}
-
-func (p *pooledWorkerPool) work(work Work, onlyIfAvailable bool) bool {
 	var (
 		// Use time.Now() to avoid excessive synchronization
 		currTime  = p.nowFn().UnixNano()
@@ -102,19 +94,8 @@ func (p *pooledWorkerPool) work(work Work, onlyIfAvailable bool) bool {
 	}
 
 	if !p.growOnDemand {
-		if !onlyIfAvailable {
-			workCh <- work
-			return true
-		}
-
-		// If want to enqueue only if available then determine
-		// whether this can be enqueued or not.
-		select {
-		case workCh <- work:
-			return true
-		default:
-		}
-		return false
+		workCh <- work
+		return
 	}
 
 	select {
@@ -133,8 +114,6 @@ func (p *pooledWorkerPool) work(work Work, onlyIfAvailable bool) bool {
 		// before killing themselves.
 		p.spawnWorker(uint64(currTime), work, workCh, false)
 	}
-
-	return true
 }
 
 func (p *pooledWorkerPool) spawnWorker(
