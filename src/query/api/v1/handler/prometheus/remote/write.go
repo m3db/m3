@@ -80,6 +80,7 @@ type PromWriteHandler struct {
 	forwardTimeout         time.Duration
 	forwardHTTPClient      *http.Client
 	forwardingBoundWorkers xsync.WorkerPool
+	forwardContext         context.Context
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
@@ -148,6 +149,7 @@ func NewPromWriteHandler(
 		forwardTimeout:         forwardTimeout,
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
 		forwardingBoundWorkers: forwardingBoundWorkers,
+		forwardContext:         context.Background(),
 		nowFn:                  nowFn,
 		metrics:                metrics,
 		instrumentOpts:         instrumentOpts,
@@ -238,11 +240,10 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// if the request bodies ever get pooled until after
 	// forwarding completes.
 	if targets := h.forwarding.Targets; len(targets) > 0 {
-		ctx := r.Context()
 		for _, target := range targets {
 			target := target // Capture for lambda.
 			forward := func() {
-				ctx, cancel := context.WithTimeout(ctx, h.forwardTimeout)
+				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 				defer cancel()
 
 				if err := h.forward(ctx, result, target); err != nil {
@@ -424,11 +425,6 @@ func (h *PromWriteHandler) forward(
 		bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
-	}
-
-	timeout := defaultForwardingTimeout
-	if h.forwarding.Timeout > 0 {
-		timeout = h.forwarding.Timeout
 	}
 
 	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))
