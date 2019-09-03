@@ -59,6 +59,13 @@ type PooledWorkerPool interface {
 	// size when the workload exceeds its capacity and shrink back down to its
 	// original size if/when the burst subsides.
 	Go(work Work)
+
+	// GoIfAvailable assigns the Work to be executed by a Goroutine. If
+	// GrowOnDemand() is false and the size of the worker pool is at maximum
+	// capacity then false is returned and the work is not spawned, otherwise
+	// if either GrowOnDemand() is true or the worker pool is not at maximum
+	// capacity the work is performed and true is returned.
+	GoIfAvailable(work Work) bool
 }
 
 // WorkerPool provides a pool for goroutines.
