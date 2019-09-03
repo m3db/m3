@@ -241,7 +241,6 @@ func (c Configuration) NewAdminClient(
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
 	}
 
-	var syncEnvCfg environment.ConfigureResult
 	topoInit := params.TopologyInitializer
 	asyncTopoInits := []topology.Initializer{}
 
@@ -260,7 +259,6 @@ func (c Configuration) NewAdminClient(
 			if envCfg.Async {
 				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
 			} else {
-				syncEnvCfg = envCfg
 				topoInit = envCfg.TopologyInitializer
 			}
 		}
