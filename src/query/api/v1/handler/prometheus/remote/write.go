@@ -243,12 +243,14 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, target := range targets {
 			target := target // Capture for lambda.
 			forward := func() {
+				// Consider propgating baggage without tying
+				// context to request context in future.
 				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 				defer cancel()
 
 				if err := h.forward(ctx, result, target); err != nil {
 					h.metrics.forwardErrors.Inc(1)
-					logger := logging.WithContext(r.Context(), h.instrumentOpts)
+					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
 					return
 				}
