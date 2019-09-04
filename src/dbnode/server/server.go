@@ -1522,7 +1522,7 @@ func newAdminClient(
 	}
 
 	// Kick off runtime options manager KV watches.
-	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
+	clientAdminOpts := m3dbClient.Options().Options().(client.AdminOptions)
 	kvWatchClientConsistencyLevels(kvStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 	return m3dbClient, nil
