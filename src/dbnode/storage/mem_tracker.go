@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -88,11 +87,9 @@ func (m *memoryTracker) DecPendingLoadedBytes() {
 func (m *memoryTracker) WaitForDec() {
 	m.Lock()
 	if m.waitForDecWg == nil {
-		fmt.Println("wg was nil")
 		m.waitForDecWg = &sync.WaitGroup{}
 		m.waitForDecWg.Add(1)
 	} else {
-		fmt.Println("wg was not nil")
 	}
 	wg := m.waitForDecWg
 	m.Unlock()
