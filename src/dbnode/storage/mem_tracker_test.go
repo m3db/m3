@@ -23,7 +23,6 @@ package storage
 import (
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -121,29 +120,36 @@ func TestMemoryTrackerIncMarkAndDec(t *testing.T) {
 // or race conditions.
 func TestMemTrackerWaitForDec(t *testing.T) {
 	var (
-		memTracker = NewMemoryTracker(NewMemoryTrackerOptions(100))
-		doneCh     = make(chan struct{})
-		wg         sync.WaitGroup
+		numIterations = 1000
+		memTracker    = NewMemoryTracker(NewMemoryTrackerOptions(100))
+		doneCh        = make(chan struct{})
+		wg            sync.WaitGroup
 	)
 
 	// Start a goroutine to call MarkLoadedAsPending() in a loop.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for {
-			select {
-			case <-doneCh:
-				return
-			default:
-				memTracker.MarkLoadedAsPending()
-			}
+		for i := 0; i < numIterations; i++ {
+			memTracker.MarkLoadedAsPending()
 		}
 	}()
 
-	// Start a goroutine to call DecPendingLoadedBytes() in a loop.
+	// Start a goroutine to call WaitForDec() in a loop.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		for i := 0; i < numIterations; i++ {
+			memTracker.WaitForDec()
+		}
+	}()
+
+	// Start a goroutine to call DecPendingLoadedBytes() in a loop. Note that
+	// unlike the other two goroutines this one loops infinitely until the test
+	// is over. This is to prevent call to WaitForDec() from getting stuck forever
+	// because a call to WaitForDec() was made after the goroutine that calls
+	// DecPendingLoadedBytes() had already shut down.
+	go func() {
 		for {
 			select {
 			case <-doneCh:
@@ -154,25 +160,9 @@ func TestMemTrackerWaitForDec(t *testing.T) {
 		}
 	}()
 
-	// Start a goroutine to call WaitForDec() in a loop.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-doneCh:
-				return
-			default:
-				memTracker.WaitForDec()
-			}
-		}
-	}()
-
-	time.Sleep(100 * time.Millisecond)
-
-	// Stop the background goroutines.
-	close(doneCh)
-
 	// Ensure all the goroutines exit cleanly (ensuring no deadlocks.)
 	wg.Wait()
+
+	// Stop the background goroutine calling DecPendingLoadedBytes().
+	close(doneCh)
 }
