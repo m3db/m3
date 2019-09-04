@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/x/test/testmarshal"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -47,10 +48,11 @@ func TestPolicyString(t *testing.T) {
 	}
 }
 
-func TestPolicyUnmarshalYAML(t *testing.T) {
+func TestPolicyMarshalling(t *testing.T) {
 	inputs := []struct {
-		str      string
-		expected Policy
+		notCanonical bool
+		str          string
+		expected     Policy
 	}{
 		{
 			str:      "1s:1h",
@@ -61,23 +63,55 @@ func TestPolicyUnmarshalYAML(t *testing.T) {
 			expected: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean)),
 		},
 		{
-			str:      "60s:24h|Mean,Count",
+			notCanonical: true,
+			str:          "60s:24h|Mean,Count",
+			expected:     NewPolicy(NewStoragePolicy(60*time.Second, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.Count)),
+		},
+		{
+			notCanonical: true,
+			str:          "1m:1d|Count,Mean",
+			expected:     NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.Count)),
+		},
+		{
+			str:      "1m:1d|Mean,Count",
 			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.Count)),
 		},
 		{
-			str:      "1m:1d|Count,Mean",
-			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.Count)),
-		},
-		{
-			str:      "1s@1s:1h|P999,P9999",
-			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.MustCompressTypes(aggregation.P999, aggregation.P9999)),
+			notCanonical: true,
+			str:          "1s@1s:1h|P999,P9999",
+			expected:     NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.MustCompressTypes(aggregation.P999, aggregation.P9999)),
 		},
 	}
-	for _, input := range inputs {
-		var p Policy
-		require.NoError(t, yaml.Unmarshal([]byte(input.str), &p))
-		require.Equal(t, input.expected, p)
-	}
+
+	t.Run("roundtrips", func(t *testing.T) {
+		examples := make([]Policy, 0, len(inputs))
+		for _, ex := range inputs {
+			examples = append(examples, ex.expected)
+		}
+
+		testmarshal.TestMarshalersRoundtrip(t, examples, []testmarshal.Marshaler{testmarshal.TextMarshaler, testmarshal.JSONMarshaler, testmarshal.YAMLMarshaler})
+	})
+
+	t.Run("marshals/text", func(t *testing.T) {
+		for _, input := range inputs {
+			if input.notCanonical {
+				continue
+			}
+			testmarshal.Require(t, testmarshal.AssertMarshals(t, testmarshal.TextMarshaler, input.expected, []byte(input.str)))
+		}
+	})
+
+	t.Run("unmarshals/text", func(t *testing.T) {
+		for _, input := range inputs {
+			testmarshal.Require(t, testmarshal.AssertUnmarshals(t, testmarshal.TextMarshaler, input.expected, []byte(input.str)))
+		}
+	})
+
+	t.Run("unmarshals/yaml", func(t *testing.T) {
+		for _, input := range inputs {
+			testmarshal.Require(t, testmarshal.AssertUnmarshals(t, testmarshal.YAMLMarshaler, input.expected, []byte(input.str)))
+		}
+	})
 }
 
 func TestPolicyUnmarshalYAMLErrors(t *testing.T) {
@@ -227,45 +261,5 @@ func TestParsePolicyIntoProto(t *testing.T) {
 		sp, err := p.Proto()
 		require.NoError(t, err)
 		require.Equal(t, input.expected, sp, input.str)
-	}
-}
-
-func TestDropPolicyUnmarshalYAML(t *testing.T) {
-	inputs := []struct {
-		str      string
-		expected DropPolicy
-	}{
-		{
-			str:      "",
-			expected: DropNone,
-		},
-		{
-			str:      DropNone.String(),
-			expected: DropNone,
-		},
-		{
-			str:      DropMust.String(),
-			expected: DropMust,
-		},
-		{
-			str:      DropIfOnlyMatch.String(),
-			expected: DropIfOnlyMatch,
-		},
-	}
-	for _, input := range inputs {
-		var p DropPolicy
-		require.NoError(t, yaml.Unmarshal([]byte(input.str), &p))
-		require.Equal(t, input.expected, p)
-	}
-}
-
-func TestDropPolicyUnmarshalYAMLErrors(t *testing.T) {
-	inputs := []string{
-		"drop_musty",
-		"drop_unknown",
-	}
-	for _, input := range inputs {
-		var p DropPolicy
-		require.Error(t, yaml.Unmarshal([]byte(input), &p))
 	}
 }
