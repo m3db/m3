@@ -88,11 +88,12 @@ func newReplicatedSession(opts ReplicatedOptions, options ...replicatedSessionOp
 	scope := opts.Options().InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
-		workerPool: workerPool,
-		scope:      scope,
-		log:        opts.Options().InstrumentOptions().Logger(),
-		metrics:    newReplicatedSessionMetrics(scope),
-		outCh:      make(chan error),
+		newSessionFn: newSession,
+		workerPool:   workerPool,
+		scope:        scope,
+		log:          opts.Options().InstrumentOptions().Logger(),
+		metrics:      newReplicatedSessionMetrics(scope),
+		outCh:        make(chan error),
 	}
 
 	// Apply options
