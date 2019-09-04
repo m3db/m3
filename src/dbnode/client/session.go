@@ -111,7 +111,7 @@ var (
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
 	// errEnqueueChIsClosed is returned when attempting to use a closed enqueuCh.
-	errEnqueueChIsClosed = errors.New("error enqueCh is cosed")
+	errEnqueueChIsClosed = errors.New("error enqueueCh is cosed")
 )
 
 // sessionState is volatile state that is protected by a
@@ -1986,12 +1986,16 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}()
 
 	// Begin consuming metadata and making requests. This will block until all
-	// data has been streamed (or failed to stream). Note that this function does
-	// not return an error and if anything goes wrong here we won't report it to
+	// data has been streamed (or failed to stream). Note that while this function
+	// does return an error, an error will only be returned in a select few cases.
+	// There are some scenarios in which if something goes wrong here we won't report it to
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected.
-	s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh, opts,
+	err = s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh, opts,
 		level, result, progress, s.streamAndGroupCollectedBlocksMetadata)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if an error occurred during the metadata streaming
 	if err = <-errCh; err != nil {
@@ -2071,12 +2075,12 @@ func (s *session) FetchBlocksFromPeers(
 		close(metadataCh)
 	}()
 
-	// Begin consuming metadata and making requests
+	// Begin consuming metadata and making requests.
 	go func() {
-		s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh,
+		err := s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh,
 			opts, level, result, progress, s.passThroughBlocksMetadata)
 		close(outputCh)
-		onDone(nil)
+		onDone(err)
 	}()
 
 	pbi := newPeerBlocksIter(outputCh, doneCh)
@@ -2385,7 +2389,7 @@ func (s *session) streamBlocksFromPeers(
 	result blocksResult,
 	progress *streamFromPeersMetrics,
 	streamMetadataFn streamBlocksMetadataFn,
-) {
+) error {
 	var (
 		enqueueCh           = newEnqueueChannel(progress)
 		peerBlocksBatchSize = s.streamBlocksBatchSize
@@ -2432,7 +2436,7 @@ func (s *session) streamBlocksFromPeers(
 					"failed to get enqueueCh input channel",
 					zap.Error(err))
 			})
-		return
+		return err
 	}
 
 	for perPeerBlocksMetadata := range enqueueChInputs {
@@ -2464,6 +2468,8 @@ func (s *session) streamBlocksFromPeers(
 
 	// Close all queues
 	peerQueues.closeAll()
+
+	return nil
 }
 
 type streamBlocksMetadataFn func(
