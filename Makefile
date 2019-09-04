@@ -238,6 +238,13 @@ site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
 
+# Generate configs in config/
+.PHONY: config-gen
+config-gen: install-tools
+	@echo "--- Generating configs"
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
+
 SUBDIR_TARGETS := \
 	mock-gen        \
 	thrift-gen      \

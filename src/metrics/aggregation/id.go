@@ -118,6 +118,14 @@ func (id *ID) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (id ID) MarshalYAML() (interface{}, error) {
+	aggTypes, err := id.Types()
+	if err != nil {
+		return nil, fmt.Errorf("invalid aggregation id %v: %v", id, err)
+	}
+	return aggTypes, nil
+}
+
 // UnmarshalYAML unmarshals YAML-encoded data into an ID.
 func (id *ID) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var aggTypes Types

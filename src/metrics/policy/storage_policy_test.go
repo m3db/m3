@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/x/test/testmarshal"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -274,7 +275,7 @@ func TestStoragePolicyUnmarshalJSONError(t *testing.T) {
 	}
 }
 
-func TestStoragePolicyJSONMarshalRoundtrip(t *testing.T) {
+func TestStoragePolicyMarshalRoundtrip(t *testing.T) {
 	inputs := StoragePolicies{
 		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
 		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
@@ -286,19 +287,18 @@ func TestStoragePolicyJSONMarshalRoundtrip(t *testing.T) {
 		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 	}
 
-	for _, input := range inputs {
-		b, err := json.Marshal(input)
-		require.NoError(t, err)
-		var res StoragePolicy
-		require.NoError(t, json.Unmarshal(b, &res))
-		require.Equal(t, input, res)
-	}
+	testmarshal.TestMarshalersRoundtrip(t, inputs,
+		[]testmarshal.Marshaler{
+			testmarshal.YAMLMarshaler,
+			testmarshal.TextMarshaler,
+			testmarshal.JSONMarshaler})
 }
 
-func TestStoragePolicyUnmarshalYAML(t *testing.T) {
+func TestStoragePolicyYAMLMarshal(t *testing.T) {
 	inputs := []struct {
-		str      string
-		expected StoragePolicy
+		str          string
+		expected     StoragePolicy
+		notCanonical bool
 	}{
 		{
 			str:      "1s:1h",
@@ -309,35 +309,55 @@ func TestStoragePolicyUnmarshalYAML(t *testing.T) {
 			expected: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 		},
 		{
-			str:      "60s:24h",
-			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			str:          "60s:24h",
+			notCanonical: true,
+			expected:     NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 		},
 		{
 			str:      "1m:1d",
 			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 		},
 		{
-			str:      "1s@1s:1h",
-			expected: NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+			str:          "1s@1s:1h",
+			notCanonical: true,
+			expected:     NewStoragePolicy(time.Second, xtime.Second, time.Hour),
 		},
 		{
-			str:      "10s@1s:1d",
-			expected: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+			str:          "10s@1s:1d",
+			notCanonical: true,
+			expected:     NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 		},
 		{
-			str:      "60s@1s:24h",
-			expected: NewStoragePolicy(time.Minute, xtime.Second, 24*time.Hour),
+			str:          "60s@1s:24h",
+			notCanonical: true,
+			expected:     NewStoragePolicy(time.Minute, xtime.Second, 24*time.Hour),
 		},
 		{
-			str:      "1m@1m:1d",
-			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			str:          "1m@1m:1d",
+			notCanonical: true,
+			expected:     NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "2m@1ms:1d",
+			expected: NewStoragePolicy(2*time.Minute, 1*xtime.Millisecond, 24*time.Hour),
 		},
 	}
-	for _, input := range inputs {
-		var p StoragePolicy
-		require.NoError(t, yaml.Unmarshal([]byte(input.str), &p))
-		require.Equal(t, input.expected, p)
-	}
+
+	t.Run("marshals", func(t *testing.T) {
+		for _, input := range inputs {
+			canonical := !input.notCanonical
+			if canonical {
+				testmarshal.AssertMarshals(t, testmarshal.YAMLMarshaler, input.expected, []byte(input.str+"\n"))
+			}
+		}
+	})
+
+	t.Run("unmarshals", func(t *testing.T) {
+		for _, input := range inputs {
+			testmarshal.AssertUnmarshals(t, testmarshal.YAMLMarshaler, input.expected, []byte(input.str))
+		}
+	})
+
 }
 
 func TestMustParseStoragePolicy(t *testing.T) {
@@ -485,17 +505,14 @@ func TestStoragePoliciesJSONUnMarshal(t *testing.T) {
 	require.Equal(t, expected, storagePolicies)
 }
 
-func TestStoragePoliciesJSONRoundtrip(t *testing.T) {
+func TestStoragePoliciesRoundtrip(t *testing.T) {
 	input := StoragePolicies{
 		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
 		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 	}
-	b, err := json.Marshal(input)
-	require.NoError(t, err)
-	var storagePolicies StoragePolicies
-	require.NoError(t, json.Unmarshal([]byte(b), &storagePolicies))
-	require.Equal(t, input, storagePolicies)
+
+	testmarshal.TestMarshalersRoundtrip(t, []StoragePolicies{input}, []testmarshal.Marshaler{testmarshal.JSONMarshaler, testmarshal.YAMLMarshaler})
 }
 
 func TestStoragePoliciesByResolutionAscRetentionDesc(t *testing.T) {
