@@ -244,7 +244,9 @@ func makeTestWrite(
 		SetTopologyInitializer(topoInit)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
+		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
+		clientReplicatedOpts := client.NewReplicatedOptions().SetOptions(clientopts)
+		c, err := client.NewClient(clientReplicatedOpts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

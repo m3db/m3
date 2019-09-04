@@ -257,7 +257,9 @@ func makeTestWriteTagged(
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
+		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
+		clientReplicatedOpts := client.NewReplicatedOptions().SetOptions(clientopts)
+		c, err := client.NewClient(clientReplicatedOpts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

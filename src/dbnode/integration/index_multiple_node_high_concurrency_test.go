@@ -71,6 +71,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 					node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 				})
+				clientOpts = clientopts.SetReadConsistencyLevel(lvl)
 
 				defer closeFn()
 				log := nodes[0].storageOpts.InstrumentOptions().Logger()
@@ -79,7 +80,8 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					require.NoError(t, n.startServer())
 				}
 
-				c, err := client.NewClient(clientopts.SetReadConsistencyLevel(lvl))
+				clientReplicatedOpts := client.NewReplicatedOptions().SetOptions(clientopts)
+				c, err := client.NewClient(clientReplicatedOpts)
 				require.NoError(t, err)
 				session, err := c.NewSession()
 				require.NoError(t, err)

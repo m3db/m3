@@ -82,24 +82,25 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 
 func newMultiAddrAdminClient(
 	t *testing.T,
-	adminOpts client.AdminOptions,
+	adminOpts client.AdminReplicatedOptions,
 	topologyInitializer topology.Initializer,
 	origin topology.Host,
 	instrumentOpts instrument.Options,
 ) client.AdminClient {
 	if adminOpts == nil {
-		adminOpts = client.NewAdminOptions()
+		adminOpts = client.NewAdminReplicatedOptions()
 	}
 
-	clientOpts := adminOpts.
-		SetOrigin(origin).
-		SetInstrumentOptions(instrumentOpts).
-		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
-		SetClusterConnectTimeout(time.Second)
+	adminOpts = adminOpts.SetAdminOptions(
+		adminOpts.
+			AdminOptions().
+			SetOrigin(origin).
+			SetInstrumentOptions(instrumentOpts).
+			SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
+			SetTopologyInitializer(topologyInitializer).
+			SetClusterConnectTimeout(time.Second).(client.AdminOptions))
 
-	clientOpts = clientOpts.SetTopologyInitializer(topologyInitializer)
-
-	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
+	adminClient, err := client.NewAdminClient(adminOpts)
 	require.NoError(t, err)
 
 	return adminClient
@@ -250,8 +251,10 @@ func newDefaultBootstrappableTestSetups(
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 
+		replicatedAdminOpts := client.NewAdminReplicatedOptions().
+			SetAdminOptions(adminOpts)
 		adminClient := newMultiAddrAdminClient(
-			t, adminOpts, topologyInitializer, origin, instrumentOpts)
+			t, replicatedAdminOpts, topologyInitializer, origin, instrumentOpts)
 		if usingPeersBootstrapper {
 			var (
 				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
