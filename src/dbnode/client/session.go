@@ -264,17 +264,10 @@ func newSession(opts Options) (clientSession, error) {
 		reattemptReason reason,
 		reattemptType reattemptType,
 		m *streamFromPeersMetrics,
-	) {
-		if err := s.streamBlocksReattemptFromPeers(
+	) error {
+		return s.streamBlocksReattemptFromPeers(
 			reattemptBlocks, reEnqueueCh, err,
-			reattemptReason, reattemptType, m); err != nil {
-			instrument.EmitAndLogInvariantViolation(
-				s.opts.InstrumentOptions(), func(l *zap.Logger) {
-					l.Error(
-						"failed to reattempt stream blocks from peers in select peers process",
-						zap.Error(err))
-				})
-		}
+			reattemptReason, reattemptType, m)
 	}
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
 	writeAttemptPoolOpts := pool.NewObjectPoolOptions().
@@ -3068,7 +3061,7 @@ type reattemptStreamBlocksFromPeersFn func(
 	reason,
 	reattemptType,
 	*streamFromPeersMetrics,
-)
+) error
 
 func (s *session) streamBlocksReattemptFromPeers(
 	blocks []receivedBlockMetadata,
@@ -3623,16 +3616,11 @@ func (c *enqueueCh) unprocessedLenWithLock() int {
 }
 
 func (c *enqueueCh) closeOnAllProcessed() {
-	defer func() {
-		c.Lock()
-		c.closed = true
-		c.Unlock()
-	}()
-
 	for {
 		c.Lock()
 		if c.unprocessedLenWithLock() == 0 && c.sending == 0 {
 			close(c.peersMetadataCh)
+			c.closed = true
 			c.Unlock()
 			return
 		}

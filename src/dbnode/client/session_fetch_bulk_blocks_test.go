@@ -1357,11 +1357,12 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
+	) error {
 		enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
 		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
 			reattemptType, enqueue)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1428,11 +1429,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
+	) error {
 		enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
 		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
 			reattemptType, enqueue)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1572,11 +1574,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
+	) error {
 		enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
 		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
 			reattemptType, enqueue)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
