@@ -89,7 +89,6 @@ func (m *memoryTracker) WaitForDec() {
 	if m.waitForDecWg == nil {
 		m.waitForDecWg = &sync.WaitGroup{}
 		m.waitForDecWg.Add(1)
-	} else {
 	}
 	wg := m.waitForDecWg
 	m.Unlock()
