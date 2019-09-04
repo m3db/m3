@@ -47,7 +47,7 @@ curl <m3db_or_m3coordinator_ip>:<port>/debug/dump > <tmp_zip_file.zip>
 unzip <tmp_zip_file.zip>
 ```
 
-Now, you will have the following files, which you can use for troubleshooting using the following commands:
+Now, you will have the following files, which you can use for troubleshooting using the below commands:
 
 **cpuSource**
 ```
