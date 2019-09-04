@@ -279,10 +279,9 @@ func makeTestFetchTagged(
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testFetchFn) {
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
-	replicatedClientOpts := client.NewReplicationOptions().SetOptions(clientOpts)
 	testFetch := func(cLevel topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
-		replicatedClientOpts.SetOptions(
-			replicatedClientOpts.Options().SetReadConsistencyLevel(cLevel))
+		clientopts := clientopts.SetReadConsistencyLevel(cLevel)
+		replicatedClientOpts := client.NewReplicatedOptions().SetOptions(clientOpts)
 		c, err := client.NewClient(replicatedClientOpts)
 		require.NoError(t, err)
 
