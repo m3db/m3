@@ -146,7 +146,7 @@ func TestMemTrackerWaitForDec(t *testing.T) {
 
 	// Start a goroutine to call DecPendingLoadedBytes() in a loop. Note that
 	// unlike the other two goroutines this one loops infinitely until the test
-	// is over. This is to prevent call to WaitForDec() from getting stuck forever
+	// is over. This is to prevent calls to WaitForDec() from getting stuck forever
 	// because a call to WaitForDec() was made after the goroutine that calls
 	// DecPendingLoadedBytes() had already shut down.
 	go func() {
