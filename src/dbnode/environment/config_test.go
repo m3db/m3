@@ -40,33 +40,35 @@ var initTimeout = time.Minute
 
 func TestConfigureStatic(t *testing.T) {
 	config := Configuration{
-		Static: &StaticConfiguration{
-			Namespaces: []namespace.MetadataConfiguration{
-				namespace.MetadataConfiguration{
-					ID: "metrics",
-					Retention: retention.Configuration{
-						RetentionPeriod: 24 * time.Hour,
-						BlockSize:       time.Hour,
+		Statics: StaticConfiguration{
+			&StaticCluster{
+				Namespaces: []namespace.MetadataConfiguration{
+					namespace.MetadataConfiguration{
+						ID: "metrics",
+						Retention: retention.Configuration{
+							RetentionPeriod: 24 * time.Hour,
+							BlockSize:       time.Hour,
+						},
+					},
+					namespace.MetadataConfiguration{
+						ID: "other-metrics",
+						Retention: retention.Configuration{
+							RetentionPeriod: 24 * time.Hour,
+							BlockSize:       time.Hour,
+						},
 					},
 				},
-				namespace.MetadataConfiguration{
-					ID: "other-metrics",
-					Retention: retention.Configuration{
-						RetentionPeriod: 24 * time.Hour,
-						BlockSize:       time.Hour,
+				TopologyConfig: &topology.StaticConfiguration{
+					Shards: 2,
+					Hosts: []topology.HostShardConfig{
+						topology.HostShardConfig{
+							HostID:        "localhost",
+							ListenAddress: "0.0.0.0:1234",
+						},
 					},
 				},
+				ListenAddress: "0.0.0.0:9000",
 			},
-			TopologyConfig: &topology.StaticConfiguration{
-				Shards: 2,
-				Hosts: []topology.HostShardConfig{
-					topology.HostShardConfig{
-						HostID:        "localhost",
-						ListenAddress: "0.0.0.0:1234",
-					},
-				},
-			},
-			ListenAddress: "0.0.0.0:9000",
 		},
 	}
 
