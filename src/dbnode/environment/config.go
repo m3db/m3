@@ -198,6 +198,7 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			&DynamicCluster{Service: cfg.Service},
 		}
 	}
+
 	return nil
 }
 
@@ -226,8 +227,11 @@ func (c *Configuration) Validate() error {
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
+	// Validate here rather than UnmarshalYAML since we need to ensure one of
+	// dynamic or static configuration are provided. A blank YAML does not
+	// call UnmarshalYAML and therefore validation would be skipped.
 	if err := c.Validate(); err != nil {
-		return emptyConfig, errInvalidConfig
+		return emptyConfig, err
 	}
 
 	if c.Services != nil {

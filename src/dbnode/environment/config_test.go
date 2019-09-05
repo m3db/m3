@@ -146,44 +146,8 @@ var unmarshalValidationTests = []struct {
 	expectErr error
 }{
 	{
-		name: "valid config",
-		in: `
-services:
-  - zone: dca8
-    env: test
-  - zone: phx3
-    env: test
-    async: true
-`,
-		expectErr: nil,
-	},
-
-	{
-		name: "multiple sync clusters",
-		in: `
-services:
-  - zone: dca8
-    env: test
-  - zone: phx3
-    env: test
-`,
-		expectErr: errInvalidSyncCount,
-	},
-
-	{
 		name:      "empty config",
 		in:        ``,
-		expectErr: errInvalidConfig,
-	},
-
-	{
-		name: "multiple environments",
-		in: `
-services:
-  - zone: dca8
-    env: test
-statics:
-  - listenAddress: 0.0.0.0:9000`,
 		expectErr: errInvalidConfig,
 	},
 }
@@ -193,8 +157,6 @@ func TestUnmarshalDynamicValidation(t *testing.T) {
 		var cfg Configuration
 		err := yaml.Unmarshal([]byte(tt.in), &cfg)
 		assert.NoError(t, err)
-
-		err = cfg.Validate()
-		assert.Equal(t, tt.expectErr, err)
+		assert.Equal(t, tt.expectErr, cfg.Validate())
 	}
 }
