@@ -84,6 +84,9 @@ func RegisterRoutes(
 	r.HandleFunc(AddURL,
 		wrapped(NewAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(AddHTTPMethod)
+	r.HandleFunc(DeleteURL,
+		wrapped(NewDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		Methods(DeleteHTTPMethod)
 }
 
 func topicName(headers http.Header) string {

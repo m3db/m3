@@ -21,69 +21,65 @@
 package topic
 
 import (
-	"bytes"
 	"errors"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
-	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTopicGetHandler(t *testing.T) {
+func TestTopicDeleteHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewGetHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler := NewDeleteHandler(nil, config.Configuration{}, instrument.NewOptions())
 	handler.serviceFn = testServiceFn(mockService)
 
 	// Test successful get
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/topic/get", nil)
+	req := httptest.NewRequest("DELETE", "/topic", nil)
 	require.NotNil(t, req)
 
 	mockService.
 		EXPECT().
-		Get(gomock.Any()).
-		Return(
-			topic.NewTopic().
-				SetName(DefaultTopicName).
-				SetNumberOfShards(1024).
-				SetVersion(2),
-			nil,
-		)
+		Delete(DefaultTopicName).
+		Return(nil)
 	handler.ServeHTTP(w, req)
 
 	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var respProto admin.TopicGetResponse
-	require.NoError(t, jsonUnmarshaler.Unmarshal(bytes.NewBuffer(body), &respProto))
-
-	validateEqualTopicProto(t, topicpb.Topic{
-		Name:           DefaultTopicName,
-		NumberOfShards: 1024,
-	}, *respProto.Topic)
-	require.Equal(t, uint32(2), respProto.Version)
-
-	// Test error case
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/topic/get", nil)
+	req = httptest.NewRequest("DELETE", "/topic", nil)
+	req.Header.Add(HeaderTopicName, "foobar")
 	require.NotNil(t, req)
 
-	mockService.EXPECT().Get(gomock.Any()).Return(nil, errors.New("key not found"))
+	mockService.
+		EXPECT().
+		Delete("foobar").
+		Return(nil)
 	handler.ServeHTTP(w, req)
 
 	resp = w.Result()
-	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("DELETE", "/topic", nil)
+	require.NotNil(t, req)
+
+	mockService.
+		EXPECT().
+		Delete(DefaultTopicName).
+		Return(errors.New("not found"))
+	handler.ServeHTTP(w, req)
+
+	resp = w.Result()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
