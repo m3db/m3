@@ -119,6 +119,7 @@ service:
 	var cfg Configuration
 	err := yaml.Unmarshal([]byte(in), &cfg)
 	assert.NoError(t, err)
+	assert.NoError(t, cfg.Validate())
 	assert.Len(t, cfg.Services, 1)
 }
 
@@ -135,6 +136,7 @@ services:
 	var cfg Configuration
 	err := yaml.Unmarshal([]byte(in), &cfg)
 	assert.NoError(t, err)
+	assert.NoError(t, cfg.Validate())
 	assert.Len(t, cfg.Services, 2)
 }
 
@@ -149,5 +151,6 @@ services:
 
 	var cfg Configuration
 	err := yaml.Unmarshal([]byte(in), &cfg)
-	assert.Error(t, err)
+	assert.NoError(t, err)
+	assert.Error(t, cfg.Validate())
 }

@@ -201,6 +201,22 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// Validate validates the configuration.
+func (c *Configuration) Validate() error {
+	if len(c.Services) > 0 {
+		if err := c.Services.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if len(c.Statics) > 0 {
+		if err := c.Statics.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Configure creates a new ConfigureResults
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
