@@ -1337,14 +1337,25 @@
 unzip &lt;tmp_zip_file.zip&gt;
 </pre></div>
 
-<p>Now, you will have the following files, which you can use for troubleshooting.</p>
-<div class="highlight"><pre><span></span>cpuSource
-heapSource
-goroutineProfile
-hostSource
-namespaceSource
-placementSource
+<p>Now, you will have the following files, which you can use for troubleshooting using the below commands:</p>
+<p><strong>cpuSource</strong>
+<div class="highlight"><pre><span></span>go tool pprof -http=:16000 cpuSource
 </pre></div>
+<strong>heapSource</strong>
+<div class="highlight"><pre><span></span>go tool pprof -http=:16000 heapSource
+</pre></div>
+<strong>goroutineProfile</strong>
+<div class="highlight"><pre><span></span>less goroutineProfile
+</pre></div>
+<strong>hostSource</strong>
+<div class="highlight"><pre><span></span>less hostSource | jq .
+</pre></div>
+<strong>namespaceSource</strong>
+<div class="highlight"><pre><span></span>less namespaceSource | jq .
+</pre></div>
+<strong>placementSource</strong>
+<div class="highlight"><pre><span></span>less placementSource | jq .
+</pre></div></p>
                 
                   
                 
