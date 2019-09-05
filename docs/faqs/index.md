@@ -68,3 +68,6 @@ We recommend not going above 40%.
 
 - **What is the recommended hardware to run on?**
 <Fill this in>
+
+- **What is the recommended way to create a new namespace?**
+Refer to the [Namespace configuration guide](../operational_guide/namespace_configuration.md).
