@@ -111,7 +111,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	configSvcClient, err := cfg.DB.EnvironmentConfig.Services.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 
