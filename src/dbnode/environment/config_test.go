@@ -140,17 +140,61 @@ services:
 	assert.Len(t, cfg.Services, 2)
 }
 
-func TestUnmarshalDynamicValidation(t *testing.T) {
-	in := `
+var unmarshalValidationTests = []struct {
+	name      string
+	in        string
+	expectErr error
+}{
+	{
+		name: "valid config",
+		in: `
 services:
   - zone: dca8
     env: test
   - zone: phx3
     env: test
-`
+    async: true
+`,
+		expectErr: nil,
+	},
 
-	var cfg Configuration
-	err := yaml.Unmarshal([]byte(in), &cfg)
-	assert.NoError(t, err)
-	assert.Error(t, cfg.Validate())
+	{
+		name: "multiple sync clusters",
+		in: `
+services:
+  - zone: dca8
+    env: test
+  - zone: phx3
+    env: test
+`,
+		expectErr: errInvalidSyncCount,
+	},
+
+	{
+		name:      "empty config",
+		in:        ``,
+		expectErr: errInvalidConfig,
+	},
+
+	{
+		name: "multiple environments",
+		in: `
+services:
+  - zone: dca8
+    env: test
+statics:
+  - listenAddress: 0.0.0.0:9000`,
+		expectErr: errInvalidConfig,
+	},
+}
+
+func TestUnmarshalDynamicValidation(t *testing.T) {
+	for _, tt := range unmarshalValidationTests {
+		var cfg Configuration
+		err := yaml.Unmarshal([]byte(tt.in), &cfg)
+		assert.NoError(t, err)
+
+		err = cfg.Validate()
+		assert.Equal(t, tt.expectErr, err)
+	}
 }

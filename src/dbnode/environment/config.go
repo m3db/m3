@@ -203,6 +203,11 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Validate validates the configuration.
 func (c *Configuration) Validate() error {
+	if (c.Services == nil && c.Statics == nil) ||
+		(c.Services != nil && c.Statics != nil) {
+		return errInvalidConfig
+	}
+
 	if len(c.Services) > 0 {
 		if err := c.Services.Validate(); err != nil {
 			return err
@@ -221,7 +226,7 @@ func (c *Configuration) Validate() error {
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
-	if c.Services != nil && c.Statics != nil {
+	if err := c.Validate(); err != nil {
 		return emptyConfig, errInvalidConfig
 	}
 

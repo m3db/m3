@@ -1,5 +1,5 @@
-hash: b87408f5ccab483e54a2627f39fbc395c4f5c7cac9f3014aabd110af2de4c20b
-updated: 2019-08-20T12:29:17.939403-04:00
+hash: 23f25edb1347706961248024fb285312780d512b05ad4b8e466c49e749cdb269
+updated: 2019-09-05T13:10:16.128949-04:00
 imports:
 - name: github.com/apache/thrift
   version: 05b5a2227fe44056ce829fe59583126fd6478a58
@@ -141,7 +141,7 @@ imports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/gogo/protobuf
-  version: ba06b47c162d49f2af050fb4c75bcbc86a159d5c
+  version: 0ca988a254f991240804bf9821f3450d87ccbb1b
   subpackages:
   - gogoproto
   - jsonpb
@@ -355,7 +355,7 @@ imports:
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
-  version: 4208ad825dda03a6a3d2197df8ec57948aebcc12
+  version: b5aa429c0a75ca180ffaa22f1fdaaac5663ba264
 - name: github.com/russross/blackfriday
   version: d3b5b032dc8e8927d31a5071b56e14c89f045135
 - name: github.com/satori/go.uuid
