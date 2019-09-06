@@ -28,6 +28,8 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
     path: src/cmd/services/m3coordinator/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3ctl/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3ctl/main
@@ -36,6 +38,8 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3dbnode/main
     path: src/cmd/services/m3dbnode/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3em_agent/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3em_agent/main
@@ -52,6 +56,8 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3query/main
     path: src/cmd/services/m3query/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/carbon_load/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/carbon_load/main
