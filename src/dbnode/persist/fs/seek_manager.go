@@ -71,6 +71,10 @@ const (
 	seekerManagerClosed
 )
 
+// seekerManager provides functionality around borrowableSeekers such as
+// opening and closing them, as well as borrowing them out to a Retriever.
+// There is usually a single seekerManager per namespace which contains all
+// open seekers for all shards and blocks within that namespace.
 type seekerManager struct {
 	sync.RWMutex
 
@@ -82,8 +86,11 @@ type seekerManager struct {
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
 
-	status                 seekerManagerStatus
-	isUpdatingLease        bool
+	status          seekerManagerStatus
+	isUpdatingLease bool
+
+	// seekersByShardIdx provides access to all seekers, first partitioned by
+	// shard and then by block start.
 	seekersByShardIdx      []*seekersByTime
 	namespace              ident.ID
 	namespaceMetadata      namespace.Metadata
@@ -111,12 +118,18 @@ type seekersAndBloom struct {
 	volume      int
 }
 
-// borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
+// borrowableSeeker is just a seeker with an additional field for keeping
+// track of whether or not it has been borrowed. A seeker is essentially
+// a wrapper around file descriptors around a set of files, allowing for
+// interaction with them. We can ask a seeker for a specific time series, which
+// will then be streamed out from the according data file.
 type borrowableSeeker struct {
 	seeker     ConcurrentDataFileSetSeeker
 	isBorrowed bool
 }
 
+// seekersByTime contains all seekers for a specific shard, accessible by
+// blockStart. The accessed field allows for pre-caching those seekers.
 type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
@@ -124,6 +137,8 @@ type seekersByTime struct {
 	seekers  map[xtime.UnixNano]rotatableSeekers
 }
 
+// rotatableSeekers is a wrapper around seekersAndBloom that allows for rotating
+// out stale seekers.
 type rotatableSeekers struct {
 	active   seekersAndBloom
 	inactive seekersAndBloom
@@ -165,6 +180,8 @@ func NewSeekerManager(
 	return m
 }
 
+// Open opens a seeker, which essentially means opening the file descriptors
+// for the file sets managed by the seeker.
 func (m *seekerManager) Open(
 	nsMetadata namespace.Metadata,
 ) error {
@@ -237,6 +254,10 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 	return seekersAndBloom.bloomFilter.Test(id.Bytes()), nil
 }
 
+// Borrow allows for exclusive interaction with a previously opened seeker.
+// When a seeker is  currently Borrowed and another goroutine tries to Borrow it,
+// a Lock with a waitgroup ensures that the previous goroutine finishes its
+// operations before access is granted to the next caller.
 func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 
@@ -498,6 +519,11 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	return wg, updateOpenLeaseResult, nil
 }
 
+// acquireByTimeLockWaitGroupAware grabs a lock on the shard and checks if
+// seekers exist for a given blockStart. If a waitgroup is present, meaning
+// a different goroutine is currently trying to open those seekers, it will
+// wait for that operation to complete first, before returning the seekers
+// while the lock on the shard is still being held.
 func (m *seekerManager) acquireByTimeLockWaitGroupAware(
 	blockStart xtime.UnixNano,
 	byTime *seekersByTime,
@@ -834,6 +860,8 @@ func (m *seekerManager) latestSeekableBlockStart() time.Time {
 	return now.Truncate(ropts.BlockSize())
 }
 
+// openCloseLoop ensures to keep seekers open for those times where they are
+// available and closes them when they fall out of retention and expire.
 func (m *seekerManager) openCloseLoop() {
 	var (
 		shouldTryOpen []*seekersByTime
