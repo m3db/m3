@@ -508,17 +508,15 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 
 func (m *seekerManager) RelinquishShard(shard uint32) error {
 	byTime := m.seekersByTime(shard)
-	start := m.earliestSeekableBlockStart()
-	end := m.latestSeekableBlockStart()
-	blockSize := m.namespaceMetadata.Options().RetentionOptions().BlockSize()
 
-	// Indicate this shard is closed so its seekers can't borrowed.
+	// Indicate this shard is closed so its seekers can't be borrowed and no
+	// new seekers can be opened.
 	byTime.Lock()
 	byTime.closed = true
 	byTime.Unlock()
 
-	for t := start; !t.After(end); t = t.Add(blockSize) {
-		seekers, _ := m.acquireByTimeLockWaitGroupAware(xtime.ToUnixNano(t), byTime)
+	for blockStart, _ := range byTime.seekers {
+		seekers, _ := m.acquireByTimeLockWaitGroupAware(blockStart, byTime)
 		for _, s := range []seekersAndBloom{seekers.active, seekers.inactive} {
 			anySeekersAreBorrowed := false
 			for _, seeker := range s.seekers {
