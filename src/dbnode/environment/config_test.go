@@ -140,7 +140,7 @@ services:
 	assert.Len(t, cfg.Services, 2)
 }
 
-var unmarshalValidationTests = []struct {
+var configValidationTests = []struct {
 	name      string
 	in        string
 	expectErr error
@@ -152,8 +152,8 @@ var unmarshalValidationTests = []struct {
 	},
 }
 
-func TestUnmarshalDynamicValidation(t *testing.T) {
-	for _, tt := range unmarshalValidationTests {
+func TestConfigValidation(t *testing.T) {
+	for _, tt := range configValidationTests {
 		var cfg Configuration
 		err := yaml.Unmarshal([]byte(tt.in), &cfg)
 		assert.NoError(t, err)
