@@ -257,18 +257,7 @@ func newSession(opts Options) (clientSession, error) {
 		},
 		metrics: newSessionMetrics(scope),
 	}
-	s.reattemptStreamBlocksFromPeersFn = func(
-		reattemptBlocks []receivedBlockMetadata,
-		reEnqueueCh enqueueChannel,
-		err error,
-		reattemptReason reason,
-		reattemptType reattemptType,
-		m *streamFromPeersMetrics,
-	) error {
-		return s.streamBlocksReattemptFromPeers(
-			reattemptBlocks, reEnqueueCh, err,
-			reattemptReason, reattemptType, m)
-	}
+	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
 	writeAttemptPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.WriteOpPoolSize()).
