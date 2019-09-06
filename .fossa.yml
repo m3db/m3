@@ -29,6 +29,10 @@ analyze:
     target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
     path: src/cmd/services/m3coordinator/main
     options:
+      # FOSSA finds Go dependencies by first finding all dependencies that a project uses and then comparing them to the lockfile to obtain version numbers.
+      # It appears that one of the dependencies is choosing to manually vendor a dependency, thereby omitting the version from its lockfile.
+      # This results in cryptic FOSSA failures.
+      # The solution for this is to allow this dependency to be discovered without a corresponding version.
       allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3ctl/main
     type: go
