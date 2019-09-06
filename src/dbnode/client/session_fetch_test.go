@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/metrics"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -63,6 +63,7 @@ type testOptions struct {
 	setFetchAnn setFetchAnnotation
 	setWriteAnn setWriteAnnotation
 	annEqual    assertAnnotationEqual
+	expectedErr error
 }
 
 type testFetch struct {
@@ -134,7 +135,7 @@ func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 	opts = opts.SetFetchBatchSize(2)
 
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	start := time.Now().Truncate(time.Hour)
@@ -169,13 +170,16 @@ func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 		fulfillFetchBatchOps(t, testOpts, fetches, *fetchBatchOps, 0)
 	}()
 
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	results, err := session.FetchIDs(nsID, fetches.IDsIter(), start, end)
-	assert.NoError(t, err)
-	assertFetchResults(t, start, end, fetches, results, testOpts.annEqual)
-
-	assert.NoError(t, session.Close())
+	if testOpts.expectedErr == nil {
+		require.NoError(t, err)
+		assertFetchResults(t, start, end, fetches, results, testOpts.annEqual)
+	} else {
+		require.Equal(t, testOpts.expectedErr, err)
+	}
+	require.NoError(t, session.Close())
 }
 
 func TestSessionFetchIDsWithRetries(t *testing.T) {
