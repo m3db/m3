@@ -1408,6 +1408,7 @@ func (s *session) fetchIDsAttempt(
 	if err != nil {
 		return nil, err
 	}
+
 	var (
 		wg                     sync.WaitGroup
 		allPending             int32

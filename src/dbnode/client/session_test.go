@@ -349,7 +349,7 @@ func mockHostQueues(
 					enqueueWg.Done()
 				}
 				return nil
-			}).Return(nil).AnyTimes()
+			}).Return(nil)
 		}
 		if len(hostEnqueueFns) > 0 {
 			expectNextEnqueueFn(hostEnqueueFns)

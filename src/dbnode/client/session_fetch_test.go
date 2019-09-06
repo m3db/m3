@@ -162,7 +162,13 @@ func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 		fetches = testOpts.setFetchAnn(fetches)
 	}
 
-	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, fetches)
+	expectedFetches := fetches
+	if testOpts.expectedErr != nil {
+		// If an error is expected then don't setup any go mock expectation for the host queues since
+		// they will never be fulfilled and will hang the test.
+		expectedFetches = nil
+	}
+	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, expectedFetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
