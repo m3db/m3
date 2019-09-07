@@ -106,15 +106,3 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/query/benchmark/write/main
     path: src/query/benchmark/write/main
-  - name: uber-licence
-    type: npm
-    target: .ci/uber-licence
-    path: .ci/uber-licence
-  - name: ui
-    type: npm
-    target: src/ctl/ui
-    path: src/ctl/ui
-  - name: .buildkite
-    type: nuget
-    target: .buildkite
-    path: .buildkite
