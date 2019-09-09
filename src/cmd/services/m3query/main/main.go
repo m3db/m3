@@ -26,17 +26,17 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/query/server"
+	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/etcd"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+var configFiles xconfig.StringSlice
 
 func main() {
+	flag.Var(&configFiles, "f", "configuration file(s)")
 	flag.Parse()
 
-	if len(*configFile) == 0 {
+	if len(configFiles) == 0 || len(configFiles[0]) == 0 {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -45,6 +45,6 @@ func main() {
 	etcd.SetGlobals()
 
 	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
+		ConfigFiles: configFiles,
 	})
 }
