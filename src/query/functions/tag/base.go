@@ -67,18 +67,19 @@ type baseOp struct {
 	tagFn  tagTransformFunc
 }
 
-// OpType for the operator.
 func (o baseOp) OpType() string {
 	return o.opType
 }
 
-// String representation.
 func (o baseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
 // Node creates a tag execution node.
-func (o baseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
+func (o baseOp) Node(
+	controller *transform.Controller,
+	_ transform.Options,
+) transform.OpNode {
 	return &baseNode{
 		op:         o,
 		controller: controller,
@@ -101,21 +102,26 @@ func (n *baseNode) Params() parser.Params {
 	return n.op
 }
 
-// Process the block.
-func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func (n *baseNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
-
+func (n *baseNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
 	it, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	meta := it.Meta()
+	meta := b.Meta()
 	seriesMeta := it.SeriesMeta()
-
 	meta, seriesMeta = n.op.tagFn(meta, seriesMeta)
 	return b.WithMetadata(meta, seriesMeta)
 }

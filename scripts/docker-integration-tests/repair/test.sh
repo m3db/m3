@@ -11,7 +11,6 @@ export REVISION
 echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode02
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode03
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
 
 # Think of this as a defer func() in golang
@@ -20,7 +19,7 @@ function defer {
 }
 trap defer EXIT
 
-setup_three_m3db_nodes
+setup_two_m3db_nodes
 
 function write_data {
   namespace=$1
@@ -76,11 +75,7 @@ write_data "coldWritesRepairAndNoIndex" "foo" "$(($(date +"%s") - 60 * 60 * 2))"
 echo "Expect to read the data back from dbnode01"
 read_all "coldWritesRepairAndNoIndex" "foo" 1 9012
 
-# These two should eventually succeed once a repair detects the mismatch.
+# This should eventually succeed once a repair detects the mismatch.
 echo "Wait for the data to become available (via repairs) from dbnode02"
 ATTEMPTS=30 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
   read_all "coldWritesRepairAndNoIndex" "foo" 1 9022
-
-echo "Wait for the data to become available (via repairs) from dbnode03"
-ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
-  read_all "coldWritesRepairAndNoIndex" "foo" 1 9032

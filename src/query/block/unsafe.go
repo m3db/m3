@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,47 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package scalar
+package block
 
 import (
-	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/test/executor"
-	"github.com/m3db/m3/src/query/test/transformtest"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestScalarTime(t *testing.T) {
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
-	baseOp := baseOp{
-		fn:           func(t time.Time) float64 { return float64(t.Unix()) },
-		operatorType: TimeType,
+// MustMakeMeta returns block metadata or panics (unsafe for use).
+func MustMakeMeta(bounds models.Bounds, tags ...string) Metadata {
+	return Metadata{
+		Tags:   models.MustMakeTags(tags...),
+		Bounds: bounds,
 	}
+}
 
-	start := bounds.Start
-	step := bounds.StepSize
-	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
-		TimeSpec: transform.TimeSpec{
-			Start: start,
-			End:   bounds.End(),
-			Step:  step,
-		},
-	}))
-	err := node.Execute(models.NoopQueryContext())
-	require.NoError(t, err)
-	assert.Len(t, sink.Values, 1)
-
-	for _, vals := range sink.Values {
-		for i, val := range vals {
-			assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), val)
-		}
+// MustMakeSeriesMeta returns series metadata or panics (unsafe for use).
+func MustMakeSeriesMeta(tags ...string) SeriesMeta {
+	return SeriesMeta{
+		Tags: models.MustMakeTags(tags...),
 	}
 }

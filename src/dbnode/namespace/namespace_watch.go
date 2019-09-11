@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package namespace
 
 import (
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
@@ -41,11 +40,12 @@ type dbNamespaceWatch struct {
 	sync.Mutex
 
 	watching bool
-	watch    namespace.Watch
+	watch    Watch
 	doneCh   chan struct{}
 	closedCh chan struct{}
 
-	db             database
+	update NamespaceUpdater
+
 	log            *zap.Logger
 	metrics        dbNamespaceWatchMetrics
 	reportInterval time.Duration
@@ -66,15 +66,15 @@ func newWatchMetrics(
 	}
 }
 
-func newDatabaseNamespaceWatch(
-	db database,
-	w namespace.Watch,
+func NewNamespaceWatch(
+	update NamespaceUpdater,
+	w Watch,
 	iopts instrument.Options,
-) databaseNamespaceWatch {
+) NamespaceWatch {
 	scope := iopts.MetricsScope()
 	return &dbNamespaceWatch{
 		watch:          w,
-		db:             db,
+		update:         update,
 		log:            iopts.Logger(),
 		metrics:        newWatchMetrics(scope),
 		reportInterval: iopts.ReportInterval(),
@@ -142,7 +142,7 @@ func (w *dbNamespaceWatch) startWatch() {
 			w.metrics.updates.Inc(1)
 			newMap := w.watch.Get()
 			w.log.Info("received update from kv namespace watch")
-			if err := w.db.UpdateOwnedNamespaces(newMap); err != nil {
+			if err := w.update(newMap); err != nil {
 				w.log.Error("failed to update owned namespaces",
 					zap.Error(err))
 			}

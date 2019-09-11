@@ -18,58 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package linear
+package scalar
 
 import (
-	"math"
+	"testing"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// FIXME: This is incorrect functionality.
-// Tracking issue https://github.com/m3db/m3/issues/1847
-//' This should be an aggregation function that works in a step-wise fashion.
-// AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
-// and returns a timeseries with the value 1 if the timeseries passed in has no elements
-const AbsentType = "absent"
+func TestScalar(t *testing.T) {
+	val := 10.0
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	op, err := NewScalarOp(val, models.NewTagOptions())
+	require.NoError(t, err)
 
-// NewAbsentOp creates a new base linear transform with an absent node
-func NewAbsentOp() BaseOp {
-	return BaseOp{
-		operatorType: AbsentType,
-		processorFn:  newAbsentNode,
+	baseOp, ok := op.(*scalarOp)
+	require.True(t, ok)
+	start := bounds.Start
+	step := bounds.StepSize
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
+		TimeSpec: transform.TimeSpec{
+			Start: start,
+			End:   bounds.End(),
+			Step:  step,
+		},
+	}))
+
+	err = node.Execute(models.NoopQueryContext())
+	require.NoError(t, err)
+	require.Equal(t, 1, len(sink.Values))
+
+	vals := sink.Values[0]
+	assert.Equal(t, bounds.Steps(), len(vals))
+	for _, v := range vals {
+		assert.Equal(t, val, v)
 	}
-}
-
-func newAbsentNode(op BaseOp, controller *transform.Controller) Processor {
-	return &absentNode{
-		op:         op,
-		controller: controller,
-	}
-}
-
-type absentNode struct {
-	op         BaseOp
-	controller *transform.Controller
-}
-
-func (c *absentNode) Process(values []float64) []float64 {
-	num := 1.0
-	if !allNaNs(values) {
-		num = math.NaN()
-	}
-
-	for i := range values {
-		values[i] = num
-	}
-	return values
-}
-
-func allNaNs(vals []float64) bool {
-	for _, i := range vals {
-		if !math.IsNaN(i) {
-			return false
-		}
-	}
-	return true
 }

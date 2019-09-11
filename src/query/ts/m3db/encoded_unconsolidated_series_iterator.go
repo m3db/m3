@@ -99,10 +99,6 @@ func (it *encodedSeriesIterUnconsolidated) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
 }
 
-func (it *encodedSeriesIterUnconsolidated) Meta() block.Metadata {
-	return it.meta
-}
-
 func (it *encodedSeriesIterUnconsolidated) Close() {
 	// noop, as the resources at the step may still be in use;
 	// instead call Close() on the encodedBlock that generated this

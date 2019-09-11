@@ -39,6 +39,7 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -47,6 +48,8 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
@@ -70,6 +73,7 @@ var (
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
+	testClientOptions  = client.NewOptions()
 )
 
 type nsMapCh chan namespace.Map
@@ -126,8 +130,14 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 }
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
+	var (
+		origin     = topology.NewHost("some-id", "some-address")
+		clientOpts = testClientOptions.(client.AdminOptions).SetOrigin(origin)
+		mockClient = client.NewMockAdminClient(ctrl)
+	)
+	mockClient.EXPECT().Options().Return(clientOpts).AnyTimes()
 	return repair.NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetAdminClients([]client.AdminClient{mockClient}).
 		SetRepairCheckInterval(100 * time.Millisecond)
 }
 
@@ -394,7 +404,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	wg.Wait()
 }
 
-func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t *testing.T) {
+func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -402,6 +412,11 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 	defer func() {
 		close(mapCh)
 	}()
+
+	// Set a mock mediator to be certain that bootstrap is not called when
+	// no new shards are assigned.
+	mediator := NewMockdatabaseMediator(ctrl)
+	d.mediator = mediator
 
 	var ns []*MockdatabaseNamespace
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
@@ -417,6 +432,7 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 
 	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(d.shardSet)
+	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
 	require.True(t, d.lastReceivedNewShards.Equal(t1))
 
 	wg.Wait()
@@ -956,8 +972,25 @@ func testDatabaseWriteBatch(t *testing.T,
 	var (
 		namespace = ident.StringID("testns")
 		ctx       = context.NewContext()
-		tagsIter  = ident.EmptyTagIterator
+		tags      = ident.NewTags(ident.Tag{
+			Name:  ident.StringID("foo"),
+			Value: ident.StringID("bar"),
+		}, ident.Tag{
+			Name:  ident.StringID("baz"),
+			Value: ident.StringID("qux"),
+		})
+		tagsIter = ident.NewTagsIterator(tags)
 	)
+
+	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool.Init()
+	encoder := testTagEncodingPool.Get()
+	err := encoder.Encode(tagsIter)
+	require.NoError(t, err)
+
+	encodedTags, ok := encoder.Data()
+	require.True(t, ok)
 
 	writes := []struct {
 		series string
@@ -1017,7 +1050,8 @@ func testDatabaseWriteBatch(t *testing.T,
 		// ErrorHandler is called with the provided index, not the actual position
 		// in the WriteBatch slice.
 		if tagged {
-			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			batchWriter.AddTagged(i*2, ident.StringID(write.series),
+				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
 				write.t, write.v, xtime.Second, nil).Return(
@@ -1027,7 +1061,8 @@ func testDatabaseWriteBatch(t *testing.T,
 					Tags:      ident.Tags{},
 				}, wasWritten, write.err)
 		} else {
-			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			batchWriter.Add(i*2, ident.StringID(write.series),
+				write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
 				write.t, write.v, xtime.Second, nil).Return(
@@ -1104,7 +1139,7 @@ func TestDatabaseFlushState(t *testing.T) {
 		shardID            = uint32(0)
 		blockStart         = time.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
-			ColdVersion: 2,
+			ColdVersionRetrievable: 2,
 		}
 		nsID = "testns1"
 		ns   = dbAddNewMockNamespace(ctrl, d, nsID)

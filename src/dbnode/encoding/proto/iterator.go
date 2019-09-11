@@ -172,12 +172,6 @@ func (it *iterator) Next() bool {
 				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
 				return false
 			}
-
-			if !it.consumedFirstMessage {
-				// Don't interpret the initial time unit as a "change" since the encoder special
-				// cases the first one.
-				it.tsIterator.TimeUnitChanged = false
-			}
 		}
 
 		if schemaHasChangedControlBit == opCodeSchemaChange {
@@ -533,7 +527,11 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 
 	if bytesChangedControlBit == opCodeNoChange {
 		// No changes to the bytes value.
-		updateArg := updateLastIterArg{i: i, bytesFieldBuf: it.lastValueBytesDict(i)}
+		lastValueBytesDict, err := it.lastValueBytesDict(i)
+		if err != nil {
+			return err
+		}
+		updateArg := updateLastIterArg{i: i, bytesFieldBuf: lastValueBytesDict}
 		return it.updateMarshallerWithCustomValues(updateArg)
 	}
 
@@ -840,9 +838,12 @@ func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	existing[len(existing)-1] = b
 }
 
-func (it *iterator) lastValueBytesDict(fieldIdx int) []byte {
+func (it *iterator) lastValueBytesDict(fieldIdx int) ([]byte, error) {
 	dict := it.customFields[fieldIdx].iteratorBytesFieldDict
-	return dict[len(dict)-1]
+	if len(dict) == 0 {
+		return nil, fmt.Errorf("tried to read last value of bytes dictionary for empty dictionary")
+	}
+	return dict[len(dict)-1], nil
 }
 
 func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {

@@ -23,6 +23,7 @@ package linear
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -54,8 +55,12 @@ func TestClampMin(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewClampOp([]interface{}{3.0}, ClampMinType)
+	clampOp, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
+
+	op, ok := clampOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -70,12 +75,59 @@ func TestClampMax(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
+	clampOp, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
 	require.NoError(t, err)
+
+	op, ok := clampOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedClampVals(values, 3.0, math.Min)
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestClampFailsParse(t *testing.T) {
+	_, err := NewClampOp([]interface{}{}, "bad")
+	assert.Error(t, err)
+}
+
+func runClamp(t *testing.T, args []interface{},
+	opType string, vals []float64) []float64 {
+	bounds := models.Bounds{
+		StepSize: step,
+		Duration: step * time.Duration(len(vals)),
+	}
+
+	v := [][]float64{vals}
+	block := test.NewBlockFromValues(bounds, v)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	roundOp, err := NewClampOp(args, opType)
+	require.NoError(t, err)
+
+	op, ok := roundOp.(transform.Params)
+	require.True(t, ok)
+
+	node := op.Node(c, transform.Options{})
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	require.NoError(t, err)
+	require.Len(t, sink.Values, 1)
+
+	return sink.Values[0]
+}
+
+func TestClampWithArgs(t *testing.T) {
+	var (
+		v     = []float64{math.NaN(), 0, 1, 2, 3, math.Inf(1), math.Inf(-1)}
+		exMax = []float64{math.NaN(), 0, 1, 2, 2, 2, math.Inf(-1)}
+		exMin = []float64{math.NaN(), 2, 2, 2, 3, math.Inf(1), 2}
+	)
+
+	max := runClamp(t, toArgs(2), ClampMaxType, v)
+	test.EqualsWithNans(t, exMax, max)
+
+	min := runClamp(t, toArgs(2), ClampMinType, v)
+	test.EqualsWithNans(t, exMin, min)
 }

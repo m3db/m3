@@ -252,6 +252,8 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 			Host:     hosts[1],
 			Metadata: block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(time.Second), int64(1), &ten, time.Time{}),
 		},
+		// hosts[0] has a checksum but hosts[1] doesn't so this block will not be repaired (skipped until the next attempt) at
+		// which points hosts[1] will have merged the blocks and an accurate comparison can be made.
 		block.ReplicaMetadata{
 			Host:     hosts[0],
 			Metadata: block.NewMetadata(ident.StringID("baz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &twenty, time.Time{}),
@@ -259,6 +261,15 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 		block.ReplicaMetadata{
 			Host:     hosts[1],
 			Metadata: block.NewMetadata(ident.StringID("baz"), ident.Tags{}, now.Add(2*time.Second), int64(2), nil, time.Time{}),
+		},
+		// hosts[0] and hosts[1] both have a checksum, but they differ, so this should trigger a checksum mismatch.
+		block.ReplicaMetadata{
+			Host:     hosts[0],
+			Metadata: block.NewMetadata(ident.StringID("boz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &twenty, time.Time{}),
+		},
+		block.ReplicaMetadata{
+			Host:     hosts[1],
+			Metadata: block.NewMetadata(ident.StringID("boz"), ident.Tags{}, now.Add(2*time.Second), int64(2), &ten, time.Time{}),
 		},
 		// Block only exists for host[1] but host[0] is the origin so should be consider a size/checksum mismatch.
 		block.ReplicaMetadata{
@@ -282,17 +293,17 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 			inputs[3],
 		}},
 		{ident.StringID("gah"), now.Add(3 * time.Second), []block.ReplicaMetadata{
-			inputs[6],
+			inputs[8],
 		}},
 	}
 
 	checksumExpected := []testBlock{
-		{ident.StringID("baz"), now.Add(2 * time.Second), []block.ReplicaMetadata{
-			inputs[4],
-			inputs[5],
+		{ident.StringID("boz"), now.Add(2 * time.Second), []block.ReplicaMetadata{
+			inputs[6],
+			inputs[7],
 		}},
 		{ident.StringID("gah"), now.Add(3 * time.Second), []block.ReplicaMetadata{
-			inputs[6],
+			inputs[8],
 		}},
 	}
 
@@ -300,8 +311,8 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 	m.metadata = metadata
 
 	res := m.Compare()
-	require.Equal(t, int64(5), res.NumSeries)
-	require.Equal(t, int64(5), res.NumBlocks)
+	require.Equal(t, int64(6), res.NumSeries)
+	require.Equal(t, int64(6), res.NumBlocks)
 	assertEqual(t, sizeExpected, res.SizeDifferences)
 	assertEqual(t, checksumExpected, res.ChecksumDifferences)
 }

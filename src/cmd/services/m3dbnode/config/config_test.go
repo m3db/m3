@@ -133,6 +133,7 @@ db:
 
   pooling:
       blockAllocSize: 16
+      thriftBytesPoolAllocSize: 2048
       type: simple
       seriesPool:
           size: 5242880
@@ -442,8 +443,10 @@ func TestConfiguration(t *testing.T) {
     checkInterval: 1m0s
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
+    thriftBytesPoolAllocSize: 2048
     type: simple
     bytesPool:
       buckets:
@@ -657,6 +660,7 @@ func TestConfiguration(t *testing.T) {
   limits:
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
+    maxOutstandingRepairedBytes: 0
 coordinator: null
 `
 

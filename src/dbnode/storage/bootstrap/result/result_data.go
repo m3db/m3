@@ -250,3 +250,34 @@ func (r ShardResults) Equal(other ShardResults) bool {
 	}
 	return true
 }
+
+// EstimateMapBytesSize estimates the size (in bytes) of the results map. It's only an
+// estimate because its impossible to know if some of the references like the series
+// name as well as tags are exclusive to this object or shared with other structures in
+// memory.
+func EstimateMapBytesSize(m *Map) int64 {
+	if m == nil {
+		return 0
+	}
+
+	var sum int64
+	for _, elem := range m.Iter() {
+		id := elem.Key()
+		sum += int64(len(id.Bytes()))
+
+		blocks := elem.Value()
+		for _, tag := range blocks.Tags.Values() {
+			// Name/Value should never be nil but be precautious.
+			if tag.Name != nil {
+				sum += int64(len(tag.Name.Bytes()))
+			}
+			if tag.Value != nil {
+				sum += int64(len(tag.Value.Bytes()))
+			}
+		}
+		for _, block := range blocks.Blocks.AllBlocks() {
+			sum += int64(block.Len())
+		}
+	}
+	return sum
+}

@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -58,11 +59,16 @@ func TestProcessSimpleBlock(t *testing.T) {
 		child := NewMockOpNode(ctrl)
 		controller.AddTransform(child)
 
+		step := time.Second
+		bounds := models.Bounds{
+			StepSize: step,
+			Duration: step,
+		}
+
 		return &testContext{
-			MockCtrl:   ctrl,
-			Controller: controller,
-			SourceBlock: test.NewBlockFromValues(
-				models.Bounds{}, [][]float64{{1.0}}),
+			MockCtrl:    ctrl,
+			Controller:  controller,
+			SourceBlock: test.NewBlockFromValues(bounds, [][]float64{{1.0}}),
 			ResultBlock: block.NewMockBlock(ctrl),
 			Node:        NewMocksimpleOpNode(ctrl),
 			ChildNode:   child,

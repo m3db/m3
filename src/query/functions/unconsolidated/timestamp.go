@@ -103,7 +103,7 @@ func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.No
 		return nil, err
 	}
 
-	builder, err := n.controller.BlockBuilder(queryCtx, iter.Meta(), iter.SeriesMeta())
+	builder, err := n.controller.BlockBuilder(queryCtx, b.Meta(), iter.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}

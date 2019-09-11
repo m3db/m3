@@ -27,6 +27,10 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+// FinalizeEncodedTagsFn is a function that will be called for each encoded tags once
+// the WriteBatch itself is finalized.
+type FinalizeEncodedTagsFn func(b []byte)
+
 // FinalizeAnnotationFn is a function that will be called for each annotation once
 // the WriteBatch itself is finalized.
 type FinalizeAnnotationFn func(b []byte)
@@ -53,6 +57,11 @@ type BatchWrite struct {
 	// is usually coming from over the wire) and is superseded by the Tags
 	// in Write.Series which will get set by the Shard object.
 	TagIter ident.TagIterator
+	// EncodedTags is used by the commit log, but also held onto as a reference
+	// here so that it can be returned to the pool after the write to commit log
+	// completes (since the Write.Series gets overwritten in SetOutcome so can't
+	// use the reference there for returning to the pool).
+	EncodedTags EncodedTags
 	// Used to help the caller tie errors back to an index in their
 	// own collection.
 	OriginalIndex int
@@ -75,6 +84,10 @@ type Series struct {
 	// Tags are the series tags.
 	Tags ident.Tags
 
+	// EncodedTags are the series encoded tags, if set then call sites can
+	// avoid needing to encoded the tags from the series tags provided.
+	EncodedTags EncodedTags
+
 	// Shard is the shard the series belongs to.
 	Shard uint32
 }
@@ -89,6 +102,9 @@ type Datapoint struct {
 func (d Datapoint) Equal(x Datapoint) bool {
 	return d.Timestamp.Equal(x.Timestamp) && d.Value == x.Value
 }
+
+// EncodedTags represents the encoded tags for the series.
+type EncodedTags []byte
 
 // Annotation represents information used to annotate datapoints.
 type Annotation []byte
@@ -120,17 +136,20 @@ type BatchWriter interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	)
+	) error
 
 	AddTagged(
 		originalIndex int,
 		id ident.ID,
 		tags ident.TagIterator,
+		encodedTags EncodedTags,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	)
+	) error
+
+	SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn)
 
 	SetFinalizeAnnotationFn(f FinalizeAnnotationFn)
 }

@@ -37,14 +37,6 @@ type baseOp struct {
 	params       NodeParams
 }
 
-// NodeParams describes the types of nodes used for binary operations.
-type NodeParams struct {
-	LNode, RNode         parser.NodeID
-	LIsScalar, RIsScalar bool
-	ReturnBool           bool
-	VectorMatching       *VectorMatching
-}
-
 // OpType for the operator.
 func (o baseOp) OpType() string {
 	return o.OperatorType
@@ -69,7 +61,7 @@ func (o baseOp) Node(
 }
 
 // ArithmeticFunction returns the arithmetic function for this operation type.
-func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
+func ArithmeticFunction(opType string, returnBool bool) (binaryFunction, error) {
 	if fn, ok := arithmeticFuncs[opType]; ok {
 		return fn, nil
 	}
@@ -84,7 +76,7 @@ func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 		return fn, nil
 	}
 
-	return nil, errNoMatching
+	return nil, fmt.Errorf("no arithmetic function found for type: %s", opType)
 }
 
 // NewOp creates a new binary operation.
@@ -92,6 +84,10 @@ func NewOp(
 	opType string,
 	params NodeParams,
 ) (parser.Params, error) {
+	if params.VectorMatcherBuilder == nil {
+		params.VectorMatcherBuilder = defaultVectorMatcherBuilder
+	}
+
 	fn, ok := buildLogicalFunction(opType, params)
 	if !ok {
 		fn, ok = buildArithmeticFunction(opType, params)
