@@ -42,9 +42,9 @@ func ExampleLoadFile() {
 	// Output: listenAddress: 0.0.0.0:8392
 }
 
-// The StringSlice allows for multiple values when used as a flag variable.
-func ExampleStringSlice() {
-	var configFiles config.StringSlice
+// The FlagStringSlice allows for multiple values when used as a flag variable.
+func ExampleFlagStringSlice() {
+	var configFiles config.FlagStringSlice
 	fs := flag.NewFlagSet("config", flag.PanicOnError)
 	fs.Var(&configFiles, "f", "config files")
 	fs.Parse([]string{"-f", "file1.yaml", "-f", "file2.yaml", "-f", "file3.yaml"})

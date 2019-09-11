@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/x/config"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,7 +64,7 @@ func TestFlagArray(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var values config.StringSlice
+			var values config.FlagStringSlice
 			fs := flag.NewFlagSet(tt.name, flag.PanicOnError)
 			fs.Var(&values, "f", "config files")
 			err := fs.Parse(tt.args)
@@ -73,7 +74,18 @@ func TestFlagArray(t *testing.T) {
 	}
 }
 
-func TestNilStringSlice(t *testing.T) {
-	var s *config.StringSlice
+func TestFlagStringSliceNilFlag(t *testing.T) {
+	var s *config.FlagStringSlice
 	assert.Equal(t, "", s.String(), "nil string slice representation")
+}
+
+func TestFlagStringSliceWithOtherFlags(t *testing.T) {
+	var values config.FlagStringSlice
+	var x string
+	fs := flag.NewFlagSet("app", flag.PanicOnError)
+	fs.StringVar(&x, "x", "", "some random var")
+	fs.Var(&values, "f", "config files")
+	fs.Parse([]string{"-f", "file1.yaml", "-x", "file2.yaml", "-f", "file3.yaml"})
+	assert.Equal(t, "[file1.yaml file3.yaml]", values.String(), "flag string slice representation")
+	assert.Equal(t, "file2.yaml", x, "x value")
 }

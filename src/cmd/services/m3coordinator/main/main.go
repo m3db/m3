@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/etcd"
 )
 
-var configFiles xconfig.StringSlice
+var configFiles xconfig.FlagStringSlice
 
 func main() {
 	flag.Var(&configFiles, "f", "configuration file(s)")
