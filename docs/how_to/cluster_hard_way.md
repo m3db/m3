@@ -113,7 +113,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "hosts": [
         {
             "id": "m3db001",
-            "isolation_group": "us-east1-a",
+            "isolationGroup": "us-east1-a",
             "zone": "embedded",
             "weight": 100,
             "address": "10.142.0.1",
@@ -121,7 +121,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
         },
         {
             "id": "m3db002",
-            "isolation_group": "us-east1-b",
+            "isolationGroup": "us-east1-b",
             "zone": "embedded",
             "weight": 100,
             "address": "10.142.0.2",
@@ -129,7 +129,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
         },
         {
             "id": "m3db003",
-            "isolation_group": "us-east1-c",
+            "isolationGroup": "us-east1-c",
             "zone": "embedded",
             "weight": 100,
             "address": "10.142.0.3",
