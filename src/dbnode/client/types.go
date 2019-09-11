@@ -236,6 +236,9 @@ type Options interface {
 	// SetEncodingProto sets proto encoding.
 	SetEncodingProto(encodingOpts encoding.Options) Options
 
+	// IsSetEncodingProto returns whether proto encoding is set.
+	IsSetEncodingProto() bool
+
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 

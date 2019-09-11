@@ -1,6 +1,17 @@
 # Changelog
 
-# 0.11.1 (pending)
+# 0.12.0
+
+## Features
+
+- **M3DB**: Add support for limiting the amount of outstanding repaired data that can be held in memory at once (#1885)
+- **M3Coordinator**: Add namespace and placement information to the dump returned by the debug endpoint (#1896)
+- **M3Coordinator**: Add DELETE api for the /topic endpoint (#1926)
+
+## Performance
+
+- **M3Query**: Improve performance of temporal functions (#1917)
+- **M3DB**: Only trigger bootstrap during topology change if a node receives new shards. This should significantly reduce the amount of time certain topology changes (such as node removes) took when performed on larger clusters (#1868)
 
 ## Features
 

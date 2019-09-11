@@ -1074,6 +1074,20 @@ func (mr *MockOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockOptions)(nil).SetEncodingProto), encodingOpts)
 }
 
+// IsSetEncodingProto mocks base method
+func (m *MockOptions) IsSetEncodingProto() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSetEncodingProto")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSetEncodingProto indicates an expected call of IsSetEncodingProto
+func (mr *MockOptionsMockRecorder) IsSetEncodingProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSetEncodingProto", reflect.TypeOf((*MockOptions)(nil).IsSetEncodingProto))
+}
+
 // SetRuntimeOptionsManager mocks base method
 func (m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
 	m.ctrl.T.Helper()
@@ -2313,6 +2327,20 @@ func (m *MockAdminOptions) SetEncodingProto(encodingOpts encoding.Options) Optio
 func (mr *MockAdminOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingProto), encodingOpts)
+}
+
+// IsSetEncodingProto mocks base method
+func (m *MockAdminOptions) IsSetEncodingProto() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSetEncodingProto")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSetEncodingProto indicates an expected call of IsSetEncodingProto
+func (mr *MockAdminOptionsMockRecorder) IsSetEncodingProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).IsSetEncodingProto))
 }
 
 // SetRuntimeOptionsManager mocks base method
