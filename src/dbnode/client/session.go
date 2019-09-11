@@ -1207,7 +1207,10 @@ func (s *session) FetchTaggedIDs(
 func (s *session) fetchTaggedAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
-	nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
+	nsCtx, err := s.nsCtxFor(ns)
+	if err != nil {
+		return nil, false, err
+	}
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
@@ -1401,6 +1404,11 @@ func (s *session) fetchIDsAttempt(
 	inputIDs ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
+	nsCtx, err := s.nsCtxFor(inputNamespace)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		wg                     sync.WaitGroup
 		allPending             int32
@@ -1414,7 +1422,6 @@ func (s *session) fetchIDsAttempt(
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 		startFetchAttempt      = s.nowFn()
-		nsCtx                  = namespace.NewContextFor(inputNamespace, s.opts.SchemaRegistry())
 	)
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
@@ -1922,8 +1929,11 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	start, end time.Time,
 	opts result.Options,
 ) (result.ShardResult, error) {
+	nsCtx, err := s.nsCtxFromMetadata(nsMetadata)
+	if err != nil {
+		return nil, err
+	}
 	var (
-		nsCtx  = namespace.NewContextFrom(nsMetadata)
 		result = newBulkBlocksResult(nsCtx, s.opts, opts,
 			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
@@ -1988,14 +1998,16 @@ func (s *session) FetchBlocksFromPeers(
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
-
+	nsCtx, err := s.nsCtxFromMetadata(nsMetadata)
+	if err != nil {
+		return nil, err
+	}
 	var (
 		logger   = opts.InstrumentOptions().Logger()
 		level    = newStaticRuntimeReadConsistencyLevel(consistencyLevel)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		nsCtx    = namespace.NewContextFrom(nsMetadata)
 		result   = newStreamBlocksResult(nsCtx, s.opts, opts, outputCh,
 			s.pools.tagDecoder.Get(), s.pools.id)
 		onDone = func(err error) {
@@ -3007,6 +3019,22 @@ func (s *session) cloneFinalizable(id ident.ID) ident.ID {
 		return id
 	}
 	return s.pools.id.Clone(id)
+}
+
+func (s *session) nsCtxFromMetadata(nsMeta namespace.Metadata) (namespace.Context, error) {
+	nsCtx := namespace.NewContextFrom(nsMeta)
+	if s.opts.IsSetEncodingProto() && nsCtx.Schema == nil {
+		return nsCtx, fmt.Errorf("no protobuf schema found for namespace: %s", nsMeta.ID().String())
+	}
+	return nsCtx, nil
+}
+
+func (s *session) nsCtxFor(ns ident.ID) (namespace.Context, error) {
+	nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
+	if s.opts.IsSetEncodingProto() && nsCtx.Schema == nil {
+		return nsCtx, fmt.Errorf("no protobuf schema found for namespace: %s", ns.String())
+	}
+	return nsCtx, nil
 }
 
 type reason int

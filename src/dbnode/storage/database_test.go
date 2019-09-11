@@ -404,7 +404,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	wg.Wait()
 }
 
-func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t *testing.T) {
+func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -412,6 +412,11 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 	defer func() {
 		close(mapCh)
 	}()
+
+	// Set a mock mediator to be certain that bootstrap is not called when
+	// no new shards are assigned.
+	mediator := NewMockdatabaseMediator(ctrl)
+	d.mediator = mediator
 
 	var ns []*MockdatabaseNamespace
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
@@ -427,6 +432,7 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 
 	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(d.shardSet)
+	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
 	require.True(t, d.lastReceivedNewShards.Equal(t1))
 
 	wg.Wait()

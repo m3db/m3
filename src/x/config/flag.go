@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config_test
+package config
 
 import (
 	"flag"
 	"fmt"
-	"log"
-
-	"github.com/m3db/m3/src/x/config"
 )
 
-type configuration struct {
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-}
+var _ flag.Value = &FlagStringSlice{}
 
-func ExampleLoadFile() {
-	var cfg configuration
-	file := "testdata/conf.yaml"
-	if err := config.LoadFile(&cfg, file, config.Options{}); err != nil {
-		log.Fatal(err)
+// FlagStringSlice represents a slice of strings. When used as a flag variable,
+// it allows for multiple string values. For example, it can be used like this:
+// 	var configFiles FlagStringSlice
+// 	flag.Var(&configFiles, "f", "configuration file(s)")
+// Then it can be invoked like this:
+// 	./app -f file1.yaml -f file2.yaml -f valueN.yaml
+// Finally, when the flags are parsed, the variable contains all the values.
+type FlagStringSlice []string
+
+// String() returns a string implmentation of the slice.
+func (i *FlagStringSlice) String() string {
+	if i == nil {
+		return ""
 	}
-	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)
-	// Output: listenAddress: 0.0.0.0:8392
+	return fmt.Sprintf("%v", ([]string)(*i))
 }
 
-// The FlagStringSlice allows for multiple values when used as a flag variable.
-func ExampleFlagStringSlice() {
-	var configFiles config.FlagStringSlice
-	fs := flag.NewFlagSet("config", flag.PanicOnError)
-	fs.Var(&configFiles, "f", "config files")
-	fs.Parse([]string{"-f", "file1.yaml", "-f", "file2.yaml", "-f", "file3.yaml"})
-	fmt.Println("Config files:", configFiles)
-	// Output:
-	// Config files: [file1.yaml file2.yaml file3.yaml]
+// Set appends a string value to the slice.
+func (i *FlagStringSlice) Set(value string) error {
+	*i = append(*i, value)
+	return nil
 }
