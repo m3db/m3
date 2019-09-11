@@ -198,6 +198,6 @@ func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogra
 		"schema": "v1",
 	})
 	buckets := append(tally.DurationBuckets{0},
-		tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 60)...)
+		tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 30)...)
 	return sub.Histogram(name, buckets)
 }
