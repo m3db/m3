@@ -97,8 +97,8 @@ type cleanupFn func() error
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
-	// ConfigFile is the config file to use.
-	ConfigFile string
+	// ConfigFiles is the array of config files to use. All files of the array get merged together.
+	ConfigFiles []string
 
 	// Config is an alternate way to provide configuration and will be used
 	// instead of parsing ConfigFile if ConfigFile is not specified.
@@ -127,12 +127,12 @@ func Run(runOpts RunOptions) {
 	rand.Seed(time.Now().UnixNano())
 
 	var cfg config.Configuration
-	if runOpts.ConfigFile != "" {
-		if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
-			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+	if len(runOpts.ConfigFiles) > 0 {
+		if err := xconfig.LoadFiles(&cfg, runOpts.ConfigFiles, xconfig.Options{}); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFiles, err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stdout, "using %s config file: %v", serviceName, runOpts.ConfigFile)
+		fmt.Fprintf(os.Stdout, "using %s config files: %v", serviceName, runOpts.ConfigFiles)
 	} else {
 		cfg = runOpts.Config
 	}
