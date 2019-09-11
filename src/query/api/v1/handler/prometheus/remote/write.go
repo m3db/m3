@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -42,6 +43,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -58,6 +60,9 @@ const (
 
 	// emptyStoragePolicyVar for code readability.
 	emptyStoragePolicyVar = ""
+
+	// defaultForwardingTimeout is the default forwarding timeout.
+	defaultForwardingTimeout = 15 * time.Second
 )
 
 var (
@@ -69,17 +74,39 @@ var (
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
-	downsamplerAndWriter ingest.DownsamplerAndWriter
-	tagOptions           models.TagOptions
-	nowFn                clock.NowFn
-	instrumentOpts       instrument.Options
-	metrics              promWriteMetrics
+	downsamplerAndWriter   ingest.DownsamplerAndWriter
+	tagOptions             models.TagOptions
+	forwarding             PromWriteHandlerForwardingOptions
+	forwardTimeout         time.Duration
+	forwardHTTPClient      *http.Client
+	forwardingBoundWorkers xsync.WorkerPool
+	forwardContext         context.Context
+	nowFn                  clock.NowFn
+	instrumentOpts         instrument.Options
+	metrics                promWriteMetrics
+}
+
+// PromWriteHandlerForwardingOptions is the forwarding options for prometheus write handler.
+type PromWriteHandlerForwardingOptions struct {
+	// MaxConcurrency is the max parallel forwarding and if zero will be unlimited.
+	MaxConcurrency int                                    `yaml:"maxConcurrency"`
+	Timeout        time.Duration                          `yaml:"timeout"`
+	Targets        []PromWriteHandlerForwardTargetOptions `yaml:"targets"`
+}
+
+// PromWriteHandlerForwardTargetOptions is a prometheus write handler forwarder target.
+type PromWriteHandlerForwardTargetOptions struct {
+	// URL of the target to send to.
+	URL string `yaml:"url"`
+	// Method defaults to POST if not set.
+	Method string `yaml:"method"`
 }
 
 // NewPromWriteHandler returns a new instance of handler.
 func NewPromWriteHandler(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
+	forwarding PromWriteHandlerForwardingOptions,
 	nowFn clock.NowFn,
 	instrumentOpts instrument.Options,
 ) (http.Handler, error) {
@@ -98,12 +125,34 @@ func NewPromWriteHandler(
 		return nil, err
 	}
 
+	// Only use a forwarding worker pool if concurrency is bound, otherwise
+	// if unlimited we just spin up a goroutine for each incoming write.
+	var forwardingBoundWorkers xsync.WorkerPool
+	if v := forwarding.MaxConcurrency; v > 0 {
+		forwardingBoundWorkers = xsync.NewWorkerPool(v)
+		forwardingBoundWorkers.Init()
+	}
+
+	forwardTimeout := defaultForwardingTimeout
+	if v := forwarding.Timeout; v > 0 {
+		forwardTimeout = v
+	}
+
+	forwardHTTPOpts := xhttp.DefaultHTTPClientOptions()
+	forwardHTTPOpts.DisableCompression = true // Already snappy compressed.
+	forwardHTTPOpts.RequestTimeout = forwardTimeout
+
 	return &PromWriteHandler{
-		downsamplerAndWriter: downsamplerAndWriter,
-		tagOptions:           tagOptions,
-		nowFn:                nowFn,
-		metrics:              metrics,
-		instrumentOpts:       instrumentOpts,
+		downsamplerAndWriter:   downsamplerAndWriter,
+		tagOptions:             tagOptions,
+		forwarding:             forwarding,
+		forwardTimeout:         forwardTimeout,
+		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
+		forwardingBoundWorkers: forwardingBoundWorkers,
+		forwardContext:         context.Background(),
+		nowFn:                  nowFn,
+		metrics:                metrics,
+		instrumentOpts:         instrumentOpts,
 	}, nil
 }
 
@@ -113,6 +162,10 @@ type promWriteMetrics struct {
 	writeErrorsClient    tally.Counter
 	ingestLatency        tally.Histogram
 	ingestLatencyBuckets tally.DurationBuckets
+	forwardSuccess       tally.Counter
+	forwardErrors        tally.Counter
+	forwardDropped       tally.Counter
+	forwardLatency       tally.Histogram
 }
 
 func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
@@ -155,21 +208,66 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
+
+	var forwardLatencyBuckets tally.DurationBuckets
+	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo1sBuckets...)
+	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo10sBuckets...)
+	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo60sBuckets...)
+	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo60mBuckets...)
 	return promWriteMetrics{
 		writeSuccess:         scope.SubScope("write").Counter("success"),
 		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
 		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
 		ingestLatency:        scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
 		ingestLatencyBuckets: ingestLatencyBuckets,
+		forwardSuccess:       scope.SubScope("forward").Counter("success"),
+		forwardErrors:        scope.SubScope("forward").Counter("errors"),
+		forwardDropped:       scope.SubScope("forward").Counter("dropped"),
+		forwardLatency:       scope.SubScope("forward").Histogram("latency", forwardLatencyBuckets),
 	}, nil
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	req, opts, rErr := h.parseRequest(r)
+	req, opts, result, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
+	}
+
+	// Begin async forwarding.
+	// NB(r): Be careful about not returning buffers to pool
+	// if the request bodies ever get pooled until after
+	// forwarding completes.
+	if targets := h.forwarding.Targets; len(targets) > 0 {
+		for _, target := range targets {
+			target := target // Capture for lambda.
+			forward := func() {
+				// Consider propgating baggage without tying
+				// context to request context in future.
+				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
+				defer cancel()
+
+				if err := h.forward(ctx, result, target); err != nil {
+					h.metrics.forwardErrors.Inc(1)
+					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
+					logger.Error("forward error", zap.Error(err))
+					return
+				}
+				h.metrics.forwardSuccess.Inc(1)
+			}
+
+			spawned := false
+			if h.forwarding.MaxConcurrency > 0 {
+				spawned = h.forwardingBoundWorkers.GoIfAvailable(forward)
+			} else {
+				go forward()
+				spawned = true
+			}
+			if !spawned {
+				h.metrics.forwardDropped.Inc(1)
+			}
+		}
 	}
 
 	batchErr := h.write(r.Context(), req, opts)
@@ -246,7 +344,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
-) (*prompb.WriteRequest, ingest.WriteOptions, *xhttp.ParseError) {
+) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
 	var opts ingest.WriteOptions
 	if v := strings.TrimSpace(r.Header.Get(handler.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
@@ -254,6 +352,7 @@ func (h *PromWriteHandler) parseRequest(
 		metricsType, err := storage.ParseMetricsType(v)
 		if err != nil {
 			return nil, ingest.WriteOptions{},
+				prometheus.ParsePromCompressedRequestResult{},
 				xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
@@ -269,6 +368,7 @@ func (h *PromWriteHandler) parseRequest(
 			if strPolicy != emptyStoragePolicyVar {
 				err := errUnaggregatedStoragePolicySet
 				return nil, ingest.WriteOptions{},
+					prometheus.ParsePromCompressedRequestResult{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
 			}
 		default:
@@ -276,6 +376,7 @@ func (h *PromWriteHandler) parseRequest(
 			if err != nil {
 				err = fmt.Errorf("could not parse storage policy: %v", err)
 				return nil, ingest.WriteOptions{},
+					prometheus.ParsePromCompressedRequestResult{},
 					xhttp.NewParseError(err, http.StatusBadRequest)
 			}
 
@@ -287,18 +388,20 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
-	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
+	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
-		return nil, ingest.WriteOptions{}, err
+		return nil, ingest.WriteOptions{},
+			prometheus.ParsePromCompressedRequestResult{}, err
 	}
 
 	var req prompb.WriteRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
 		return nil, ingest.WriteOptions{},
+			prometheus.ParsePromCompressedRequestResult{},
 			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return &req, opts, nil
+	return &req, opts, result, nil
 }
 
 func (h *PromWriteHandler) write(
@@ -308,6 +411,32 @@ func (h *PromWriteHandler) write(
 ) ingest.BatchError {
 	iter := newPromTSIter(r.Timeseries, h.tagOptions)
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
+}
+
+func (h *PromWriteHandler) forward(
+	ctx context.Context,
+	request prometheus.ParsePromCompressedRequestResult,
+	target PromWriteHandlerForwardTargetOptions,
+) error {
+	method := target.Method
+	if method == "" {
+		method = http.MethodPost
+	}
+
+	req, err := http.NewRequest(target.Method, target.URL,
+		bytes.NewReader(request.CompressedBody))
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("expected status code 2XX: actual=%v", resp.StatusCode)
+	}
+	return nil
 }
 
 func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
