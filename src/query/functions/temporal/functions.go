@@ -46,9 +46,12 @@ type functionProcessor struct {
 	compFunc comparisonFunc
 }
 
-func (f functionProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (f functionProcessor) initialize(
+	_ time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &functionNode{
-		op:             op,
 		controller:     controller,
 		comparisonFunc: f.compFunc,
 	}
@@ -80,12 +83,11 @@ func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) 
 }
 
 type functionNode struct {
-	op             baseOp
 	controller     *transform.Controller
 	comparisonFunc comparisonFunc
 }
 
-func (f *functionNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
+func (f *functionNode) process(datapoints ts.Datapoints, _ time.Time) float64 {
 	if len(datapoints) == 0 {
 		return math.NaN()
 	}

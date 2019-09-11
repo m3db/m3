@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config_test
+package topic
 
 import (
-	"flag"
-	"fmt"
-	"log"
+	"testing"
 
-	"github.com/m3db/m3/src/x/config"
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
+	"github.com/m3db/m3/src/msg/topic"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-type configuration struct {
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+var (
+	jsonMarshaler   = jsonpb.Marshaler{EmitDefaults: true, Indent: "  "}
+	jsonUnmarshaler = jsonpb.Unmarshaler{AllowUnknownFields: false}
+)
+
+func validateEqualTopicProto(t *testing.T, this, other topicpb.Topic) {
+	t1, err := topic.NewTopicFromProto(&this)
+	require.NoError(t, err)
+	t2, err := topic.NewTopicFromProto(&other)
+	require.NoError(t, err)
+	require.Equal(t, t1, t2)
 }
 
-func ExampleLoadFile() {
-	var cfg configuration
-	file := "testdata/conf.yaml"
-	if err := config.LoadFile(&cfg, file, config.Options{}); err != nil {
-		log.Fatal(err)
+func testServiceFn(s topic.Service) serviceFn {
+	return func(clusterClient clusterclient.Client) (topic.Service, error) {
+		return s, nil
 	}
-	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)
-	// Output: listenAddress: 0.0.0.0:8392
 }
 
-// The FlagStringSlice allows for multiple values when used as a flag variable.
-func ExampleFlagStringSlice() {
-	var configFiles config.FlagStringSlice
-	fs := flag.NewFlagSet("config", flag.PanicOnError)
-	fs.Var(&configFiles, "f", "config files")
-	fs.Parse([]string{"-f", "file1.yaml", "-f", "file2.yaml", "-f", "file3.yaml"})
-	fmt.Println("Config files:", configFiles)
-	// Output:
-	// Config files: [file1.yaml file2.yaml file3.yaml]
+func setupTest(t *testing.T, ctrl *gomock.Controller) *topic.MockService {
+	return topic.NewMockService(ctrl)
 }

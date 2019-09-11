@@ -53,14 +53,18 @@ type rateProcessor struct {
 	rateFn            rateFn
 }
 
-func (r rateProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (r rateProcessor) initialize(
+	duration time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &rateNode{
-		op:         op,
 		controller: controller,
 		timeSpec:   opts.TimeSpec(),
 		isRate:     r.isRate,
 		isCounter:  r.isCounter,
 		rateFn:     r.rateFn,
+		duration:   duration,
 	}
 }
 
@@ -108,15 +112,15 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 type rateFn func(ts.Datapoints, bool, bool, transform.TimeSpec, time.Duration) float64
 
 type rateNode struct {
-	op                baseOp
 	controller        *transform.Controller
-	timeSpec          transform.TimeSpec
 	isRate, isCounter bool
+	duration          time.Duration
+	timeSpec          transform.TimeSpec
 	rateFn            rateFn
 }
 
-func (r *rateNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
-	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec, r.op.duration)
+func (r *rateNode) process(datapoints ts.Datapoints, _ time.Time) float64 {
+	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec, r.duration)
 }
 
 func standardRateFunc(

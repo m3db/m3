@@ -45,8 +45,8 @@ var testTemporalCases = []testCase{
 			{6, 4, 4, 2, 5},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
+			{math.NaN(), 0, 0, 0, 1},
+			{math.NaN(), 1, 1, 2, 2},
 		},
 		afterAllBlocks: [][]float64{
 			{1, 2, 1, 1, 2},
@@ -61,8 +61,8 @@ var testTemporalCases = []testCase{
 			{6, 4, 4, 2, 5},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3},
+			{math.NaN(), 0, 1, 1, 2},
+			{math.NaN(), 1, 1, 2, 3},
 		},
 		afterAllBlocks: [][]float64{
 			{2, 2, 2, 2, 3},
@@ -109,8 +109,8 @@ var testTemporalCases = []testCase{
 			{math.NaN(), 4, 4, 2, math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+			{math.NaN(), 0, 0, 1, 1},
+			{math.NaN(), 0, 0, 1, 1},
 		},
 		afterAllBlocks: [][]float64{
 			{1, 2, 1, 1, 1},
@@ -125,8 +125,8 @@ var testTemporalCases = []testCase{
 			{math.NaN(), 4, 4, 2, math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+			{math.NaN(), 0, 1, 2, 2},
+			{math.NaN(), 0, 0, 1, 1},
 		},
 		afterAllBlocks: [][]float64{
 			{2, 2, 2, 2, 2},

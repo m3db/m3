@@ -20,7 +20,9 @@
 
 package storage
 
-import "sync"
+import (
+	"sync"
+)
 
 type memoryTracker struct {
 	sync.Mutex
