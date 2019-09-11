@@ -18,6 +18,15 @@ db:
     enabled: true
 ```
 
+By default M3DB will limit the amount of repaired data that can be held in memory at once to 2GiB. This is intended to prevent the M3DB nodes from streaming data from their peers too quickly and running out of memory. Once the 2GiB limit is hit the repair process will throttle itself until some of the streamed data has been flushed to disk (and as a result can be evicted from memory). This limit can be overriden with the following configuration:
+
+```yaml
+db:
+  ... (other configuration)
+  limits:
+    maxOutstandingRepairedBytes: 2147483648 # 2GiB
+```
+
 In addition, the following two optional fields can also be configured:
 
 ```yaml

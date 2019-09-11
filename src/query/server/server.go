@@ -72,7 +72,9 @@ import (
 )
 
 const (
-	serviceName = "m3query"
+	serviceName            = "m3query"
+	cpuProfileDuration     = 5 * time.Second
+	defaultM3DBServiceName = "m3db"
 )
 
 var (
@@ -283,7 +285,8 @@ func Run(runOpts RunOptions) {
 
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, perQueryEnforcer,
-		fetchOptsBuilder, queryCtxOpts, instrumentOptions)
+		fetchOptsBuilder, queryCtxOpts, instrumentOptions, cpuProfileDuration,
+		[]string{defaultM3DBServiceName})
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}

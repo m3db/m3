@@ -25,6 +25,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/x/test/testmarshal"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -81,16 +84,45 @@ func TestIDMarshalJSONError(t *testing.T) {
 	}
 }
 
-func TestIDMarshalJSONRoundtrip(t *testing.T) {
+func TestIDMarshalRoundtrip(t *testing.T) {
 	inputs := []ID{
 		DefaultID,
 		testID,
 	}
-	for _, input := range inputs {
-		b, err := json.Marshal(input)
-		require.NoError(t, err)
-		var res ID
-		require.NoError(t, json.Unmarshal(b, &res))
-		require.Equal(t, input, res)
-	}
+	testmarshal.TestMarshalersRoundtrip(t, inputs, []testmarshal.Marshaler{testmarshal.YAMLMarshaler, testmarshal.JSONMarshaler})
+}
+
+func TestIDYAMLMarshaling(t *testing.T) {
+	cases := []struct {
+		In       ID
+		Expected string
+	}{{
+		In: MustCompressTypes(Last, Min),
+		Expected: `- Last
+- Min
+`,
+	}}
+
+	t.Run("marshal", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertMarshals(t, testmarshal.YAMLMarshaler, tc.In, []byte(tc.Expected))
+		}
+	})
+
+	t.Run("unmarshal", func(t *testing.T) {
+		for _, tc := range cases {
+			testmarshal.AssertUnmarshals(t, testmarshal.YAMLMarshaler, tc.In, []byte(tc.Expected))
+		}
+	})
+
+	t.Run("marshal_error", func(t *testing.T) {
+		_, err := yaml.Marshal(ID{40559696})
+		assert.Error(t, err)
+	})
+
+	t.Run("unmarshal_error", func(t *testing.T) {
+		var id ID
+		err := yaml.Unmarshal([]byte(`["Foobar"]`), &id)
+		assert.EqualError(t, err, "invalid aggregation type: Foobar")
+	})
 }

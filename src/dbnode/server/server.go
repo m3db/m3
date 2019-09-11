@@ -291,13 +291,23 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions()
-	iopts := opts.InstrumentOptions().
-		SetLogger(logger).
-		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
-		SetTracer(tracer)
+	var (
+		opts  = storage.NewOptions()
+		iopts = opts.InstrumentOptions().
+			SetLogger(logger).
+			SetMetricsScope(scope).
+			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTracer(tracer)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
+
+	// Only override the default MemoryTracker (which has default limits) if a custom limit has
+	// been set.
+	if cfg.Limits.MaxOutstandingRepairedBytes > 0 {
+		memTrackerOptions := storage.NewMemoryTrackerOptions(cfg.Limits.MaxOutstandingRepairedBytes)
+		memTracker := storage.NewMemoryTracker(memTrackerOptions)
+		opts = opts.SetMemoryTracker(memTracker)
+	}
 
 	opentracing.SetGlobalTracer(tracer)
 
@@ -586,7 +596,7 @@ func Run(runOpts RunOptions) {
 		go func() {
 			mux := http.DefaultServeMux
 			if debugWriter != nil {
-				if err := debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
+				if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
 				}
 			}

@@ -21,7 +21,6 @@
 package aggregation
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/m3db/m3/src/query/block"
@@ -147,7 +146,6 @@ func (n *absentNode) ProcessBlock(
 			values         = step.Values()
 			val    float64 = 1
 		)
-		fmt.Println(values)
 		for _, v := range values {
 			if !math.IsNaN(v) {
 				val = math.NaN()

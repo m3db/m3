@@ -24,3 +24,52 @@ Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Fin
 2. Check to make sure you are running adequate block sizes based on the retention of your namespace. See [namespace configuration](../operational_guide/namespace_configuration.md) for more information.
 3. Ensure that you use at most 50-60% memory utilization in the normal running state. You want to ensure enough overhead to handle bursts of metrics, especially ones with new IDs as those will take more memory initially.
 4. High cardinality metrics can also lead to OOMs especially if you are not adequately provisioned. If you have many unique timeseries such as ones containing UUIDs or timestamps as tag values, you should consider mitigating their cardinality. 
+
+## Using the /debug/dump API
+
+The `/debug/dump` API returns a number of helpful debugging outputs. Currently, we support the following:
+
+- CPU profile: determines where a program spends its time while actively consuming CPU cycles (as opposed to while sleeping or waiting for I/O). Currently set to take a 5 second profile.
+- Heap profile: reports memory allocation samples; used to monitor current and historical memory usage, and to check for memory leaks.
+- Goroutines profile: reports the stack traces of all current goroutines.
+- Host profile: returns data about the underlying host such as PID, working directory, etc.
+- Namespace: returns information about the namespaces setup in M3DB
+- Placement: returns information about the placement setup in M3DB
+
+This endpoint can be used on both the db nodes as well as the coordinator/query nodes. However, namespace and placement info are only available on the coordinator debug endpoint. 
+
+To use this, simply run the following on either the M3DB debug listen port or the regular port on M3Coordinator.
+
+```
+curl <m3db_or_m3coordinator_ip>:<port>/debug/dump > <tmp_zip_file.zip>
+
+# unzip the file
+unzip <tmp_zip_file.zip>
+```
+
+Now, you will have the following files, which you can use for troubleshooting using the below commands:
+
+**cpuSource**
+```
+go tool pprof -http=:16000 cpuSource
+```
+**heapSource**
+```
+go tool pprof -http=:16000 heapSource
+```
+**goroutineProfile**
+```
+less goroutineProfile
+```
+**hostSource**
+```
+less hostSource | jq .
+```
+**namespaceSource**
+```
+less namespaceSource | jq .
+```
+**placementSource**
+```
+less placementSource | jq .
+```
