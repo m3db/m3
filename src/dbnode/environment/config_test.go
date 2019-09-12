@@ -126,10 +126,12 @@ service:
 func TestUnmarshalDynamicList(t *testing.T) {
 	in := `
 services:
-  - zone: dca8
-    env: test
-  - zone: phx3
-    env: test
+  - service:
+      zone: dca8
+      env: test
+  - service:
+      zone: phx3
+      env: test
     async: true
 `
 
@@ -154,8 +156,9 @@ var configValidationTests = []struct {
 		name: "static and dynamic",
 		in: `
 services:
-  - zone: dca8
-    env: test
+  - service:
+      zone: dca8
+      env: test
 statics:
   - listenAddress: 0.0.0.0:9000`,
 		expectErr: errInvalidConfig,
@@ -178,10 +181,12 @@ statics:
 		name: "valid config",
 		in: `
 services:
-  - zone: dca8
-    env: test
-  - zone: phx3
-    env: test
+  - service:
+      zone: dca8
+      env: test
+  - service:
+      zone: phx3
+      env: test
     async: true`,
 		expectErr: nil,
 	},
