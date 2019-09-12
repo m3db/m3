@@ -26,7 +26,7 @@ For example, if you have a replication factor of 3 and your set your write and r
 If you’re adding namespaces, the m3dbnode process will pickup the new namespace without a restart.
 
 - **Do I need to restart M3DB if I change or delete a namespace?**
-If you’re removing or modifying an existing namespace, you’ll need to restart the m3dbnode process. It is recommended to restart one node at a time and wait for a node to be completely bootstrapped before restarting another node.
+If you’re removing or modifying an existing namespace, you’ll need to restart the m3dbnode process in order to complete the namespace deletion/modification process. It is recommended to restart one node at a time and wait for a node to be completely bootstrapped before restarting another node.
 
 - **How do I set up aggregation in the coordinator?**
 Refer to the [Aggregation section](../how_to/query) of the M3Query how-to guide.
