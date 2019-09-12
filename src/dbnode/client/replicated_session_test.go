@@ -229,14 +229,3 @@ func (s *replicatedSessionTestSuite) TestOpenReplicatedSessionAsyncError() {
 	sessions[2].EXPECT().Open().Return(nil)
 	s.replicatedSession.Open()
 }
-
-// func TestReplicatedSession(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-
-// 	var newMockSession = func(_ Options) (clientSession, error) {
-// 		return NewMockclientSession(ctrl), nil
-// 	}
-
-// 	opts := NewMockOptions(ctrl)
-// 	newReplicatedSession(opts, withNewSessionFn(newMockSession))
-// }
