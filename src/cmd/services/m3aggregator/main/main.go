@@ -129,6 +129,7 @@ func main() {
 			httpServerOpts,
 			aggregator,
 			doneCh,
+			instrumentOpts,
 		); err != nil {
 			logger.Fatal("could not start serving traffic", zap.Error(err))
 		}
