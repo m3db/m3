@@ -150,6 +150,41 @@ var configValidationTests = []struct {
 		in:        ``,
 		expectErr: errInvalidConfig,
 	},
+	{
+		name: "static and dynamic",
+		in: `
+services:
+  - zone: dca8
+    env: test
+statics:
+  - listenAddress: 0.0.0.0:9000`,
+		expectErr: errInvalidConfig,
+	},
+	{
+		name: "invalid dynamic config",
+		in: `
+services:
+  - async: true`,
+		expectErr: errInvalidSyncCount,
+	},
+	{
+		name: "invalid static config",
+		in: `
+statics:
+  - async: true`,
+		expectErr: errInvalidSyncCount,
+	},
+	{
+		name: "valid config",
+		in: `
+services:
+  - zone: dca8
+    env: test
+  - zone: phx3
+    env: test
+    async: true`,
+		expectErr: nil,
+	},
 }
 
 func TestConfigValidation(t *testing.T) {
