@@ -97,7 +97,8 @@ type cleanupFn func() error
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
-	// ConfigFiles is the array of config files to use. All files of the array get merged together.
+	// ConfigFiles is the array of config files to use. All files of the array
+	// get merged together.
 	ConfigFiles []string
 
 	// Config is an alternate way to provide configuration and will be used
@@ -128,11 +129,14 @@ func Run(runOpts RunOptions) {
 
 	var cfg config.Configuration
 	if len(runOpts.ConfigFiles) > 0 {
-		if err := xconfig.LoadFiles(&cfg, runOpts.ConfigFiles, xconfig.Options{}); err != nil {
+		err := xconfig.LoadFiles(&cfg, runOpts.ConfigFiles, xconfig.Options{})
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFiles, err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stdout, "using %s config files: %v", serviceName, runOpts.ConfigFiles)
+
+		fmt.Fprintf(os.Stdout, "using %s config files: %v",
+			serviceName, runOpts.ConfigFiles)
 	} else {
 		cfg = runOpts.Config
 	}
@@ -200,15 +204,6 @@ func Run(runOpts RunOptions) {
 			LimitMaxTimeseries: fetchOptsBuilderCfg.Limit,
 		}
 	)
-	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
-		instrumentOptions,
-		cfg.ReadWorkerPool,
-		cfg.WriteWorkerPool,
-		scope,
-	)
-	if err != nil {
-		logger.Fatal("could not create worker pools", zap.Error(err))
-	}
 
 	tagOptions, err := config.TagOptionsFromConfig(cfg.TagOptions)
 	if err != nil {
@@ -221,6 +216,16 @@ func Run(runOpts RunOptions) {
 	}
 	cfg.LookbackDuration = &lookbackDuration
 
+	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
+		instrumentOptions,
+		cfg.ReadWorkerPool,
+		cfg.WriteWorkerPool,
+		scope,
+	)
+	if err != nil {
+		logger.Fatal("could not create worker pools", zap.Error(err))
+	}
+
 	var (
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
@@ -229,8 +234,10 @@ func Run(runOpts RunOptions) {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
-		remotes, enabled, err := remoteClient(cfg, tagOptions, poolWrapper,
-			readWorkerPool, instrumentOptions)
+		opts := config.RemoteOptionsFromConfig(cfg.RPC)
+		lookback := *cfg.LookbackDuration
+		remotes, enabled, err := remoteClient(lookback, opts, tagOptions,
+			poolWrapper, readWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -641,6 +648,12 @@ func newStorages(
 		logger  = instrumentOpts.Logger()
 		cleanup = func() error { return nil }
 	)
+
+	lookback, err := cfg.LookbackDurationOrDefault()
+	if err != nil {
+		return nil, cleanup, err
+	}
+
 	localStorage, err := m3.NewStorage(clusters, readWorkerPool,
 		writeWorkerPool, tagOptions, *cfg.LookbackDuration, instrumentOpts)
 	if err != nil {
@@ -649,10 +662,11 @@ func newStorages(
 
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
-	if cfg.RPC != nil && cfg.RPC.Enabled {
-		logger.Info("rpc enabled")
+	rpcOpts := config.RemoteOptionsFromConfig(cfg.RPC)
+	if rpcOpts.ServeEnabled() {
+		logger.Info("rpc serve enabled")
 		server, err := startGRPCServer(localStorage, queryContextOptions,
-			poolWrapper, cfg.RPC, instrumentOpts)
+			poolWrapper, rpcOpts, instrumentOpts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -661,9 +675,12 @@ func newStorages(
 			server.GracefulStop()
 			return nil
 		}
+	}
 
+	if rpcOpts.ListenEnabled() {
 		remoteStorages, enabled, err := remoteClient(
-			cfg,
+			lookback,
+			rpcOpts,
 			tagOptions,
 			poolWrapper,
 			readWorkerPool,
@@ -728,85 +745,59 @@ func newStorages(
 }
 
 func remoteZoneStorage(
-	remoteAddresses []string,
+	zone config.Remote,
 	lookbackDuration time.Duration,
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
+	instrumentOpts instrument.Options,
 ) (storage.Storage, error) {
-	if len(remoteAddresses) == 0 {
+	if len(zone.Addresses) == 0 {
 		// No addresses; skip.
 		return nil, nil
 	}
 
 	client, err := tsdbRemote.NewGRPCClient(
-		remoteAddresses,
+		zone.Addresses,
 		poolWrapper,
 		readWorkerPool,
 		tagOptions,
 		lookbackDuration,
 	)
+
 	if err != nil {
 		return nil, err
 	}
 
-	remoteStorage := remote.NewStorage(client)
+	remoteOpts := remote.RemoteOptions{
+		Name:          zone.Name,
+		ErrorBehavior: zone.ErrorBehavior,
+	}
+
+	remoteStorage := remote.NewStorage(client, remoteOpts)
 	return remoteStorage, nil
 }
 
 func remoteClient(
-	cfg config.Configuration,
+	lookback time.Duration,
+	remoteOpts config.RemoteOptions,
 	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	instrumentOpts instrument.Options,
 ) ([]storage.Storage, bool, error) {
-	if cfg.RPC == nil {
-		return nil, false, nil
-	}
-
-	var (
-		lookback        = *cfg.LookbackDuration
-		rpc             = cfg.RPC
-		remotes         = rpc.Remotes
-		zoneCount       = len(remotes)
-		listenAddresses = rpc.RemoteListenAddresses
-		logger          = instrumentOpts.Logger()
-	)
-
-	// NB: if no remote zones are provided, fallback to legacy listen addresses
-	// for determining remote clients. This legacy approach is capped to a single
-	// zone.
-	if zoneCount == 0 {
-		if len(listenAddresses) == 0 {
-			return nil, false, nil
-		}
-
-		logger.Info(
-			"creating RPC client with remote",
-			zap.Strings("addresses", listenAddresses),
-		)
-
-		remote, err := remoteZoneStorage(listenAddresses, lookback, tagOptions,
-			poolWrapper, readWorkerPool)
-
-		if err != nil {
-			return nil, false, err
-		}
-
-		return []storage.Storage{remote}, true, nil
-	}
-
-	remoteStores := make([]storage.Storage, 0, zoneCount)
+	logger := instrumentOpts.Logger()
+	remotes := remoteOpts.Remotes()
+	remoteStores := make([]storage.Storage, 0, len(remotes))
 	for _, zone := range remotes {
 		logger.Info(
 			"creating RPC client with remotes",
 			zap.String("name", zone.Name),
-			zap.Strings("addresses", zone.RemoteListenAddresses),
+			zap.Strings("addresses", zone.Addresses),
 		)
 
-		remote, err := remoteZoneStorage(zone.RemoteListenAddresses, lookback,
-			tagOptions, poolWrapper, readWorkerPool)
+		remote, err := remoteZoneStorage(zone, lookback, tagOptions, poolWrapper,
+			readWorkerPool, instrumentOpts)
 		if err != nil {
 			return nil, false, err
 		}
@@ -821,14 +812,14 @@ func startGRPCServer(
 	storage m3.Storage,
 	queryContextOptions models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
-	cfg *config.RPCConfiguration,
+	opts config.RemoteOptions,
 	instrumentOpts instrument.Options,
 ) (*grpc.Server, error) {
 	logger := instrumentOpts.Logger()
 	logger.Info("creating gRPC server")
 	server := tsdbRemote.NewGRPCServer(storage,
 		queryContextOptions, poolWrapper, instrumentOpts)
-	listener, err := net.Listen("tcp", cfg.ListenAddress)
+	listener, err := net.Listen("tcp", opts.ServeAddress())
 	if err != nil {
 		return nil, err
 	}
