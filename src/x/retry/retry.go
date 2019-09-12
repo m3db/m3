@@ -197,7 +197,7 @@ func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogra
 		// in the same query causing errors.
 		"schema": "v1",
 	})
-	buckets := append(tally.DurationBuckets{0},
-		tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 30)...)
+	buckets := append(tally.DurationBuckets{0, time.Millisecond}, 
+		tally.MustMakeExponentialDurationBuckets(2*time.Millisecond, 1.5, 30)...)
 	return sub.Histogram(name, buckets)
 }
