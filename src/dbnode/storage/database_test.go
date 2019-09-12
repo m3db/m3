@@ -70,10 +70,10 @@ var (
 					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
 					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestNs1Opts          = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	defaultTestNs2Opts          = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-	testSchemaHistory           = prototest.NewSchemaHistory()
-	testReplicatedClientOptions = client.NewOptions()
+	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	testSchemaHistory  = prototest.NewSchemaHistory()
+	testClientOptions  = client.NewOptions()
 )
 
 type nsMapCh chan namespace.Map
@@ -131,12 +131,11 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	var (
-		origin               = topology.NewHost("some-id", "some-address")
-		clientOpts           = testReplicatedClientOptions.Options().(client.AdminOptions).SetOrigin(origin)
-		replicatedClientOpts = testReplicatedClientOptions.SetOptions(clientOpts)
-		mockClient           = client.NewMockAdminClient(ctrl)
+		origin     = topology.NewHost("some-id", "some-address")
+		clientOpts = testClientOptions.(client.AdminOptions).SetOrigin(origin)
+		mockClient = client.NewMockAdminClient(ctrl)
 	)
-	mockClient.EXPECT().Options().Return(replicatedClientOpts).AnyTimes()
+	mockClient.EXPECT().Options().Return(clientOpts).AnyTimes()
 	return repair.NewOptions().
 		SetAdminClients([]client.AdminClient{mockClient}).
 		SetRepairCheckInterval(100 * time.Millisecond)
