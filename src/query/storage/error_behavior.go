@@ -24,7 +24,9 @@ import "fmt"
 
 var (
 	// NB: Container behavior must not be defined in configs, so it does not count
-	// as a parsable behavior.
+	// as a parsable behavior. This is because it's a composite storage type that
+	// refers to fanout storage, and requires further parsing to determine error
+	// behavior.
 	parsableErrorBehaviors = []ErrorBehavior{
 		BehaviorFail,
 		BehaviorWarn,
