@@ -46,7 +46,7 @@ import (
 // Client can create sessions to write and read to a cluster.
 type Client interface {
 	// Options returns the Client Options.
-	Options() ReplicatedOptions
+	Options() Options
 
 	// NewSession creates a new session.
 	NewSession() (Session, error)
@@ -508,6 +508,16 @@ type Options interface {
 
 	// SchemaRegistry returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetAsyncTopologyInitializers sets the AsyncTopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
+
+	// OptionsForAsyncClusters returns a slice of Options, where each is the set of client
+	// for a given async client.
+	OptionsForAsyncClusters() []Options
 }
 
 // AdminOptions is a set of administration client options.
@@ -561,40 +571,6 @@ type AdminOptions interface {
 
 	// StreamBlocksRetrier returns the retrier for streaming blocks.
 	StreamBlocksRetrier() xretry.Retrier
-}
-
-// CommonReplicatedOptions is the set of options which apply only to multi cluster clients
-type CommonReplicatedOptions interface {
-
-	// SetAsyncTopologyInitializers sets the TopologyInitializers
-	SetAsyncTopologyInitializers(value []topology.Initializer) ReplicatedOptions
-
-	// AsyncTopologyInitializers returns the TopologyInitializers
-	AsyncTopologyInitializers() []topology.Initializer
-
-	// SetOptions sets the client-level options for each cluster represented in this ReplicationOptions.
-	SetOptions(Options) ReplicatedOptions
-
-	// Options returns the client-level options.
-	Options() Options
-
-	// OptionsForAsyncClusters returns a slice of Options, where each is the set of client
-	// for a given async client.
-	OptionsForAsyncClusters() []Options
-}
-
-// ReplicatedOptions is a set of multi cluster client options
-type ReplicatedOptions interface {
-	CommonReplicatedOptions
-}
-
-// AdminReplicatedOptions is a set of administration multi cluster client options
-type AdminReplicatedOptions interface {
-	CommonReplicatedOptions
-
-	SetAdminOptions(AdminOptions) AdminReplicatedOptions
-
-	AdminOptions() AdminOptions
 }
 
 // The rest of these types are internal types that mocks are generated for

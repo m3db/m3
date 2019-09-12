@@ -173,7 +173,7 @@ func (o *options) Validate() error {
 
 	var prevOrigin string
 	for _, c := range o.adminClients {
-		currOrigin := c.Options().Options().(client.AdminOptions).Origin().ID()
+		currOrigin := c.Options().(client.AdminOptions).Origin().ID()
 		if prevOrigin == "" {
 			prevOrigin = currOrigin
 			continue

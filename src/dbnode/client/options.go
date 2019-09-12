@@ -246,6 +246,7 @@ type options struct {
 	fetchSeriesBlocksBatchConcurrency       int
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
+	asyncTopologyInitializers               []topology.Initializer
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -325,6 +326,7 @@ func newOptions() *options {
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
 		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
+		asyncTopologyInitializers:               []topology.Initializer{},
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -880,4 +882,23 @@ func (o *options) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
 
 func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	opts := *o
+	opts.asyncTopologyInitializers = value
+	return &opts
+}
+
+func (o *options) AsyncTopologyInitializers() []topology.Initializer {
+	return o.asyncTopologyInitializers
+}
+
+func (o *options) OptionsForAsyncClusters() []Options {
+	result := make([]Options, 0, len(o.asyncTopologyInitializers))
+	for _, topoInit := range o.asyncTopologyInitializers {
+		options := o.SetTopologyInitializer(topoInit)
+		result = append(result, options)
+	}
+	return result
 }

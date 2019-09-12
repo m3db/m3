@@ -189,11 +189,11 @@ type ConfigurationParameters struct {
 
 // CustomOption is a programatic method for setting a client
 // option after all the options have been set by configuration.
-type CustomOption func(v ReplicatedOptions) ReplicatedOptions
+type CustomOption func(v Options) Options
 
 // CustomAdminOption is a programatic method for setting a client
 // admin option after all the options have been set by configuration.
-type CustomAdminOption func(v AdminReplicatedOptions) AdminReplicatedOptions
+type CustomAdminOption func(v AdminOptions) AdminOptions
 
 // NewClient creates a new M3DB client using
 // specified params and custom options.
@@ -203,8 +203,8 @@ func (c Configuration) NewClient(
 ) (Client, error) {
 	customAdmin := make([]CustomAdminOption, 0, len(custom))
 	for _, opt := range custom {
-		customAdmin = append(customAdmin, func(v AdminReplicatedOptions) AdminReplicatedOptions {
-			return opt(ReplicatedOptions(v)).(AdminReplicatedOptions)
+		customAdmin = append(customAdmin, func(v AdminOptions) AdminOptions {
+			return opt(Options(v)).(AdminOptions)
 		})
 	}
 
@@ -245,10 +245,6 @@ func (c Configuration) NewAdminClient(
 	asyncTopoInits := []topology.Initializer{}
 
 	if topoInit == nil {
-		if len(c.EnvironmentConfig.Services) == 0 && len(c.EnvironmentConfig.Statics) == 0 {
-			return nil, errConfigurationMustSupplyConfig
-		}
-
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
 			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
@@ -266,6 +262,7 @@ func (c Configuration) NewAdminClient(
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(topoInit).
+		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
 
@@ -324,12 +321,8 @@ func (c Configuration) NewAdminClient(
 		v = v.SetSchemaRegistry(schemaRegistry)
 	}
 
-	u := NewAdminReplicatedOptions().
-		SetOptions(v).
-		SetAsyncTopologyInitializers(asyncTopoInits)
-
 	// Apply programtic custom options last
-	opts := u.(AdminReplicatedOptions)
+	opts := v.(AdminOptions)
 	for _, opt := range custom {
 		opts = opt(opts)
 	}

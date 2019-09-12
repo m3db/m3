@@ -73,7 +73,7 @@ var (
 	defaultTestNs1Opts          = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts          = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory           = prototest.NewSchemaHistory()
-	testReplicatedClientOptions = client.NewReplicatedOptions()
+	testReplicatedClientOptions = client.NewOptions()
 )
 
 type nsMapCh chan namespace.Map

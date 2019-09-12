@@ -82,13 +82,13 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 
 func newMultiAddrAdminClient(
 	t *testing.T,
-	adminOpts client.AdminReplicatedOptions,
+	adminOpts client.AdminOptions,
 	topologyInitializer topology.Initializer,
 	origin topology.Host,
 	instrumentOpts instrument.Options,
 ) client.AdminClient {
 	if adminOpts == nil {
-		adminOpts = client.NewAdminReplicatedOptions()
+		adminOpts = client.NewAdminOptions()
 	}
 
 	adminOpts = adminOpts.SetAdminOptions(
@@ -251,7 +251,7 @@ func newDefaultBootstrappableTestSetups(
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 
-		replicatedAdminOpts := client.NewAdminReplicatedOptions().
+		replicatedAdminOpts := client.NewAdminOptions().
 			SetAdminOptions(adminOpts)
 		adminClient := newMultiAddrAdminClient(
 			t, replicatedAdminOpts, topologyInitializer, origin, instrumentOpts)

@@ -27,26 +27,26 @@ import (
 type client struct {
 	sync.Mutex
 
-	opts         ReplicatedOptions
+	opts         Options
 	newSessionFn newReplicatedSessionFn
 	session      AdminSession // default cached session
 }
 
-// type newReplicatedSessionFn func(ReplicatedOptions) (replicatedSession, error)
-type newReplicatedSessionFn func(ReplicatedOptions, ...replicatedSessionOption) (clientSession, error)
+// type newReplicatedSessionFn func(Options) (replicatedSession, error)
+type newReplicatedSessionFn func(Options, ...replicatedSessionOption) (clientSession, error)
 
 // NewClient creates a new client
-func NewClient(opts ReplicatedOptions) (Client, error) {
+func NewClient(opts Options) (Client, error) {
 	return newClient(opts)
 }
 
 // NewAdminClient creates a new administrative client
-func NewAdminClient(opts AdminReplicatedOptions) (AdminClient, error) {
+func NewAdminClient(opts AdminOptions) (AdminClient, error) {
 	return newClient(opts)
 }
 
-func newClient(opts ReplicatedOptions) (*client, error) {
-	if err := opts.Options().Validate(); err != nil {
+func newClient(opts Options) (*client, error) {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 	return &client{opts: opts, newSessionFn: newReplicatedSession}, nil
@@ -89,7 +89,7 @@ func (c *client) defaultSession() (AdminSession, error) {
 	return session, nil
 }
 
-func (c *client) Options() ReplicatedOptions {
+func (c *client) Options() Options {
 	return c.opts
 }
 

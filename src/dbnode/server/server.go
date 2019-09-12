@@ -1499,26 +1499,26 @@ func newAdminClient(
 				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,
 		},
-		func(opts client.AdminReplicatedOptions) client.AdminReplicatedOptions {
+		func(opts client.AdminOptions) client.AdminOptions {
 			o := opts.AdminOptions().SetRuntimeOptionsManager(runtimeOptsMgr)
 			return opts.SetAdminOptions(o.(client.AdminOptions))
 		},
-		func(opts client.AdminReplicatedOptions) client.AdminReplicatedOptions {
+		func(opts client.AdminOptions) client.AdminOptions {
 			o := opts.AdminOptions().SetContextPool(opts.AdminOptions().ContextPool())
 			return opts.SetAdminOptions(o.(client.AdminOptions))
 		},
-		func(opts client.AdminReplicatedOptions) client.AdminReplicatedOptions {
+		func(opts client.AdminOptions) client.AdminOptions {
 			o := opts.AdminOptions().SetOrigin(origin)
 			return opts.SetAdminOptions(o.(client.AdminOptions))
 		},
-		func(opts client.AdminReplicatedOptions) client.AdminReplicatedOptions {
+		func(opts client.AdminOptions) client.AdminOptions {
 			if protoEnabled {
 				o := opts.AdminOptions().SetEncodingProto(encoding.NewOptions())
 				return opts.SetAdminOptions(o.(client.AdminOptions))
 			}
 			return opts
 		},
-		func(opts client.AdminReplicatedOptions) client.AdminReplicatedOptions {
+		func(opts client.AdminOptions) client.AdminOptions {
 			o := opts.Options().SetSchemaRegistry(schemaRegistry)
 			return opts.SetAdminOptions(o.(client.AdminOptions))
 		},

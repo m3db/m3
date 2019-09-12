@@ -245,7 +245,7 @@ func makeTestWrite(
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
-		clientReplicatedOpts := client.NewReplicatedOptions().SetOptions(clientopts)
+		clientReplicatedOpts := client.NewOptions().SetOptions(clientopts)
 		c, err := client.NewClient(clientReplicatedOpts)
 		require.NoError(t, err)
 

@@ -80,18 +80,18 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 	}
 }
 
-func newReplicatedSession(opts ReplicatedOptions, options ...replicatedSessionOption) (clientSession, error) {
+func newReplicatedSession(opts Options, options ...replicatedSessionOption) (clientSession, error) {
 	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
 
-	scope := opts.Options().InstrumentOptions().MetricsScope()
+	scope := opts.InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
 		newSessionFn: newSession,
 		workerPool:   workerPool,
 		scope:        scope,
-		log:          opts.Options().InstrumentOptions().Logger(),
+		log:          opts.InstrumentOptions().Logger(),
 		metrics:      newReplicatedSessionMetrics(scope),
 		outCh:        make(chan error),
 	}
@@ -101,7 +101,7 @@ func newReplicatedSession(opts ReplicatedOptions, options ...replicatedSessionOp
 		option(&session)
 	}
 
-	if err := session.setSession(opts.Options()); err != nil {
+	if err := session.setSession(opts); err != nil {
 		return nil, err
 	}
 	if err := session.setAsyncSessions(opts.OptionsForAsyncClusters()); err != nil {
