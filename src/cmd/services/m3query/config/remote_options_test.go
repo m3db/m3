@@ -50,12 +50,13 @@ func TestMakeRemote(t *testing.T) {
 }
 
 var tests = []struct {
-	name          string
-	cfg           string
-	serveEnabled  bool
-	serveAddress  string
-	listenEnabled bool
-	remotes       []Remote
+	name              string
+	cfg               string
+	serveEnabled      bool
+	serveAddress      string
+	listenEnabled     bool
+	reflectionEnabled bool
+	remotes           []Remote
 }{
 	{
 		name: "empty",
@@ -146,6 +147,7 @@ remotes:
 listenAddress: "pat rafter"
 remoteListenAddresses: ["abc","def"]
 errorBehavior: "fail"
+reflectionEnabled: true
 remotes:
  - name: "foo"
    remoteListenAddresses: ["ghi","jkl"]
@@ -153,9 +155,10 @@ remotes:
  - name: "bar"
    remoteListenAddresses: ["mno","pqr"]
 `,
-		listenEnabled: true,
-		serveEnabled:  true,
-		serveAddress:  "pat rafter",
+		listenEnabled:     true,
+		serveEnabled:      true,
+		reflectionEnabled: true,
+		serveAddress:      "pat rafter",
 		remotes: []Remote{
 			Remote{
 				ErrorBehavior: storage.BehaviorFail,
@@ -181,6 +184,7 @@ enabled: false
 listenAddress: "pat rafter"
 remoteListenAddresses: ["abc","def"]
 errorBehavior: "fail"
+reflectionEnabled: false
 remotes:
  - name: "foo"
    remoteListenAddresses: ["ghi","jkl"]
@@ -199,6 +203,7 @@ func TestParseRemoteOptions(t *testing.T) {
 			rOpts := RemoteOptionsFromConfig(cfg)
 			assert.Equal(t, tt.listenEnabled, rOpts.ListenEnabled())
 			assert.Equal(t, tt.serveEnabled, rOpts.ServeEnabled())
+			assert.Equal(t, tt.reflectionEnabled, rOpts.ReflectionEnabled())
 
 			if tt.serveEnabled {
 				assert.Equal(t, tt.serveAddress, rOpts.ServeAddress())

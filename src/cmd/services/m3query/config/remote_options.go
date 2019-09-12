@@ -55,14 +55,18 @@ type RemoteOptions interface {
 	ServeAddress() string
 	// ListenEnabled describes if this RPC should connect to remote clients.
 	ListenEnabled() bool
+	// ReflectionEnabled describes if this RPC server should have reflection
+	// enabled.
+	ReflectionEnabled() bool
 	// Remotes is a list of remote clients.
 	Remotes() []Remote
 }
 
 type remoteOptions struct {
-	enabled bool
-	address string
-	remotes []Remote
+	enabled           bool
+	reflectionEnabled bool
+	address           string
+	remotes           []Remote
 }
 
 // RemoteOptionsFromConfig builds remote options given a set of configs.
@@ -96,9 +100,10 @@ func RemoteOptionsFromConfig(cfg *RPCConfiguration) RemoteOptions {
 	}
 
 	return &remoteOptions{
-		enabled: enabled,
-		address: cfg.ListenAddress,
-		remotes: remotes,
+		enabled:           enabled,
+		reflectionEnabled: cfg.ReflectionEnabled,
+		address:           cfg.ListenAddress,
+		remotes:           remotes,
 	}
 }
 
@@ -112,6 +117,10 @@ func (o *remoteOptions) ServeAddress() string {
 
 func (o *remoteOptions) ListenEnabled() bool {
 	return o.enabled && len(o.remotes) > 0
+}
+
+func (o *remoteOptions) ReflectionEnabled() bool {
+	return o.enabled && o.reflectionEnabled
 }
 
 func (o *remoteOptions) Remotes() []Remote {

@@ -69,6 +69,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 const (
@@ -816,9 +817,18 @@ func startGRPCServer(
 	instrumentOpts instrument.Options,
 ) (*grpc.Server, error) {
 	logger := instrumentOpts.Logger()
+
 	logger.Info("creating gRPC server")
 	server := tsdbRemote.NewGRPCServer(storage,
 		queryContextOptions, poolWrapper, instrumentOpts)
+
+	if opts.ReflectionEnabled() {
+		reflection.Register(server)
+	}
+
+	logger.Info("gRPC server reflection configured",
+		zap.Bool("enabled", opts.ReflectionEnabled()))
+
 	listener, err := net.Listen("tcp", opts.ServeAddress())
 	if err != nil {
 		return nil, err

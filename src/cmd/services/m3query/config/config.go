@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -112,6 +113,9 @@ type Configuration struct {
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
+	// WriteForwarding is the write forwarding options.
+	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
+
 	// Downsample configurates how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
@@ -138,6 +142,11 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
+}
+
+// WriteForwardingConfiguration is the write forwarding configuration.
+type WriteForwardingConfiguration struct {
+	PromRemoteWrite remote.PromWriteHandlerForwardingOptions `yaml:"promRemoteWrite"`
 }
 
 // Filter is a query filter type.
@@ -453,6 +462,10 @@ type RPCConfiguration struct {
 	//
 	// NB: defaults to warning on error.
 	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
+
+	// ReflectionEnabled will enable reflection on the GRPC server, useful
+	// for testing connectivity with grpcurl, etc.
+	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options
