@@ -138,11 +138,29 @@ func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 	return nil
 }
 
-func (s replicatedSession) replicate(fn writeFunc) error {
+type replicatedParams struct {
+	namespace  ident.ID
+	id         ident.ID
+	t          time.Time
+	value      float64
+	unit       xtime.Unit
+	annotation []byte
+	tags       ident.TagIterator
+	useTags    bool
+}
+
+// NB(srobb): it would be a nicer to accept a lambda which is the fn to
+// be performed on all sessions, however this causes an extra allocation.
+func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
 		if s.workerPool.GoIfAvailable(func() {
-			err := fn(asyncSession)
+			var err error
+			if params.useTags {
+				err = asyncSession.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+			} else {
+				err = asyncSession.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+			}
 			if err != nil {
 				s.metrics.replicateError.Inc(1)
 				s.log.Error("could not replicate write: %v", zap.Error(err))
@@ -156,20 +174,36 @@ func (s replicatedSession) replicate(fn writeFunc) error {
 			s.metrics.replicateNotExecuted.Inc(1)
 		}
 	}
-	return fn(s.session)
+
+	if params.useTags {
+		return s.session.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+	}
+	return s.session.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
 }
 
 // Write value to the database for an ID
 func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	return s.replicate(func(session Session) error {
-		return session.Write(namespace, id, t, value, unit, annotation)
+	return s.replicate(replicatedParams{
+		namespace:  namespace,
+		id:         id,
+		t:          t,
+		value:      value,
+		unit:       unit,
+		annotation: annotation,
 	})
 }
 
 // WriteTagged value to the database for an ID and given tags.
 func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	return s.replicate(func(session Session) error {
-		return session.WriteTagged(namespace, id, tags, t, value, unit, annotation)
+	return s.replicate(replicatedParams{
+		namespace:  namespace,
+		id:         id,
+		t:          t,
+		value:      value,
+		unit:       unit,
+		annotation: annotation,
+		tags:       tags,
+		useTags:    true,
 	})
 }
 
