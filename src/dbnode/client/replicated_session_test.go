@@ -169,6 +169,7 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 
 	opts := optionsWithAsyncSessions(true, asyncCount)
 	s.initReplicatedSession(opts, newSessionFunc)
+	s.replicatedSession.outCh = make(chan error)
 
 	err := s.replicatedSession.Write(namespace, id, now, value, unit, annotation)
 	s.NoError(err)

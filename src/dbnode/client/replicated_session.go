@@ -93,7 +93,6 @@ func newReplicatedSession(opts Options, options ...replicatedSessionOption) (cli
 		scope:        scope,
 		log:          opts.InstrumentOptions().Logger(),
 		metrics:      newReplicatedSessionMetrics(scope),
-		outCh:        make(chan error),
 	}
 
 	// Apply options
@@ -148,7 +147,9 @@ func (s replicatedSession) replicate(fn writeFunc) error {
 				s.metrics.replicateError.Inc(1)
 				s.log.Error("could not replicate write: %v", zap.Error(err))
 			}
-			s.outCh <- err
+			if s.outCh != nil {
+				s.outCh <- err
+			}
 		}) {
 			s.metrics.replicateExecuted.Inc(1)
 		} else {
