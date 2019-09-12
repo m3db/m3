@@ -70,8 +70,9 @@ func (s *fanoutStorage) Fetch(
 ) (*storage.FetchResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
 	requests := make([]execution.Request, 0, len(stores))
+	logger := s.instrumentOpts.Logger()
 	for _, store := range stores {
-		requests = append(requests, newFetchRequest(store, query, options))
+		requests = append(requests, newFetchRequest(store, query, logger, options))
 	}
 
 	err := execution.ExecuteParallel(ctx, requests)
@@ -202,6 +203,11 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 
 		if fetchreq.result == nil {
 			return nil, errors.ErrInvalidFetchResult
+		}
+
+		// NB: if no series to add, continue.
+		if len(fetchreq.result.SeriesList) == 0 {
+			continue
 		}
 
 		if fetchreq.store.Type() != storage.TypeLocalDC {
@@ -373,23 +379,43 @@ type fetchRequest struct {
 	query   *storage.FetchQuery
 	options *storage.FetchOptions
 	result  *storage.FetchResult
+	logger  *zap.Logger
 }
 
 func newFetchRequest(
 	store storage.Storage,
 	query *storage.FetchQuery,
+	logger *zap.Logger,
 	options *storage.FetchOptions,
 ) execution.Request {
 	return &fetchRequest{
 		store:   store,
 		query:   query,
 		options: options,
+		logger:  logger,
 	}
 }
 
 func (f *fetchRequest) Process(ctx context.Context) error {
 	result, err := f.store.Fetch(ctx, f.query, f.options)
 	if err != nil {
+		if warning, err := storage.IsWarning(f.store, err); warning {
+			f.logger.Warn(
+				"partial results: fanout to store returned warning",
+				zap.Error(err),
+				zap.String("store", f.store.Name()),
+				zap.String("function", "Fetch"))
+
+			f.result = &storage.FetchResult{}
+			return nil
+		}
+
+		f.logger.Error(
+			"fanout to store returned error",
+			zap.Error(err),
+			zap.String("store", f.store.Name()),
+			zap.String("function", "Fetch"))
+
 		return err
 	}
 
