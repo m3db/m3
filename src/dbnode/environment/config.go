@@ -110,6 +110,10 @@ func (c DynamicConfiguration) Validate() error {
 
 // SyncCluster returns the synchronous cluster in the DynamicConfiguration
 func (c DynamicConfiguration) SyncCluster() (*DynamicCluster, error) {
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+
 	for _, cluster := range c {
 		if !cluster.Async {
 			return cluster, nil
