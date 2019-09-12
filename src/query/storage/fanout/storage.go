@@ -119,15 +119,15 @@ func (s *fanoutStorage) FetchBlocks(
 						zap.Error(err),
 						zap.String("store", store.Name()),
 						zap.String("function", "FetchBlocks"))
-				} else {
-					multiErr = multiErr.Add(err)
-					s.instrumentOpts.Logger().Warn(
-						"fanout to store returned error",
-						zap.Error(err),
-						zap.String("store", store.Name()),
-						zap.String("function", "FetchBlocks"))
+					return
 				}
 
+				multiErr = multiErr.Add(err)
+				s.instrumentOpts.Logger().Error(
+					"fanout to store returned error",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "FetchBlocks"))
 				return
 			}
 
@@ -230,15 +230,15 @@ func (s *fanoutStorage) SearchSeries(
 					zap.Error(err),
 					zap.String("store", store.Name()),
 					zap.String("function", "SearchSeries"))
-			} else {
-				s.instrumentOpts.Logger().Warn(
-					"fanout to store returned error",
-					zap.Error(err),
-					zap.String("store", store.Name()),
-					zap.String("function", "SearchSeries"))
-
-				return nil, err
+				continue
 			}
+
+			s.instrumentOpts.Logger().Error(
+				"fanout to store returned error",
+				zap.Error(err),
+				zap.String("store", store.Name()),
+				zap.String("function", "SearchSeries"))
+			return nil, err
 		}
 
 		metrics = append(metrics, results.Metrics...)
@@ -270,15 +270,16 @@ func (s *fanoutStorage) CompleteTags(
 					zap.Error(err),
 					zap.String("store", store.Name()),
 					zap.String("function", "CompleteTags"))
-			} else {
-				s.instrumentOpts.Logger().Warn(
-					"fanout to store returned error",
-					zap.Error(err),
-					zap.String("store", store.Name()),
-					zap.String("function", "CompleteTags"))
-
-				return nil, err
+				continue
 			}
+
+			s.instrumentOpts.Logger().Error(
+				"fanout to store returned error",
+				zap.Error(err),
+				zap.String("store", store.Name()),
+				zap.String("function", "CompleteTags"))
+
+			return nil, err
 		}
 
 		accumulatedTags.Add(result)

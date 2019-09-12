@@ -419,11 +419,11 @@ type ClusterManagementConfiguration struct {
 	Etcd etcdclient.Configuration `yaml:"etcd"`
 }
 
-// RemoteConfigs is a set of remote host configurations.
-type RemoteConfigs []RemoteConfig
+// RemoteConfigurations is a set of remote host configurations.
+type RemoteConfigurations []RemoteConfiguration
 
-// RemoteConfig is the configuration for a single remote host.
-type RemoteConfig struct {
+// RemoteConfiguration is the configuration for a single remote host.
+type RemoteConfiguration struct {
 	// Name is the name for the remote zone.
 	Name string `yaml:"name"`
 	// RemoteListenAddresses is the remote listen addresses to call for remote
@@ -449,7 +449,7 @@ type RPCConfiguration struct {
 	ListenAddress string `yaml:"listenAddress"`
 
 	// Remotes are the configuration settings for remote coordinator zones.
-	Remotes RemoteConfigs `yaml:"remotes"`
+	Remotes RemoteConfigurations `yaml:"remotes"`
 
 	// RemoteListenAddresses is the remote listen addresses to call for
 	// remote coordinator calls.

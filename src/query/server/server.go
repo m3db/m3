@@ -236,8 +236,7 @@ func Run(runOpts RunOptions) {
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
 		opts := config.RemoteOptionsFromConfig(cfg.RPC)
-		lookback := *cfg.LookbackDuration
-		remotes, enabled, err := remoteClient(lookback, opts, tagOptions,
+		remotes, enabled, err := remoteClient(lookbackDuration, opts, tagOptions,
 			poolWrapper, readWorkerPool, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
@@ -656,7 +655,7 @@ func newStorages(
 	}
 
 	localStorage, err := m3.NewStorage(clusters, readWorkerPool,
-		writeWorkerPool, tagOptions, *cfg.LookbackDuration, instrumentOpts)
+		writeWorkerPool, tagOptions, lookback, instrumentOpts)
 	if err != nil {
 		return nil, nil, err
 	}
