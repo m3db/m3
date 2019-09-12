@@ -1,7 +1,7 @@
 # FAQs
 
 - **Is there a way to disable M3DB embedded `etcd` and just use an external `etcd` cluster?**
-Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. 
+Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](https://m3db.github.io/m3/operational_guide/etcd/#configuring-an-external-etcd-cluster) for more information.
 
 - **Is there a client that lets me send metrics to m3coordinator without going through Prometheus?**
 Yes, you can use the [Prometheus remote write client](https://github.com/m3db/prometheus_remote_client_golang/).
@@ -12,8 +12,11 @@ Refer to the [troubleshooting guide](../troubleshooting/index.md).
 - **Do you support PromQL?**
 Yes, M3Query and M3Coordinator both support PromQL.
 
+- **Do you support Graphite?**
+Yes, M3Query and M3Coordinator both support Graphite.
+
 - **Does M3DB store both data and (tag) metadata on the same node?**
-Yes it stores the data as well as the tags since it has an embedded index. Make sure you have `IndexEnabled` set to `true` in your namespace configuration
+Yes it stores the data (i.e. the timeseries datapoints) as well as the tags since it has an embedded index. Make sure you have `IndexEnabled` set to `true` in your namespace configuration
 
 - **How are writes handled and how is the data kept consistent within M3DB?**
 M3 uses quorum/majority consistency to ensure data is written to replicas in a way that can be read back consistently. 
@@ -29,7 +32,7 @@ If you’re removing or modifying an existing namespace, you’ll need to restar
 Refer to the [Aggregation section](../how_to/query) of the M3Query how-to guide.
 
 - **How do I set up aggregation using a separate aggregation tier?**
-<Fill this in>
+See this [WIP documentation](https://github.com/m3db/m3/pull/1741/files#diff-0a1009f86783ca8fd4499418e556c6f5).
 
 - **Can you delete metrics from M3DB?**
 Not yet, but that functionality is currently being worked on.
@@ -64,7 +67,7 @@ See our docs on the [/debug/dump api](../troubleshooting/index.md)
 See the `Ticking` graph on [M3DB dashboard](https://grafana.com/dashboards/8126).
 
 - **How much memory utilization should I run M3DB at?**
-We recommend not going above 40%.
+We recommend not going above 50%.
 
 - **What is the recommended hardware to run on?**
 <Fill this in>
