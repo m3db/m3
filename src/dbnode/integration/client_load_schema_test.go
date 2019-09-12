@@ -85,7 +85,6 @@ func TestClientLoadSchemaFromFile(t *testing.T) {
 
 	descr, err := adminClient.
 		Options().
-		Options().
 		SchemaRegistry().
 		GetLatestSchema(ident.StringID("ns1"))
 	require.NoError(t, err)

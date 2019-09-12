@@ -258,8 +258,7 @@ func makeTestWriteTagged(
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
-		clientReplicatedOpts := client.NewOptions().SetOptions(clientopts)
-		c, err := client.NewClient(clientReplicatedOpts)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

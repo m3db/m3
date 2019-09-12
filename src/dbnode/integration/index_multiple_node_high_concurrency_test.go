@@ -80,8 +80,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					require.NoError(t, n.startServer())
 				}
 
-				clientReplicatedOpts := client.NewOptions().SetOptions(clientopts)
-				c, err := client.NewClient(clientReplicatedOpts)
+				c, err := client.NewClient(clientOpts)
 				require.NoError(t, err)
 				session, err := c.NewSession()
 				require.NoError(t, err)
