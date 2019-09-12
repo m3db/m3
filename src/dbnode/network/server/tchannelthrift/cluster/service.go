@@ -53,8 +53,8 @@ type service struct {
 func NewService(client client.Client) rpc.TChanCluster {
 	s := &service{
 		client: client,
-		opts:   client.Options().Options(),
-		idPool: client.Options().Options().IdentifierPool(),
+		opts:   client.Options(),
+		idPool: client.Options().IdentifierPool(),
 		health: &rpc.HealthResult_{Ok: true, Status: "up"},
 	}
 	return s

@@ -1500,27 +1500,22 @@ func newAdminClient(
 			TopologyInitializer: topologyInitializer,
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			o := opts.AdminOptions().SetRuntimeOptionsManager(runtimeOptsMgr)
-			return opts.SetAdminOptions(o.(client.AdminOptions))
+			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			o := opts.AdminOptions().SetContextPool(opts.AdminOptions().ContextPool())
-			return opts.SetAdminOptions(o.(client.AdminOptions))
+			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			o := opts.AdminOptions().SetOrigin(origin)
-			return opts.SetAdminOptions(o.(client.AdminOptions))
+			return opts.SetOrigin(origin).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			if protoEnabled {
-				o := opts.AdminOptions().SetEncodingProto(encoding.NewOptions())
-				return opts.SetAdminOptions(o.(client.AdminOptions))
+				return opts.SetEncodingProto(encoding.NewOptions()).(client.AdminOptions)
 			}
 			return opts
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			o := opts.Options().SetSchemaRegistry(schemaRegistry)
-			return opts.SetAdminOptions(o.(client.AdminOptions))
+			return opts.SetSchemaRegistry(schemaRegistry).(client.AdminOptions)
 		},
 	)
 	if err != nil {
@@ -1528,7 +1523,7 @@ func newAdminClient(
 	}
 
 	// Kick off runtime options manager KV watches.
-	clientAdminOpts := m3dbClient.Options().Options().(client.AdminOptions)
+	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
 	kvWatchClientConsistencyLevels(kvStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
 	return m3dbClient, nil
