@@ -44,7 +44,7 @@ You can check if your nodes are snapshotting by looking at the `Background tasks
 See [M3DB openhttps://m3db.io/openapi
 
 - **What is the recommended way to upgrade my M3 stack?**
-<Fill this in>
+TBA
 
 - **When graphing my Prometheus data in Grafana, I see gaps. How do I resolve this?**
 This is due to M3 having a concept of `null` datapoints whereas Prometheus does not. To resolve this, change `Stacking & Null value` to `Connected` under the `Visualization` tab of your graph.
@@ -70,7 +70,7 @@ See the `Ticking` graph on [M3DB dashboard](https://grafana.com/dashboards/8126)
 We recommend not going above 50%.
 
 - **What is the recommended hardware to run on?**
-<Fill this in>
+TBA
 
 - **What is the recommended way to create a new namespace?**
 Refer to the [Namespace configuration guide](../operational_guide/namespace_configuration.md).
