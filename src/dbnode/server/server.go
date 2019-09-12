@@ -1487,6 +1487,12 @@ func newAdminClient(
 	kvStore kv.Store,
 	logger *zap.Logger,
 ) (client.AdminClient, error) {
+	if config.EnvironmentConfig != nil {
+		// If the user has provided an override for the dynamic client configuration
+		// then we need to honor it by not passing our own topology initializer.
+		topologyInitializer = nil
+	}
+
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
 			InstrumentOptions: iopts.

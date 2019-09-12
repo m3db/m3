@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -81,6 +82,7 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 }
 
 func newReplicatedSession(opts ReplicatedOptions, options ...replicatedSessionOption) (clientSession, error) {
+	fmt.Println("creating replicated session!")
 	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
 	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
 	workerPool.Init()
@@ -127,6 +129,7 @@ func (s *replicatedSession) setSession(opts Options) error {
 }
 
 func (s *replicatedSession) setAsyncSessions(opts []Options) error {
+	fmt.Println("setting async sessions!", len(opts))
 	sessions := make([]clientSession, 0, len(opts))
 	for _, oo := range opts {
 		session, err := s.newSessionFn(oo)
@@ -160,7 +163,9 @@ func (s replicatedSession) replicate(fn writeFunc) error {
 
 // Write value to the database for an ID
 func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	fmt.Println("writing!")
 	return s.replicate(func(session Session) error {
+		fmt.Println("replicating!")
 		return session.Write(namespace, id, t, value, unit, annotation)
 	})
 }

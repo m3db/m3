@@ -245,6 +245,7 @@ func (c Configuration) NewAdminClient(
 	asyncTopoInits := []topology.Initializer{}
 
 	if topoInit == nil {
+		fmt.Println("topo init nil!")
 		if len(c.EnvironmentConfig.Services) == 0 && len(c.EnvironmentConfig.Statics) == 0 {
 			return nil, errConfigurationMustSupplyConfig
 		}
@@ -262,7 +263,10 @@ func (c Configuration) NewAdminClient(
 				topoInit = envCfg.TopologyInitializer
 			}
 		}
+	} else {
+		fmt.Println("topo init not nil!")
 	}
+	fmt.Println("asyncs", len(asyncTopoInits))
 
 	v := NewAdminOptions().
 		SetTopologyInitializer(topoInit).
