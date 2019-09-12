@@ -214,7 +214,9 @@ func (s replicatedSession) IteratorPools() (encoding.IteratorPools, error) {
 func (s replicatedSession) Close() error {
 	err := s.session.Close()
 	for _, as := range s.asyncSessions {
-		as.Close()
+		if err := as.Close(); err != nil {
+			s.log.Error("could not close async session: %v", zap.Error(err))
+		}
 	}
 	return err
 }
