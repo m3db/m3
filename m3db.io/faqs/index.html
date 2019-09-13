@@ -1202,6 +1202,104 @@
                 
                 
                 <h1 id="faqs">FAQs</h1>
+<ul>
+<li>
+<p><strong>Is there a way to disable M3DB embedded <code>etcd</code> and just use an external <code>etcd</code> cluster?</strong>
+Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See <a href="https://m3db.github.io/m3/operational_guide/etcd/#configuring-an-external-etcd-cluster">these docs</a> for more information.</p>
+</li>
+<li>
+<p><strong>Is there a client that lets me send metrics to m3coordinator without going through Prometheus?</strong>
+Yes, you can use the <a href="https://github.com/m3db/prometheus_remote_client_golang/">Prometheus remote write client</a>.</p>
+</li>
+<li>
+<p><strong>Why does my dbnode keep OOM’ing?</strong>
+Refer to the <a href="../troubleshooting/">troubleshooting guide</a>.</p>
+</li>
+<li>
+<p><strong>Do you support PromQL?</strong>
+Yes, M3Query and M3Coordinator both support PromQL.</p>
+</li>
+<li>
+<p><strong>Do you support Graphite?</strong>
+Yes, M3Query and M3Coordinator both support Graphite.</p>
+</li>
+<li>
+<p><strong>Does M3DB store both data and (tag) metadata on the same node?</strong>
+Yes it stores the data (i.e. the timeseries datapoints) as well as the tags since it has an embedded index. Make sure you have <code>IndexEnabled</code> set to <code>true</code> in your namespace configuration</p>
+</li>
+<li>
+<p><strong>How are writes handled and how is the data kept consistent within M3DB?</strong>
+M3 uses quorum/majority consistency to ensure data is written to replicas in a way that can be read back consistently. 
+For example, if you have a replication factor of 3 and your set your write and read consistencies to quorum, then all writes will only succeed if they make it to at least 2 of the 3 replicas, and reads will only succeed if they get results back from at least 2 of the 3 replicas</p>
+</li>
+<li>
+<p><strong>Do I need to restart M3DB if I add a namespace?</strong>
+If you’re adding namespaces, the m3dbnode process will pickup the new namespace without a restart.</p>
+</li>
+<li>
+<p><strong>Do I need to restart M3DB if I change or delete a namespace?</strong>
+If you’re removing or modifying an existing namespace, you’ll need to restart the m3dbnode process in order to complete the namespace deletion/modification process. It is recommended to restart one node at a time and wait for a node to be completely bootstrapped before restarting another node.</p>
+</li>
+<li>
+<p><strong>How do I set up aggregation in the coordinator?</strong>
+Refer to the <a href="../how_to/query/">Aggregation section</a> of the M3Query how-to guide.</p>
+</li>
+<li>
+<p><strong>How do I set up aggregation using a separate aggregation tier?</strong>
+See this <a href="https://github.com/m3db/m3/pull/1741/files#diff-0a1009f86783ca8fd4499418e556c6f5">WIP documentation</a>.</p>
+</li>
+<li>
+<p><strong>Can you delete metrics from M3DB?</strong>
+Not yet, but that functionality is currently being worked on.</p>
+</li>
+<li>
+<p><strong>How can you tell if a node is snapshotting?</strong>
+You can check if your nodes are snapshotting by looking at the <code>Background tasks</code> tab in the <a href="https://grafana.com/dashboards/8126">M3DB Grafana dashboard</a>.</p>
+</li>
+<li>
+<p><strong>How do you list all available API endpoints?</strong>
+See [M3DB openhttps://m3db.io/openapi</p>
+</li>
+<li>
+<p><strong>What is the recommended way to upgrade my M3 stack?</strong>
+TBA</p>
+</li>
+<li>
+<p><strong>When graphing my Prometheus data in Grafana, I see gaps. How do I resolve this?</strong>
+This is due to M3 having a concept of <code>null</code> datapoints whereas Prometheus does not. To resolve this, change <code>Stacking &amp; Null value</code> to <code>Connected</code> under the <code>Visualization</code> tab of your graph.</p>
+</li>
+<li>
+<p><strong>I am receiving the error <code>"could not create etcd watch","error":"etcd watch create timed out after 10s for key: _sd.placement/default_env/m3db"</code></strong>
+This is due to the fact that M3DB, M3Coordinator, etc. could not connect to the <code>etcd</code> server. Make sure that the endpoints listed under in the following config section are correct AND the correct configuration file is being used.
+<div class="highlight"><pre><span></span>etcdClusters:
+  - zone: embedded
+    endpoints:
+      - HOST1_STATIC_IP_ADDRESS:2379
+      - HOST2_STATIC_IP_ADDRESS:2379
+      - HOST3_STATIC_IP_ADDRESS:2379
+</pre></div></p>
+</li>
+<li>
+<p><strong>How can I get a heap dump, cpu profile, etc.</strong>
+See our docs on the <a href="../troubleshooting/">/debug/dump api</a></p>
+</li>
+<li>
+<p><strong>How can I see the cardinality of my metrics?</strong>
+See the <code>Ticking</code> graph on <a href="https://grafana.com/dashboards/8126">M3DB dashboard</a>.</p>
+</li>
+<li>
+<p><strong>How much memory utilization should I run M3DB at?</strong>
+We recommend not going above 50%.</p>
+</li>
+<li>
+<p><strong>What is the recommended hardware to run on?</strong>
+TBA</p>
+</li>
+<li>
+<p><strong>What is the recommended way to create a new namespace?</strong>
+Refer to the <a href="../operational_guide/namespace_configuration/">Namespace configuration guide</a>.</p>
+</li>
+</ul>
                 
                   
                 
