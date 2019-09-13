@@ -28,9 +28,10 @@ import (
 
 type makeBlockFn func(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error)
 
 // Builds a logical processing function if able. If wrong opType supplied,
@@ -61,7 +62,7 @@ func createLogicalProcessingStep(
 	return func(queryCtx *models.QueryContext, lhs, rhs block.Block,
 		controller *transform.Controller) (block.Block, error) {
 		return processLogical(queryCtx, lhs, rhs, controller,
-			params.VectorMatching, fn)
+			params.VectorMatcherBuilder, fn)
 	}
 }
 
@@ -69,7 +70,7 @@ func processLogical(
 	queryCtx *models.QueryContext,
 	lhs, rhs block.Block,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matcherBuilder VectorMatcherBuilder,
 	makeBlock makeBlockFn,
 ) (block.Block, error) {
 	lIter, err := lhs.StepIter()
@@ -86,5 +87,7 @@ func processLogical(
 		return nil, errMismatchedStepCounts
 	}
 
-	return makeBlock(queryCtx, lIter, rIter, controller, matching)
+	matching := matcherBuilder(lhs, rhs)
+	return makeBlock(queryCtx, lhs.Meta(), rhs.Meta(),
+		lIter, rIter, controller, matching)
 }

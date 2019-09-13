@@ -113,29 +113,26 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "hosts": [
         {
             "id": "m3db001",
-            "isolation_group": "us-east1-a",
+            "isolationGroup": "us-east1-a",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "10.142.0.1:9000",
-            "hostname": "m3db001",
+            "address": "10.142.0.1",
             "port": 9000
         },
         {
             "id": "m3db002",
-            "isolation_group": "us-east1-b",
+            "isolationGroup": "us-east1-b",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "10.142.0.2:9000",
-            "hostname": "m3db002-us-east",
+            "address": "10.142.0.2",
             "port": 9000
         },
         {
             "id": "m3db003",
-            "isolation_group": "us-east1-c",
+            "isolationGroup": "us-east1-c",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "10.142.0.3:9000",
-            "hostname": "m3db003",
+            "address": "10.142.0.3",
             "port": 9000
         }
     ]

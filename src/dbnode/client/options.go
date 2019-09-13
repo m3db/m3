@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
-	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -245,6 +245,7 @@ type options struct {
 	fetchSeriesBlocksBatchTimeout           time.Duration
 	fetchSeriesBlocksBatchConcurrency       int
 	schemaRegistry                          namespace.SchemaRegistry
+	isProtoEnabled                          bool
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -360,6 +361,7 @@ func (o *options) SetEncodingM3TSZ() Options {
 	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
+	opts.isProtoEnabled = false
 	return &opts
 }
 
@@ -368,7 +370,12 @@ func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
 	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	}
+	opts.isProtoEnabled = true
 	return &opts
+}
+
+func (o *options) IsSetEncodingProto() bool {
+	return o.isProtoEnabled
 }
 
 func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {

@@ -968,6 +968,36 @@ type Options interface {
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
+
+	// SetMemoryTracker sets the MemoryTracker.
+	SetMemoryTracker(memTracker MemoryTracker) Options
+
+	// MemoryTracker returns the MemoryTracker.
+	MemoryTracker() MemoryTracker
+}
+
+// MemoryTracker tracks memory.
+type MemoryTracker interface {
+	// IncNumLoadedBytes increments the number of bytes that have been loaded
+	// into memory via the "Load()" API.
+	IncNumLoadedBytes(x int64) (okToLoad bool)
+
+	// NumLoadedBytes returns the number of bytes that have been loaded into memory via the
+	// "Load()" API.
+	NumLoadedBytes() int64
+
+	// MarkLoadedAsPending marks the current number of loaded bytes as pending
+	// so that a subsequent call to DecPendingLoadedBytes() will decrement the
+	// number of loaded bytes by the number that was set when this function was
+	// last executed.
+	MarkLoadedAsPending()
+
+	// DecPendingLoadedBytes decrements the number of loaded bytes by the number
+	// of pending bytes that were captured by the last call to MarkLoadedAsPending().
+	DecPendingLoadedBytes()
+
+	// WaitForDec waits for the next call to DecPendingLoadedBytes before returning.
+	WaitForDec()
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

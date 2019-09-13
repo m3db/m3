@@ -50,11 +50,11 @@ type retrier struct {
 
 type retrierMetrics struct {
 	success            tally.Counter
-	successLatency     tally.Timer
+	successLatency     tally.Histogram
 	errors             tally.Counter
 	errorsNotRetryable tally.Counter
 	errorsFinal        tally.Counter
-	errorsLatency      tally.Timer
+	errorsLatency      tally.Histogram
 	retries            tally.Counter
 }
 
@@ -72,6 +72,7 @@ func NewRetrier(opts Options) Retrier {
 			"type": "not-retryable",
 		},
 	}
+
 	return &retrier{
 		initialBackoff: opts.InitialBackoff(),
 		backoffFactor:  opts.BackoffFactor(),
@@ -83,11 +84,11 @@ func NewRetrier(opts Options) Retrier {
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
 			success:            scope.Counter("success"),
-			successLatency:     scope.Timer("success-latency"),
+			successLatency:     histogramWithDurationBuckets(scope, "success-latency"),
 			errors:             scope.Tagged(errorTags.retryable).Counter("errors"),
 			errorsNotRetryable: scope.Tagged(errorTags.notRetryable).Counter("errors"),
 			errorsFinal:        scope.Counter("errors-final"),
-			errorsLatency:      scope.Timer("errors-latency"),
+			errorsLatency:      histogramWithDurationBuckets(scope, "errors-latency"),
 			retries:            scope.Counter("retries"),
 		},
 	}
@@ -113,11 +114,11 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	duration := time.Since(start)
 	attempt++
 	if err == nil {
-		r.metrics.successLatency.Record(duration)
+		r.metrics.successLatency.RecordDuration(duration)
 		r.metrics.success.Inc(1)
 		return nil
 	}
-	r.metrics.errorsLatency.Record(duration)
+	r.metrics.errorsLatency.RecordDuration(duration)
 	if xerrors.IsNonRetryableError(err) {
 		r.metrics.errorsNotRetryable.Inc(1)
 		return err
@@ -144,11 +145,11 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 		duration := time.Since(start)
 		attempt++
 		if err == nil {
-			r.metrics.successLatency.Record(duration)
+			r.metrics.successLatency.RecordDuration(duration)
 			r.metrics.success.Inc(1)
 			return nil
 		}
-		r.metrics.errorsLatency.Record(duration)
+		r.metrics.errorsLatency.RecordDuration(duration)
 		if xerrors.IsNonRetryableError(err) {
 			r.metrics.errorsNotRetryable.Inc(1)
 			return err
@@ -187,4 +188,16 @@ func BackoffNanos(
 		backoff = maxBackoff
 	}
 	return backoff
+}
+
+// histogramWithDurationBuckets returns a histogram with the standard duration buckets.
+func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogram {
+	sub := scope.Tagged(map[string]string{
+		// Bump the version if the histogram buckets need to be changed to avoid overlapping buckets
+		// in the same query causing errors.
+		"schema": "v1",
+	})
+	buckets := append(tally.DurationBuckets{0, time.Millisecond}, 
+		tally.MustMakeExponentialDurationBuckets(2*time.Millisecond, 1.5, 30)...)
+	return sub.Histogram(name, buckets)
 }

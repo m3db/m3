@@ -106,7 +106,7 @@ curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
 
 function read {
   RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=test_metric")
-  ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster)
+  ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster | sort)
   test "$(echo $ACTUAL)" = '"cluster-a" "cluster-b" "cluster-c"'
 }
 

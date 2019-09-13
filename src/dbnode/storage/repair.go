@@ -127,7 +127,7 @@ func (r shardRepairer) Repair(
 	metadata := repair.NewReplicaMetadataComparer(origin, r.rpopts)
 	ctx.RegisterFinalizer(metadata)
 
-	// Add local metadata
+	// Add local metadata.
 	opts := block.FetchBlocksMetadataOptions{
 		IncludeSizes:     true,
 		IncludeChecksums: true,
@@ -290,13 +290,68 @@ func (r shardRepairer) Repair(
 		}
 	}
 
-	if err := shard.Load(results.AllSeries()); err != nil {
+	if err := r.loadDataIntoShard(shard, results); err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
 	r.recordFn(nsCtx.ID, shard, metadataRes)
 
 	return metadataRes, nil
+}
+
+// TODO(rartoul): Currently throttling via the MemoryTracker can only occur at the level of an entire
+// block for a given namespace/shard/blockStart. For almost all practical use-cases this is fine, but
+// this could be improved and made more granular by breaking data that is being loaded into the shard
+// into smaller batches (less than one complete block). This would improve the granularity of throttling
+// for clusters where the number of shards is low.
+func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardResult) error {
+	var (
+		waitingGauge  = r.scope.Gauge("waiting-for-limit")
+		waitedCounter = r.scope.Counter("waited-for-limit")
+		doneCh        = make(chan struct{})
+		waiting       bool
+		waitingLock   sync.Mutex
+	)
+	defer close(doneCh)
+
+	// Emit a gauge constantly that indicates whether or not the repair process is blocked waiting.
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				waitingGauge.Update(0)
+				return
+			default:
+				waitingLock.Lock()
+				currWaiting := waiting
+				waitingLock.Unlock()
+				if currWaiting {
+					waitingGauge.Update(1)
+				} else {
+					waitingGauge.Update(0)
+				}
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}()
+
+	for {
+		err := shard.Load(data.AllSeries())
+		if err == ErrDatabaseLoadLimitHit {
+			waitedCounter.Inc(1)
+			waitingLock.Lock()
+			waiting = true
+			waitingLock.Unlock()
+			// Wait for some of the outstanding data to be flushed before trying again.
+			r.logger.Info("repair throttled due to memory load limits, waiting for data to be flushed before continuing")
+			r.opts.MemoryTracker().WaitForDec()
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func (r shardRepairer) recordDifferences(
@@ -314,15 +369,15 @@ func (r shardRepairer) recordDifferences(
 		checksumDiffScope = shardScope.Tagged(map[string]string{"resultType": "checksumDiff"})
 	)
 
-	// Record total number of series and total number of blocks
+	// Record total number of series and total number of blocks.
 	totalScope.Counter("series").Inc(diffRes.NumSeries)
 	totalScope.Counter("blocks").Inc(diffRes.NumBlocks)
 
-	// Record size differences
+	// Record size differences.
 	sizeDiffScope.Counter("series").Inc(diffRes.SizeDifferences.NumSeries())
 	sizeDiffScope.Counter("blocks").Inc(diffRes.SizeDifferences.NumBlocks())
 
-	// Record checksum differences
+	// Record checksum differences.
 	checksumDiffScope.Counter("series").Inc(diffRes.ChecksumDifferences.NumSeries())
 	checksumDiffScope.Counter("blocks").Inc(diffRes.ChecksumDifferences.NumBlocks())
 }

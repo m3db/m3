@@ -22,9 +22,11 @@ package aggregation
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/test/testmarshal"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -149,19 +151,49 @@ func TestTypesUnMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestTypesMarshalJSONRoundTrip(t *testing.T) {
+func TestTypesMarshalRoundTrip(t *testing.T) {
 	inputs := []Types{
 		{},
 		{Min},
 		{Mean, Max, P99, P9999},
 	}
 
-	for _, input := range inputs {
-		b, err := json.Marshal(input)
-		require.NoError(t, err)
-		var aggTypes Types
-		require.NoError(t, json.Unmarshal(b, &aggTypes))
-		require.Equal(t, input, aggTypes)
+	testmarshal.TestMarshalersRoundtrip(t, inputs, []testmarshal.Marshaler{
+		testmarshal.JSONMarshaler,
+		testmarshal.YAMLMarshaler,
+	})
+}
+
+func TestTypesMarshalText(t *testing.T) {
+	cases := []struct {
+		In       Type
+		Expected string
+	}{{
+		In:       Mean,
+		Expected: "Mean",
+	}, {
+		In:       Last,
+		Expected: "Last",
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.Expected, func(t *testing.T) {
+			testmarshal.AssertMarshals(t, testmarshal.TextMarshaler, tc.In, []byte(tc.Expected))
+		})
+	}
+}
+
+func TestTypesUnmarshalTextError(t *testing.T) {
+	cases := []string{
+		"unknown_at",
+		`"Mean"`, // double JSON encoded
+	}
+
+	for _, tc := range cases {
+		t.Run(tc, func(t *testing.T) {
+			var target Type
+			require.EqualError(t, target.UnmarshalText([]byte(tc)), fmt.Sprintf("invalid aggregation type: %s", tc))
+		})
 	}
 }
 

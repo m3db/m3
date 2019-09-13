@@ -41,28 +41,51 @@ var (
 	errNoRestrictFetchOptionsProtoMsg = errors.New("no restrict fetch options proto message")
 )
 
-// Type describes the type of storage
+// Type describes the type of storage.
 type Type int
 
 const (
-	// TypeLocalDC is for storages that reside in the local datacenter
+	// TypeLocalDC is for storages that reside in the local datacenter.
 	TypeLocalDC Type = iota
-	// TypeRemoteDC is for storages that reside in a remote datacenter
+	// TypeRemoteDC is for storages that reside in a remote datacenter.
 	TypeRemoteDC
-	// TypeMultiDC is for storages that will aggregate multiple datacenters
+	// TypeMultiDC is for storages that will aggregate multiple datacenters.
 	TypeMultiDC
-	// TypeDebug is for storages that are used for debugging purposes
+	// TypeDebug is for storages that are used for debugging purposes.
 	TypeDebug
 )
 
-// Storage provides an interface for reading and writing to the tsdb
+// ErrorBehavior describes what this storage type should do on error. This is
+// used for determining how to proceed when encountering an error in a fanout
+// storage situation.
+type ErrorBehavior uint8
+
+const (
+	// BehaviorFail is for storages that should fail the entire query when queries
+	// against this storage fail.
+	BehaviorFail ErrorBehavior = iota
+	// BehaviorWarn is for storages that should only warn of incomplete results on
+	// failure.
+	BehaviorWarn
+	// BehaviorContainer is for storages that contain substorages. It is necessary
+	// to look at the returned error to determine if it's a failing error or
+	// a warning error.
+	BehaviorContainer
+)
+
+// Storage provides an interface for reading and writing to the tsdb.
 type Storage interface {
 	Querier
 	Appender
-	// Type identifies the type of the underlying storage
+	// Type identifies the type of the underlying storage.
 	Type() Type
-	// Close is used to close the underlying storage and free up resources
+	// Close is used to close the underlying storage and free up resources.
 	Close() error
+	// ErrorBehavior dictates what fanout storage should do when this storage
+	// encounters an error.
+	ErrorBehavior() ErrorBehavior
+	// Name gives the plaintext name for this storage, used for logging purposes.
+	Name() string
 }
 
 // Query is an interface for a M3DB query
@@ -420,24 +443,6 @@ const (
 	// DefaultMetricsType is the default metrics type value.
 	DefaultMetricsType = UnaggregatedMetricsType
 )
-
-var (
-	validMetricsTypes = []MetricsType{
-		UnaggregatedMetricsType,
-		AggregatedMetricsType,
-	}
-)
-
-func (t MetricsType) String() string {
-	switch t {
-	case UnaggregatedMetricsType:
-		return "unaggregated"
-	case AggregatedMetricsType:
-		return "aggregated"
-	default:
-		return "unknown"
-	}
-}
 
 // Attributes is a set of stored metrics attributes.
 type Attributes struct {

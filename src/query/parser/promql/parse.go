@@ -213,12 +213,7 @@ func (p *parseState) walk(node pql.Node) error {
 				return err
 			}
 
-			op, err := scalar.NewScalarOp(
-				func(_ time.Time) float64 { return val },
-				scalar.ScalarType,
-				p.tagOpts,
-			)
-
+			op, err := scalar.NewScalarOp(val, p.tagOpts)
 			if err != nil {
 				return err
 			}

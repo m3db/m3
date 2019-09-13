@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,53 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package linear
+package scalar
 
 import (
-	"math"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/test/transformtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	nan = math.NaN()
-)
-
-func TestAbsentWithValues(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := NewAbsentOp().Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+func TestTime(t *testing.T) {
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	op, err := NewTimeOp(models.NewTagOptions())
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2)
-	expected := [][]float64{
-		{nan, nan, nan, nan, nan},
-		{nan, nan, nan, nan, nan},
-	}
-	test.EqualsWithNans(t, expected, sink.Values)
-}
 
-func TestAbsentWithNoValues(t *testing.T) {
-	v := [][]float64{
-		{nan, nan, nan, nan, nan},
-		{nan, nan, nan, nan, nan},
-	}
+	baseOp, ok := op.(*timeOp)
+	require.True(t, ok)
+	start := bounds.Start
+	step := bounds.StepSize
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
+		TimeSpec: transform.TimeSpec{
+			Start: start,
+			End:   bounds.End(),
+			Step:  step,
+		},
+	}))
 
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := NewAbsentOp().Node(c, transform.Options{})
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
-	assert.Len(t, sink.Values, 2)
-	assert.Equal(t, [][]float64{{1, 1, 1, 1, 1}, {1, 1, 1, 1, 1}}, sink.Values)
+	assert.Len(t, sink.Values, 1)
+	assert.Equal(t, block.BlockTime, sink.Info.Type())
+
+	for i, vals := range sink.Values {
+		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), vals[0])
+	}
 }

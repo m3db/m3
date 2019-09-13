@@ -1,7 +1,6 @@
 m3db_client:
   proto:
     enabled: true
-    testOnly: true
     schema_registry:
       default:
         schemaFilePath: ./schema.proto

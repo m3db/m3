@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -124,33 +123,14 @@ func (p *StoragePolicy) FromProto(pb policypb.StoragePolicy) error {
 	return nil
 }
 
-// MarshalJSON returns the JSON encoding of a storage policy.
-func (p StoragePolicy) MarshalJSON() ([]byte, error) {
-	marshalled := strconv.Quote(p.String())
-	return []byte(marshalled), nil
+// MarshalText returns the text encoding of a storage policy.
+func (p StoragePolicy) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
 }
 
-// UnmarshalJSON unmarshals JSON-encoded data into a storage policy.
-func (p *StoragePolicy) UnmarshalJSON(data []byte) error {
+// UnmarshalText unmarshals text-encoded data into a storage policy.
+func (p *StoragePolicy) UnmarshalText(data []byte) error {
 	str := string(data)
-	unquoted, err := strconv.Unquote(str)
-	if err != nil {
-		return err
-	}
-	parsed, err := ParseStoragePolicy(unquoted)
-	if err != nil {
-		return err
-	}
-	*p = parsed
-	return nil
-}
-
-// UnmarshalYAML unmarshals a storage policy value from a string.
-func (p *StoragePolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
 	parsed, err := ParseStoragePolicy(str)
 	if err != nil {
 		return err

@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 
@@ -174,10 +176,11 @@ func TestConsolidation(t *testing.T) {
 		unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery, time.Minute)
 		assert.NoError(t, err)
 
-		block, err := unconsolidated.Consolidate()
+		bl, err := unconsolidated.Consolidate()
 		assert.NoError(t, err)
 
-		iter, err := block.StepIter()
+		assert.Equal(t, block.BlockConsolidated, bl.Info().Type())
+		iter, err := bl.StepIter()
 		assert.NoError(t, err)
 
 		i := 0
