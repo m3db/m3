@@ -181,7 +181,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 	return s.session.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
 }
 
-// Write value to the database for an ID
+// Write value to the database for an ID.
 func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
@@ -207,16 +207,17 @@ func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIte
 	})
 }
 
-// Fetch values from the database for an ID
+// Fetch values from the database for an ID.
 func (s replicatedSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
 	return s.session.Fetch(namespace, id, startInclusive, endExclusive)
 }
 
-// FetchIDs values from the database for a set of IDs
+// FetchIDs values from the database for a set of IDs.
 func (s replicatedSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	return s.session.FetchIDs(namespace, ids, startInclusive, endExclusive)
 }
 
+// Aggregate aggregates values from the database for the given set of constraints.
 func (s replicatedSession) Aggregate(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
 ) (AggregatedTagsIterator, bool, error) {
@@ -235,17 +236,17 @@ func (s replicatedSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opt
 
 // ShardID returns the given shard for an ID for callers
 // to easily discern what shard is failing when operations
-// for given IDs begin failing
+// for given IDs begin failing.
 func (s replicatedSession) ShardID(id ident.ID) (uint32, error) {
 	return s.session.ShardID(id)
 }
 
-// IteratorPools exposes the internal iterator pools used by the session to clients
+// IteratorPools exposes the internal iterator pools used by the session to clients.
 func (s replicatedSession) IteratorPools() (encoding.IteratorPools, error) {
 	return s.session.IteratorPools()
 }
 
-// Close the session
+// Close the session.
 func (s replicatedSession) Close() error {
 	err := s.session.Close()
 	for _, as := range s.asyncSessions {
@@ -325,6 +326,7 @@ func (s replicatedSession) FetchBlocksFromPeers(
 	return s.session.FetchBlocksFromPeers(namespace, shard, consistencyLevel, metadatas, opts)
 }
 
+// Open the client session.
 func (s replicatedSession) Open() error {
 	if err := s.session.Open(); err != nil {
 		return err
