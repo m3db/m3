@@ -90,6 +90,14 @@ func (s *slowStorage) Type() storage.Type {
 	return storage.TypeMultiDC
 }
 
+func (s *slowStorage) Name() string {
+	return "slow"
+}
+
+func (s *slowStorage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorFail
+}
+
 func (s *slowStorage) Close() error {
 	return nil
 }

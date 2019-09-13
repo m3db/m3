@@ -21,32 +21,76 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
-	"math"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestValidateMetricsType(t *testing.T) {
-	assert.NoError(t, ValidateMetricsType(UnaggregatedMetricsType))
-	assert.Error(t, ValidateMetricsType(MetricsType(math.MaxUint64)))
+func TestParseErrorBehavior(t *testing.T) {
+	b, err := ParseErrorBehavior("fail")
+	assert.NoError(t, err)
+	assert.Equal(t, BehaviorFail, b)
+
+	b, err = ParseErrorBehavior("warn")
+	assert.NoError(t, err)
+	assert.Equal(t, BehaviorWarn, b)
+
+	_, err = ParseErrorBehavior(BehaviorContainer.String())
+	assert.Error(t, err)
+
+	_, err = ParseErrorBehavior("blah")
+	assert.Error(t, err)
+
 }
 
-func TestMetricsTypeUnmarshalYAML(t *testing.T) {
+func TestErrorBehaviorUnmarshalYAML(t *testing.T) {
 	type config struct {
-		Type MetricsType `yaml:"type"`
+		Type ErrorBehavior `yaml:"type"`
 	}
 
-	for _, value := range validMetricsTypes {
+	valid := []ErrorBehavior{BehaviorFail, BehaviorWarn}
+	for _, value := range valid {
 		str := fmt.Sprintf("type: %s\n", value.String())
 		var cfg config
 		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 		assert.Equal(t, value, cfg.Type)
 	}
 
+	container := fmt.Sprintf("type: %s\n", BehaviorContainer.String())
 	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte(container), &cfg))
 	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+}
+
+func TestWarnError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := NewMockStorage(ctrl)
+
+	err := errors.New("e")
+	warnErr := warnError{inner: errors.New("f")}
+
+	// NB: this shouldn't go to store.
+	warn, wrapped := IsWarning(store, warnErr)
+	assert.True(t, warn)
+	_, ok := wrapped.(warnError)
+	assert.True(t, ok)
+
+	store.EXPECT().ErrorBehavior().Return(BehaviorFail).Times(1)
+	warn, wrapped = IsWarning(store, err)
+	assert.False(t, warn)
+	_, ok = wrapped.(warnError)
+	assert.False(t, ok)
+
+	store.EXPECT().ErrorBehavior().Return(BehaviorWarn).Times(1)
+	warn, wrapped = IsWarning(store, err)
+	assert.True(t, warn)
+	_, ok = wrapped.(warnError)
+	assert.True(t, ok)
 }

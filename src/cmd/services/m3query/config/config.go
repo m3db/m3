@@ -419,29 +419,37 @@ type ClusterManagementConfiguration struct {
 	Etcd etcdclient.Configuration `yaml:"etcd"`
 }
 
-// Remotes is a set of remote host configurations.
-type Remotes []Remote
+// RemoteConfigurations is a set of remote host configurations.
+type RemoteConfigurations []RemoteConfiguration
 
-// Remote is the configuration for a single remote host.
-type Remote struct {
+// RemoteConfiguration is the configuration for a single remote host.
+type RemoteConfiguration struct {
 	// Name is the name for the remote zone.
 	Name string `yaml:"name"`
 	// RemoteListenAddresses is the remote listen addresses to call for remote
 	// coordinator calls in the remote zone.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+	// ErrorBehavior overrides the default error behavior for this host.
+	//
+	// NB: defaults to warning on error.
+	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
 }
 
 // RPCConfiguration is the RPC configuration for the coordinator for
 // the GRPC server used for remote coordinator to coordinator calls.
 type RPCConfiguration struct {
 	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
+	//
+	// NB: this is no longer necessary to set to true if RPC is desired; enabled
+	// status is inferred based on which other options are provided;
+	// this remains for back-compat, and for disabling any existing RPC options.
+	Enabled *bool `yaml:"enabled"`
 
 	// ListenAddress is the RPC server listen address.
 	ListenAddress string `yaml:"listenAddress"`
 
 	// Remotes are the configuration settings for remote coordinator zones.
-	Remotes Remotes `yaml:"remotes"`
+	Remotes RemoteConfigurations `yaml:"remotes"`
 
 	// RemoteListenAddresses is the remote listen addresses to call for
 	// remote coordinator calls.
@@ -449,6 +457,11 @@ type RPCConfiguration struct {
 	// NB: this is deprecated in favor of using RemoteZones, as setting
 	// RemoteListenAddresses will only allow for a single remote zone to be used.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+
+	// ErrorBehavior overrides the default error behavior for all rpc hosts.
+	//
+	// NB: defaults to warning on error.
+	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
 
 	// ReflectionEnabled will enable reflection on the GRPC server, useful
 	// for testing connectivity with grpcurl, etc.

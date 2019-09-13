@@ -158,6 +158,14 @@ func (s *debugStorage) Type() storage.Type {
 	return storage.TypeDebug
 }
 
+func (s *debugStorage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorWarn
+}
+
+func (s *debugStorage) Name() string {
+	return "debug_store"
+}
+
 func (s *debugStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
