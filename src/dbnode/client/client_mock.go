@@ -2292,20 +2292,6 @@ func (mr *MockOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockOptions)(nil).AsyncTopologyInitializers))
 }
 
-// OptionsForAsyncClusters mocks base method
-func (m *MockOptions) OptionsForAsyncClusters() []Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OptionsForAsyncClusters")
-	ret0, _ := ret[0].([]Options)
-	return ret0
-}
-
-// OptionsForAsyncClusters indicates an expected call of OptionsForAsyncClusters
-func (mr *MockOptionsMockRecorder) OptionsForAsyncClusters() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptionsForAsyncClusters", reflect.TypeOf((*MockOptions)(nil).OptionsForAsyncClusters))
-}
-
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3587,20 +3573,6 @@ func (m *MockAdminOptions) AsyncTopologyInitializers() []topology.Initializer {
 func (mr *MockAdminOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockAdminOptions)(nil).AsyncTopologyInitializers))
-}
-
-// OptionsForAsyncClusters mocks base method
-func (m *MockAdminOptions) OptionsForAsyncClusters() []Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OptionsForAsyncClusters")
-	ret0, _ := ret[0].([]Options)
-	return ret0
-}
-
-// OptionsForAsyncClusters indicates an expected call of OptionsForAsyncClusters
-func (mr *MockAdminOptionsMockRecorder) OptionsForAsyncClusters() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptionsForAsyncClusters", reflect.TypeOf((*MockAdminOptions)(nil).OptionsForAsyncClusters))
 }
 
 // SetOrigin mocks base method

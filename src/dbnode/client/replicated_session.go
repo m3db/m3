@@ -103,7 +103,7 @@ func newReplicatedSession(opts Options, options ...replicatedSessionOption) (cli
 	if err := session.setSession(opts); err != nil {
 		return nil, err
 	}
-	if err := session.setAsyncSessions(opts.OptionsForAsyncClusters()); err != nil {
+	if err := session.setAsyncSessions(NewOptionsForAsyncClusters(opts)); err != nil {
 		return nil, err
 	}
 

@@ -514,10 +514,6 @@ type Options interface {
 
 	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
 	AsyncTopologyInitializers() []topology.Initializer
-
-	// OptionsForAsyncClusters returns a slice of Options, where each is the set of client
-	// for a given async client.
-	OptionsForAsyncClusters() []Options
 }
 
 // AdminOptions is a set of administration client options.

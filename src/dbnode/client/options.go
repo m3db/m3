@@ -259,6 +259,17 @@ func NewAdminOptions() AdminOptions {
 	return newOptions()
 }
 
+// NewOptionsForAsyncClusters returns a slice of Options, where each is the set of client
+// for a given async client.
+func NewOptionsForAsyncClusters(opts Options) []Options {
+	result := make([]Options, 0, len(opts.AsyncTopologyInitializers()))
+	for _, topoInit := range opts.AsyncTopologyInitializers() {
+		options := opts.SetTopologyInitializer(topoInit)
+		result = append(result, options)
+	}
+	return result
+}
+
 func newOptions() *options {
 	buckets := defaultIdentifierPoolBytesPoolSizes
 	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
@@ -892,13 +903,4 @@ func (o *options) SetAsyncTopologyInitializers(value []topology.Initializer) Opt
 
 func (o *options) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
-}
-
-func (o *options) OptionsForAsyncClusters() []Options {
-	result := make([]Options, 0, len(o.asyncTopologyInitializers))
-	for _, topoInit := range o.asyncTopologyInitializers {
-		options := o.SetTopologyInitializer(topoInit)
-		result = append(result, options)
-	}
-	return result
 }

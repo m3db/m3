@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -34,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 )
 
 var initTimeout = time.Minute
