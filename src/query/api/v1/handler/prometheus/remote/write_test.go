@@ -52,14 +52,15 @@ func TestPromWriteParsing(t *testing.T) {
 
 	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, instrument.NewOptions())
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 
-	r, opts, err := handler.(*PromWriteHandler).parseRequest(req)
+	r, opts, _, err := handler.(*PromWriteHandler).parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Timeseries), 2)
 	require.Equal(t, ingest.WriteOptions{}, opts)
@@ -75,7 +76,8 @@ func TestPromWrite(t *testing.T) {
 		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any())
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, instrument.NewOptions())
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -101,7 +103,8 @@ func TestPromWriteError(t *testing.T) {
 		Return(batchErr)
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, instrument.NewOptions())
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -132,7 +135,8 @@ func TestWriteErrorMetricCount(t *testing.T) {
 		SetMetricsScope(scope)
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, iopts)
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, iopts)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, nil)
@@ -158,7 +162,8 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 		map[string]string{"test": "delay-metric-test"})
 
 	handler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, instrument.NewOptions().SetMetricsScope(scope))
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, instrument.NewOptions().SetMetricsScope(scope))
 	require.NoError(t, err)
 
 	writeHandler, ok := handler.(*PromWriteHandler)
@@ -219,7 +224,8 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 		WriteBatch(gomock.Any(), gomock.Any(), expectedIngestWriteOptions)
 
 	writeHandler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, instrument.NewOptions())
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()
@@ -253,7 +259,8 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 		WriteBatch(gomock.Any(), gomock.Any(), expectedIngestWriteOptions)
 
 	writeHandler, err := NewPromWriteHandler(mockDownsamplerAndWriter,
-		models.NewTagOptions(), time.Now, instrument.NewOptions())
+		models.NewTagOptions(), PromWriteHandlerForwardingOptions{},
+		time.Now, instrument.NewOptions())
 	require.NoError(t, err)
 
 	promReq := test.GeneratePromWriteRequest()

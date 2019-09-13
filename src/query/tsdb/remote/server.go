@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -42,6 +43,7 @@ const defaultBatch = 128
 
 // TODO: add metrics
 type grpcServer struct {
+	createAt         time.Time
 	poolErr          error
 	batchSize        int
 	storage          m3.Storage
@@ -69,6 +71,7 @@ func NewGRPCServer(
 ) *grpc.Server {
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
+		createAt:         time.Now(),
 		storage:          store,
 		queryContextOpts: queryContextOpts,
 		poolWrapper:      poolWrapper,
@@ -77,6 +80,17 @@ func NewGRPCServer(
 
 	rpc.RegisterQueryServer(server, grpcServer)
 	return server
+}
+
+func (s *grpcServer) Health(
+	ctx context.Context,
+	req *rpc.HealthRequest,
+) (*rpc.HealthResponse, error) {
+	uptime := time.Since(s.createAt)
+	return &rpc.HealthResponse{
+		UptimeDuration:    uptime.String(),
+		UptimeNanoseconds: int64(uptime),
+	}, nil
 }
 
 func (s *grpcServer) waitForPools() (encoding.IteratorPools, error) {

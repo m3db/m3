@@ -56,30 +56,46 @@ type TimeoutOpts struct {
 	FetchTimeout time.Duration
 }
 
+// ParsePromCompressedRequestResult is the result of a
+// ParsePromCompressedRequest call.
+type ParsePromCompressedRequestResult struct {
+	CompressedBody   []byte
+	UncompressedBody []byte
+}
+
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
-func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
+func ParsePromCompressedRequest(
+	r *http.Request,
+) (ParsePromCompressedRequestResult, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	defer body.Close()
 	compressed, err := ioutil.ReadAll(body)
 
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
 	if len(compressed) == 0 {
-		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
 	}
 
 	reqBuf, err := snappy.Decode(nil, compressed)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return reqBuf, nil
+	return ParsePromCompressedRequestResult{
+		CompressedBody:   compressed,
+		UncompressedBody: reqBuf,
+	}, nil
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.

@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
-	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -71,8 +70,9 @@ func (s *fanoutStorage) Fetch(
 ) (*storage.FetchResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
 	requests := make([]execution.Request, 0, len(stores))
+	logger := s.instrumentOpts.Logger()
 	for _, store := range stores {
-		requests = append(requests, newFetchRequest(store, query, options))
+		requests = append(requests, newFetchRequest(store, query, logger, options))
 	}
 
 	err := execution.ExecuteParallel(ctx, requests)
@@ -95,9 +95,10 @@ func (s *fanoutStorage) FetchBlocks(
 	}
 
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
+		mu         sync.Mutex
+		wg         sync.WaitGroup
+		multiErr   xerrors.MultiError
+		numWarning int
 	)
 
 	// TODO(arnikola): update this to use a genny map
@@ -112,7 +113,22 @@ func (s *fanoutStorage) FetchBlocks(
 			defer mu.Unlock()
 
 			if err != nil {
+				if warning, err := storage.IsWarning(store, err); warning {
+					numWarning++
+					s.instrumentOpts.Logger().Warn(
+						"partial results: fanout to store returned warning",
+						zap.Error(err),
+						zap.String("store", store.Name()),
+						zap.String("function", "FetchBlocks"))
+					return
+				}
+
 				multiErr = multiErr.Add(err)
+				s.instrumentOpts.Logger().Error(
+					"fanout to store returned error",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "FetchBlocks"))
 				return
 			}
 
@@ -155,10 +171,19 @@ func (s *fanoutStorage) FetchBlocks(
 	}
 
 	wg.Wait()
+	// NB: Check multiError first; if any hard error storages errored, the entire
+	// query must be errored.
 	if err := multiErr.FinalError(); err != nil {
 		return block.Result{}, err
 	}
 
+	// If there were no successful results at all, return a normal error.
+	if numWarning == len(stores) {
+		return block.Result{}, errors.ErrNoValidResults
+	}
+
+	// TODO: (arnikola): When https://github.com/m3db/m3/pull/1838 lands,
+	// explicitly set the limit exceeded header if there have been any warnings.
 	blocks := make([]block.Block, 0, len(blockResult))
 	for _, bl := range blockResult {
 		blocks = append(blocks, bl)
@@ -180,6 +205,11 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 			return nil, errors.ErrInvalidFetchResult
 		}
 
+		// NB: if no series to add, continue.
+		if len(fetchreq.result.SeriesList) == 0 {
+			continue
+		}
+
 		if fetchreq.store.Type() != storage.TypeLocalDC {
 			result.LocalOnly = false
 		}
@@ -196,23 +226,38 @@ func (s *fanoutStorage) SearchSeries(
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
 	var metrics models.Metrics
-
 	stores := filterStores(s.stores, s.fetchFilter, query)
 	exhaustive := true
 	for _, store := range stores {
 		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
+			exhaustive = false
+			if warning, err := storage.IsWarning(store, err); warning {
+				s.instrumentOpts.Logger().Warn(
+					"partial results: fanout to store returned warning",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "SearchSeries"))
+				continue
+			}
+
+			s.instrumentOpts.Logger().Error(
+				"fanout to store returned error",
+				zap.Error(err),
+				zap.String("store", store.Name()),
+				zap.String("function", "SearchSeries"))
 			return nil, err
 		}
 
-		exhaustive = exhaustive && results.Exhaustive
 		metrics = append(metrics, results.Metrics...)
 	}
 
-	return &storage.SearchResults{
+	result := &storage.SearchResults{
 		Metrics:    metrics,
 		Exhaustive: exhaustive,
-	}, nil
+	}
+
+	return result, nil
 }
 
 func (s *fanoutStorage) CompleteTags(
@@ -230,6 +275,21 @@ func (s *fanoutStorage) CompleteTags(
 	for _, store := range stores {
 		result, err := store.CompleteTags(ctx, query, options)
 		if err != nil {
+			if warning, err := storage.IsWarning(store, err); warning {
+				s.instrumentOpts.Logger().Warn(
+					"partial results: fanout to store returned warning",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "CompleteTags"))
+				continue
+			}
+
+			s.instrumentOpts.Logger().Error(
+				"fanout to store returned error",
+				zap.Error(err),
+				zap.String("store", store.Name()),
+				zap.String("function", "CompleteTags"))
+
 			return nil, err
 		}
 
@@ -240,8 +300,10 @@ func (s *fanoutStorage) CompleteTags(
 	return &built, nil
 }
 
-func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	// TODO: Consider removing this lookup on every write by maintaining different read/write lists
+func (s *fanoutStorage) Write(ctx context.Context,
+	query *storage.WriteQuery) error {
+	// TODO: Consider removing this lookup on every write by maintaining
+	//  different read/write lists
 	stores := filterStores(s.stores, s.writeFilter, query)
 	// short circuit writes
 	if len(stores) == 1 {
@@ -256,8 +318,21 @@ func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 	return execution.ExecuteParallel(ctx, requests)
 }
 
+func (s *fanoutStorage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorFail
+}
+
 func (s *fanoutStorage) Type() storage.Type {
 	return storage.TypeMultiDC
+}
+
+func (s *fanoutStorage) Name() string {
+	inner := make([]string, 0, len(s.stores))
+	for _, store := range s.stores {
+		inner = append(inner, store.Name())
+	}
+
+	return fmt.Sprintf("fanout_store, inner: %v", inner)
 }
 
 func (s *fanoutStorage) Close() error {
@@ -265,9 +340,8 @@ func (s *fanoutStorage) Close() error {
 	for idx, store := range s.stores {
 		// Keep going on error to close all storages
 		if err := store.Close(); err != nil {
-			logging.WithContext(context.Background(), s.instrumentOpts).
-				Error("unable to close storage",
-					zap.Int("store", int(store.Type())), zap.Int("index", idx))
+			s.instrumentOpts.Logger().Error("unable to close storage",
+				zap.Int("store", int(store.Type())), zap.Int("index", idx))
 			lastErr = err
 		}
 	}
@@ -310,23 +384,43 @@ type fetchRequest struct {
 	query   *storage.FetchQuery
 	options *storage.FetchOptions
 	result  *storage.FetchResult
+	logger  *zap.Logger
 }
 
 func newFetchRequest(
 	store storage.Storage,
 	query *storage.FetchQuery,
+	logger *zap.Logger,
 	options *storage.FetchOptions,
 ) execution.Request {
 	return &fetchRequest{
 		store:   store,
 		query:   query,
 		options: options,
+		logger:  logger,
 	}
 }
 
 func (f *fetchRequest) Process(ctx context.Context) error {
 	result, err := f.store.Fetch(ctx, f.query, f.options)
 	if err != nil {
+		if warning, err := storage.IsWarning(f.store, err); warning {
+			f.logger.Warn(
+				"partial results: fanout to store returned warning",
+				zap.Error(err),
+				zap.String("store", f.store.Name()),
+				zap.String("function", "Fetch"))
+
+			f.result = &storage.FetchResult{}
+			return nil
+		}
+
+		f.logger.Error(
+			"fanout to store returned error",
+			zap.Error(err),
+			zap.String("store", f.store.Name()),
+			zap.String("function", "Fetch"))
+
 		return err
 	}
 

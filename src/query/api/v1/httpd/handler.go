@@ -195,7 +195,7 @@ func (h *Handler) RegisterRoutes() error {
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.timeoutOpts, keepNans, remoteSourceInstrumentOpts)
 	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.downsamplerAndWriter,
-		h.tagOptions, nowFn, remoteSourceInstrumentOpts)
+		h.tagOptions, h.config.WriteForwarding.PromRemoteWrite, nowFn, remoteSourceInstrumentOpts)
 	if err != nil {
 		return err
 	}

@@ -109,6 +109,14 @@ func NewStorage(
 	}, nil
 }
 
+func (s *m3storage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorFail
+}
+
+func (s *m3storage) Name() string {
+	return "local_store"
+}
+
 func (s *m3storage) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,

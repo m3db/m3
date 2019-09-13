@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	m3err "github.com/m3db/m3/src/query/errors"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
@@ -177,6 +178,30 @@ func TestRpc(t *testing.T) {
 	}()
 
 	checkFetch(ctx, t, client, read, readOpts)
+}
+
+func TestRpcHealth(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, _, _ := createCtxReadOpts(t)
+	store := newMockStorage(t, ctrl, mockStorageOptions{})
+	listener := startServer(t, ctrl, store)
+	serverClient := buildClient(t, []string{listener.Addr().String()})
+	defer func() {
+		assert.NoError(t, serverClient.Close())
+	}()
+
+	client, ok := serverClient.(*grpcClient)
+	require.True(t, ok)
+
+	resp, err := client.client.Health(ctx, &rpc.HealthRequest{})
+	require.NoError(t, err)
+
+	uptime, err := time.ParseDuration(resp.UptimeDuration)
+	require.NoError(t, err)
+	assert.True(t, uptime > 0)
+	assert.Equal(t, uptime, time.Duration(resp.UptimeNanoseconds))
 }
 
 func TestRpcMultipleRead(t *testing.T) {
