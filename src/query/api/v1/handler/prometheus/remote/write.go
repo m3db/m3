@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -422,9 +423,8 @@ func (h *PromWriteHandler) forward(
 	if method == "" {
 		method = http.MethodPost
 	}
-
-	req, err := http.NewRequest(target.Method, target.URL,
-		bytes.NewReader(request.CompressedBody))
+	url := target.URL
+	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
 	}
@@ -433,8 +433,16 @@ func (h *PromWriteHandler) forward(
 	if err != nil {
 		return err
 	}
+
+	defer resp.Body.Close()
+
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("expected status code 2XX: actual=%v", resp.StatusCode)
+		response, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			response = []byte(fmt.Sprintf("error reading body: %v", err))
+		}
+		return fmt.Errorf("expected status code 2XX: actual=%v, method=%v, url=%v, resp=%s",
+			resp.StatusCode, method, url, response)
 	}
 	return nil
 }
