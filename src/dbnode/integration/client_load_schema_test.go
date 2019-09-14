@@ -83,7 +83,10 @@ func TestClientLoadSchemaFromFile(t *testing.T) {
 	adminClient, err := cfg.NewAdminClient(client.ConfigurationParameters{TopologyInitializer: mockTopo})
 	require.NoError(t, err)
 
-	descr, err := adminClient.Options().SchemaRegistry().GetLatestSchema(ident.StringID("ns1"))
+	descr, err := adminClient.
+		Options().
+		SchemaRegistry().
+		GetLatestSchema(ident.StringID("ns1"))
 	require.NoError(t, err)
 	require.NotNil(t, descr)
 	require.EqualValues(t, expectedDescr.String(), descr.String())

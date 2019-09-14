@@ -280,7 +280,8 @@ func makeTestFetchTagged(
 ) (testSetups, closeFn, testFetchFn) {
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 	testFetch := func(cLevel topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
-		c, err := client.NewClient(clientopts.SetReadConsistencyLevel(cLevel))
+		clientopts := clientopts.SetReadConsistencyLevel(cLevel)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

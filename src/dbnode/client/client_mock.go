@@ -1074,6 +1074,20 @@ func (mr *MockOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockOptions)(nil).SetEncodingProto), encodingOpts)
 }
 
+// IsSetEncodingProto mocks base method
+func (m *MockOptions) IsSetEncodingProto() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSetEncodingProto")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSetEncodingProto indicates an expected call of IsSetEncodingProto
+func (mr *MockOptionsMockRecorder) IsSetEncodingProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSetEncodingProto", reflect.TypeOf((*MockOptions)(nil).IsSetEncodingProto))
+}
+
 // SetRuntimeOptionsManager mocks base method
 func (m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
 	m.ctrl.T.Helper()
@@ -2250,6 +2264,34 @@ func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
 }
 
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockOptions) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockOptions)(nil).AsyncTopologyInitializers))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -2313,6 +2355,20 @@ func (m *MockAdminOptions) SetEncodingProto(encodingOpts encoding.Options) Optio
 func (mr *MockAdminOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingProto), encodingOpts)
+}
+
+// IsSetEncodingProto mocks base method
+func (m *MockAdminOptions) IsSetEncodingProto() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSetEncodingProto")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSetEncodingProto indicates an expected call of IsSetEncodingProto
+func (mr *MockAdminOptionsMockRecorder) IsSetEncodingProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSetEncodingProto", reflect.TypeOf((*MockAdminOptions)(nil).IsSetEncodingProto))
 }
 
 // SetRuntimeOptionsManager mocks base method
@@ -3489,6 +3545,34 @@ func (m *MockAdminOptions) SchemaRegistry() namespace.SchemaRegistry {
 func (mr *MockAdminOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockAdminOptions)(nil).SchemaRegistry))
+}
+
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockAdminOptions) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockAdminOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockAdminOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockAdminOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockAdminOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockAdminOptions)(nil).AsyncTopologyInitializers))
 }
 
 // SetOrigin mocks base method

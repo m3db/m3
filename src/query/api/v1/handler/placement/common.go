@@ -261,7 +261,7 @@ func RegisterRoutes(
 	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deprecatedDeleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteAllURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 
 	// Add
 	var (
@@ -272,7 +272,7 @@ func RegisterRoutes(
 	r.HandleFunc(DeprecatedM3DBAddURL, deprecatedAddFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3CoordinatorAddURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorAddURL, addFn).Methods(AddHTTPMethod)
 
 	// Delete
 	var (
@@ -283,7 +283,7 @@ func RegisterRoutes(
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deprecatedDeleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 
 	// Replace
 	var (

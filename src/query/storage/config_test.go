@@ -42,10 +42,8 @@ func TestMetricsTypeUnmarshalYAML(t *testing.T) {
 
 	for _, value := range validMetricsTypes {
 		str := fmt.Sprintf("type: %s\n", value.String())
-
 		var cfg config
 		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
-
 		assert.Equal(t, value, cfg.Type)
 	}
 

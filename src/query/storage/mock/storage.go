@@ -34,6 +34,7 @@ type Storage interface {
 	storage.Storage
 
 	SetTypeResult(storage.Type)
+	SetErrorBehavior(storage.ErrorBehavior)
 	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
 	SetSearchSeriesResult(*storage.SearchResults, error)
@@ -49,6 +50,7 @@ type mockStorage struct {
 	typeResult struct {
 		result storage.Type
 	}
+	errorBehavior    storage.ErrorBehavior
 	lastFetchOptions *storage.FetchOptions
 	fetchResult      struct {
 		result *storage.FetchResult
@@ -84,6 +86,12 @@ func (s *mockStorage) SetTypeResult(result storage.Type) {
 	s.Lock()
 	defer s.Unlock()
 	s.typeResult.result = result
+}
+
+func (s *mockStorage) SetErrorBehavior(b storage.ErrorBehavior) {
+	s.Lock()
+	defer s.Unlock()
+	s.errorBehavior = b
 }
 
 func (s *mockStorage) SetFetchResult(result *storage.FetchResult, err error) {
@@ -196,6 +204,16 @@ func (s *mockStorage) Type() storage.Type {
 	s.RLock()
 	defer s.RUnlock()
 	return s.typeResult.result
+}
+
+func (s *mockStorage) Name() string {
+	return "mock"
+}
+
+func (s *mockStorage) ErrorBehavior() storage.ErrorBehavior {
+	s.RLock()
+	defer s.RUnlock()
+	return s.errorBehavior
 }
 
 func (s *mockStorage) Close() error {
