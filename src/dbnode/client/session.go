@@ -3540,9 +3540,7 @@ func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
 
 	// Allocate the enqueue delayed fn just once
 	c.enqueueDelayedFn = func(peersMetadata []receivedBlockMetadata) {
-		if len(peersMetadata) > 0 {
-			c.peersMetadataCh <- peersMetadata
-		}
+		c.peersMetadataCh <- peersMetadata
 	}
 	c.enqueueDelayedDoneFn = func() {
 		c.Lock()
@@ -3588,7 +3586,7 @@ func (c *enqueueCh) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueD
 		c.Unlock()
 		return nil, nil, errEnqueueChIsClosed
 	}
-	c.sending++ // NB(r): This is decremented by calling the returned done function
+	c.sending++ // NB(r): This is decremented by calling the returned enqueue done function
 	c.enqueued += (numToEnqueue)
 	c.Unlock()
 	return c.enqueueDelayedFn, c.enqueueDelayedDoneFn, nil

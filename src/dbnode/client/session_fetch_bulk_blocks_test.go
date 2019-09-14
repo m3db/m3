@@ -1308,9 +1308,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 	wg.Add(1)
 	enqueueCh.EXPECT().
 		enqueueDelayed(1).
-		Return(func(reEnqueuedPerPeer []receivedBlockMetadata) error {
-			defer wg.Done()
-
+		Return(func(reEnqueuedPerPeer []receivedBlockMetadata) {
 			assert.Equal(t, len(initialPerPeer), len(reEnqueuedPerPeer))
 			for i := range reEnqueuedPerPeer {
 				expected := initialPerPeer[i]
@@ -1326,7 +1324,9 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 				assert.Equal(t, blockMetadataReattempt{}, actual.block.reattempt)
 			}
 
-			return nil
+			return
+		}, func() {
+			wg.Done()
 		}, nil)
 
 	// Perform second selection
@@ -1358,10 +1358,10 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
 	) error {
-		enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
 		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
 		return nil
 	}
 
@@ -1430,10 +1430,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
 	) error {
-		enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
 		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
 		return nil
 	}
 
@@ -1575,10 +1575,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
 	) error {
-		enqueue, err := enqueueCh.enqueueDelayed(len(blocks))
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
 		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
 		return nil
 	}
 
@@ -1896,7 +1896,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	// Enqueue multiple blocks metadata
 	numBlocks := 10
 	blocks := make([][]receivedBlockMetadata, numBlocks)
-	enqueueFn, err := enqueueCh.enqueueDelayed(len(blocks))
+	enqueueFn, enqueueDelayedDone, err := enqueueCh.enqueueDelayed(len(blocks))
 	require.NoError(t, err)
 
 	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
@@ -1908,6 +1908,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	for i := 0; i < numBlocks; i++ {
 		enqueueFn(blocks[i])
 	}
+	enqueueDelayedDone()
 
 	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
 	enqueueChInputs, err = enqueueCh.get()

@@ -4488,12 +4488,13 @@ func (mr *MockenqueueChannelMockRecorder) enqueue(peersMetadata interface{}) *go
 }
 
 // enqueueDelayed mocks base method
-func (m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) (func([]receivedBlockMetadata) error, error) {
+func (m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "enqueueDelayed", numToEnqueue)
-	ret0, _ := ret[0].(func([]receivedBlockMetadata) error)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(enqueueDelayedFn)
+	ret1, _ := ret[1].(enqueueDelayedDoneFn)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // enqueueDelayed indicates an expected call of enqueueDelayed
