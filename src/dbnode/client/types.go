@@ -652,9 +652,12 @@ type op interface {
 	CompletionFn() completionFn
 }
 
+type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+type enqueueDelayedDoneFn func()
+
 type enqueueChannel interface {
 	enqueue(peersMetadata []receivedBlockMetadata) error
-	enqueueDelayed(numToEnqueue int) (func([]receivedBlockMetadata) error, error)
+	enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error)
 	get() (<-chan []receivedBlockMetadata, error)
 	trackPending(amount int)
 	trackProcessed(amount int)
