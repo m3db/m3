@@ -91,15 +91,14 @@ func newMultiAddrAdminClient(
 		adminOpts = client.NewAdminOptions()
 	}
 
-	clientOpts := adminOpts.
+	adminOpts = adminOpts.
 		SetOrigin(origin).
 		SetInstrumentOptions(instrumentOpts).
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
-		SetClusterConnectTimeout(time.Second)
+		SetTopologyInitializer(topologyInitializer).
+		SetClusterConnectTimeout(time.Second).(client.AdminOptions)
 
-	clientOpts = clientOpts.SetTopologyInitializer(topologyInitializer)
-
-	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
+	adminClient, err := client.NewAdminClient(adminOpts)
 	require.NoError(t, err)
 
 	return adminClient
@@ -249,7 +248,6 @@ func newDefaultBootstrappableTestSetups(
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
-
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
 		if usingPeersBootstrapper {

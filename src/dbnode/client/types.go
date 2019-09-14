@@ -508,6 +508,12 @@ type Options interface {
 
 	// SchemaRegistry returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetAsyncTopologyInitializers sets the AsyncTopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
 }
 
 // AdminOptions is a set of administration client options.
