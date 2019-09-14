@@ -72,8 +72,8 @@ const (
 )
 
 // seekerManager provides functionality around borrowableSeekers such as
-// opening and closing them, as well as borrowing them out to a Retriever.
-// There is usually a single seekerManager per namespace which contains all
+// opening and closing them, as well as lending them out to a Retriever.
+// There is a single seekerManager per namespace which contains all
 // open seekers for all shards and blocks within that namespace.
 type seekerManager struct {
 	sync.RWMutex
@@ -119,10 +119,7 @@ type seekersAndBloom struct {
 }
 
 // borrowableSeeker is just a seeker with an additional field for keeping
-// track of whether or not it has been borrowed. A seeker is essentially
-// a wrapper around file descriptors around a set of files, allowing for
-// interaction with them. We can ask a seeker for a specific time series, which
-// will then be streamed out from the according data file.
+// track of whether or not it has been borrowed.
 type borrowableSeeker struct {
 	seeker     ConcurrentDataFileSetSeeker
 	isBorrowed bool
@@ -138,7 +135,9 @@ type seekersByTime struct {
 }
 
 // rotatableSeekers is a wrapper around seekersAndBloom that allows for rotating
-// out stale seekers.
+// out stale seekers. This is required so that the active seekers can be rotated
+// to inactive while the seeker manager waits for any outstanding stale seekers
+// to be returned.
 type rotatableSeekers struct {
 	active   seekersAndBloom
 	inactive seekersAndBloom
@@ -180,8 +179,9 @@ func NewSeekerManager(
 	return m
 }
 
-// Open opens a seeker, which essentially means opening the file descriptors
-// for the file sets managed by the seeker.
+// Open opens the seekerManager, which starts background processes such as
+// the openCloseLoop, ensuring open file descriptors for the file sets accesible
+// through the seekers.
 func (m *seekerManager) Open(
 	nsMetadata namespace.Metadata,
 ) error {
@@ -254,10 +254,8 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 	return seekersAndBloom.bloomFilter.Test(id.Bytes()), nil
 }
 
-// Borrow allows for exclusive interaction with a previously opened seeker.
-// When a seeker is  currently Borrowed and another goroutine tries to Borrow it,
-// a Lock with a waitgroup ensures that the previous goroutine finishes its
-// operations before access is granted to the next caller.
+// Borrow returns a "borrowed" seeker which the caller has exclusive access to
+// until it's returned later.
 func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 

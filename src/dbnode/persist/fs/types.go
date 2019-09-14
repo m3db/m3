@@ -208,9 +208,13 @@ type DataFileSetSeeker interface {
 	ConcurrentClone() (ConcurrentDataFileSetSeeker, error)
 }
 
-// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on DataFileSetSeeker.
-// The clones can be used together concurrently and share underlying resources. Clones are no
-// longer usable once the original has been closed.
+// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called
+// on DataFileSetSeeker. A seeker is essentially  a wrapper around file
+// descriptors around a set of files, allowing for interaction with them.
+// We can ask a seeker for a specific time series, which will then be streamed
+// out from the according data file.
+// The clones can be used together concurrently and share underlying resources.
+// Clones are no longer usable once the original has been closed.
 type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
