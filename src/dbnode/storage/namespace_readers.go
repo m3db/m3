@@ -459,6 +459,11 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 	}
 }
 
+// RelinquishShard lets namespaceReaderManager implement Leaser.
+func (m *namespaceReaderManager) RelinquishShard(shard uint32) error {
+	return nil
+}
+
 // UpdateOpenLease() implements block.Leaser.
 func (m *namespaceReaderManager) UpdateOpenLease(
 	descriptor block.LeaseDescriptor,

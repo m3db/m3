@@ -573,6 +573,9 @@ func (m *seekerManager) RelinquishShard(shard uint32) error {
 		}
 		byTime.Unlock()
 	}
+	m.logger.Info("relinquishing shard completed",
+		zap.Uint32("shard", shard),
+	)
 	return nil
 }
 

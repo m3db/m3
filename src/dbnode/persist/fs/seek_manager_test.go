@@ -405,7 +405,6 @@ func TestSeekerManagerRelinquishShard(t *testing.T) {
 		shards = []uint32{2, 5}
 		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	)
-	defer ctrl.Finish()
 
 	m.newOpenSeekerFn = func(
 		shard uint32,
@@ -413,10 +412,11 @@ func TestSeekerManagerRelinquishShard(t *testing.T) {
 		volume int,
 	) (DataFileSetSeeker, error) {
 		mock := NewMockDataFileSetSeeker(ctrl)
+		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().ConcurrentClone().Return(mock, nil)
-		for i := 0; i < defaultFetchConcurrency; i++ {
-			mock.EXPECT().Close().Return(nil).AnyTimes()
-			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		for i := 0; i < defaultFetchConcurrency*3; i++ {
+			mock.EXPECT().Close().Return(nil)
+			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
 		}
 		return mock, nil
 	}
@@ -425,20 +425,23 @@ func TestSeekerManagerRelinquishShard(t *testing.T) {
 	}
 	metadata := testNs1Metadata(t)
 	require.NoError(t, m.Open(metadata))
-
 	for _, shard := range shards {
-		_, err := m.Borrow(shard, time.Time{})
+		// Borrow seekers
+		seeker, err := m.Borrow(shard, time.Time{})
 		require.NoError(t, err)
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
-		require.Equal(t, 0, seekers.active.volume)
 		byTime.RUnlock()
+		require.NoError(t, m.Return(shard, time.Time{}, seeker))
+
+		// Relinquish them
 		require.NoError(t, m.RelinquishShard(shard))
 	}
 
-	// Calling again shouldn't throw errors
+	// Relinquish an already relinquished shard should
+	// throw no error.
 	require.NoError(t, m.RelinquishShard(shards[0]))
 
 	require.NoError(t, m.Close())
