@@ -231,44 +231,38 @@ func (c Configuration) NewAdminClient(
 	if iopts == nil {
 		iopts = instrument.NewOptions()
 	}
-
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	var envCfg environment.ConfigureResults
-
-	// Initialize envCfg.
-	if c.EnvironmentConfig != nil {
-		if c.EnvironmentConfig.Service != nil {
-			cfgParams := environment.ConfigurationParameters{
-				InstrumentOpts: iopts,
-			}
-			if c.HashingConfiguration != nil {
-				cfgParams.HashingSeed = c.HashingConfiguration.Seed
-			}
-
-			envCfg, err = c.EnvironmentConfig.Configure(cfgParams)
-			if err != nil {
-				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
-				return nil, err
-			}
-		} else if c.EnvironmentConfig.Static != nil {
-			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
-
-			if err != nil {
-				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
-				return nil, err
-			}
-		} else {
-			return nil, errConfigurationMustSupplyConfig
-		}
+	cfgParams := environment.ConfigurationParameters{
+		InstrumentOpts: iopts,
 	}
-	if params.TopologyInitializer != nil {
-		envCfg.TopologyInitializer = params.TopologyInitializer
+	if c.HashingConfiguration != nil {
+		cfgParams.HashingSeed = c.HashingConfiguration.Seed
+	}
+
+	topoInit := params.TopologyInitializer
+	asyncTopoInits := []topology.Initializer{}
+
+	if topoInit == nil {
+		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
+		if err != nil {
+			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
+			return nil, err
+		}
+
+		for _, envCfg := range envCfgs {
+			if envCfg.Async {
+				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+			} else {
+				topoInit = envCfg.TopologyInitializer
+			}
+		}
 	}
 
 	v := NewAdminOptions().
-		SetTopologyInitializer(envCfg.TopologyInitializer).
+		SetTopologyInitializer(topoInit).
+		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
 

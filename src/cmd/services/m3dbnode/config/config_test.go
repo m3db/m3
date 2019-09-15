@@ -587,25 +587,27 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0
       highWatermark: 0
   config:
-    service:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive: null
-        tls: null
-        autoSyncInterval: 0s
-      m3sd:
-        initTimeout: null
-      watchWithRevision: 0
-      newDirectoryMode: null
-    static: null
+    services:
+    - async: false
+      service:
+        zone: embedded
+        env: production
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: embedded
+          endpoints:
+          - 1.1.1.1:2379
+          - 1.1.1.2:2379
+          - 1.1.1.3:2379
+          keepAlive: null
+          tls: null
+          autoSyncInterval: 0s
+        m3sd:
+          initTimeout: null
+        watchWithRevision: 0
+        newDirectoryMode: null
+    statics: []
     seedNodes:
       rootDir: /var/lib/etcd
       initialAdvertisePeerUrls:

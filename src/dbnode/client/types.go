@@ -508,6 +508,12 @@ type Options interface {
 
 	// SchemaRegistry returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetAsyncTopologyInitializers sets the AsyncTopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
 }
 
 // AdminOptions is a set of administration client options.
@@ -646,10 +652,13 @@ type op interface {
 	CompletionFn() completionFn
 }
 
+type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+type enqueueDelayedDoneFn func()
+
 type enqueueChannel interface {
-	enqueue(peersMetadata []receivedBlockMetadata)
-	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
-	get() <-chan []receivedBlockMetadata
+	enqueue(peersMetadata []receivedBlockMetadata) error
+	enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error)
+	get() (<-chan []receivedBlockMetadata, error)
 	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int

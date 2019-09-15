@@ -14,7 +14,7 @@ The operations below include sample cURLs, but you can always review the API doc
 
 #### Recommended (Easy way)
 
-The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.
+The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace/create` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.
 
 For example, the following cURL:
 

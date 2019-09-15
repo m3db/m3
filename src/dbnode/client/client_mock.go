@@ -2264,6 +2264,34 @@ func (mr *MockOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockOptions)(nil).SchemaRegistry))
 }
 
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockOptions) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockOptions)(nil).AsyncTopologyInitializers))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3519,6 +3547,34 @@ func (mr *MockAdminOptionsMockRecorder) SchemaRegistry() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaRegistry", reflect.TypeOf((*MockAdminOptions)(nil).SchemaRegistry))
 }
 
+// SetAsyncTopologyInitializers mocks base method
+func (m *MockAdminOptions) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncTopologyInitializers", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncTopologyInitializers indicates an expected call of SetAsyncTopologyInitializers
+func (mr *MockAdminOptionsMockRecorder) SetAsyncTopologyInitializers(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncTopologyInitializers", reflect.TypeOf((*MockAdminOptions)(nil).SetAsyncTopologyInitializers), value)
+}
+
+// AsyncTopologyInitializers mocks base method
+func (m *MockAdminOptions) AsyncTopologyInitializers() []topology.Initializer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncTopologyInitializers")
+	ret0, _ := ret[0].([]topology.Initializer)
+	return ret0
+}
+
+// AsyncTopologyInitializers indicates an expected call of AsyncTopologyInitializers
+func (mr *MockAdminOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockAdminOptions)(nil).AsyncTopologyInitializers))
+}
+
 // SetOrigin mocks base method
 func (m *MockAdminOptions) SetOrigin(value topology.Host) AdminOptions {
 	m.ctrl.T.Helper()
@@ -4418,9 +4474,11 @@ func (m *MockenqueueChannel) EXPECT() *MockenqueueChannelMockRecorder {
 }
 
 // enqueue mocks base method
-func (m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) {
+func (m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "enqueue", peersMetadata)
+	ret := m.ctrl.Call(m, "enqueue", peersMetadata)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // enqueue indicates an expected call of enqueue
@@ -4430,11 +4488,13 @@ func (mr *MockenqueueChannelMockRecorder) enqueue(peersMetadata interface{}) *go
 }
 
 // enqueueDelayed mocks base method
-func (m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
+func (m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "enqueueDelayed", numToEnqueue)
-	ret0, _ := ret[0].(func([]receivedBlockMetadata))
-	return ret0
+	ret0, _ := ret[0].(enqueueDelayedFn)
+	ret1, _ := ret[1].(enqueueDelayedDoneFn)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // enqueueDelayed indicates an expected call of enqueueDelayed
@@ -4444,11 +4504,12 @@ func (mr *MockenqueueChannelMockRecorder) enqueueDelayed(numToEnqueue interface{
 }
 
 // get mocks base method
-func (m *MockenqueueChannel) get() <-chan []receivedBlockMetadata {
+func (m *MockenqueueChannel) get() (<-chan []receivedBlockMetadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "get")
 	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // get indicates an expected call of get
