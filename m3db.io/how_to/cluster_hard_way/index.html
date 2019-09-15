@@ -1529,7 +1529,7 @@
 
 <p>Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc</p>
 <h2 id="create-namespace-and-initialize-topology">Create Namespace and Initialize Topology</h2>
-<p>The recommended way to create a namespace and initialize a topology is to use the <code>/database/create</code> api. Below is an example.</p>
+<p>The recommended way to create a namespace and initialize a topology is to use the <code>/api/v1/database/create</code> api. Below is an example.</p>
 <p><strong>Note:</strong> In order to create a more custom setup, please refer to the <a href="../../operational_guide/namespace_configuration/">namespace configuration</a> and 
 <a href="../../operational_guide/placement_configuration/">placement configuration</a> guides, though this is discouraged.</p>
 <div class="highlight"><pre><span></span><span class="err">curl</span> <span class="err">-X</span> <span class="err">POST</span> <span class="err">http://localhost:</span><span class="mi">7201</span><span class="err">/api/v</span><span class="mi">1</span><span class="err">/database/create</span> <span class="err">-d</span> <span class="err">&#39;</span><span class="p">{</span>
@@ -1581,6 +1581,7 @@
 20:10:14.764771[I] successfully updated topology to 3 hosts
 </pre></div>
 
+<p>If you need to setup multiple namespaces, you can run the above <code>/api/v1/database/create</code> command multiple times with different namespace configurations.</p>
 <h3 id="replication-factor-rf">Replication factor (RF)</h3>
 <p>Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See <a href="../../operational_guide/replication_and_deployment_in_zones/">Replication Factor Recommendations</a> for more specifics.</p>
 <h3 id="shards">Shards</h3>

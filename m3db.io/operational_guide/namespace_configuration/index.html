@@ -1556,7 +1556,7 @@
 <p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
 <h3 id="adding-a-namespace">Adding a Namespace</h3>
 <h4 id="recommended-easy-way">Recommended (Easy way)</h4>
-<p>The recommended way to add a namespace to M3DB is to use our <code>api/v1/database/namespace</code> endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.</p>
+<p>The recommended way to add a namespace to M3DB is to use our <code>api/v1/database/namespace/create</code> endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.</p>
 <p>For example, the following cURL:</p>
 <div class="highlight"><pre><span></span>curl -X POST &lt;M3_COORDINATOR_IP_ADDRESS&gt;:&lt;CONFIGURED_PORT<span class="o">(</span>default <span class="m">7201</span><span class="o">)</span>&gt;/api/v1/database/namespace/create -d <span class="s1">&#39;{</span>
 <span class="s1">  &quot;namespaceName&quot;: &quot;default_unaggregated&quot;,</span>
