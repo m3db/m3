@@ -20,6 +20,13 @@
 
 package handler
 
+import (
+	"net/http"
+	"strings"
+
+	"github.com/m3db/m3/src/query/block"
+)
+
 // HeaderKeyType is the type for the header key
 type HeaderKeyType int
 
@@ -30,6 +37,35 @@ const (
 	// RoutePrefixV1 is the v1 prefix for all coordinator routes
 	RoutePrefixV1 = "/api/v1"
 
-	// LimitHeader is the header added when series limits are exceeded.
-	LimitHeader = "Series-Limit-Exceeded"
+	// limitHeader is the header added when returned series are limited.
+	limitHeader = "M3-Results-Limited"
+
+	// limitHeaderSeriesLimitApplied is the header applied when fetch results are
+	// maxed.
+	limitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"
 )
+
+// AddWarningHeaders adds any warning headers present in the result's metadata.
+// No-op if no warnings encountered.
+func AddWarningHeaders(w http.ResponseWriter, meta block.ResultMetadata) {
+	ex := meta.Exhaustive
+	warns := len(meta.Warnings)
+	if ex {
+		warns++
+	}
+
+	if warns == 0 {
+		return
+	}
+
+	warnings := make([]string, 0, warns)
+	if ex {
+		warnings = append(warnings, limitHeaderSeriesLimitApplied)
+	}
+
+	for _, warn := range meta.Warnings {
+		warnings = append(warnings, warn.Header())
+	}
+
+	w.Header().Set(limitHeader, strings.Join(warnings, ","))
+}

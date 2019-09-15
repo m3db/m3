@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
@@ -127,7 +126,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	iters, attrs, exhaustive, err := accumulator.FinalResultWithAttrs()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	defer accumulator.Close()
 	if err != nil {
 		return nil, err
@@ -139,10 +138,10 @@ func (s *m3storage) Fetch(
 	}
 
 	fetchResult, err := storage.SeriesIteratorsToFetchResult(
-		iters,
+		result.SeriesIterators,
 		s.readWorkerPool,
 		false,
-		exhaustive,
+		result.Metadata,
 		enforcer,
 		s.opts.TagOptions(),
 	)
@@ -188,7 +187,7 @@ func (s *m3storage) FetchBlocks(
 			SetSplitSeriesByBlock(true)
 	}
 
-	raw, exhaustive, _, err := s.FetchCompressed(ctx, query, options)
+	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
 	}
@@ -209,15 +208,15 @@ func (s *m3storage) FetchBlocks(
 	// Alternative would be to fetch a new MutableSeriesIterators() instance from
 	// the pool, populate it, and then return the original to the pool, which
 	// feels wasteful.
-	iters := raw.Iters()
+	iters := result.SeriesIterators.Iters()
 	for i, iter := range iters {
 		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
 	}
 
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		raw,
+		result.SeriesIterators,
 		bounds,
-		exhaustive,
+		result.Metadata,
 		opts,
 	)
 
@@ -226,8 +225,8 @@ func (s *m3storage) FetchBlocks(
 	}
 
 	return block.Result{
-		Blocks:     blocks,
-		Exhaustive: exhaustive,
+		Blocks: blocks,
+		// Exhaustive: exhaustive,
 	}, nil
 }
 
@@ -235,19 +234,21 @@ func (s *m3storage) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (encoding.SeriesIterators, bool, Cleanup, error) {
+) (SeriesFetchResult, Cleanup, error) {
 	accumulator, err := s.fetchCompressed(ctx, query, options)
 	if err != nil {
-		return nil, false, noop, err
+		return SeriesFetchResult{
+			Metadata: block.NewResultMetadata(),
+		}, noop, err
 	}
 
-	iters, exhaustive, err := accumulator.FinalResult()
+	result, err := accumulator.FinalResult()
 	if err != nil {
 		accumulator.Close()
-		return nil, exhaustive, noop, err
+		return result, noop, err
 	}
 
-	return iters, exhaustive, accumulator.Close, nil
+	return result, accumulator.Close, nil
 }
 
 // fetches compressed series, returning a MultiFetchResult accumulator
@@ -324,9 +325,16 @@ func (s *m3storage) fetchCompressed(
 			session := namespace.Session()
 			ns := namespace.NamespaceID()
 			iters, exhaustive, err := session.FetchTagged(ns, m3query, opts)
+			meta := block.NewResultMetadata()
+			meta.Exhaustive = exhaustive
+			fetchResult := SeriesFetchResult{
+				SeriesIterators: iters,
+				Metadata:        meta,
+			}
+
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(namespace.Options().Attributes(), iters, exhaustive, err)
+			result.Add(fetchResult, namespace.Options().Attributes(), err)
 			wg.Done()
 		}()
 	}
@@ -348,14 +356,14 @@ func (s *m3storage) SearchSeries(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	tagResult, exhaustive, cleanup, err := s.SearchCompressed(ctx, query, options)
+	tagResult, cleanup, err := s.SearchCompressed(ctx, query, options)
 	defer cleanup()
 	if err != nil {
 		return nil, err
 	}
 
-	metrics := make(models.Metrics, len(tagResult))
-	for i, result := range tagResult {
+	metrics := make(models.Metrics, len(tagResult.Tags))
+	for i, result := range tagResult.Tags {
 		m, err := storage.FromM3IdentToMetric(result.ID,
 			result.Iter, s.opts.TagOptions())
 		if err != nil {
@@ -366,8 +374,8 @@ func (s *m3storage) SearchSeries(
 	}
 
 	return &storage.SearchResults{
-		Metrics:    metrics,
-		Exhaustive: exhaustive,
+		Metrics:  metrics,
+		Metadata: tagResult.Metadata,
 	}, nil
 }
 
@@ -476,10 +484,12 @@ func (s *m3storage) CompleteTags(
 				return
 			}
 
+			metadata := block.NewResultMetadata()
+			metadata.Exhaustive = exhaustive
 			result := &storage.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
-				Exhaustive:       exhaustive,
+				Metadata:         metadata,
 			}
 
 			if err := accumulatedTags.Add(result); err != nil {
@@ -501,17 +511,21 @@ func (s *m3storage) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) ([]MultiTagResult, bool, Cleanup, error) {
+) (TagResult, Cleanup, error) {
 	// Check if the query was interrupted.
+	tagResult := TagResult{
+		Metadata: block.NewResultMetadata(),
+	}
+
 	select {
 	case <-ctx.Done():
-		return nil, false, nil, ctx.Err()
+		return tagResult, nil, ctx.Err()
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return nil, false, noop, err
+		return tagResult, noop, err
 	}
 
 	var (
@@ -533,7 +547,7 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	if len(namespaces) == 0 {
-		return nil, true, noop, errNoNamespacesConfigured
+		return tagResult, noop, errNoNamespacesConfigured
 	}
 
 	wg.Add(len(namespaces))
@@ -543,15 +557,17 @@ func (s *m3storage) SearchCompressed(
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
 			iter, exhaustive, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
-			result.Add(iter, exhaustive, err)
+			meta := block.NewResultMetadata()
+			meta.Exhaustive = exhaustive
+			result.Add(iter, meta, err)
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
 
-	tagResult, exhaustive, err := result.FinalResult()
-	return tagResult, exhaustive, result.Close, err
+	tagResult, err = result.FinalResult()
+	return tagResult, result.Close, err
 }
 
 func (s *m3storage) Write(

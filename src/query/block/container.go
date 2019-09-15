@@ -86,6 +86,8 @@ func (b *containerBlock) AddBlock(bl Block) error {
 			"expected %s, got %s", m.String(), blockMeta.String())
 	}
 
+	b.meta.ResultMetadata = b.meta.ResultMetadata.
+		CombineMetadata(bl.Meta().ResultMetadata)
 	b.blocks = append(b.blocks, bl)
 	return nil
 }

@@ -164,8 +164,8 @@ func combineMetaAndSeriesMeta(
 		otherSeriesMeta[i].Tags = m.Tags.Add(otherMetaTagsToAdd)
 	}
 
-	// NB: if either side is non-exhaustive, the result is also non-exhaustive.
-	meta.Exhaustive = meta.Exhaustive && otherMeta.Exhaustive
+	meta.ResultMetadata = meta.ResultMetadata.
+		CombineMetadata(otherMeta.ResultMetadata)
 
 	return meta,
 		seriesMeta,

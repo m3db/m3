@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -89,6 +90,7 @@ func encodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 
 	return &rpc.FetchResponse{
 		Series: series,
+		Meta:   encodeResultMetadata(results.Metadata),
 	}
 }
 
@@ -333,4 +335,35 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 	}
 
 	return result, nil
+}
+
+func encodeResultMetadata(meta block.ResultMetadata) *rpc.ResultMetadata {
+	warnings := make([]*rpc.Warning, 0, len(meta.Warnings))
+	for _, warn := range meta.Warnings {
+		warnings = append(warnings, &rpc.Warning{
+			Name:    warn.Name,
+			Message: warn.Message,
+		})
+	}
+
+	return &rpc.ResultMetadata{
+		Exhaustive: meta.Exhaustive,
+		Warnings:   warnings,
+	}
+}
+
+func decodeResultMetadata(meta *rpc.ResultMetadata) block.ResultMetadata {
+	rpcWarnings := meta.GetWarnings()
+	warnings := make([]block.Warning, 0, len(rpcWarnings))
+	for _, warn := range rpcWarnings {
+		warnings = append(warnings, block.Warning{
+			Name:    warn.Name,
+			Message: warn.Message,
+		})
+	}
+
+	return block.ResultMetadata{
+		Exhaustive: meta.Exhaustive,
+		Warnings:   warnings,
+	}
 }

@@ -143,7 +143,8 @@ func encodeToCompressedCompleteTagsDefaultResult(
 				Values: values,
 			},
 		},
-		Exhaustive: results.Exhaustive,
+
+		Meta: encodeResultMetadata(results.Metadata),
 	}, nil
 }
 
@@ -162,7 +163,8 @@ func encodeToCompressedCompleteTagsNameOnlyResult(
 				Names: names,
 			},
 		},
-		Exhaustive: results.Exhaustive,
+
+		Meta: encodeResultMetadata(results.Metadata),
 	}, nil
 }
 

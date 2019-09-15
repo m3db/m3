@@ -37,17 +37,19 @@ func FetchResultToBlockResult(
 	lookbackDuration time.Duration,
 	enforcer cost.ChainedEnforcer,
 ) (block.Result, error) {
-	multiBlock, err := NewMultiSeriesBlock(result.SeriesList, query,
-		result.Exhaustive, lookbackDuration)
+	multiBlock, err := NewMultiSeriesBlock(result, query, lookbackDuration)
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	accountedBlock := block.NewAccountedBlock(
 		NewMultiBlockWrapper(multiBlock), enforcer)
 
 	return block.Result{
-		Blocks: []block.Block{accountedBlock},
+		Blocks:   []block.Block{accountedBlock},
+		Metadata: result.Metadata,
 	}, nil
 }
 
@@ -124,11 +126,10 @@ type multiSeriesBlock struct {
 	seriesList       ts.SeriesList
 }
 
-// NewMultiSeriesBlock returns a new unconsolidated block
+// NewMultiSeriesBlock returns a new unconsolidated block from a fetch result.
 func NewMultiSeriesBlock(
-	seriesList ts.SeriesList,
+	fetchResult *FetchResult,
 	query *FetchQuery,
-	exhaustive bool,
 	lookbackDuration time.Duration,
 ) (block.UnconsolidatedBlock, error) {
 	meta := block.Metadata{
@@ -137,11 +138,12 @@ func NewMultiSeriesBlock(
 			Duration: query.End.Sub(query.Start),
 			StepSize: query.Interval,
 		},
-		Exhaustive: exhaustive,
+
+		ResultMetadata: fetchResult.Metadata,
 	}
 
 	return multiSeriesBlock{
-		seriesList:       seriesList,
+		seriesList:       fetchResult.SeriesList,
 		meta:             meta,
 		lookbackDuration: lookbackDuration,
 	}, nil

@@ -105,8 +105,8 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	}
 
 	return ts.SeriesList{
-		Values:     result.SeriesList,
-		Exhaustive: result.Exhaustive,
+		Values: result.SeriesList,
+		Metadata:   result.Metadata,
 	}, nil
 }
 

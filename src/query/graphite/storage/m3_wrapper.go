@@ -194,5 +194,5 @@ func (s *m3WrappedStore) FetchByQuery(
 		return nil, err
 	}
 
-	return NewFetchResult(ctx, series, m3result.Exhaustive), nil
+	return NewFetchResult(ctx, series, m3result.Metadata), nil
 }

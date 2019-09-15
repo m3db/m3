@@ -120,7 +120,7 @@ func (s *grpcServer) Fetch(
 		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 	}
 
-	result, exhaustive, cleanup, err := s.storage.FetchCompressed(ctx,
+	result, cleanup, err := s.storage.FetchCompressed(ctx,
 		storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
@@ -134,18 +134,19 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	results, err := encodeToCompressedSeries(result, pools)
+	results, err := encodeToCompressedSeries(result.SeriesIterators, pools)
 	if err != nil {
 		logger.Error("unable to compress query", zap.Error(err))
 		return err
 	}
 
+	resultMeta := encodeResultMetadata(result.Metadata)
 	size := min(defaultBatch, len(results))
 	for ; len(results) > 0; results = results[size:] {
 		size = min(size, len(results))
 		response := &rpc.FetchResponse{
-			Series:     results[:size],
-			Exhaustive: exhaustive,
+			Series: results[:size],
+			Meta:   resultMeta,
 		}
 
 		err = stream.Send(response)
@@ -176,7 +177,7 @@ func (s *grpcServer) Search(
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Remote = true
 	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-	results, exhaustive, cleanup, err := s.storage.SearchCompressed(ctx,
+	searchResults, cleanup, err := s.storage.SearchCompressed(ctx,
 		searchQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
@@ -190,17 +191,17 @@ func (s *grpcServer) Search(
 		return err
 	}
 
+	results := searchResults.Tags
 	size := min(defaultBatch, len(results))
 	for ; len(results) > 0; results = results[size:] {
 		size = min(size, len(results))
 		response, err := encodeToCompressedSearchResult(results[:size],
-			exhaustive, pools)
+			searchResults.Metadata, pools)
 		if err != nil {
 			logger.Error("unable to encode search result", zap.Error(err))
 			return err
 		}
 
-		response.Exhaustive = exhaustive
 		err = stream.Send(response)
 		if err != nil {
 			logger.Error("unable to send search result", zap.Error(err))
@@ -242,7 +243,7 @@ func (s *grpcServer) CompleteTags(
 		results := &storage.CompleteTagsResult{
 			CompleteNameOnly: completed.CompleteNameOnly,
 			CompletedTags:    tags[:size],
-			Exhaustive:       completed.Exhaustive,
+			Metadata:         completed.Metadata,
 		}
 
 		response, err := encodeToCompressedCompleteTagsResult(results)

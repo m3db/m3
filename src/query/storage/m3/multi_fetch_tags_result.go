@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/block"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -31,17 +32,17 @@ const initSize = 10
 
 type multiSearchResult struct {
 	sync.Mutex
-	exhaustive bool
-	err        xerrors.MultiError
-	seenIters  []client.TaggedIDsIterator // track known iterators to avoid leaking
-	dedupeMap  map[string]MultiTagResult
+	meta      block.ResultMetadata
+	err       xerrors.MultiError
+	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
+	dedupeMap map[string]MultiTagResult
 }
 
 // NewMultiFetchTagsResult builds a new multi fetch tags result
 func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
-		dedupeMap:  make(map[string]MultiTagResult, initSize),
-		exhaustive: true,
+		dedupeMap: make(map[string]MultiTagResult, initSize),
+		meta:      block.NewResultMetadata(),
 	}
 }
 
@@ -59,13 +60,13 @@ func (r *multiSearchResult) Close() error {
 	return nil
 }
 
-func (r *multiSearchResult) FinalResult() ([]MultiTagResult, bool, error) {
+func (r *multiSearchResult) FinalResult() (TagResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
 	err := r.err.FinalError()
 	if err != nil {
-		return nil, r.exhaustive, err
+		return TagResult{Metadata: r.meta}, err
 	}
 
 	result := make([]MultiTagResult, 0, len(r.dedupeMap))
@@ -73,12 +74,15 @@ func (r *multiSearchResult) FinalResult() ([]MultiTagResult, bool, error) {
 		result = append(result, it)
 	}
 
-	return result, r.exhaustive, nil
+	return TagResult{
+		Tags:     result,
+		Metadata: r.meta,
+	}, nil
 }
 
 func (r *multiSearchResult) Add(
 	newIterator client.TaggedIDsIterator,
-	exhaustive bool,
+	meta block.ResultMetadata,
 	err error,
 ) {
 	r.Lock()
@@ -91,9 +95,9 @@ func (r *multiSearchResult) Add(
 
 	if r.seenIters == nil {
 		r.seenIters = make([]client.TaggedIDsIterator, 0, initSize)
-		r.exhaustive = exhaustive
+		r.meta = meta
 	} else {
-		r.exhaustive = r.exhaustive && exhaustive
+		r.meta = r.meta.CombineMetadata(meta)
 	}
 
 	r.seenIters = append(r.seenIters, newIterator)

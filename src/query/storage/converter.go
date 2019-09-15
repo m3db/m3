@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -305,7 +306,7 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
-	exhaustive bool,
+	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
@@ -319,7 +320,7 @@ func decompressSequentially(
 
 	return &FetchResult{
 		SeriesList: seriesList,
-		Exhaustive: exhaustive,
+		Metadata:   metadata,
 	}, nil
 }
 
@@ -327,7 +328,7 @@ func decompressConcurrently(
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
-	exhaustive bool,
+	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, len(iters))
@@ -374,7 +375,7 @@ func decompressConcurrently(
 
 	return &FetchResult{
 		SeriesList: seriesList,
-		Exhaustive: exhaustive,
+		Metadata:   metadata,
 	}, nil
 }
 
@@ -383,7 +384,7 @@ func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
-	exhaustive bool,
+	metadata block.ResultMetadata,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
@@ -393,9 +394,9 @@ func SeriesIteratorsToFetchResult(
 
 	iters := seriesIterators.Iters()
 	if readWorkerPool == nil {
-		return decompressSequentially(iters, enforcer, exhaustive, tagOptions)
+		return decompressSequentially(iters, enforcer, metadata, tagOptions)
 	}
 
 	return decompressConcurrently(iters, readWorkerPool,
-		enforcer, exhaustive, tagOptions)
+		enforcer, metadata, tagOptions)
 }

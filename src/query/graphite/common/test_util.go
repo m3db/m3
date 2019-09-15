@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
@@ -153,5 +154,5 @@ func (s *MovingAverageStorage) fetchByIDs(
 		seriesList = append(seriesList, series)
 	}
 
-	return storage.NewFetchResult(ctx, seriesList, true), nil
+	return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
 }

@@ -28,15 +28,15 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -103,11 +103,9 @@ func (h *renderHandler) serveHTTP(
 	}
 
 	var (
-		results       = make([]ts.SeriesList, len(p.Targets))
-		errorCh       = make(chan error, 1)
-		exhaustive    = true
-		exhaustiveSet bool
-		mu            sync.Mutex
+		results = make([]ts.SeriesList, len(p.Targets))
+		errorCh = make(chan error, 1)
+		mu      sync.Mutex
 	)
 
 	ctx := common.NewContext(common.ContextOptions{
@@ -122,6 +120,7 @@ func (h *renderHandler) serveHTTP(
 	defer ctx.Close()
 
 	var wg sync.WaitGroup
+	meta := block.NewResultMetadata()
 	wg.Add(len(p.Targets))
 	for i, target := range p.Targets {
 		i, target := i, target
@@ -166,15 +165,9 @@ func (h *renderHandler) serveHTTP(
 			}
 
 			mu.Lock()
-			results[i] = targetSeries
-			if !exhaustiveSet {
-				exhaustiveSet = true
-				exhaustive = targetSeries.Exhaustive
-			} else {
-				exhaustive = exhaustive && targetSeries.Exhaustive
-			}
-
+			meta = meta.CombineMetadata(targetSeries.Metadata)
 			mu.Unlock()
+			results[i] = targetSeries
 		}()
 	}
 
@@ -209,10 +202,7 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	if !exhaustive {
-		w.Header().Set(handler.LimitHeader, "true")
-	}
-
+	handler.AddWarningHeaders(w, meta)
 	err = WriteRenderResponse(w, response, p.Format)
 	return respError{err: err, code: http.StatusOK}
 }

@@ -73,7 +73,7 @@ enum MetricsType {
 
 message FetchResponse {
 	repeated Series series = 1;
-	bool exhaustive        = 2;
+	ResultMetadata meta    = 2;
 }
 
 message Series {
@@ -156,7 +156,7 @@ message SearchResponse {
 		M3TagProperties compressed = 2;
 	}
 
-	bool exhaustive              = 3;
+	ResultMetadata meta          = 3;
 }
 
 enum CompleteTagsType {
@@ -177,6 +177,7 @@ message CompleteTagsRequest {
 	oneof matchers {
 		TagMatchers tagMatchers          = 1;
 	}
+
 	CompleteTagsRequestOptions options = 2;
 }
 
@@ -195,9 +196,19 @@ message TagValues {
 
 message CompleteTagsResponse {
 	oneof value {
-		TagValues default  = 1;
-		TagNames namesOnly = 2;
+		TagValues default   = 1;
+		TagNames namesOnly  = 2;
 	}
 
-	bool exhaustive      = 3;
+	ResultMetadata meta   = 3;
+}
+
+message ResultMetadata {
+	bool exhaustive           = 1;
+	repeated Warning warnings = 2;
+}
+
+message Warning {
+	bytes name    = 1;
+	bytes message = 2;
 }

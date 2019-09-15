@@ -178,7 +178,7 @@ func generateBlocks(
 	blocks, err := ConvertM3DBSeriesIterators(
 		encoding.NewSeriesIterators(iterators, nil),
 		bounds,
-		true,
+		block.NewResultMetadata(),
 		opts,
 	)
 	require.NoError(t, err)

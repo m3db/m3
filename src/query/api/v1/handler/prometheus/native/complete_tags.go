@@ -86,12 +86,8 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if !result.Exhaustive {
-		w.Header().Set(handler.LimitHeader, "true")
-	}
-
+	handler.AddWarningHeaders(w, result.Metadata)
 	if err = prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
 	}
 }

@@ -22,6 +22,7 @@ package remote
 
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -61,7 +62,7 @@ func multiTagResultsToM3TagProperties(
 // search result.
 func encodeToCompressedSearchResult(
 	results []m3.MultiTagResult,
-	exhaustive bool,
+	metadata block.ResultMetadata,
 	pools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
 	if pools == nil {
@@ -82,7 +83,8 @@ func encodeToCompressedSearchResult(
 		Value: &rpc.SearchResponse_Compressed{
 			Compressed: compressedTags,
 		},
-		Exhaustive: exhaustive,
+
+		Meta: encodeResultMetadata(metadata),
 	}, nil
 }
 

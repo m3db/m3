@@ -194,7 +194,7 @@ func (s *fanoutStorage) FetchBlocks(
 
 func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(requests))
-	result := &storage.FetchResult{SeriesList: seriesList, LocalOnly: true}
+	meta := block.NewResultMetadata()
 	for _, req := range requests {
 		fetchreq, ok := req.(*fetchRequest)
 		if !ok {
@@ -210,14 +210,14 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 			continue
 		}
 
-		if fetchreq.store.Type() != storage.TypeLocalDC {
-			result.LocalOnly = false
-		}
-
-		result.SeriesList = append(result.SeriesList, fetchreq.result.SeriesList...)
+		meta = meta.CombineMetadata(fetchreq.result.Metadata)
+		seriesList = append(seriesList, fetchreq.result.SeriesList...)
 	}
 
-	return result, nil
+	return &storage.FetchResult{
+		Metadata:   meta,
+		SeriesList: seriesList,
+	}, nil
 }
 
 func (s *fanoutStorage) SearchSeries(
@@ -227,12 +227,12 @@ func (s *fanoutStorage) SearchSeries(
 ) (*storage.SearchResults, error) {
 	var metrics models.Metrics
 	stores := filterStores(s.stores, s.fetchFilter, query)
-	exhaustive := true
+	metadata := block.NewResultMetadata()
 	for _, store := range stores {
 		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
-			exhaustive = false
 			if warning, err := storage.IsWarning(store, err); warning {
+				metadata.AddWarning(store.Name(), err.Error())
 				s.instrumentOpts.Logger().Warn(
 					"partial results: fanout to store returned warning",
 					zap.Error(err),
@@ -253,8 +253,8 @@ func (s *fanoutStorage) SearchSeries(
 	}
 
 	result := &storage.SearchResults{
-		Metrics:    metrics,
-		Exhaustive: exhaustive,
+		Metrics:  metrics,
+		Metadata: metadata,
 	}
 
 	return result, nil
@@ -405,13 +405,17 @@ func (f *fetchRequest) Process(ctx context.Context) error {
 	result, err := f.store.Fetch(ctx, f.query, f.options)
 	if err != nil {
 		if warning, err := storage.IsWarning(f.store, err); warning {
+			result.Metadata.AddWarning(f.store.Name(), err.Error())
 			f.logger.Warn(
 				"partial results: fanout to store returned warning",
 				zap.Error(err),
 				zap.String("store", f.store.Name()),
 				zap.String("function", "Fetch"))
 
-			f.result = &storage.FetchResult{}
+			f.result = &storage.FetchResult{
+				Metadata: result.Metadata,
+			}
+
 			return nil
 		}
 

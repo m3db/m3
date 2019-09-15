@@ -42,8 +42,8 @@ func NewScalar(
 	val float64,
 	meta Metadata,
 ) Block {
-	// NB: sanity check to ensure scalar values are always marked exhaustive.
-	meta.Exhaustive = true
+	// NB: sanity check to ensure scalar values always have clean metadata.
+	meta.ResultMetadata = NewResultMetadata()
 	return &Scalar{
 		val:  val,
 		meta: meta,

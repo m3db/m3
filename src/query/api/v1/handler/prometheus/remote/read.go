@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -121,7 +122,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, exhaustive, err := h.read(ctx, w, req, timeout, fetchOpts)
+	readResult, err := h.read(ctx, w, req, timeout, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -130,7 +131,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &prompb.ReadResponse{
-		Results: result,
+		Results: readResult.result,
 	}
 
 	data, err := proto.Marshal(resp)
@@ -143,9 +144,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
-	if !exhaustive {
-		w.Header().Set(handler.LimitHeader, "true")
-	}
+	handler.AddWarningHeaders(w, readResult.meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -175,13 +174,18 @@ func (h *PromReadHandler) parseRequest(
 	return &req, nil
 }
 
+type readResult struct {
+	result []*prompb.QueryResult
+	meta   block.ResultMetadata
+}
+
 func (h *PromReadHandler) read(
 	reqCtx context.Context,
 	w http.ResponseWriter,
 	r *prompb.ReadRequest,
 	timeout time.Duration,
 	fetchOpts *storage.FetchOptions,
-) ([]*prompb.QueryResult, bool, error) {
+) (readResult, error) {
 	var (
 		queryCount  = len(r.Queries)
 		promResults = make([]*prompb.QueryResult, queryCount)
@@ -191,11 +195,10 @@ func (h *PromReadHandler) read(
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
 
-		wg            sync.WaitGroup
-		mu            sync.Mutex
-		multiErr      xerrors.MultiError
-		exhaustiveSet bool
-		exhaustive    = true
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		multiErr xerrors.MultiError
+		meta     = block.NewResultMetadata()
 	)
 
 	wg.Add(queryCount)
@@ -224,13 +227,7 @@ func (h *PromReadHandler) read(
 			}
 
 			mu.Lock()
-			if !exhaustiveSet {
-				exhaustiveSet = true
-				exhaustive = result.Exhaustive
-			} else {
-				exhaustive = exhaustive && result.Exhaustive
-			}
-
+			meta = meta.CombineMetadata(result.Metadata)
 			mu.Unlock()
 			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
 			promResults[i] = promRes
@@ -243,8 +240,8 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return nil, true, err
+		return readResult{nil, meta}, err
 	}
 
-	return promResults, exhaustive, nil
+	return readResult{promResults, meta}, nil
 }

@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -59,9 +60,9 @@ type FetchResult struct {
 	// SeriesList is the aggregated list of results across all underlying storage
 	// calls.
 	SeriesList []*ts.Series
-	// Exhaustive specified whether the result is a full set of data, or has been
-	// rate limited.
-	Exhaustive bool
+	// Metadata contains any additional metadata indicating information about
+	// series execution.
+	Metadata block.ResultMetadata
 }
 
 // Close will return the fetch result to the pool.
@@ -88,12 +89,12 @@ var (
 func NewFetchResult(
 	ctx context.Context,
 	seriesList []*ts.Series,
-	exhaustive bool,
+	resultMeta block.ResultMetadata,
 ) *FetchResult {
 	fetchResult := fetchResultPool.Get().(*FetchResult)
 	fetchResult.Reset()
 	fetchResult.SeriesList = seriesList
-	fetchResult.Exhaustive = exhaustive
+	fetchResult.Metadata = resultMeta
 	ctx.RegisterCloser(fetchResult)
 	return fetchResult
 }

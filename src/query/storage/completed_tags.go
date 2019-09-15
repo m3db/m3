@@ -25,12 +25,14 @@ import (
 	"errors"
 	"sort"
 	"sync"
+
+	"github.com/m3db/m3/src/query/block"
 )
 
 type completeTagsResultBuilder struct {
 	sync.RWMutex
 	nameOnly    bool
-	exhaustive  bool
+	metadata    block.ResultMetadata
 	tagBuilders map[string]completedTagBuilder
 }
 
@@ -39,8 +41,8 @@ func NewCompleteTagsResultBuilder(
 	nameOnly bool,
 ) CompleteTagsResultBuilder {
 	return &completeTagsResultBuilder{
-		nameOnly:   nameOnly,
-		exhaustive: true,
+		nameOnly: nameOnly,
+		metadata: block.NewResultMetadata(),
 	}
 }
 
@@ -58,7 +60,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 		b.tagBuilders = make(map[string]completedTagBuilder, len(completedTags))
 	}
 
-	b.exhaustive = b.exhaustive && tagResult.Exhaustive
+	b.metadata = b.metadata.CombineMetadata(tagResult.Metadata)
 	if nameOnly {
 		for _, tag := range completedTags {
 			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
@@ -105,7 +107,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 		return CompleteTagsResult{
 			CompleteNameOnly: true,
 			CompletedTags:    result,
-			Exhaustive:       b.exhaustive,
+			Metadata:         b.metadata,
 		}
 	}
 
@@ -120,7 +122,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 	return CompleteTagsResult{
 		CompleteNameOnly: false,
 		CompletedTags:    result,
-		Exhaustive:       b.exhaustive,
+		Metadata:         b.metadata,
 	}
 }
 

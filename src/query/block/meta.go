@@ -29,9 +29,13 @@ import (
 // Metadata is metadata for a block, describing size and common tags accross
 // constituent series.
 type Metadata struct {
-	Bounds     models.Bounds
-	Tags       models.Tags // Common tags across different series
-	Exhaustive bool
+	// Bounds represents the time bounds for all series in the block.
+	Bounds models.Bounds
+	// Tags contains any tags common across all series in the block.
+	Tags models.Tags
+	// ResultMetadata contains metadata from any database access operations during
+	// fetching block details.
+	ResultMetadata ResultMetadata
 }
 
 // Equals returns a boolean reporting whether the compared metadata has equal
@@ -43,4 +47,52 @@ func (m Metadata) Equals(other Metadata) bool {
 // String returns a string representation of metadata.
 func (m Metadata) String() string {
 	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
+}
+
+// ResultMetadata describes metadata common to each type of query results,
+// indicating any additional information about the result.
+type ResultMetadata struct {
+	// LocalOnly indicates that this query was executed only on the local store.
+	LocalOnly bool
+	// Exhaustive indicates whether the underlying data set presents a full
+	// collection of retrieved data.
+	Exhaustive bool
+	// Warnings is a list of warnings that indicate potetitally partial or
+	// incomplete results.
+	Warnings []Warning
+}
+
+func NewResultMetadata() ResultMetadata {
+	return ResultMetadata{
+		LocalOnly:  true,
+		Exhaustive: true,
+	}
+}
+
+func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
+	return ResultMetadata{
+		LocalOnly:  m.LocalOnly && other.LocalOnly,
+		Exhaustive: m.Exhaustive && other.Exhaustive,
+		Warnings:   append(m.Warnings, other.Warnings...),
+	}
+}
+
+func (m *ResultMetadata) AddWarning(name string, message string) {
+	m.Warnings = append(m.Warnings, Warning{
+		Name:    []byte(name),
+		Message: []byte(message),
+	})
+}
+
+// Warning is a message that indicates potential partial or incomplete results.
+type Warning struct {
+	// Name is the name of the store originating the warning.
+	Name []byte
+	// Message is the content of the warning message.
+	Message []byte
+}
+
+// Header formats the warning into a format to send in a response header.
+func (w Warning) Header() string {
+	return fmt.Sprintf("&s_&s", string(w.Name), string(w.Message))
 }

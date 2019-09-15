@@ -104,7 +104,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, exhaustive, err := read(ctx, h.engine, queryOpts, fetchOpts,
+	result, err := read(ctx, h.engine, queryOpts, fetchOpts,
 		h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -114,9 +114,6 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	if !exhaustive {
-		w.Header().Set(handler.LimitHeader, "true")
-	}
-
-	renderResultsInstantaneousJSON(w, result)
+	handler.AddWarningHeaders(w, result.meta)
+	renderResultsInstantaneousJSON(w, result.series)
 }

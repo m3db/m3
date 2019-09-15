@@ -28,7 +28,6 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 
@@ -132,14 +131,13 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 }
 
 // FetchCompressed mocks base method
-func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (encoding.SeriesIterators, bool, Cleanup, error) {
+func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (SeriesFetchResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(Cleanup)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(SeriesFetchResult)
+	ret1, _ := ret[1].(Cleanup)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FetchCompressed indicates an expected call of FetchCompressed
@@ -163,14 +161,13 @@ func (mr *MockStorageMockRecorder) Name() *gomock.Call {
 }
 
 // SearchCompressed mocks base method
-func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) ([]MultiTagResult, bool, Cleanup, error) {
+func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (TagResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].([]MultiTagResult)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(Cleanup)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(TagResult)
+	ret1, _ := ret[1].(Cleanup)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // SearchCompressed indicates an expected call of SearchCompressed

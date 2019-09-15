@@ -25,6 +25,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
 )
@@ -636,9 +637,9 @@ type SeriesList struct {
 	Values []*Series
 	// SortApplied specifies whether a specific sort order has been applied.
 	SortApplied bool
-	// Exhaustive specified whether the result is a full set of data, or has been
-	// rate limited.
-	Exhaustive bool
+	// Metadata contains any additional metadata indicating information about
+	// series execution.
+	Metadata block.ResultMetadata
 }
 
 // Len returns the length of the list.

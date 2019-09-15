@@ -189,9 +189,14 @@ type Builder interface {
 	// BuildAsType builds the block, forcing it to the given BlockType.
 	BuildAsType(blockType BlockType) Block
 }
+
+// Result is a fetch result containing multiple blocks optionally split across
+// time boundaries.
 type Result struct {
-	Blocks     []Block
-	Exhaustive bool
+	// Blocks is a list of blocks, optionally split across time boundaries.
+	Blocks []Block
+	// Metadata contains information on fetch status.
+	Metadata ResultMetadata
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.
