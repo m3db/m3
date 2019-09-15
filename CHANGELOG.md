@@ -5,10 +5,10 @@
 ## Features
 
 - **M3Query**: Federated queries (e.g. for cross region/zone queries) configurable to return a warning and partial results than a hard error to route around unhealthy regions (#1938)
-- **M3DB**: Add ability to replicate writes best effort directly to multiple clusters by specifying multiple etcd clusters for M3DB client (#1859)
-- **M3Coordinator**: Add ability to replicate Prometheus remote write requests by forwarding the compressed body to downstream remote write endpoints (#1922, #1940)
 - **M3Query**: Add ability to turn on GRPC reflection for testing query endpoints using utilities like grpcurl (#1856)
 - **M3Query**: Add ability to use multiple config files for config overrides (#1934)
+- **M3DB**: Add ability to replicate writes best effort directly to multiple clusters by specifying multiple etcd clusters for M3DB client (#1859)
+- **M3Coordinator**: Add ability to replicate Prometheus remote write requests by forwarding the compressed body to downstream remote write endpoints (#1922, #1940)
 
 ## Bug Fixes
 
