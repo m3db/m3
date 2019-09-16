@@ -42,6 +42,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/pkg/profile"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,12 +152,13 @@ func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 
 		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
 		j := 0
-		for i, block := range blocks {
-			iters, err := block.StepIter()
+		for i, bl := range blocks {
+			iters, err := bl.StepIter()
 			require.NoError(t, err)
+			assert.Equal(t, block.BlockM3TSZCompressed, bl.Info().Type())
 
-			require.True(t, bounds.Equals(iters.Meta().Bounds))
-			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
+			require.True(t, bounds.Equals(bl.Meta().Bounds))
+			verifyMetas(t, i, bl.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				step := iters.Current()
 				vals := step.Values()
@@ -303,8 +305,8 @@ func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 			require.NoError(t, err)
 
 			j := 0
-			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
-			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
+			idx := verifyBoundsAndGetBlockIndex(t, bounds, block.Meta().Bounds)
+			verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				step := iters.Current()
 				vals := step.Values()

@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/dice"
@@ -61,7 +62,7 @@ type recordFn func(namespace ident.ID, shard databaseShard, diffRes repair.Metad
 type shardRepairer struct {
 	opts     Options
 	rpopts   repair.Options
-	client   client.AdminClient
+	clients  []client.AdminClient
 	recordFn recordFn
 	logger   *zap.Logger
 	scope    tally.Scope
@@ -73,12 +74,12 @@ func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer
 	scope := iopts.MetricsScope().SubScope("repair")
 
 	r := shardRepairer{
-		opts:   opts,
-		rpopts: rpopts,
-		client: rpopts.AdminClient(),
-		logger: iopts.Logger(),
-		scope:  scope,
-		nowFn:  opts.ClockOptions().NowFn(),
+		opts:    opts,
+		rpopts:  rpopts,
+		clients: rpopts.AdminClients(),
+		logger:  iopts.Logger(),
+		scope:   scope,
+		nowFn:   opts.ClockOptions().NowFn(),
 	}
 	r.recordFn = r.recordDifferences
 
@@ -96,21 +97,37 @@ func (r shardRepairer) Repair(
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
-	session, err := r.client.DefaultAdminSession()
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
+	var sessions []sessionAndTopo
+	for _, c := range r.clients {
+		session, err := c.DefaultAdminSession()
+		if err != nil {
+			fmtErr := fmt.Errorf("error obtaining default admin session: %v", err)
+			return repair.MetadataComparisonResult{}, fmtErr
+		}
+		topo, err := session.TopologyMap()
+		if err != nil {
+			fmtErr := fmt.Errorf("error obtaining topology map: %v", err)
+			return repair.MetadataComparisonResult{}, fmtErr
+		}
+
+		sessions = append(sessions, sessionAndTopo{
+			session: session,
+			topo:    topo,
+		})
 	}
 
 	var (
-		start  = tr.Start
-		end    = tr.End
-		origin = session.Origin()
+		start = tr.Start
+		end   = tr.End
+		// Guaranteed to have at least one session and all should have an identical
+		// origin (both assumptions guaranteed by options validation).
+		origin = sessions[0].session.Origin()
 	)
 
 	metadata := repair.NewReplicaMetadataComparer(origin, r.rpopts)
 	ctx.RegisterFinalizer(metadata)
 
-	// Add local metadata
+	// Add local metadata.
 	opts := block.FetchBlocksMetadataOptions{
 		IncludeSizes:     true,
 		IncludeChecksums: true,
@@ -118,6 +135,7 @@ func (r shardRepairer) Repair(
 	var (
 		accumLocalMetadata = block.NewFetchBlocksMetadataResults()
 		pageToken          PageToken
+		err                error
 	)
 	// Safe to register since by the time this function completes we won't be using the metadata
 	// for anything anymore.
@@ -147,13 +165,15 @@ func (r shardRepairer) Repair(
 	}
 
 	if r.rpopts.DebugShadowComparisonsEnabled() {
-		// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
-		// issues with the repair feature. It should not be enabled for production use-cases.
-		err := r.shadowCompare(start, end, accumLocalMetadata, session, shard, nsCtx)
-		if err != nil {
-			r.logger.Error(
-				"Shadow compare failed",
-				zap.Error(err))
+		for _, sesTopo := range sessions {
+			// Shadow comparison is mostly a debug feature that can be used to test new builds and diagnose
+			// issues with the repair feature. It should not be enabled for production use-cases.
+			err := r.shadowCompare(start, end, accumLocalMetadata, sesTopo.session, shard, nsCtx)
+			if err != nil {
+				r.logger.Error(
+					"Shadow compare failed",
+					zap.Error(err))
+			}
 		}
 	}
 
@@ -163,25 +183,30 @@ func (r shardRepairer) Repair(
 		return repair.MetadataComparisonResult{}, err
 	}
 
-	rsOpts := r.opts.RepairOptions().ResultOptions()
-	// Add peer metadata.
-	level := r.rpopts.RepairConsistencyLevel()
-	peerIter, err := session.FetchBlocksMetadataFromPeers(nsCtx.ID, shard.ID(), start, end,
-		level, rsOpts)
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
-	}
-	if err := metadata.AddPeerMetadata(peerIter); err != nil {
-		return repair.MetadataComparisonResult{}, err
+	var (
+		rsOpts = r.opts.RepairOptions().ResultOptions()
+		level  = r.rpopts.RepairConsistencyLevel()
+	)
+	for _, sesTopo := range sessions {
+		// Add peer metadata.
+		peerIter, err := sesTopo.session.FetchBlocksMetadataFromPeers(nsCtx.ID, shard.ID(), start, end,
+			level, rsOpts)
+		if err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
+		if err := metadata.AddPeerMetadata(peerIter); err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
 	}
 
 	var (
-		// TODO(rartoul): Pool this slice.
-		metadatasToFetchBlocksFor    = []block.ReplicaMetadata{}
-		metadataRes                  = metadata.Compare()
-		seriesWithChecksumMismatches = metadataRes.ChecksumDifferences.Series()
+		// TODO(rartoul): Pool these slices.
+		metadatasToFetchBlocksForPerSession = make([][]block.ReplicaMetadata, len(sessions))
+		metadataRes                         = metadata.Compare()
+		seriesWithChecksumMismatches        = metadataRes.ChecksumDifferences.Series()
 	)
 
+	originID := origin.ID()
 	for _, e := range seriesWithChecksumMismatches.Iter() {
 		for blockStart, replicaMetadataBlocks := range e.Value().Metadata.Blocks() {
 			blStartTime := blockStart.ToTime()
@@ -198,43 +223,135 @@ func (r shardRepairer) Repair(
 			}
 
 			for _, replicaMetadata := range replicaMetadataBlocks.Metadata() {
-				if replicaMetadata.Host.ID() == session.Origin().ID() {
+				metadataHostID := replicaMetadata.Host.ID()
+				if metadataHostID == originID {
 					// Don't request blocks for self metadata.
 					continue
 				}
-				metadatasToFetchBlocksFor = append(metadatasToFetchBlocksFor, replicaMetadata)
+
+				if len(sessions) == 1 {
+					// Optimized path for single session case.
+					metadatasToFetchBlocksForPerSession[0] = append(metadatasToFetchBlocksForPerSession[0], replicaMetadata)
+					continue
+				}
+
+				// If there is more than one session then we need to match up all of the metadata to the
+				// session it belongs to so that we can fetch the corresponding blocks of data.
+				foundSessionForMetadata := false
+				for i, sesTopo := range sessions {
+					_, ok := sesTopo.topo.LookupHostShardSet(metadataHostID)
+					if !ok {
+						// The host this metadata came from is not part of the cluster this session is connected to.
+						continue
+					}
+					metadatasToFetchBlocksForPerSession[i] = append(metadatasToFetchBlocksForPerSession[i], replicaMetadata)
+					foundSessionForMetadata = true
+					break
+				}
+
+				if !foundSessionForMetadata {
+					// Could happen during topology changes (I.E node is kicked out of the cluster in-between
+					// fetching its metadata and this step).
+					r.logger.Debug(
+						"could not identify which session mismatched metadata belong to",
+						zap.String("hostID", metadataHostID),
+						zap.Time("blockStart", blStartTime),
+					)
+				}
 			}
 		}
-	}
-
-	perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatasToFetchBlocksFor, rsOpts)
-	if err != nil {
-		return repair.MetadataComparisonResult{}, err
 	}
 
 	// TODO(rartoul): Copying the IDs for the purposes of the map key is wasteful. Considering using
 	// SetUnsafe or marking as NoFinalize() and making the map check IsNoFinalize().
 	numMismatchSeries := seriesWithChecksumMismatches.Len()
 	results := result.NewShardResult(numMismatchSeries, rsOpts)
-	for perSeriesReplicaIter.Next() {
-		_, id, block := perSeriesReplicaIter.Current()
-		// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
-		if existing, ok := results.BlockAt(id, block.StartTime()); ok {
-			if err := existing.Merge(block); err != nil {
-				return repair.MetadataComparisonResult{}, err
+	for i, metadatasToFetchBlocksFor := range metadatasToFetchBlocksForPerSession {
+		if len(metadatasToFetchBlocksFor) == 0 {
+			continue
+		}
+
+		session := sessions[i].session
+		perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatasToFetchBlocksFor, rsOpts)
+		if err != nil {
+			return repair.MetadataComparisonResult{}, err
+		}
+
+		for perSeriesReplicaIter.Next() {
+			_, id, block := perSeriesReplicaIter.Current()
+			// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
+			if existing, ok := results.BlockAt(id, block.StartTime()); ok {
+				if err := existing.Merge(block); err != nil {
+					return repair.MetadataComparisonResult{}, err
+				}
+			} else {
+				results.AddBlock(id, ident.Tags{}, block)
 			}
-		} else {
-			results.AddBlock(id, ident.Tags{}, block)
 		}
 	}
 
-	if err := shard.Load(results.AllSeries()); err != nil {
+	if err := r.loadDataIntoShard(shard, results); err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
 	r.recordFn(nsCtx.ID, shard, metadataRes)
 
 	return metadataRes, nil
+}
+
+// TODO(rartoul): Currently throttling via the MemoryTracker can only occur at the level of an entire
+// block for a given namespace/shard/blockStart. For almost all practical use-cases this is fine, but
+// this could be improved and made more granular by breaking data that is being loaded into the shard
+// into smaller batches (less than one complete block). This would improve the granularity of throttling
+// for clusters where the number of shards is low.
+func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardResult) error {
+	var (
+		waitingGauge  = r.scope.Gauge("waiting-for-limit")
+		waitedCounter = r.scope.Counter("waited-for-limit")
+		doneCh        = make(chan struct{})
+		waiting       bool
+		waitingLock   sync.Mutex
+	)
+	defer close(doneCh)
+
+	// Emit a gauge constantly that indicates whether or not the repair process is blocked waiting.
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				waitingGauge.Update(0)
+				return
+			default:
+				waitingLock.Lock()
+				currWaiting := waiting
+				waitingLock.Unlock()
+				if currWaiting {
+					waitingGauge.Update(1)
+				} else {
+					waitingGauge.Update(0)
+				}
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}()
+
+	for {
+		err := shard.Load(data.AllSeries())
+		if err == ErrDatabaseLoadLimitHit {
+			waitedCounter.Inc(1)
+			waitingLock.Lock()
+			waiting = true
+			waitingLock.Unlock()
+			// Wait for some of the outstanding data to be flushed before trying again.
+			r.logger.Info("repair throttled due to memory load limits, waiting for data to be flushed before continuing")
+			r.opts.MemoryTracker().WaitForDec()
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func (r shardRepairer) recordDifferences(
@@ -252,15 +369,15 @@ func (r shardRepairer) recordDifferences(
 		checksumDiffScope = shardScope.Tagged(map[string]string{"resultType": "checksumDiff"})
 	)
 
-	// Record total number of series and total number of blocks
+	// Record total number of series and total number of blocks.
 	totalScope.Counter("series").Inc(diffRes.NumSeries)
 	totalScope.Counter("blocks").Inc(diffRes.NumBlocks)
 
-	// Record size differences
+	// Record size differences.
 	sizeDiffScope.Counter("series").Inc(diffRes.SizeDifferences.NumSeries())
 	sizeDiffScope.Counter("blocks").Inc(diffRes.SizeDifferences.NumBlocks())
 
-	// Record checksum differences
+	// Record checksum differences.
 	checksumDiffScope.Counter("series").Inc(diffRes.ChecksumDifferences.NumSeries())
 	checksumDiffScope.Counter("blocks").Inc(diffRes.ChecksumDifferences.NumBlocks())
 }
@@ -761,4 +878,9 @@ func (r shardRepairer) shadowCompare(
 	}
 
 	return nil
+}
+
+type sessionAndTopo struct {
+	session client.AdminSession
+	topo    topology.Map
 }

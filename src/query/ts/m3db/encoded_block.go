@@ -65,8 +65,8 @@ func NewEncodedBlock(
 		lastBlock,
 		opts,
 	)
-	err := bl.generateMetas()
-	if err != nil {
+
+	if err := bl.generateMetas(); err != nil {
 		return nil, err
 	}
 
@@ -106,6 +106,10 @@ func (b *encodedBlock) Close() error {
 	return nil
 }
 
+func (b *encodedBlock) Meta() block.Metadata {
+	return b.meta
+}
+
 func (b *encodedBlock) buildSeriesMeta() error {
 	b.seriesMetas = make([]block.SeriesMeta, len(b.seriesBlockIterators))
 	tagOptions := b.options.TagOptions()
@@ -139,6 +143,10 @@ func (b *encodedBlock) generateMetas() error {
 
 	b.buildMeta()
 	return nil
+}
+
+func (b *encodedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockM3TSZCompressed)
 }
 
 func (b *encodedBlock) WithMetadata(

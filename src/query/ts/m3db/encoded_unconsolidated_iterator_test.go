@@ -86,8 +86,8 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 		iters, err := unconsolidated.StepIter()
 		require.NoError(t, err)
 
-		require.True(t, bounds.Equals(iters.Meta().Bounds))
-		verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
+		require.True(t, bounds.Equals(block.Meta().Bounds))
+		verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			step := iters.Current()
 			vals := step.Values()
@@ -130,8 +130,8 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 		iters, err := unconsolidated.SeriesIter()
 		require.NoError(t, err)
 
-		require.True(t, bounds.Equals(iters.Meta().Bounds))
-		verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
+		require.True(t, bounds.Equals(block.Meta().Bounds))
+		verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			series := iters.Current()
 			vals := series.Datapoints()

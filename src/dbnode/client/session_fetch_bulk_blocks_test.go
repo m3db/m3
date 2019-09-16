@@ -1309,8 +1309,6 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 	enqueueCh.EXPECT().
 		enqueueDelayed(1).
 		Return(func(reEnqueuedPerPeer []receivedBlockMetadata) {
-			defer wg.Done()
-
 			assert.Equal(t, len(initialPerPeer), len(reEnqueuedPerPeer))
 			for i := range reEnqueuedPerPeer {
 				expected := initialPerPeer[i]
@@ -1325,7 +1323,11 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 				// Ensure no reattempt data is attached
 				assert.Equal(t, blockMetadataReattempt{}, actual.block.reattempt)
 			}
-		})
+
+			return
+		}, func() {
+			wg.Done()
+		}, nil)
 
 	// Perform second selection
 	selected, _ = session.selectPeersFromPerPeerBlockMetadatas(
@@ -1355,10 +1357,12 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
-		enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	) error {
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1425,10 +1429,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
-		enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	) error {
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1572,10 +1578,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
-		enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	) error {
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1896,24 +1904,36 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	// Enqueue multiple blocks metadata
 	numBlocks := 10
 	blocks := make([][]receivedBlockMetadata, numBlocks)
-	enqueueFn := enqueueCh.enqueueDelayed(len(blocks))
-	assert.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	assert.Equal(t, 0, len(enqueueCh.get()))
+	enqueueFn, enqueueDelayedDone, err := enqueueCh.enqueueDelayed(len(blocks))
+	require.NoError(t, err)
+
+	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
+	enqueueChInputs, err := enqueueCh.get()
+	require.NoError(t, err)
+	require.Equal(t, 0, len(enqueueChInputs))
 
 	// Actually enqueue the blocks
 	for i := 0; i < numBlocks; i++ {
 		enqueueFn(blocks[i])
 	}
-	assert.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	assert.Equal(t, numBlocks, len(enqueueCh.get()))
+	enqueueDelayedDone()
+
+	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
+	enqueueChInputs, err = enqueueCh.get()
+	require.NoError(t, err)
+	require.Equal(t, numBlocks, len(enqueueChInputs))
 
 	// Process the blocks
+	require.NoError(t, err)
 	for i := 0; i < numBlocks; i++ {
-		<-enqueueCh.get()
+		<-enqueueChInputs
 		enqueueCh.trackProcessed(1)
 	}
-	assert.Equal(t, 0, enqueueCh.unprocessedLen())
-	assert.Equal(t, 0, len(enqueueCh.get()))
+
+	require.Equal(t, 0, enqueueCh.unprocessedLen())
+	enqueueChInputs, err = enqueueCh.get()
+	require.NoError(t, err)
+	require.Equal(t, 0, len(enqueueChInputs))
 }
 
 func mockPeerBlocksQueues(peers []peer, opts AdminOptions) peerBlocksQueues {
@@ -2481,8 +2501,11 @@ func assertEnqueueChannel(
 	var distinct []receivedBlockMetadata
 	for {
 		var perPeerBlocksMetadata []receivedBlockMetadata
+		enqueueChInputs, err := enqueueCh.get()
+		require.NoError(t, err)
+
 		select {
-		case perPeerBlocksMetadata = <-enqueueCh.get():
+		case perPeerBlocksMetadata = <-enqueueChInputs:
 		default:
 		}
 		if perPeerBlocksMetadata == nil {

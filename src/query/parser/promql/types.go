@@ -22,8 +22,8 @@ package promql
 
 import (
 	"fmt"
-	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
@@ -145,25 +145,18 @@ func newScalarOperator(
 	expr *promql.NumberLiteral,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	return scalar.NewScalarOp(
-		func(_ time.Time) float64 { return expr.Val },
-		scalar.ScalarType,
-		tagOpts,
-	)
+	return scalar.NewScalarOp(expr.Val, tagOpts)
 }
 
 // NewBinaryOperator creates a new binary operator based on the type.
 func NewBinaryOperator(expr *promql.BinaryExpr,
 	lhs, rhs parser.NodeID) (parser.Params, error) {
-	matching := promMatchingToM3(expr.VectorMatching)
-
+	matcherBuilder := promMatchingToM3(expr.VectorMatching)
 	nodeParams := binary.NodeParams{
-		LNode:          lhs,
-		RNode:          rhs,
-		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar,
-		RIsScalar:      expr.RHS.Type() == promql.ValueTypeScalar,
-		ReturnBool:     expr.ReturnBool,
-		VectorMatching: matching,
+		LNode:                lhs,
+		RNode:                rhs,
+		ReturnBool:           expr.ReturnBool,
+		VectorMatcherBuilder: matcherBuilder,
 	}
 
 	op := getBinaryOpType(expr.Op)
@@ -209,8 +202,8 @@ func NewFunctionExpr(
 		p, err = linear.NewMathOp(name)
 		return p, true, err
 
-	case linear.AbsentType:
-		p = linear.NewAbsentOp()
+	case aggregation.AbsentType:
+		p = aggregation.NewAbsentOp()
 		return p, true, err
 
 	case linear.ClampMinType, linear.ClampMaxType:
@@ -262,12 +255,7 @@ func NewFunctionExpr(
 		return p, true, err
 
 	case scalar.TimeType:
-		p, err = scalar.NewScalarOp(
-			func(t time.Time) float64 { return float64(t.Unix()) },
-			scalar.TimeType,
-			tagOptions,
-		)
-
+		p, err = scalar.NewTimeOp(tagOptions)
 		return p, true, err
 
 	// NB: no-ops.
@@ -406,7 +394,7 @@ func promVectorCardinalityToM3(
 
 func promMatchingToM3(
 	vectorMatching *promql.VectorMatching,
-) *binary.VectorMatching {
+) binary.VectorMatcherBuilder {
 	// vectorMatching can be nil iff at least one of the sides is a scalar.
 	if vectorMatching == nil {
 		return nil
@@ -417,10 +405,13 @@ func promMatchingToM3(
 		byteMatchers[i] = []byte(label)
 	}
 
-	return &binary.VectorMatching{
-		Card:           promVectorCardinalityToM3(vectorMatching.Card),
-		MatchingLabels: byteMatchers,
-		On:             vectorMatching.On,
-		Include:        vectorMatching.Include,
+	return func(_, _ block.Block) binary.VectorMatching {
+		return binary.VectorMatching{
+			Set:            true,
+			Card:           promVectorCardinalityToM3(vectorMatching.Card),
+			MatchingLabels: byteMatchers,
+			On:             vectorMatching.On,
+			Include:        vectorMatching.Include,
+		}
 	}
 }

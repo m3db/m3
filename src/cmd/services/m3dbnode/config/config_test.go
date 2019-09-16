@@ -133,6 +133,7 @@ db:
 
   pooling:
       blockAllocSize: 16
+      thriftBytesPoolAllocSize: 2048
       type: simple
       seriesPool:
           size: 5242880
@@ -449,8 +450,10 @@ func TestConfiguration(t *testing.T) {
     checkInterval: 1m0s
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
+    thriftBytesPoolAllocSize: 2048
     type: simple
     bytesPool:
       buckets:
@@ -598,25 +601,27 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0
       highWatermark: 0
   config:
-    service:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive: null
-        tls: null
-        autoSyncInterval: 0s
-      m3sd:
-        initTimeout: null
-      watchWithRevision: 0
-      newDirectoryMode: null
-    static: null
+    services:
+    - async: false
+      service:
+        zone: embedded
+        env: production
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: embedded
+          endpoints:
+          - 1.1.1.1:2379
+          - 1.1.1.2:2379
+          - 1.1.1.3:2379
+          keepAlive: null
+          tls: null
+          autoSyncInterval: 0s
+        m3sd:
+          initTimeout: null
+        watchWithRevision: 0
+        newDirectoryMode: null
+    statics: []
     seedNodes:
       rootDir: /var/lib/etcd
       initialAdvertisePeerUrls:
@@ -671,6 +676,7 @@ func TestConfiguration(t *testing.T) {
   limits:
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
+    maxOutstandingRepairedBytes: 0
 coordinator: null
 `
 

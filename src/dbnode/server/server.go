@@ -83,6 +83,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/coreos/etcd/embed"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -242,7 +243,12 @@ func Run(runOpts RunOptions) {
 		logger.Info("no seed nodes set, using dedicated etcd cluster")
 	} else {
 		// Default etcd client clusters if not set already
-		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
+		service, err := cfg.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			logger.Fatal("invalid cluster configuration", zap.Error(err))
+		}
+
+		clusters := service.Service.ETCDClusters
 		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterEndpoints(seedNodes)
@@ -250,11 +256,11 @@ func Run(runOpts RunOptions) {
 				logger.Fatal("unable to create etcd clusters", zap.Error(err))
 			}
 
-			zone := cfg.EnvironmentConfig.Service.Zone
+			zone := service.Service.Zone
 
 			logger.Info("using seed nodes etcd cluster",
 				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
-			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			service.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
@@ -292,13 +298,23 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions()
-	iopts := opts.InstrumentOptions().
-		SetLogger(logger).
-		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
-		SetTracer(tracer)
+	var (
+		opts  = storage.NewOptions()
+		iopts = opts.InstrumentOptions().
+			SetLogger(logger).
+			SetMetricsScope(scope).
+			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTracer(tracer)
+	)
 	opts = opts.SetInstrumentOptions(iopts)
+
+	// Only override the default MemoryTracker (which has default limits) if a custom limit has
+	// been set.
+	if cfg.Limits.MaxOutstandingRepairedBytes > 0 {
+		memTrackerOptions := storage.NewMemoryTrackerOptions(cfg.Limits.MaxOutstandingRepairedBytes)
+		memTracker := storage.NewMemoryTracker(memTrackerOptions)
+		opts = opts.SetMemoryTracker(memTracker)
+	}
 
 	opentracing.SetGlobalTracer(tracer)
 
@@ -516,7 +532,7 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-	if cfg.EnvironmentConfig.Static == nil {
+	if len(cfg.EnvironmentConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
@@ -539,17 +555,21 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	syncCfg, err := envCfg.SyncCluster()
+	if err != nil {
+		logger.Fatal("invalid cluster config", zap.Error(err))
+	}
 	if runOpts.ClusterClientCh != nil {
-		runOpts.ClusterClientCh <- envCfg.ClusterClient
+		runOpts.ClusterClientCh <- syncCfg.ClusterClient
 	}
 
-	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
+	opts = opts.SetNamespaceInitializer(syncCfg.NamespaceInitializer)
 
 	// Set tchannelthrift options.
 	ttopts := tchannelthrift.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetTopologyInitializer(envCfg.TopologyInitializer).
+		SetTopologyInitializer(syncCfg.TopologyInitializer).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
@@ -588,7 +608,7 @@ func Run(runOpts RunOptions) {
 		go func() {
 			mux := http.DefaultServeMux
 			if debugWriter != nil {
-				if err := debugWriter.RegisterHandler("/debug/dump", mux); err != nil {
+				if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
 					logger.Error("unable to register debug writer endpoint", zap.Error(err))
 				}
 			}
@@ -604,7 +624,7 @@ func Run(runOpts RunOptions) {
 		}()
 	}
 
-	topo, err := envCfg.TopologyInitializer.Init()
+	topo, err := syncCfg.TopologyInitializer.Init()
 	if err != nil {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
@@ -628,33 +648,9 @@ func Run(runOpts RunOptions) {
 	}
 
 	origin := topology.NewHost(hostID, "")
-	m3dbClient, err := cfg.Client.NewAdminClient(
-		client.ConfigurationParameters{
-			InstrumentOptions: iopts.
-				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
-			TopologyInitializer: envCfg.TopologyInitializer,
-		},
-		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
-		},
-		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
-		},
-		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetOrigin(origin)
-		},
-		func(opts client.AdminOptions) client.AdminOptions {
-			if cfg.Proto != nil && cfg.Proto.Enabled {
-				return opts.SetEncodingProto(
-					encoding.NewOptions(),
-				).(client.AdminOptions)
-			}
-			return opts
-		},
-		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetSchemaRegistry(schemaRegistry)
-		},
-	)
+	m3dbClient, err := newAdminClient(
+		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
+		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -662,11 +658,6 @@ func Run(runOpts RunOptions) {
 	if runOpts.ClientCh != nil {
 		runOpts.ClientCh <- m3dbClient
 	}
-
-	// Kick off runtime options manager KV watches
-	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
-	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
-		clientAdminOpts, runtimeOptsMgr)
 
 	mutableSegmentAlloc := index.NewBootstrapResultMutableSegmentAllocator(
 		opts.IndexOptions())
@@ -676,23 +667,60 @@ func Run(runOpts RunOptions) {
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
 		SetIndexMutableSegmentAllocator(mutableSegmentAlloc)
 
-	opts = opts.SetRepairEnabled(false)
-	if cfg.Repair != nil {
-		repairOpts := opts.RepairOptions().
-			SetRepairThrottle(cfg.Repair.Throttle).
-			SetRepairCheckInterval(cfg.Repair.CheckInterval).
-			SetAdminClient(m3dbClient).
-			SetResultOptions(rsOpts).
-			SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
+	var repairClients []client.AdminClient
+	if cfg.Repair != nil && cfg.Repair.Enabled {
+		repairClients = append(repairClients, m3dbClient)
+	}
+	if cfg.Replication != nil {
+		for _, cluster := range cfg.Replication.Clusters {
+			if !cluster.RepairEnabled {
+				continue
+			}
 
-		if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
-			// Set conditionally to avoid stomping on the default value of 1.0.
-			repairOpts = repairOpts.SetDebugShadowComparisonsPercentage(cfg.Repair.DebugShadowComparisonsPercentage)
+			// Pass nil for the topology initializer because we want to create
+			// a new one for the cluster we wish to replicate from, not use the
+			// same one as the cluster this node belongs to.
+			var topologyInitializer topology.Initializer
+			// Guaranteed to not be nil if repair is enabled by config validation.
+			clientCfg := *cluster.Client
+			clusterClient, err := newAdminClient(
+				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
+				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+			if err != nil {
+				logger.Fatal(
+					"unable to create client for replicated cluster: %s",
+					zap.String("clusterName", cluster.Name))
+			}
+			repairClients = append(repairClients, clusterClient)
+		}
+	}
+	repairEnabled := len(repairClients) > 0
+	if repairEnabled {
+		repairOpts := opts.RepairOptions().
+			SetAdminClients(repairClients)
+
+		if cfg.Repair != nil {
+			repairOpts = repairOpts.
+				SetResultOptions(rsOpts).
+				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
+			if cfg.Repair.Throttle > 0 {
+				repairOpts = repairOpts.SetRepairThrottle(cfg.Repair.Throttle)
+			}
+			if cfg.Repair.CheckInterval > 0 {
+				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			}
+
+			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
+				// Set conditionally to avoid stomping on the default value of 1.0.
+				repairOpts = repairOpts.SetDebugShadowComparisonsPercentage(cfg.Repair.DebugShadowComparisonsPercentage)
+			}
 		}
 
 		opts = opts.
-			SetRepairEnabled(cfg.Repair.Enabled).
+			SetRepairEnabled(true).
 			SetRepairOptions(repairOpts)
+	} else {
+		opts = opts.SetRepairEnabled(false)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
@@ -726,7 +754,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
+	kvWatchBootstrappers(syncCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
 				logger.Error("updated bootstrapper list is empty")
@@ -809,7 +837,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("bootstrapped")
 
 		// Only set the write new series limit after bootstrapping
-		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
+		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
@@ -1142,6 +1170,12 @@ func withEncodingAndPoolingOptions(
 	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
+	// Set the max bytes pool byte slice alloc size for the thrift pooling.
+	thriftBytesAllocSize := policy.ThriftBytesPoolAllocSizeOrDefault()
+	logger.Info("set thrift bytes pool alloc size",
+		zap.Int("size", thriftBytesAllocSize))
+	apachethrift.SetMaxBytesPoolAlloc(thriftBytesAllocSize)
+
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
@@ -1457,6 +1491,59 @@ func withEncodingAndPoolingOptions(
 	})
 
 	return opts.SetIndexOptions(indexOpts)
+}
+
+func newAdminClient(
+	config client.Configuration,
+	iopts instrument.Options,
+	topologyInitializer topology.Initializer,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	origin topology.Host,
+	protoEnabled bool,
+	schemaRegistry namespace.SchemaRegistry,
+	kvStore kv.Store,
+	logger *zap.Logger,
+) (client.AdminClient, error) {
+	if config.EnvironmentConfig != nil {
+		// If the user has provided an override for the dynamic client configuration
+		// then we need to honor it by not passing our own topology initializer.
+		topologyInitializer = nil
+	}
+
+	m3dbClient, err := config.NewAdminClient(
+		client.ConfigurationParameters{
+			InstrumentOptions: iopts.
+				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
+			TopologyInitializer: topologyInitializer,
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetOrigin(origin).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			if protoEnabled {
+				return opts.SetEncodingProto(encoding.NewOptions()).(client.AdminOptions)
+			}
+			return opts
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetSchemaRegistry(schemaRegistry).(client.AdminOptions)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Kick off runtime options manager KV watches.
+	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
+	kvWatchClientConsistencyLevels(kvStore, logger,
+		clientAdminOpts, runtimeOptsMgr)
+	return m3dbClient, nil
 }
 
 func poolOptions(

@@ -41,8 +41,8 @@ var testLinearRegressionCases = []testCase{
 		name:   "predict_linear",
 		opType: PredictLinearType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.6666},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10.6666},
+			{math.NaN(), math.NaN(), 3.6666, 4.6666, 5.6666},
+			{math.NaN(), 7.6666, 8.6666, 9.6666, 10.6666},
 		},
 		afterAllBlocks: [][]float64{
 			{2, 0.1666, 0.1666, 2, 5.6666},
@@ -53,8 +53,8 @@ var testLinearRegressionCases = []testCase{
 		name:   "deriv",
 		opType: DerivType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.0166},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.0166},
+			{math.NaN(), math.NaN(), 0.0166, 0.0166, 0.0166},
+			{math.NaN(), 0.0166, 0.0166, 0.0166, 0.0166},
 		},
 		afterAllBlocks: [][]float64{
 			{0, -0.0083, -0.0083, 0, 0.0166},
@@ -76,8 +76,8 @@ var testLinearRegressionCasesSomeNaNs = []testCase{
 		name:   "predict_linear some NaNs",
 		opType: PredictLinearType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.6666},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10.6666},
+			{math.NaN(), math.NaN(), 3.6666, 4.6666, 5.6666},
+			{math.NaN(), 7.6666, 8.6666, 9.6666, 10.6666},
 		},
 		afterAllBlocks: [][]float64{
 			{6.6666, 0.6153, 0.8461, 4.6666, 5.6666},
@@ -88,8 +88,8 @@ var testLinearRegressionCasesSomeNaNs = []testCase{
 		name:   "deriv some NaNs",
 		opType: DerivType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.01666},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.01666},
+			{math.NaN(), math.NaN(), 0.0166, 0.0166, 0.0166},
+			{math.NaN(), 0.0166, 0.0166, 0.0166, 0.0166},
 		},
 		afterAllBlocks: [][]float64{
 			{0.0166, -0.0058, -0.0058, 0.0166, 0.0166},

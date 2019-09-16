@@ -14,7 +14,7 @@ The operations below include sample cURLs, but you can always review the API doc
 
 #### Recommended (Easy way)
 
-The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.
+The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace/create` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.
 
 For example, the following cURL:
 
@@ -127,6 +127,16 @@ Can be modified without creating a new namespace: `yes`
 This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../m3db/architecture/storage.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
 
 Can be modified without creating a new namespace: `no`
+
+Below are recommendations for block size based on retention:
+
+| Retention | Block Size |
+|-----------|------------|
+| 12h       | 30m        |
+| 24h       | 1h         |
+| 168h      | 2h         |
+| 720h      | 12h        |
+| 8760h     | 24h        |
 
 #### bufferFuture and bufferPast
 

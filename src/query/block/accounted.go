@@ -22,7 +22,8 @@ package block
 
 import "github.com/m3db/m3/src/query/cost"
 
-// AccountedBlock is a wrapper for a block which enforces limits on the number of datapoints used by the block.
+// AccountedBlock is a wrapper for a block which enforces limits on the number
+// of datapoints used by the block.
 type AccountedBlock struct {
 	Block
 
@@ -30,14 +31,18 @@ type AccountedBlock struct {
 }
 
 // NewAccountedBlock wraps the given block and enforces datapoint limits.
-func NewAccountedBlock(wrapped Block, enforcer cost.ChainedEnforcer) *AccountedBlock {
+func NewAccountedBlock(
+	wrapped Block,
+	enforcer cost.ChainedEnforcer,
+) *AccountedBlock {
 	return &AccountedBlock{
 		Block:    wrapped,
 		enforcer: enforcer,
 	}
 }
 
-// Close closes the block, and marks the number of datapoints used by this block as finished.
+// Close closes the block, and marks the number of datapoints used
+// by this block as finished.
 func (ab *AccountedBlock) Close() error {
 	ab.enforcer.Close()
 	return ab.Block.Close()

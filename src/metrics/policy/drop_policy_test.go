@@ -25,7 +25,10 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/x/test/testmarshal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestDropPolicyIsDefault(t *testing.T) {
@@ -53,4 +56,54 @@ func TestDropPolicyIsValid(t *testing.T) {
 		assert.True(t, policy.IsValid())
 	}
 	assert.False(t, DropPolicy(math.MaxUint64).IsValid())
+}
+
+func TestDropPolicyMarshalling(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected DropPolicy
+	}{
+		{
+			str:      "",
+			expected: DropNone,
+		},
+		{
+			str:      DropNone.String(),
+			expected: DropNone,
+		},
+		{
+			str:      DropMust.String(),
+			expected: DropMust,
+		},
+		{
+			str:      DropIfOnlyMatch.String(),
+			expected: DropIfOnlyMatch,
+		},
+	}
+
+	examples := make([]DropPolicy, 0, len(inputs))
+	for _, p := range inputs {
+		examples = append(examples, p.expected)
+	}
+
+	t.Run("roundtrips", func(t *testing.T) {
+		testmarshal.TestMarshalersRoundtrip(t, examples, []testmarshal.Marshaler{testmarshal.YAMLMarshaler, testmarshal.JSONMarshaler, testmarshal.TextMarshaler})
+	})
+
+	t.Run("yaml/unmarshals", func(t *testing.T) {
+		for _, input := range inputs {
+			testmarshal.Require(t, testmarshal.AssertUnmarshals(t, testmarshal.YAMLMarshaler, input.expected, []byte(input.str)))
+		}
+	})
+}
+
+func TestDropPolicyUnmarshalYAMLErrors(t *testing.T) {
+	inputs := []string{
+		"drop_musty",
+		"drop_unknown",
+	}
+	for _, input := range inputs {
+		var p DropPolicy
+		require.Error(t, yaml.Unmarshal([]byte(input), &p))
+	}
 }

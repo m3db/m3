@@ -133,6 +133,17 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 	testBlockRetrieverHighConcurrentSeeks(t, true)
 }
 
+type seekerTrackCloses struct {
+	DataFileSetSeeker
+
+	trackCloseFn func()
+}
+
+func (s seekerTrackCloses) Close() error {
+	s.trackCloseFn()
+	return s.DataFileSetSeeker.Close()
+}
+
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -141,6 +152,28 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
+
+	// Setup data generation.
+	var (
+		nsMeta   = testNs1Metadata(t)
+		ropts    = nsMeta.Options().RetentionOptions()
+		nsCtx    = namespace.NewContextFrom(nsMeta)
+		now      = time.Now().Truncate(ropts.BlockSize())
+		min, max = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
+
+		shards         = []uint32{0, 1, 2}
+		idsPerShard    = 16
+		shardIDs       = make(map[uint32][]ident.ID)
+		shardIDStrings = make(map[uint32][]string)
+		dataBytesPerID = 32
+		// Shard -> ID -> Blockstart -> Data
+		shardData   = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
+		blockStarts []time.Time
+		volumes     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	)
+	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
+		blockStarts = append(blockStarts, st)
+	}
 
 	// Setup retriever.
 	var (
@@ -171,8 +204,13 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	defer cleanup()
 
 	// Setup the open seeker function to fail sometimes to exercise that code path.
-	seekerMgr := retriever.seekerMgr.(*seekerManager)
-	existingNewOpenSeekerFn := seekerMgr.newOpenSeekerFn
+	var (
+		seekerMgr                 = retriever.seekerMgr.(*seekerManager)
+		existingNewOpenSeekerFn   = seekerMgr.newOpenSeekerFn
+		seekerStatsLock           sync.Mutex
+		numNonTerminalVolumeOpens int
+		numSeekerCloses           int
+	)
 	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
 		// Artificially slow down how long it takes to open a seeker to exercise the logic where
 		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
@@ -182,7 +220,26 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		if val := rand.Intn(100); val >= 90 {
 			return nil, errors.New("some-error")
 		}
-		return existingNewOpenSeekerFn(shard, blockStart, volume)
+		seeker, err := existingNewOpenSeekerFn(shard, blockStart, volume)
+		if err != nil {
+			return nil, err
+		}
+
+		if volume != volumes[len(volumes)-1] {
+			// Only track the open if its not for the last volume which will help us determine if the correct
+			// number of seekers were closed later.
+			seekerStatsLock.Lock()
+			numNonTerminalVolumeOpens++
+			seekerStatsLock.Unlock()
+		}
+		return &seekerTrackCloses{
+			DataFileSetSeeker: seeker,
+			trackCloseFn: func() {
+				seekerStatsLock.Lock()
+				numSeekerCloses++
+				seekerStatsLock.Unlock()
+			},
+		}, nil
 	}
 	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
 
@@ -199,28 +256,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		return block.LeaseState{Volume: 0}, nil
 	}).AnyTimes()
 	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.SetBlockLeaseManager(mockBlockLeaseManager)
-
-	// Setup data generation.
-	var (
-		nsMeta   = testNs1Metadata(t)
-		ropts    = nsMeta.Options().RetentionOptions()
-		nsCtx    = namespace.NewContextFrom(nsMeta)
-		now      = time.Now().Truncate(ropts.BlockSize())
-		min, max = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
-
-		shards         = []uint32{0, 1, 2}
-		idsPerShard    = 16
-		shardIDs       = make(map[uint32][]ident.ID)
-		shardIDStrings = make(map[uint32][]string)
-		dataBytesPerID = 32
-		// Shard -> ID -> Blockstart -> Data
-		shardData   = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
-		blockStarts []time.Time
-		volumes     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	)
-	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
-		blockStarts = append(blockStarts, st)
-	}
 
 	// Generate data.
 	for _, shard := range shards {
@@ -416,6 +451,12 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Wait until done.
 	enqueueWg.Wait()
+
+	seekerStatsLock.Lock()
+	// Don't multiply by fetchConcurrency because the tracking doesn't take concurrent
+	// clones into account.
+	require.Equal(t, numNonTerminalVolumeOpens, numSeekerCloses)
+	seekerStatsLock.Unlock()
 
 	// Verify the onRetrieve callback was called properly for everything.
 	for _, shard := range shardIDStrings {

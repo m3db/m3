@@ -77,6 +77,8 @@ var (
 	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
 	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
 	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
+
+	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 )
 
 type filesetsFn func(
@@ -386,7 +388,7 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 	if err != nil {
 		return -1, err
 	}
-	return flushState.ColdVersion, nil
+	return flushState.ColdVersionFlushed, nil
 }
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
@@ -403,7 +405,10 @@ func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	for time, state := range states {
 		snapshot[time] = series.BlockState{
 			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
-			ColdVersion:     state.ColdVersion,
+			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
+			// will be used to make eviction decisions and we don't want to evict data before
+			// it is retrievable.
+			ColdVersion: state.ColdVersionRetrievable,
 		}
 	}
 
@@ -631,8 +636,8 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time, nsCtx namespace.Context) (tickResult, error) {
-	s.removeAnyFlushStatesTooEarly(tickStart)
+func (s *dbShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+	s.removeAnyFlushStatesTooEarly(startTime)
 	return s.tickAndExpire(c, tickPolicyRegular, nsCtx)
 }
 
@@ -1577,46 +1582,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 	}
 
-	activePhase := token.ActiveSeriesPhase
-	flushedPhase := token.FlushedSeriesPhase
-
-	cachePolicy := s.opts.SeriesCachePolicy()
-	if cachePolicy == series.CacheAll {
-		// If we are using a series cache policy that caches all block metadata
-		// in memory then we only ever perform the active phase as all metadata
-		// is actively held in memory.
-		indexCursor := int64(0)
-		if activePhase != nil {
-			indexCursor = activePhase.IndexCursor
-		}
-		// We always include cached blocks.
-		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
-			FetchBlocksMetadataOptions: opts,
-			IncludeCachedBlocks:        true,
-		}
-		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
-			limit, indexCursor, seriesFetchBlocksMetadataOpts)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if nextIndexCursor == nil {
-			// No more results and only enacting active phase since we are using
-			// series policy that caches all block metadata in memory.
-			return result, nil, nil
-		}
-		token = &pagetoken.PageToken{
-			ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
-				IndexCursor: *nextIndexCursor,
-			},
-		}
-		data, err := proto.Marshal(token)
-		if err != nil {
-			return nil, nil, err
-		}
-		return result, PageToken(data), nil
-	}
-
 	// NB(r): If returning mixed in memory and disk results, then we return anything
 	// that's mutable in memory first then all disk results.
 	// We work backwards so we don't hit race conditions with blocks
@@ -1634,6 +1599,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// and we'll finish our read cleanly. If there's a race between us thinking
 	// the file is accessible and us opening a reader to it then this will bubble
 	// an error to the client which will be retried.
+	var (
+		activePhase  = token.ActiveSeriesPhase
+		flushedPhase = token.FlushedSeriesPhase
+	)
 	if flushedPhase == nil {
 		// If first phase started or no phases started then return active
 		// series metadata until we find a block start time that we have fileset
@@ -1646,7 +1615,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		// those blocks when we send metadata directly from the flushed files.
 		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
 			FetchBlocksMetadataOptions: opts,
-			IncludeCachedBlocks:        false,
 		}
 		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
@@ -1901,6 +1869,15 @@ func (s *dbShard) loadSeries(
 		return dbShardBootstrapResult{}, nil
 	}
 
+	if !bootstrap {
+		memTracker := s.opts.MemoryTracker()
+		estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
+		ok := memTracker.IncNumLoadedBytes(estimatedSize)
+		if !ok {
+			return dbShardBootstrapResult{}, ErrDatabaseLoadLimitHit
+		}
+	}
+
 	var (
 		// Only used for the bootstrap path.
 		shardBootstrapResult = dbShardBootstrapResult{}
@@ -2004,8 +1981,9 @@ func (s *dbShard) bootstrapFlushStates() error {
 		// Note that there can be multiple info files for the same block, for
 		// example if the database didn't get to clean up compacted filesets
 		// before terminating.
-		if fs.ColdVersion < info.VolumeIndex {
-			s.setFlushStateColdVersion(at, info.VolumeIndex)
+		if fs.ColdVersionRetrievable < info.VolumeIndex {
+			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
+			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
 		}
 	}
 
@@ -2209,11 +2187,13 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 
-		// After writing the full block successfully, update the cold version
-		// in the flush state. Once this function completes block leasers will
-		// no longer be able to acquire leases on previous volumes for the given
-		// namespace/shard/blockstart.
-		s.setFlushStateColdVersion(startTime, nextVersion)
+		// After writing the full block successfully update the ColdVersionFlushed number. This will
+		// allow the SeekerManager to open a lease on the latest version of the fileset files because
+		// the BlockLeaseVerifier will check the ColdVersionFlushed value, but the buffer only looks at
+		// ColdVersionRetrievable so a concurrent tick will not yet cause the blocks in memory to be
+		// evicted (which is the desired behavior because we haven't updated the open leases yet which
+		// means the newly written data is not available for querying via the SeekerManager yet.)
+		s.setFlushStateColdVersionFlushed(startTime, nextVersion)
 
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
@@ -2223,6 +2203,17 @@ func (s *dbShard) ColdFlush(
 			Shard:      s.ID(),
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
+		// After writing the full block successfully **and** propagating the new lease to the
+		// BlockLeaseManager, update the ColdVersionRetrievable in the flush state. Once this function
+		// completes concurrent ticks will be able to evict the data from memory that was just flushed
+		// (which is now safe to do since the SeekerManager has been notified of the presence of new
+		// files).
+		//
+		// NB(rartoul): Ideally the ColdVersionRetrievable would only be updated if the call to UpdateOpenLeases
+		// succeeded, but that would allow the ColdVersionRetrievable and ColdVersionFlushed numbers to drift
+		// which would increase the complexity of the code to address a situation that is probably not
+		// recoverable (failure to UpdateOpenLeases is an invariant violated error).
+		s.setFlushStateColdVersionRetrievable(startTime, nextVersion)
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.With(
@@ -2363,17 +2354,25 @@ func (s *dbShard) incrementFlushStateFailures(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) setFlushStateColdVersion(blockStart time.Time, version int) {
+func (s *dbShard) setFlushStateColdVersionRetrievable(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
-	state.ColdVersion = version
+	state.ColdVersionRetrievable = version
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
+func (s *dbShard) setFlushStateColdVersionFlushed(blockStart time.Time, version int) {
 	s.flushState.Lock()
-	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), tickStart)
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.ColdVersionFlushed = version
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) removeAnyFlushStatesTooEarly(startTime time.Time) {
+	s.flushState.Lock()
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), startTime)
 	for t := range s.flushState.statesByTime {
 		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)

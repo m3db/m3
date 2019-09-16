@@ -87,6 +87,20 @@ func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTags", reflect.TypeOf((*MockStorage)(nil).CompleteTags), arg0, arg1, arg2)
 }
 
+// ErrorBehavior mocks base method
+func (m *MockStorage) ErrorBehavior() storage.ErrorBehavior {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ErrorBehavior")
+	ret0, _ := ret[0].(storage.ErrorBehavior)
+	return ret0
+}
+
+// ErrorBehavior indicates an expected call of ErrorBehavior
+func (mr *MockStorageMockRecorder) ErrorBehavior() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorBehavior", reflect.TypeOf((*MockStorage)(nil).ErrorBehavior))
+}
+
 // Fetch mocks base method
 func (m *MockStorage) Fetch(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (*storage.FetchResult, error) {
 	m.ctrl.T.Helper()
@@ -131,6 +145,20 @@ func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQ
 func (mr *MockStorageMockRecorder) FetchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressed", reflect.TypeOf((*MockStorage)(nil).FetchCompressed), arg0, arg1, arg2)
+}
+
+// Name mocks base method
+func (m *MockStorage) Name() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Name")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Name indicates an expected call of Name
+func (mr *MockStorageMockRecorder) Name() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockStorage)(nil).Name))
 }
 
 // SearchCompressed mocks base method

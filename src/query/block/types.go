@@ -21,13 +21,42 @@
 package block
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+)
+
+// BlockType describes a block type.
+type BlockType uint8
+
+const (
+	// BlockM3TSZCompressed is an M3TSZ compressed block.
+	BlockM3TSZCompressed BlockType = iota
+	// BlockDecompressed is a decompressed raw data block.
+	BlockDecompressed
+	// BlockScalar is a scalar block with a single value throughout its range.
+	BlockScalar
+	// BlockTime is a block with datapoint values given by a function of their
+	// timestamps.
+	BlockTime
+	// BlockLazy is a wrapper for an inner block that lazily applies transforms.
+	BlockLazy
+	// BlockContainer is a block that contains multiple inner blocks that share
+	// common metadata.
+	BlockContainer
+	// BlockEmpty is a block with metadata but no series or values.
+	BlockEmpty
+	//
+	// TODO: (arnikola) do some refactoring to remove the blocks and types below,
+	// as they can be better handled by the above block types.
+	//
+	// BlockMultiSeries is a block containing series with common metadata.
+	BlockMultiSeries
+	// BlockConsolidated is a consolidated block.
+	BlockConsolidated
 )
 
 // Block represents a group of series across a time bound.
@@ -43,6 +72,10 @@ type Block interface {
 	SeriesIter() (SeriesIter, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
+	// Meta returns the metadata for the block.
+	Meta() Metadata
+	// Info returns information about the block.
+	Info() BlockInfo
 }
 
 type AccumulatorBlock interface {
@@ -64,6 +97,8 @@ type UnconsolidatedBlock interface {
 	Consolidate() (Block, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
+	// Meta returns the metadata for the block.
+	Meta() Metadata
 }
 
 // SeriesMeta is metadata data for the series.
@@ -86,17 +121,10 @@ type Iterator interface {
 	Close()
 }
 
-// MetaIter is implemented by iterators which provide meta information.
-type MetaIter interface {
-	// SeriesMeta returns the metadata for each series in the block.
-	SeriesMeta() []SeriesMeta
-	// Meta returns the metadata for the block.
-	Meta() Metadata
-}
-
 // SeriesMetaIter is implemented by series iterators which provide meta information.
 type SeriesMetaIter interface {
-	MetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
 	// SeriesCount returns the number of series.
 	SeriesCount() int
 }
@@ -119,7 +147,8 @@ type UnconsolidatedSeriesIter interface {
 
 // StepMetaIter is implemented by step iterators which provide meta information.
 type StepMetaIter interface {
-	MetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
 	// StepCount returns the number of steps.
 	StepCount() int
 }
@@ -152,23 +181,18 @@ type UnconsolidatedStep interface {
 	Values() []ts.Datapoints
 }
 
-// Metadata is metadata for a block.
-type Metadata struct {
-	Bounds models.Bounds
-	Tags   models.Tags // Common tags across different series
-}
-
-// String returns a string representation of metadata.
-func (m Metadata) String() string {
-	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
-}
-
 // Builder builds a new block.
 type Builder interface {
-	AppendValue(idx int, value float64) error
-	AppendValues(idx int, values []float64) error
-	Build() Block
+	// AddCols adds the given number of columns to the block.
 	AddCols(num int) error
+	// AppendValue adds a single value to the column at the given index.
+	AppendValue(idx int, value float64) error
+	// AppendValues adds a slice of values to the column at the given index.
+	AppendValues(idx int, values []float64) error
+	// Build builds the block.
+	Build() Block
+	// BuildAsType builds the block, forcing it to the given BlockType.
+	BuildAsType(blockType BlockType) Block
 }
 
 // Result is the result from a block query.

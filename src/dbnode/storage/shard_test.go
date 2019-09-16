@@ -291,7 +291,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	for i, blockStart := range blockStarts {
 		flushState, err := s.FlushState(blockStart)
 		require.NoError(t, err)
-		require.Equal(t, i, flushState.ColdVersion)
+		require.Equal(t, i, flushState.ColdVersionFlushed)
 	}
 }
 
@@ -352,7 +352,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 
 	flushState, err := s.FlushState(start)
 	require.NoError(t, err)
-	require.Equal(t, numVolumes-1, flushState.ColdVersion)
+	require.Equal(t, numVolumes-1, flushState.ColdVersionFlushed)
 }
 
 // TestShardBootstrapWithCacheShardIndices ensures that the shard is able to bootstrap
@@ -398,6 +398,52 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s.bootstrapState = Bootstrapping
 	err := s.WarmFlush(time.Now(), nil, namespace.Context{})
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
+}
+
+func TestShardLoadLimitEnforcedIfSet(t *testing.T) {
+	testShardLoadLimit(t, 1, true)
+}
+
+func TestShardLoadLimitNotEnforcedIfNotSet(t *testing.T) {
+	testShardLoadLimit(t, 0, false)
+}
+
+func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
+	var (
+		memTrackerOptions = NewMemoryTrackerOptions(limit)
+		memTracker        = NewMemoryTracker(memTrackerOptions)
+		opts              = DefaultTestOptions().SetMemoryTracker(memTracker)
+		s                 = testDatabaseShard(t, opts)
+		blOpts            = opts.DatabaseBlockOptions()
+		testBlockSize     = 2 * time.Hour
+		start             = time.Now().Truncate(testBlockSize)
+		threeBytes        = checked.NewBytes([]byte("123"), nil)
+
+		sr      = result.NewShardResult(0, result.NewOptions())
+		fooTags = ident.NewTags(ident.StringTag("foo", "foe"))
+		barTags = ident.NewTags(ident.StringTag("bar", "baz"))
+	)
+	defer s.Close()
+	threeBytes.IncRef()
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{Head: threeBytes}, blOpts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blOpts, namespace.Context{}),
+	}
+
+	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
+	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
+
+	seriesMap := sr.AllSeries()
+	require.NoError(t, s.Bootstrap(nil))
+
+	// First load will never trigger the limit.
+	require.NoError(t, s.Load(seriesMap))
+
+	if shouldReturnError {
+		require.Error(t, s.Load(seriesMap))
+	} else {
+		require.NoError(t, s.Load(seriesMap))
+	}
 }
 
 func TestShardFlushSeriesFlushError(t *testing.T) {
@@ -528,9 +574,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:  fileOpSuccess,
-		ColdVersion: 0,
-		NumFailures: 0,
+		WarmStatus:             fileOpSuccess,
+		ColdVersionRetrievable: 0,
+		NumFailures:            0,
 	}, flushState)
 }
 
@@ -622,7 +668,8 @@ func TestShardColdFlush(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, coldVersion)
 	}
-	shard.ColdFlush(preparer, resources, nsCtx)
+	err = shard.ColdFlush(preparer, resources, nsCtx)
+	require.NoError(t, err)
 	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
 	for i := t0; i.Before(t6.Add(blockSize)); i = i.Add(blockSize) {

@@ -1234,7 +1234,7 @@ func (b *block) AddResults(
 	return multiErr.FinalError()
 }
 
-func (b *block) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error) {
+func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 	b.RLock()
 	defer b.RUnlock()
 	result := BlockTickResult{}

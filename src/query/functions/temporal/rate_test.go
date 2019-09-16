@@ -53,8 +53,8 @@ var testRateCases = []testRateCase{
 			{1987036, 1988988, 1990940, 1992892, 1994844},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 37.1333},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
+			{math.NaN(), math.NaN(), 37.1333, 37.1333, 37.1333},
+			{math.NaN(), 32.5333, 32.5333, 32.5333, 32.5333},
 		},
 		afterAllBlocks: [][]float64{
 			{11312.6333, 37.1333, 37.1333, 37.1333, 37.1333},
@@ -69,8 +69,8 @@ var testRateCases = []testRateCase{
 			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
+			{math.NaN(), math.NaN(), 32.5333, 32.5333, 32.5333},
+			{math.NaN(), 32.5333, 32.5333, 32.5333, 32.5333},
 		},
 		afterAllBlocks: [][]float64{
 			{33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
@@ -101,8 +101,8 @@ var testRateCases = []testRateCase{
 			{1987036, 1988988, 1990940, 1992892, 1994844},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1165.0844},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
+			{math.NaN(), math.NaN(), 0, 0, 1165.0844},
+			{math.NaN(), 13.01333, 19.52, 26.0266, 32.5333},
 		},
 		afterAllBlocks: [][]float64{
 			{255709.8666, 259191.4666, 259191.4666, 258099.2, 4573.8666},
@@ -117,8 +117,8 @@ var testRateCases = []testRateCase{
 			{1987036, 1988988, 1990940, math.NaN(), 1994844},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1310.72},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
+			{math.NaN(), math.NaN(), 0, 1310.72, 1310.72},
+			{math.NaN(), 13.01333, 19.52, 19.52, 32.5333},
 		},
 		afterAllBlocks: [][]float64{
 			{255709.8666, 259191.4666, 258099.2, 4878.7911, 4878.7911},
@@ -156,8 +156,8 @@ var testDeltaCases = []testRateCase{
 			{1987036, 1988988, 1990940, 1992892, 1994844},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2228},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
+			{math.NaN(), math.NaN(), 2228, 2228, 2228},
+			{math.NaN(), 1952, 1952, 1952, 1952},
 		},
 		afterAllBlocks: [][]float64{
 			{-8912, 2228, 2228, 2228, 2228},
@@ -172,8 +172,8 @@ var testDeltaCases = []testRateCase{
 			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3904},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
+			{math.NaN(), math.NaN(), 1952, 1952, 3904},
+			{math.NaN(), 1952, 1952, 1952, 1952},
 		},
 		afterAllBlocks: [][]float64{
 			{-7808, 1952, 1952, 1952, 3904},
@@ -204,8 +204,8 @@ var testDeltaCases = []testRateCase{
 			{2299, 2299, 2299, 2787, 2787},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8912},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 610},
+			{math.NaN(), math.NaN(), 4456, 6684, 8912},
+			{math.NaN(), 0, 0, 650.6666, 610},
 		},
 		afterAllBlocks: [][]float64{
 			{-2785, -2785, -2785, -2785, 11140},
@@ -220,8 +220,8 @@ var testDeltaCases = []testRateCase{
 			{2299, 2299, 2299, math.NaN(), 2787},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 6684},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 610},
+			{math.NaN(), math.NaN(), 4456, 6684, 6684},
+			{math.NaN(), 0, 0, 0, 610},
 		},
 		afterAllBlocks: [][]float64{
 			{-2785, -2785, -2785, 8912, 8912},
@@ -259,8 +259,8 @@ var testIncreaseCases = []testRateCase{
 			{1987036, 1988988, 1990940, 1992892, 1994844},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8912},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9760},
+			{math.NaN(), math.NaN(), 4456, 6684, 8912},
+			{math.NaN(), 3904, 5856, 7808, 9760},
 		},
 		afterAllBlocks: [][]float64{
 			{8355, 1087957.5, 1087957.5, 1087957.5, 1090742.5},
@@ -275,8 +275,8 @@ var testIncreaseCases = []testRateCase{
 			{1987036, 1988988, 1990940, math.NaN(), 1994844},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10176},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9760},
+			{math.NaN(), math.NaN(), 4456, 10176, 10176},
+			{math.NaN(), 3904, 5856, 5856, 9760},
 		},
 		afterAllBlocks: [][]float64{
 			{1099222.5, 2178825, 2175915, 1163592, 1163592},

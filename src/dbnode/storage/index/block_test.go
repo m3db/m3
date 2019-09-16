@@ -903,7 +903,7 @@ func TestBlockTickSingleSegment(t *testing.T) {
 	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
-	result, err := blk.Tick(nil, start)
+	result, err := blk.Tick(nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.NumSegments)
 	require.Equal(t, int64(10), result.NumDocs)
@@ -931,7 +931,7 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 		result.NewIndexBlock(start, []segment.Segment{seg2},
 			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
 
-	result, err := blk.Tick(nil, start)
+	result, err := blk.Tick(nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), result.NumSegments)
 	require.Equal(t, int64(30), result.NumDocs)
@@ -954,7 +954,7 @@ func TestBlockTickAfterSeal(t *testing.T) {
 	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
-	result, err := blk.Tick(nil, start)
+	result, err := blk.Tick(nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.NumSegments)
 	require.Equal(t, int64(10), result.NumDocs)
@@ -970,7 +970,7 @@ func TestBlockTickAfterClose(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, blk.Close())
 
-	_, err = blk.Tick(nil, start)
+	_, err = blk.Tick(nil)
 	require.Error(t, err)
 }
 

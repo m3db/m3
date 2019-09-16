@@ -1,6 +1,43 @@
 # Changelog
 
-# 0.11.0 (pending)
+# 0.13.0
+
+## Features
+
+- **M3Query**: Federated queries (e.g. for cross region/zone queries) configurable to return a warning and partial results than a hard error to route around unhealthy regions (#1938)
+- **M3Query**: Add ability to turn on GRPC reflection for testing query endpoints using utilities like grpcurl (#1856)
+- **M3Query**: Add ability to use multiple config files for config overrides (#1934)
+- **M3DB**: Add ability to replicate writes best effort directly to multiple clusters by specifying multiple etcd clusters for M3DB client (#1859)
+- **M3Coordinator**: Add ability to replicate Prometheus remote write requests by forwarding the compressed body to downstream remote write endpoints (#1922, #1940)
+
+## Bug Fixes
+
+- **M3Coordinator**: Fix ability to delete coordinator placements (#1918)
+- **M3Aggregator**: Ensure flush manager worker pool is at least size 1 irregardless of num CPUs (#1881)
+
+## Documentation
+
+- **M3**: Add FAQ and seed with some frequently asked questions asking (#1927)
+- **M3Coordinator**: Fix the cluster placement endpoint documentation in the manual cluster setup instructions (#1936)
+
+# 0.12.0
+
+## Features
+
+- **M3DB**: Add support for limiting the amount of outstanding repaired data that can be held in memory at once (#1885)
+- **M3Coordinator**: Add namespace and placement information to the dump returned by the debug endpoint (#1896)
+- **M3Coordinator**: Add DELETE api for the /topic endpoint (#1926)
+
+## Performance
+
+- **M3Query**: Improve performance of temporal functions (#1917)
+- **M3DB**: Only trigger bootstrap during topology change if a node receives new shards. This should significantly reduce the amount of time certain topology changes (such as node removes) took when performed on larger clusters (#1868)
+
+## Features
+
+- **m3aggregator:** Make YAML serialization roundtrip for config related types (#1864)
+
+# 0.11.0
 
 ## Migration Disclaimer
 
@@ -16,6 +53,34 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 2. Remove the filesets that include a volume index in them, e.g. this is a filename with the new volumed format: `fileset-1257890400000000000-0-data.db`, and this is the corresponding filename in the original format: `fileset-1257890400000000000-data.db`.
 3. Modify the `bootstrappers` config in the M3DB YAML file from `filesystem, commitlog, peers, uninitialized_topology` to `filesystem, peers, commitlog, uninitialized_topology`. This will force the node to bootstrap from its peers instead of the local snapshot and commitlog files it has on disk, which is important otherwise when the node restarts, it will think that it has already been bootstrapped.
 4. Turn the node back on.
+
+## Features
+
+- **M3DB**: Add cluster repair capability for non-indexed data (#1831, #1849, #1862, #1874)
+- **M3DB**: Enable arbitrary out of order writes for non-indexed data (#1780, #1790, #1829)
+- **M3DB**: Expose debug dump on /debug/dump for zip file of profiles and data about the environment for debugging (#1811)
+- **M3Query**: Allow lookback duration to be set in query parameters for configurable lookback windowing (#1793)
+
+## Performance
+
+- **M3DB**: Improve base line write performance using pre-encoded tags instead of encoding just before commit log write (#1898, #1904)
+- **M3DB**: Avoid allocating expensive digest readers in seek.Open() (#1835)
+
+## Bug Fixes
+
+- **M3Query**: Fix PromQL variadic functions with no params specified (#1846)
+- **M3Query**: Fix PromQL absent function (#1871)
+- **M3Query**: Fix PromQL binary comparisons that use the time function (#1888)
+- **M3Query**: Fix multi-deployment queries (e.g. cross region) using temporal functions (#1901)
+- **M3DB**: Index queries to local node now returns only IDs owned by the node at time of read (#1822)
+- **M3DB**: Automatically create folder for KV cache, avoiding common error logs (#1757)
+- **M3Query**: Batch remote server responses to avoid large individual RPC messages (#1784)
+- **M3DB**: Use rlimit and setcap together to raise file descriptor limits to desired setting if possible (#1792, #1745, #1850)
+
+## Documentation
+
+- **M3DB**: Add shard and recommended block sizes (#1890)
+- **M3Coordinator**: Improve namespace specific read/write header documentation (#1884)
 
 # 0.10.2
 

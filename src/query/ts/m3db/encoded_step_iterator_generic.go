@@ -238,10 +238,6 @@ func (it *encodedStepIterWithCollector) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
 }
 
-func (it *encodedStepIterWithCollector) Meta() block.Metadata {
-	return it.meta
-}
-
 func (it *encodedStepIterWithCollector) Err() error {
 	return it.err
 }
