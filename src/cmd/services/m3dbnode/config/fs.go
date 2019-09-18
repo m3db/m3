@@ -138,6 +138,12 @@ func (f FilesystemConfiguration) Validate() error {
 			"fs throughputCheckEvery is set to: %d, but must be at least 1",
 			*f.ThroughputCheckEvery)
 	}
+	if f.BloomFilterFalsePositivePercent != nil &&
+		(*f.BloomFilterFalsePositivePercent < 0 || *f.BloomFilterFalsePositivePercent > 1) {
+		return fmt.Errorf(
+			"fs bloomFilterFalsePositivePercent is set to: %f, but must be between 0.0 and 1.0",
+			*f.BloomFilterFalsePositivePercent)
+	}
 
 	return nil
 }
