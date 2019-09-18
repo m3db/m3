@@ -44,8 +44,8 @@ func buildMetaExhaustive(start time.Time, exhaustive bool) Metadata {
 			Duration: time.Minute,
 			StepSize: time.Hour,
 		},
-		Tags:       models.NewTags(0, models.NewTagOptions()),
-		Exhaustive: exhaustive,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: ResultMetadata{Exhaustive: exhaustive},
 	}
 }
 

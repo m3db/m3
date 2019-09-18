@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/m3db/m3/src/query/models"
@@ -78,15 +79,15 @@ var _ gomock.Matcher = &listTagsMatcher{}
 
 func b(s string) []byte { return []byte(s) }
 
-func TestListTagsNotExhaustive(t *testing.T) {
-	testListTags(t, false)
+func TestListTags(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testListTags(t, tt.meta, tt.ex)
+		})
+	}
 }
 
-func TestListTagsExhaustive(t *testing.T) {
-	testListTags(t, true)
-}
-
-func testListTags(t *testing.T, exhaustive bool) {
+func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -99,7 +100,8 @@ func testListTags(t *testing.T, exhaustive bool) {
 			{Name: b("baz")},
 			{Name: b("foo")},
 		},
-		Exhaustive: exhaustive,
+
+		Metadata: meta,
 	}
 
 	now := time.Now()
@@ -128,12 +130,8 @@ func testListTags(t *testing.T, exhaustive bool) {
 		ex := `{"status":"success","data":["bar","baz","foo"]}`
 		require.Equal(t, ex, string(r))
 
-		header := w.Header().Get(handler.LimitHeader)
-		if exhaustive {
-			assert.Equal(t, "", header)
-		} else {
-			assert.Equal(t, "true", header)
-		}
+		actual := w.Header().Get(handler.LimitHeader)
+		assert.Equal(t, header, actual)
 	}
 }
 

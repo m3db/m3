@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
+
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
@@ -36,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -206,9 +209,17 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 				series.SetResolution(resolution)
 			}
 
+			meta := block.NewResultMetadata()
+			meta.Exhaustive = tt.ex
+
+			metaTwo := block.NewResultMetadata()
+			if !tt.ex2 {
+				metaTwo.AddWarning("foo", "bar")
+			}
+
 			mockStorage.SetFetchResults(
-				&storage.FetchResult{SeriesList: seriesList, Exhaustive: tt.ex},
-				&storage.FetchResult{SeriesList: seriesList, Exhaustive: tt.ex2},
+				&storage.FetchResult{SeriesList: seriesList, Metadata: meta},
+				&storage.FetchResult{SeriesList: seriesList, Metadata: metaTwo},
 			)
 
 			h := NewRenderHandler(mockStorage,
@@ -219,12 +230,9 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 				start.Unix(), start.Unix()+30)
 			recorder := httptest.NewRecorder()
 			h.ServeHTTP(recorder, req)
-			header := recorder.Header().Get(handler.LimitHeader)
-			if tt.hasHeader {
-				require.Equal(t, "true", header)
-			} else {
-				require.Equal(t, "", header)
-			}
+
+			actual := recorder.Header().Get(handler.LimitHeader)
+			assert.Equal(t, tt.header, actual)
 		})
 	}
 }

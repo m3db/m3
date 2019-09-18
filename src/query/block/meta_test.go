@@ -35,3 +35,42 @@ func TestMeta(t *testing.T) {
 	assert.True(t, bounds.Equals(otherBounds))
 	assert.False(t, bounds.Equals(badBounds))
 }
+
+func TestResultMeta(t *testing.T) {
+	r := NewResultMetadata()
+	assert.True(t, r.Exhaustive)
+	assert.True(t, r.LocalOnly)
+	assert.Equal(t, 0, len(r.Warnings))
+
+	r.AddWarning("foo", "bar")
+	assert.Equal(t, 1, len(r.Warnings))
+	assert.Equal(t, "foo", r.Warnings[0].Name)
+	assert.Equal(t, "bar", r.Warnings[0].Message)
+
+	rTwo := ResultMetadata{
+		LocalOnly:  false,
+		Exhaustive: false,
+	}
+
+	rTwo.AddWarning("baz", "qux")
+	merge := r.CombineMetadata(rTwo)
+	assert.False(t, merge.Exhaustive)
+	assert.False(t, merge.LocalOnly)
+	assert.Equal(t, 2, len(merge.Warnings))
+
+	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
+	assert.Equal(t, "baz_qux", merge.Warnings[1].Header())
+
+	// ensure warnings are deduplicated
+	merge = merge.CombineMetadata(rTwo)
+	assert.Equal(t, 2, len(merge.Warnings))
+
+	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
+	assert.Equal(t, "baz_qux", merge.Warnings[1].Header())
+
+	merge.AddWarning("foo", "bar")
+	assert.Equal(t, 2, len(merge.Warnings))
+
+	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
+	assert.Equal(t, "baz_qux", merge.Warnings[1].Header())
+}

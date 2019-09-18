@@ -251,7 +251,7 @@ func insertSortedBlock(
 	seriesCount int,
 ) (insertBlockResult, error) {
 	blockSeriesIter, err := b.SeriesIter()
-	emptyResult := insertBlockResult{meta: block.NewResultMetadata()}
+	emptyResult := insertBlockResult{meta: b.Meta().ResultMetadata}
 	if err != nil {
 		return emptyResult, err
 	}
@@ -262,7 +262,12 @@ func insertSortedBlock(
 			block: b,
 			meta:  meta,
 		})
-		return emptyResult, nil
+
+		// fmt.Println("Result meta", b.Meta().ResultMetadata.Warnings[0].Header())
+		return insertBlockResult{
+			blocks: blockList,
+			meta:   b.Meta().ResultMetadata,
+		}, nil
 	}
 
 	blockSeriesCount := blockSeriesIter.SeriesCount()

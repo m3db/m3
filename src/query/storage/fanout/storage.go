@@ -141,8 +141,6 @@ func (s *fanoutStorage) FetchBlocks(
 				}
 
 				// This block exists. Check to see if it's already an appendable block.
-				// FIXME: (arnikola) use Block.Info() here to determine if it's an
-				// accumulator once #1888 merges.
 				blockType := foundBlock.Info().Type()
 				if blockType != block.BlockContainer {
 					var err error

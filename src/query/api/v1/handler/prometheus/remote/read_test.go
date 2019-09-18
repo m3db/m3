@@ -156,10 +156,10 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 		Return(nil, nil)
 	promRead := readHandler(store, timeoutOpts)
 	req := test.GeneratePromReadRequest()
-	_, ex, err := promRead.read(context.TODO(), httptest.NewRecorder(),
+	res, err := promRead.read(context.TODO(), httptest.NewRecorder(),
 		req, time.Hour, storage.NewFetchOptions())
 	require.Error(t, err, "unable to read from storage")
-	require.True(t, ex)
+	require.True(t, res.exhaustive)
 }
 
 func TestQueryMatchMustBeEqual(t *testing.T) {
@@ -284,9 +284,9 @@ func TestMultipleRead(t *testing.T) {
 		Execute(gomock.Any(), qTwo, gomock.Any(), gomock.Any()).Return(rTwo, nil)
 
 	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
-	result, ex, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
+	res, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
 	require.NoError(t, err)
-	require.False(t, ex)
+	require.False(t, res.exhaustive)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
 			&prompb.TimeSeries{
@@ -300,6 +300,7 @@ func TestMultipleRead(t *testing.T) {
 		},
 	}
 
+	result := res.result
 	assert.Equal(t, expected.Timeseries[0], result[0].Timeseries[0])
 	assert.Equal(t, expected.Timeseries[1], result[1].Timeseries[0])
 }

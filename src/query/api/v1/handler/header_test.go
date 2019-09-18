@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +20,40 @@
 
 package handler
 
-// HeaderKeyType is the type for the header key
-type HeaderKeyType int
+import (
+	"fmt"
+	"net/http/httptest"
+	"testing"
 
-const (
-	// HeaderKey is the key which headers will be added to in the request context
-	HeaderKey HeaderKeyType = iota
+	"github.com/m3db/m3/src/query/block"
 
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes
-	RoutePrefixV1 = "/api/v1"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestAddWarningHeaders(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 0, len(recorder.Header()))
+
+	recorder = httptest.NewRecorder()
+	meta.Exhaustive = false
+	ex := LimitHeaderSeriesLimitApplied
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+
+	recorder = httptest.NewRecorder()
+	meta.AddWarning("foo", "bar")
+	ex = fmt.Sprintf("%s,%s_%s", LimitHeaderSeriesLimitApplied, "foo", "bar")
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+
+	recorder = httptest.NewRecorder()
+	meta.Exhaustive = true
+	ex = "foo_bar"
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+}

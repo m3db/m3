@@ -105,8 +105,8 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	}
 
 	return ts.SeriesList{
-		Values: result.SeriesList,
-		Metadata:   result.Metadata,
+		Values:   result.SeriesList,
+		Metadata: result.Metadata,
 	}, nil
 }
 
@@ -154,6 +154,7 @@ func (f *funcExpression) Arguments() []ArgumentASTNode {
 
 // Execute evaluates the function and returns the result as a timeseries
 func (f *funcExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
+	fmt.Println("EXECV444UTE")
 	out, err := f.call.Evaluate(ctx)
 	if err != nil {
 		return ts.SeriesList{}, err

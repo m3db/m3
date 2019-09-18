@@ -32,11 +32,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,7 +138,10 @@ func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 		CompletedTags: []storage.CompletedTag{
 			{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
 		},
-		Exhaustive: ex,
+		Metadata: block.ResultMetadata{
+			LocalOnly:  true,
+			Exhaustive: ex,
+		},
 	}
 
 	store.EXPECT().CompleteTags(gomock.Any(), noChildrenMatcher, gomock.Any()).
@@ -156,7 +161,14 @@ func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 		CompletedTags: []storage.CompletedTag{
 			{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
 		},
-		Exhaustive: ex2,
+		Metadata: block.ResultMetadata{
+			LocalOnly:  false,
+			Exhaustive: true,
+		},
+	}
+
+	if !ex2 {
+		childrenResult.Metadata.AddWarning("foo", "bar")
 	}
 
 	store.EXPECT().CompleteTags(gomock.Any(), childrenMatcher, gomock.Any()).
@@ -206,7 +218,7 @@ func (r results) Less(i, j int) bool {
 	return strings.Compare(r[i].ID, r[j].ID) == -1
 }
 
-func testFind(t *testing.T, ex, ex2, hasHeader bool) {
+func testFind(t *testing.T, ex bool, ex2 bool, header string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -251,28 +263,27 @@ func testFind(t *testing.T, ex, ex2, hasHeader bool) {
 	}
 
 	require.Equal(t, expected, r)
-	header := w.Header().Get(handler.LimitHeader)
-	if hasHeader {
-		require.Equal(t, "true", header)
-	} else {
-		require.Equal(t, "", header)
-	}
+	actual := w.Header().Get(handler.LimitHeader)
+	assert.Equal(t, header, actual)
 }
 
 var limitTests = []struct {
-	name               string
-	ex, ex2, hasHeader bool
+	name    string
+	ex, ex2 bool
+	header  string
 }{
-	{"both incomplete", false, false, true},
-	{"with terminator incomplete", true, false, true},
-	{"with children incomplete", false, true, true},
-	{"both complete", true, true, false},
+	{"both incomplete", false, false, fmt.Sprintf(
+		"%s,%s_%s", handler.LimitHeaderSeriesLimitApplied, "foo", "bar")},
+	{"with terminator incomplete", true, false, "foo_bar"},
+	{"with children incomplete", false, true,
+		handler.LimitHeaderSeriesLimitApplied},
+	{"both complete", true, true, ""},
 }
 
 func TestFind(t *testing.T) {
 	for _, tt := range limitTests {
 		t.Run(tt.name, func(t *testing.T) {
-			testFind(t, tt.ex, tt.ex2, tt.hasHeader)
+			testFind(t, tt.ex, tt.ex2, tt.header)
 		})
 	}
 }

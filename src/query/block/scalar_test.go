@@ -59,7 +59,7 @@ func TestScalarBlock(t *testing.T) {
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)
 	require.NotNil(t, stepIter)
-	require.True(t, block.Meta().Exhaustive)
+	// require.True(t, block.Meta().ResultMetadata.Exhaustive)
 	verifyMetas(t, block.Meta(), stepIter.SeriesMeta(), tagOpts)
 
 	assert.Equal(t, 6, stepIter.StepCount())
@@ -80,7 +80,7 @@ func TestScalarBlock(t *testing.T) {
 
 	require.NoError(t, stepIter.Err())
 	assert.Equal(t, 6, valCounts)
-	require.True(t, block.Meta().Exhaustive)
+	// require.True(t, block.Meta().Exhaustive)
 
 	seriesIter, err := block.SeriesIter()
 	require.NoError(t, err)

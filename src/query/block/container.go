@@ -56,6 +56,8 @@ func newContainerBlock(blocks []Block) (AccumulatorBlock, error) {
 			return nil, fmt.Errorf("mismatched metadata in container block: "+
 				"expected %s, got %s", meta.String(), m.String())
 		}
+
+		meta.ResultMetadata = meta.ResultMetadata.CombineMetadata(m.ResultMetadata)
 	}
 
 	return &containerBlock{
@@ -87,7 +89,7 @@ func (b *containerBlock) AddBlock(bl Block) error {
 	}
 
 	b.meta.ResultMetadata = b.meta.ResultMetadata.
-		CombineMetadata(bl.Meta().ResultMetadata)
+		CombineMetadata(blockMeta.ResultMetadata)
 	b.blocks = append(b.blocks, bl)
 	return nil
 }

@@ -61,12 +61,15 @@ func TestPromReadHandler_Read(t *testing.T) {
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, exhaustive, err := read(context.TODO(), promRead.engine,
+	result, err := read(context.TODO(), promRead.engine,
 		setup.QueryOpts, setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(),
 		r, instrument.NewOptions())
+
+	seriesList := result.series
+	meta := result.meta
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
-	require.False(t, exhaustive)
+	require.False(t, meta.Exhaustive)
 	s := seriesList[0]
 
 	assert.Equal(t, 5, s.Values().Len())
@@ -82,13 +85,31 @@ type M3QLResp []struct {
 	StepSizeMs int               `json:"step_size_ms"`
 }
 
-func TestPromReadHandler_ReadM3QL(t *testing.T) {
+func TestPromReadHandlerRead(t *testing.T) {
+	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
+		handler.LimitHeaderSeriesLimitApplied)
+}
+
+func testPromReadHandlerRead(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
 	promRead := setup.Handlers.Read
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	meta := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(meta, seriesMeta, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
@@ -108,6 +129,7 @@ func TestPromReadHandler_ReadM3QL(t *testing.T) {
 	assert.Equal(t, "dummy1", m3qlResp[1].Target)
 	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"}, m3qlResp[1].Tags)
 	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
+
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {

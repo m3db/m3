@@ -128,7 +128,6 @@ func (e *engine) ExecuteExpr(
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
 	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
-
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
 		return nil, err

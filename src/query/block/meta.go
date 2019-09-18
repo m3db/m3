@@ -70,29 +70,49 @@ func NewResultMetadata() ResultMetadata {
 }
 
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
-	return ResultMetadata{
+	combinedWarnings := make([]Warning, 0, len(m.Warnings)+len(other.Warnings))
+	for _, w := range m.Warnings {
+		combinedWarnings = append(combinedWarnings, w)
+	}
+
+	meta := ResultMetadata{
 		LocalOnly:  m.LocalOnly && other.LocalOnly,
 		Exhaustive: m.Exhaustive && other.Exhaustive,
-		Warnings:   append(m.Warnings, other.Warnings...),
+		Warnings:   combinedWarnings,
 	}
+
+	for _, w := range other.Warnings {
+		meta.AddWarning(w.Name, w.Message)
+	}
+
+	return meta
 }
 
+// NB: warnings are expected to be small in general, so it's better to iterate
+// over the array rather than introduce a map.
 func (m *ResultMetadata) AddWarning(name string, message string) {
+	for _, warning := range m.Warnings {
+		// Dedupe warnings.
+		if warning.Name == name && warning.Message == message {
+			return
+		}
+	}
+
 	m.Warnings = append(m.Warnings, Warning{
-		Name:    []byte(name),
-		Message: []byte(message),
+		Name:    name,
+		Message: message,
 	})
 }
 
 // Warning is a message that indicates potential partial or incomplete results.
 type Warning struct {
 	// Name is the name of the store originating the warning.
-	Name []byte
+	Name string
 	// Message is the content of the warning message.
-	Message []byte
+	Message string
 }
 
 // Header formats the warning into a format to send in a response header.
 func (w Warning) Header() string {
-	return fmt.Sprintf("&s_&s", string(w.Name), string(w.Message))
+	return fmt.Sprintf("%s_%s", w.Name, w.Message)
 }
