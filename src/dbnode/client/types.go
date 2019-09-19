@@ -517,10 +517,10 @@ type Options interface {
 	AsyncTopologyInitializers() []topology.Initializer
 
 	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
-	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+	SetAsyncWriteWorkerPool(value xsync.WorkerPool) Options
 
 	// AsyncWriteWorkerPool returns the worker pool for async writes.
-	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+	AsyncWriteWorkerPool() xsync.WorkerPool
 }
 
 // AdminOptions is a set of administration client options.

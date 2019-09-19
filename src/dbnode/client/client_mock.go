@@ -2294,7 +2294,7 @@ func (mr *MockOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
 }
 
 // SetAsyncWriteWorkerPool mocks base method
-func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.PooledWorkerPool) Options {
+func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.WorkerPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
 	ret0, _ := ret[0].(Options)
@@ -2308,10 +2308,10 @@ func (mr *MockOptionsMockRecorder) SetAsyncWriteWorkerPool(value interface{}) *g
 }
 
 // AsyncWriteWorkerPool mocks base method
-func (m *MockOptions) AsyncWriteWorkerPool() sync.PooledWorkerPool {
+func (m *MockOptions) AsyncWriteWorkerPool() sync.WorkerPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
-	ret0, _ := ret[0].(sync.PooledWorkerPool)
+	ret0, _ := ret[0].(sync.WorkerPool)
 	return ret0
 }
 
@@ -3605,7 +3605,7 @@ func (mr *MockAdminOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call
 }
 
 // SetAsyncWriteWorkerPool mocks base method
-func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.PooledWorkerPool) Options {
+func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.WorkerPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
 	ret0, _ := ret[0].(Options)
@@ -3619,10 +3619,10 @@ func (mr *MockAdminOptionsMockRecorder) SetAsyncWriteWorkerPool(value interface{
 }
 
 // AsyncWriteWorkerPool mocks base method
-func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.PooledWorkerPool {
+func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.WorkerPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
-	ret0, _ := ret[0].(sync.PooledWorkerPool)
+	ret0, _ := ret[0].(sync.WorkerPool)
 	return ret0
 }
 

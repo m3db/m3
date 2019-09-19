@@ -248,7 +248,7 @@ type options struct {
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
 	asyncTopologyInitializers               []topology.Initializer
-	asyncWriteWorkerPool                    xsync.PooledWorkerPool
+	asyncWriteWorkerPool                    xsync.WorkerPool
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -907,12 +907,12 @@ func (o *options) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
 }
 
-func (o *options) SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options {
+func (o *options) SetAsyncWriteWorkerPool(value xsync.WorkerPool) Options {
 	opts := *o
 	opts.asyncWriteWorkerPool = value
 	return &opts
 }
 
-func (o *options) AsyncWriteWorkerPool() xsync.PooledWorkerPool {
+func (o *options) AsyncWriteWorkerPool() xsync.WorkerPool {
 	return o.asyncWriteWorkerPool
 }

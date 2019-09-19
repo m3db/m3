@@ -32,12 +32,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
-	xconfig "github.com/m3db/m3/src/x/config"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	xsync "github.com/m3db/m3/src/x/sync"
+)
+
+const (
+	asyncWriteWorkerPoolDefaultSize = 128
 )
 
 var (
@@ -88,8 +91,8 @@ type Configuration struct {
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
 
-	// AsyncWriteWorkerPool is the worker pool policy for async write requests.
-	AsyncWriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"asyncWriteWorkerPool"`
+	// AsyncWriteWorkerPoolSize is the worker pool size for async write requests.
+	AsyncWriteWorkerPoolSize *int `yaml:"asyncWriteWorkerPoolSize"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -160,6 +163,11 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf(
 			"m3db client backgroundHealthCheckFailThrottleFactor was: %f but must be >= 0 and <=10",
 			*c.BackgroundHealthCheckFailThrottleFactor)
+	}
+
+	if c.AsyncWriteWorkerPoolSize != nil && *c.AsyncWriteWorkerPoolSize <= 0 {
+		return fmt.Errorf("m3db client async write worker pool size was: %d but must be >0",
+			*c.AsyncWriteWorkerPoolSize)
 	}
 
 	if err := c.Proto.Validate(); err != nil {
@@ -274,11 +282,14 @@ func (c Configuration) NewAdminClient(
 		SetInstrumentOptions(iopts)
 
 	if buildAsyncPool {
-		workerPool, err := buildWorkerPools(iopts, c.AsyncWriteWorkerPool)
-		if err != nil {
-			err = fmt.Errorf("unable to create async write worker pool, err: %v", err)
-			return nil, err
+		var size int
+		if c.AsyncWriteWorkerPoolSize == nil {
+			size = asyncWriteWorkerPoolDefaultSize
+		} else {
+			size = *c.AsyncWriteWorkerPoolSize
 		}
+		workerPool := xsync.NewWorkerPool(size)
+		workerPool.Init()
 		v = v.SetAsyncWriteWorkerPool(workerPool)
 	}
 
@@ -344,20 +355,4 @@ func (c Configuration) NewAdminClient(
 	}
 
 	return NewAdminClient(opts)
-}
-
-// buildWorkerPools builds a worker pool
-func buildWorkerPools(
-	instrumentOptions instrument.Options,
-	poolPolicy xconfig.WorkerPoolPolicy,
-) (xsync.PooledWorkerPool, error) {
-	opts, poolSize := poolPolicy.Options()
-	opts = opts.SetInstrumentOptions(instrumentOptions)
-	workerPool, err := xsync.NewPooledWorkerPool(poolSize, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	workerPool.Init()
-	return workerPool, nil
 }

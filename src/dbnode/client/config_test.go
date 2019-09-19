@@ -56,8 +56,6 @@ backgroundHealthCheckFailLimit: 4
 backgroundHealthCheckFailThrottleFactor: 0.5
 hashing:
   seed: 42
-asyncWriteWorkerPool:
-  size: 10
 proto:
   enabled: false
   schema_registry:
@@ -119,7 +117,6 @@ proto:
 		HashingConfiguration: &HashingConfiguration{
 			Seed: 42,
 		},
-		AsyncWriteWorkerPool: xconfig.WorkerPoolPolicy{Size: 10},
 		Proto: &ProtoConfiguration{
 			Enabled: false,
 			SchemaRegistry: map[string]NamespaceProtoSchema{
