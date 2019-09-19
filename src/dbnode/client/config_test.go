@@ -121,7 +121,7 @@ proto:
 			Enabled: false,
 			SchemaRegistry: map[string]NamespaceProtoSchema{
 				"ns1:2d": {SchemaFilePath: "/path/to/schema", MessageName: "ns1_msg_name"},
-				"ns2": {SchemaDeployID: "deployID-345", MessageName: "ns2_msg_name"},
+				"ns2":    {SchemaDeployID: "deployID-345", MessageName: "ns2_msg_name"},
 			},
 		},
 	}

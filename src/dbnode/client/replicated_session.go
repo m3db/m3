@@ -82,8 +82,7 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 
 func newReplicatedSession(opts Options, options ...replicatedSessionOption) (clientSession, error) {
 	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
-	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
-	workerPool.Init()
+	workerPool := opts.AsyncWriteWorkerPool()
 
 	scope := opts.InstrumentOptions().MetricsScope()
 

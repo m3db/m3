@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	"github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -2292,6 +2293,34 @@ func (mr *MockOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockOptions)(nil).AsyncTopologyInitializers))
 }
 
+// SetAsyncWriteWorkerPool mocks base method
+func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.WorkerPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncWriteWorkerPool indicates an expected call of SetAsyncWriteWorkerPool
+func (mr *MockOptionsMockRecorder) SetAsyncWriteWorkerPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncWriteWorkerPool", reflect.TypeOf((*MockOptions)(nil).SetAsyncWriteWorkerPool), value)
+}
+
+// AsyncWriteWorkerPool mocks base method
+func (m *MockOptions) AsyncWriteWorkerPool() sync.WorkerPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
+	ret0, _ := ret[0].(sync.WorkerPool)
+	return ret0
+}
+
+// AsyncWriteWorkerPool indicates an expected call of AsyncWriteWorkerPool
+func (mr *MockOptionsMockRecorder) AsyncWriteWorkerPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteWorkerPool", reflect.TypeOf((*MockOptions)(nil).AsyncWriteWorkerPool))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3573,6 +3602,34 @@ func (m *MockAdminOptions) AsyncTopologyInitializers() []topology.Initializer {
 func (mr *MockAdminOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncTopologyInitializers", reflect.TypeOf((*MockAdminOptions)(nil).AsyncTopologyInitializers))
+}
+
+// SetAsyncWriteWorkerPool mocks base method
+func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.WorkerPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncWriteWorkerPool indicates an expected call of SetAsyncWriteWorkerPool
+func (mr *MockAdminOptionsMockRecorder) SetAsyncWriteWorkerPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncWriteWorkerPool", reflect.TypeOf((*MockAdminOptions)(nil).SetAsyncWriteWorkerPool), value)
+}
+
+// AsyncWriteWorkerPool mocks base method
+func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.WorkerPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
+	ret0, _ := ret[0].(sync.WorkerPool)
+	return ret0
+}
+
+// AsyncWriteWorkerPool indicates an expected call of AsyncWriteWorkerPool
+func (mr *MockAdminOptionsMockRecorder) AsyncWriteWorkerPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteWorkerPool", reflect.TypeOf((*MockAdminOptions)(nil).AsyncWriteWorkerPool))
 }
 
 // SetOrigin mocks base method

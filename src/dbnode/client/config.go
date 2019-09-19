@@ -36,6 +36,11 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	xsync "github.com/m3db/m3/src/x/sync"
+)
+
+const (
+	asyncWriteWorkerPoolDefaultSize = 128
 )
 
 var (
@@ -85,6 +90,9 @@ type Configuration struct {
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
+
+	// AsyncWriteWorkerPoolSize is the worker pool size for async write requests.
+	AsyncWriteWorkerPoolSize *int `yaml:"asyncWriteWorkerPoolSize"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -155,6 +163,11 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf(
 			"m3db client backgroundHealthCheckFailThrottleFactor was: %f but must be >= 0 and <=10",
 			*c.BackgroundHealthCheckFailThrottleFactor)
+	}
+
+	if c.AsyncWriteWorkerPoolSize != nil && *c.AsyncWriteWorkerPoolSize <= 0 {
+		return fmt.Errorf("m3db client async write worker pool size was: %d but must be >0",
+			*c.AsyncWriteWorkerPoolSize)
 	}
 
 	if err := c.Proto.Validate(); err != nil {
@@ -244,6 +257,7 @@ func (c Configuration) NewAdminClient(
 	topoInit := params.TopologyInitializer
 	asyncTopoInits := []topology.Initializer{}
 
+	var buildAsyncPool bool
 	if topoInit == nil {
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
@@ -254,6 +268,7 @@ func (c Configuration) NewAdminClient(
 		for _, envCfg := range envCfgs {
 			if envCfg.Async {
 				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+				buildAsyncPool = true
 			} else {
 				topoInit = envCfg.TopologyInitializer
 			}
@@ -265,6 +280,18 @@ func (c Configuration) NewAdminClient(
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
+
+	if buildAsyncPool {
+		var size int
+		if c.AsyncWriteWorkerPoolSize == nil {
+			size = asyncWriteWorkerPoolDefaultSize
+		} else {
+			size = *c.AsyncWriteWorkerPoolSize
+		}
+		workerPool := xsync.NewWorkerPool(size)
+		workerPool.Init()
+		v = v.SetAsyncWriteWorkerPool(workerPool)
+	}
 
 	if c.WriteConsistencyLevel != nil {
 		v = v.SetWriteConsistencyLevel(*c.WriteConsistencyLevel)
