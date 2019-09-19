@@ -30,14 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
-	m3sync "github.com/m3db/m3/src/x/sync"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-)
-
-const (
-	maxReplicationConcurrency = 128
 )
 
 type newSessionFn func(Options) (clientSession, error)
@@ -48,7 +44,7 @@ type replicatedSession struct {
 	session       clientSession
 	asyncSessions []clientSession
 	newSessionFn  newSessionFn
-	workerPool    m3sync.WorkerPool
+	workerPool    xsync.PooledWorkerPool
 	scope         tally.Scope
 	log           *zap.Logger
 	metrics       replicatedSessionMetrics
@@ -56,15 +52,13 @@ type replicatedSession struct {
 }
 
 type replicatedSessionMetrics struct {
-	replicateExecuted    tally.Counter
-	replicateNotExecuted tally.Counter
+	replicateSuccess     tally.Counter
 	replicateError       tally.Counter
 }
 
 func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
 	return replicatedSessionMetrics{
-		replicateExecuted:    scope.Counter("replicate.executed"),
-		replicateNotExecuted: scope.Counter("replicate.not-executed"),
+		replicateSuccess:     scope.Counter("replicate.success"),
 		replicateError:       scope.Counter("replicate.error"),
 	}
 }
@@ -81,15 +75,11 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 }
 
 func newReplicatedSession(opts Options, options ...replicatedSessionOption) (clientSession, error) {
-	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
-	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
-	workerPool.Init()
-
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
 		newSessionFn: newSession,
-		workerPool:   workerPool,
+		workerPool:   opts.AsyncWriteWorkerPool(),
 		scope:        scope,
 		log:          opts.InstrumentOptions().Logger(),
 		metrics:      newReplicatedSessionMetrics(scope),
@@ -154,7 +144,7 @@ type replicatedParams struct {
 func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
-		if s.workerPool.GoIfAvailable(func() {
+		s.workerPool.Go(func() {
 			var err error
 			if params.useTags {
 				err = asyncSession.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
@@ -164,15 +154,13 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 			if err != nil {
 				s.metrics.replicateError.Inc(1)
 				s.log.Error("could not replicate write: %v", zap.Error(err))
+			} else {
+				s.metrics.replicateSuccess.Inc(1)
 			}
 			if s.outCh != nil {
 				s.outCh <- err
 			}
-		}) {
-			s.metrics.replicateExecuted.Inc(1)
-		} else {
-			s.metrics.replicateNotExecuted.Inc(1)
-		}
+		})
 	}
 
 	if params.useTags {

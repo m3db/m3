@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -514,6 +515,12 @@ type Options interface {
 
 	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
 	AsyncTopologyInitializers() []topology.Initializer
+
+	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
+	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+
+	// AsyncWriteWorkerPool returns the worker pool for async writes.
+	AsyncWriteWorkerPool() xsync.PooledWorkerPool
 }
 
 // AdminOptions is a set of administration client options.
