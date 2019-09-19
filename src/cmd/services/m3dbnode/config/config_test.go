@@ -429,6 +429,7 @@ func TestConfiguration(t *testing.T) {
     mmap: null
     force_index_summaries_mmap_memory: true
     force_bloom_filter_mmap_memory: true
+    bloomFilterFalsePositivePercent: null
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
