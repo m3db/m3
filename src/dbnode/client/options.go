@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	tchannel "github.com/uber/tchannel-go"
 )
@@ -247,6 +248,7 @@ type options struct {
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
 	asyncTopologyInitializers               []topology.Initializer
+	asyncWriteWorkerPool                    xsync.WorkerPool
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -903,4 +905,14 @@ func (o *options) SetAsyncTopologyInitializers(value []topology.Initializer) Opt
 
 func (o *options) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
+}
+
+func (o *options) SetAsyncWriteWorkerPool(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.asyncWriteWorkerPool = value
+	return &opts
+}
+
+func (o *options) AsyncWriteWorkerPool() xsync.WorkerPool {
+	return o.asyncWriteWorkerPool
 }

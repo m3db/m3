@@ -28,6 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/suite"
 )
@@ -55,6 +56,11 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 	}
 	options := NewAdminOptions().
 		SetAsyncTopologyInitializers(topoInits)
+	if asyncCount > 0 {
+		workerPool := xsync.NewWorkerPool(10)
+		workerPool.Init()
+		options = options.SetAsyncWriteWorkerPool(workerPool)
+	}
 
 	if hasSync {
 		options = options.SetTopologyInitializer(newTopologyInitializer())
