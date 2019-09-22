@@ -76,6 +76,11 @@ func read(
 		return nil, err
 	}
 
+	return NewSeriesFromResult(result)
+}
+
+// NewSeriesFromResult returns series from a executor result.
+func NewSeriesFromResult(result executor.Result) ([]*ts.Series, error) {
 	// Block slices are sorted by start time.
 	// TODO: Pooling
 	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
@@ -112,6 +117,7 @@ func read(
 		}
 
 		// Insert blocks sorted by start time
+		var err error
 		sortedBlockList, err = insertSortedBlock(b, sortedBlockList,
 			numSteps, numSeries)
 		if err != nil {
