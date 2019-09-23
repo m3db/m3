@@ -18,9 +18,11 @@ M3 contributors and maintainers have monthly (every four weeks) meetings at 11:0
 
 An initial agenda is posted to the [community meeting shared Google doc](https://docs.google.com/document/d/1eGAd2A8FVtiip5wHxHnmSkz7e_qHc9k_4hGI0vUGdHM/edit?usp=sharing) a day before each meeting, and everyone is welcome to suggest additional topics or other agendas.
 
-Please download and import the following iCalendar (.ics) files to calendar system.
+You can add the following public Google Calendar if you're using Google Calendar (so that any changes are reflected in your own calendar when the invite is updated):
+[https://calendar.google.com/calendar?cid=aWc5YWFxZWw0azFmMnRoZDA2dHBtZzZva2tAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ](https://calendar.google.com/calendar?cid=aWc5YWFxZWw0azFmMnRoZDA2dHBtZzZva2tAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ)
 
-Monthly: [us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862](https://us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862)
+For those not using Google Calendar, please download and import the following iCalendar (.ics) files to calendar system for the monthly invite: 
+[https://calendar.google.com/calendar/ical/ig9aaqel4k1f2thd06tpmg6okk%40group.calendar.google.com/public/basic.ics](https://calendar.google.com/calendar/ical/ig9aaqel4k1f2thd06tpmg6okk%40group.calendar.google.com/public/basic.ics)
 
 Join Zoom Meeting: [us04web.zoom.us/j/519434268](https://us04web.zoom.us/j/519434268)
 
