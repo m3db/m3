@@ -68,6 +68,7 @@ type FetchResult struct {
 // Close will return the fetch result to the pool.
 func (fr *FetchResult) Close() error {
 	fr.SeriesList = nil
+	fr.Metadata = block.NewResultMetadata()
 	fetchResultPool.Put(fr)
 	return nil
 }
@@ -75,12 +76,15 @@ func (fr *FetchResult) Close() error {
 // Reset will wipe out existing fetch result data.
 func (fr *FetchResult) Reset() {
 	fr.SeriesList = nil
+	fr.Metadata = block.NewResultMetadata()
 }
 
 var (
 	fetchResultPool = &sync.Pool{
 		New: func() interface{} {
-			return &FetchResult{}
+			return &FetchResult{
+				Metadata: block.NewResultMetadata(),
+			}
 		},
 	}
 )

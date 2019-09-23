@@ -89,7 +89,7 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, ctx.StartTime,
 		ctx.EndTime, ctx.Timeout)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	if ctx.TracingEnabled() {
@@ -154,10 +154,9 @@ func (f *funcExpression) Arguments() []ArgumentASTNode {
 
 // Execute evaluates the function and returns the result as a timeseries
 func (f *funcExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
-	fmt.Println("EXECV444UTE")
 	out, err := f.call.Evaluate(ctx)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	return out.Interface().(ts.SeriesList), nil
@@ -170,7 +169,7 @@ type noopExpression struct{}
 
 // Execute returns nothing
 func (noop noopExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
-	return ts.SeriesList{}, nil
+	return ts.NewSeriesList(), nil
 }
 
 func (noop noopExpression) Name() string {

@@ -45,14 +45,14 @@ func summarize(
 	if err != nil || interval <= 0 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"invalid interval %s: %v", interval, err))
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	f, fexists := summarizeFuncs[fname]
 	if !fexists {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"invalid func %s", fname))
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	alignString := ""

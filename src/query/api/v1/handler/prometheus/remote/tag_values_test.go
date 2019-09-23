@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/m3db/m3/src/query/models"
@@ -102,7 +103,7 @@ func TestTagValues(t *testing.T) {
 		return now
 	}
 
-	handler := NewTagValuesHandler(store,
+	valueHandler := NewTagValuesHandler(store,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		nowFn, instrument.NewOptions())
 	names := []struct {
@@ -135,12 +136,16 @@ func TestTagValues(t *testing.T) {
 					Values: bs("a", "b", "c", tt.name),
 				},
 			},
+			Metadata: block.ResultMetadata{
+				Exhaustive: false,
+				Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+			},
 		}
 
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(storeResult, nil)
 
-		router.HandleFunc(url, handler.ServeHTTP)
+		router.HandleFunc(url, valueHandler.ServeHTTP)
 		router.ServeHTTP(rr, req)
 
 		read, err := ioutil.ReadAll(rr.Body)
@@ -148,6 +153,10 @@ func TestTagValues(t *testing.T) {
 
 		ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, tt.name)
 		assert.Equal(t, ex, string(read))
+
+		warning := rr.Header().Get(handler.LimitHeader)
+		exWarn := fmt.Sprintf("%s,foo_bar", handler.LimitHeaderSeriesLimitApplied)
+		assert.Equal(t, exWarn, warning)
 	}
 }
 

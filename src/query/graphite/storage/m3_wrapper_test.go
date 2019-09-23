@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -162,7 +163,14 @@ func TestFetchByQuery(t *testing.T) {
 		series.SetResolution(resolution)
 	}
 
-	store.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	store.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata: block.ResultMetadata{
+			Exhaustive: false,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		},
+	}, nil)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -195,6 +203,10 @@ func TestFetchByQuery(t *testing.T) {
 
 	// NB: ensure the fetch was called with the base enforcer's child correctly
 	assert.Equal(t, childEnforcer, store.LastFetchOptions().Enforcer)
+	assert.False(t, result.Metadata.Exhaustive)
+	assert.True(t, result.Metadata.LocalOnly)
+	require.Equal(t, 1, len(result.Metadata.Warnings))
+	require.Equal(t, "foo_bar", result.Metadata.Warnings[0].Header())
 }
 
 func TestFetchByInvalidQuery(t *testing.T) {

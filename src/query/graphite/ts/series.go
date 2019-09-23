@@ -642,6 +642,11 @@ type SeriesList struct {
 	Metadata block.ResultMetadata
 }
 
+// NewSeriesList creates a blank series list.
+func NewSeriesList() SeriesList {
+	return SeriesList{Metadata: block.NewResultMetadata()}
+}
+
 // Len returns the length of the list.
 func (l SeriesList) Len() int {
 	return len(l.Values)

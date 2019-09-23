@@ -88,6 +88,11 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	return meta
 }
 
+func (m ResultMetadata) IsDefault() bool {
+	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
+}
+
+// AddWarning adds a warning to the result metadata.
 // NB: warnings are expected to be small in general, so it's better to iterate
 // over the array rather than introduce a map.
 func (m *ResultMetadata) AddWarning(name string, message string) {

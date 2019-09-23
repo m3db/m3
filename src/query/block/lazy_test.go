@@ -50,10 +50,6 @@ func buildMetaExhaustive(start time.Time, exhaustive bool) Metadata {
 }
 
 func buildTestSeriesMeta(name string) []SeriesMeta {
-	return buildSeriesMetaExhaustive(name, false)
-}
-
-func buildSeriesMetaExhaustive(name string, exhaustive bool) []SeriesMeta {
 	tags := models.NewTags(1, models.NewTagOptions()).
 		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
 	return []SeriesMeta{
@@ -103,10 +99,6 @@ func TestLazyOpts(t *testing.T) {
 
 	seriesMeta := buildTestSeriesMeta("name")
 	expectSM := buildTestSeriesMeta("name_mutated")
-	require.Equal(t, expectSM, lazyOpts.SeriesMetaTransform()(seriesMeta))
-
-	seriesMeta = buildSeriesMetaExhaustive("name", true)
-	expectSM = buildSeriesMetaExhaustive("name_mutated", true)
 	require.Equal(t, expectSM, lazyOpts.SeriesMetaTransform()(seriesMeta))
 
 	require.Equal(t, 1.0, lazyOpts.ValueTransform()(1.0))
@@ -171,8 +163,8 @@ func TestStepIter(t *testing.T) {
 	it, err := off.StepIter()
 	require.NoError(t, err)
 
-	seriesMetas := buildSeriesMetaExhaustive("name", true)
-	expected := buildSeriesMetaExhaustive("name_mutated", true)
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
 
 	iter.EXPECT().SeriesMeta().Return(seriesMetas)
 	assert.Equal(t, expected, it.SeriesMeta())
@@ -215,8 +207,8 @@ func TestSeriesIter(t *testing.T) {
 	it, err := off.SeriesIter()
 	require.NoError(t, err)
 
-	seriesMetas := buildSeriesMetaExhaustive("name", true)
-	expected := buildSeriesMetaExhaustive("name_mutated", true)
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
 
 	iter.EXPECT().SeriesMeta().Return(seriesMetas)
 	assert.Equal(t, expected, it.SeriesMeta())
@@ -319,8 +311,8 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 	it, err := off.StepIter()
 	require.NoError(t, err)
 
-	seriesMetas := buildSeriesMetaExhaustive("name", true)
-	expected := buildSeriesMetaExhaustive("name_mutated", true)
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
 
 	iter.EXPECT().SeriesMeta().Return(seriesMetas)
 	assert.Equal(t, expected, it.SeriesMeta())
@@ -388,8 +380,8 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	it, err := off.SeriesIter()
 	require.NoError(t, err)
 
-	seriesMetas := buildSeriesMetaExhaustive("name", true)
-	expected := buildSeriesMetaExhaustive("name_mutated", true)
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
 
 	iter.EXPECT().SeriesMeta().Return(seriesMetas)
 	assert.Equal(t, expected, it.SeriesMeta())

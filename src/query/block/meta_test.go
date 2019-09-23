@@ -41,17 +41,20 @@ func TestResultMeta(t *testing.T) {
 	assert.True(t, r.Exhaustive)
 	assert.True(t, r.LocalOnly)
 	assert.Equal(t, 0, len(r.Warnings))
+	assert.True(t, r.IsDefault())
 
 	r.AddWarning("foo", "bar")
 	assert.Equal(t, 1, len(r.Warnings))
 	assert.Equal(t, "foo", r.Warnings[0].Name)
 	assert.Equal(t, "bar", r.Warnings[0].Message)
+	assert.False(t, r.IsDefault())
 
 	rTwo := ResultMetadata{
 		LocalOnly:  false,
 		Exhaustive: false,
 	}
 
+	assert.False(t, rTwo.IsDefault())
 	rTwo.AddWarning("baz", "qux")
 	merge := r.CombineMetadata(rTwo)
 	assert.False(t, merge.Exhaustive)

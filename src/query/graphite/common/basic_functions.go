@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -88,7 +89,7 @@ type SeriesRenamer func(series *ts.Series) string
 // Head returns the first n elements of a series list or the entire list
 func Head(series ts.SeriesList, n int) (ts.SeriesList, error) {
 	if n < 0 {
-		return ts.SeriesList{}, ErrNegativeCount
+		return ts.NewSeriesList(), ErrNegativeCount
 	}
 	r := series.Values[:int(math.Min(float64(n), float64(series.Len())))]
 	series.Values = r
@@ -107,14 +108,17 @@ func Identity(ctx *Context, name string) (ts.SeriesList, error) {
 	}
 	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, vals)
 	newSeries.Specification = fmt.Sprintf("identity(%q)", name)
-	return ts.SeriesList{Values: []*ts.Series{newSeries}}, nil
+	return ts.SeriesList{
+		Values:   []*ts.Series{newSeries},
+		Metadata: block.NewResultMetadata(),
+	}, nil
 }
 
 // Normalize normalizes all input series to the same start time, step size, and end time.
 func Normalize(ctx *Context, input ts.SeriesList) (ts.SeriesList, time.Time, time.Time, int, error) {
 	numSeries := input.Len()
 	if numSeries == 0 {
-		return ts.SeriesList{}, ctx.StartTime, ctx.EndTime, -1, errors.NewInvalidParamsError(ErrEmptySeriesList)
+		return ts.NewSeriesList(), ctx.StartTime, ctx.EndTime, -1, errors.NewInvalidParamsError(ErrEmptySeriesList)
 	}
 	if numSeries == 1 {
 		return input, input.Values[0].StartTime(), input.Values[0].EndTime(), input.Values[0].MillisPerStep(), nil
@@ -164,19 +168,21 @@ func Count(ctx *Context, seriesList ts.SeriesList, renamer SeriesListRenamer) (t
 		numSteps := ctx.EndTime.Sub(ctx.StartTime).Minutes()
 		vals := ts.NewZeroValues(ctx, MillisPerMinute, int(numSteps))
 		r := ts.SeriesList{
-			Values: []*ts.Series{ts.NewSeries(ctx, renamer(seriesList), ctx.StartTime, vals)},
+			Values:   []*ts.Series{ts.NewSeries(ctx, renamer(seriesList), ctx.StartTime, vals)},
+			Metadata: block.NewResultMetadata(),
 		}
 		return r, nil
 	}
 
 	normalized, start, end, millisPerStep, err := Normalize(ctx, seriesList)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 	numSteps := int(end.Sub(start) / (time.Duration(millisPerStep) * time.Millisecond))
 	vals := ts.NewConstantValues(ctx, float64(normalized.Len()), numSteps, millisPerStep)
 	return ts.SeriesList{
-		Values: []*ts.Series{ts.NewSeries(ctx, renamer(normalized), start, vals)},
+		Values:   []*ts.Series{ts.NewSeries(ctx, renamer(normalized), start, vals)},
+		Metadata: seriesList.Metadata,
 	}, nil
 }
 

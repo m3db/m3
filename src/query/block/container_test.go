@@ -106,8 +106,8 @@ func TestContainerBlockMergesResultMeta(t *testing.T) {
 
 	resultMeta := container.Meta().ResultMetadata
 	assert.False(t, resultMeta.Exhaustive)
-	assert.False(t, resultMeta.LocalOnly)
-
+	assert.True(t, resultMeta.LocalOnly)
+	assert.Equal(t, 1, len(resultMeta.Warnings))
 }
 
 func buildStepBlock(ctrl *gomock.Controller, v float64, first bool) Block {

@@ -62,4 +62,9 @@ func TestScalar(t *testing.T) {
 	for _, v := range vals {
 		assert.Equal(t, val, v)
 	}
+
+	resultMeta := sink.Meta.ResultMetadata
+	require.True(t, resultMeta.Exhaustive)
+	require.True(t, resultMeta.LocalOnly)
+	require.Equal(t, 0, len(resultMeta.Warnings))
 }

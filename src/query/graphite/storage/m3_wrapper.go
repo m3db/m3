@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -166,6 +167,7 @@ func (s *m3WrappedStore) FetchByQuery(
 			zap.String("query", query))
 		return &FetchResult{
 			SeriesList: []*ts.Series{},
+			Metadata:   block.NewResultMetadata(),
 		}, nil
 	}
 
