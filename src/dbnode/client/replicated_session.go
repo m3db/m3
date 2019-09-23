@@ -129,7 +129,7 @@ func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 	sessions := make([]clientSession, 0, len(opts))
 	for i, oo := range opts {
 		subscope := oo.InstrumentOptions().MetricsScope().SubScope(fmt.Sprintf("async-%d", i))
-		oo.SetInstrumentOptions(oo.InstrumentOptions().SetMetricsScope(subscope))
+		oo = oo.SetInstrumentOptions(oo.InstrumentOptions().SetMetricsScope(subscope))
 
 		session, err := s.newSessionFn(oo)
 		if err != nil {
