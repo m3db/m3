@@ -25,6 +25,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/block"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,12 +42,14 @@ func TestExhaustiveTagMerge(t *testing.T) {
 				it.EXPECT().Next().Return(false)
 				it.EXPECT().Err().Return(nil)
 				it.EXPECT().Finalize().Return()
-				r.Add(it, ex, nil)
+				meta := block.NewResultMetadata()
+				meta.Exhaustive = ex
+				r.Add(it, meta, nil)
 			}
 
-			_, actual, err := r.FinalResult()
+			tagResult, err := r.FinalResult()
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, tagResult.Metadata.Exhaustive)
 			assert.NoError(t, r.Close())
 		})
 	}

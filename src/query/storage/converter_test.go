@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -86,12 +87,18 @@ func verifyExpandSeries(
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
 	results, err := SeriesIteratorsToFetchResult(iters, pools, true,
-		ex, enforcer, nil)
+		block.ResultMetadata{
+			Exhaustive: ex,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		}, enforcer, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
-	require.Equal(t, ex, results.Exhaustive)
+	require.Equal(t, ex, results.Metadata.Exhaustive)
+	require.Equal(t, 1, len(results.Metadata.Warnings))
+	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
 	require.Len(t, results.SeriesList, num)
 	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(),
 		Value: testTags.Value.Bytes()}}
@@ -176,8 +183,8 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true, false,
-		enforcer, nil)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true,
+		block.NewResultMetadata(), enforcer, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
@@ -211,8 +218,8 @@ func TestOverLimit(t *testing.T) {
 	enforcer.EXPECT().Add(xcost.Cost(2)).
 		Return(xcost.Report{Error: errors.New("error")}).MinTimes(1)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true, true,
-		enforcer, nil)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true,
+		block.NewResultMetadata(), enforcer, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -122,12 +123,22 @@ func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) 
 
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		r.Add(ns.attrs, iters, true, nil)
+		seriesFetchResult := SeriesFetchResult{
+			Metadata:        block.NewResultMetadata(),
+			SeriesIterators: iters,
+		}
+
+		r.Add(seriesFetchResult, ns.attrs, nil)
 	}
 
-	iters, exhaustive, err := r.FinalResult()
-	assert.True(t, exhaustive)
+	result, err := r.FinalResult()
 	assert.NoError(t, err)
+
+	assert.True(t, result.Metadata.Exhaustive)
+	assert.True(t, result.Metadata.LocalOnly)
+	assert.Equal(t, 0, len(result.Metadata.Warnings))
+
+	iters := result.SeriesIterators
 	assert.Equal(t, 4, iters.Len())
 	assert.Equal(t, 4, len(iters.Iters()))
 
@@ -172,12 +183,19 @@ func TestExhaustiveMerge(t *testing.T) {
 					}, nil),
 				}, nil)
 
-				r.Add(storage.Attributes{}, iters, ex, nil)
+				meta := block.NewResultMetadata()
+				meta.Exhaustive = ex
+				seriesFetchResult := SeriesFetchResult{
+					Metadata:        meta,
+					SeriesIterators: iters,
+				}
+
+				r.Add(seriesFetchResult, storage.Attributes{}, nil)
 			}
 
-			_, actual, err := r.FinalResult()
+			result, err := r.FinalResult()
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, result.Metadata.Exhaustive)
 			assert.NoError(t, r.Close())
 		})
 	}

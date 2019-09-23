@@ -225,8 +225,8 @@ func (s *m3storage) FetchBlocks(
 	}
 
 	return block.Result{
-		Blocks: blocks,
-		// Exhaustive: exhaustive,
+		Blocks:   blocks,
+		Metadata: result.Metadata,
 	}, nil
 }
 

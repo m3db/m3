@@ -321,7 +321,7 @@ func TestMultipleRead(t *testing.T) {
 
 	meta := res.meta
 	assert.False(t, meta.Exhaustive)
-	assert.False(t, meta.LocalOnly)
+	assert.True(t, meta.LocalOnly)
 	require.Equal(t, 1, len(meta.Warnings))
 	assert.Equal(t, "foo_bar", meta.Warnings[0].Header())
 }

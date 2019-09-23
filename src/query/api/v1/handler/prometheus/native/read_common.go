@@ -263,7 +263,6 @@ func insertSortedBlock(
 			meta:  meta,
 		})
 
-		// fmt.Println("Result meta", b.Meta().ResultMetadata.Warnings[0].Header())
 		return insertBlockResult{
 			blocks: blockList,
 			meta:   b.Meta().ResultMetadata,

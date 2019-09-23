@@ -25,6 +25,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,7 +52,7 @@ func mapToCompletedTag(nameOnly bool, m map[string][]string) CompleteTagsResult 
 	return CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
 		CompletedTags:    tags,
-		Exhaustive:       true,
+		Metadata:         block.NewResultMetadata(),
 	}
 }
 
@@ -100,7 +102,7 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 		expected := CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
 			CompletedTags:    []CompletedTag{},
-			Exhaustive:       true,
+			Metadata:         block.NewResultMetadata(),
 		}
 
 		assert.Equal(t, expected, actual)
@@ -217,20 +219,22 @@ var exhaustTests = []struct {
 	{"mixed", []bool{true, false, true}, false},
 }
 
-func TestExhaustiveMerge(t *testing.T) {
+func TestMetaMerge(t *testing.T) {
 	for _, nameOnly := range []bool{true, false} {
 		for _, tt := range exhaustTests {
 			builder := NewCompleteTagsResultBuilder(nameOnly)
 			t.Run(fmt.Sprintf("%s_%v", tt.name, nameOnly), func(t *testing.T) {
 				for _, ex := range tt.exhaustives {
+					meta := block.NewResultMetadata()
+					meta.Exhaustive = ex
 					builder.Add(&CompleteTagsResult{
 						CompleteNameOnly: nameOnly,
-						Exhaustive:       ex,
+						Metadata:         meta,
 					})
 				}
 
 				ctr := builder.Build()
-				assert.Equal(t, tt.expected, ctr.Exhaustive)
+				assert.Equal(t, tt.expected, ctr.Metadata.Exhaustive)
 			})
 		}
 	}

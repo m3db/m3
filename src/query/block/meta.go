@@ -62,10 +62,14 @@ type ResultMetadata struct {
 	Warnings []Warning
 }
 
+// NewResultMetadata creates a new result metadata.
+// NB: capacity for warning is initialized to 1, since it is unlikely that more
+// than one warning will exist.
 func NewResultMetadata() ResultMetadata {
 	return ResultMetadata{
 		LocalOnly:  true,
 		Exhaustive: true,
+		Warnings:   make([]Warning, 0, 1),
 	}
 }
 

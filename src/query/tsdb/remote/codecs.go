@@ -341,8 +341,8 @@ func encodeResultMetadata(meta block.ResultMetadata) *rpc.ResultMetadata {
 	warnings := make([]*rpc.Warning, 0, len(meta.Warnings))
 	for _, warn := range meta.Warnings {
 		warnings = append(warnings, &rpc.Warning{
-			Name:    warn.Name,
-			Message: warn.Message,
+			Name:    []byte(warn.Name),
+			Message: []byte(warn.Message),
 		})
 	}
 
@@ -357,8 +357,8 @@ func decodeResultMetadata(meta *rpc.ResultMetadata) block.ResultMetadata {
 	warnings := make([]block.Warning, 0, len(rpcWarnings))
 	for _, warn := range rpcWarnings {
 		warnings = append(warnings, block.Warning{
-			Name:    warn.Name,
-			Message: warn.Message,
+			Name:    string(warn.Name),
+			Message: string(warn.Message),
 		})
 	}
 

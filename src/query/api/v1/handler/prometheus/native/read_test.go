@@ -47,12 +47,30 @@ import (
 )
 
 func TestPromReadHandler_Read(t *testing.T) {
+	testPromReadHandler_Read(t, block.NewResultMetadata(), "")
+	testPromReadHandler_Read(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandler_Read(t, block.ResultMetadata{Exhaustive: false},
+		handler.LimitHeaderSeriesLimitApplied)
+}
+
+func testPromReadHandler_Read(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
 	promRead := setup.Handlers.Read
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	m := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
@@ -66,10 +84,8 @@ func TestPromReadHandler_Read(t *testing.T) {
 		r, instrument.NewOptions())
 
 	seriesList := result.series
-	meta := result.meta
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
-	require.False(t, meta.Exhaustive)
 	s := seriesList[0]
 
 	assert.Equal(t, 5, s.Values().Len())
@@ -118,6 +134,9 @@ func testPromReadHandlerRead(
 
 	recorder := httptest.NewRecorder()
 	promRead.ServeHTTP(recorder, req)
+
+	header := recorder.Header().Get(handler.LimitHeader)
+	assert.Equal(t, ex, header)
 
 	var m3qlResp M3QLResp
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
