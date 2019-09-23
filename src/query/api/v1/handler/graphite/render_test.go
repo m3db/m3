@@ -28,9 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"

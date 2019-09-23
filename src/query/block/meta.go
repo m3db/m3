@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// Metadata is metadata for a block, describing size and common tags accross
+// Metadata is metadata for a block, describing size and common tags across
 // constituent series.
 type Metadata struct {
 	// Bounds represents the time bounds for all series in the block.
@@ -73,6 +73,7 @@ func NewResultMetadata() ResultMetadata {
 	}
 }
 
+// CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	combinedWarnings := make([]Warning, 0, len(m.Warnings)+len(other.Warnings))
 	for _, w := range m.Warnings {
@@ -92,6 +93,7 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	return meta
 }
 
+// IsDefault returns true if this result metadata matches the unchanged default.
 func (m ResultMetadata) IsDefault() bool {
 	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
 }

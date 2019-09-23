@@ -94,7 +94,7 @@ func (b *containerBlock) AddBlock(bl Block) error {
 	return nil
 }
 
-func (c *containerBlock) Info() BlockInfo {
+func (b *containerBlock) Info() BlockInfo {
 	return NewBlockInfo(BlockContainer)
 }
 
@@ -308,7 +308,7 @@ func (it *containerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 
@@ -592,7 +592,7 @@ func (it *ucContainerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 
