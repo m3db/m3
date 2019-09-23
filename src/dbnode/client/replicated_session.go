@@ -162,7 +162,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 			}
 			if err != nil {
 				s.metrics.replicateError.Inc(1)
-				s.log.Error("could not replicate write: %v", zap.Error(err))
+				s.log.Error("could not replicate write", zap.Error(err))
 			}
 			if s.outCh != nil {
 				s.outCh <- err
