@@ -93,6 +93,14 @@ type Configuration struct {
 
 	// AsyncWriteWorkerPoolSize is the worker pool size for async write requests.
 	AsyncWriteWorkerPoolSize *int `yaml:"asyncWriteWorkerPoolSize"`
+
+	// TargetHostQueueFlushSize sets the target size for a host queue flush. This controls how many
+	// operations the client will attempt to buffer for each host before issuing an RPC.
+	TargetHostQueueFlushSize *int `yaml:"targetHostQueueFlushSize"`
+
+	// HostQueueFlushInterval sets the interval at which the m3db client will flush the queue for a
+	// given host regardless of the number of batched operations.
+	HostQueueFlushInterval *time.Duration `yaml:"hostQueueFlushInterval"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -104,6 +112,7 @@ type ProtoConfiguration struct {
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
+// NamespaceProtoSchema is the protobuf schema for a namespace.
 type NamespaceProtoSchema struct {
 	MessageName    string `yaml:"messageName"`
 	SchemaDeployID string `yaml:"schemaDeployID"`
@@ -168,6 +177,14 @@ func (c *Configuration) Validate() error {
 	if c.AsyncWriteWorkerPoolSize != nil && *c.AsyncWriteWorkerPoolSize <= 0 {
 		return fmt.Errorf("m3db client async write worker pool size was: %d but must be >0",
 			*c.AsyncWriteWorkerPoolSize)
+	}
+
+	if c.TargetHostQueueFlushSize != nil && c.TargetHostQueueFlushSize <= 1 {
+		return errors.New("target host queue flush size must be larger than zero but was: %d", c.TargetHostQueueFlushSize)
+	}
+
+	if c.HostQueueFlushInterval != nil && c.HostQueueFlushInterval <= 0 {
+		return errors.New("host queue flush interval must be larger than zero but was: %s", c.HostQueueFlushInterval.String())
 	}
 
 	if err := c.Proto.Validate(); err != nil {
@@ -322,6 +339,12 @@ func (c Configuration) NewAdminClient(
 	}
 	if c.FetchRetry != nil {
 		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
+	}
+	if c.TargetHostQueueFlushSize != nil {
+		v = v.SetHostQueueOpsFlushSize(c.TargetHostQueueFlushSize)
+	}
+	if c.HostQueueFlushInterval != nil {
+		v = v.SetHostQueueOpsFlushInterval(c.HostQueueFlushInterval)
 	}
 
 	encodingOpts := params.EncodingOptions
