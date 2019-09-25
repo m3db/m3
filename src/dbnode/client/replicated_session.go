@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -126,7 +127,10 @@ func (s *replicatedSession) setSession(opts Options) error {
 
 func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 	sessions := make([]clientSession, 0, len(opts))
-	for _, oo := range opts {
+	for i, oo := range opts {
+		subscope := oo.InstrumentOptions().MetricsScope().SubScope(fmt.Sprintf("async-%d", i))
+		oo = oo.SetInstrumentOptions(oo.InstrumentOptions().SetMetricsScope(subscope))
+
 		session, err := s.newSessionFn(oo)
 		if err != nil {
 			return err
