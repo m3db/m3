@@ -123,9 +123,13 @@ Every time a node is restarted it will read all the commit log and snapshot file
 
 ## Crash Recovery
 
-M3DB requires manual intervention to recovery in the event of a loss of quorum, such as a full cluster restart. This is
-because, as mentioned in the [Peers Boostrapper](#peers-bootstrapper) section, a bootstrapping node must read from a
-majority of those owning a shard to bootstrap.
+**NOTE:** These steps should not be necessary in most cases, especially if using the default bootstrappers configuration
+of `filesystem,commitlog,peers,uninitialized_topology`. However in the case the configuration is non-default or the
+cluster has been down for a prolonged period of time these steps may be necessary. A good indicator would be log
+messages related to failing to bootstrap from peers due to consistency issues.
+
+M3DB may require manual intervention to recover in the event of a prolonged loss of quorum. This is because the [Peers
+Boostrapper](#peers-bootstrapper) must read from a majority of nodes owning a shard to bootstrap.
 
 To relax this bootstrapping constraint, a value stored in etcd must be modified that corresponds to the
 `m3db.client.bootstrap-consistency-level` runtime flag. Until the coordinator
