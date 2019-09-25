@@ -88,7 +88,7 @@ in duration format as opposed to nanoseconds (default).
 
 ### bootstrapEnabled
 
-This controls whether M3DB will attempt to [bootstrap](bootstrapping.md) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
+This controls whether M3DB will attempt to [bootstrap](bootstrapping_crash_recovery.md) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
 
 Can be modified without creating a new namespace: `yes`
 
