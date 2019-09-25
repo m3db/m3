@@ -102,3 +102,35 @@ func TestMergeIntoEmptyWarnings(t *testing.T) {
 	require.Equal(t, 1, len(merge.Warnings))
 	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
 }
+
+func TestMergeResolutions(t *testing.T) {
+	expected := []int64{1, 2, 3}
+	r := ResultMetadata{}
+	rTwo := ResultMetadata{}
+	merge := r.CombineMetadata(rTwo)
+	assert.Nil(t, r.Resolutions)
+	assert.Nil(t, rTwo.Resolutions)
+	assert.Nil(t, merge.Resolutions)
+
+	rTwo.Resolutions = expected
+	merge = r.CombineMetadata(rTwo)
+	assert.Nil(t, r.Resolutions)
+	assert.Equal(t, 3, len(rTwo.Resolutions))
+	require.Equal(t, 3, len(merge.Resolutions))
+	assert.Equal(t, expected, merge.Resolutions)
+
+	r = ResultMetadata{Resolutions: expected}
+	rTwo = ResultMetadata{}
+	merge = r.CombineMetadata(rTwo)
+	assert.Equal(t, 3, len(r.Resolutions))
+	assert.Nil(t, rTwo.Resolutions)
+	require.Equal(t, 3, len(merge.Resolutions))
+	assert.Equal(t, expected, merge.Resolutions)
+
+	rTwo = ResultMetadata{Resolutions: []int64{4, 5, 6}}
+	merge = r.CombineMetadata(rTwo)
+	assert.Equal(t, 3, len(r.Resolutions))
+	assert.Equal(t, 3, len(rTwo.Resolutions))
+	require.Equal(t, 6, len(merge.Resolutions))
+	assert.Equal(t, []int64{1, 2, 3, 4, 5, 6}, merge.Resolutions)
+}

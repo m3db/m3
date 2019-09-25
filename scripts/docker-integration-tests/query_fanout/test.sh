@@ -5,6 +5,7 @@ set -xe
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
+WARNING_TESTS=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/warning.sh
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
@@ -211,3 +212,5 @@ function complete_tags {
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags
+
+$WARNING_TESTS

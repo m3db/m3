@@ -32,7 +32,6 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -94,59 +93,6 @@ func encodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 	}
 }
 
-// decodeDecompressedFetchResult decodes fetch results from a GRPC-compatible type.
-func decodeDecompressedFetchResult(
-	name []byte,
-	tagOptions models.TagOptions,
-	rpcSeries []*rpc.DecompressedSeries,
-) ([]*ts.Series, error) {
-	tsSeries := make([]*ts.Series, len(rpcSeries))
-	var err error
-	for i, series := range rpcSeries {
-		tsSeries[i], err = decodeTs(name, tagOptions, series)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return tsSeries, nil
-}
-
-func decodeTags(
-	tags []*rpc.Tag,
-	tagOptions models.TagOptions,
-) models.Tags {
-	modelTags := models.NewTags(len(tags), tagOptions)
-	for _, t := range tags {
-		modelTags = modelTags.AddTag(models.Tag{Name: t.GetName(), Value: t.GetValue()})
-	}
-
-	return modelTags
-}
-
-func decodeTs(
-	name []byte,
-	tagOptions models.TagOptions,
-	r *rpc.DecompressedSeries,
-) (*ts.Series, error) {
-	values := decodeRawTs(r)
-	tags := decodeTags(r.GetTags(), tagOptions)
-	series := ts.NewSeries(name, values, tags)
-	return series, nil
-}
-
-func decodeRawTs(r *rpc.DecompressedSeries) ts.Datapoints {
-	datapoints := make(ts.Datapoints, len(r.Datapoints))
-	for i, v := range r.Datapoints {
-		datapoints[i] = ts.Datapoint{
-			Timestamp: toTime(v.Timestamp),
-			Value:     v.Value,
-		}
-	}
-
-	return datapoints
-}
-
 // encodeFetchRequest encodes fetch request into rpc FetchRequest
 func encodeFetchRequest(
 	query *storage.FetchQuery,
@@ -192,23 +138,61 @@ func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) 
 	}, nil
 }
 
+func encodeFanoutOption(opt storage.FanoutOption) (rpc.FanoutOption, error) {
+	switch opt {
+	case storage.FanoutDefault:
+		return rpc.FanoutOption_DEFAULT_OPTION, nil
+	case storage.FanoutForceDisable:
+		return rpc.FanoutOption_FORCE_DISABLED, nil
+	case storage.FanoutForceEnable:
+		return rpc.FanoutOption_FORCE_ENABLED, nil
+	}
+
+	return rpc.FanoutOption_FORCE_ENABLED,
+		fmt.Errorf("Unknown fanout option for proto encoding: %v\n", opt)
+}
+
 func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error) {
 	if options == nil {
 		return nil, nil
 	}
+
+	fanoutOpts := options.FanoutOptions
 	result := &rpc.FetchOptions{
 		Limit: int64(options.Limit),
 	}
+
+	unagg, err := encodeFanoutOption(fanoutOpts.FanoutUnaggregated)
+	if err != nil {
+		return nil, err
+	}
+
+	result.Unaggregated = unagg
+	agg, err := encodeFanoutOption(fanoutOpts.FanoutAggregated)
+	if err != nil {
+		return nil, err
+	}
+
+	result.Aggregated = agg
+	aggOpt, err := encodeFanoutOption(fanoutOpts.FanoutAggregatedOptimized)
+	if err != nil {
+		return nil, err
+	}
+
+	result.AggregatedOptimized = aggOpt
 	if v := options.RestrictFetchOptions; v != nil {
 		restrict, err := v.Proto()
 		if err != nil {
 			return nil, err
 		}
+
 		result.Restrict = restrict
 	}
+
 	if v := options.LookbackDuration; v != nil {
 		result.LookbackDuration = int64(*v)
 	}
+
 	return result, nil
 }
 
@@ -279,22 +263,17 @@ func retrieveMetadata(
 
 func decodeFetchRequest(
 	req *rpc.FetchRequest,
-) (*storage.FetchQuery, *storage.FetchOptions, error) {
+) (*storage.FetchQuery, error) {
 	tags, err := decodeTagMatchers(req.GetTagMatchers())
 	if err != nil {
-		return nil, nil, err
-	}
-
-	opts, err := decodeFetchOptions(req.GetOptions())
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	return &storage.FetchQuery{
 		TagMatchers: tags,
 		Start:       toTime(req.Start),
 		End:         toTime(req.End),
-	}, opts, nil
+	}, nil
 }
 
 func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
@@ -313,13 +292,48 @@ func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 	return models.Matchers(matchers), nil
 }
 
+func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
+	switch opt {
+	case rpc.FanoutOption_DEFAULT_OPTION:
+		return storage.FanoutDefault, nil
+	case rpc.FanoutOption_FORCE_DISABLED:
+		return storage.FanoutForceDisable, nil
+	case rpc.FanoutOption_FORCE_ENABLED:
+		return storage.FanoutForceEnable, nil
+	}
+
+	return storage.FanoutDefault,
+		fmt.Errorf("Unknown fanout option for proto encoding: %v\n", opt)
+}
+
 func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOptions, error) {
 	result := storage.NewFetchOptions()
+	result.Remote = true
 	if rpcFetchOptions == nil {
 		return result, nil
 	}
 
 	result.Limit = int(rpcFetchOptions.Limit)
+	unagg, err := decodeFanoutOption(rpcFetchOptions.GetUnaggregated())
+	if err != nil {
+		return nil, err
+	}
+
+	agg, err := decodeFanoutOption(rpcFetchOptions.GetAggregated())
+	if err != nil {
+		return nil, err
+	}
+
+	aggOpt, err := decodeFanoutOption(rpcFetchOptions.GetAggregatedOptimized())
+	if err != nil {
+		return nil, err
+	}
+
+	result.FanoutOptions = &storage.FanoutOptions{
+		FanoutUnaggregated:        unagg,
+		FanoutAggregated:          agg,
+		FanoutAggregatedOptimized: aggOpt,
+	}
 
 	if v := rpcFetchOptions.Restrict; v != nil {
 		restrict, err := storage.NewRestrictFetchOptionsFromProto(v)
@@ -347,8 +361,9 @@ func encodeResultMetadata(meta block.ResultMetadata) *rpc.ResultMetadata {
 	}
 
 	return &rpc.ResultMetadata{
-		Exhaustive: meta.Exhaustive,
-		Warnings:   warnings,
+		Exhaustive:  meta.Exhaustive,
+		Warnings:    warnings,
+		Resolutions: meta.Resolutions,
 	}
 }
 
@@ -363,7 +378,8 @@ func decodeResultMetadata(meta *rpc.ResultMetadata) block.ResultMetadata {
 	}
 
 	return block.ResultMetadata{
-		Exhaustive: meta.Exhaustive,
-		Warnings:   warnings,
+		Exhaustive:  meta.Exhaustive,
+		Warnings:    warnings,
+		Resolutions: meta.GetResolutions(),
 	}
 }

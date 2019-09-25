@@ -55,9 +55,12 @@ enum MatcherType {
 }
 
 message FetchOptions {
-	int64 limit                   = 1;
-	RestrictFetchOptions restrict = 2;
-	int64 lookbackDuration        = 3;
+	int64 limit                      = 1;
+	RestrictFetchOptions restrict    = 2;
+	int64 lookbackDuration           = 3;
+	FanoutOption unaggregated        = 4;
+	FanoutOption aggregated          = 5;
+	FanoutOption aggregatedOptimized = 6;
 }
 
 message RestrictFetchOptions {
@@ -69,6 +72,12 @@ enum MetricsType {
 	UNKNOWN_METRICS_TYPE      = 0;
 	UNAGGREGATED_METRICS_TYPE = 1;
 	AGGREGATED_METRICS_TYPE   = 2;
+}
+
+enum FanoutOption {
+	DEFAULT_OPTION   = 0;
+	FORCE_ENABLED    = 1;
+	FORCE_DISABLED   = 2;
 }
 
 message FetchResponse {
@@ -85,9 +94,9 @@ message Series {
 }
 
 message SeriesMetadata {
-	bytes id        = 1;
-	int64 startTime = 2;
-	int64 endTime   = 3;
+	bytes id         = 1;
+	int64 startTime  = 2;
+	int64 endTime    = 3;
 }
 
 message DecompressedSeries {
@@ -130,6 +139,9 @@ message SearchRequest {
 	oneof matchers {
 		TagMatchers tagMatchers = 1;
 	}
+	int64 start               = 2;
+	int64 end                 = 3;
+	FetchOptions options      = 4;
 }
 
 message M3TagProperty {
@@ -171,6 +183,7 @@ message CompleteTagsRequestOptions {
 	repeated bytes filterNameTags = 2;
 	int64 start                   = 3;
 	int64 end                     = 4;
+	FetchOptions options          = 5;
 }
 
 message CompleteTagsRequest {
@@ -204,8 +217,9 @@ message CompleteTagsResponse {
 }
 
 message ResultMetadata {
-	bool exhaustive           = 1;
-	repeated Warning warnings = 2;
+	bool exhaustive            = 1;
+	repeated Warning warnings  = 2;
+	repeated int64 resolutions = 3;
 }
 
 message Warning {

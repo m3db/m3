@@ -99,11 +99,8 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-
 	req, rErr := h.parseRequest(r)
-
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return

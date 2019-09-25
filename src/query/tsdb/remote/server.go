@@ -108,9 +108,15 @@ func (s *grpcServer) Fetch(
 ) error {
 	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
 	logger := logging.WithContext(ctx, s.instrumentOpts)
-	storeQuery, fetchOpts, err := decodeFetchRequest(message)
+	storeQuery, err := decodeFetchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode fetch query", zap.Error(err))
+		return err
+	}
+
+	fetchOpts, err := decodeFetchOptions(message.GetOptions())
+	if err != nil {
+		logger.Error("unable to decode options", zap.Error(err))
 		return err
 	}
 
@@ -134,7 +140,7 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	results, err := encodeToCompressedSeries(result.SeriesIterators, pools)
+	results, err := encodeToCompressedSeries(result, pools)
 	if err != nil {
 		logger.Error("unable to compress query", zap.Error(err))
 		return err
@@ -173,10 +179,12 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	// TODO(r): Allow propagation of limit from RPC request
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Remote = true
-	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+	fetchOpts, err := decodeFetchOptions(message.GetOptions())
+	if err != nil {
+		logger.Error("unable to decode options", zap.Error(err))
+		return err
+	}
+
 	searchResults, cleanup, err := s.storage.SearchCompressed(ctx,
 		searchQuery, fetchOpts)
 	defer cleanup()
@@ -226,10 +234,12 @@ func (s *grpcServer) CompleteTags(
 		return err
 	}
 
-	// TODO(r): Allow propagation of limit from RPC request
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Remote = true
-	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+	fetchOpts, err := decodeFetchOptions(message.GetOptions().GetOptions())
+	if err != nil {
+		logger.Error("unable to decode options", zap.Error(err))
+		return err
+	}
+
 	completed, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))

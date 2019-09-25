@@ -95,50 +95,6 @@ func createRPCSeries() []*rpc.DecompressedSeries {
 	}
 }
 
-func TestDecodeFetchResult(t *testing.T) {
-	rpcSeries := createRPCSeries()
-	name := []byte("name")
-	metricName := []byte("!")
-
-	tsSeries, err := decodeDecompressedFetchResult(name, models.NewTagOptions().SetMetricName(metricName), rpcSeries)
-	assert.NoError(t, err)
-	assert.Len(t, tsSeries, 3)
-	assert.Equal(t, name, tsSeries[0].Name())
-	assert.Equal(t, name, tsSeries[1].Name())
-	assert.Equal(t, tags0.Tags, tsSeries[0].Tags.Tags)
-	assert.Equal(t, metricName, tsSeries[0].Tags.Opts.MetricName())
-	assert.Equal(t, tags1.Tags, tsSeries[1].Tags.Tags)
-	assert.Equal(t, metricName, tsSeries[1].Tags.Opts.MetricName())
-
-	assert.Equal(t, len(valList0), tsSeries[0].Len())
-	assert.Equal(t, len(valList1), tsSeries[1].Len())
-	assert.Equal(t, len(valList2), tsSeries[2].Len())
-
-	for i := range valList0 {
-		assert.Equal(t, float64(valList0[i].Value), tsSeries[0].Values().ValueAt(i))
-		assert.Equal(t, valList0[i].Timestamp, fromTime(tsSeries[0].Values().DatapointAt(i).Timestamp))
-	}
-	for i := range valList1 {
-		assert.Equal(t, float64(valList1[i].Value), tsSeries[1].Values().ValueAt(i))
-		assert.Equal(t, valList1[i].Timestamp, fromTime(tsSeries[1].Values().DatapointAt(i).Timestamp))
-	}
-	for i := range valList2 {
-		assert.Equal(t, float64(valList2[i].Value), tsSeries[2].Values().ValueAt(i))
-		assert.Equal(t, valList2[i].Timestamp, fromTime(tsSeries[2].Values().DatapointAt(i).Timestamp))
-	}
-
-	// Encode again
-	fetchResult := &storage.FetchResult{SeriesList: tsSeries}
-	revert := encodeFetchResult(fetchResult)
-	require.Len(t, revert.GetSeries(), len(rpcSeries))
-	for i, expected := range rpcSeries {
-		assert.Equal(t, expected.GetDatapoints(), revert.GetSeries()[i].GetDecompressed().GetDatapoints())
-		for _, tag := range expected.GetTags() {
-			assert.Contains(t, revert.GetSeries()[i].GetDecompressed().GetTags(), tag)
-		}
-	}
-}
-
 func readQueriesAreEqual(t *testing.T, this, other *storage.FetchQuery) {
 	assert.True(t, this.Start.Equal(other.Start))
 	assert.True(t, this.End.Equal(other.End))
@@ -214,9 +170,11 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 
 	gq, err := encodeFetchRequest(rQ, fetchOpts)
 	require.NoError(t, err)
-	reverted, revertedOpts, err := decodeFetchRequest(gq)
+	reverted, err := decodeFetchRequest(gq)
 	require.NoError(t, err)
 	readQueriesAreEqual(t, rQ, reverted)
+	revertedOpts, err := decodeFetchOptions(gq.GetOptions())
+	require.NoError(t, err)
 	require.NotNil(t, revertedOpts)
 	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
 	require.Equal(t, fetchOpts.RestrictFetchOptions.MetricsType,

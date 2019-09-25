@@ -154,10 +154,12 @@ func (s *m3storage) Fetch(
 		return nil, errMismatchedFetchedLength
 	}
 
-	for i := range fetchResult.SeriesList {
-		fetchResult.SeriesList[i].SetResolution(attrs[i].Resolution)
+	resolutions := make([]int64, 0, len(fetchResult.SeriesList))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, int64(attr.Resolution))
 	}
 
+	fetchResult.Metadata.Resolutions = resolutions
 	return fetchResult, nil
 }
 
@@ -174,7 +176,9 @@ func (s *m3storage) FetchBlocks(
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
-			return block.Result{}, err
+			return block.Result{
+				Metadata: block.NewResultMetadata(),
+			}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query,
@@ -189,7 +193,9 @@ func (s *m3storage) FetchBlocks(
 
 	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	bounds := models.Bounds{
@@ -221,7 +227,9 @@ func (s *m3storage) FetchBlocks(
 	)
 
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	return block.Result{
@@ -242,12 +250,18 @@ func (s *m3storage) FetchCompressed(
 		}, noop, err
 	}
 
-	result, err := accumulator.FinalResult()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		accumulator.Close()
 		return result, noop, err
 	}
 
+	resolutions := make([]int64, 0, len(attrs))
+	for _, attr := range attrs {
+		resolutions = append(resolutions, int64(attr.Resolution))
+	}
+
+	result.Metadata.Resolutions = resolutions
 	return result, accumulator.Close, nil
 }
 
@@ -318,8 +332,7 @@ func (s *m3storage) fetchCompressed(
 
 	result := newMultiFetchResult(fanout, pools)
 	for _, namespace := range namespaces {
-		namespace := namespace // Capture var)
-
+		namespace := namespace // Capture var
 		wg.Add(1)
 		go func() {
 			session := namespace.Session()
