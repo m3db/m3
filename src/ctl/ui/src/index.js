@@ -36,8 +36,8 @@ import 'basscss/css/basscss.css';
 import 'nprogress/nprogress.css';
 import './index.css';
 
-import NamespacesPage from 'pages/Namespaces';
-import NamespacePage from 'pages/Namespace';
+import NamespacesPage from './pages/Namespaces';
+import NamespacePage from './pages/Namespace';
 const {Sider, Content} = Layout;
 
 const MenuSideBar = withRouter(({location}) => {
