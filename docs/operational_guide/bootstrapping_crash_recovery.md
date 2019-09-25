@@ -148,6 +148,8 @@ _kv/$ENV/m3db.client.bootstrap-consistency-level
 Note that on MacOS, `base64` requires the `-D` flag to decode, whereas elsewhere it is likely `-d`. Also note the use of
 `echo -n` to ensure removal of newlines if your shell does not support the `<<<STRING` pattern.
 
+Once the cluster is recovered, the value should be deleted from etcd to revert to normal behavior using `etcdctl del`.
+
 Examples:
 
 ```bash
@@ -159,6 +161,9 @@ echo -n "ChF1bnN0cmljdF9tYWpvcml0eQ==" | base64 -d | env ETCDCTL_API=3 etcdctl p
 
 # On MacOS, update the value for a cluster "test_cluster" in Kubernetes namespace "m3db"
 echo -n "ChF1bnN0cmljdF9tYWpvcml0eQ==" | base64 -D | kubectl exec -i $ETCD_POD -- env ETCDCTL_API=3 etcdctl put _kv/m3db/test_cluster/m3db.client.bootstrap-consistency-level
+
+# Delete the key to restore normal behavior
+env ETCDCTL_API=3 etcdctl del _kv/default_env/m3db.client.bootstrap-consistency-level
 ```
 
 [string-proto]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/cluster/generated/proto/commonpb/common.proto#L40-L42
