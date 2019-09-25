@@ -100,36 +100,42 @@ var (
 )
 
 type serviceMetrics struct {
-	fetch               instrument.MethodMetrics
-	fetchTagged         instrument.MethodMetrics
-	aggregate           instrument.MethodMetrics
-	write               instrument.MethodMetrics
-	writeTagged         instrument.MethodMetrics
-	fetchBlocks         instrument.MethodMetrics
-	fetchBlocksMetadata instrument.MethodMetrics
-	repair              instrument.MethodMetrics
-	truncate            instrument.MethodMetrics
-	fetchBatchRaw       instrument.BatchMethodMetrics
-	writeBatchRaw       instrument.BatchMethodMetrics
-	writeTaggedBatchRaw instrument.BatchMethodMetrics
-	overloadRejected    tally.Counter
+	fetch                   instrument.MethodMetrics
+	fetchTagged             instrument.MethodMetrics
+	aggregate               instrument.MethodMetrics
+	write                   instrument.MethodMetrics
+	writeTagged             instrument.MethodMetrics
+	fetchBlocks             instrument.MethodMetrics
+	fetchBlocksMetadata     instrument.MethodMetrics
+	repair                  instrument.MethodMetrics
+	truncate                instrument.MethodMetrics
+	fetchBatchRawRPCS       tally.Counter
+	fetchBatchRaw           instrument.BatchMethodMetrics
+	writeBatchRawRPCs       tally.Counter
+	writeBatchRaw           instrument.BatchMethodMetrics
+	writeTaggedBatchRawRPCs tally.Counter
+	writeTaggedBatchRaw     instrument.BatchMethodMetrics
+	overloadRejected        tally.Counter
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 	return serviceMetrics{
-		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		fetchTagged:         instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
-		aggregate:           instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeTagged:         instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
-		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
-		fetchBatchRaw:       instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
-		writeBatchRaw:       instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
-		writeTaggedBatchRaw: instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
-		overloadRejected:    scope.Counter("overload-rejected"),
+		fetch:                   instrument.NewMethodMetrics(scope, "fetch", samplingRate),
+		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
+		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
+		write:                   instrument.NewMethodMetrics(scope, "write", samplingRate),
+		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
+		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
+		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		repair:                  instrument.NewMethodMetrics(scope, "repair", samplingRate),
+		truncate:                instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+		fetchBatchRawRPCS:       scope.Counter("fetchBatchRaw-rpcs"),
+		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
+		writeBatchRawRPCs:       scope.Counter.NewMethodMetrics(scope, "writeBatchRaw-rpcs", samplingRate),
+		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		writeTaggedBatchRawRPCs: scope.Counter.NewMethodMetrics(scope, "writeTaggedBatchRaw-rpcs", samplingRate),
+		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
+		overloadRejected:        scope.Counter("overload-rejected"),
 	}
 }
 
@@ -767,6 +773,7 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
+	s.metrics.fetchBatchRawRPCS.Inc(1)
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -1136,6 +1143,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
+	s.metrics.writeBatchRawRPCs.Inc(1)
 	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
@@ -1221,6 +1229,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
+	s.metrics.writeTaggedBatchRawRPCs.Inc(1)
 	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
