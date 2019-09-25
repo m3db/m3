@@ -79,13 +79,13 @@ func newHostQueue(
 
 	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {
-		return metrics{}, err
+		return nil, err
 	}
 	writeOpBatchSizeBuckets = append(tally.ValueBuckets{0}, writeOpBatchSizeBuckets...)
 
 	fetchOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
 	if err != nil {
-		return metrics{}, err
+		return nil, err
 	}
 	fetchOpBatchSizeBuckets = append(tally.ValueBuckets{0}, fetchOpBatchSizeBuckets...)
 
@@ -322,7 +322,7 @@ func (q *queue) asyncTaggedWrite(
 	ops []op,
 	elems []*rpc.WriteTaggedBatchRawRequestElement,
 ) {
-	q.writeOpBatchSize.RecordValue(len(elems))
+	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 
 	q.workerPool.Go(func() {
@@ -388,7 +388,7 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
-	q.writeOpBatchSize.RecordValue(len(elems))
+	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 	q.workerPool.Go(func() {
 		req := q.writeBatchRawRequestPool.Get()
@@ -449,7 +449,7 @@ func (q *queue) asyncWrite(
 }
 
 func (q *queue) asyncFetch(op *fetchBatchOp) {
-	q.fetchOpBatchSize.RecordValue(len(op.request.Ids))
+	q.fetchOpBatchSize.RecordValue(float64(len(op.request.Ids)))
 	q.Add(1)
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
@@ -494,7 +494,6 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 }
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
-	q.fetchOpBatchSize.RecordValue(len(op.request.Ids))
 	q.Add(1)
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately

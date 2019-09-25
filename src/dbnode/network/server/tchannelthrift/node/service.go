@@ -131,9 +131,9 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		truncate:                instrument.NewMethodMetrics(scope, "truncate", samplingRate),
 		fetchBatchRawRPCS:       scope.Counter("fetchBatchRaw-rpcs"),
 		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
-		writeBatchRawRPCs:       scope.Counter.NewMethodMetrics(scope, "writeBatchRaw-rpcs", samplingRate),
+		writeBatchRawRPCs:       scope.Counter("writeBatchRaw-rpcs"),
 		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
-		writeTaggedBatchRawRPCs: scope.Counter.NewMethodMetrics(scope, "writeTaggedBatchRaw-rpcs", samplingRate),
+		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
 		overloadRejected:        scope.Counter("overload-rejected"),
 	}
