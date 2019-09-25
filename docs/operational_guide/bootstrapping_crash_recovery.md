@@ -120,3 +120,46 @@ Every time a node is restarted it will utilize the immutable Fileset files its a
 ### commitlog,uninitialized_topology
 
 Every time a node is restarted it will read all the commit log and snapshot files it has on disk, but it will ignore all the data in the immutable Fileset files that it has already written.
+
+## Crash Recovery
+
+M3DB requires manual intervention to recovery in the event of a loss of quorum, such as a full cluster restart. This is
+because, as mentioned in the [Peers Boostrapper](#peers-bootstrapper) section, a bootstrapping node must read from a
+majority of those owning a shard to bootstrap.
+
+To relax this bootstrapping constraint, a value stored in etcd must be modified that corresponds to the
+`m3db.client.bootstrap-consistency-level` runtime flag. Until the coordinator
+[supports](https://github.com/m3db/m3/issues/1959) an API for this, this must be done manually. The M3 contributors are
+aware of how cumbersome this is and are working on this API.
+
+To update this value in etcd, first determine the environment the M3DB node is using. For example in [this][cfg-env]
+configuration, it is `default_env`. If using the M3DB Operator, the value will be `$KUBE_NAMESPACE/$CLUSTER_NAME`, where
+`$KUBE_NAMESPACE` is the name of the Kubernetes namespace the cluster is located in and `$CLUSTER_NAME` is the name you
+have assigned the cluster (such as `default/my-test-cluster`).
+
+The following base64-encoded string represents a Protobuf-serialized [message][string-proto] containing the string
+`unstrict_majority`: `ChF1bnN0cmljdF9tYWpvcml0eQ==`. Decode this string and place it in the following etcd key, where
+`$ENV` is the value determined above:
+
+```
+_kv/$ENV/m3db.client.bootstrap-consistency-level
+```
+
+Note that on MacOS, `base64` requires the `-D` flag to decode, whereas elsewhere it is likely `-d`. Also note the use of
+`echo -n` to ensure removal of newlines if your shell does not support the `<<<STRING` pattern.
+
+Examples:
+
+```bash
+# On Linux, using a recent bash, update the value for env=default_env
+<<<ChF1bnN0cmljdF9tYWpvcml0eQ== base64 -d | env ETCDCTL_API=3 etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
+
+# On Linux, using a limited shell, update the value for env=default_env
+echo -n "ChF1bnN0cmljdF9tYWpvcml0eQ==" | base64 -d | env ETCDCTL_API=3 etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
+
+# On MacOS, update the value for a cluster "test_cluster" in Kubernetes namespace "m3db"
+echo -n "ChF1bnN0cmljdF9tYWpvcml0eQ==" | base64 -D | kubectl exec -i $ETCD_POD -- env ETCDCTL_API=3 etcdctl put _kv/m3db/test_cluster/m3db.client.bootstrap-consistency-level
+```
+
+[string-proto]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/cluster/generated/proto/commonpb/common.proto#L40-L42
+[cfg-env]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/dbnode/config/m3dbnode-all-config.yml#L266
