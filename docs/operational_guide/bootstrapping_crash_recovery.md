@@ -1,4 +1,4 @@
-# Bootstrapping
+# Bootstrapping & Crash Recovery
 
 ## Introduction
 
