@@ -396,6 +396,8 @@ func TestConfiguration(t *testing.T) {
       seed: 42
     proto: null
     asyncWriteWorkerPoolSize: null
+    targetHostQueueFlushSize: null
+    hostQueueFlushInterval: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
