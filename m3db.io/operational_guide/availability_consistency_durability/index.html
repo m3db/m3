@@ -1045,8 +1045,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../bootstrapping/" title="Bootstrapping" class="md-nav__link">
-      Bootstrapping
+    <a href="../bootstrapping_crash_recovery/" title="Bootstrapping & Crash Recovery" class="md-nav__link">
+      Bootstrapping & Crash Recovery
     </a>
   </li>
 
@@ -1476,7 +1476,7 @@ This means that both writes <em>and</em> reads will fail if a quorum of nodes ar
 You can read about the consistency levels in more detail in <a href="../../m3db/architecture/consistencylevels/">the Consistency Levels section</a></p>
 <h3 id="commitlog-configuration_1">Commitlog Configuration</h3>
 <p>M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
-We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: <code>filesystem,peers,uninitialized_topology</code> as described in our <a href="../bootstrapping/">bootstrapping operational guide</a>.</p>
+We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: <code>filesystem,peers,uninitialized_topology</code> as described in our <a href="../bootstrapping_crash_recovery/">bootstrapping operational guide</a>.</p>
 <h3 id="writing-new-series-asynchronously_1">Writing New Series Asynchronously</h3>
 <p>If you want to guarantee that M3DB will immediately allow you to read data for writes that have been acknowledged by the client, including the situation where the previous write was for a brand new timeseries, then you  will need to change the default M3DB configuration to set <code>writeNewSeriesAsync: false</code> as a top-level key under the <code>db</code> section:</p>
 <div class="highlight"><pre><span></span>writeNewSeriesAsync: false

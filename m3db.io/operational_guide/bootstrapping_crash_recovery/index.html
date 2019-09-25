@@ -36,7 +36,7 @@
     
     
       
-        <title>Bootstrapping - M3 Documentation</title>
+        <title>Bootstrapping & Crash Recovery - M3 Documentation</title>
       
     
     
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#bootstrapping" tabindex="1" class="md-skip">
+      <a href="#bootstrapping-crash-recovery" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Bootstrapping
+                Bootstrapping & Crash Recovery
               </span>
             
           
@@ -934,11 +934,11 @@
     
     
       <label class="md-nav__link md-nav__link--active" for="toc">
-        Bootstrapping
+        Bootstrapping & Crash Recovery
       </label>
     
-    <a href="./" title="Bootstrapping" class="md-nav__link md-nav__link--active">
-      Bootstrapping
+    <a href="./" title="Bootstrapping & Crash Recovery" class="md-nav__link md-nav__link--active">
+      Bootstrapping & Crash Recovery
     </a>
     
       
@@ -1071,6 +1071,13 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#crash-recovery" title="Crash Recovery" class="md-nav__link">
+    Crash Recovery
+  </a>
   
 </li>
       
@@ -1461,6 +1468,13 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#crash-recovery" title="Crash Recovery" class="md-nav__link">
+    Crash Recovery
+  </a>
+  
+</li>
+      
       
       
       
@@ -1477,10 +1491,10 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/bootstrapping.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/bootstrapping_crash_recovery.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="bootstrapping">Bootstrapping</h1>
+                <h1 id="bootstrapping-crash-recovery">Bootstrapping &amp; Crash Recovery</h1>
 <h2 id="introduction">Introduction</h2>
 <p>We recommend reading the <a href="../placement/">placement operational guide</a> before reading the rest of this document.</p>
 <p>When an M3DB node is turned on (goes through a placement change) it needs to go through a bootstrapping process to determine the integrity of data that it has, replay writes from the commit log, and/or stream missing data from its peers. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: <code>filesystem,commitlog,peers,uninitialized_topology</code> then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the right thing such that you don't lose data and consistency guarantees are met. Note that the order of the configured bootstrappers <em>does</em> matter.</p>
@@ -1561,6 +1575,43 @@
 <p>Every time a node is restarted it will utilize the immutable Fileset files its already written out to disk, but any data that it had received since it wrote out the last set of immutable files will be lost.</p>
 <h3 id="commitloguninitialized_topology">commitlog,uninitialized_topology</h3>
 <p>Every time a node is restarted it will read all the commit log and snapshot files it has on disk, but it will ignore all the data in the immutable Fileset files that it has already written.</p>
+<h2 id="crash-recovery">Crash Recovery</h2>
+<p><strong>NOTE:</strong> These steps should not be necessary in most cases, especially if using the default bootstrappers configuration
+of <code>filesystem,commitlog,peers,uninitialized_topology</code>. However in the case the configuration is non-default or the
+cluster has been down for a prolonged period of time these steps may be necessary. A good indicator would be log
+messages related to failing to bootstrap from peers due to consistency issues.</p>
+<p>M3DB may require manual intervention to recover in the event of a prolonged loss of quorum. This is because the <a href="#peers-bootstrapper">Peers
+Boostrapper</a> must read from a majority of nodes owning a shard to bootstrap.</p>
+<p>To relax this bootstrapping constraint, a value stored in etcd must be modified that corresponds to the
+<code>m3db.client.bootstrap-consistency-level</code> runtime flag. Until the coordinator
+<a href="https://github.com/m3db/m3/issues/1959">supports</a> an API for this, this must be done manually. The M3 contributors are
+aware of how cumbersome this is and are working on this API.</p>
+<p>To update this value in etcd, first determine the environment the M3DB node is using. For example in <a href="https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/dbnode/config/m3dbnode-all-config.yml#L266">this</a>
+configuration, it is <code>default_env</code>. If using the M3DB Operator, the value will be <code>$KUBE_NAMESPACE/$CLUSTER_NAME</code>, where
+<code>$KUBE_NAMESPACE</code> is the name of the Kubernetes namespace the cluster is located in and <code>$CLUSTER_NAME</code> is the name you
+have assigned the cluster (such as <code>default/my-test-cluster</code>).</p>
+<p>The following base64-encoded string represents a Protobuf-serialized <a href="https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/cluster/generated/proto/commonpb/common.proto#L40-L42">message</a> containing the string
+<code>unstrict_majority</code>: <code>ChF1bnN0cmljdF9tYWpvcml0eQ==</code>. Decode this string and place it in the following etcd key, where
+<code>$ENV</code> is the value determined above:</p>
+<div class="highlight"><pre><span></span>_kv/$ENV/m3db.client.bootstrap-consistency-level
+</pre></div>
+
+<p>Note that on MacOS, <code>base64</code> requires the <code>-D</code> flag to decode, whereas elsewhere it is likely <code>-d</code>. Also note the use of
+<code>echo -n</code> to ensure removal of newlines if your shell does not support the <code>&lt;&lt;&lt;STRING</code> pattern.</p>
+<p>Once the cluster is recovered, the value should be deleted from etcd to revert to normal behavior using <code>etcdctl del</code>.</p>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><span class="c1"># On Linux, using a recent bash, update the value for env=default_env</span>
+<span class="o">&lt;&lt;&lt;</span><span class="nv">ChF1bnN0cmljdF9tYWpvcml0eQ</span><span class="o">==</span> base64 -d <span class="p">|</span> env <span class="nv">ETCDCTL_API</span><span class="o">=</span><span class="m">3</span> etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
+
+<span class="c1"># On Linux, using a limited shell, update the value for env=default_env</span>
+<span class="nb">echo</span> -n <span class="s2">&quot;ChF1bnN0cmljdF9tYWpvcml0eQ==&quot;</span> <span class="p">|</span> base64 -d <span class="p">|</span> env <span class="nv">ETCDCTL_API</span><span class="o">=</span><span class="m">3</span> etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
+
+<span class="c1"># On MacOS, update the value for a cluster &quot;test_cluster&quot; in Kubernetes namespace &quot;m3db&quot;</span>
+<span class="nb">echo</span> -n <span class="s2">&quot;ChF1bnN0cmljdF9tYWpvcml0eQ==&quot;</span> <span class="p">|</span> base64 -D <span class="p">|</span> kubectl <span class="nb">exec</span> -i <span class="nv">$ETCD_POD</span> -- env <span class="nv">ETCDCTL_API</span><span class="o">=</span><span class="m">3</span> etcdctl put _kv/m3db/test_cluster/m3db.client.bootstrap-consistency-level
+
+<span class="c1"># Delete the key to restore normal behavior</span>
+env <span class="nv">ETCDCTL_API</span><span class="o">=</span><span class="m">3</span> etcdctl del _kv/default_env/m3db.client.bootstrap-consistency-level
+</pre></div>
                 
                   
                 

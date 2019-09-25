@@ -1086,8 +1086,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../bootstrapping/" title="Bootstrapping" class="md-nav__link">
-      Bootstrapping
+    <a href="../bootstrapping_crash_recovery/" title="Bootstrapping & Crash Recovery" class="md-nav__link">
+      Bootstrapping & Crash Recovery
     </a>
   </li>
 
@@ -1501,10 +1501,10 @@
 <p><strong>Note</strong>: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards. Picking an appropriate number of shards is more of an art than a science, but our recommendation is as follows:</p>
 <p>The number of shards that M3DB uses is configurable and there are a couple of key points to note when deciding the number to use. The
 more nodes you have, the more shards you want because you want the shards to be evenly distributed amongst your nodes. However,
-because each shard requires more files to be created, you also don’t want to have too many shards per node. This is due to the fact each 
-bit of data needs to be repartitioned and moved around the cluster (i.e. every bit of data needs to be moved all at once). Below are 
+because each shard requires more files to be created, you also don’t want to have too many shards per node. This is due to the fact each
+bit of data needs to be repartitioned and moved around the cluster (i.e. every bit of data needs to be moved all at once). Below are
 some guidelines depending on how many nodes you will have in your cluster eventually - you will need to decide the number of shards up front, you
-cannot change this once the cluster is created. </p>
+cannot change this once the cluster is created.</p>
 <table>
 <thead>
 <tr>
@@ -1565,7 +1565,7 @@ cannot change this once the cluster is created. </p>
 below before making changes.</p>
 <p>The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to</p>
 <p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
-<p><strong>Note</strong>: The <a href="../bootstrapping/">peers bootstrapper</a> must be configured on all nodes in the M3DB cluster for placement changes to work. The <code>peers</code> bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration</p>
+<p><strong>Note</strong>: The <a href="../bootstrapping_crash_recovery/">peers bootstrapper</a> must be configured on all nodes in the M3DB cluster for placement changes to work. The <code>peers</code> bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration</p>
 <h4 id="placement-initialization">Placement Initialization</h4>
 <p>Send a POST request to the <code>/api/v1/services/m3db/placement/init</code> endpoint</p>
 <div class="highlight"><pre><span></span>curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d <span class="s1">&#39;{</span>
