@@ -179,12 +179,12 @@ func (c *Configuration) Validate() error {
 			*c.AsyncWriteWorkerPoolSize)
 	}
 
-	if c.TargetHostQueueFlushSize != nil && c.TargetHostQueueFlushSize <= 1 {
-		return errors.New("target host queue flush size must be larger than zero but was: %d", c.TargetHostQueueFlushSize)
+	if c.TargetHostQueueFlushSize != nil && *c.TargetHostQueueFlushSize <= 1 {
+		return fmt.Errorf("target host queue flush size must be larger than zero but was: %d", c.TargetHostQueueFlushSize)
 	}
 
-	if c.HostQueueFlushInterval != nil && c.HostQueueFlushInterval <= 0 {
-		return errors.New("host queue flush interval must be larger than zero but was: %s", c.HostQueueFlushInterval.String())
+	if c.HostQueueFlushInterval != nil && *c.HostQueueFlushInterval <= 0 {
+		return fmt.Errorf("host queue flush interval must be larger than zero but was: %s", c.HostQueueFlushInterval.String())
 	}
 
 	if err := c.Proto.Validate(); err != nil {
@@ -341,10 +341,10 @@ func (c Configuration) NewAdminClient(
 		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
 	}
 	if c.TargetHostQueueFlushSize != nil {
-		v = v.SetHostQueueOpsFlushSize(c.TargetHostQueueFlushSize)
+		v = v.SetHostQueueOpsFlushSize(*c.TargetHostQueueFlushSize)
 	}
 	if c.HostQueueFlushInterval != nil {
-		v = v.SetHostQueueOpsFlushInterval(c.HostQueueFlushInterval)
+		v = v.SetHostQueueOpsFlushInterval(*c.HostQueueFlushInterval)
 	}
 
 	encodingOpts := params.EncodingOptions
