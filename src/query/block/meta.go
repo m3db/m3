@@ -49,6 +49,9 @@ func (m Metadata) String() string {
 	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
 }
 
+// Warnings is a slice of warnings.
+type Warnings []Warning
+
 // ResultMetadata describes metadata common to each type of query results,
 // indicating any additional information about the result.
 type ResultMetadata struct {
@@ -59,25 +62,32 @@ type ResultMetadata struct {
 	Exhaustive bool
 	// Warnings is a list of warnings that indicate potetitally partial or
 	// incomplete results.
-	Warnings []Warning
+	Warnings Warnings
 }
 
 // NewResultMetadata creates a new result metadata.
-// NB: capacity for warning is initialized to 1, since it is unlikely that more
-// than one warning will exist.
 func NewResultMetadata() ResultMetadata {
 	return ResultMetadata{
 		LocalOnly:  true,
 		Exhaustive: true,
-		Warnings:   make([]Warning, 0, 1),
 	}
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
-	combinedWarnings := make([]Warning, 0, len(m.Warnings)+len(other.Warnings))
-	for _, w := range m.Warnings {
-		combinedWarnings = append(combinedWarnings, w)
+	var combinedWarnings Warnings
+	if len(m.Warnings) == 0 {
+		if len(other.Warnings) != 0 {
+			combinedWarnings = other.Warnings
+		}
+	} else {
+		if len(other.Warnings) == 0 {
+			combinedWarnings = m.Warnings
+		} else {
+			combinedWarnings = make(Warnings, 0, len(m.Warnings)+len(other.Warnings))
+			combinedWarnings = append(combinedWarnings, m.Warnings...)
+			combinedWarnings = combinedWarnings.addWarnings(other.Warnings...)
+		}
 	}
 
 	meta := ResultMetadata{
@@ -86,11 +96,27 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 		Warnings:   combinedWarnings,
 	}
 
-	for _, w := range other.Warnings {
-		meta.AddWarning(w.Name, w.Message)
+	return meta
+}
+
+// NB: this is not a very efficient merge but this is extremely unlikely to be
+// merging more than 5 or 6 total warnings.
+func (w Warnings) addWarnings(warnings ...Warning) Warnings {
+	for _, newWarning := range warnings {
+		found := false
+		for _, warning := range w {
+			if warning.equals(newWarning) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			w = append(w, newWarning)
+		}
 	}
 
-	return meta
+	return w
 }
 
 // IsDefault returns true if this result metadata matches the unchanged default.
@@ -102,14 +128,7 @@ func (m ResultMetadata) IsDefault() bool {
 // NB: warnings are expected to be small in general, so it's better to iterate
 // over the array rather than introduce a map.
 func (m *ResultMetadata) AddWarning(name string, message string) {
-	for _, warning := range m.Warnings {
-		// Dedupe warnings.
-		if warning.Name == name && warning.Message == message {
-			return
-		}
-	}
-
-	m.Warnings = append(m.Warnings, Warning{
+	m.Warnings = m.Warnings.addWarnings(Warning{
 		Name:    name,
 		Message: message,
 	})
@@ -126,4 +145,8 @@ type Warning struct {
 // Header formats the warning into a format to send in a response header.
 func (w Warning) Header() string {
 	return fmt.Sprintf("%s_%s", w.Name, w.Message)
+}
+
+func (w Warning) equals(warning Warning) bool {
+	return w.Name == warning.Name && w.Message == warning.Message
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMeta(t *testing.T) {
@@ -57,23 +58,47 @@ func TestResultMeta(t *testing.T) {
 	assert.False(t, rTwo.IsDefault())
 	rTwo.AddWarning("baz", "qux")
 	merge := r.CombineMetadata(rTwo)
+	assert.Equal(t, 1, len(r.Warnings))
+	assert.Equal(t, 1, len(rTwo.Warnings))
+
 	assert.False(t, merge.Exhaustive)
 	assert.False(t, merge.LocalOnly)
-	assert.Equal(t, 2, len(merge.Warnings))
-
+	require.Equal(t, 2, len(merge.Warnings))
 	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
 	assert.Equal(t, "baz_qux", merge.Warnings[1].Header())
 
 	// ensure warnings are deduplicated
 	merge = merge.CombineMetadata(rTwo)
-	assert.Equal(t, 2, len(merge.Warnings))
+	require.Equal(t, 2, len(merge.Warnings))
 
 	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
 	assert.Equal(t, "baz_qux", merge.Warnings[1].Header())
 
 	merge.AddWarning("foo", "bar")
-	assert.Equal(t, 2, len(merge.Warnings))
+	require.Equal(t, 2, len(merge.Warnings))
 
 	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
 	assert.Equal(t, "baz_qux", merge.Warnings[1].Header())
+}
+
+func TestMergeEmptyWarnings(t *testing.T) {
+	r := NewResultMetadata()
+	r.AddWarning("foo", "bar")
+	rTwo := NewResultMetadata()
+	merge := r.CombineMetadata(rTwo)
+	assert.Equal(t, 1, len(r.Warnings))
+	assert.Equal(t, 0, len(rTwo.Warnings))
+	require.Equal(t, 1, len(merge.Warnings))
+	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
+}
+
+func TestMergeIntoEmptyWarnings(t *testing.T) {
+	r := NewResultMetadata()
+	rTwo := NewResultMetadata()
+	rTwo.AddWarning("foo", "bar")
+	merge := r.CombineMetadata(rTwo)
+	assert.Equal(t, 0, len(r.Warnings))
+	assert.Equal(t, 1, len(rTwo.Warnings))
+	require.Equal(t, 1, len(merge.Warnings))
+	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
 }
