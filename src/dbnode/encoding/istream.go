@@ -27,9 +27,9 @@ import (
 )
 
 const (
-	// defaultReaderSize is the default bufio.Reader size, we can keep this
-	// small as we rarely need to peek more than a byte or two at a time.
-	defaultReaderSize = 16
+	// defaultReaderSize is the default bufio.Reader size. Use a reasonable
+	// size to avoid excessive function call overhead.
+	defaultReaderSize = 128
 )
 
 // istream encapsulates a readable stream.

@@ -60,7 +60,7 @@ type iterator struct {
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
-	customFields    []customFieldState
+	customFields    []*customFieldState
 	nonCustomFields []marshalledField
 
 	tsIterator m3tsz.TimestampIterator
@@ -258,7 +258,7 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 		// next time.
 		customFields := it.customFields
 		for i := range customFields {
-			customFields[i] = customFieldState{}
+			customFields[i] = nil
 		}
 		it.customFields = customFields[:0]
 
@@ -272,7 +272,7 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
-	it.customFields, it.nonCustomFields = customAndNonCustomFields(it.customFields, nil, it.schema)
+	_, it.nonCustomFields = customAndNonCustomFields(nil, nil, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -327,11 +327,11 @@ func (it *iterator) readCustomFieldsSchema() error {
 
 	if it.customFields != nil {
 		for i := range it.customFields {
-			it.customFields[i] = customFieldState{}
+			it.customFields[i] = nil
 		}
 		it.customFields = it.customFields[:0]
 	} else {
-		it.customFields = make([]customFieldState, 0, numCustomFields)
+		it.customFields = make([]*customFieldState, 0, numCustomFields)
 	}
 
 	for i := 1; i <= int(numCustomFields); i++ {
@@ -354,7 +354,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 		}
 
 		customFieldState := newCustomFieldState(i, protoFieldType, fieldType)
-		it.customFields = append(it.customFields, customFieldState)
+		it.customFields = append(it.customFields, &customFieldState)
 	}
 
 	return nil
@@ -372,7 +372,7 @@ func (it *iterator) readCustomValues() error {
 				return err
 			}
 		case customField.fieldType == bytesField:
-			if err := it.readBytesValue(i, customField); err != nil {
+			if err := it.readBytesValue(i, customField.iteratorBytesFieldDict); err != nil {
 				return err
 			}
 		case customField.fieldType == boolField:
@@ -517,7 +517,7 @@ func (it *iterator) readFloatValue(i int) error {
 	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
-func (it *iterator) readBytesValue(i int, customField customFieldState) error {
+func (it *iterator) readBytesValue(i int, bytesFieldDict [][]byte) error {
 	bytesChangedControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -553,13 +553,13 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 		}
 
 		dictIdx := int(dictIdxBits)
-		if dictIdx >= len(customField.iteratorBytesFieldDict) || dictIdx < 0 {
+		if dictIdx >= len(bytesFieldDict) || dictIdx < 0 {
 			return fmt.Errorf(
 				"%s read bytes field dictionary index: %d, but dictionary is size: %d",
-				itErrPrefix, dictIdx, len(customField.iteratorBytesFieldDict))
+				itErrPrefix, dictIdx, len(bytesFieldDict))
 		}
 
-		bytesVal := customField.iteratorBytesFieldDict[dictIdx]
+		bytesVal := bytesFieldDict[dictIdx]
 		it.moveToEndOfBytesDict(i, dictIdx)
 
 		updateArg := updateLastIterArg{i: i, bytesFieldBuf: bytesVal}
