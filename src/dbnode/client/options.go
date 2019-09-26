@@ -152,6 +152,9 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
+
+	// defaultAsyncWriteMaxConcurrency is the default maximum concurrency for async writes.
+	defaultAsyncWriteMaxConcurrency = 4096
 )
 
 var (
@@ -248,7 +251,8 @@ type options struct {
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
 	asyncTopologyInitializers               []topology.Initializer
-	asyncWriteWorkerPool                    xsync.WorkerPool
+	asyncWriteWorkerPool                    xsync.PooledWorkerPool
+	asyncWriteMaxConcurrency                int
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -340,6 +344,7 @@ func newOptions() *options {
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
 		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
 		asyncTopologyInitializers:               []topology.Initializer{},
+		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -907,12 +912,22 @@ func (o *options) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
 }
 
-func (o *options) SetAsyncWriteWorkerPool(value xsync.WorkerPool) Options {
+func (o *options) SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options {
 	opts := *o
 	opts.asyncWriteWorkerPool = value
 	return &opts
 }
 
-func (o *options) AsyncWriteWorkerPool() xsync.WorkerPool {
+func (o *options) AsyncWriteWorkerPool() xsync.PooledWorkerPool {
 	return o.asyncWriteWorkerPool
+}
+
+func (o *options) SetAsyncWriteMaxConcurrency(value int) Options {
+	opts := *o
+	opts.asyncWriteMaxConcurrency = value
+	return &opts
+}
+
+func (o *options) AsyncWriteMaxConcurrency() int {
+	return o.asyncWriteMaxConcurrency
 }

@@ -94,6 +94,9 @@ type Configuration struct {
 	// AsyncWriteWorkerPoolSize is the worker pool size for async write requests.
 	AsyncWriteWorkerPoolSize *int `yaml:"asyncWriteWorkerPoolSize"`
 
+	// AsyncWriteMaxConcurrency is the maximum concurrency for async write requests.
+	AsyncWriteMaxConcurrency *int `yaml:"asyncWriteMaxConcurrency"`
+
 	// TargetHostQueueFlushSize sets the target size for a host queue flush. This controls how many
 	// operations the client will attempt to buffer for each host before issuing an RPC.
 	TargetHostQueueFlushSize *int `yaml:"targetHostQueueFlushSize"`
@@ -177,6 +180,11 @@ func (c *Configuration) Validate() error {
 	if c.AsyncWriteWorkerPoolSize != nil && *c.AsyncWriteWorkerPoolSize <= 0 {
 		return fmt.Errorf("m3db client async write worker pool size was: %d but must be >0",
 			*c.AsyncWriteWorkerPoolSize)
+	}
+
+	if c.AsyncWriteMaxConcurrency != nil && *c.AsyncWriteMaxConcurrency <= 0 {
+		return fmt.Errorf("m3db client async write max concurrency was: %d but must be >0",
+			*c.AsyncWriteMaxConcurrency)
 	}
 
 	if c.TargetHostQueueFlushSize != nil && *c.TargetHostQueueFlushSize <= 1 {
@@ -305,9 +313,19 @@ func (c Configuration) NewAdminClient(
 		} else {
 			size = *c.AsyncWriteWorkerPoolSize
 		}
-		workerPool := xsync.NewWorkerPool(size)
+
+		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true)
+		workerPool, err := xsync.NewPooledWorkerPool(size, workerPoolOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create async worker pool: %v", err)
+		}
 		workerPool.Init()
 		v = v.SetAsyncWriteWorkerPool(workerPool)
+	}
+
+	if c.AsyncWriteMaxConcurrency != nil {
+		v = v.SetAsyncWriteMaxConcurrency(*c.AsyncWriteMaxConcurrency)
 	}
 
 	if c.WriteConsistencyLevel != nil {
