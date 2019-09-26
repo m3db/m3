@@ -170,6 +170,7 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				if s.outCh != nil {
 					s.outCh <- err
 				}
+				<-s.replicationSemaphore
 			})
 			s.metrics.replicateExecuted.Inc(1)
 		default:

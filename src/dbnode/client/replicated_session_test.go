@@ -56,7 +56,9 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 		topoInits = append(topoInits, newTopologyInitializer())
 	}
 	options := NewAdminOptions().
-		SetAsyncTopologyInitializers(topoInits)
+		SetAsyncTopologyInitializers(topoInits).
+		// Set this to artificially low number to catch bugs with semaphore.
+		SetAsyncWriteMaxConcurrency(1)
 	if asyncCount > 0 {
 		workerPool := xsync.NewWorkerPool(10)
 		workerPool.Init()
