@@ -2294,7 +2294,7 @@ func (mr *MockOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call {
 }
 
 // SetAsyncWriteWorkerPool mocks base method
-func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.WorkerPool) Options {
+func (m *MockOptions) SetAsyncWriteWorkerPool(value sync.PooledWorkerPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
 	ret0, _ := ret[0].(Options)
@@ -2308,10 +2308,10 @@ func (mr *MockOptionsMockRecorder) SetAsyncWriteWorkerPool(value interface{}) *g
 }
 
 // AsyncWriteWorkerPool mocks base method
-func (m *MockOptions) AsyncWriteWorkerPool() sync.WorkerPool {
+func (m *MockOptions) AsyncWriteWorkerPool() sync.PooledWorkerPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
-	ret0, _ := ret[0].(sync.WorkerPool)
+	ret0, _ := ret[0].(sync.PooledWorkerPool)
 	return ret0
 }
 
@@ -2319,6 +2319,34 @@ func (m *MockOptions) AsyncWriteWorkerPool() sync.WorkerPool {
 func (mr *MockOptionsMockRecorder) AsyncWriteWorkerPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteWorkerPool", reflect.TypeOf((*MockOptions)(nil).AsyncWriteWorkerPool))
+}
+
+// SetAsyncWriteMaxConcurrency mocks base method
+func (m *MockOptions) SetAsyncWriteMaxConcurrency(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncWriteMaxConcurrency", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncWriteMaxConcurrency indicates an expected call of SetAsyncWriteMaxConcurrency
+func (mr *MockOptionsMockRecorder) SetAsyncWriteMaxConcurrency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncWriteMaxConcurrency", reflect.TypeOf((*MockOptions)(nil).SetAsyncWriteMaxConcurrency), value)
+}
+
+// AsyncWriteMaxConcurrency mocks base method
+func (m *MockOptions) AsyncWriteMaxConcurrency() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncWriteMaxConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// AsyncWriteMaxConcurrency indicates an expected call of AsyncWriteMaxConcurrency
+func (mr *MockOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteMaxConcurrency", reflect.TypeOf((*MockOptions)(nil).AsyncWriteMaxConcurrency))
 }
 
 // MockAdminOptions is a mock of AdminOptions interface
@@ -3605,7 +3633,7 @@ func (mr *MockAdminOptionsMockRecorder) AsyncTopologyInitializers() *gomock.Call
 }
 
 // SetAsyncWriteWorkerPool mocks base method
-func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.WorkerPool) Options {
+func (m *MockAdminOptions) SetAsyncWriteWorkerPool(value sync.PooledWorkerPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAsyncWriteWorkerPool", value)
 	ret0, _ := ret[0].(Options)
@@ -3619,10 +3647,10 @@ func (mr *MockAdminOptionsMockRecorder) SetAsyncWriteWorkerPool(value interface{
 }
 
 // AsyncWriteWorkerPool mocks base method
-func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.WorkerPool {
+func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.PooledWorkerPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncWriteWorkerPool")
-	ret0, _ := ret[0].(sync.WorkerPool)
+	ret0, _ := ret[0].(sync.PooledWorkerPool)
 	return ret0
 }
 
@@ -3630,6 +3658,34 @@ func (m *MockAdminOptions) AsyncWriteWorkerPool() sync.WorkerPool {
 func (mr *MockAdminOptionsMockRecorder) AsyncWriteWorkerPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteWorkerPool", reflect.TypeOf((*MockAdminOptions)(nil).AsyncWriteWorkerPool))
+}
+
+// SetAsyncWriteMaxConcurrency mocks base method
+func (m *MockAdminOptions) SetAsyncWriteMaxConcurrency(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAsyncWriteMaxConcurrency", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAsyncWriteMaxConcurrency indicates an expected call of SetAsyncWriteMaxConcurrency
+func (mr *MockAdminOptionsMockRecorder) SetAsyncWriteMaxConcurrency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncWriteMaxConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).SetAsyncWriteMaxConcurrency), value)
+}
+
+// AsyncWriteMaxConcurrency mocks base method
+func (m *MockAdminOptions) AsyncWriteMaxConcurrency() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AsyncWriteMaxConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// AsyncWriteMaxConcurrency indicates an expected call of AsyncWriteMaxConcurrency
+func (mr *MockAdminOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteMaxConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).AsyncWriteMaxConcurrency))
 }
 
 // SetOrigin mocks base method

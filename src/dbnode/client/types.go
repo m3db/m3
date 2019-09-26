@@ -517,10 +517,16 @@ type Options interface {
 	AsyncTopologyInitializers() []topology.Initializer
 
 	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
-	SetAsyncWriteWorkerPool(value xsync.WorkerPool) Options
+	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
 
 	// AsyncWriteWorkerPool returns the worker pool for async writes.
-	AsyncWriteWorkerPool() xsync.WorkerPool
+	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+
+	// SetAsyncWriteMaxConcurrency sets the async writes maximum concurrency.
+	SetAsyncWriteMaxConcurrency(value int) Options
+
+	// AsyncWriteMaxConcurrency returns the async writes maximum concurrency.
+	AsyncWriteMaxConcurrency() int
 }
 
 // AdminOptions is a set of administration client options.
