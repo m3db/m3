@@ -1515,7 +1515,7 @@ func (s *session) fetchIDsAttempt(
 
 	consistencyLevel = s.state.readLevel
 	majority = int32(s.state.majority)
-	numReplicas = int32(s.state.majority)
+	numReplicas = int32(s.state.replicas)
 
 	// NB(prateek): namespaceAccessors tracks the number of pending accessors for nsID.
 	// It is set to incremented by `replica` for each requested ID during fetch enqueuing,
