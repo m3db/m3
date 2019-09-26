@@ -373,3 +373,19 @@ func ReadConsistencyAchieved(
 	}
 	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 }
+
+// NumDesiredForReadConsistency returns the number of replicas that would ideally be used to
+// satisfy the read consistency.
+func NumDesiredForReadConsistency(level ReadConsistencyLevel, numReplicas, majority int) int {
+	switch level {
+	case ReadConsistencyLevelAll:
+		return numReplicas
+	case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
+		return majority
+	case ReadConsistencyLevelOne:
+		return 1
+	case ReadConsistencyLevelNone:
+		return 0
+	}
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+}
