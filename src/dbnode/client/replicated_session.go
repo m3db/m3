@@ -79,16 +79,14 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 }
 
 func newReplicatedSession(opts Options, options ...replicatedSessionOption) (clientSession, error) {
-	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
 	workerPool := opts.AsyncWriteWorkerPool()
 
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
-		newSessionFn: newSession,
-		workerPool:   workerPool,
-		// TODO: Fix me.
-		replicationSemaphore: make(chan struct{}, 1024),
+		newSessionFn:         newSession,
+		workerPool:           workerPool,
+		replicationSemaphore: make(chan struct{}, opts.AsyncWriteMaxConcurrency()),
 		scope:                scope,
 		log:                  opts.InstrumentOptions().Logger(),
 		metrics:              newReplicatedSessionMetrics(scope),
