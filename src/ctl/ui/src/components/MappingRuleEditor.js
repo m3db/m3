@@ -21,11 +21,11 @@
 import React from 'react';
 import {Button, Input, Form} from 'antd';
 import {withFormik} from 'formik';
-import * as util from 'utils';
+import * as util from '../utils';
 import yup from 'yup';
 import PoliciesEditor from './PolicyEditor';
-import {filterPoliciesBasedOnTag} from 'utils';
-import {getHelpText} from 'utils/helpText';
+import {filterPoliciesBasedOnTag} from '../utils';
+import {getHelpText} from '../utils/helpText';
 const schema = yup.object().shape({
   name: yup.string('Name filter is required').required(),
   filter: yup.string().required('Metric filter is required'),

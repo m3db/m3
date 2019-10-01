@@ -343,52 +343,10 @@ func (s *dbSeries) FetchBlocksMetadata(
 	start, end time.Time,
 	opts FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResult, error) {
-	blockSize := s.opts.RetentionOptions().BlockSize()
-	res := s.opts.FetchBlockMetadataResultsPool().Get()
-
 	s.RLock()
 	defer s.RUnlock()
 
-	blocks := s.cachedBlocks.AllBlocks()
-
-	for tNano, b := range blocks {
-		t := tNano.ToTime()
-		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
-			continue
-		}
-		if !opts.IncludeCachedBlocks && b.WasRetrievedFromDisk() {
-			// Do not include cached blocks if not specified to, this is
-			// to avoid high amounts of duplication if a significant number of
-			// blocks are cached in memory when returning blocks metadata
-			// from both in-memory and disk structures.
-			continue
-		}
-		var (
-			size     int64
-			checksum *uint32
-			lastRead time.Time
-		)
-		if opts.IncludeSizes {
-			size = int64(b.Len())
-		}
-		if opts.IncludeChecksums {
-			v, err := b.Checksum()
-			if err != nil {
-				return block.FetchBlocksMetadataResult{}, err
-			}
-			checksum = &v
-		}
-		if opts.IncludeLastRead {
-			lastRead = b.LastReadTime()
-		}
-		res.Add(block.FetchBlockMetadataResult{
-			Start:    t,
-			Size:     size,
-			Checksum: checksum,
-			LastRead: lastRead,
-		})
-	}
-
+	res := s.opts.FetchBlockMetadataResultsPool().Get()
 	// Iterate over the encoders in the database buffer
 	if !s.buffer.IsEmpty() {
 		bufferResults, err := s.buffer.FetchBlocksMetadata(ctx, start, end, opts)

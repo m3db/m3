@@ -404,11 +404,13 @@ func newM3DBStorage(
 		switch {
 		case cfg.ClusterManagement != nil:
 			etcdCfg = &cfg.ClusterManagement.Etcd
-
 		case len(cfg.Clusters) == 1 &&
-			cfg.Clusters[0].Client.EnvironmentConfig != nil &&
-			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
-			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
+			cfg.Clusters[0].Client.EnvironmentConfig != nil:
+			syncCfg, err := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster()
+			if err != nil {
+				return nil, nil, nil, nil, errors.Wrap(err, "unable to get etcd sync cluster config")
+			}
+			etcdCfg = syncCfg.Service
 		}
 
 		if etcdCfg != nil {

@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -508,6 +509,24 @@ type Options interface {
 
 	// SchemaRegistry returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetAsyncTopologyInitializers sets the AsyncTopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
+
+	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
+	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+
+	// AsyncWriteWorkerPool returns the worker pool for async writes.
+	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+
+	// SetAsyncWriteMaxConcurrency sets the async writes maximum concurrency.
+	SetAsyncWriteMaxConcurrency(value int) Options
+
+	// AsyncWriteMaxConcurrency returns the async writes maximum concurrency.
+	AsyncWriteMaxConcurrency() int
 }
 
 // AdminOptions is a set of administration client options.
@@ -646,10 +665,13 @@ type op interface {
 	CompletionFn() completionFn
 }
 
+type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+type enqueueDelayedDoneFn func()
+
 type enqueueChannel interface {
-	enqueue(peersMetadata []receivedBlockMetadata)
-	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
-	get() <-chan []receivedBlockMetadata
+	enqueue(peersMetadata []receivedBlockMetadata) error
+	enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error)
+	get() (<-chan []receivedBlockMetadata, error)
 	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int

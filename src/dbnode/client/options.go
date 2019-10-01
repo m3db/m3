@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	tchannel "github.com/uber/tchannel-go"
 )
@@ -151,6 +152,9 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
+
+	// defaultAsyncWriteMaxConcurrency is the default maximum concurrency for async writes.
+	defaultAsyncWriteMaxConcurrency = 4096
 )
 
 var (
@@ -246,6 +250,9 @@ type options struct {
 	fetchSeriesBlocksBatchConcurrency       int
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
+	asyncTopologyInitializers               []topology.Initializer
+	asyncWriteWorkerPool                    xsync.PooledWorkerPool
+	asyncWriteMaxConcurrency                int
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -256,6 +263,17 @@ func NewOptions() Options {
 // NewAdminOptions creates a new set of administration client options with defaults
 func NewAdminOptions() AdminOptions {
 	return newOptions()
+}
+
+// NewOptionsForAsyncClusters returns a slice of Options, where each is the set of client
+// for a given async client.
+func NewOptionsForAsyncClusters(opts Options) []Options {
+	result := make([]Options, 0, len(opts.AsyncTopologyInitializers()))
+	for _, topoInit := range opts.AsyncTopologyInitializers() {
+		options := opts.SetTopologyInitializer(topoInit)
+		result = append(result, options)
+	}
+	return result
 }
 
 func newOptions() *options {
@@ -325,35 +343,41 @@ func newOptions() *options {
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
 		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
+		asyncTopologyInitializers:               []topology.Initializer{},
+		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
 
-func (o *options) Validate() error {
-	if o.topologyInitializer == nil {
+func validate(opts *options) error {
+	if opts.topologyInitializer == nil {
 		return errNoTopologyInitializerSet
 	}
-	if o.readerIteratorAllocate == nil {
+	if opts.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
 	if err := topology.ValidateConsistencyLevel(
-		o.writeConsistencyLevel,
+		opts.writeConsistencyLevel,
 	); err != nil {
 		return err
 	}
 	if err := topology.ValidateReadConsistencyLevel(
-		o.readConsistencyLevel,
+		opts.readConsistencyLevel,
 	); err != nil {
 		return err
 	}
 	if err := topology.ValidateReadConsistencyLevel(
-		o.bootstrapConsistencyLevel,
+		opts.bootstrapConsistencyLevel,
 	); err != nil {
 		return err
 	}
 	return topology.ValidateConnectConsistencyLevel(
-		o.clusterConnectConsistencyLevel,
+		opts.clusterConnectConsistencyLevel,
 	)
+}
+
+func (o *options) Validate() error {
+	return validate(o)
 }
 
 func (o *options) SetEncodingM3TSZ() Options {
@@ -876,4 +900,34 @@ func (o *options) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
 
 func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	opts := *o
+	opts.asyncTopologyInitializers = value
+	return &opts
+}
+
+func (o *options) AsyncTopologyInitializers() []topology.Initializer {
+	return o.asyncTopologyInitializers
+}
+
+func (o *options) SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.asyncWriteWorkerPool = value
+	return &opts
+}
+
+func (o *options) AsyncWriteWorkerPool() xsync.PooledWorkerPool {
+	return o.asyncWriteWorkerPool
+}
+
+func (o *options) SetAsyncWriteMaxConcurrency(value int) Options {
+	opts := *o
+	opts.asyncWriteMaxConcurrency = value
+	return &opts
+}
+
+func (o *options) AsyncWriteMaxConcurrency() int {
+	return o.asyncWriteMaxConcurrency
 }

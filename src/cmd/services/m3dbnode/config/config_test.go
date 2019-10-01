@@ -395,6 +395,10 @@ func TestConfiguration(t *testing.T) {
     hashing:
       seed: 42
     proto: null
+    asyncWriteWorkerPoolSize: null
+    asyncWriteMaxConcurrency: null
+    targetHostQueueFlushSize: null
+    hostQueueFlushInterval: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -429,6 +433,7 @@ func TestConfiguration(t *testing.T) {
     mmap: null
     force_index_summaries_mmap_memory: true
     force_bloom_filter_mmap_memory: true
+    bloomFilterFalsePositivePercent: null
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
@@ -587,25 +592,27 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0
       highWatermark: 0
   config:
-    service:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive: null
-        tls: null
-        autoSyncInterval: 0s
-      m3sd:
-        initTimeout: null
-      watchWithRevision: 0
-      newDirectoryMode: null
-    static: null
+    services:
+    - async: false
+      service:
+        zone: embedded
+        env: production
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: embedded
+          endpoints:
+          - 1.1.1.1:2379
+          - 1.1.1.2:2379
+          - 1.1.1.3:2379
+          keepAlive: null
+          tls: null
+          autoSyncInterval: 0s
+        m3sd:
+          initTimeout: null
+        watchWithRevision: 0
+        newDirectoryMode: null
+    statics: []
     seedNodes:
       rootDir: /var/lib/etcd
       initialAdvertisePeerUrls:

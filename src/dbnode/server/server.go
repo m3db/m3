@@ -241,7 +241,12 @@ func Run(runOpts RunOptions) {
 		logger.Info("no seed nodes set, using dedicated etcd cluster")
 	} else {
 		// Default etcd client clusters if not set already
-		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
+		service, err := cfg.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			logger.Fatal("invalid cluster configuration", zap.Error(err))
+		}
+
+		clusters := service.Service.ETCDClusters
 		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterEndpoints(seedNodes)
@@ -249,11 +254,11 @@ func Run(runOpts RunOptions) {
 				logger.Fatal("unable to create etcd clusters", zap.Error(err))
 			}
 
-			zone := cfg.EnvironmentConfig.Service.Zone
+			zone := service.Service.Zone
 
 			logger.Info("using seed nodes etcd cluster",
 				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
-			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			service.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
@@ -439,7 +444,8 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault())
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
+		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault())
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -525,7 +531,7 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-	if cfg.EnvironmentConfig.Static == nil {
+	if len(cfg.EnvironmentConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
@@ -548,17 +554,21 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	syncCfg, err := envCfg.SyncCluster()
+	if err != nil {
+		logger.Fatal("invalid cluster config", zap.Error(err))
+	}
 	if runOpts.ClusterClientCh != nil {
-		runOpts.ClusterClientCh <- envCfg.ClusterClient
+		runOpts.ClusterClientCh <- syncCfg.ClusterClient
 	}
 
-	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
+	opts = opts.SetNamespaceInitializer(syncCfg.NamespaceInitializer)
 
 	// Set tchannelthrift options.
 	ttopts := tchannelthrift.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetTopologyInitializer(envCfg.TopologyInitializer).
+		SetTopologyInitializer(syncCfg.TopologyInitializer).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
@@ -612,7 +622,7 @@ func Run(runOpts RunOptions) {
 		}()
 	}
 
-	topo, err := envCfg.TopologyInitializer.Init()
+	topo, err := syncCfg.TopologyInitializer.Init()
 	if err != nil {
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
@@ -637,8 +647,8 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, envCfg.TopologyInitializer, runtimeOptsMgr,
-		origin, protoEnabled, schemaRegistry, envCfg.KVStore, logger)
+		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
+		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -673,7 +683,7 @@ func Run(runOpts RunOptions) {
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
 				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
-				origin, protoEnabled, schemaRegistry, envCfg.KVStore, logger)
+				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster: %s",
@@ -742,7 +752,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
+	kvWatchBootstrappers(syncCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
 				logger.Error("updated bootstrapper list is empty")
@@ -825,7 +835,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("bootstrapped")
 
 		// Only set the write new series limit after bootstrapping
-		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
+		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
@@ -1478,6 +1488,12 @@ func newAdminClient(
 	kvStore kv.Store,
 	logger *zap.Logger,
 ) (client.AdminClient, error) {
+	if config.EnvironmentConfig != nil {
+		// If the user has provided an override for the dynamic client configuration
+		// then we need to honor it by not passing our own topology initializer.
+		topologyInitializer = nil
+	}
+
 	m3dbClient, err := config.NewAdminClient(
 		client.ConfigurationParameters{
 			InstrumentOptions: iopts.
@@ -1491,18 +1507,16 @@ func newAdminClient(
 			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetOrigin(origin)
+			return opts.SetOrigin(origin).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			if protoEnabled {
-				return opts.SetEncodingProto(
-					encoding.NewOptions(),
-				).(client.AdminOptions)
+				return opts.SetEncodingProto(encoding.NewOptions()).(client.AdminOptions)
 			}
 			return opts
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetSchemaRegistry(schemaRegistry)
+			return opts.SetSchemaRegistry(schemaRegistry).(client.AdminOptions)
 		},
 	)
 	if err != nil {

@@ -23,6 +23,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"runtime"
@@ -689,7 +690,12 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		opts = opts.SetMaxJitterFn(maxJitterFn)
 	}
 	if c.NumWorkersPerCPU != 0 {
-		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
+		runtimeCPU := float64(runtime.NumCPU())
+		numWorkers := c.NumWorkersPerCPU * runtimeCPU
+		workerPoolSize := int(math.Ceil(numWorkers))
+		if workerPoolSize < 1 {
+			workerPoolSize = 1
+		}
 		workerPool := sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)

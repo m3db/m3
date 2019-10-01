@@ -103,7 +103,9 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	require.NoError(t, err)
+	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 
@@ -332,7 +334,9 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	require.NoError(t, err)
+	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 

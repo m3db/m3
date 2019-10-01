@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 
+	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -57,6 +58,8 @@ type queue struct {
 	opsLastRotatedAt                           time.Time
 	opsArrayPool                               *opArrayPool
 	drainIn                                    chan []op
+	writeOpBatchSize                           tally.Histogram
+	fetchOpBatchSize                           tally.Histogram
 	status                                     status
 }
 
@@ -65,15 +68,26 @@ func newHostQueue(
 	hostQueueOpts hostQueueOpts,
 ) (hostQueue, error) {
 	var (
-		opts  = hostQueueOpts.opts
-		iOpts = opts.InstrumentOptions()
-		scope = iOpts.MetricsScope().
-			SubScope("hostqueue").
-			Tagged(map[string]string{
-				"hostID": host.ID(),
-			})
+		opts               = hostQueueOpts.opts
+		iOpts              = opts.InstrumentOptions()
+		scopeWithoutHostID = iOpts.MetricsScope().SubScope("hostqueue")
+		scope              = scopeWithoutHostID.Tagged(map[string]string{
+			"hostID": host.ID(),
+		})
 	)
 	iOpts = iOpts.SetMetricsScope(scope)
+
+	writeOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
+	if err != nil {
+		return nil, err
+	}
+	writeOpBatchSizeBuckets = append(tally.ValueBuckets{0}, writeOpBatchSizeBuckets...)
+
+	fetchOpBatchSizeBuckets, err := tally.ExponentialValueBuckets(1, 2, 15)
+	if err != nil {
+		return nil, err
+	}
+	fetchOpBatchSizeBuckets = append(tally.ValueBuckets{0}, fetchOpBatchSizeBuckets...)
 
 	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
 		SetGrowOnDemand(true).
@@ -103,19 +117,21 @@ func newHostQueue(
 	opArrayPool.Init()
 
 	return &queue{
-		opts:                                       opts,
-		nowFn:                                      opts.ClockOptions().NowFn(),
-		host:                                       host,
-		connPool:                                   newConnectionPool(host, opts),
-		writeBatchRawRequestPool:                   hostQueueOpts.writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
+		opts:                                 opts,
+		nowFn:                                opts.ClockOptions().NowFn(),
+		host:                                 host,
+		connPool:                             newConnectionPool(host, opts),
+		writeBatchRawRequestPool:             hostQueueOpts.writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool: hostQueueOpts.writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:       hostQueueOpts.writeTaggedBatchRawRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
-		workerPool:   workerPool,
-		size:         size,
-		ops:          opArrayPool.Get(),
-		opsArrayPool: opArrayPool,
-		drainIn:      make(chan []op, opsArraysLen),
+		workerPool:       workerPool,
+		size:             size,
+		ops:              opArrayPool.Get(),
+		opsArrayPool:     opArrayPool,
+		writeOpBatchSize: scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
+		fetchOpBatchSize: scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
+		drainIn:          make(chan []op, opsArraysLen),
 	}, nil
 }
 
@@ -237,8 +253,8 @@ func (q *queue) drain() {
 				idx := currTaggedWriteOpsByNamespace.indexOf(namespace)
 				if idx == -1 {
 					value := namespaceWriteTaggedBatchOps{
-						namespace:                                  namespace,
-						opsArrayPool:                               q.opsArrayPool,
+						namespace:    namespace,
+						opsArrayPool: q.opsArrayPool,
 						writeTaggedBatchRawRequestElementArrayPool: q.writeTaggedBatchRawRequestElementArrayPool,
 					}
 					idx = len(currTaggedWriteOpsByNamespace)
@@ -306,6 +322,7 @@ func (q *queue) asyncTaggedWrite(
 	ops []op,
 	elems []*rpc.WriteTaggedBatchRawRequestElement,
 ) {
+	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 
 	q.workerPool.Go(func() {
@@ -371,6 +388,7 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
+	q.writeOpBatchSize.RecordValue(float64(len(elems)))
 	q.Add(1)
 	q.workerPool.Go(func() {
 		req := q.writeBatchRawRequestPool.Get()
@@ -431,6 +449,7 @@ func (q *queue) asyncWrite(
 }
 
 func (q *queue) asyncFetch(op *fetchBatchOp) {
+	q.fetchOpBatchSize.RecordValue(float64(len(op.request.Ids)))
 	q.Add(1)
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
