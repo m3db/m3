@@ -98,10 +98,6 @@ var (
 
 	// errHealthNotSet is raised when server health data structure is not set.
 	errHealthNotSet = errors.New("server health not set")
-
-	// errZeroBatchOperations is returned from the batchOperations endpoint is zero operations
-	// are provided.
-	errZeroBatchOperations = errors.New("zero batch operations provided")
 )
 
 type serviceMetrics struct {
@@ -2023,7 +2019,6 @@ func (r *writeBatchPooledReq) Finalize() {
 		r.writeReq = nil
 	}
 	if r.writeV2Req != nil {
-		// TODO: Put namespaces back?
 		for _, elem := range r.writeV2Req.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
 			// Ownership of the annotations has been transferred to the BatchWriter
