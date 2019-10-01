@@ -37,6 +37,7 @@ type writeOperation struct {
 	namespace    ident.ID
 	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
+	requestV2    rpc.WriteBatchRawV2RequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
 	pool         *writeOperationPool

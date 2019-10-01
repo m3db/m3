@@ -215,11 +215,15 @@ type streamFromPeersMetrics struct {
 }
 
 type hostQueueOpts struct {
-	writeBatchRawRequestPool                   writeBatchRawRequestPool
-	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
-	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
-	opts                                       Options
+	writeBatchRawRequestPool                     writeBatchRawRequestPool
+	writeBatchRawV2RequestPool                   writeBatchRawV2RequestPool
+	writeBatchRawRequestElementArrayPool         writeBatchRawRequestElementArrayPool
+	writeBatchRawV2RequestElementArrayPool       writeBatchRawV2RequestElementArrayPool
+	writeTaggedBatchRawRequestPool               writeTaggedBatchRawRequestPool
+	writeTaggedBatchRawV2RequestPool             writeTaggedBatchRawV2RequestPool
+	writeTaggedBatchRawRequestElementArrayPool   writeTaggedBatchRawRequestElementArrayPool
+	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+	opts                                         Options
 }
 
 type newHostQueueFn func(
@@ -852,6 +856,8 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		))
 	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
+	writeBatchV2RequestPool := newWriteBatchRawV2RequestPool(writeBatchRequestPoolOpts)
+	writeBatchV2RequestPool.Init()
 
 	writeTaggedBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
@@ -860,6 +866,8 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		))
 	writeTaggedBatchRequestPool := newWriteTaggedBatchRawRequestPool(writeTaggedBatchRequestPoolOpts)
 	writeTaggedBatchRequestPool.Init()
+	writeTaggedBatchV2RequestPool := newWriteTaggedBatchRawV2RequestPool(writeBatchRequestPoolOpts)
+	writeTaggedBatchV2RequestPool.Init()
 
 	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
@@ -869,6 +877,9 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
 		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeBatchRawRequestElementArrayPool.Init()
+	writeBatchRawV2RequestElementArrayPool := newWriteBatchRawV2RequestElementArrayPool(
+		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeBatchRawV2RequestElementArrayPool.Init()
 
 	writeTaggedBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
@@ -878,12 +889,18 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 	writeTaggedBatchRawRequestElementArrayPool := newWriteTaggedBatchRawRequestElementArrayPool(
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
+	writeTaggedBatchRawV2RequestElementArrayPool := newWriteTaggedBatchRawV2RequestElementArrayPool(
+		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 
 	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
-		writeBatchRawRequestPool:                   writeBatchRequestPool,
-		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
+		writeBatchRawRequestPool:                     writeBatchRequestPool,
+		writeBatchRawV2RequestPool:                   writeBatchV2RequestPool,
+		writeBatchRawRequestElementArrayPool:         writeBatchRawRequestElementArrayPool,
+		writeBatchRawV2RequestElementArrayPool:       writeBatchRawV2RequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:               writeTaggedBatchRequestPool,
+		writeTaggedBatchRawV2RequestPool:             writeTaggedBatchV2RequestPool,
+		writeTaggedBatchRawRequestElementArrayPool:   writeTaggedBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawV2RequestElementArrayPool: writeTaggedBatchRawV2RequestElementArrayPool,
 		opts: s.opts,
 	})
 	if err != nil {
@@ -1025,6 +1042,8 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
 		wop.request.Datapoint.Annotation = annotation
+		wop.requestV2.ID = wop.request.ID
+		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
 	case taggedWriteAttemptType:
 		wop := s.pools.writeTaggedOperation.Get()
@@ -1040,6 +1059,9 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
 		wop.request.Datapoint.Annotation = annotation
+		wop.requestV2.ID = wop.request.ID
+		wop.requestV2.EncodedTags = wop.request.EncodedTags
+		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
 	default:
 		// should never happen

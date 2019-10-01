@@ -37,6 +37,7 @@ type writeTaggedOperation struct {
 	namespace    ident.ID
 	shardID      uint32
 	request      rpc.WriteTaggedBatchRawRequestElement
+	requestV2    rpc.WriteTaggedBatchRawV2RequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
 	pool         *writeTaggedOperationPool
