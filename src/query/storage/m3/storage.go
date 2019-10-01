@@ -154,12 +154,15 @@ func (s *m3storage) Fetch(
 		return nil, errMismatchedFetchedLength
 	}
 
-	resolutions := make([]int64, 0, len(fetchResult.SeriesList))
-	for _, attr := range attrs {
-		resolutions = append(resolutions, int64(attr.Resolution))
+	if options.IncludeResolution {
+		resolutions := make([]int64, 0, len(fetchResult.SeriesList))
+		for _, attr := range attrs {
+			resolutions = append(resolutions, int64(attr.Resolution))
+		}
+
+		fetchResult.Metadata.Resolutions = resolutions
 	}
 
-	fetchResult.Metadata.Resolutions = resolutions
 	return fetchResult, nil
 }
 
@@ -256,12 +259,15 @@ func (s *m3storage) FetchCompressed(
 		return result, noop, err
 	}
 
-	resolutions := make([]int64, 0, len(attrs))
-	for _, attr := range attrs {
-		resolutions = append(resolutions, int64(attr.Resolution))
+	if options.IncludeResolution {
+		resolutions := make([]int64, 0, len(attrs))
+		for _, attr := range attrs {
+			resolutions = append(resolutions, int64(attr.Resolution))
+		}
+
+		result.Metadata.Resolutions = resolutions
 	}
 
-	result.Metadata.Resolutions = resolutions
 	return result, accumulator.Close, nil
 }
 
@@ -414,7 +420,6 @@ func (s *m3storage) CompleteTags(
 	}
 
 	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
-
 	var (
 		nameOnly        = query.CompleteNameOnly
 		namespaces      = s.clusters.ClusterNamespaces()
@@ -473,12 +478,12 @@ func (s *m3storage) CompleteTags(
 			aggIterators = append(aggIterators, aggTagIter)
 			mu.Unlock()
 
-			completedTags := make([]storage.CompletedTag, aggTagIter.Remaining())
-			for i := 0; aggTagIter.Next(); i++ {
+			completedTags := make([]storage.CompletedTag, 0, aggTagIter.Remaining())
+			for aggTagIter.Next() {
 				name, values := aggTagIter.Current()
-				tagValues := make([][]byte, values.Remaining())
-				for j := 0; values.Next(); j++ {
-					tagValues[j] = values.Current().Bytes()
+				tagValues := make([][]byte, 0, values.Remaining())
+				for values.Next() {
+					tagValues = append(tagValues, values.Current().Bytes())
 				}
 
 				if err := values.Err(); err != nil {
@@ -486,10 +491,10 @@ func (s *m3storage) CompleteTags(
 					return
 				}
 
-				completedTags[i] = storage.CompletedTag{
+				completedTags = append(completedTags, storage.CompletedTag{
 					Name:   name.Bytes(),
 					Values: tagValues,
-				}
+				})
 			}
 
 			if err := aggTagIter.Err(); err != nil {
