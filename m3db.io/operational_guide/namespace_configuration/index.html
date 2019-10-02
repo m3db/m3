@@ -1089,6 +1089,26 @@
     Index Options
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enabled" title="enabled" class="md-nav__link">
+    enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocksizeduration" title="blockSizeDuration" class="md-nav__link">
+    blockSizeDuration
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1522,6 +1542,26 @@
     Index Options
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enabled" title="enabled" class="md-nav__link">
+    enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blocksizeduration" title="blockSizeDuration" class="md-nav__link">
+    blockSizeDuration
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1589,7 +1629,7 @@ Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/names
     },
     &quot;indexOptions&quot;: {
       &quot;enabled&quot;: true,
-      &quot;blockSizeDuration&quot;: &quot;4h&quot;
+      &quot;blockSizeDuration&quot;: &quot;2h&quot;
     }
   }
 }&#39;
@@ -1627,36 +1667,36 @@ in duration format as opposed to nanoseconds (default).</p>
 <p>This controls the duration of time that M3DB will retain data for the namespace. For example, if this is set to 30 days, then data within this namespace will be available for querying up to 30 days after it is written. Note that this retention operates at the block level, not the write level, so its possible for individual datapoints to only be available for less than the specified retention. For example, if the blockSize was set to 24 hour and the retention was set to 30 days then a write that arrived at the very end of a 24 hour block would only be available for 29 days, but the node itself would always support querying the last 30 days worth of data.</p>
 <p>Can be modified without creating a new namespace: <code>yes</code></p>
 <h4 id="blocksize">blockSize</h4>
-<p>This is the most important value to consider when tuning the performance of an M3DB namespace. Read the <a href="../../m3db/architecture/storage/">storage engine documentation</a> for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.</p>
+<p>This is the most important value to consider when tuning the performance of an M3DB namespace. Read the <a href="../../m3db/architecture/storage/">storage engine documentation</a> for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression. In testing, good compression occurs with blocksizes containing around 720 samples per timeseries.</p>
 <p>Can be modified without creating a new namespace: <code>no</code></p>
-<p>Below are recommendations for block size based on retention:</p>
+<p>Below are recommendations for block size based on resolution:</p>
 <table>
 <thead>
 <tr>
-<th>Retention</th>
+<th>Resolution</th>
 <th>Block Size</th>
 </tr>
 </thead>
 <tbody>
 <tr>
+<td>5s</td>
+<td>60m</td>
+</tr>
+<tr>
+<td>15s</td>
+<td>3h</td>
+</tr>
+<tr>
+<td>30s</td>
+<td>6h</td>
+</tr>
+<tr>
+<td>1m</td>
 <td>12h</td>
-<td>30m</td>
 </tr>
 <tr>
-<td>24h</td>
-<td>1h</td>
-</tr>
-<tr>
-<td>168h</td>
-<td>2h</td>
-</tr>
-<tr>
-<td>720h</td>
-<td>12h</td>
-</tr>
-<tr>
-<td>8760h</td>
-<td>24h</td>
+<td>5m</td>
+<td>60h</td>
 </tr>
 </tbody>
 </table>
@@ -1680,7 +1720,13 @@ currentSystemTime: 2:35:00PM
 <p>While it may be tempting to configure <code>bufferPast</code> and <code>bufferFuture</code> to very large values to prevent writes from being rejected, this may cause performance issues. M3DB is a timeseries database that is optimized for realtime data. Out of order writes, as well as writes for times that are very far into the future or past are much more expensive and will cause additional CPU / memory pressure. In addition, M3DB cannot evict a block from memory until it is no longer mutable and large <code>bufferPast</code> and <code>bufferFuture</code> values effectively increase the amount of time that a block is mutable for which means that it must be kept in memory for a longer period of time.</p>
 <p>Can be modified without creating a new namespace: <code>yes</code></p>
 <h3 id="index-options">Index Options</h3>
-<p>TODO</p>
+<h4 id="enabled">enabled</h4>
+<p>Whether to use the built-in indexing. Must be <code>true</code>.</p>
+<p>Can be modified without creating a new namespace: <code>no</code></p>
+<h4 id="blocksizeduration">blockSizeDuration</h4>
+<p>The size of blocks (in duration) that the index uses.
+Should match the databases <a href="#blocksize">blocksize</a> for optimal memory usage.</p>
+<p>Can be modified without creating a new namespace: <code>no</code></p>
                 
                   
                 
