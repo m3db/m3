@@ -399,6 +399,7 @@ func TestConfiguration(t *testing.T) {
     asyncWriteMaxConcurrency: null
     targetHostQueueFlushSize: null
     hostQueueFlushInterval: null
+    useV2BatchAPIs: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
