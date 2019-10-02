@@ -195,7 +195,7 @@ func (m *merger) Merge(
 	// persisted in the first stage.
 
 	// First stage: loop through series on disk.
-	for id, tagsIter, data, _, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
+	for id, tagsIter, data, checksum, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
 		if err != nil {
 			return err
 		}
@@ -206,11 +206,11 @@ func (m *merger) Merge(
 
 		// Check if this series is in memory (and thus requires merging).
 		tmpCtx.Reset()
-		mergeWithData, hasData, err := mergeWith.Read(tmpCtx, id, blockStart, nsCtx)
+		mergeWithData, hasInMemoryData, err := mergeWith.Read(tmpCtx, id, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}
-		if hasData {
+		if hasInMemoryData {
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData)
 		}
 
@@ -223,8 +223,22 @@ func (m *merger) Merge(
 		}
 		tagsToFinalize = append(tagsToFinalize, tags)
 
-		if err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist); err != nil {
-			return err
+		// In the special (but common) case that we're just copying the series data from the old file
+		// into the new one without merging or adding any additional data we can avoid recalculating
+		// the checksum.
+		if len(segmentReaders) == 1 && hasInMemoryData == false {
+			segment, err := segmentReaders[0].Segment()
+			if err != nil {
+				return err
+			}
+
+			if err := persistSegmentWithChecksum(id, tags, segment, checksum, prepared.Persist); err != nil {
+				return err
+			}
+		} else {
+			if err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist); err != nil {
+				return err
+			}
 		}
 		// Closing the context will finalize the data returned from
 		// mergeWith.Read(), but is safe because it has already been persisted
@@ -337,6 +351,16 @@ func persistSegment(
 	persistFn persist.DataFn,
 ) error {
 	checksum := digest.SegmentChecksum(segment)
+	return persistFn(id, tags, segment, checksum)
+}
+
+func persistSegmentWithChecksum(
+	id ident.ID,
+	tags ident.Tags,
+	segment ts.Segment,
+	checksum uint32,
+	persistFn persist.DataFn,
+) error {
 	return persistFn(id, tags, segment, checksum)
 }
 
