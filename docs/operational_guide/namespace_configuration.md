@@ -56,7 +56,7 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeDuration": "4h"
+      "blockSizeDuration": "2h"
     }
   }
 }'
@@ -124,19 +124,19 @@ Can be modified without creating a new namespace: `yes`
 
 #### blockSize
 
-This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../m3db/architecture/storage.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
+This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../m3db/architecture/storage.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression. In testing, good compression occurs with blocksizes containing around 720 samples per timeseries.
 
 Can be modified without creating a new namespace: `no`
 
-Below are recommendations for block size based on retention:
+Below are recommendations for block size based on resolution:
 
-| Retention | Block Size |
-|-----------|------------|
-| 12h       | 30m        |
-| 24h       | 1h         |
-| 168h      | 2h         |
-| 720h      | 12h        |
-| 8760h     | 24h        |
+| Resolution | Block Size |
+|------------|------------|
+| 5s         | 60m        |
+| 15s        | 3h         |
+| 30s        | 6h         |
+| 1m         | 12h        |
+| 5m         | 60h        |
 
 #### bufferFuture and bufferPast
 
@@ -166,4 +166,15 @@ Can be modified without creating a new namespace: `yes`
 
 ### Index Options
 
-TODO
+#### enabled
+
+Whether to use the built-in indexing. Must be `true`.
+
+Can be modified without creating a new namespace: `no`
+
+#### blockSizeDuration
+
+The size of blocks (in duration) that the index uses.
+Should match the databases [blocksize](#blocksize) for optimal memory usage.
+
+Can be modified without creating a new namespace: `no`
