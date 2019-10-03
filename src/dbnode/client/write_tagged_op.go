@@ -46,6 +46,7 @@ type writeTaggedOperation struct {
 func (w *writeTaggedOperation) reset() {
 	*w = writeTaggedOperationZeroed
 	w.request.Datapoint = &w.datapoint
+	w.requestV2.Datapoint = &w.datapoint
 }
 
 func (w *writeTaggedOperation) Close() {

@@ -46,6 +46,7 @@ type writeOperation struct {
 func (w *writeOperation) reset() {
 	*w = writeOperationZeroed
 	w.request.Datapoint = &w.datapoint
+	w.requestV2.Datapoint = &w.datapoint
 }
 
 func (w *writeOperation) Close() {

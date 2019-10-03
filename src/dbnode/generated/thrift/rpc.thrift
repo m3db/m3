@@ -54,7 +54,6 @@ service Node {
 	// Performant read/write endpoints
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
-	// BatchOperationResponse batchOperations(1: BatchOperationRequest req) throws (1: Error err)
 
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)

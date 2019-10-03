@@ -237,7 +237,6 @@ func (q *queue) drain() {
 
 		currWriteOpsByNamespace       namespaceWriteBatchOpsSlice
 		currTaggedWriteOpsByNamespace namespaceWriteTaggedBatchOpsSlice
-		writeBatchSize                = q.opts.WriteBatchSize()
 	)
 
 	for ops := range q.drainIn {
@@ -245,102 +244,16 @@ func (q *queue) drain() {
 		for i := 0; i < opsLen; i++ {
 			switch v := ops[i].(type) {
 			case *writeOperation:
-				namespace := v.namespace
 				if q.serverSupportsV2APIs {
-					if currV2WriteReq == nil {
-						currV2WriteReq = q.writeBatchRawV2RequestPool.Get()
-						currV2WriteReq.Elements = q.writeBatchRawV2RequestElementArrayPool.Get()
-					}
-
-					nsIdx := -1
-					for i, ns := range currV2WriteReq.NameSpaces {
-						if bytes.Equal(namespace.Bytes(), ns) {
-							nsIdx = i
-							break
-						}
-					}
-					if nsIdx == -1 {
-						currV2WriteReq.NameSpaces = append(currV2WriteReq.NameSpaces, namespace.Bytes())
-						nsIdx = len(currV2WriteReq.NameSpaces) - 1
-					}
-					v.requestV2.NameSpace = int64(nsIdx)
-					currV2WriteReq.Elements = append(currV2WriteReq.Elements, &v.requestV2)
-					currV2WriteOps = append(currV2WriteOps, ops[i])
-					if len(currV2WriteReq.Elements) == writeBatchSize {
-						// Reached write batch limit, write async and reset.
-						q.asyncWriteV2(currV2WriteOps, currV2WriteReq)
-						currV2WriteReq = nil
-						currV2WriteOps = nil
-					}
+					currV2WriteReq, currV2WriteOps = q.drainWriteOpV2(v, currV2WriteReq, currV2WriteOps, ops[i])
 				} else {
-					idx := currWriteOpsByNamespace.indexOf(namespace)
-					if idx == -1 {
-						value := namespaceWriteBatchOps{
-							namespace:                            namespace,
-							opsArrayPool:                         q.opsArrayPool,
-							writeBatchRawRequestElementArrayPool: q.writeBatchRawRequestElementArrayPool,
-						}
-						idx = len(currWriteOpsByNamespace)
-						currWriteOpsByNamespace = append(currWriteOpsByNamespace, value)
-					}
-
-					currWriteOpsByNamespace.appendAt(idx, ops[i], &v.request)
-
-					if currWriteOpsByNamespace.lenAt(idx) == writeBatchSize {
-						// Reached write batch limit, write async and reset.
-						q.asyncWrite(namespace, currWriteOpsByNamespace[idx].ops,
-							currWriteOpsByNamespace[idx].elems)
-						currWriteOpsByNamespace.resetAt(idx)
-					}
+					currWriteOpsByNamespace = q.drainWriteOpV1(v, currWriteOpsByNamespace, ops[i])
 				}
 			case *writeTaggedOperation:
-				namespace := v.namespace
 				if q.serverSupportsV2APIs {
-					if currV2WriteTaggedReq == nil {
-						currV2WriteTaggedReq = q.writeTaggedBatchRawV2RequestPool.Get()
-						currV2WriteTaggedReq.Elements = q.writeTaggedBatchRawV2RequestElementArrayPool.Get()
-					}
-
-					nsIdx := -1
-					for i, ns := range currV2WriteTaggedReq.NameSpaces {
-						if bytes.Equal(namespace.Bytes(), ns) {
-							nsIdx = i
-							break
-						}
-					}
-					if nsIdx == -1 {
-						currV2WriteTaggedReq.NameSpaces = append(currV2WriteTaggedReq.NameSpaces, namespace.Bytes())
-						nsIdx = len(currV2WriteTaggedReq.NameSpaces) - 1
-					}
-					v.requestV2.NameSpace = int64(nsIdx)
-					currV2WriteTaggedReq.Elements = append(currV2WriteTaggedReq.Elements, &v.requestV2)
-					currV2WriteTaggedOps = append(currV2WriteTaggedOps, ops[i])
-					if len(currV2WriteTaggedReq.Elements) == writeBatchSize {
-						// Reached write batch limit, write async and reset.
-						q.asyncTaggedWriteV2(currV2WriteTaggedOps, currV2WriteTaggedReq)
-						currV2WriteTaggedReq = nil
-						currV2WriteTaggedOps = nil
-					}
+					currV2WriteTaggedReq, currV2WriteTaggedOps = q.drainTaggedWriteOpV2(v, currV2WriteTaggedReq, currV2WriteTaggedOps, ops[i])
 				} else {
-					idx := currTaggedWriteOpsByNamespace.indexOf(namespace)
-					if idx == -1 {
-						value := namespaceWriteTaggedBatchOps{
-							namespace:    namespace,
-							opsArrayPool: q.opsArrayPool,
-							writeTaggedBatchRawRequestElementArrayPool: q.writeTaggedBatchRawRequestElementArrayPool,
-						}
-						idx = len(currTaggedWriteOpsByNamespace)
-						currTaggedWriteOpsByNamespace = append(currTaggedWriteOpsByNamespace, value)
-					}
-
-					currTaggedWriteOpsByNamespace.appendAt(idx, ops[i], &v.request)
-
-					if currTaggedWriteOpsByNamespace.lenAt(idx) == writeBatchSize {
-						// Reached write batch limit, write async and reset
-						q.asyncTaggedWrite(namespace, currTaggedWriteOpsByNamespace[idx].ops,
-							currTaggedWriteOpsByNamespace[idx].elems)
-						currTaggedWriteOpsByNamespace.resetAt(idx)
-					}
+					currTaggedWriteOpsByNamespace = q.drainTaggedWriteOpV1(v, currTaggedWriteOpsByNamespace, ops[i])
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(v)
@@ -398,6 +311,136 @@ func (q *queue) drain() {
 	// Close the connection pool after all requests done
 	q.Wait()
 	q.connPool.Close()
+}
+
+func (q *queue) drainWriteOpV1(
+	v *writeOperation,
+	currWriteOpsByNamespace namespaceWriteBatchOpsSlice,
+	op op,
+) namespaceWriteBatchOpsSlice {
+	namespace := v.namespace
+	idx := currWriteOpsByNamespace.indexOf(namespace)
+	if idx == -1 {
+		value := namespaceWriteBatchOps{
+			namespace:                            namespace,
+			opsArrayPool:                         q.opsArrayPool,
+			writeBatchRawRequestElementArrayPool: q.writeBatchRawRequestElementArrayPool,
+		}
+		idx = len(currWriteOpsByNamespace)
+		currWriteOpsByNamespace = append(currWriteOpsByNamespace, value)
+	}
+
+	currWriteOpsByNamespace.appendAt(idx, op, &v.request)
+
+	if currWriteOpsByNamespace.lenAt(idx) == q.opts.WriteBatchSize() {
+		// Reached write batch limit, write async and reset.
+		q.asyncWrite(namespace, currWriteOpsByNamespace[idx].ops,
+			currWriteOpsByNamespace[idx].elems)
+		currWriteOpsByNamespace.resetAt(idx)
+	}
+
+	return currWriteOpsByNamespace
+}
+
+func (q *queue) drainTaggedWriteOpV1(
+	v *writeTaggedOperation,
+	currTaggedWriteOpsByNamespace namespaceWriteTaggedBatchOpsSlice,
+	op op,
+) namespaceWriteTaggedBatchOpsSlice {
+	namespace := v.namespace
+	idx := currTaggedWriteOpsByNamespace.indexOf(namespace)
+	if idx == -1 {
+		value := namespaceWriteTaggedBatchOps{
+			namespace:    namespace,
+			opsArrayPool: q.opsArrayPool,
+			writeTaggedBatchRawRequestElementArrayPool: q.writeTaggedBatchRawRequestElementArrayPool,
+		}
+		idx = len(currTaggedWriteOpsByNamespace)
+		currTaggedWriteOpsByNamespace = append(currTaggedWriteOpsByNamespace, value)
+	}
+
+	currTaggedWriteOpsByNamespace.appendAt(idx, op, &v.request)
+
+	if currTaggedWriteOpsByNamespace.lenAt(idx) == q.opts.WriteBatchSize() {
+		// Reached write batch limit, write async and reset
+		q.asyncTaggedWrite(namespace, currTaggedWriteOpsByNamespace[idx].ops,
+			currTaggedWriteOpsByNamespace[idx].elems)
+		currTaggedWriteOpsByNamespace.resetAt(idx)
+	}
+
+	return currTaggedWriteOpsByNamespace
+}
+
+func (q *queue) drainWriteOpV2(
+	v *writeOperation,
+	currV2WriteReq *rpc.WriteBatchRawV2Request,
+	currV2WriteOps []op,
+	op op,
+) (*rpc.WriteBatchRawV2Request, []op) {
+	namespace := v.namespace
+	if currV2WriteReq == nil {
+		currV2WriteReq = q.writeBatchRawV2RequestPool.Get()
+		currV2WriteReq.Elements = q.writeBatchRawV2RequestElementArrayPool.Get()
+	}
+
+	nsIdx := -1
+	for i, ns := range currV2WriteReq.NameSpaces {
+		if bytes.Equal(namespace.Bytes(), ns) {
+			nsIdx = i
+			break
+		}
+	}
+	if nsIdx == -1 {
+		currV2WriteReq.NameSpaces = append(currV2WriteReq.NameSpaces, namespace.Bytes())
+		nsIdx = len(currV2WriteReq.NameSpaces) - 1
+	}
+	v.requestV2.NameSpace = int64(nsIdx)
+	currV2WriteReq.Elements = append(currV2WriteReq.Elements, &v.requestV2)
+	currV2WriteOps = append(currV2WriteOps, op)
+	if len(currV2WriteReq.Elements) == q.opts.WriteBatchSize() {
+		// Reached write batch limit, write async and reset.
+		q.asyncWriteV2(currV2WriteOps, currV2WriteReq)
+		currV2WriteReq = nil
+		currV2WriteOps = nil
+	}
+
+	return currV2WriteReq, currV2WriteOps
+}
+
+func (q *queue) drainTaggedWriteOpV2(
+	v *writeTaggedOperation,
+	currV2WriteTaggedReq *rpc.WriteTaggedBatchRawV2Request,
+	currV2WriteTaggedOps []op,
+	op op,
+) (*rpc.WriteTaggedBatchRawV2Request, []op) {
+	namespace := v.namespace
+	if currV2WriteTaggedReq == nil {
+		currV2WriteTaggedReq = q.writeTaggedBatchRawV2RequestPool.Get()
+		currV2WriteTaggedReq.Elements = q.writeTaggedBatchRawV2RequestElementArrayPool.Get()
+	}
+
+	nsIdx := -1
+	for i, ns := range currV2WriteTaggedReq.NameSpaces {
+		if bytes.Equal(namespace.Bytes(), ns) {
+			nsIdx = i
+			break
+		}
+	}
+	if nsIdx == -1 {
+		currV2WriteTaggedReq.NameSpaces = append(currV2WriteTaggedReq.NameSpaces, namespace.Bytes())
+		nsIdx = len(currV2WriteTaggedReq.NameSpaces) - 1
+	}
+	v.requestV2.NameSpace = int64(nsIdx)
+	currV2WriteTaggedReq.Elements = append(currV2WriteTaggedReq.Elements, &v.requestV2)
+	currV2WriteTaggedOps = append(currV2WriteTaggedOps, op)
+	if len(currV2WriteTaggedReq.Elements) == q.opts.WriteBatchSize() {
+		// Reached write batch limit, write async and reset.
+		q.asyncTaggedWriteV2(currV2WriteTaggedOps, currV2WriteTaggedReq)
+		currV2WriteTaggedReq = nil
+		currV2WriteTaggedOps = nil
+	}
+
+	return currV2WriteTaggedReq, currV2WriteTaggedOps
 }
 
 func (q *queue) asyncTaggedWrite(
