@@ -22,6 +22,7 @@ package debug
 
 import (
 	"bytes"
+	"net/http"
 	"testing"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -36,6 +37,6 @@ func TestPlacementSource(t *testing.T) {
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff)
+	p.Write(buff, &http.Request{})
 	require.NotZero(t, buff.Len())
 }
