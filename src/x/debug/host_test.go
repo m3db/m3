@@ -23,6 +23,7 @@ package debug
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ import (
 func TestHostInfoSource(t *testing.T) {
 	source := NewHostInfoSource()
 	buff := bytes.NewBuffer([]byte{})
-	err := source.Write(buff)
+	err := source.Write(buff, &http.Request{})
 	require.NoError(t, err)
 	err = json.Unmarshal(buff.Bytes(), &hostInfoSource{})
 	require.NoError(t, err)

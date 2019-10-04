@@ -46,14 +46,14 @@ const (
 // file for that source into the overall debug zip file.
 type Source interface {
 	// Write writes it's debug information into the provided writer.
-	Write(w io.Writer) error
+	Write(w io.Writer, r *http.Request) error
 }
 
 // ZipWriter aggregates sources and writes them in a zip file.
 type ZipWriter interface {
 	// WriteZip writes a ZIP file in the provided writer.
 	// The archive contains the dumps of all sources in separate files.
-	WriteZip(io.Writer) error
+	WriteZip(io.Writer, *http.Request) error
 	// RegisterSource adds a new source to the produced archive.
 	RegisterSource(string, Source) error
 	// HTTPHandler sends out the ZIP file as raw bytes.
@@ -155,7 +155,7 @@ func (i *zipWriter) RegisterSource(dumpFileName string, p Source) error {
 
 // WriteZip writes a ZIP file with the data from all sources in the given writer.
 // It will return an error if any of the sources fail to write their data.
-func (i *zipWriter) WriteZip(w io.Writer) error {
+func (i *zipWriter) WriteZip(w io.Writer, r *http.Request) error {
 	zw := zip.NewWriter(w)
 	defer zw.Close()
 
@@ -164,7 +164,7 @@ func (i *zipWriter) WriteZip(w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		err = p.Write(fw)
+		err = p.Write(fw, r)
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (i *zipWriter) WriteZip(w io.Writer) error {
 func (i *zipWriter) HTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := bytes.NewBuffer([]byte{})
-		if err := i.WriteZip(buf); err != nil {
+		if err := i.WriteZip(buf, r); err != nil {
 			xhttp.Error(w, fmt.Errorf("unable to write ZIP file: %s", err), http.StatusInternalServerError)
 			return
 		}

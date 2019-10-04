@@ -22,6 +22,7 @@ package debug
 
 import (
 	"io"
+	"net/http"
 	"runtime/pprof"
 )
 
@@ -33,6 +34,6 @@ func NewHeapDumpSource() Source {
 }
 
 // Write writes the heapdump in the provided writer.
-func (h *heapDumpSource) Write(w io.Writer) error {
+func (h *heapDumpSource) Write(w io.Writer, _ *http.Request) error {
 	return pprof.WriteHeapProfile(w)
 }

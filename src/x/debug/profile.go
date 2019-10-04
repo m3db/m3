@@ -23,6 +23,7 @@ package debug
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"runtime/pprof"
 )
 
@@ -60,7 +61,7 @@ func (p *ProfileSource) Profile() *pprof.Profile {
 
 // Write writes a pprof-formatted snapshot of the profile to w. If a write to w
 // returns an error, Write returns that error. Otherwise, Write returns nil.
-func (p *ProfileSource) Write(w io.Writer) error {
+func (p *ProfileSource) Write(w io.Writer, _ *http.Request) error {
 	prof := p.Profile()
 
 	if err := prof.WriteTo(w, p.debug); err != nil {

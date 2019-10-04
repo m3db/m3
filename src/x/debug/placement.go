@@ -23,6 +23,7 @@ package debug
 import (
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -51,8 +52,8 @@ func NewPlacementInfoSource(
 
 // Write fetches data about the placement and writes it in the given writer.
 // The data is formatted in json.
-func (p *placementInfoSource) Write(w io.Writer) error {
-	placement, _, err := p.getHandler.Get(p.serviceName, nil)
+func (p *placementInfoSource) Write(w io.Writer, httpReq *http.Request) error {
+	placement, _, err := p.getHandler.Get(p.serviceName, httpReq)
 	if err != nil {
 		return err
 	}
