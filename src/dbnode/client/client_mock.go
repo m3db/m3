@@ -2349,6 +2349,34 @@ func (mr *MockOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteMaxConcurrency", reflect.TypeOf((*MockOptions)(nil).AsyncWriteMaxConcurrency))
 }
 
+// SetUseV2BatchAPIs mocks base method
+func (m *MockOptions) SetUseV2BatchAPIs(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetUseV2BatchAPIs", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetUseV2BatchAPIs indicates an expected call of SetUseV2BatchAPIs
+func (mr *MockOptionsMockRecorder) SetUseV2BatchAPIs(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUseV2BatchAPIs", reflect.TypeOf((*MockOptions)(nil).SetUseV2BatchAPIs), value)
+}
+
+// UseV2BatchAPIs mocks base method
+func (m *MockOptions) UseV2BatchAPIs() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UseV2BatchAPIs")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// UseV2BatchAPIs indicates an expected call of UseV2BatchAPIs
+func (mr *MockOptionsMockRecorder) UseV2BatchAPIs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseV2BatchAPIs", reflect.TypeOf((*MockOptions)(nil).UseV2BatchAPIs))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3686,6 +3714,34 @@ func (m *MockAdminOptions) AsyncWriteMaxConcurrency() int {
 func (mr *MockAdminOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteMaxConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).AsyncWriteMaxConcurrency))
+}
+
+// SetUseV2BatchAPIs mocks base method
+func (m *MockAdminOptions) SetUseV2BatchAPIs(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetUseV2BatchAPIs", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetUseV2BatchAPIs indicates an expected call of SetUseV2BatchAPIs
+func (mr *MockAdminOptionsMockRecorder) SetUseV2BatchAPIs(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUseV2BatchAPIs", reflect.TypeOf((*MockAdminOptions)(nil).SetUseV2BatchAPIs), value)
+}
+
+// UseV2BatchAPIs mocks base method
+func (m *MockAdminOptions) UseV2BatchAPIs() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UseV2BatchAPIs")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// UseV2BatchAPIs indicates an expected call of UseV2BatchAPIs
+func (mr *MockAdminOptionsMockRecorder) UseV2BatchAPIs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseV2BatchAPIs", reflect.TypeOf((*MockAdminOptions)(nil).UseV2BatchAPIs))
 }
 
 // SetOrigin mocks base method
