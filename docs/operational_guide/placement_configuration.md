@@ -77,6 +77,12 @@ The instructions below all contain sample curl commands, but you can always revi
 
 **Note**: The [peers bootstrapper](bootstrapping_crash_recovery.md) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
 
+Additionally, you can use the below headers in the placement operations: 
+
+--8<--
+docs/common/headers_placement_namespace.md
+--8<--
+
 #### Placement Initialization
 
 Send a POST request to the `/api/v1/services/m3db/placement/init` endpoint

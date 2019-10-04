@@ -10,6 +10,12 @@ The operations below include sample cURLs, but you can always review the API doc
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
+Additionally, you can use the below headers in the namespace operations: 
+
+--8<--
+docs/common/headers_placement_namespace.md
+--8<--
+
 ### Adding a Namespace
 
 #### Recommended (Easy way)
