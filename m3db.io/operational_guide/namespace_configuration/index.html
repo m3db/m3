@@ -1594,6 +1594,14 @@
 <h2 id="namespace-operations">Namespace Operations</h2>
 <p>The operations below include sample cURLs, but you can always review the API documentation by navigating to</p>
 <p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
+<p>Additionally, the following headers can be used in the namespace operations: </p>
+<ul>
+<li><code>Cluster-Environment-Name</code>:<br />
+ This header is used to specify the cluster environment name. If not set, the default <code>default_env</code> is used. 
+<br /></li>
+<li><code>Cluster-Zone-Name</code>:<br />
+ This header is used to specify the cluster zone name. If not set, the default <code>embedded</code> is used. </li>
+</ul>
 <h3 id="adding-a-namespace">Adding a Namespace</h3>
 <h4 id="recommended-easy-way">Recommended (Easy way)</h4>
 <p>The recommended way to add a namespace to M3DB is to use our <code>api/v1/database/namespace/create</code> endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.</p>

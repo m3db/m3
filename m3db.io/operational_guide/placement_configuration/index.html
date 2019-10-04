@@ -1566,6 +1566,14 @@ below before making changes.</p>
 <p>The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to</p>
 <p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
 <p><strong>Note</strong>: The <a href="../bootstrapping_crash_recovery/">peers bootstrapper</a> must be configured on all nodes in the M3DB cluster for placement changes to work. The <code>peers</code> bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration</p>
+<p>Additionally, the following headers can be used in the placement operations: </p>
+<ul>
+<li><code>Cluster-Environment-Name</code>:<br />
+ This header is used to specify the cluster environment name. If not set, the default <code>default_env</code> is used. 
+<br /></li>
+<li><code>Cluster-Zone-Name</code>:<br />
+ This header is used to specify the cluster zone name. If not set, the default <code>embedded</code> is used. </li>
+</ul>
 <h4 id="placement-initialization">Placement Initialization</h4>
 <p>Send a POST request to the <code>/api/v1/services/m3db/placement/init</code> endpoint</p>
 <div class="highlight"><pre><span></span>curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d <span class="s1">&#39;{</span>
