@@ -23,6 +23,7 @@ package debug
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"os"
 )
 
@@ -43,7 +44,7 @@ func NewHostInfoSource() Source {
 // Write fetches data about the host and writes it in the given writer.
 // The data is formatted in json.
 // It will return an error if it can't get working directory or marshal.
-func (h *hostInfoSource) Write(w io.Writer) error {
+func (h *hostInfoSource) Write(w io.Writer, _ *http.Request) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
