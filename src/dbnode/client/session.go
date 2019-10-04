@@ -3603,7 +3603,7 @@ func (c *enqueueCh) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueD
 	return c.enqueueDelayedFn, c.enqueueDelayedDoneFn, nil
 }
 
-// read is always safe to retrieve since you can safely range
+// read is always safe to call since you can safely range
 // over a closed channel, and/or do a checked read in case
 // it is closed (unlike when publishing to a channel).
 func (c *enqueueCh) read() <-chan []receivedBlockMetadata {
