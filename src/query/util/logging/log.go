@@ -158,7 +158,7 @@ func withPanicErrorResponderFunc(
 	instrumentOpts instrument.Options,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeCheckWriter := &responseWrittenResponseWriter{writer: w}
+		writeCheckWriter := newResponseWrittenResponseWriter(r, w)
 		w = writeCheckWriter
 
 		defer func() {
@@ -184,8 +184,17 @@ func withPanicErrorResponderFunc(
 
 type responseWrittenResponseWriter struct {
 	sync.RWMutex
-	writer  http.ResponseWriter
-	written bool
+	req       *http.Request
+	writer    http.ResponseWriter
+	written   bool
+	onWriteFn func(req *http.Request, writer http.ResponseWriter)
+}
+
+func newResponseWrittenResponseWriter(
+	req *http.Request,
+	writer http.ResponseWriter,
+) *responseWrittenResponseWriter {
+	return &responseWrittenResponseWriter{req: req, writer: writer}
 }
 
 func (w *responseWrittenResponseWriter) Written() bool {
@@ -203,6 +212,14 @@ func (w *responseWrittenResponseWriter) setWritten() {
 	w.RUnlock()
 
 	w.Lock()
+	if w.written {
+		w.Unlock()
+		return
+	}
+
+	if w.onWriteFn != nil {
+		w.onWriteFn(w.req, w.writer)
+	}
 	w.written = true
 	w.Unlock()
 }
@@ -241,4 +258,12 @@ func WithResponseTimeAndPanicErrorLoggingFunc(
 	return withResponseTimeLoggingFunc(
 		withPanicErrorResponderFunc(next, instrumentOpts),
 		instrumentOpts)
+}
+
+// WithWarningHeadersResponder wraps a handler to append outgoing
+// warning headers when writing the response.
+func WithWarningHeadersResponder(
+	next http.Handler,
+) http.Handler {
+
 }
