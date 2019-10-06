@@ -126,10 +126,14 @@ func applySessionTestOptions(opts Options) Options {
 
 func newTestHostQueue(opts Options) *queue {
 	hq, err := newHostQueue(h, hostQueueOpts{
-		writeBatchRawRequestPool:                   testWriteBatchRawPool,
-		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
-		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
-		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
+		writeBatchRawRequestPool:                     testWriteBatchRawPool,
+		writeBatchRawV2RequestPool:                   testWriteBatchRawV2Pool,
+		writeBatchRawRequestElementArrayPool:         testWriteArrayPool,
+		writeBatchRawV2RequestElementArrayPool:       testWriteV2ArrayPool,
+		writeTaggedBatchRawRequestPool:               testWriteTaggedBatchRawPool,
+		writeTaggedBatchRawV2RequestPool:             testWriteTaggedBatchRawV2Pool,
+		writeTaggedBatchRawRequestElementArrayPool:   testWriteTaggedArrayPool,
+		writeTaggedBatchRawV2RequestElementArrayPool: testWriteTaggedV2ArrayPool,
 		opts: opts,
 	})
 	if err != nil {

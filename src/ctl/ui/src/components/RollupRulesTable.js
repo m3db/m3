@@ -22,12 +22,12 @@ import React from 'react';
 import {Table, Popover, Tag} from 'antd';
 import _ from 'lodash';
 
-import RollupRuleEditor from 'components/RollupRuleEditor';
+import RollupRuleEditor from './RollupRuleEditor';
 import TableActions from './TableActions';
 import HelpTooltip from './HelpTooltip';
 import {compose} from 'recompose';
-import {connectR2API} from 'hocs';
-import {formatTimestampMilliseconds} from 'utils';
+import {connectR2API} from '../hocs';
+import {formatTimestampMilliseconds} from '../utils';
 
 const {Column} = Table;
 
