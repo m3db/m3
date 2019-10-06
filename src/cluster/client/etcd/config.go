@@ -33,7 +33,7 @@ import (
 type ClusterConfig struct {
 	Zone             string           `yaml:"zone"`
 	Endpoints        []string         `yaml:"endpoints"`
-	KeepAlive        *keepAliveConfig `yaml:"keepAlive"`
+	KeepAlive        *KeepAliveConfig `yaml:"keepAlive"`
 	TLS              *TLSConfig       `yaml:"tls"`
 	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
 }
@@ -72,14 +72,14 @@ func (c *TLSConfig) newOptions() TLSOptions {
 }
 
 // keepAliveConfig configures keepAlive behavior.
-type keepAliveConfig struct {
+type KeepAliveConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	Period  time.Duration `yaml:"period"`
 	Jitter  time.Duration `yaml:"jitter"`
 	Timeout time.Duration `yaml:"timeout"`
 }
 
-func (c *keepAliveConfig) NewOptions() KeepAliveOptions {
+func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 	return NewKeepAliveOptions().
 		SetKeepAliveEnabled(c.Enabled).
 		SetKeepAlivePeriod(c.Period).

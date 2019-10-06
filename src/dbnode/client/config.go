@@ -36,6 +36,11 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	xsync "github.com/m3db/m3/src/x/sync"
+)
+
+const (
+	asyncWriteWorkerPoolDefaultSize = 128
 )
 
 var (
@@ -85,6 +90,24 @@ type Configuration struct {
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
+
+	// AsyncWriteWorkerPoolSize is the worker pool size for async write requests.
+	AsyncWriteWorkerPoolSize *int `yaml:"asyncWriteWorkerPoolSize"`
+
+	// AsyncWriteMaxConcurrency is the maximum concurrency for async write requests.
+	AsyncWriteMaxConcurrency *int `yaml:"asyncWriteMaxConcurrency"`
+
+	// TargetHostQueueFlushSize sets the target size for a host queue flush. This controls how many
+	// operations the client will attempt to buffer for each host before issuing an RPC.
+	TargetHostQueueFlushSize *int `yaml:"targetHostQueueFlushSize"`
+
+	// HostQueueFlushInterval sets the interval at which the m3db client will flush the queue for a
+	// given host regardless of the number of batched operations.
+	HostQueueFlushInterval *time.Duration `yaml:"hostQueueFlushInterval"`
+
+	// UseV2BatchAPIs determines whether the V2 batch APIs are used. Note that the M3DB nodes must
+	// have support for the V2 APIs in order for this feature to be used.
+	UseV2BatchAPIs *bool `yaml:"useV2BatchAPIs"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -96,6 +119,7 @@ type ProtoConfiguration struct {
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
+// NamespaceProtoSchema is the protobuf schema for a namespace.
 type NamespaceProtoSchema struct {
 	MessageName    string `yaml:"messageName"`
 	SchemaDeployID string `yaml:"schemaDeployID"`
@@ -155,6 +179,24 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf(
 			"m3db client backgroundHealthCheckFailThrottleFactor was: %f but must be >= 0 and <=10",
 			*c.BackgroundHealthCheckFailThrottleFactor)
+	}
+
+	if c.AsyncWriteWorkerPoolSize != nil && *c.AsyncWriteWorkerPoolSize <= 0 {
+		return fmt.Errorf("m3db client async write worker pool size was: %d but must be >0",
+			*c.AsyncWriteWorkerPoolSize)
+	}
+
+	if c.AsyncWriteMaxConcurrency != nil && *c.AsyncWriteMaxConcurrency <= 0 {
+		return fmt.Errorf("m3db client async write max concurrency was: %d but must be >0",
+			*c.AsyncWriteMaxConcurrency)
+	}
+
+	if c.TargetHostQueueFlushSize != nil && *c.TargetHostQueueFlushSize <= 1 {
+		return fmt.Errorf("target host queue flush size must be larger than zero but was: %d", c.TargetHostQueueFlushSize)
+	}
+
+	if c.HostQueueFlushInterval != nil && *c.HostQueueFlushInterval <= 0 {
+		return fmt.Errorf("host queue flush interval must be larger than zero but was: %s", c.HostQueueFlushInterval.String())
 	}
 
 	if err := c.Proto.Validate(); err != nil {
@@ -244,6 +286,7 @@ func (c Configuration) NewAdminClient(
 	topoInit := params.TopologyInitializer
 	asyncTopoInits := []topology.Initializer{}
 
+	var buildAsyncPool bool
 	if topoInit == nil {
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
@@ -254,6 +297,7 @@ func (c Configuration) NewAdminClient(
 		for _, envCfg := range envCfgs {
 			if envCfg.Async {
 				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+				buildAsyncPool = true
 			} else {
 				topoInit = envCfg.TopologyInitializer
 			}
@@ -265,6 +309,32 @@ func (c Configuration) NewAdminClient(
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
+
+	if c.UseV2BatchAPIs != nil {
+		v = v.SetUseV2BatchAPIs(*c.UseV2BatchAPIs)
+	}
+
+	if buildAsyncPool {
+		var size int
+		if c.AsyncWriteWorkerPoolSize == nil {
+			size = asyncWriteWorkerPoolDefaultSize
+		} else {
+			size = *c.AsyncWriteWorkerPoolSize
+		}
+
+		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true)
+		workerPool, err := xsync.NewPooledWorkerPool(size, workerPoolOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create async worker pool: %v", err)
+		}
+		workerPool.Init()
+		v = v.SetAsyncWriteWorkerPool(workerPool)
+	}
+
+	if c.AsyncWriteMaxConcurrency != nil {
+		v = v.SetAsyncWriteMaxConcurrency(*c.AsyncWriteMaxConcurrency)
+	}
 
 	if c.WriteConsistencyLevel != nil {
 		v = v.SetWriteConsistencyLevel(*c.WriteConsistencyLevel)
@@ -295,6 +365,12 @@ func (c Configuration) NewAdminClient(
 	}
 	if c.FetchRetry != nil {
 		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
+	}
+	if c.TargetHostQueueFlushSize != nil {
+		v = v.SetHostQueueOpsFlushSize(*c.TargetHostQueueFlushSize)
+	}
+	if c.HostQueueFlushInterval != nil {
+		v = v.SetHostQueueOpsFlushInterval(*c.HostQueueFlushInterval)
 	}
 
 	encodingOpts := params.EncodingOptions

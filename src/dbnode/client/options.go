@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	tchannel "github.com/uber/tchannel-go"
 )
@@ -151,6 +152,13 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
+
+	// defaultAsyncWriteMaxConcurrency is the default maximum concurrency for async writes.
+	defaultAsyncWriteMaxConcurrency = 4096
+
+	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
+	// be used.
+	defaultUseV2BatchAPIs = false
 )
 
 var (
@@ -247,6 +255,9 @@ type options struct {
 	schemaRegistry                          namespace.SchemaRegistry
 	isProtoEnabled                          bool
 	asyncTopologyInitializers               []topology.Initializer
+	asyncWriteWorkerPool                    xsync.PooledWorkerPool
+	asyncWriteMaxConcurrency                int
+	useV2BatchAPIs                          bool
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -338,6 +349,8 @@ func newOptions() *options {
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
 		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
 		asyncTopologyInitializers:               []topology.Initializer{},
+		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
+		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -903,4 +916,34 @@ func (o *options) SetAsyncTopologyInitializers(value []topology.Initializer) Opt
 
 func (o *options) AsyncTopologyInitializers() []topology.Initializer {
 	return o.asyncTopologyInitializers
+}
+
+func (o *options) SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.asyncWriteWorkerPool = value
+	return &opts
+}
+
+func (o *options) AsyncWriteWorkerPool() xsync.PooledWorkerPool {
+	return o.asyncWriteWorkerPool
+}
+
+func (o *options) SetAsyncWriteMaxConcurrency(value int) Options {
+	opts := *o
+	opts.asyncWriteMaxConcurrency = value
+	return &opts
+}
+
+func (o *options) AsyncWriteMaxConcurrency() int {
+	return o.asyncWriteMaxConcurrency
+}
+
+func (o *options) SetUseV2BatchAPIs(value bool) Options {
+	opts := *o
+	opts.useV2BatchAPIs = value
+	return &opts
+}
+
+func (o *options) UseV2BatchAPIs() bool {
+	return o.useV2BatchAPIs
 }

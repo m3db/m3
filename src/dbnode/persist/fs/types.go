@@ -208,9 +208,13 @@ type DataFileSetSeeker interface {
 	ConcurrentClone() (ConcurrentDataFileSetSeeker, error)
 }
 
-// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on DataFileSetSeeker.
-// The clones can be used together concurrently and share underlying resources. Clones are no
-// longer usable once the original has been closed.
+// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called
+// on DataFileSetSeeker. A seeker is essentially  a wrapper around file
+// descriptors around a set of files, allowing for interaction with them.
+// We can ask a seeker for a specific time series, which will then be streamed
+// out from the according data file.
+// The clones can be used together concurrently and share underlying resources.
+// Clones are no longer usable once the original has been closed.
 type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
@@ -238,10 +242,12 @@ type DataFileSetSeekerManager interface {
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
 
-	// Borrow returns an open seeker for a given shard, block start time, and volume.
+	// Borrow returns an open seeker for a given shard, block start time, and
+	// volume.
 	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
 
-	// Return returns an open seeker for a given shard, block start time, and volume.
+	// Return returns (closes) an open seeker for a given shard, block start
+	// time, and volume.
 	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
 
 	// Test checks if an ID exists in a concurrent ID bloom filter for a
