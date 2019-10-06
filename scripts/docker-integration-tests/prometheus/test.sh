@@ -3,6 +3,7 @@
 set -xe
 
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/test_correctness.sh
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
@@ -179,10 +180,13 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
-# Run all tests
+echo "Running prometehus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
 test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+
+echo "Running function correctness tests"
+test_correctness
