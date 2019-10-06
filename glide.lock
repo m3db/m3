@@ -294,7 +294,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 884d84ec90808cc839da20794cd1c8c5996c09dc
+  version: 8fe62057ea2d46ce44254c98e84e810044dbe197
 - name: github.com/pilosa/pilosa
   version: 74b1bb853e0189f7ffd9c8ef6f36847889230ee7
   subpackages:
