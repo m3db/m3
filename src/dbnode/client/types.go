@@ -527,6 +527,12 @@ type Options interface {
 
 	// AsyncWriteMaxConcurrency returns the async writes maximum concurrency.
 	AsyncWriteMaxConcurrency() int
+
+	// SetUseV2BatchAPIs sets whether the V2 batch APIs should be used.
+	SetUseV2BatchAPIs(value bool) Options
+
+	// UseV2BatchAPIs returns whether the V2 batch APIs should be used.
+	UseV2BatchAPIs() bool
 }
 
 // AdminOptions is a set of administration client options.

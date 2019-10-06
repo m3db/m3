@@ -104,6 +104,10 @@ type Configuration struct {
 	// HostQueueFlushInterval sets the interval at which the m3db client will flush the queue for a
 	// given host regardless of the number of batched operations.
 	HostQueueFlushInterval *time.Duration `yaml:"hostQueueFlushInterval"`
+
+	// UseV2BatchAPIs determines whether the V2 batch APIs are used. Note that the M3DB nodes must
+	// have support for the V2 APIs in order for this feature to be used.
+	UseV2BatchAPIs *bool `yaml:"useV2BatchAPIs"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -305,6 +309,10 @@ func (c Configuration) NewAdminClient(
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
+
+	if c.UseV2BatchAPIs != nil {
+		v = v.SetUseV2BatchAPIs(*c.UseV2BatchAPIs)
+	}
 
 	if buildAsyncPool {
 		var size int
