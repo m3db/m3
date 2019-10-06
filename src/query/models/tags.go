@@ -386,9 +386,9 @@ func (t Tags) AddOrUpdateTag(tag Tag) Tags {
 	return t.AddTag(tag)
 }
 
-// AddDedupedTags is used to add a list of tags with unique names
+// AddTagsIfNotExists is used to add a list of tags with unique names
 // and maintain sorted order.
-func (t Tags) AddDedupedTags(tags []Tag) Tags {
+func (t Tags) AddTagsIfNotExists(tags []Tag) Tags {
 	for _, tt := range tags {
 		t = t.addIfMissingTag(tt)
 	}

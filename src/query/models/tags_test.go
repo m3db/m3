@@ -195,7 +195,7 @@ func TestAddTags(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
-func TestAddDedupedTags(t *testing.T) {
+func TestAddTagsIfNotExists(t *testing.T) {
 	tags := NewTags(3, nil)
 	tags = tags.AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
@@ -203,7 +203,7 @@ func TestAddDedupedTags(t *testing.T) {
 		{Name: []byte("z"), Value: []byte("4")},
 	})
 
-	tags = tags.AddDedupedTags([]Tag{
+	tags = tags.AddTagsIfNotExists([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("c"), Value: []byte("3")},
 	})

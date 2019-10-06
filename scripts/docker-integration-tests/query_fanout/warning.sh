@@ -4,6 +4,7 @@ set -ex
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
 
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
+HEADER_FILE=headers.out
 
 function write_metrics {
   CLUSTER=$1
@@ -26,7 +27,7 @@ function write_metrics {
   do
     curl -X POST 0.0.0.0:$PORT/writetagged -d '{
       "namespace": "unagg",
-      "id": "{__name__=\"'$METRIC_NAME'\"cluster=\"'$CLUSTER'\",val=\"'$i'\"}",
+      "id": "{__name__=\"'$METRIC_NAME'\",cluster=\"'$CLUSTER'\",val=\"'$i'\"}",
       "tags": [
         {
           "name": "__name__",
@@ -51,7 +52,7 @@ function write_metrics {
 }
 
 function clean_headers {
-  rm headers
+  rm $HEADER_FILE
 }
 
 function test_instant_query {
@@ -59,7 +60,7 @@ function test_instant_query {
   EXPECTED=$2
   EXPECTED_HEADER=$3||""
   trap clean_headers EXIT
-  RESPONSE=$(curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/query?query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].value[1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -92,7 +93,7 @@ function test_range_query {
   start=$t
   end=$(($start+9))
 
-  RESPONSE=$(curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].values[0][1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -120,7 +121,7 @@ function test_search {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-   curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/search?query=val:.*"
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
@@ -147,7 +148,7 @@ function test_labels {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-   curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/labels"
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
@@ -161,7 +162,7 @@ function test_match {
   EXPECTED=$2
   EXPECTED_HEADER=$3
   trap clean_headers EXIT
-  RESPONSE=$(curl -gsSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -gsSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/series?match[]=$METRIC_NAME")
 
   ACTUAL=$(echo $RESPONSE | jq '.data | length')
@@ -194,7 +195,7 @@ function test_label_values {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-   curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+   curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/label/val/values"
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
@@ -237,7 +238,7 @@ function render_carbon {
 
   start=$(($t))
   end=$(($start+200))
-  RESPONSE=$(curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://localhost:7201/api/v1/graphite/render?target=countSeries($GRAPHITE.*.*)&from=$start&until=$end")
   ACTUAL=$(echo $RESPONSE | jq .[0].datapoints[0][0])
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -249,7 +250,7 @@ function find_carbon {
   EXPECTED_HEADER=$2
   trap clean_headers EXIT
 
-  RESPONSE=$(curl -sSL -D headers -H "M3-Limit-Max-Series:$LIMIT" \
+  RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://localhost:7201/api/v1/graphite/metrics/find?query=$GRAPHITE.*")
   ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER

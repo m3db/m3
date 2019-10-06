@@ -84,9 +84,9 @@ func combineResolutions(a, b []int64) []int64 {
 		if len(b) == 0 {
 			return a
 		} else {
-			combined := make([]int64, len(a)+len(b))
-			idx := copy(combined, a)
-			copy(combined[idx:], b)
+			combined := make([]int64, 0, len(a)+len(b))
+			combined = append(combined, a...)
+			combined = append(combined, b...)
 			return combined
 		}
 	}

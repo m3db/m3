@@ -206,7 +206,9 @@ func (s *fanoutStorage) FetchBlocks(
 	}, nil
 }
 
-func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, error) {
+func handleFetchResponses(
+	requests []execution.Request,
+) (*storage.FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(requests))
 	meta := block.NewResultMetadata()
 	for _, req := range requests {
@@ -219,6 +221,8 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 			return nil, errors.ErrInvalidFetchResult
 		}
 
+		// NB: even if series list is empty, result metadata must be combined for
+		// warning propagation.
 		meta = meta.CombineMetadata(fetchreq.result.Metadata)
 		seriesList = append(seriesList, fetchreq.result.SeriesList...)
 	}
@@ -266,7 +270,7 @@ func (s *fanoutStorage) SearchSeries(
 		for _, metric := range results.Metrics {
 			id := string(metric.ID)
 			if existing, found := metricMap[id]; found {
-				existing.Tags = existing.Tags.AddDedupedTags(metric.Tags.Tags)
+				existing.Tags = existing.Tags.AddTagsIfNotExists(metric.Tags.Tags)
 				metricMap[id] = existing
 			} else {
 				metricMap[id] = metric

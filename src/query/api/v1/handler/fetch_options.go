@@ -46,6 +46,7 @@ const (
 // FetchOptionsBuilder builds fetch options based on a request and default
 // config.
 type FetchOptionsBuilder interface {
+	// NewFetchOptions parses an http request into fetch options.
 	NewFetchOptions(req *http.Request) (*storage.FetchOptions, *xhttp.ParseError)
 }
 
@@ -93,6 +94,7 @@ func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
 	return defaultLimit, nil
 }
 
+// NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
 	req *http.Request,
 ) (*storage.FetchOptions, *xhttp.ParseError) {

@@ -112,7 +112,7 @@ func TestTranslateTimeseries(t *testing.T) {
 	}
 
 	resos := make([]int64, 0, expected)
-	for _ = range seriesList {
+	for range seriesList {
 		resos = append(resos, int64(resolution))
 	}
 

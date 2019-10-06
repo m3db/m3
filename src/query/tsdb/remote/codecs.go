@@ -214,7 +214,7 @@ func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
 	case models.MatchAll:
 		return rpc.MatcherType_ALL, nil
 	default:
-		return rpc.MatcherType_EQUAL, fmt.Errorf("Unknown matcher type for proto encoding")
+		return 0, fmt.Errorf("unknown matcher type for proto encoding")
 	}
 }
 
@@ -303,8 +303,7 @@ func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
 		return storage.FanoutForceEnable, nil
 	}
 
-	return storage.FanoutDefault,
-		fmt.Errorf("Unknown fanout option for proto encoding: %v\n", opt)
+	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v\n", opt)
 }
 
 func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOptions, error) {
