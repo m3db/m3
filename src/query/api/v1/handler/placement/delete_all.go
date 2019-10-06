@@ -65,12 +65,15 @@ func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
 	return &DeleteAllHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *DeleteAllHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOptions)
-		opts   = handler.NewServiceOptions(
-			serviceName, r.Header, h.m3AggServiceOptions)
+		opts   = handler.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
@@ -81,11 +84,13 @@ func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, 
 
 	if err := service.Delete(); err != nil {
 		if err == kv.ErrNotFound {
-			logger.Info("cannot delete absent placement", zap.String("service", serviceName))
+			logger.Info("cannot delete placement",
+				zap.String("service", svc.ServiceName),
+				zap.Error(err))
 			xhttp.Error(w, err, http.StatusNotFound)
 			return
 		}
-		logger.Error("unable to delete placement", zap.Error(err))
+		logger.Error("error deleting placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

@@ -66,7 +66,11 @@ func NewAddHandler(opts HandlerOptions) *AddHandler {
 	return &AddHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOptions)
 
@@ -76,7 +80,7 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 		return
 	}
 
-	placement, err := h.Add(serviceName, r, req)
+	placement, err := h.Add(svc, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
@@ -114,7 +118,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 
 // Add adds a placement.
 func (h *AddHandler) Add(
-	serviceName string,
+	svc handler.ServiceNameAndDefaults,
 	httpReq *http.Request,
 	req *admin.PlacementAddRequest,
 ) (placement.Placement, error) {
@@ -123,8 +127,8 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(
-		serviceName, httpReq.Header, h.m3AggServiceOptions)
+	serviceOpts := handler.NewServiceOptions(svc, httpReq.Header,
+		h.m3AggServiceOptions)
 	var validateFn placement.ValidateFn
 	if !req.Force {
 		validateFn = validateAllAvailable

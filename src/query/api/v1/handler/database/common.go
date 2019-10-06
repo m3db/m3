@@ -26,6 +26,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -46,13 +47,15 @@ func RegisterRoutes(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
+	defaults []handler.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) error {
 	wrapped := func(n http.Handler) http.Handler {
 		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
 	}
 
-	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg, instrumentOpts)
+	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
+		defaults, instrumentOpts)
 	if err != nil {
 		return err
 	}

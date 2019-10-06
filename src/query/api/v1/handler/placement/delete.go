@@ -72,7 +72,11 @@ func NewDeleteHandler(opts HandlerOptions) *DeleteHandler {
 	return &DeleteHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *DeleteHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOptions)
@@ -87,8 +91,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	var (
 		force = r.FormValue(placementForceVar) == "true"
-		opts  = handler.NewServiceOptions(
-			serviceName, r.Header, h.m3AggServiceOptions)
+		opts  = handler.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
 	service, algo, err := ServiceWithAlgo(h.clusterClient, opts, h.nowFn(), nil)
@@ -100,7 +103,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	toRemove := []string{id}
 
 	// There are no unsafe placement changes because M3Coordinator is stateless
-	if isStateless(serviceName) {
+	if isStateless(svc.ServiceName) {
 		force = true
 	}
 

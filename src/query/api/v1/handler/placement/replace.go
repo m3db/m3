@@ -63,7 +63,11 @@ func NewReplaceHandler(opts HandlerOptions) *ReplaceHandler {
 	return &ReplaceHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *ReplaceHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOptions)
 
@@ -73,7 +77,7 @@ func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r 
 		return
 	}
 
-	placement, err := h.Replace(serviceName, r, req)
+	placement, err := h.Replace(svc, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
@@ -112,7 +116,7 @@ func (h *ReplaceHandler) parseRequest(r *http.Request) (*admin.PlacementReplaceR
 
 // Replace replaces instances.
 func (h *ReplaceHandler) Replace(
-	serviceName string,
+	svc handler.ServiceNameAndDefaults,
 	httpReq *http.Request,
 	req *admin.PlacementReplaceRequest,
 ) (placement.Placement, error) {
@@ -121,7 +125,7 @@ func (h *ReplaceHandler) Replace(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(serviceName, httpReq.Header, h.m3AggServiceOptions)
+	serviceOpts := handler.NewServiceOptions(svc, httpReq.Header, h.m3AggServiceOptions)
 	service, algo, err := ServiceWithAlgo(h.clusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
@@ -138,7 +142,7 @@ func (h *ReplaceHandler) Replace(
 	}
 
 	// M3Coordinator isn't sharded, can't check if its shards are available.
-	if !isStateless(serviceName) {
+	if !isStateless(svc.ServiceName) {
 		if err := validateAllAvailable(curPlacement); err != nil {
 			return nil, err
 		}

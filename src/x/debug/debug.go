@@ -28,6 +28,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/x/instrument"
@@ -55,11 +57,11 @@ type ZipWriter interface {
 	// The archive contains the dumps of all sources in separate files.
 	WriteZip(io.Writer, *http.Request) error
 	// RegisterSource adds a new source to the produced archive.
-	RegisterSource(string, Source) error
+	RegisterSource(fileName string, source Source) error
 	// HTTPHandler sends out the ZIP file as raw bytes.
 	HTTPHandler() http.Handler
 	// RegisterHandler wires the HTTPHandlerFunc with the given router.
-	RegisterHandler(string, *http.ServeMux) error
+	RegisterHandler(handlerPath string, router *http.ServeMux) error
 }
 
 type zipWriter struct {
@@ -80,28 +82,32 @@ func NewZipWriter(iopts instrument.Options) ZipWriter {
 // debug sources already registered: CPU, heap, host, goroutines, namespace and placement info.
 func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	cpuProfileDuration time.Duration,
-	iopts instrument.Options,
 	clusterClient clusterclient.Client,
 	placementsOpts placement.HandlerOptions,
-	serviceNames []string,
+	services []handler.ServiceNameAndDefaults,
+	instrumentOpts instrument.Options,
 ) (ZipWriter, error) {
-	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration, iopts)
+	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration,
+		instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	if clusterClient != nil {
-		err = zw.RegisterSource("namespaceSource", NewNamespaceInfoSource(iopts, clusterClient))
+		err = zw.RegisterSource("namespace.json",
+			NewNamespaceInfoSource(clusterClient, instrumentOpts))
 		if err != nil {
 			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
 		}
 
-		for _, serviceName := range serviceNames {
-			placementInfoSource, err := NewPlacementInfoSource(iopts, placementsOpts, serviceName)
+		for _, service := range services {
+			placementInfoSource, err := NewPlacementInfoSource(service,
+				placementsOpts, instrumentOpts)
 			if err != nil {
 				return nil, fmt.Errorf("unable to create placementInfoSource: %v", err)
 			}
-			err = zw.RegisterSource("placementSource", placementInfoSource)
+			fileName := fmt.Sprintf("placement-%s.json", service.ServiceName)
+			err = zw.RegisterSource(fileName, placementInfoSource)
 			if err != nil {
 				return nil, fmt.Errorf("unable to register placementSource: %s", err)
 			}
@@ -119,17 +125,17 @@ func NewZipWriterWithDefaultSources(
 ) (ZipWriter, error) {
 	zw := NewZipWriter(iopts)
 
-	err := zw.RegisterSource("cpuSource", NewCPUProfileSource(cpuProfileDuration))
+	err := zw.RegisterSource("cpu.prof", NewCPUProfileSource(cpuProfileDuration))
 	if err != nil {
 		return nil, fmt.Errorf("unable to register CPUProfileSource: %s", err)
 	}
 
-	err = zw.RegisterSource("heapSource", NewHeapDumpSource())
+	err = zw.RegisterSource("heap.prof", NewHeapDumpSource())
 	if err != nil {
 		return nil, fmt.Errorf("unable to register HeapDumpSource: %s", err)
 	}
 
-	err = zw.RegisterSource("hostSource", NewHostInfoSource())
+	err = zw.RegisterSource("host.json", NewHostInfoSource())
 	if err != nil {
 		return nil, fmt.Errorf("unable to register HostInfoSource: %s", err)
 	}
@@ -139,7 +145,7 @@ func NewZipWriterWithDefaultSources(
 		return nil, fmt.Errorf("unable to create goroutineProfileSource: %s", err)
 	}
 
-	err = zw.RegisterSource("goroutineProfile", gp)
+	err = zw.RegisterSource("goroutine.prof", gp)
 	return zw, nil
 }
 
@@ -188,6 +194,5 @@ func (i *zipWriter) HTTPHandler() http.Handler {
 
 func (i *zipWriter) RegisterHandler(path string, r *http.ServeMux) error {
 	r.Handle(path, i.HTTPHandler())
-
 	return nil
 }
