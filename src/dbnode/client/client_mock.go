@@ -4672,19 +4672,18 @@ func (mr *MockenqueueChannelMockRecorder) enqueueDelayed(numToEnqueue interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "enqueueDelayed", reflect.TypeOf((*MockenqueueChannel)(nil).enqueueDelayed), numToEnqueue)
 }
 
-// get mocks base method
-func (m *MockenqueueChannel) get() (<-chan []receivedBlockMetadata, error) {
+// read mocks base method
+func (m *MockenqueueChannel) read() <-chan []receivedBlockMetadata {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "get")
+	ret := m.ctrl.Call(m, "read")
 	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
-// get indicates an expected call of get
-func (mr *MockenqueueChannelMockRecorder) get() *gomock.Call {
+// read indicates an expected call of read
+func (mr *MockenqueueChannelMockRecorder) read() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "get", reflect.TypeOf((*MockenqueueChannel)(nil).get))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "read", reflect.TypeOf((*MockenqueueChannel)(nil).read))
 }
 
 // trackPending mocks base method

@@ -2444,18 +2444,7 @@ func (s *session) streamBlocksFromPeers(
 			enqueueCh.trackProcessed(1)
 		}
 	)
-	enqueueChInputs, err := enqueueCh.get()
-	if err != nil {
-		instrument.EmitAndLogInvariantViolation(
-			s.opts.InstrumentOptions(), func(l *zap.Logger) {
-				l.Error(
-					"failed to get enqueueCh input channel",
-					zap.Error(err))
-			})
-		return err
-	}
-
-	for perPeerBlocksMetadata := range enqueueChInputs {
+	for perPeerBlocksMetadata := range enqueueCh.read() {
 		// Filter and select which blocks to retrieve from which peers
 		selected, pooled = s.selectPeersFromPerPeerBlockMetadatas(
 			perPeerBlocksMetadata, peerQueues, enqueueCh, consistencyLevel, peers,
@@ -3614,15 +3603,11 @@ func (c *enqueueCh) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueD
 	return c.enqueueDelayedFn, c.enqueueDelayedDoneFn, nil
 }
 
-func (c *enqueueCh) get() (<-chan []receivedBlockMetadata, error) {
-	c.Lock()
-	if c.closed {
-		c.Unlock()
-		return nil, errEnqueueChIsClosed
-	}
-	c.Unlock()
-	metadataCh := c.peersMetadataCh
-	return metadataCh, nil
+// read is always safe to call since you can safely range
+// over a closed channel, and/or do a checked read in case
+// it is closed (unlike when publishing to a channel).
+func (c *enqueueCh) read() <-chan []receivedBlockMetadata {
+	return c.peersMetadataCh
 }
 
 func (c *enqueueCh) trackPending(amount int) {
