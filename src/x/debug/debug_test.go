@@ -39,6 +39,7 @@ import (
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/x/instrument"
@@ -273,17 +274,19 @@ func newHandlerOptsAndClient(t *testing.T) (placement.HandlerOptions, *clustercl
 
 func TestDefaultSources(t *testing.T) {
 	defaultSources := []string{
-		"cpuSource",
-		"heapSource",
-		"hostSource",
-		"goroutineProfile",
-		"namespaceSource",
-		"placementSource",
+		"cpu.prof",
+		"heap.prof",
+		"host.json",
+		"goroutine.prof",
+		"namespace.json",
+		"placement-m3db.json",
 	}
 
 	handlerOpts, mockClient := newHandlerOptsAndClient(t)
-
-	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions(), mockClient, handlerOpts, []string{"m3db"})
+	svcDefaults := []apihandler.ServiceNameAndDefaults{{
+		ServiceName: "m3db",
+	}}
+	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, mockClient, handlerOpts, svcDefaults, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NotNil(t, zw)
 
@@ -292,7 +295,6 @@ func TestDefaultSources(t *testing.T) {
 		iv := reflect.ValueOf(zw).Elem().Interface()
 		z, ok := iv.(zipWriter)
 		require.True(t, ok)
-
 		_, ok = z.sources[source]
 		require.True(t, ok)
 	}

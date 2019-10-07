@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -125,8 +126,12 @@ func TestPlacementGetHandler(t *testing.T) {
 		placementObj, err := placement.NewPlacementFromProto(placementProto)
 		require.NoError(t, err)
 
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
 		mockPlacementService.EXPECT().Placement().Return(placementObj, nil)
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
@@ -139,7 +144,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().Placement().Return(nil, errors.New("key not found"))
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -149,7 +154,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=foo", nil)
 		require.NotNil(t, req)
 
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 		resp = w.Result()
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
@@ -160,7 +165,7 @@ func TestPlacementGetHandler(t *testing.T) {
 
 		mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj.Clone().SetVersion(12), nil)
 
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 		resp = w.Result()
 		body, _ = ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)

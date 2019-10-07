@@ -33,7 +33,7 @@ import (
 func TestNamespaceSource(t *testing.T) {
 	_, mockClient := newHandlerOptsAndClient(t)
 	iOpts := instrument.NewOptions()
-	n := NewNamespaceInfoSource(iOpts, mockClient)
+	n := NewNamespaceInfoSource(mockClient, iOpts)
 
 	buff := bytes.NewBuffer([]byte{})
 	n.Write(buff, &http.Request{})

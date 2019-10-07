@@ -82,8 +82,12 @@ func testPlacementReplaceHandlerForce(t *testing.T, serviceName string) {
 	w := httptest.NewRecorder()
 	req := newReplaceRequest(`{"force": true, "leavingInstanceIDs": []}`)
 
+	svcDefaults := apihandler.ServiceNameAndDefaults{
+		ServiceName: serviceName,
+	}
+
 	mockPlacementService.EXPECT().ReplaceInstances([]string{}, gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("test"))
-	handler.ServeHTTP(serviceName, w, req)
+	handler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -93,7 +97,7 @@ func testPlacementReplaceHandlerForce(t *testing.T, serviceName string) {
 	w = httptest.NewRecorder()
 	req = newReplaceRequest(`{"force": true, "leavingInstanceIDs": ["a"]}`)
 	mockPlacementService.EXPECT().ReplaceInstances([]string{"a"}, gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
-	handler.ServeHTTP(serviceName, w, req)
+	handler.ServeHTTP(svcDefaults, w, req)
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
@@ -113,12 +117,16 @@ func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
 	w := httptest.NewRecorder()
 	req := newReplaceRequest("{}")
 
+	svcDefaults := apihandler.ServiceNameAndDefaults{
+		ServiceName: serviceName,
+	}
+
 	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), nil)
 	if serviceName == apihandler.M3CoordinatorServiceName {
 		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).
 			Return(newInitPlacement().SetVersion(1), nil)
 	}
-	handler.ServeHTTP(serviceName, w, req)
+	handler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -238,8 +246,12 @@ func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
 		SetInstances(instances).
 		SetVersion(2)
 
+	svcDefaults := apihandler.ServiceNameAndDefaults{
+		ServiceName: serviceName,
+	}
+
 	mockPlacementService.EXPECT().CheckAndSet(matcher, 1).Return(returnPl, nil)
-	handler.ServeHTTP(serviceName, w, req)
+	handler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
