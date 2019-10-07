@@ -60,7 +60,13 @@ type ServiceOptions struct {
 	M3Agg *M3AggServiceOptions
 
 	DryRun bool
-	Force bool
+	Force  bool
+}
+
+// ServiceOptionsDefaults is the defaults for optional service options.
+type ServiceOptionsDefaults struct {
+	ServiceEnvironment *string
+	ServiceZone        *string
 }
 
 // M3AggServiceOptions contains the service options that are
@@ -70,22 +76,54 @@ type M3AggServiceOptions struct {
 	WarmupDuration           time.Duration
 }
 
+// ServiceOptionsDefault is a default to apply to service options.
+type ServiceOptionsDefault func(o ServiceOptions) ServiceOptions
+
+// WithDefaultServiceEnvironment returns the default service environment.
+func WithDefaultServiceEnvironment(env string) ServiceOptionsDefault {
+	return func(o ServiceOptions) ServiceOptions {
+		o.ServiceEnvironment = env
+		return o
+	}
+}
+
+// WithDefaultServiceZone returns the default service zone.
+func WithDefaultServiceZone(zone string) ServiceOptionsDefault {
+	return func(o ServiceOptions) ServiceOptions {
+		o.ServiceZone = zone
+		return o
+	}
+}
+
+// ServiceNameAndDefaults is the params used when identifying a service
+// and it's service option defaults.
+type ServiceNameAndDefaults struct {
+	ServiceName string
+	Defaults    []ServiceOptionsDefault
+}
+
 // NewServiceOptions returns a ServiceOptions based on the provided
 // values.
 func NewServiceOptions(
-	serviceName string, headers http.Header, m3AggOpts *M3AggServiceOptions) ServiceOptions {
+	service ServiceNameAndDefaults,
+	headers http.Header,
+	m3AggOpts *M3AggServiceOptions,
+) ServiceOptions {
 	opts := ServiceOptions{
-		ServiceName:        serviceName,
+		ServiceName:        service.ServiceName,
 		ServiceEnvironment: DefaultServiceEnvironment,
 		ServiceZone:        DefaultServiceZone,
 
 		DryRun: false,
-		Force: false,
+		Force:  false,
 
 		M3Agg: &M3AggServiceOptions{
 			MaxAggregationWindowSize: defaultM3AggMaxAggregationWindowSize,
 			WarmupDuration:           defaultM3AggWarmupDuration,
 		},
+	}
+	for _, applyDefault := range service.Defaults {
+		opts = applyDefault(opts)
 	}
 
 	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
