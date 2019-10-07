@@ -56,6 +56,8 @@ type queue struct {
 	writeTaggedBatchRawV2RequestPool             writeTaggedBatchRawV2RequestPool
 	writeTaggedBatchRawRequestElementArrayPool   writeTaggedBatchRawRequestElementArrayPool
 	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+	fetchBatchRawV2RequestPool                   fetchBatchRawV2RequestPool
+	fetchBatchRawV2RequestElementArrayPool       fetchBatchRawV2RequestElementArrayPool
 	workerPool                                   xsync.PooledWorkerPool
 	size                                         int
 	ops                                          []op
@@ -135,14 +137,16 @@ func newHostQueue(
 		writeTaggedBatchRawV2RequestPool:       hostQueueOpts.writeTaggedBatchRawV2RequestPool,
 		writeTaggedBatchRawRequestElementArrayPool:   hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawV2RequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawV2RequestElementArrayPool,
-		workerPool:           workerPool,
-		size:                 size,
-		ops:                  opArrayPool.Get(),
-		opsArrayPool:         opArrayPool,
-		writeOpBatchSize:     scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
-		fetchOpBatchSize:     scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
-		drainIn:              make(chan []op, opsArraysLen),
-		serverSupportsV2APIs: opts.UseV2BatchAPIs(),
+		fetchBatchRawV2RequestPool:                   hostQueueOpts.fetchBatchRawV2RequestPool,
+		fetchBatchRawV2RequestElementArrayPool:       hostQueueOpts.fetchBatchRawV2RequestElementArrayPool,
+		workerPool:                                   workerPool,
+		size:                                         size,
+		ops:                                          opArrayPool.Get(),
+		opsArrayPool:                                 opArrayPool,
+		writeOpBatchSize:                             scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
+		fetchOpBatchSize:                             scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
+		drainIn:                                      make(chan []op, opsArraysLen),
+		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
 	}, nil
 }
 
@@ -465,11 +469,8 @@ func (q *queue) drainFetchBatchRawV2Op(
 ) (*rpc.FetchBatchRawV2Request, []op) {
 	namespace := v.request.NameSpace
 	if currV2FetchBatchRawReq == nil {
-		// TODO: Pool
-		// currV2WriteReq = q.writeBatchRawV2RequestPool.Get()
-		currV2FetchBatchRawReq = &rpc.FetchBatchRawV2Request{}
-		// TODO: Pool
-		// currV2WriteReq.Elements = q.writeBatchRawV2RequestElementArrayPool.Get()
+		currV2FetchBatchRawReq = q.fetchBatchRawV2RequestPool.Get()
+		currV2FetchBatchRawReq.Elements = q.fetchBatchRawV2RequestElementArrayPool.Get()
 	}
 
 	nsIdx := -1
@@ -488,7 +489,8 @@ func (q *queue) drainFetchBatchRawV2Op(
 		currV2FetchBatchRawReq.Elements = append(currV2FetchBatchRawReq.Elements, &v.requestV2Elements[i])
 	}
 	currV2FetchBatchRawOps = append(currV2FetchBatchRawOps, op)
-	// TODO: Ok to exceed?
+	// This logic means that in practice we may sometimes exceed the fetch batch size by a factor of 2
+	// but that's ok since it does not need to be exact.
 	if len(currV2FetchBatchRawReq.Elements) >= q.opts.FetchBatchSize() {
 		q.asyncFetchV2(currV2FetchBatchRawOps, currV2FetchBatchRawReq)
 		currV2FetchBatchRawReq = nil
@@ -802,6 +804,8 @@ func (q *queue) asyncFetchV2(
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
+			q.fetchBatchRawV2RequestElementArrayPool.Put(currV2FetchBatchRawReq.Elements)
+			q.fetchBatchRawV2RequestPool.Put(currV2FetchBatchRawReq)
 			for _, op := range ops {
 				fetchOp := op.(*fetchBatchOp)
 				fetchOp.DecRef()
