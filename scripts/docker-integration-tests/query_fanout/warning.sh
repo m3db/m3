@@ -63,7 +63,7 @@ function test_instant_query {
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/query?query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].value[1] | tr -d \" | tr -d \')
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
@@ -96,7 +96,7 @@ function test_range_query {
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].values[0][1] | tr -d \" | tr -d \')
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
@@ -123,7 +123,7 @@ function test_search {
 
    curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/search?query=val:.*"
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
@@ -150,7 +150,7 @@ function test_labels {
 
    curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/labels"
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
@@ -166,7 +166,7 @@ function test_match {
     "http://0.0.0.0:7201/api/v1/series?match[]=$METRIC_NAME")
 
   ACTUAL=$(echo $RESPONSE | jq '.data | length')
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   # NB: since it's not necessarily deterministic which series we get back from
   # remote sources, check that we cot at least EXPECTED values, which will be
   # the bottom bound.
@@ -197,7 +197,7 @@ function test_label_values {
 
    curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://0.0.0.0:7201/api/v1/label/val/values"
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
@@ -241,7 +241,7 @@ function render_carbon {
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://localhost:7201/api/v1/graphite/render?target=countSeries($GRAPHITE.*.*)&from=$start&until=$end")
   ACTUAL=$(echo $RESPONSE | jq .[0].datapoints[0][0])
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
@@ -252,7 +252,7 @@ function find_carbon {
 
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
     "http://localhost:7201/api/v1/graphite/metrics/find?query=$GRAPHITE.*")
-  ACTUAL_HEADER=$(cat headers | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
+  ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
