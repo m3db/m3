@@ -463,7 +463,6 @@ func (q *queue) drainFetchBatchRawV2Op(
 	currV2FetchBatchRawOps []op,
 	op op,
 ) (*rpc.FetchBatchRawV2Request, []op) {
-	// TODO: HMMM
 	namespace := v.request.NameSpace
 	if currV2FetchBatchRawReq == nil {
 		// TODO: Pool
