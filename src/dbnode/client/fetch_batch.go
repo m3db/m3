@@ -64,6 +64,13 @@ func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
 	f.IncWrites()
 	f.request.NameSpace = namespace
 	f.request.Ids = append(f.request.Ids, id)
+	f.requestV2Elements = append(f.requestV2Elements, rpc.FetchBatchRawV2RequestElement{
+		// NameSpace filled in by the host queue later.
+		RangeStart:    f.request.RangeStart,
+		RangeEnd:      f.request.RangeEnd,
+		ID:            id,
+		RangeTimeType: f.request.RangeTimeType,
+	})
 	f.completionFns = append(f.completionFns, completionFn)
 	f.DecWrites()
 }
