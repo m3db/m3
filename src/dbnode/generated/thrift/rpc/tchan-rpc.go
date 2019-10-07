@@ -51,6 +51,7 @@ type TChanNode interface {
 	BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error)
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
+	FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
 	FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error)
@@ -582,6 +583,24 @@ func (c *tchanNodeClient) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRe
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error) {
+	var resp NodeFetchBatchRawV2Result
+	args := NodeFetchBatchRawV2Args{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "fetchBatchRawV2", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for fetchBatchRawV2")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error) {
 	var resp NodeFetchBlocksMetadataRawV2Result
 	args := NodeFetchBlocksMetadataRawV2Args{
@@ -972,6 +991,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"bootstrappedInPlacementOrNoPlacement",
 		"fetch",
 		"fetchBatchRaw",
+		"fetchBatchRawV2",
 		"fetchBlocksMetadataRawV2",
 		"fetchBlocksRaw",
 		"fetchTagged",
@@ -1010,6 +1030,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetch(ctx, protocol)
 	case "fetchBatchRaw":
 		return s.handleFetchBatchRaw(ctx, protocol)
+	case "fetchBatchRawV2":
+		return s.handleFetchBatchRawV2(ctx, protocol)
 	case "fetchBlocksMetadataRawV2":
 		return s.handleFetchBlocksMetadataRawV2(ctx, protocol)
 	case "fetchBlocksRaw":
@@ -1208,6 +1230,34 @@ func (s *tchanNodeServer) handleFetchBatchRaw(ctx thrift.Context, protocol athri
 
 	r, err :=
 		s.handler.FetchBatchRaw(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleFetchBatchRawV2(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchBatchRawV2Args
+	var res NodeFetchBatchRawV2Result
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.FetchBatchRawV2(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

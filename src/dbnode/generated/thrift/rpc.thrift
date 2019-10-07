@@ -53,6 +53,7 @@ service Node {
 
 	// Performant read/write endpoints
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
+	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
@@ -117,6 +118,20 @@ struct FetchBatchRawRequest {
 	2: required i64 rangeEnd
 	3: required binary nameSpace
 	4: required list<binary> ids
+	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+}
+
+
+struct FetchBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<FetchBatchRawV2RequestElement> elements
+}
+
+struct FetchBatchRawV2RequestElement {
+	1: required i64 nameSpace
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
+	4: required binary id
 	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 

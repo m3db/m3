@@ -831,6 +831,71 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	return result, nil
 }
 
+func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2Request) (*rpc.FetchBatchRawResult_, error) {
+	s.metrics.fetchBatchRawRPCS.Inc(1)
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	var (
+		callStart          = s.nowFn()
+		ctx                = tchannelthrift.Context(tctx)
+		nsIDs              = make([]ident.ID, 0, len(req.Elements))
+		result             = rpc.NewFetchBatchRawResult_()
+		success            int
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for _, nsBytes := range req.NameSpaces {
+		nsIDs = append(nsIDs, s.newID(ctx, nsBytes))
+	}
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= int64(len(nsIDs)) {
+			return nil, fmt.Errorf(
+				"received fetch request with namespace index: %d, but only %d namespaces were provided",
+				elem.NameSpace, len(nsIDs))
+		}
+	}
+
+	for _, elem := range req.Elements {
+		start, rangeStartErr := convert.ToTime(elem.RangeStart, elem.RangeTimeType)
+		end, rangeEndErr := convert.ToTime(elem.RangeEnd, elem.RangeTimeType)
+		if rangeStartErr != nil || rangeEndErr != nil {
+			s.metrics.fetchBatchRaw.ReportNonRetryableErrors(len(req.Elements))
+			s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+			return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+		}
+
+		rawResult := rpc.NewFetchRawResult_()
+		result.Elements = append(result.Elements, rawResult)
+		tsID := s.newID(ctx, elem.ID)
+
+		nsIdx := nsIDs[int(elem.NameSpace)]
+		segments, rpcErr := s.readEncoded(ctx, db, nsIdx, tsID, start, end)
+		if rpcErr != nil {
+			rawResult.Err = rpcErr
+			if tterrors.IsBadRequestError(rawResult.Err) {
+				nonRetryableErrors++
+			} else {
+				retryableErrors++
+			}
+			continue
+		}
+
+		success++
+		rawResult.Segments = segments
+	}
+
+	s.metrics.fetchBatchRaw.ReportSuccess(success)
+	s.metrics.fetchBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.fetchBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	return result, nil
+}
+
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
