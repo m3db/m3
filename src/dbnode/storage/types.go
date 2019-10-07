@@ -333,8 +333,8 @@ type databaseNamespace interface {
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
-	// Bootstrap performs bootstrapping.
-	Bootstrap(start time.Time, process bootstrap.Process) error
+	// Bootstrap marks shards as bootstrapped for the namespace.
+	Bootstrap(bootstrapResult bootstrap.ProcessResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
 	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
@@ -400,6 +400,7 @@ type databaseShard interface {
 	// Tick performs all async updates
 	Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error)
 
+	// Write writes a value to the shard for an ID.
 	Write(
 		ctx context.Context,
 		id ident.ID,
@@ -410,7 +411,7 @@ type databaseShard interface {
 		wOpts series.WriteOptions,
 	) (ts.Series, bool, error)
 
-	// WriteTagged values to the shard for an ID.
+	// WriteTagged writes a value to the shard for an ID with tags.
 	WriteTagged(
 		ctx context.Context,
 		id ident.ID,
@@ -458,14 +459,19 @@ type databaseShard interface {
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
-	// Bootstrap bootstraps the shard with provided data.
-	Bootstrap(
-		bootstrappedSeries *result.Map,
-	) error
+	// Bootstrap bootstraps the shard after all provided data
+	// has been loaded using LoadBootstrapBlocks.
+	Bootstrap() error
 
-	// Load does the same thing as Bootstrap, except it can be called more than once
-	// and after a shard is bootstrapped already.
-	Load(series *result.Map) error
+	// LoadBootstrapBlocks partially bootstraps the shard with
+	// provided data, it is expected Bootstrap() will be called once
+	// all provided data is loaded.
+	LoadBootstrapBlocks(series *result.Map) error
+
+	// LoadBlocks does the same thing as LoadBootstrapBlocks,
+	// except it can be called more than once and after a shard is
+	// bootstrapped already.
+	LoadBlocks(series *result.Map) error
 
 	// WarmFlush flushes the WarmWrites in this shard.
 	WarmFlush(

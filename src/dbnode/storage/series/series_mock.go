@@ -177,12 +177,11 @@ func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 }
 
 // Load mocks base method
-func (m *MockDatabaseSeries) Load(arg0 LoadOptions, arg1 block.DatabaseSeriesBlocks, arg2 BootstrappedBlockStateSnapshot) (LoadResult, error) {
+func (m *MockDatabaseSeries) Load(arg0 block.DatabaseSeriesBlocks, arg1 BootstrappedBlockStateSnapshot) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
-	ret0, _ := ret[0].(LoadResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Load", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Load indicates an expected call of Load

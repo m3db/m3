@@ -336,7 +336,7 @@ func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardR
 	}()
 
 	for {
-		err := shard.Load(data.AllSeries())
+		err := shard.LoadBlocks(data.AllSeries())
 		if err == ErrDatabaseLoadLimitHit {
 			waitedCounter.Inc(1)
 			waitingLock.Lock()

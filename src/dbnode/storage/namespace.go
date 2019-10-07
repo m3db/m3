@@ -779,11 +779,12 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	return res, nextPageToken, err
 }
 
-func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
+func (n *dbNamespace) Bootstrap(
+	bootstrapResult bootstrap.ProcessResult,
+) error {
 	callStart := n.nowFn()
 
 	n.Lock()
-	metadata := n.metadata
 	if n.bootstrapState == Bootstrapping {
 		n.Unlock()
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
@@ -812,63 +813,29 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 		return nil
 	}
 
-	var (
-		owned  = n.GetOwnedShards()
-		shards = make([]databaseShard, 0, len(owned))
-	)
-	for _, shard := range owned {
-		if !shard.IsBootstrapped() {
-			shards = append(shards, shard)
-		}
-	}
-	if len(shards) == 0 {
-		success = true
-		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil
-	}
-
-	shardIDs := make([]uint32, len(shards))
-	for i, shard := range shards {
-		shardIDs[i] = shard.ID()
-	}
-
-	bootstrapResult, err := process.Run(start, metadata, shardIDs)
-	if err != nil {
-		n.log.Error("bootstrap aborted due to error",
-			zap.Stringer("namespace", n.id),
-			zap.Error(err))
-		return err
-	}
-	n.metrics.bootstrap.Success.Inc(1)
-
 	// Bootstrap shards using at least half the CPUs available
 	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
-	numSeries := bootstrapResult.DataResult.ShardResults().NumSeries()
-	n.log.Info("bootstrap data fetched now initializing shards with series blocks",
-		zap.Int("numShards", len(shards)),
-		zap.Int64("numSeries", numSeries),
-	)
-
 	var (
 		multiErr = xerrors.NewMultiError()
-		results  = bootstrapResult.DataResult.ShardResults()
 		mutex    sync.Mutex
 		wg       sync.WaitGroup
 	)
-	for _, shard := range shards {
+	n.log.Info("bootstrap marking all shards as bootstrapped",
+		zap.Stringer("namespace", n.id),
+		zap.Int("numShards", len(shardResults)),
+		zap.Int64("numSeries", shardResults.NumSeries()))
+	for _, shard := range n.GetOwnedShards() {
 		shard := shard
+		if shard.IsBootstrapped() {
+			// NB(r): No need to mark all series as bootstrapped.
+			continue
+		}
+
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrapped *result.Map
-			if shardResult, ok := results[shard.ID()]; ok {
-				bootstrapped = shardResult.AllSeries()
-			} else {
-				bootstrapped = result.NewMap(result.MapOptions{})
-			}
-
-			err := shard.Bootstrap(bootstrapped)
+			err := shard.Bootstrap()
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)
@@ -884,23 +851,24 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 		multiErr = multiErr.Add(err)
 	}
 
-	markAnyUnfulfilled := func(label string, unfulfilled result.ShardTimeRanges) {
+	markAnyUnfulfilled := func(bootstrapType string, unfulfilled result.ShardTimeRanges) {
 		shardsUnfulfilled := int64(len(unfulfilled))
 		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
 		if shardsUnfulfilled > 0 {
 			str := unfulfilled.SummaryString()
-			err := fmt.Errorf("bootstrap completed with unfulfilled ranges: %s", str)
-			multiErr = multiErr.Add(err)
-			n.log.Error(err.Error(),
+			errorFmt := "bootstrap completed with unfulfilled ranges"
+			multiErr = multiErr.Add(fmt.Errorf("%s: %s", errorFmt, str))
+			n.log.Error(errorFmt,
+				zap.Error(err),
 				zap.String("namespace", n.id.String()),
-				zap.String("bootstrap-type", label),
+				zap.String("bootstrapType", bootstrapType),
 			)
 		}
 	}
 	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())
 	markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
 
-	err = multiErr.FinalError()
+	err := multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	success = err == nil
 

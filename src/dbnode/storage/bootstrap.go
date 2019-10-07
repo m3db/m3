@@ -177,27 +177,43 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	// NB(xichen): each bootstrapper should be responsible for choosing the most
-	// efficient way of bootstrapping database shards, be it sequential or parallel.
-	multiErr := xerrors.NewMultiError()
-
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
 	}
 
-	startBootstrap := m.nowFn()
-	for _, namespace := range namespaces {
-		startNamespaceBootstrap := m.nowFn()
-		if err := namespace.Bootstrap(startBootstrap, process); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-		took := m.nowFn().Sub(startNamespaceBootstrap)
-		m.log.Info("bootstrap finished",
-			zap.String("namespace", namespace.ID().String()),
-			zap.Duration("duration", took),
-		)
+	// NB(xichen): each bootstrapper should be responsible for choosing the most
+	// efficient way of bootstrapping database shards, be it sequential or parallel.
+	shards := m.database.ShardSet().AllIDs()
+	start := m.nowFn()
+	m.log.Info("bootstrap started", zap.Int("numShards", len(shards)))
+	bootstrapResult, err := process.Run(start, nil, shards)
+	if err != nil {
+		m.log.Error("bootstrap data failed",
+			zap.Error(err),
+			zap.Int("numShards", len(shards)),
+			zap.Duration("duration", m.nowFn().Sub(start)))
+		return err
 	}
 
-	return multiErr.FinalError()
+	multiErr := xerrors.NewMultiError()
+	for _, namespace := range namespaces {
+		if err := namespace.Bootstrap(bootstrapResult); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	took := m.nowFn().Sub(start)
+	if err := multiErr.FinalError(); err != nil {
+		m.log.Info("bootstrap namespaces failed",
+			zap.Error(err),
+			zap.Int("numShards", len(shards)),
+			zap.Duration("duration", took))
+		return err
+	}
+
+	m.log.Info("bootstrap success",
+		zap.Int("numShards", len(shards)),
+		zap.Duration("duration", took))
+	return nil
 }

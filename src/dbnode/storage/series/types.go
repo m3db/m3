@@ -99,15 +99,17 @@ type DatabaseSeries interface {
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
+	// Bootstrap marks the series as bootstrapped.
+	Bootstrap() error
+
 	// IsBootstrapped returns whether the series is bootstrapped or not.
 	IsBootstrapped() bool
 
 	// Load loads data into the series.
 	Load(
-		opts LoadOptions,
 		blocks block.DatabaseSeriesBlocks,
 		blockStates BootstrappedBlockStateSnapshot,
-	) (LoadResult, error)
+	) error
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -403,26 +405,4 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
-}
-
-// LoadOptions contains the options for the Load() method.
-type LoadOptions struct {
-	// Whether the call to Bootstrap should be considered a "true" bootstrap
-	// or if additional data is being loaded after the fact (as in the case
-	// of repairs).
-	Bootstrap bool
-}
-
-// LoadResult contains the return information for the Load() method.
-type LoadResult struct {
-	Bootstrap BootstrapResult
-}
-
-// BootstrapResult contains information about the result of bootstrapping a series.
-// It is returned from the series Bootstrap method primarily so the caller can aggregate
-// and emit metrics instead of the series itself having to store additional fields (which
-// would be costly because we have millions of them.)
-type BootstrapResult struct {
-	NumBlocksMovedToBuffer int64
-	NumBlocksMerged        int64
 }

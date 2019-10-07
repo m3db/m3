@@ -274,6 +274,16 @@ func (s *dbSeries) NumActiveBlocks() int {
 	return value
 }
 
+func (s *dbSeries) Bootstrap() error {
+	s.Lock()
+	defer s.Unlock()
+	if s.bs != bootstrapNotStarted {
+		return errSeriesAlreadyBootstrapped
+	}
+	s.bs = bootstrapped
+	return nil
+}
+
 func (s *dbSeries) IsBootstrapped() bool {
 	s.RLock()
 	state := s.bs
@@ -374,53 +384,14 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 }
 
 func (s *dbSeries) Load(
-	opts LoadOptions,
 	blocksToLoad block.DatabaseSeriesBlocks,
 	blockStates BootstrappedBlockStateSnapshot,
-) (LoadResult, error) {
-	if opts.Bootstrap {
-		bsResult, err := s.bootstrap(blocksToLoad, blockStates)
-		return LoadResult{Bootstrap: bsResult}, err
-	}
-
+) error {
 	s.Lock()
-	s.loadWithLock(false, blocksToLoad, blockStates)
-	s.Unlock()
-	return LoadResult{}, nil
-}
+	defer s.Unlock()
 
-func (s *dbSeries) bootstrap(
-	bootstrappedBlocks block.DatabaseSeriesBlocks,
-	blockStates BootstrappedBlockStateSnapshot,
-) (BootstrapResult, error) {
-	s.Lock()
-	defer func() {
-		s.bs = bootstrapped
-		s.Unlock()
-	}()
-
-	var result BootstrapResult
-	if s.bs == bootstrapped {
-		return result, errSeriesAlreadyBootstrapped
-	}
-
-	if bootstrappedBlocks == nil {
-		return result, nil
-	}
-
-	s.loadWithLock(true, bootstrappedBlocks, blockStates)
-	result.NumBlocksMovedToBuffer += int64(bootstrappedBlocks.Len())
-
-	return result, nil
-}
-
-func (s *dbSeries) loadWithLock(
-	isBootstrap bool,
-	blocksToLoad block.DatabaseSeriesBlocks,
-	blockStates BootstrappedBlockStateSnapshot,
-) {
 	for _, block := range blocksToLoad.AllBlocks() {
-		if !isBootstrap {
+		if s.bs != bootstrapped {
 			// The data being loaded is not part of the bootstrap process then it needs to be
 			// loaded as a cold write because the load could be happening concurrently with
 			// other processes like the flush (as opposed to bootstrap which cannot happen
@@ -456,6 +427,8 @@ func (s *dbSeries) loadWithLock(
 			s.buffer.Load(block, ColdWrite)
 		}
 	}
+
+	return nil
 }
 
 func (s *dbSeries) OnRetrieveBlock(

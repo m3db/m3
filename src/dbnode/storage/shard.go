@@ -194,20 +194,17 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create                        tally.Counter
-	close                         tally.Counter
-	closeStart                    tally.Counter
-	closeLatency                  tally.Timer
-	insertAsyncInsertErrors       tally.Counter
-	insertAsyncBootstrapErrors    tally.Counter
-	insertAsyncWriteErrors        tally.Counter
-	seriesBootstrapBlocksToBuffer tally.Counter
-	seriesBootstrapBlocksMerged   tally.Counter
-	seriesTicked                  tally.Gauge
+	create                     tally.Counter
+	close                      tally.Counter
+	closeStart                 tally.Counter
+	closeLatency               tally.Timer
+	insertAsyncInsertErrors    tally.Counter
+	insertAsyncBootstrapErrors tally.Counter
+	insertAsyncWriteErrors     tally.Counter
+	seriesTicked               tally.Gauge
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
-	seriesBootstrapScope := scope.SubScope("series-bootstrap")
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
@@ -222,8 +219,6 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 		insertAsyncWriteErrors: scope.Tagged(map[string]string{
 			"error_type": "write-value",
 		}).Counter("insert-async.errors"),
-		seriesBootstrapBlocksToBuffer: seriesBootstrapScope.Counter("blocks-to-buffer"),
-		seriesBootstrapBlocksMerged:   seriesBootstrapScope.Counter("blocks-merged"),
 		seriesTicked: scope.Tagged(map[string]string{
 			"shard": fmt.Sprintf("%d", shardID),
 		}).Gauge("series-ticked"),
@@ -790,8 +785,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		if count < 1 {
 			s.logger.Error("observed series with invalid ReaderWriterCount in `purgeExpiredSeries`",
 				zap.String("series", series.ID().String()),
-				zap.Int32("ReaderWriterCount", count),
-			)
+				zap.Int32("ReaderWriterCount", count))
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
@@ -1264,11 +1258,7 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		_, err := entry.Series.Load(
-			series.LoadOptions{Bootstrap: true},
-			nil,
-			series.BootstrappedBlockStateSnapshot{})
-		if err != nil {
+		if err := entry.Series.Bootstrap(); err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
 		}
@@ -1353,11 +1343,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			_, err := entry.Series.Load(
-				series.LoadOptions{Bootstrap: true},
-				nil,
-				series.BootstrappedBlockStateSnapshot{})
-			if err != nil {
+			if err := entry.Series.Bootstrap(); err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
 		}
@@ -1774,9 +1760,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	return result, nil, nil
 }
 
-func (s *dbShard) Bootstrap(
-	bootstrappedSeries *result.Map,
-) error {
+func (s *dbShard) Bootstrap() error {
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
 		s.Unlock()
@@ -1794,13 +1778,6 @@ func (s *dbShard) Bootstrap(
 	// (will be passed to series.Load() as BlockState).
 	s.bootstrapFlushStates()
 
-	multiErr := xerrors.NewMultiError()
-	bootstrapResult, err := s.loadSeries(bootstrappedSeries, true)
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
-	s.emitBootstrapResult(bootstrapResult)
-
 	// From this point onwards, all newly created series that aren't in
 	// the existing map should be considered bootstrapped because they
 	// have no data within the retention period.
@@ -1811,16 +1788,13 @@ func (s *dbShard) Bootstrap(
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
+	multiErr := xerrors.NewMultiError()
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		seriesEntry := entry.Series
 		if seriesEntry.IsBootstrapped() {
 			return true
 		}
-		_, err := seriesEntry.Load(
-			series.LoadOptions{Bootstrap: true},
-			nil,
-			series.BootstrappedBlockStateSnapshot{})
-		multiErr = multiErr.Add(err)
+		multiErr = multiErr.Add(seriesEntry.Bootstrap())
 		return true
 	})
 
@@ -1838,7 +1812,17 @@ func (s *dbShard) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Load(
+func (s *dbShard) LoadBootstrapBlocks(
+	seriesToLoad *result.Map,
+) error {
+	if seriesToLoad == nil {
+		return errTriedToLoadNilSeries
+	}
+
+	return s.loadSeries(seriesToLoad, true)
+}
+
+func (s *dbShard) LoadBlocks(
 	seriesToLoad *result.Map,
 ) error {
 	if seriesToLoad == nil {
@@ -1854,16 +1838,15 @@ func (s *dbShard) Load(
 	}
 	s.Unlock()
 
-	_, err := s.loadSeries(seriesToLoad, false)
-	return err
+	return s.loadSeries(seriesToLoad, false)
 }
 
 func (s *dbShard) loadSeries(
 	seriesToLoad *result.Map,
 	bootstrap bool,
-) (dbShardBootstrapResult, error) {
+) error {
 	if seriesToLoad == nil {
-		return dbShardBootstrapResult{}, nil
+		return nil
 	}
 
 	if !bootstrap {
@@ -1871,22 +1854,19 @@ func (s *dbShard) loadSeries(
 		estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
 		ok := memTracker.IncNumLoadedBytes(estimatedSize)
 		if !ok {
-			return dbShardBootstrapResult{}, ErrDatabaseLoadLimitHit
+			return ErrDatabaseLoadLimitHit
 		}
 	}
 
-	var (
-		// Only used for the bootstrap path.
-		shardBootstrapResult = dbShardBootstrapResult{}
-		multiErr             = xerrors.NewMultiError()
-	)
 	// Safe to use the same snapshot for all the series since the block states can't change while
 	// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
 	blockStates := s.BlockStatesSnapshot()
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
-		return dbShardBootstrapResult{}, errFlushStateIsNotBootstrapped
+		return errFlushStateIsNotBootstrapped
 	}
+
+	multiErr := xerrors.NewMultiError()
 	for _, elem := range seriesToLoad.Iter() {
 		dbBlocks := elem.Value()
 
@@ -1916,24 +1896,18 @@ func (s *dbShard) loadSeries(
 			dbBlocks.Tags.Finalize()
 		}
 
-		loadOpts := series.LoadOptions{Bootstrap: bootstrap}
-		loadResult, err := entry.Series.Load(
-			loadOpts,
-			dbBlocks.Blocks,
-			blockStatesSnapshot)
+		err = entry.Series.Load(dbBlocks.Blocks, blockStatesSnapshot)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		if bootstrap {
-			shardBootstrapResult.update(loadResult.Bootstrap)
-		}
+
 		// Cannot close blocks once done as series takes ref to them.
 
 		// Always decrement the writer count, avoid continue on bootstrap error
 		entry.DecrementReaderWriterCount()
 	}
 
-	return shardBootstrapResult, multiErr.FinalError()
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) bootstrapFlushStates() error {
@@ -2445,28 +2419,11 @@ func (s *dbShard) BootstrapState() BootstrapState {
 	return bs
 }
 
-func (s *dbShard) emitBootstrapResult(r dbShardBootstrapResult) {
-	s.metrics.seriesBootstrapBlocksToBuffer.Inc(r.numBlocksMovedToBuffer)
-	s.metrics.seriesBootstrapBlocksMerged.Inc(r.numBlocksMerged)
-}
-
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 	s.logger.Debug("shard flush outcome",
 		zap.Uint32("shard", s.ID()),
 		zap.Int64("numBlockDoesNotExist", r.numBlockDoesNotExist),
 	)
-}
-
-// dbShardBootstrapResult is a helper struct for keeping track of the result of bootstrapping all the
-// series in the shard.
-type dbShardBootstrapResult struct {
-	numBlocksMovedToBuffer int64
-	numBlocksMerged        int64
-}
-
-func (r *dbShardBootstrapResult) update(u series.BootstrapResult) {
-	r.numBlocksMovedToBuffer += u.NumBlocksMovedToBuffer
-	r.numBlocksMerged += u.NumBlocksMerged
 }
 
 // dbShardFlushResult is a helper struct for keeping track of the result of flushing all the

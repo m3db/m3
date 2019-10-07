@@ -23,10 +23,13 @@ package bootstrap
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -50,11 +53,66 @@ type ProcessProvider interface {
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(start time.Time, ns namespace.Metadata, shards []uint32) (ProcessResult, error)
+	Run(start time.Time, namespaces Namespaces) (ProcessResult, error)
+}
+
+// Namespaces are a set of namespaces being bootstrapped.
+type Namespaces struct {
+	Namespaces Namespace
+}
+
+// Namespace is a namespace that is being bootstrapped.
+type Namespace struct {
+	// Metadata of the namespace being bootstrapped.
+	Metadata namespace.Metadata
+	// Shards is the shards for the namespace being bootstrapped.
+	Shards sharding.ShardSet
+	// DataAccumulator is the data accumulator for the shards.
+	DataAccumulator NamespaceDataAccumulator
+}
+
+// NamespaceDataAccumulator is the namespace data accumulator.
+type NamespaceDataAccumulator interface {
+	// CheckoutSeries will retrieve a series for writing to
+	// and when the accumulator is closed it will ensure that the
+	// series is released.
+	CheckoutSeries(
+		id ident.ID,
+		tags ident.Tags,
+	) (series.DatabaseSeries, error)
+
+	// CheckoutSeriesWithFastLookup will retrieve a series for writing to
+	// and when the accumulator is closed it will ensure that the
+	// series is released.
+	// A key is also specified so that calls can be remade to the
+	// accumulator to look it up fast without locks, must be unique
+	// between calls to ReleaseAllSeries.
+	CheckoutSeriesWithFastLookup(
+		id ident.ID,
+		tags ident.Tags,
+		fastLookupKey uint64,
+	) (series.DatabaseSeries, error)
+
+	// FastLookupSeries can retrieve a currently checked out series
+	// with the given key.
+	FastLookupSeries(fastLookupKey uint64) (series.DatabaseSeries, error)
+
+	// Reset will reset and release all checked out series from
+	// the accumulator so owners can return them.
+	Reset() error
+
+	// Close will close the data accumulator and will return an error
+	// if any checked out series have not been released yet with reset.
+	Close() error
 }
 
 // ProcessResult is the result of a bootstrap process.
 type ProcessResult struct {
+	Namespaces ProcessNamespaceResult
+}
+
+// ProcessNamespaceResult is the result of a bootstrap process for a given namespace.
+type ProcessNamespaceResult struct {
 	DataResult  result.DataBootstrapResult
 	IndexResult result.IndexBootstrapResult
 }
