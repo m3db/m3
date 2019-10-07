@@ -28,9 +28,10 @@ import (
 
 type fetchBatchOp struct {
 	checked.RefCount
-	request       rpc.FetchBatchRawRequest
-	completionFns []completionFn
-	finalizer     fetchBatchOpFinalizer
+	request           rpc.FetchBatchRawRequest
+	requestV2Elements []rpc.FetchBatchRawV2RequestElement
+	completionFns     []completionFn
+	finalizer         fetchBatchOpFinalizer
 }
 
 func (f *fetchBatchOp) reset() {
@@ -46,6 +47,16 @@ func (f *fetchBatchOp) reset() {
 		f.completionFns[i] = nil
 	}
 	f.completionFns = f.completionFns[:0]
+
+	for i := range f.requestV2Elements {
+		f.requestV2Elements[i].NameSpace = 0
+		f.requestV2Elements[i].RangeStart = 0
+		f.requestV2Elements[i].RangeEnd = 0
+		f.requestV2Elements[i].ID = nil
+		f.requestV2Elements[i].RangeTimeType = 0
+	}
+	f.requestV2Elements = f.requestV2Elements[:0]
+
 	f.DecWrites()
 }
 
@@ -60,6 +71,9 @@ func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
 func (f *fetchBatchOp) Size() int {
 	f.IncReads()
 	value := len(f.request.Ids)
+	if value == 0 {
+		value = len(f.requestV2Elements)
+	}
 	f.DecReads()
 	return value
 }
@@ -68,6 +82,7 @@ func (f *fetchBatchOp) CompletionFn() completionFn {
 	return f.completeAll
 }
 
+// TODO: Remove result for this method and only allow calling with err.
 func (f *fetchBatchOp) completeAll(result interface{}, err error) {
 	for idx := range f.completionFns {
 		f.completionFns[idx](result, err)

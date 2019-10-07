@@ -237,6 +237,9 @@ func (q *queue) drain() {
 
 		currWriteOpsByNamespace       namespaceWriteBatchOpsSlice
 		currTaggedWriteOpsByNamespace namespaceWriteTaggedBatchOpsSlice
+
+		currV2FetchBatchRawReq *rpc.FetchBatchRawV2Request
+		currV2FetchBatchRawOps []op
 	)
 
 	for ops := range q.drainIn {
@@ -256,7 +259,11 @@ func (q *queue) drain() {
 					currTaggedWriteOpsByNamespace = q.drainTaggedWriteOpV1(v, currTaggedWriteOpsByNamespace, ops[i])
 				}
 			case *fetchBatchOp:
-				q.asyncFetch(v)
+				if q.serverSupportsV2APIs {
+					currV2FetchBatchRawReq, currV2FetchBatchRawOps = q.drainFetchBatchRawV2Op(v, currV2FetchBatchRawReq, currV2FetchBatchRawOps, ops[i])
+				} else {
+					q.asyncFetch(v)
+				}
 			case *fetchTaggedOp:
 				q.asyncFetchTagged(v)
 			case *aggregateOp:
@@ -295,6 +302,13 @@ func (q *queue) drain() {
 			// Zero the element
 			currTaggedWriteOpsByNamespace[i] = namespaceWriteTaggedBatchOps{}
 		}
+		// If any outstanding fetches, fetch.
+		if currV2FetchBatchRawReq != nil {
+			q.asyncFetchV2(currV2FetchBatchRawOps, currV2FetchBatchRawReq)
+			currV2FetchBatchRawOps = nil
+			currV2FetchBatchRawReq = nil
+		}
+
 		// Reset the slice
 		currTaggedWriteOpsByNamespace = currTaggedWriteOpsByNamespace[:0]
 		if currV2WriteTaggedReq != nil {
@@ -441,6 +455,48 @@ func (q *queue) drainTaggedWriteOpV2(
 	}
 
 	return currV2WriteTaggedReq, currV2WriteTaggedOps
+}
+
+func (q *queue) drainFetchBatchRawV2Op(
+	v *fetchBatchOp,
+	currV2FetchBatchRawReq *rpc.FetchBatchRawV2Request,
+	currV2FetchBatchRawOps []op,
+	op op,
+) (*rpc.FetchBatchRawV2Request, []op) {
+	// TODO: HMMM
+	namespace := v.request.NameSpace
+	if currV2FetchBatchRawReq == nil {
+		// TODO: Pool
+		// currV2WriteReq = q.writeBatchRawV2RequestPool.Get()
+		currV2FetchBatchRawReq = &rpc.FetchBatchRawV2Request{}
+		// TODO: Pool
+		// currV2WriteReq.Elements = q.writeBatchRawV2RequestElementArrayPool.Get()
+	}
+
+	nsIdx := -1
+	for i, ns := range currV2FetchBatchRawReq.NameSpaces {
+		if bytes.Equal(namespace, ns) {
+			nsIdx = i
+			break
+		}
+	}
+	if nsIdx == -1 {
+		currV2FetchBatchRawReq.NameSpaces = append(currV2FetchBatchRawReq.NameSpaces, namespace)
+		nsIdx = len(currV2FetchBatchRawReq.NameSpaces) - 1
+	}
+	for i := range v.requestV2Elements {
+		v.requestV2Elements[i].NameSpace = int64(nsIdx)
+		currV2FetchBatchRawReq.Elements = append(currV2FetchBatchRawReq.Elements, &v.requestV2Elements[i])
+	}
+	currV2FetchBatchRawOps = append(currV2FetchBatchRawOps, op)
+	// TODO: Ok to exceed?
+	if len(currV2FetchBatchRawReq.Elements) >= q.opts.FetchBatchSize() {
+		q.asyncFetchV2(currV2FetchBatchRawOps, currV2FetchBatchRawReq)
+		currV2FetchBatchRawReq = nil
+		currV2FetchBatchRawOps = nil
+	}
+
+	return currV2FetchBatchRawReq, currV2FetchBatchRawOps
 }
 
 func (q *queue) asyncTaggedWrite(
@@ -733,6 +789,61 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 				continue
 			}
 			op.complete(i, result.Elements[i].Segments, nil)
+		}
+		cleanup()
+	})
+}
+
+func (q *queue) asyncFetchV2(
+	ops []op,
+	currV2FetchBatchRawReq *rpc.FetchBatchRawV2Request,
+) {
+	q.fetchOpBatchSize.RecordValue(float64(len(currV2FetchBatchRawReq.Elements)))
+	q.Add(1)
+	q.workerPool.Go(func() {
+		// NB(r): Defer is slow in the hot path unfortunately
+		cleanup := func() {
+			for _, op := range ops {
+				fetchOp := op.(*fetchBatchOp)
+				fetchOp.DecRef()
+				fetchOp.Finalize()
+			}
+			q.Done()
+		}
+
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available.
+			callAllCompletionFns(ops, nil, err)
+			cleanup()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		result, err := client.FetchBatchRawV2(ctx, currV2FetchBatchRawReq)
+		if err != nil {
+			callAllCompletionFns(ops, nil, err)
+			cleanup()
+			return
+		}
+
+		resultIdx := -1
+		for _, op := range ops {
+			fetchOp := op.(*fetchBatchOp)
+			for j := 0; j < fetchOp.Size(); j++ {
+				resultIdx++
+				if resultIdx >= len(result.Elements) {
+					// No results for this entry, in practice should never occur.
+					fetchOp.complete(j, nil, errQueueFetchNoResponse(q.host.ID()))
+					continue
+				}
+
+				if result.Elements[resultIdx].Err != nil {
+					fetchOp.complete(j, nil, result.Elements[resultIdx].Err)
+					continue
+				}
+				fetchOp.complete(j, result.Elements[resultIdx].Segments, nil)
+			}
 		}
 		cleanup()
 	})
