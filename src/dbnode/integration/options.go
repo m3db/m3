@@ -58,7 +58,7 @@ const (
 	defaultTickMinimumInterval = 1 * time.Second
 
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
-	defaultUseTChannelClientForReading = true
+	defaultUseTChannelClientForReading = false
 
 	// defaultUseTChannelClientForWriting determines whether we use the tchannel client for writing by default.
 	defaultUseTChannelClientForWriting = false
