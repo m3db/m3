@@ -780,7 +780,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 }
 
 func (n *dbNamespace) Bootstrap(
-	bootstrapResult bootstrap.ProcessResult,
+	bootstrapResult bootstrap.NamespaceResult,
 ) error {
 	callStart := n.nowFn()
 
@@ -829,7 +829,7 @@ func (n *dbNamespace) Bootstrap(
 	for _, shard := range n.GetOwnedShards() {
 		shard := shard
 		if shard.IsBootstrapped() {
-			// NB(r): No need to mark all series as bootstrapped.
+			// NB(r): No need to mark the shard's series as bootstrapped.
 			continue
 		}
 

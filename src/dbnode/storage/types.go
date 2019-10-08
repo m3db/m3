@@ -334,7 +334,7 @@ type databaseNamespace interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	// Bootstrap marks shards as bootstrapped for the namespace.
-	Bootstrap(bootstrapResult bootstrap.ProcessResult) error
+	Bootstrap(bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
 	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error

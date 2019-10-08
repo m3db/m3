@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 
@@ -123,10 +124,10 @@ func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 }
 
 // Run mocks base method
-func (m *MockProcess) Run(start time.Time, ns namespace.Metadata, shards []uint32) (ProcessResult, error) {
+func (m *MockProcess) Run(start time.Time, namespaces []ProcessNamespace, shards sharding.ShardSet) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", start, ns, shards)
-	ret0, _ := ret[0].(ProcessResult)
+	ret := m.ctrl.Call(m, "Run", start, namespaces, shards)
+	ret0, _ := ret[0].(NamespaceResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

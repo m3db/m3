@@ -23,8 +23,7 @@ package bootstrap
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 )
 
 type noOpBootstrapProcessProvider struct{}
@@ -49,11 +48,8 @@ type noOpBootstrapProcess struct{}
 
 func (b noOpBootstrapProcess) Run(
 	start time.Time,
-	ns namespace.Metadata,
-	shards []uint32,
-) (ProcessResult, error) {
-	return ProcessResult{
-		DataResult:  result.NewDataBootstrapResult(),
-		IndexResult: result.NewIndexBootstrapResult(),
-	}, nil
+	namespaces []ProcessNamespace,
+	shards sharding.ShardSet,
+) (NamespaceResults, error) {
+	return NewNamespaceResults(NewNamespaces(namespaces, shards)), nil
 }
