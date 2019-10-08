@@ -89,7 +89,6 @@ func (f *fetchBatchOp) CompletionFn() completionFn {
 	return f.completeAll
 }
 
-// TODO: Remove result for this method and only allow calling with err.
 func (f *fetchBatchOp) completeAll(result interface{}, err error) {
 	for idx := range f.completionFns {
 		f.completionFns[idx](result, err)
