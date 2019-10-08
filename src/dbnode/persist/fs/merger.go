@@ -195,7 +195,7 @@ func (m *merger) Merge(
 	// persisted in the first stage.
 
 	// First stage: loop through series on disk.
-	for id, tagsIter, data, checksum, err := reader.Read(); err != io.EOF; id, tagsIter, data, _, err = reader.Read() {
+	for id, tagsIter, data, checksum, err := reader.Read(); err != io.EOF; id, tagsIter, data, checksum, err = reader.Read() {
 		if err != nil {
 			return err
 		}
