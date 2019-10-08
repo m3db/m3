@@ -515,8 +515,8 @@ func (q *queue) asyncTaggedWrite(
 
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeTaggedBatchRawRequestPool.Put(req)
 			q.writeTaggedBatchRawRequestElementArrayPool.Put(elems)
+			q.writeTaggedBatchRawRequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
@@ -576,8 +576,8 @@ func (q *queue) asyncTaggedWriteV2(
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeTaggedBatchRawV2RequestPool.Put(req)
 			q.writeTaggedBatchRawV2RequestElementArrayPool.Put(req.Elements)
+			q.writeTaggedBatchRawV2RequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
@@ -640,8 +640,8 @@ func (q *queue) asyncWrite(
 
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeBatchRawRequestPool.Put(req)
 			q.writeBatchRawRequestElementArrayPool.Put(elems)
+			q.writeBatchRawRequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
@@ -700,8 +700,8 @@ func (q *queue) asyncWriteV2(
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeBatchRawV2RequestPool.Put(req)
 			q.writeBatchRawV2RequestElementArrayPool.Put(req.Elements)
+			q.writeBatchRawV2RequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
