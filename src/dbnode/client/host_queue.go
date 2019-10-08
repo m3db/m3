@@ -56,6 +56,8 @@ type queue struct {
 	writeTaggedBatchRawV2RequestPool             writeTaggedBatchRawV2RequestPool
 	writeTaggedBatchRawRequestElementArrayPool   writeTaggedBatchRawRequestElementArrayPool
 	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+	fetchBatchRawV2RequestPool                   fetchBatchRawV2RequestPool
+	fetchBatchRawV2RequestElementArrayPool       fetchBatchRawV2RequestElementArrayPool
 	workerPool                                   xsync.PooledWorkerPool
 	size                                         int
 	ops                                          []op
@@ -135,14 +137,16 @@ func newHostQueue(
 		writeTaggedBatchRawV2RequestPool:       hostQueueOpts.writeTaggedBatchRawV2RequestPool,
 		writeTaggedBatchRawRequestElementArrayPool:   hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawV2RequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawV2RequestElementArrayPool,
-		workerPool:           workerPool,
-		size:                 size,
-		ops:                  opArrayPool.Get(),
-		opsArrayPool:         opArrayPool,
-		writeOpBatchSize:     scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
-		fetchOpBatchSize:     scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
-		drainIn:              make(chan []op, opsArraysLen),
-		serverSupportsV2APIs: opts.UseV2BatchAPIs(),
+		fetchBatchRawV2RequestPool:                   hostQueueOpts.fetchBatchRawV2RequestPool,
+		fetchBatchRawV2RequestElementArrayPool:       hostQueueOpts.fetchBatchRawV2RequestElementArrayPool,
+		workerPool:                                   workerPool,
+		size:                                         size,
+		ops:                                          opArrayPool.Get(),
+		opsArrayPool:                                 opArrayPool,
+		writeOpBatchSize:                             scopeWithoutHostID.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
+		fetchOpBatchSize:                             scopeWithoutHostID.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
+		drainIn:                                      make(chan []op, opsArraysLen),
+		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
 	}, nil
 }
 
@@ -237,6 +241,9 @@ func (q *queue) drain() {
 
 		currWriteOpsByNamespace       namespaceWriteBatchOpsSlice
 		currTaggedWriteOpsByNamespace namespaceWriteTaggedBatchOpsSlice
+
+		currV2FetchBatchRawReq *rpc.FetchBatchRawV2Request
+		currV2FetchBatchRawOps []op
 	)
 
 	for ops := range q.drainIn {
@@ -256,7 +263,11 @@ func (q *queue) drain() {
 					currTaggedWriteOpsByNamespace = q.drainTaggedWriteOpV1(v, currTaggedWriteOpsByNamespace, ops[i])
 				}
 			case *fetchBatchOp:
-				q.asyncFetch(v)
+				if q.serverSupportsV2APIs {
+					currV2FetchBatchRawReq, currV2FetchBatchRawOps = q.drainFetchBatchRawV2Op(v, currV2FetchBatchRawReq, currV2FetchBatchRawOps, ops[i])
+				} else {
+					q.asyncFetch(v)
+				}
 			case *fetchTaggedOp:
 				q.asyncFetchTagged(v)
 			case *aggregateOp:
@@ -295,6 +306,13 @@ func (q *queue) drain() {
 			// Zero the element
 			currTaggedWriteOpsByNamespace[i] = namespaceWriteTaggedBatchOps{}
 		}
+		// If any outstanding fetches, fetch.
+		if currV2FetchBatchRawReq != nil {
+			q.asyncFetchV2(currV2FetchBatchRawOps, currV2FetchBatchRawReq)
+			currV2FetchBatchRawOps = nil
+			currV2FetchBatchRawReq = nil
+		}
+
 		// Reset the slice
 		currTaggedWriteOpsByNamespace = currTaggedWriteOpsByNamespace[:0]
 		if currV2WriteTaggedReq != nil {
@@ -441,6 +459,45 @@ func (q *queue) drainTaggedWriteOpV2(
 	}
 
 	return currV2WriteTaggedReq, currV2WriteTaggedOps
+}
+
+func (q *queue) drainFetchBatchRawV2Op(
+	v *fetchBatchOp,
+	currV2FetchBatchRawReq *rpc.FetchBatchRawV2Request,
+	currV2FetchBatchRawOps []op,
+	op op,
+) (*rpc.FetchBatchRawV2Request, []op) {
+	namespace := v.request.NameSpace
+	if currV2FetchBatchRawReq == nil {
+		currV2FetchBatchRawReq = q.fetchBatchRawV2RequestPool.Get()
+		currV2FetchBatchRawReq.Elements = q.fetchBatchRawV2RequestElementArrayPool.Get()
+	}
+
+	nsIdx := -1
+	for i, ns := range currV2FetchBatchRawReq.NameSpaces {
+		if bytes.Equal(namespace, ns) {
+			nsIdx = i
+			break
+		}
+	}
+	if nsIdx == -1 {
+		currV2FetchBatchRawReq.NameSpaces = append(currV2FetchBatchRawReq.NameSpaces, namespace)
+		nsIdx = len(currV2FetchBatchRawReq.NameSpaces) - 1
+	}
+	for i := range v.requestV2Elements {
+		v.requestV2Elements[i].NameSpace = int64(nsIdx)
+		currV2FetchBatchRawReq.Elements = append(currV2FetchBatchRawReq.Elements, &v.requestV2Elements[i])
+	}
+	currV2FetchBatchRawOps = append(currV2FetchBatchRawOps, op)
+	// This logic means that in practice we may sometimes exceed the fetch batch size by a factor of 2
+	// but that's ok since it does not need to be exact.
+	if len(currV2FetchBatchRawReq.Elements) >= q.opts.FetchBatchSize() {
+		q.asyncFetchV2(currV2FetchBatchRawOps, currV2FetchBatchRawReq)
+		currV2FetchBatchRawReq = nil
+		currV2FetchBatchRawOps = nil
+	}
+
+	return currV2FetchBatchRawReq, currV2FetchBatchRawOps
 }
 
 func (q *queue) asyncTaggedWrite(
@@ -733,6 +790,63 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 				continue
 			}
 			op.complete(i, result.Elements[i].Segments, nil)
+		}
+		cleanup()
+	})
+}
+
+func (q *queue) asyncFetchV2(
+	ops []op,
+	currV2FetchBatchRawReq *rpc.FetchBatchRawV2Request,
+) {
+	q.fetchOpBatchSize.RecordValue(float64(len(currV2FetchBatchRawReq.Elements)))
+	q.Add(1)
+	q.workerPool.Go(func() {
+		// NB(r): Defer is slow in the hot path unfortunately
+		cleanup := func() {
+			q.fetchBatchRawV2RequestElementArrayPool.Put(currV2FetchBatchRawReq.Elements)
+			q.fetchBatchRawV2RequestPool.Put(currV2FetchBatchRawReq)
+			for _, op := range ops {
+				fetchOp := op.(*fetchBatchOp)
+				fetchOp.DecRef()
+				fetchOp.Finalize()
+			}
+			q.Done()
+		}
+
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available.
+			callAllCompletionFns(ops, nil, err)
+			cleanup()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		result, err := client.FetchBatchRawV2(ctx, currV2FetchBatchRawReq)
+		if err != nil {
+			callAllCompletionFns(ops, nil, err)
+			cleanup()
+			return
+		}
+
+		resultIdx := -1
+		for _, op := range ops {
+			fetchOp := op.(*fetchBatchOp)
+			for j := 0; j < fetchOp.Size(); j++ {
+				resultIdx++
+				if resultIdx >= len(result.Elements) {
+					// No results for this entry, in practice should never occur.
+					fetchOp.complete(j, nil, errQueueFetchNoResponse(q.host.ID()))
+					continue
+				}
+
+				if result.Elements[resultIdx].Err != nil {
+					fetchOp.complete(j, nil, result.Elements[resultIdx].Err)
+					continue
+				}
+				fetchOp.complete(j, result.Elements[resultIdx].Segments, nil)
+			}
 		}
 		cleanup()
 	})

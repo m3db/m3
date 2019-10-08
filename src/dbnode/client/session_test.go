@@ -134,7 +134,9 @@ func newTestHostQueue(opts Options) *queue {
 		writeTaggedBatchRawV2RequestPool:             testWriteTaggedBatchRawV2Pool,
 		writeTaggedBatchRawRequestElementArrayPool:   testWriteTaggedArrayPool,
 		writeTaggedBatchRawV2RequestElementArrayPool: testWriteTaggedV2ArrayPool,
-		opts: opts,
+		fetchBatchRawV2RequestPool:                   testFetchBatchRawV2Pool,
+		fetchBatchRawV2RequestElementArrayPool:       testFetchBatchRawV2ArrayPool,
+		opts:                                         opts,
 	})
 	if err != nil {
 		panic(err)

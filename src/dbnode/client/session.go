@@ -223,6 +223,8 @@ type hostQueueOpts struct {
 	writeTaggedBatchRawV2RequestPool             writeTaggedBatchRawV2RequestPool
 	writeTaggedBatchRawRequestElementArrayPool   writeTaggedBatchRawRequestElementArrayPool
 	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+	fetchBatchRawV2RequestPool                   fetchBatchRawV2RequestPool
+	fetchBatchRawV2RequestElementArrayPool       fetchBatchRawV2RequestElementArrayPool
 	opts                                         Options
 }
 
@@ -891,6 +893,23 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 	writeTaggedBatchRawRequestElementArrayPool.Init()
 	writeTaggedBatchRawV2RequestElementArrayPool := newWriteTaggedBatchRawV2RequestElementArrayPool(
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeTaggedBatchRawV2RequestElementArrayPool.Init()
+
+	fetchBatchRawV2RequestPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-request-pool"),
+		))
+	fetchBatchRawV2RequestPool := newFetchBatchRawV2RequestPool(fetchBatchRawV2RequestPoolOpts)
+	fetchBatchRawV2RequestPool.Init()
+
+	fetchBatchRawV2RequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-request-array-pool"),
+		))
+	fetchBatchRawV2RequestElementArrayPool := newFetchBatchRawV2RequestElementArrayPool(fetchBatchRawV2RequestElementArrayPoolOpts, s.opts.FetchBatchSize())
+	fetchBatchRawV2RequestElementArrayPool.Init()
 
 	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
 		writeBatchRawRequestPool:                     writeBatchRequestPool,
@@ -901,7 +920,9 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		writeTaggedBatchRawV2RequestPool:             writeTaggedBatchV2RequestPool,
 		writeTaggedBatchRawRequestElementArrayPool:   writeTaggedBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawV2RequestElementArrayPool: writeTaggedBatchRawV2RequestElementArrayPool,
-		opts: s.opts,
+		fetchBatchRawV2RequestPool:                   fetchBatchRawV2RequestPool,
+		fetchBatchRawV2RequestElementArrayPool:       fetchBatchRawV2RequestElementArrayPool,
+		opts:                                         s.opts,
 	})
 	if err != nil {
 		return nil, err
