@@ -716,7 +716,19 @@ func (q *queue) asyncWriteV2(
 			return
 		}
 
+		fmt.Println("validating request")
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
+		numNamespaces := len(req.NameSpaces)
+		for _, elem := range req.Elements {
+			if elem.NameSpace >= int64(numNamespaces) {
+				fmt.Println("hmm")
+				fmt.Println("-----------")
+				for _, ns := range req.NameSpaces {
+					fmt.Println("ns:", string(ns))
+				}
+				fmt.Println("bad ns index:", elem.NameSpace)
+			}
+		}
 		err = client.WriteBatchRawV2(ctx, req)
 		if err == nil {
 			// All succeeded.
