@@ -117,6 +117,22 @@ ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15
 ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied
 
 function test_search {
+  start=$(date -v-1m "+%Y-%m-%dT%H:%M:%SZ")
+  end=$(date -v+1m "+%Y-%m-%dT%H:%M:%SZ")
+
+  curl -D headers -X POST 0.0.0.0:7201/search -d '{
+    "start": "'$start'",
+    "end": "'$end'",
+    "matchers": [
+        {
+          "type": 0,
+          "name":"'$(echo __name__ | base64)'",
+          "value":"'$(echo $METRIC_NAME | base64)'"
+        }
+      ]
+    }
+  '
+
   LIMIT=$1
   EXPECTED_HEADER=$2
   trap clean_headers EXIT

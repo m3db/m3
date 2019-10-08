@@ -18,11 +18,11 @@ docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-b
 docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-c
 docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-c
 
-# think of this as a defer func() in golang
-function defer {
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
-}
-trap defer EXIT
+# # think of this as a defer func() in golang
+# function defer {
+#   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+# }
+# trap defer EXIT
 
 DBNODE_HOST=dbnode-cluster-a DBDNODE_PORT=9000 DBNODE_HEALTH_PORT=9002 COORDINATOR_PORT=7201 \
  setup_single_m3db_node
