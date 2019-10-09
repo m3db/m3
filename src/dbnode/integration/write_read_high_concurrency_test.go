@@ -1,6 +1,6 @@
 // +build integration
 //
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -61,8 +61,8 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 	})
 	clientopts = clientopts.
-		SetWriteConsistencyLevel(topology.ReadConsistencyLevelAll)
-	SetReadConsistencyLevel(topology.ReadConsistencyLevelAll)
+		SetWriteConsistencyLevel(topology.ConsistencyLevelAll).
+		SetReadConsistencyLevel(topology.ReadConsistencyLevelAll)
 
 	defer closeFn()
 	log := nodes[0].storageOpts.InstrumentOptions().Logger()
