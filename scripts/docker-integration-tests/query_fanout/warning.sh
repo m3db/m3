@@ -68,21 +68,6 @@ function test_instant_query {
 }
 
 t=$(date +%s)
-METRIC_NAME="foo_$t"
-INSTANT_NAME=$METRIC_NAME
-# # write 5 metrics to cluster a
-write_metrics coordinator-cluster-a 5
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 5
-# limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 4 4 max_fetch_series_limit_applied
-
-# write 10 metrics to cluster b
-write_metrics coordinator-cluster-b 10
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15
-# remote limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 max_fetch_series_limit_applied
 
 function test_range_query {
   LIMIT=$1
@@ -99,22 +84,6 @@ function test_range_query {
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
-
-METRIC_NAME="bar_$t"
-RANGE_NAME=$METRIC_NAME
-# write 5 metrics to cluster a
-write_metrics coordinator-cluster-a 5
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 5
-# limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 4 4 max_fetch_series_limit_applied
-
-# write 10 metrics to cluster b
-write_metrics coordinator-cluster-b 10
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15
-# remote limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied
 
 function test_search {
   start=$(date -v-1m "+%Y-%m-%dT%H:%M:%SZ")
@@ -143,22 +112,6 @@ function test_search {
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
-METRIC_NAME="baz_$t"
-SEARCH_NAME=$METRIC_NAME
-# write 5 metrics to cluster a
-write_metrics coordinator-cluster-a 5
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 15
-# limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied
-
-# write 10 metrics to cluster b
-write_metrics coordinator-cluster-b 10
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16
-# remote limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied
-
 function test_labels {
   LIMIT=$1
   EXPECTED_HEADER=$2
@@ -169,9 +122,6 @@ function test_labels {
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
-
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 1 max_fetch_series_limit_applied
 
 function test_match {
   LIMIT=$1
@@ -189,23 +139,6 @@ function test_match {
   test $ACTUAL -ge $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
-METRIC_NAME="qux_$t"
-MATCH_NAME=$METRIC_NAME
-
-# write 5 metrics to cluster a
-write_metrics coordinator-cluster-a 5
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 6 5
-# limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 4 4 max_fetch_series_limit_applied
-
-# write 10 metrics to cluster b
-write_metrics coordinator-cluster-b 10
-# unlimited query against cluster a has no header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 11 10
-# remote limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 9 9 max_fetch_series_limit_applied
-
 function test_label_values {
   LIMIT=$1
   EXPECTED_HEADER=$2
@@ -217,11 +150,6 @@ function test_label_values {
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 100
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied
-
-
-GRAPHITE="foo.bar.$t"
 function write_carbon {
   CLUSTER=$1
   case $CLUSTER in
@@ -272,55 +200,152 @@ function find_carbon {
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
-# write 5 metrics to cluster a
-write_carbon coordinator-cluster-a 5
-# unlimited query against cluster a has no header
-ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 6 5
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 6
-# limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 4 4 max_fetch_series_limit_applied
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 4 max_fetch_series_limit_applied
+function test_fanout_warning_fetch {
+  METRIC_NAME="foo_$t"
+  export INSTANT_NAME=$METRIC_NAME
+  # # write 5 metrics to cluster a
+  write_metrics coordinator-cluster-a 5
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 5
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 4 4 max_fetch_series_limit_applied
 
-# Update write time as it will otherwise not be written correctly.
-t=$(date +%s)
-# write 10 metrics to cluster b
-write_carbon coordinator-cluster-b 10
-# unlimited query against cluster a has no header
-ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 16 15
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16
-# remote limited query against cluster a has header
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied
+  # write 10 metrics to cluster b
+  write_metrics coordinator-cluster-b 10
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 max_fetch_series_limit_applied
+}
 
+function test_fanout_warning_fetch_instantaneous {
+  METRIC_NAME="bar_$t"
+  export RANGE_NAME=$METRIC_NAME
+  # write 5 metrics to cluster a
+  write_metrics coordinator-cluster-a 5
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 5
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 4 4 max_fetch_series_limit_applied
 
-echo "turning off one of the zones"
-docker-compose -f ${COMPOSE_FILE} stop coordinator-cluster-c
+  # write 10 metrics to cluster b
+  write_metrics coordinator-cluster-b 10
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied
+}
 
-METRIC_NAME=$INSTANT_NAME
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 remote_store_cluster-c_fetch_blocks_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+function test_fanout_warning_search {
+  METRIC_NAME="baz_$t"
+  export SEARCH_NAME=$METRIC_NAME
+  # write 5 metrics to cluster a
+  write_metrics coordinator-cluster-a 5
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 15
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied
 
-METRIC_NAME=$RANGE_NAME
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15 remote_store_cluster-c_fetch_blocks_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+  # write 10 metrics to cluster b
+  write_metrics coordinator-cluster-b 10
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied
+}
 
-METRIC_NAME=$SEARCH_NAME
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16 remote_store_cluster-c_complete_tags_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+function test_fanout_warning_match {
+  METRIC_NAME="qux_$t"
+  export MATCH_NAME=$METRIC_NAME
+  # write 5 metrics to cluster a
+  write_metrics coordinator-cluster-a 5
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 6 5
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 4 4 max_fetch_series_limit_applied
 
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100 remote_store_cluster-c_complete_tags_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 1 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+  # write 10 metrics to cluster b
+  write_metrics coordinator-cluster-b 10
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 11 10
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 9 9 max_fetch_series_limit_applied
+}
 
-METRIC_NAME=$MATCH_NAME
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 11 10 remote_store_cluster-c_search_series_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 9 9 max_fetch_series_limit_applied,remote_store_cluster-c_search_series_warning
+function test_fanout_warning_labels {
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 1 max_fetch_series_limit_applied
+}
 
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 100 remote_store_cluster-c_complete_tags_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+function test_fanout_warning_label_values {
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 100
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied
+}
 
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 16 15 remote_store_cluster-c_fetch_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_warning
+function test_fanout_warning_graphite {
+  # Update write time as it will otherwise not be written correctly.
+  t=$(date +%s)
+  # write 5 metrics to cluster a
+  write_carbon coordinator-cluster-a 5
+  # unlimited query against cluster a has no header
+  ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 6 5
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 6
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 4 4 max_fetch_series_limit_applied
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 4 max_fetch_series_limit_applied
 
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_complete_tags_warning
-ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+  # Update write time as it will otherwise not be written correctly.
+  t=$(date +%s)
+  # write 10 metrics to cluster b
+  write_carbon coordinator-cluster-b 10
+  # unlimited query against cluster a has no header
+  ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 16 15
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied
+}
 
+function test_fanout_warning_missing_zone {
+  docker-compose -f ${COMPOSE_FILE} stop coordinator-cluster-c
+
+  METRIC_NAME=$INSTANT_NAME
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 remote_store_cluster-c_fetch_blocks_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+
+  METRIC_NAME=$RANGE_NAME
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15 remote_store_cluster-c_fetch_blocks_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+
+  METRIC_NAME=$SEARCH_NAME
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16 remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100 remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 1 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+
+  METRIC_NAME=$MATCH_NAME
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 11 10 remote_store_cluster-c_search_series_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 9 9 max_fetch_series_limit_applied,remote_store_cluster-c_search_series_warning
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 100 remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 16 15 remote_store_cluster-c_fetch_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_warning
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+}
+
+function test_fanout_warnings {
+  test_fanout_warning_fetch
+  test_fanout_warning_fetch_instantaneous
+  test_fanout_warning_search
+  test_fanout_warning_match
+  test_fanout_warning_labels
+  test_fanout_warning_label_values
+  export GRAPHITE="foo.bar.$t"
+  test_fanout_warning_graphite
+  test_fanout_warning_missing_zone
+}

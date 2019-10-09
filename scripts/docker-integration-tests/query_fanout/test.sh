@@ -3,9 +3,10 @@
 set -xe
 
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/warning.sh
+
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
-WARNING_TESTS=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/warning.sh
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
@@ -18,11 +19,11 @@ docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-b
 docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-c
 docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-c
 
-# # think of this as a defer func() in golang
-# function defer {
-#   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
-# }
-# trap defer EXIT
+# think of this as a defer func() in golang
+function defer {
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+}
+trap defer EXIT
 
 DBNODE_HOST=dbnode-cluster-a DBDNODE_PORT=9000 DBNODE_HEALTH_PORT=9002 COORDINATOR_PORT=7201 \
  setup_single_m3db_node
@@ -213,4 +214,5 @@ function complete_tags {
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags
 
-$WARNING_TESTS
+echo "running fanout warning tests"
+test_fanout_warnings
