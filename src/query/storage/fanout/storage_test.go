@@ -232,6 +232,27 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 				Metrics: models.Metrics{
 					models.Metric{
 						ID: []byte("ok"),
+						Tags: models.NewTags(1, models.NewTagOptions()).AddTag(models.Tag{
+							Name:  []byte("foo"),
+							Value: []byte("bar"),
+						}),
+					},
+				},
+			},
+			nil,
+		)
+
+	dupeStore := storage.NewMockStorage(ctrl)
+	dupeStore.EXPECT().SearchSeries(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.SearchResults{
+				Metrics: models.Metrics{
+					models.Metric{
+						ID: []byte("ok"),
+						Tags: models.NewTags(1, models.NewTagOptions()).AddTag(models.Tag{
+							Name:  []byte("foo"),
+							Value: []byte("bar"),
+						}),
 					},
 				},
 			},
@@ -253,7 +274,7 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
-	stores := []storage.Storage{warnStore, okStore}
+	stores := []storage.Storage{warnStore, okStore, dupeStore}
 	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
@@ -261,6 +282,10 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 
 	require.Equal(t, 1, len(result.Metrics))
 	assert.Equal(t, []byte("ok"), result.Metrics[0].ID)
+	require.Equal(t, 1, result.Metrics[0].Tags.Len())
+	tag := result.Metrics[0].Tags.Tags[0]
+	require.Equal(t, []byte("foo"), tag.Name)
+	require.Equal(t, []byte("bar"), tag.Value)
 }
 
 func TestFanoutCompleteTagsErrorContinues(t *testing.T) {

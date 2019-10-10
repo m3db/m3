@@ -154,8 +154,13 @@ func (s *m3storage) Fetch(
 		return nil, errMismatchedFetchedLength
 	}
 
-	for i := range fetchResult.SeriesList {
-		fetchResult.SeriesList[i].SetResolution(attrs[i].Resolution)
+	if options.IncludeResolution {
+		resolutions := make([]int64, 0, len(fetchResult.SeriesList))
+		for _, attr := range attrs {
+			resolutions = append(resolutions, int64(attr.Resolution))
+		}
+
+		fetchResult.Metadata.Resolutions = resolutions
 	}
 
 	return fetchResult, nil
@@ -174,7 +179,9 @@ func (s *m3storage) FetchBlocks(
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
-			return block.Result{}, err
+			return block.Result{
+				Metadata: block.NewResultMetadata(),
+			}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query,
@@ -189,7 +196,9 @@ func (s *m3storage) FetchBlocks(
 
 	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	bounds := models.Bounds{
@@ -221,7 +230,9 @@ func (s *m3storage) FetchBlocks(
 	)
 
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	return block.Result{
@@ -242,10 +253,19 @@ func (s *m3storage) FetchCompressed(
 		}, noop, err
 	}
 
-	result, err := accumulator.FinalResult()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		accumulator.Close()
 		return result, noop, err
+	}
+
+	if options.IncludeResolution {
+		resolutions := make([]int64, 0, len(attrs))
+		for _, attr := range attrs {
+			resolutions = append(resolutions, int64(attr.Resolution))
+		}
+
+		result.Metadata.Resolutions = resolutions
 	}
 
 	return result, accumulator.Close, nil
@@ -318,8 +338,7 @@ func (s *m3storage) fetchCompressed(
 
 	result := newMultiFetchResult(fanout, pools)
 	for _, namespace := range namespaces {
-		namespace := namespace // Capture var)
-
+		namespace := namespace // Capture var
 		wg.Add(1)
 		go func() {
 			session := namespace.Session()
@@ -401,7 +420,6 @@ func (s *m3storage) CompleteTags(
 	}
 
 	aggOpts := storage.FetchOptionsToAggregateOptions(options, query)
-
 	var (
 		nameOnly        = query.CompleteNameOnly
 		namespaces      = s.clusters.ClusterNamespaces()
@@ -460,12 +478,12 @@ func (s *m3storage) CompleteTags(
 			aggIterators = append(aggIterators, aggTagIter)
 			mu.Unlock()
 
-			completedTags := make([]storage.CompletedTag, aggTagIter.Remaining())
-			for i := 0; aggTagIter.Next(); i++ {
+			completedTags := make([]storage.CompletedTag, 0, aggTagIter.Remaining())
+			for aggTagIter.Next() {
 				name, values := aggTagIter.Current()
-				tagValues := make([][]byte, values.Remaining())
-				for j := 0; values.Next(); j++ {
-					tagValues[j] = values.Current().Bytes()
+				tagValues := make([][]byte, 0, values.Remaining())
+				for values.Next() {
+					tagValues = append(tagValues, values.Current().Bytes())
 				}
 
 				if err := values.Err(); err != nil {
@@ -473,10 +491,10 @@ func (s *m3storage) CompleteTags(
 					return
 				}
 
-				completedTags[i] = storage.CompletedTag{
+				completedTags = append(completedTags, storage.CompletedTag{
 					Name:   name.Bytes(),
 					Values: tagValues,
-				}
+				})
 			}
 
 			if err := aggTagIter.Err(); err != nil {

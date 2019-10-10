@@ -197,6 +197,8 @@ type Result struct {
 	Blocks []Block
 	// Metadata contains information on fetch status.
 	Metadata ResultMetadata
+	// Resolutions contains a slice representing resolution for graphite queries.
+	Resolutions []int
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.

@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	m3ts "github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -45,10 +44,9 @@ var (
 )
 
 type m3WrappedStore struct {
-	m3               storage.Storage
-	enforcer         cost.ChainedEnforcer
-	queryContextOpts models.QueryContextOptions
-	instrumentOpts   instrument.Options
+	m3             storage.Storage
+	enforcer       cost.ChainedEnforcer
+	instrumentOpts instrument.Options
 }
 
 // NewM3WrappedStorage creates a graphite storage wrapper around an m3query
@@ -56,7 +54,6 @@ type m3WrappedStore struct {
 func NewM3WrappedStorage(
 	m3storage storage.Storage,
 	enforcer cost.ChainedEnforcer,
-	queryContextOpts models.QueryContextOptions,
 	instrumentOpts instrument.Options,
 ) Storage {
 	if enforcer == nil {
@@ -64,10 +61,9 @@ func NewM3WrappedStorage(
 	}
 
 	return &m3WrappedStore{
-		m3:               m3storage,
-		enforcer:         enforcer,
-		queryContextOpts: queryContextOpts,
-		instrumentOpts:   instrumentOpts,
+		m3:             m3storage,
+		enforcer:       enforcer,
+		instrumentOpts: instrumentOpts,
 	}
 }
 
@@ -126,12 +122,19 @@ func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error
 
 func translateTimeseries(
 	ctx xctx.Context,
-	m3list m3ts.SeriesList,
+	result *storage.FetchResult,
 	start, end time.Time,
 ) ([]*ts.Series, error) {
+	m3list := result.SeriesList
 	series := make([]*ts.Series, len(m3list))
+	resolutions := result.Metadata.Resolutions
+	if len(series) != len(resolutions) {
+		return nil, fmt.Errorf("number of timeseries %d does not match number of "+
+			"resolutions %d", len(series), len(resolutions))
+	}
+
 	for i, m3series := range m3list {
-		resolution := m3series.Resolution()
+		resolution := time.Duration(resolutions[i])
 		if resolution <= 0 {
 			return nil, errSeriesNoResolution
 		}
@@ -174,10 +177,11 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
-	fetchOptions.Limit = s.queryContextOpts.LimitMaxTimeseries
+	fetchOptions.Limit = opts.Limit
 	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
 	defer perQueryEnforcer.Close()
 
+	fetchOptions.IncludeResolution = true
 	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,
@@ -190,7 +194,7 @@ func (s *m3WrappedStore) FetchByQuery(
 		return nil, err
 	}
 
-	series, err := translateTimeseries(ctx, m3result.SeriesList,
+	series, err := translateTimeseries(ctx, m3result,
 		opts.StartTime, opts.EndTime)
 	if err != nil {
 		return nil, err

@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
 
@@ -86,8 +87,16 @@ func (f *fetchExpression) Arguments() []ArgumentASTNode {
 func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	begin := time.Now()
 
-	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, ctx.StartTime,
-		ctx.EndTime, ctx.Timeout)
+	opts := storage.FetchOptions{
+		StartTime: ctx.StartTime,
+		EndTime:   ctx.EndTime,
+		DataOptions: storage.DataOptions{
+			Timeout: ctx.Timeout,
+			Limit:   ctx.Limit,
+		},
+	}
+
+	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}

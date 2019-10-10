@@ -14,9 +14,11 @@ services:
     expose:
       - "7201"
       - "7203"
+      - "7204"
     ports:
       - "0.0.0.0:7201:7201"
       - "0.0.0.0:7203:7203"
+      - "0.0.0.0:7204:7204"
     networks:
       - backend
     image: "m3coordinator_integration:${REVISION}"
@@ -36,9 +38,11 @@ services:
     expose:
       - "7201"
       - "7203"
+      - "7204"
     ports:
       - "0.0.0.0:17201:7201"
       - "0.0.0.0:17203:7203"
+      - "0.0.0.0:17204:7204"
     networks:
       - backend
     image: "m3coordinator_integration:${REVISION}"
@@ -58,9 +62,11 @@ services:
     expose:
       - "7201"
       - "7203"
+      - "7204"
     ports:
       - "0.0.0.0:27201:7201"
       - "0.0.0.0:27203:7203"
+      - "0.0.0.0:27204:7204"
     networks:
       - backend
     image: "m3coordinator_integration:${REVISION}"

@@ -213,7 +213,9 @@ func (c *grpcClient) FetchBlocks(
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := c.Fetch(ctx, query, options)
 		if err != nil {
-			return block.Result{}, err
+			return block.Result{
+				Metadata: block.NewResultMetadata(),
+			}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query,
@@ -222,7 +224,9 @@ func (c *grpcClient) FetchBlocks(
 
 	fetchResult, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	// If using multiblock, update options to reflect this.
@@ -250,12 +254,14 @@ func (c *grpcClient) FetchBlocks(
 	)
 
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
 	return block.Result{
-		Blocks: blocks,
-		// Exhaustive: exhaustive, FIXMEARNI
+		Blocks:   blocks,
+		Metadata: fetchResult.Metadata,
 	}, nil
 }
 
@@ -269,7 +275,7 @@ func (c *grpcClient) SearchSeries(
 		return nil, err
 	}
 
-	request, err := encodeSearchRequest(query)
+	request, err := encodeSearchRequest(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +331,7 @@ func (c *grpcClient) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	request, err := encodeCompleteTagsRequest(query)
+	request, err := encodeCompleteTagsRequest(query, options)
 	if err != nil {
 		return nil, err
 	}

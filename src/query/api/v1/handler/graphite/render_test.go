@@ -83,11 +83,13 @@ func TestParseQueryResults(t *testing.T) {
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("series_name"), vals, tags),
 	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
 
-	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []int64{int64(resolution)}
+	mockStorage.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}, nil)
 	handler := NewRenderHandler(mockStorage,
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
@@ -98,7 +100,7 @@ func TestParseQueryResults(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	res := recorder.Result()
-	require.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, 200, res.StatusCode)
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -125,11 +127,13 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
 
-	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []int64{int64(resolution)}
+	mockStorage.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}, nil)
 	handler := NewRenderHandler(mockStorage,
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
@@ -161,11 +165,12 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
 
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
-
-	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []int64{int64(resolution)}
+	mockStorage.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}, nil)
 	handler := NewRenderHandler(mockStorage,
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
@@ -204,14 +209,12 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 				ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 			}
 
-			for _, series := range seriesList {
-				series.SetResolution(resolution)
-			}
-
 			meta := block.NewResultMetadata()
+			meta.Resolutions = []int64{int64(resolution)}
 			meta.Exhaustive = tt.ex
 
 			metaTwo := block.NewResultMetadata()
+			metaTwo.Resolutions = []int64{int64(resolution)}
 			if !tt.ex2 {
 				metaTwo.AddWarning("foo", "bar")
 			}

@@ -138,31 +138,28 @@ type mockEngine struct {
 	fn func(
 		ctx context.Context,
 		query string,
-		start, end time.Time,
-		timeout time.Duration,
+		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
 }
 
 func (e mockEngine) FetchByQuery(
 	ctx context.Context,
 	query string,
-	start, end time.Time,
-	timeout time.Duration,
+	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return e.fn(ctx, query, start, end, timeout)
+	return e.fn(ctx, query, opts)
 }
 
 func TestVariadicSumSeries(t *testing.T) {
 	expr, err := compile("sumSeries(foo.bar.*, foo.baz.*)")
 	require.NoError(t, err)
-
 	ctx := common.NewTestContext()
 	ctx.Engine = mockEngine{fn: func(
 		ctx context.Context,
 		query string,
-		start, end time.Time,
-		timeout time.Duration,
+		options storage.FetchOptions,
 	) (*storage.FetchResult, error) {
+		start := options.StartTime
 		switch query {
 		case "foo.bar.*":
 			return storage.NewFetchResult(ctx, []*ts.Series{

@@ -39,11 +39,13 @@ type FetchOptions struct {
 	DataOptions
 }
 
-// DataOptions provide data context
+// DataOptions provide data context.
 type DataOptions struct {
 	// Timeout determines a custom timeout for the context. If set to 0, uses
 	// the default timeout.
 	Timeout time.Duration
+	// Limit is the limit for number of datapoints to retrieve.
+	Limit int
 }
 
 // Storage provides an interface for retrieving timeseries values or names

@@ -133,6 +133,9 @@ type FetchOptions struct {
 	Enforcer cost.ChainedEnforcer
 	// Scope is used to report metrics about the fetch.
 	Scope tally.Scope
+	// IncludeResolution if set, appends resolution information to fetch results.
+	// Currently only used for graphite queries.
+	IncludeResolution bool
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for

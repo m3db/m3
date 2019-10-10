@@ -108,11 +108,22 @@ func TestTranslateTimeseries(t *testing.T) {
 		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
 		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)),
 			vals, models.NewTags(0, nil))
-		series.SetResolution(resolution)
 		seriesList[i] = series
 	}
 
-	translated, err := translateTimeseries(ctx, seriesList, start, end)
+	resos := make([]int64, 0, expected)
+	for range seriesList {
+		resos = append(resos, int64(resolution))
+	}
+
+	result := &storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata: block.ResultMetadata{
+			Resolutions: resos,
+		},
+	}
+
+	translated, err := translateTimeseries(ctx, result, start, end)
 	require.NoError(t, err)
 
 	require.Equal(t, expected, len(translated))
@@ -135,11 +146,22 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
 		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)), vals,
 			models.NewTags(0, nil))
-		series.SetResolution(resolution)
 		seriesList[i] = series
 	}
 
-	translated, err := translateTimeseries(ctx, seriesList, start, end)
+	resos := make([]int64, 0, expected)
+	for _ = range seriesList {
+		resos = append(resos, int64(resolution))
+	}
+
+	result := &storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata: block.ResultMetadata{
+			Resolutions: resos,
+		},
+	}
+
+	translated, err := translateTimeseries(ctx, result, start, end)
 	require.NoError(t, err)
 
 	require.Equal(t, expected, len(translated))
@@ -159,16 +181,14 @@ func TestFetchByQuery(t *testing.T) {
 	seriesList := m3ts.SeriesList{
 		m3ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
 
 	store.SetFetchResult(&storage.FetchResult{
 		SeriesList: seriesList,
 		Metadata: block.ResultMetadata{
-			Exhaustive: false,
-			LocalOnly:  true,
-			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+			Exhaustive:  false,
+			LocalOnly:   true,
+			Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+			Resolutions: []int64{int64(resolution)},
 		},
 	}, nil)
 
@@ -180,8 +200,7 @@ func TestFetchByQuery(t *testing.T) {
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Child(cost.QueryLevel).Return(childEnforcer).MinTimes(1)
 
-	wrapper := NewM3WrappedStorage(store, enforcer,
-		models.QueryContextOptions{}, instrument.NewOptions())
+	wrapper := NewM3WrappedStorage(store, enforcer, instrument.NewOptions())
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
 	end := time.Now()
@@ -223,8 +242,7 @@ func TestFetchByInvalidQuery(t *testing.T) {
 
 	query := "a."
 	ctx := xctx.New()
-	wrapper := NewM3WrappedStorage(store, nil,
-		models.QueryContextOptions{}, instrument.NewOptions())
+	wrapper := NewM3WrappedStorage(store, nil, instrument.NewOptions())
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
 	assert.NoError(t, err)
 	require.Equal(t, 0, len(result.SeriesList))

@@ -55,7 +55,8 @@ var (
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
 type renderHandler struct {
-	engine *native.Engine
+	engine           *native.Engine
+	queryContextOpts models.QueryContextOptions
 }
 
 type respError struct {
@@ -71,9 +72,10 @@ func NewRenderHandler(
 	instrumentOpts instrument.Options,
 ) http.Handler {
 	wrappedStore := graphite.NewM3WrappedStorage(storage,
-		enforcer, queryContextOpts, instrumentOpts)
+		enforcer, instrumentOpts)
 	return &renderHandler{
-		engine: native.NewEngine(wrappedStore),
+		engine:           native.NewEngine(wrappedStore),
+		queryContextOpts: queryContextOpts,
 	}
 }
 
@@ -102,6 +104,11 @@ func (h *renderHandler) serveHTTP(
 		return respError{err: err, code: http.StatusBadRequest}
 	}
 
+	limit, err := handler.ParseLimit(r, h.queryContextOpts.LimitMaxTimeseries)
+	if err != nil {
+		return respError{err: err, code: http.StatusBadRequest}
+	}
+
 	var (
 		results = make([]ts.SeriesList, len(p.Targets))
 		errorCh = make(chan error, 1)
@@ -113,6 +120,7 @@ func (h *renderHandler) serveHTTP(
 		Start:   p.From,
 		End:     p.Until,
 		Timeout: p.Timeout,
+		Limit:   limit,
 	})
 
 	// Set the request context.

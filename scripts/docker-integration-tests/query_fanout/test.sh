@@ -3,6 +3,8 @@
 set -xe
 
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/warning.sh
+
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
 export REVISION
@@ -211,3 +213,6 @@ function complete_tags {
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags
+
+echo "running fanout warning tests"
+test_fanout_warnings

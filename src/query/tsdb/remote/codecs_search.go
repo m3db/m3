@@ -164,8 +164,14 @@ func decodeSearchResponse(
 // encodeSearchRequest encodes search request into rpc SearchRequest
 func encodeSearchRequest(
 	query *storage.FetchQuery,
+	options *storage.FetchOptions,
 ) (*rpc.SearchRequest, error) {
 	matchers, err := encodeTagMatchers(query.TagMatchers)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := encodeFetchOptions(options)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +180,10 @@ func encodeSearchRequest(
 		Matchers: &rpc.SearchRequest_TagMatchers{
 			TagMatchers: matchers,
 		},
+
+		Start:   fromTime(query.Start),
+		End:     fromTime(query.End),
+		Options: opts,
 	}, nil
 }
 
@@ -188,5 +198,7 @@ func decodeSearchRequest(
 
 	return &storage.FetchQuery{
 		TagMatchers: matchers,
+		Start:       toTime(req.GetStart()),
+		End:         toTime(req.GetEnd()),
 	}, nil
 }

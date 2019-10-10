@@ -46,6 +46,7 @@ const (
 // FetchOptionsBuilder builds fetch options based on a request and default
 // config.
 type FetchOptionsBuilder interface {
+	// NewFetchOptions parses an http request into fetch options.
 	NewFetchOptions(req *http.Request) (*storage.FetchOptions, *xhttp.ParseError)
 }
 
@@ -66,20 +67,43 @@ func NewFetchOptionsBuilder(
 	return fetchOptionsBuilder{opts: opts}
 }
 
-func (b fetchOptionsBuilder) NewFetchOptions(
-	req *http.Request,
-) (*storage.FetchOptions, *xhttp.ParseError) {
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = b.opts.Limit
+// ParseLimit parses request limit from either header or query string.
+func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
 	if str := req.Header.Get(LimitMaxSeriesHeader); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse limit: input=%s, err=%v", str, err)
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+			return 0, err
 		}
-		fetchOpts.Limit = n
+
+		return n, nil
 	}
+
+	if str := req.URL.Query().Get("limit"); str != "" {
+		n, err := strconv.Atoi(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse limit: input=%s, err=%v", str, err)
+			return 0, err
+		}
+
+		return n, nil
+	}
+
+	return defaultLimit, nil
+}
+
+// NewFetchOptions parses an http request into fetch options.
+func (b fetchOptionsBuilder) NewFetchOptions(
+	req *http.Request,
+) (*storage.FetchOptions, *xhttp.ParseError) {
+	fetchOpts := storage.NewFetchOptions()
+	limit, err := ParseLimit(req, b.opts.Limit)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+	fetchOpts.Limit = limit
 	if str := req.Header.Get(MetricsTypeHeader); str != "" {
 		mt, err := storage.ParseMetricsType(str)
 		if err != nil {

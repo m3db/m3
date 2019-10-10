@@ -63,6 +63,8 @@ type ResultMetadata struct {
 	// Warnings is a list of warnings that indicate potetitally partial or
 	// incomplete results.
 	Warnings Warnings
+	// Resolutions is a list of resolutions for series obtained by this query.
+	Resolutions []int64
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -73,30 +75,68 @@ func NewResultMetadata() ResultMetadata {
 	}
 }
 
-// CombineMetadata combines two result metadatas.
-func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
-	var combinedWarnings Warnings
-	if len(m.Warnings) == 0 {
-		if len(other.Warnings) != 0 {
-			combinedWarnings = other.Warnings
+func combineResolutions(a, b []int64) []int64 {
+	if len(a) == 0 {
+		if len(b) != 0 {
+			return b
 		}
 	} else {
-		if len(other.Warnings) == 0 {
-			combinedWarnings = m.Warnings
+		if len(b) == 0 {
+			return a
 		} else {
-			combinedWarnings = make(Warnings, 0, len(m.Warnings)+len(other.Warnings))
-			combinedWarnings = append(combinedWarnings, m.Warnings...)
-			combinedWarnings = combinedWarnings.addWarnings(other.Warnings...)
+			combined := make([]int64, 0, len(a)+len(b))
+			combined = append(combined, a...)
+			combined = append(combined, b...)
+			return combined
 		}
 	}
 
+	return nil
+}
+
+func combineWarnings(a, b Warnings) Warnings {
+	if len(a) == 0 {
+		if len(b) != 0 {
+			return b
+		}
+	} else {
+		if len(b) == 0 {
+			return a
+		} else {
+			combinedWarnings := make(Warnings, 0, len(a)+len(b))
+			combinedWarnings = append(combinedWarnings, a...)
+			return combinedWarnings.addWarnings(b...)
+		}
+	}
+
+	return nil
+}
+
+// CombineMetadata combines two result metadatas.
+func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	meta := ResultMetadata{
-		LocalOnly:  m.LocalOnly && other.LocalOnly,
-		Exhaustive: m.Exhaustive && other.Exhaustive,
-		Warnings:   combinedWarnings,
+		LocalOnly:   m.LocalOnly && other.LocalOnly,
+		Exhaustive:  m.Exhaustive && other.Exhaustive,
+		Warnings:    combineWarnings(m.Warnings, other.Warnings),
+		Resolutions: combineResolutions(m.Resolutions, other.Resolutions),
 	}
 
 	return meta
+}
+
+// IsDefault returns true if this result metadata matches the unchanged default.
+func (m ResultMetadata) IsDefault() bool {
+	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
+}
+
+// AddWarning adds a warning to the result metadata.
+// NB: warnings are expected to be small in general, so it's better to iterate
+// over the array rather than introduce a map.
+func (m *ResultMetadata) AddWarning(name string, message string) {
+	m.Warnings = m.Warnings.addWarnings(Warning{
+		Name:    name,
+		Message: message,
+	})
 }
 
 // NB: this is not a very efficient merge but this is extremely unlikely to be
@@ -117,21 +157,6 @@ func (w Warnings) addWarnings(warnings ...Warning) Warnings {
 	}
 
 	return w
-}
-
-// IsDefault returns true if this result metadata matches the unchanged default.
-func (m ResultMetadata) IsDefault() bool {
-	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
-}
-
-// AddWarning adds a warning to the result metadata.
-// NB: warnings are expected to be small in general, so it's better to iterate
-// over the array rather than introduce a map.
-func (m *ResultMetadata) AddWarning(name string, message string) {
-	m.Warnings = m.Warnings.addWarnings(Warning{
-		Name:    name,
-		Message: message,
-	})
 }
 
 // Warning is a message that indicates potential partial or incomplete results.
