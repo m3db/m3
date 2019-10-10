@@ -150,7 +150,7 @@ function test_query_restrict_metrics_type {
   hour_ago=$(expr $now - 3600) 
   step="30s"
   params_instant=""
-  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
+  params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=${step}"
   jq_path_instant=".data.result[0].value[1]"
   jq_path_range=".data.result[0].values[][1]"
   
@@ -179,6 +179,32 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
+function test_query_lookback_duration {
+  # We use hour ago and hour future to make sure the lookback sliding window 
+  # is well into the future to allow for maximum points to be repeated 
+  # if the lookback is longer than the step
+  now=$(date +"%s")
+  hour_future=$(expr $now + 3600)
+  hour_ago=$(expr $now - 3600)
+  jq_path_range=".data.result[0].values | length"
+  
+  # Test setting specific lookback duration
+  echo "Test lookback causes steps to return 6 values (lookback 30s / step 5s = 6)"
+  params_range="start=${hour_ago}"'&'"end=${hour_future}"'&'"step=5s&lookback=30s"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="6" \
+    retry_with_backoff prometheus_query_native
+
+  # Test setting the lookback aligned with the step size result in single value
+  echo "Test lookback causes steps to return 1 value (lookback 5s / step 5s = 1)"
+  params_range="start=${hour_ago}"'&'"end=${hour_future}"'&'"step=5s&lookback=step"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="$params_range" \
+    metrics_type="unaggregated" jq_path="$jq_path_range" expected_value="1" \
+    retry_with_backoff prometheus_query_native
+}
+
 # Run all tests
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
@@ -186,3 +212,4 @@ test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_query_lookback_duration
