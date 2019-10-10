@@ -1571,18 +1571,16 @@ func (s *session) fetchIDsAttempt(
 				resultErrs++
 				resultErrLock.Unlock()
 			} else {
-				resultErrLock.Lock()
+				resultsLock.RLock()
 				numItersToInclude := int(success)
-				resultErrLock.Unlock()
 				numDesired := topology.NumDesiredForReadConsistency(consistencyLevel, int(numReplicas), int(majority))
 				if numDesired < numItersToInclude {
 					// Avoid decoding more data than is required to satisfy the consistency guarantees.
 					numItersToInclude = numDesired
 				}
-
-				resultsLock.RLock()
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
+
 				iter := s.pools.seriesIterator.Get()
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
