@@ -15,7 +15,6 @@ mkdir -p ./bin
 # by keeping all the required files in ./bin, it makes the build context
 # for docker much smaller
 cp ./src/query/config/m3query-dev-remote.yml ./bin
-cp ./scripts/comparator/docker-run.sh ./bin
 
 # build images
 echo "building docker image"
@@ -28,4 +27,5 @@ svc="m3query"
 echo "creating image for $svc"
 make ${svc}-linux-amd64
 
-docker build -t "comparator:${REVISION}" -f ./scripts/comparator/comparator.Dockerfile ./bin
+docker build -t "m3query:${REVISION}" -f ./scripts/comparator/m3query.Dockerfile ./bin
+docker build -t "m3comparator:${REVISION}" -f ./scripts/comparator/m3comparator.Dockerfile ./bin

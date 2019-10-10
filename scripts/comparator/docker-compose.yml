@@ -1,5 +1,13 @@
 version: "3.5"
 services:
+  m3comparator:
+    expose:
+      - "9000"
+    ports:
+      - "0.0.0.0:9000:9000"
+    networks:
+      - backend
+    image: "m3comparator:${REVISION}"
   m3query:
     expose:
       - "7201"
@@ -9,7 +17,7 @@ services:
       - "0.0.0.0:7203:7203"
     networks:
       - backend
-    image: "comparator:${REVISION}"
+    image: "m3query:${REVISION}"
   prometheus:
     expose:
       - "9090"

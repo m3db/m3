@@ -8,4 +8,5 @@ export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d m3query
+docker-compose -f ${COMPOSE_FILE} up -d m3comparator
 docker-compose -f ${COMPOSE_FILE} up -d prometheus
