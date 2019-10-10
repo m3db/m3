@@ -1571,7 +1571,9 @@ func (s *session) fetchIDsAttempt(
 				resultErrs++
 				resultErrLock.Unlock()
 			} else {
+				resultErrLock.Lock()
 				numItersToInclude := int(success)
+				resultErrLock.Unlock()
 				numDesired := topology.NumDesiredForReadConsistency(consistencyLevel, int(numReplicas), int(majority))
 				if numDesired < numItersToInclude {
 					// Avoid decoding more data than is required to satisfy the consistency guarantees.
