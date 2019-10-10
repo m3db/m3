@@ -63,6 +63,7 @@ SERVICES :=     \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
+	m3comparator  \
 
 SUBDIRS :=    \
 	x           \

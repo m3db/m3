@@ -1,0 +1,24 @@
+version: "3.5"
+services:
+  m3query:
+    expose:
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    networks:
+      - backend
+    image: "comparator:${REVISION}"
+  prometheus:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./:/etc/prometheus/"
+networks:
+  backend:

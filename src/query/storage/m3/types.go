@@ -57,6 +57,13 @@ type Querier interface {
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
 	) ([]MultiTagResult, Cleanup, error)
+
+	// CompleteTagsCompressed returns autocompleted tag results.
+	CompleteTagsCompressed(
+		ctx context.Context,
+		query *genericstorage.CompleteTagsQuery,
+		options *genericstorage.FetchOptions,
+	) (*genericstorage.CompleteTagsResult, error)
 }
 
 // MultiFetchResult is a deduping accumalator for series iterators

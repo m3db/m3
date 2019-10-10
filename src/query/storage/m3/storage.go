@@ -367,6 +367,15 @@ func (s *m3storage) SearchSeries(
 	}, nil
 }
 
+// CompleteTagsCompressed has the same behavior as CompleteTags.
+func (s *m3storage) CompleteTagsCompressed(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	return s.CompleteTags(ctx, query, options)
+}
+
 func (s *m3storage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
