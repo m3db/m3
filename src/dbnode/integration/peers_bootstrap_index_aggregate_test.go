@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -59,7 +59,11 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{ns1})
+		SetNamespaces([]namespace.Metadata{ns1}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},

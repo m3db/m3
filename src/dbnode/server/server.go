@@ -686,8 +686,8 @@ func Run(runOpts RunOptions) {
 				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 			if err != nil {
 				logger.Fatal(
-					"unable to create client for replicated cluster: %s",
-					zap.String("clusterName", cluster.Name))
+					"unable to create client for replicated cluster",
+					zap.String("clusterName", cluster.Name), zap.Error(err))
 			}
 			repairClients = append(repairClients, clusterClient)
 		}

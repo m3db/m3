@@ -155,6 +155,10 @@ const (
 
 	// defaultAsyncWriteMaxConcurrency is the default maximum concurrency for async writes.
 	defaultAsyncWriteMaxConcurrency = 4096
+
+	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
+	// be used.
+	defaultUseV2BatchAPIs = false
 )
 
 var (
@@ -253,6 +257,7 @@ type options struct {
 	asyncTopologyInitializers               []topology.Initializer
 	asyncWriteWorkerPool                    xsync.PooledWorkerPool
 	asyncWriteMaxConcurrency                int
+	useV2BatchAPIs                          bool
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -345,6 +350,7 @@ func newOptions() *options {
 		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
 		asyncTopologyInitializers:               []topology.Initializer{},
 		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
+		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -930,4 +936,14 @@ func (o *options) SetAsyncWriteMaxConcurrency(value int) Options {
 
 func (o *options) AsyncWriteMaxConcurrency() int {
 	return o.asyncWriteMaxConcurrency
+}
+
+func (o *options) SetUseV2BatchAPIs(value bool) Options {
+	opts := *o
+	opts.useV2BatchAPIs = value
+	return &opts
+}
+
+func (o *options) UseV2BatchAPIs() bool {
+	return o.useV2BatchAPIs
 }

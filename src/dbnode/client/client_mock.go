@@ -2349,6 +2349,34 @@ func (mr *MockOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteMaxConcurrency", reflect.TypeOf((*MockOptions)(nil).AsyncWriteMaxConcurrency))
 }
 
+// SetUseV2BatchAPIs mocks base method
+func (m *MockOptions) SetUseV2BatchAPIs(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetUseV2BatchAPIs", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetUseV2BatchAPIs indicates an expected call of SetUseV2BatchAPIs
+func (mr *MockOptionsMockRecorder) SetUseV2BatchAPIs(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUseV2BatchAPIs", reflect.TypeOf((*MockOptions)(nil).SetUseV2BatchAPIs), value)
+}
+
+// UseV2BatchAPIs mocks base method
+func (m *MockOptions) UseV2BatchAPIs() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UseV2BatchAPIs")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// UseV2BatchAPIs indicates an expected call of UseV2BatchAPIs
+func (mr *MockOptionsMockRecorder) UseV2BatchAPIs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseV2BatchAPIs", reflect.TypeOf((*MockOptions)(nil).UseV2BatchAPIs))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3688,6 +3716,34 @@ func (mr *MockAdminOptionsMockRecorder) AsyncWriteMaxConcurrency() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncWriteMaxConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).AsyncWriteMaxConcurrency))
 }
 
+// SetUseV2BatchAPIs mocks base method
+func (m *MockAdminOptions) SetUseV2BatchAPIs(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetUseV2BatchAPIs", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetUseV2BatchAPIs indicates an expected call of SetUseV2BatchAPIs
+func (mr *MockAdminOptionsMockRecorder) SetUseV2BatchAPIs(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetUseV2BatchAPIs", reflect.TypeOf((*MockAdminOptions)(nil).SetUseV2BatchAPIs), value)
+}
+
+// UseV2BatchAPIs mocks base method
+func (m *MockAdminOptions) UseV2BatchAPIs() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UseV2BatchAPIs")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// UseV2BatchAPIs indicates an expected call of UseV2BatchAPIs
+func (mr *MockAdminOptionsMockRecorder) UseV2BatchAPIs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseV2BatchAPIs", reflect.TypeOf((*MockAdminOptions)(nil).UseV2BatchAPIs))
+}
+
 // SetOrigin mocks base method
 func (m *MockAdminOptions) SetOrigin(value topology.Host) AdminOptions {
 	m.ctrl.T.Helper()
@@ -4616,19 +4672,18 @@ func (mr *MockenqueueChannelMockRecorder) enqueueDelayed(numToEnqueue interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "enqueueDelayed", reflect.TypeOf((*MockenqueueChannel)(nil).enqueueDelayed), numToEnqueue)
 }
 
-// get mocks base method
-func (m *MockenqueueChannel) get() (<-chan []receivedBlockMetadata, error) {
+// read mocks base method
+func (m *MockenqueueChannel) read() <-chan []receivedBlockMetadata {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "get")
+	ret := m.ctrl.Call(m, "read")
 	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
-// get indicates an expected call of get
-func (mr *MockenqueueChannelMockRecorder) get() *gomock.Call {
+// read indicates an expected call of read
+func (mr *MockenqueueChannelMockRecorder) read() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "get", reflect.TypeOf((*MockenqueueChannel)(nil).get))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "read", reflect.TypeOf((*MockenqueueChannel)(nil).read))
 }
 
 // trackPending mocks base method

@@ -23,6 +23,7 @@ package node
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -830,6 +831,71 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	return result, nil
 }
 
+func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2Request) (*rpc.FetchBatchRawResult_, error) {
+	s.metrics.fetchBatchRawRPCS.Inc(1)
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	var (
+		callStart          = s.nowFn()
+		ctx                = tchannelthrift.Context(tctx)
+		nsIDs              = make([]ident.ID, 0, len(req.Elements))
+		result             = rpc.NewFetchBatchRawResult_()
+		success            int
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for _, nsBytes := range req.NameSpaces {
+		nsIDs = append(nsIDs, s.newID(ctx, nsBytes))
+	}
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= int64(len(nsIDs)) {
+			return nil, fmt.Errorf(
+				"received fetch request with namespace index: %d, but only %d namespaces were provided",
+				elem.NameSpace, len(nsIDs))
+		}
+	}
+
+	for _, elem := range req.Elements {
+		start, rangeStartErr := convert.ToTime(elem.RangeStart, elem.RangeTimeType)
+		end, rangeEndErr := convert.ToTime(elem.RangeEnd, elem.RangeTimeType)
+		if rangeStartErr != nil || rangeEndErr != nil {
+			s.metrics.fetchBatchRaw.ReportNonRetryableErrors(len(req.Elements))
+			s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+			return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+		}
+
+		rawResult := rpc.NewFetchRawResult_()
+		result.Elements = append(result.Elements, rawResult)
+		tsID := s.newID(ctx, elem.ID)
+
+		nsIdx := nsIDs[int(elem.NameSpace)]
+		segments, rpcErr := s.readEncoded(ctx, db, nsIdx, tsID, start, end)
+		if rpcErr != nil {
+			rawResult.Err = rpcErr
+			if tterrors.IsBadRequestError(rawResult.Err) {
+				nonRetryableErrors++
+			} else {
+				retryableErrors++
+			}
+			continue
+		}
+
+		success++
+		rawResult.Segments = segments
+	}
+
+	s.metrics.fetchBatchRaw.ReportSuccess(success)
+	s.metrics.fetchBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.fetchBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	return result, nil
+}
+
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
@@ -1228,6 +1294,121 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	return nil
 }
 
+func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2Request) error {
+	s.metrics.writeBatchRawRPCs.Inc(1)
+	db, err := s.startWriteRPCWithDB()
+	if err != nil {
+		return err
+	}
+	defer s.writeRPCCompleted()
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	// Sanity check input.
+	numNamespaces := int64(len(req.NameSpaces))
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= numNamespaces {
+			return fmt.Errorf("namespace index: %d is out of range of provided namespaces", elem.NameSpace)
+		}
+	}
+
+	// Sort the elements so that they're sorted by namespace so we can reuse the same batch writer.
+	sort.Slice(req.Elements, func(i, j int) bool {
+		return req.Elements[i].NameSpace < req.Elements[j].NameSpace
+	})
+
+	// NB(r): Use the pooled request tracking to return thrift alloc'd bytes
+	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
+	// reuse. We also reduce contention on pools by getting one per batch request
+	// rather than one per ID.
+	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq.writeV2Req = req
+	ctx.RegisterFinalizer(pooledReq)
+
+	var (
+		nsID        ident.ID
+		nsIdx       int64
+		batchWriter ts.BatchWriter
+
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for i, elem := range req.Elements {
+		if nsID == nil || elem.NameSpace != nsIdx {
+			if batchWriter != nil {
+				err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+				if err != nil {
+					return convert.ToRPCError(err)
+				}
+				batchWriter = nil
+			}
+
+			nsID = s.newPooledID(ctx, req.NameSpaces[elem.NameSpace], pooledReq)
+			nsIdx = elem.NameSpace
+
+			batchWriter, err = db.BatchWriter(nsID, len(req.Elements))
+			if err != nil {
+				return convert.ToRPCError(err)
+			}
+			// The lifecycle of the annotations is more involved than the rest of the data
+			// so we set the annotation pool put method as the finalization function and
+			// let the database take care of returning them to the pool.
+			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
+		}
+
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
+		if unitErr != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			continue
+		}
+
+		d, err := unit.Value()
+		if err != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+		batchWriter.Add(
+			i,
+			seriesID,
+			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation,
+		)
+	}
+
+	if batchWriter != nil {
+		// Write the last batch.
+		err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+		if err != nil {
+			return convert.ToRPCError(err)
+		}
+	}
+
+	nonRetryableErrors += pooledReq.numNonRetryableErrors()
+	retryableErrors += pooledReq.numRetryableErrors()
+	totalErrors := nonRetryableErrors + retryableErrors
+
+	s.metrics.writeBatchRaw.ReportSuccess(len(req.Elements) - totalErrors)
+	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	errs := pooledReq.writeBatchRawErrors()
+	if len(errs) > 0 {
+		batchErrs := rpc.NewWriteBatchRawErrors()
+		batchErrs.Errors = errs
+		return batchErrs
+	}
+
+	return nil
+}
+
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
 	s.metrics.writeTaggedBatchRawRPCs.Inc(1)
 	db, err := s.startWriteRPCWithDB()
@@ -1312,6 +1493,131 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	s.metrics.writeTaggedBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	errs := pooledReq.writeBatchRawErrors()
+	if len(errs) > 0 {
+		batchErrs := rpc.NewWriteBatchRawErrors()
+		batchErrs.Errors = errs
+		return batchErrs
+	}
+
+	return nil
+}
+
+func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
+	s.metrics.writeBatchRawRPCs.Inc(1)
+	db, err := s.startWriteRPCWithDB()
+	if err != nil {
+		return err
+	}
+	defer s.writeRPCCompleted()
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	// Sanity check input.
+	numNamespaces := int64(len(req.NameSpaces))
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= numNamespaces {
+			return fmt.Errorf("namespace index: %d is out of range of provided namespaces", elem.NameSpace)
+		}
+	}
+
+	// Sort the elements so that they're sorted by namespace so we can reuse the same batch writer.
+	sort.Slice(req.Elements, func(i, j int) bool {
+		return req.Elements[i].NameSpace < req.Elements[j].NameSpace
+	})
+
+	// NB(r): Use the pooled request tracking to return thrift alloc'd bytes
+	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
+	// reuse. We also reduce contention on pools by getting one per batch request
+	// rather than one per ID.
+	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq.writeTaggedV2Req = req
+	ctx.RegisterFinalizer(pooledReq)
+
+	var (
+		nsID        ident.ID
+		nsIdx       int64
+		batchWriter ts.BatchWriter
+
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for i, elem := range req.Elements {
+		if nsID == nil || elem.NameSpace != nsIdx {
+			if batchWriter != nil {
+				err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+				if err != nil {
+					return convert.ToRPCError(err)
+				}
+				batchWriter = nil
+			}
+
+			nsID = s.newPooledID(ctx, req.NameSpaces[elem.NameSpace], pooledReq)
+			nsIdx = elem.NameSpace
+
+			batchWriter, err = db.BatchWriter(nsID, len(req.Elements))
+			if err != nil {
+				return convert.ToRPCError(err)
+			}
+			// The lifecycle of the encoded tags and annotations is more involved than the
+			// rest of the data so we set the annotation pool put method as the finalization
+			// function and let the database take care of returning them to the pool.
+			batchWriter.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
+			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
+		}
+
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
+		if unitErr != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			continue
+		}
+
+		d, err := unit.Value()
+		if err != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
+		if err != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+		batchWriter.AddTagged(
+			i,
+			seriesID,
+			dec,
+			elem.EncodedTags,
+			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation,
+		)
+	}
+
+	if batchWriter != nil {
+		// Write the last batch.
+		err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+		if err != nil {
+			return convert.ToRPCError(err)
+		}
+	}
+
+	nonRetryableErrors += pooledReq.numNonRetryableErrors()
+	retryableErrors += pooledReq.numRetryableErrors()
+	totalErrors := nonRetryableErrors + retryableErrors
+
+	s.metrics.writeBatchRaw.ReportSuccess(len(req.Elements) - totalErrors)
+	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 
 	errs := pooledReq.writeBatchRawErrors()
 	if len(errs) > 0 {
@@ -1706,10 +2012,12 @@ func (c closeableMetadataV2Result) Finalize() {
 }
 
 type writeBatchPooledReq struct {
-	pooledIDs      []writeBatchPooledReqID
-	pooledIDsUsed  int
-	writeReq       *rpc.WriteBatchRawRequest
-	writeTaggedReq *rpc.WriteTaggedBatchRawRequest
+	pooledIDs        []writeBatchPooledReqID
+	pooledIDsUsed    int
+	writeReq         *rpc.WriteBatchRawRequest
+	writeV2Req       *rpc.WriteBatchRawV2Request
+	writeTaggedReq   *rpc.WriteTaggedBatchRawRequest
+	writeTaggedV2Req *rpc.WriteTaggedBatchRawV2Request
 
 	// We want to avoid allocating an intermediary slice of []error so we
 	// just include all the error handling in this struct for performance
@@ -1775,6 +2083,16 @@ func (r *writeBatchPooledReq) Finalize() {
 		}
 		r.writeReq = nil
 	}
+	if r.writeV2Req != nil {
+		for _, elem := range r.writeV2Req.Elements {
+			apachethrift.BytesPoolPut(elem.ID)
+			// Ownership of the annotations has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+		}
+		r.writeV2Req = nil
+	}
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
@@ -1786,6 +2104,18 @@ func (r *writeBatchPooledReq) Finalize() {
 			// See comment above about not finalizing annotations here.
 		}
 		r.writeTaggedReq = nil
+	}
+	if r.writeTaggedV2Req != nil {
+		for _, elem := range r.writeTaggedV2Req.Elements {
+			apachethrift.BytesPoolPut(elem.ID)
+			// Ownership of the encoded tags has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+
+			// See comment above about not finalizing annotations here.
+		}
+		r.writeTaggedV2Req = nil
 	}
 
 	r.nonRetryableErrors = 0
