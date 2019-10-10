@@ -647,6 +647,15 @@ func NewSeriesList() SeriesList {
 	return SeriesList{Metadata: block.NewResultMetadata()}
 }
 
+// NewSeriesListWithSeries creates a series list with the given series and
+// default metadata.
+func NewSeriesListWithSeries(values ...*Series) SeriesList {
+	return SeriesList{
+		Values:   values,
+		Metadata: block.NewResultMetadata(),
+	}
+}
+
 // Len returns the length of the list.
 func (l SeriesList) Len() int {
 	return len(l.Values)

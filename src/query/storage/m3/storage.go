@@ -381,15 +381,15 @@ func (s *m3storage) SearchSeries(
 		return nil, err
 	}
 
-	metrics := make(models.Metrics, len(tagResult.Tags))
-	for i, result := range tagResult.Tags {
+	metrics := make(models.Metrics, 0, len(tagResult.Tags))
+	for _, result := range tagResult.Tags {
 		m, err := storage.FromM3IdentToMetric(result.ID,
 			result.Iter, s.opts.TagOptions())
 		if err != nil {
 			return nil, err
 		}
 
-		metrics[i] = m
+		metrics = append(metrics, m)
 	}
 
 	return &storage.SearchResults{

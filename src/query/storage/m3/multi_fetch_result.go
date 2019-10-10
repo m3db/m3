@@ -126,6 +126,7 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	}
 
 	if len(r.seenIters) == 0 {
+		result.SeriesIterators = encoding.EmptySeriesIterators
 		return result, nil
 	}
 

@@ -174,8 +174,8 @@ func (h *renderHandler) serveHTTP(
 
 			mu.Lock()
 			meta = meta.CombineMetadata(targetSeries.Metadata)
-			mu.Unlock()
 			results[i] = targetSeries
+			mu.Unlock()
 		}()
 	}
 

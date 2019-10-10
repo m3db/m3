@@ -23,10 +23,10 @@ package m3
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -148,8 +148,7 @@ func encodeFanoutOption(opt storage.FanoutOption) (rpc.FanoutOption, error) {
 		return rpc.FanoutOption_FORCE_ENABLED, nil
 	}
 
-	return rpc.FanoutOption_FORCE_ENABLED,
-		fmt.Errorf("Unknown fanout option for proto encoding: %v\n", opt)
+	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v\n", opt)
 }
 
 func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error) {

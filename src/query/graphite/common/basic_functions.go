@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
@@ -108,10 +107,7 @@ func Identity(ctx *Context, name string) (ts.SeriesList, error) {
 	}
 	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, vals)
 	newSeries.Specification = fmt.Sprintf("identity(%q)", name)
-	return ts.SeriesList{
-		Values:   []*ts.Series{newSeries},
-		Metadata: block.NewResultMetadata(),
-	}, nil
+	return ts.NewSeriesListWithSeries(newSeries), nil
 }
 
 // Normalize normalizes all input series to the same start time, step size, and end time.
@@ -167,11 +163,9 @@ func Count(ctx *Context, seriesList ts.SeriesList, renamer SeriesListRenamer) (t
 	if seriesList.Len() == 0 {
 		numSteps := ctx.EndTime.Sub(ctx.StartTime).Minutes()
 		vals := ts.NewZeroValues(ctx, MillisPerMinute, int(numSteps))
-		r := ts.SeriesList{
-			Values:   []*ts.Series{ts.NewSeries(ctx, renamer(seriesList), ctx.StartTime, vals)},
-			Metadata: block.NewResultMetadata(),
-		}
-		return r, nil
+		return ts.NewSeriesListWithSeries(
+			ts.NewSeries(ctx, renamer(seriesList), ctx.StartTime, vals),
+		), nil
 	}
 
 	normalized, start, end, millisPerStep, err := Normalize(ctx, seriesList)

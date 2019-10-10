@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -178,10 +177,7 @@ func constantLine(ctx *common.Context, value float64) (ts.SeriesList, error) {
 	if err != nil {
 		return ts.NewSeriesList(), err
 	}
-	return ts.SeriesList{
-		Values:   []*ts.Series{newSeries},
-		Metadata: block.NewResultMetadata(),
-	}, nil
+	return ts.NewSeriesListWithSeries(newSeries), nil
 }
 
 // identity returns datapoints where the value equals the timestamp of the datapoint.
@@ -1535,10 +1531,7 @@ func randomWalkFunction(ctx *common.Context, name string, step int) (ts.SeriesLi
 		vals.SetValueAt(i, r.Float64()-0.5)
 	}
 	newSeries := ts.NewSeries(ctx, name, ctx.StartTime, vals)
-	return ts.SeriesList{
-		Values:   []*ts.Series{newSeries},
-		Metadata: block.NewResultMetadata(),
-	}, nil
+	return ts.NewSeriesListWithSeries(newSeries), nil
 }
 
 // aggregateLine draws a horizontal line based the function applied to the series.
@@ -1795,10 +1788,7 @@ func timeFunction(ctx *common.Context, name string, step int) (ts.SeriesList, er
 	}
 
 	series := ts.NewSeries(ctx, name, start, vals)
-	return ts.SeriesList{
-		Values:   []*ts.Series{series},
-		Metadata: block.NewResultMetadata(),
-	}, nil
+	return ts.NewSeriesListWithSeries(series), nil
 }
 
 // dashed draws the selected metrics with a dotted line with segments of length f.
@@ -1833,10 +1823,7 @@ func threshold(ctx *common.Context, value float64, label string, color string) (
 		series = series.RenamedTo(label)
 	}
 
-	return ts.SeriesList{
-		Values:   []*ts.Series{series},
-		Metadata: block.NewResultMetadata(),
-	}, nil
+	return ts.NewSeriesListWithSeries(series), nil
 }
 
 func init() {
