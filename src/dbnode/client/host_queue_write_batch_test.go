@@ -188,6 +188,8 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 
 			if opts.UseV2BatchAPIs() {
 				writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawV2Request) {
+					assert.Equal(t, 2, len(req.NameSpaces))
+					assert.Equal(t, len(writes), len(req.Elements))
 					for i, write := range writes {
 						if i < 3 {
 							assert.Equal(t, req.Elements[i].NameSpace, int64(0))
