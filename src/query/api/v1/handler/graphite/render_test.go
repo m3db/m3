@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -35,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,11 +83,13 @@ func TestParseQueryResults(t *testing.T) {
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("series_name"), vals, tags),
 	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
 
-	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []int64{int64(resolution)}
+	mockStorage.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}, nil)
 	handler := NewRenderHandler(mockStorage,
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
@@ -95,7 +100,7 @@ func TestParseQueryResults(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	res := recorder.Result()
-	require.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, 200, res.StatusCode)
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -122,11 +127,13 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
 
-	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []int64{int64(resolution)}
+	mockStorage.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}, nil)
 	handler := NewRenderHandler(mockStorage,
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
@@ -152,17 +159,18 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	minsAgo := 12
 	start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
-
 	resolution := 10 * time.Second
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
 	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
 
-	mockStorage.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
+	meta := block.NewResultMetadata()
+	meta.Resolutions = []int64{int64(resolution)}
+	mockStorage.SetFetchResult(&storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   meta,
+	}, nil)
 	handler := NewRenderHandler(mockStorage,
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
@@ -187,6 +195,48 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 		start.Unix(), start.Unix()+10, start.Unix()+20, resolution/time.Millisecond)
 
 	require.Equal(t, expected, string(buf))
+}
+
+func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
+	for _, tt := range limitTests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockStorage := mock.NewMockStorage()
+			minsAgo := 12
+			start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
+			resolution := 10 * time.Second
+			vals := ts.NewFixedStepValues(resolution, 3, 3, start)
+			seriesList := ts.SeriesList{
+				ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
+			}
+
+			meta := block.NewResultMetadata()
+			meta.Resolutions = []int64{int64(resolution)}
+			meta.Exhaustive = tt.ex
+
+			metaTwo := block.NewResultMetadata()
+			metaTwo.Resolutions = []int64{int64(resolution)}
+			if !tt.ex2 {
+				metaTwo.AddWarning("foo", "bar")
+			}
+
+			mockStorage.SetFetchResults(
+				&storage.FetchResult{SeriesList: seriesList, Metadata: meta},
+				&storage.FetchResult{SeriesList: seriesList, Metadata: metaTwo},
+			)
+
+			h := NewRenderHandler(mockStorage,
+				models.QueryContextOptions{}, nil, instrument.NewOptions())
+
+			req := newGraphiteReadHTTPRequest(t)
+			req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=bar.baz&from=%d&until=%d",
+				start.Unix(), start.Unix()+30)
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, req)
+
+			actual := recorder.Header().Get(handler.LimitHeader)
+			assert.Equal(t, tt.header, actual)
+		})
+	}
 }
 
 func newGraphiteReadHTTPRequest(t *testing.T) *http.Request {

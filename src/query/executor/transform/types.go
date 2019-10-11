@@ -21,6 +21,7 @@
 package transform
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -28,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/pkg/errors"
 )
 
 var (

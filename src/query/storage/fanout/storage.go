@@ -104,6 +104,7 @@ func (s *fanoutStorage) FetchBlocks(
 	// TODO(arnikola): update this to use a genny map
 	blockResult := make(map[string]block.Block, len(stores))
 	wg.Add(len(stores))
+	resultMeta := block.NewResultMetadata()
 	for _, store := range stores {
 		store := store
 		go func() {
@@ -114,6 +115,7 @@ func (s *fanoutStorage) FetchBlocks(
 
 			if err != nil {
 				if warning, err := storage.IsWarning(store, err); warning {
+					resultMeta.AddWarning(store.Name(), "fetch_blocks_warning")
 					numWarning++
 					s.instrumentOpts.Logger().Warn(
 						"partial results: fanout to store returned warning",
@@ -132,6 +134,7 @@ func (s *fanoutStorage) FetchBlocks(
 				return
 			}
 
+			resultMeta = resultMeta.CombineMetadata(result.Metadata)
 			for _, bl := range result.Blocks {
 				key := bl.Meta().String()
 				foundBlock, found := blockResult[key]
@@ -141,8 +144,6 @@ func (s *fanoutStorage) FetchBlocks(
 				}
 
 				// This block exists. Check to see if it's already an appendable block.
-				// FIXME: (arnikola) use Block.Info() here to determine if it's an
-				// accumulator once #1888 merges.
 				blockType := foundBlock.Info().Type()
 				if blockType != block.BlockContainer {
 					var err error
@@ -182,19 +183,34 @@ func (s *fanoutStorage) FetchBlocks(
 		return block.Result{}, errors.ErrNoValidResults
 	}
 
-	// TODO: (arnikola): When https://github.com/m3db/m3/pull/1838 lands,
-	// explicitly set the limit exceeded header if there have been any warnings.
 	blocks := make([]block.Block, 0, len(blockResult))
+	updateResultMeta := func(meta block.Metadata) block.Metadata {
+		meta.ResultMetadata = meta.ResultMetadata.CombineMetadata(resultMeta)
+		return meta
+	}
+
+	lazyOpts := block.NewLazyOptions().SetMetaTransform(updateResultMeta)
 	for _, bl := range blockResult {
+		// Update constituent blocks with combined resultMetadata if it has been
+		// changed.
+		if !resultMeta.IsDefault() {
+			bl = block.NewLazyBlock(bl, lazyOpts)
+		}
+
 		blocks = append(blocks, bl)
 	}
 
-	return block.Result{Blocks: blocks}, nil
+	return block.Result{
+		Blocks:   blocks,
+		Metadata: resultMeta,
+	}, nil
 }
 
-func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, error) {
+func handleFetchResponses(
+	requests []execution.Request,
+) (*storage.FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(requests))
-	result := &storage.FetchResult{SeriesList: seriesList, LocalOnly: true}
+	meta := block.NewResultMetadata()
 	for _, req := range requests {
 		fetchreq, ok := req.(*fetchRequest)
 		if !ok {
@@ -205,32 +221,35 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 			return nil, errors.ErrInvalidFetchResult
 		}
 
-		// NB: if no series to add, continue.
-		if len(fetchreq.result.SeriesList) == 0 {
-			continue
-		}
-
-		if fetchreq.store.Type() != storage.TypeLocalDC {
-			result.LocalOnly = false
-		}
-
-		result.SeriesList = append(result.SeriesList, fetchreq.result.SeriesList...)
+		// NB: even if series list is empty, result metadata must be combined for
+		// warning propagation.
+		meta = meta.CombineMetadata(fetchreq.result.Metadata)
+		seriesList = append(seriesList, fetchreq.result.SeriesList...)
 	}
 
-	return result, nil
+	return &storage.FetchResult{
+		Metadata:   meta,
+		SeriesList: seriesList,
+	}, nil
 }
+
+const initMetricMapSize = 10
 
 func (s *fanoutStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	var metrics models.Metrics
+	// TODO: arnikola use a genny map here instead, or better yet, hide this
+	// behind an accumulator.
+	metricMap := make(map[string]models.Metric, initMetricMapSize)
 	stores := filterStores(s.stores, s.fetchFilter, query)
+	metadata := block.NewResultMetadata()
 	for _, store := range stores {
 		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
 			if warning, err := storage.IsWarning(store, err); warning {
+				metadata.AddWarning(store.Name(), "search_series_warning")
 				s.instrumentOpts.Logger().Warn(
 					"partial results: fanout to store returned warning",
 					zap.Error(err),
@@ -247,10 +266,27 @@ func (s *fanoutStorage) SearchSeries(
 			return nil, err
 		}
 
-		metrics = append(metrics, results.Metrics...)
+		metadata = metadata.CombineMetadata(results.Metadata)
+		for _, metric := range results.Metrics {
+			id := string(metric.ID)
+			if existing, found := metricMap[id]; found {
+				existing.Tags = existing.Tags.AddTagsIfNotExists(metric.Tags.Tags)
+				metricMap[id] = existing
+			} else {
+				metricMap[id] = metric
+			}
+		}
 	}
 
-	result := &storage.SearchResults{Metrics: metrics}
+	metrics := make(models.Metrics, 0, len(metricMap))
+	for _, v := range metricMap {
+		metrics = append(metrics, v)
+	}
+
+	result := &storage.SearchResults{
+		Metrics:  metrics,
+		Metadata: metadata,
+	}
 
 	return result, nil
 }
@@ -267,10 +303,12 @@ func (s *fanoutStorage) CompleteTags(
 	}
 
 	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	metadata := block.NewResultMetadata()
 	for _, store := range stores {
 		result, err := store.CompleteTags(ctx, query, options)
 		if err != nil {
 			if warning, err := storage.IsWarning(store, err); warning {
+				metadata.AddWarning(store.Name(), "complete_tags_warning")
 				s.instrumentOpts.Logger().Warn(
 					"partial results: fanout to store returned warning",
 					zap.Error(err),
@@ -288,10 +326,12 @@ func (s *fanoutStorage) CompleteTags(
 			return nil, err
 		}
 
+		metadata = metadata.CombineMetadata(result.Metadata)
 		accumulatedTags.Add(result)
 	}
 
 	built := accumulatedTags.Build()
+	built.Metadata = metadata
 	return &built, nil
 }
 
@@ -399,14 +439,19 @@ func newFetchRequest(
 func (f *fetchRequest) Process(ctx context.Context) error {
 	result, err := f.store.Fetch(ctx, f.query, f.options)
 	if err != nil {
+		metadata := block.NewResultMetadata()
 		if warning, err := storage.IsWarning(f.store, err); warning {
+			metadata.AddWarning(f.store.Name(), "fetch_warning")
 			f.logger.Warn(
 				"partial results: fanout to store returned warning",
 				zap.Error(err),
 				zap.String("store", f.store.Name()),
 				zap.String("function", "Fetch"))
 
-			f.result = &storage.FetchResult{}
+			f.result = &storage.FetchResult{
+				Metadata: metadata,
+			}
+
 			return nil
 		}
 

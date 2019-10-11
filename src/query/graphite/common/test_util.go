@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
@@ -148,14 +149,10 @@ func (s *MovingAverageStorage) fetchByIDs(
 		} else {
 			values = s.Values
 		}
-		series := ts.NewSeries(ctx, ids[0], opts.StartTime, NewTestSeriesValues(ctx, s.StepMillis, values))
+		series := ts.NewSeries(ctx, ids[0], opts.StartTime,
+			NewTestSeriesValues(ctx, s.StepMillis, values))
 		seriesList = append(seriesList, series)
 	}
-	return storage.NewFetchResult(ctx, seriesList), nil
+
+	return storage.NewFetchResult(ctx, seriesList, block.NewResultMetadata()), nil
 }
-
-// Type returns to the dc scope
-// func (s *MovingAverageStorage) Type() storage.Type { return storage.TypeLocalDC }
-
-// Name returns the name of the storage struct
-// func (s *MovingAverageStorage) Name() string { return "movingAverageStorage" }

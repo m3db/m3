@@ -34,25 +34,54 @@ import (
 )
 
 func buildMeta(start time.Time) Metadata {
+	return buildMetaExhaustive(start, false)
+}
+
+func buildMetaExhaustive(start time.Time, exhaustive bool) Metadata {
 	return Metadata{
 		Bounds: models.Bounds{
 			Start:    start,
 			Duration: time.Minute,
 			StepSize: time.Hour,
 		},
-		Tags: models.NewTags(0, models.NewTagOptions()),
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: ResultMetadata{Exhaustive: exhaustive},
 	}
+}
+
+func buildTestSeriesMeta(name string) []SeriesMeta {
+	tags := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
+	return []SeriesMeta{
+		SeriesMeta{
+			Name: []byte(name),
+			Tags: tags,
+		},
+	}
+
 }
 
 func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
 	tt := func(t time.Time) time.Time { return t.Add(timeOffset) }
+	vt := func(val float64) float64 { return val * valOffset }
 	mt := func(meta Metadata) Metadata {
 		meta.Bounds.Start = meta.Bounds.Start.Add(timeOffset)
 		return meta
 	}
-	vt := func(val float64) float64 { return val * valOffset }
 
-	return NewLazyOptions().SetTimeTransform(tt).SetMetaTransform(mt).SetValueTransform(vt)
+	smt := func(sm []SeriesMeta) []SeriesMeta {
+		for i, m := range sm {
+			sm[i].Name = append(m.Name, []byte("_mutated")...)
+		}
+
+		return sm
+	}
+
+	return NewLazyOptions().
+		SetTimeTransform(tt).
+		SetValueTransform(vt).
+		SetMetaTransform(mt).
+		SetSeriesMetaTransform(smt)
 }
 
 func TestLazyOpts(t *testing.T) {
@@ -67,6 +96,10 @@ func TestLazyOpts(t *testing.T) {
 	updated := lazyOpts.MetaTransform()(meta)
 	expected := buildMeta(now.Add(off))
 	require.Equal(t, expected, updated)
+
+	seriesMeta := buildTestSeriesMeta("name")
+	expectSM := buildTestSeriesMeta("name_mutated")
+	require.Equal(t, expectSM, lazyOpts.SeriesMetaTransform()(seriesMeta))
 
 	require.Equal(t, 1.0, lazyOpts.ValueTransform()(1.0))
 }
@@ -106,22 +139,6 @@ func TestValidOffset(t *testing.T) {
 	_, err = off.Unconsolidated()
 	assert.EqualError(t, err, msg)
 
-	now := time.Now()
-	meta := buildMeta(now)
-	seriesMetas := []SeriesMeta{}
-
-	// ensure WithMetadata marshalls to underlying block.
-	b.EXPECT().WithMetadata(meta, seriesMetas).Return(nil, e)
-	_, err = off.WithMetadata(meta, seriesMetas)
-	assert.EqualError(t, err, msg)
-
-	b2 := NewMockBlock(ctrl)
-	b.EXPECT().WithMetadata(meta, seriesMetas).Return(b2, nil)
-	bl, err := off.WithMetadata(meta, seriesMetas)
-	assert.Equal(t, off, bl)
-	assert.NoError(t, err)
-
-	// ensure WithMetadata has updated the underlying block.
 	b.EXPECT().Close().Return(nil)
 	err = off.Close()
 	assert.NoError(t, err)
@@ -146,6 +163,12 @@ func TestStepIter(t *testing.T) {
 	it, err := off.StepIter()
 	require.NoError(t, err)
 
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
+
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, expected, it.SeriesMeta())
+
 	// ensure functions are marshalled to the block's underlying step iterator.
 	iter.EXPECT().Close()
 	it.Close()
@@ -155,10 +178,6 @@ func TestStepIter(t *testing.T) {
 
 	iter.EXPECT().StepCount().Return(12)
 	assert.Equal(t, 12, it.StepCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
 
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
@@ -188,6 +207,12 @@ func TestSeriesIter(t *testing.T) {
 	it, err := off.SeriesIter()
 	require.NoError(t, err)
 
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
+
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, expected, it.SeriesMeta())
+
 	// ensure functions are marshalled to the block's underlying series iterator.
 	iter.EXPECT().Close()
 	it.Close()
@@ -197,10 +222,6 @@ func TestSeriesIter(t *testing.T) {
 
 	iter.EXPECT().SeriesCount().Return(12)
 	assert.Equal(t, 12, it.SeriesCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
 
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
@@ -263,21 +284,6 @@ func TestUnconsolidated(t *testing.T) {
 	bb.EXPECT().Close().Return(nil)
 	revert.Close()
 
-	meta := buildMeta(now)
-	seriesMetas := []SeriesMeta{}
-
-	// ensure WithMetadata marshalls to underlying block.
-	b.EXPECT().WithMetadata(meta, seriesMetas).Return(nil, e)
-	_, err = off.WithMetadata(meta, seriesMetas)
-	assert.EqualError(t, err, msg)
-
-	b2 := NewMockUnconsolidatedBlock(ctrl)
-	b.EXPECT().WithMetadata(meta, seriesMetas).Return(b2, nil)
-	bl, err := off.WithMetadata(meta, seriesMetas)
-	assert.Equal(t, off, bl)
-	assert.NoError(t, err)
-
-	// ensure WithMetadata has updated the underlying block.
 	b.EXPECT().Close().Return(nil)
 	err = off.Close()
 	assert.NoError(t, err)
@@ -305,6 +311,12 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 	it, err := off.StepIter()
 	require.NoError(t, err)
 
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
+
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, expected, it.SeriesMeta())
+
 	// ensure functions are marshalled to the block's underlying step iterator.
 	iter.EXPECT().Close()
 	it.Close()
@@ -314,10 +326,6 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 
 	iter.EXPECT().StepCount().Return(12)
 	assert.Equal(t, 12, it.StepCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
 
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
@@ -337,7 +345,7 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 
 	iter.EXPECT().Current().Return(step)
 	actual := it.Current()
-	expected := []ts.Datapoints{
+	xts := []ts.Datapoints{
 		{
 			ts.Datapoint{
 				Timestamp: now.Add(offset),
@@ -346,7 +354,7 @@ func TestUnconsolidatedStepIter(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, actual.Values())
+	assert.Equal(t, xts, actual.Values())
 	assert.Equal(t, now.Add(offset), actual.Time())
 }
 
@@ -372,6 +380,12 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	it, err := off.SeriesIter()
 	require.NoError(t, err)
 
+	seriesMetas := buildTestSeriesMeta("name")
+	expected := buildTestSeriesMeta("name_mutated")
+
+	iter.EXPECT().SeriesMeta().Return(seriesMetas)
+	assert.Equal(t, expected, it.SeriesMeta())
+
 	// ensure functions are marshalled to the block's underlying series iterator.
 	iter.EXPECT().Close()
 	it.Close()
@@ -381,10 +395,6 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 
 	iter.EXPECT().SeriesCount().Return(12)
 	assert.Equal(t, 12, it.SeriesCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
 
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
@@ -404,7 +414,7 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 
 	iter.EXPECT().Current().Return(unconsolidated)
 	actual := it.Current()
-	expected := []ts.Datapoints{
+	xts := []ts.Datapoints{
 		{
 			ts.Datapoint{
 				Timestamp: now.Add(offset),
@@ -413,7 +423,7 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, actual.Datapoints())
+	assert.Equal(t, xts, actual.Datapoints())
 }
 
 // negative value offset tests

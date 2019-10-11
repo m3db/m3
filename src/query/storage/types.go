@@ -88,7 +88,7 @@ type Storage interface {
 	Name() string
 }
 
-// Query is an interface for a M3DB query
+// Query is an interface for a M3DB query.
 type Query interface {
 	fmt.Stringer
 	// nolint
@@ -98,7 +98,7 @@ type Query interface {
 func (q *FetchQuery) query() {}
 func (q *WriteQuery) query() {}
 
-// FetchQuery represents the input query which is fetched from M3DB
+// FetchQuery represents the input query which is fetched from M3DB.
 type FetchQuery struct {
 	Raw         string
 	TagMatchers models.Matchers `json:"matchers"`
@@ -133,6 +133,9 @@ type FetchOptions struct {
 	Enforcer cost.ChainedEnforcer
 	// Scope is used to report metrics about the fetch.
 	Scope tally.Scope
+	// IncludeResolution if set, appends resolution information to fetch results.
+	// Currently only used for graphite queries.
+	IncludeResolution bool
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -228,6 +231,7 @@ type RestrictFetchOptions struct {
 
 // NewRestrictFetchOptionsFromProto returns a restrict fetch options from
 // protobuf message.
+// TODO: (arnikola) extract these out of types.go
 func NewRestrictFetchOptionsFromProto(
 	p *rpcpb.RestrictFetchOptions,
 ) (RestrictFetchOptions, error) {
@@ -318,28 +322,30 @@ func (o RestrictFetchOptions) Proto() (*rpcpb.RestrictFetchOptions, error) {
 
 // Querier handles queries against a storage.
 type Querier interface {
-	// Fetch fetches timeseries data based on a query
+	// Fetch fetches decompressed timeseries data based on a query.
+	// TODO: (arnikola) this is largely deprecated in favor of FetchBlocks;
+	// should be removed.
 	Fetch(
 		ctx context.Context,
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*FetchResult, error)
 
-	// FetchBlocks converts fetch results to storage blocks
+	// FetchBlocks fetches timeseries as blocks based on a query.
 	FetchBlocks(
 		ctx context.Context,
 		query *FetchQuery,
 		options *FetchOptions,
 	) (block.Result, error)
 
-	// SearchSeries returns series IDs matching the current query
+	// SearchSeries returns series IDs matching the current query.
 	SearchSeries(
 		ctx context.Context,
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*SearchResults, error)
 
-	// CompleteTags returns autocompleted tag results
+	// CompleteTags returns autocompleted tag results.
 	CompleteTags(
 		ctx context.Context,
 		query *CompleteTagsQuery,
@@ -347,7 +353,8 @@ type Querier interface {
 	) (*CompleteTagsResult, error)
 }
 
-// WriteQuery represents the input timeseries that is written to the db
+// WriteQuery represents the input timeseries that is written to the database.
+// TODO: rename WriteQuery to WriteRequest or something similar.
 type WriteQuery struct {
 	Tags       models.Tags
 	Datapoints ts.Datapoints
@@ -361,21 +368,31 @@ func (q *WriteQuery) String() string {
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
-// set of tags that exist in the db
+// set of tags.
 type CompleteTagsQuery struct {
+	// CompleteNameOnly indicates if the query should return only tag names, or
+	// tag names and values.
 	CompleteNameOnly bool
-	FilterNameTags   [][]byte
-	TagMatchers      models.Matchers
-	Start            time.Time
-	End              time.Time
+	// FilterNameTags is a list of tags to filter results by. If this is empty, no
+	// filtering is applied.
+	FilterNameTags [][]byte
+	// TagMatchers is the search criteria for the query.
+	TagMatchers models.Matchers
+	// Start is the inclusive start for the query.
+	Start time.Time
+	// End is the exclusive end for the query.
+	End time.Time
 }
 
 // SeriesMatchQuery represents a query that returns a set of series
-// that match the query
+// that match the query.
 type SeriesMatchQuery struct {
+	// TagMatchers is the search criteria for the query.
 	TagMatchers []models.Matchers
-	Start       time.Time
-	End         time.Time
+	// Start is the inclusive start for the query.
+	Start time.Time
+	// End is the exclusive end for the query.
+	End time.Time
 }
 
 func (q *CompleteTagsQuery) String() string {
@@ -386,47 +403,58 @@ func (q *CompleteTagsQuery) String() string {
 	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
 }
 
-// CompletedTag is an autocompleted tag with a name and a list of possible values
+// CompletedTag represents a tag retrieved by a complete tags query.
 type CompletedTag struct {
-	Name   []byte
+	// Name the name of the tag.
+	Name []byte
+	// Values is a set of possible values for the tag.
+	// NB: if the parent CompleteTagsResult is set to CompleteNameOnly, this is
+	// expected to be empty.
 	Values [][]byte
 }
 
 // CompleteTagsResult represents a set of autocompleted tag names and values
 type CompleteTagsResult struct {
+	// CompleteNameOnly indicates if the tags in this result are expected to have
+	// both names and values, or only names.
 	CompleteNameOnly bool
-	CompletedTags    []CompletedTag
+	// CompletedTag is a list of completed tags.
+	CompletedTags []CompletedTag
+	// Metadata describes any metadata for the operation.
+	Metadata block.ResultMetadata
 }
 
 // CompleteTagsResultBuilder is a builder that accumulates and deduplicates
-// incoming CompleteTagsResult values
+// incoming CompleteTagsResult values.
 type CompleteTagsResultBuilder interface {
+	// Add appends an incoming CompleteTagsResult.
 	Add(*CompleteTagsResult) error
+	// Build builds a completed tag result.
 	Build() CompleteTagsResult
 }
 
 // Appender provides batched appends against a storage.
 type Appender interface {
-	// Write value to the database for an ID
+	// Write writes a batched set of datapoints to storage based on the provided
+	// query.
 	Write(ctx context.Context, query *WriteQuery) error
 }
 
-// SearchResults is the result from a search
+// SearchResults is the result from a search.
 type SearchResults struct {
+	// Metrics is the list of search results.
 	Metrics models.Metrics
+	// Metadata describes any metadata for the Fetch operation.
+	Metadata block.ResultMetadata
 }
 
-// FetchResult provides a fetch result and meta information
+// FetchResult provides a decompressed fetch result and meta information.
 type FetchResult struct {
-	SeriesList ts.SeriesList // The aggregated list of results across all underlying storage calls
-	LocalOnly  bool
-	HasNext    bool
-}
-
-// QueryResult is the result from a query
-type QueryResult struct {
-	FetchResult *FetchResult
-	Err         error
+	// SeriesList is the list of decompressed and computed series after fetch
+	// query execution.
+	SeriesList ts.SeriesList
+	// Metadata describes any metadata for the operation.
+	Metadata block.ResultMetadata
 }
 
 // MetricsType is a type of stored metrics.
@@ -446,7 +474,12 @@ const (
 
 // Attributes is a set of stored metrics attributes.
 type Attributes struct {
+	// MetricsType indicates the type of namespace this metric originated from.
 	MetricsType MetricsType
-	Retention   time.Duration
-	Resolution  time.Duration
+	// Retention indicates the retention of the namespace this metric originated
+	// from.
+	Retention time.Duration
+	// Resolution indicates the retention of the namespace this metric originated
+	// from.
+	Resolution time.Duration
 }

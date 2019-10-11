@@ -40,6 +40,11 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
+type readResult struct {
+	series []*ts.Series
+	meta   block.ResultMetadata
+}
+
 func read(
 	reqCtx context.Context,
 	engine executor.Engine,
@@ -49,7 +54,7 @@ func read(
 	w http.ResponseWriter,
 	params models.RequestParams,
 	instrumentOpts instrument.Options,
-) ([]*ts.Series, error) {
+) (readResult, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
@@ -64,16 +69,17 @@ func read(
 
 	// Detect clients closing connections.
 	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
+	emptyResult := readResult{meta: block.NewResultMetadata()}
 
 	// TODO: Capture timing
 	parser, err := promql.Parse(params.Query, tagOpts)
 	if err != nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	result, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	// Block slices are sorted by start time.
@@ -86,12 +92,18 @@ func read(
 		}
 	}()
 
-	firstElement := false
-	var numSteps, numSeries int
+	var (
+		numSteps  int
+		numSeries int
+
+		firstElement bool
+	)
+
+	meta := block.NewResultMetadata()
 	// TODO(nikunj): Stream blocks to client
 	for blkResult := range resultChan {
 		if err := blkResult.Err; err != nil {
-			return nil, err
+			return emptyResult, err
 		}
 
 		b := blkResult.Block
@@ -99,24 +111,28 @@ func read(
 			firstElement = true
 			firstStepIter, err := b.StepIter()
 			if err != nil {
-				return nil, err
+				return emptyResult, err
 			}
 
 			firstSeriesIter, err := b.SeriesIter()
 			if err != nil {
-				return nil, err
+				return emptyResult, err
 			}
 
 			numSteps = firstStepIter.StepCount()
 			numSeries = firstSeriesIter.SeriesCount()
+			meta = b.Meta().ResultMetadata
 		}
 
-		// Insert blocks sorted by start time
-		sortedBlockList, err = insertSortedBlock(b, sortedBlockList,
+		// Insert blocks sorted by start time.
+		insertResult, err := insertSortedBlock(b, sortedBlockList,
 			numSteps, numSeries)
 		if err != nil {
-			return nil, err
+			return emptyResult, err
 		}
+
+		sortedBlockList = insertResult.blocks
+		meta = meta.CombineMetadata(insertResult.meta)
 	}
 
 	// Ensure that the blocks are closed. Can't do this above since
@@ -129,7 +145,15 @@ func read(
 		}
 	}()
 
-	return sortedBlocksToSeriesList(sortedBlockList)
+	series, err := sortedBlocksToSeriesList(sortedBlockList)
+	if err != nil {
+		return emptyResult, err
+	}
+
+	return readResult{
+		series: series,
+		meta:   meta,
+	}, nil
 }
 
 func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
@@ -215,15 +239,21 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	return seriesList, nil
 }
 
+type insertBlockResult struct {
+	blocks []blockWithMeta
+	meta   block.ResultMetadata
+}
+
 func insertSortedBlock(
 	b block.Block,
 	blockList []blockWithMeta,
 	stepCount,
 	seriesCount int,
-) ([]blockWithMeta, error) {
+) (insertBlockResult, error) {
 	blockSeriesIter, err := b.SeriesIter()
+	emptyResult := insertBlockResult{meta: b.Meta().ResultMetadata}
 	if err != nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	meta := b.Meta()
@@ -232,13 +262,18 @@ func insertSortedBlock(
 			block: b,
 			meta:  meta,
 		})
-		return blockList, nil
+
+		return insertBlockResult{
+			blocks: blockList,
+			meta:   b.Meta().ResultMetadata,
+		}, nil
 	}
 
 	blockSeriesCount := blockSeriesIter.SeriesCount()
 	if seriesCount != blockSeriesCount {
-		return nil, fmt.Errorf("mismatch in number of series for "+
-			"the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
+		return emptyResult, fmt.Errorf(
+			"mismatch in number of series for the block, wanted: %d, found: %d",
+			seriesCount, blockSeriesCount)
 	}
 
 	// Binary search to keep the start times sorted
@@ -254,5 +289,8 @@ func insertSortedBlock(
 		meta:  meta,
 	}
 
-	return blockList, nil
+	return insertBlockResult{
+		meta:   b.Meta().ResultMetadata,
+		blocks: blockList,
+	}, nil
 }
