@@ -22,6 +22,7 @@ package remote
 
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -61,6 +62,7 @@ func multiTagResultsToM3TagProperties(
 // search result.
 func encodeToCompressedSearchResult(
 	results []m3.MultiTagResult,
+	metadata block.ResultMetadata,
 	pools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
 	if pools == nil {
@@ -81,6 +83,8 @@ func encodeToCompressedSearchResult(
 		Value: &rpc.SearchResponse_Compressed{
 			Compressed: compressedTags,
 		},
+
+		Meta: encodeResultMetadata(metadata),
 	}, nil
 }
 
@@ -160,8 +164,14 @@ func decodeSearchResponse(
 // encodeSearchRequest encodes search request into rpc SearchRequest
 func encodeSearchRequest(
 	query *storage.FetchQuery,
+	options *storage.FetchOptions,
 ) (*rpc.SearchRequest, error) {
 	matchers, err := encodeTagMatchers(query.TagMatchers)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := encodeFetchOptions(options)
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +180,10 @@ func encodeSearchRequest(
 		Matchers: &rpc.SearchRequest_TagMatchers{
 			TagMatchers: matchers,
 		},
+
+		Start:   fromTime(query.Start),
+		End:     fromTime(query.End),
+		Options: opts,
 	}, nil
 }
 
@@ -184,5 +198,7 @@ func decodeSearchRequest(
 
 	return &storage.FetchQuery{
 		TagMatchers: matchers,
+		Start:       toTime(req.GetStart()),
+		End:         toTime(req.GetEnd()),
 	}, nil
 }

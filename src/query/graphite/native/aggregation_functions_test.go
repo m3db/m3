@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
@@ -137,41 +138,42 @@ type mockEngine struct {
 	fn func(
 		ctx context.Context,
 		query string,
-		start, end time.Time,
-		timeout time.Duration,
+		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
 }
 
 func (e mockEngine) FetchByQuery(
 	ctx context.Context,
 	query string,
-	start, end time.Time,
-	timeout time.Duration,
+	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return e.fn(ctx, query, start, end, timeout)
+	return e.fn(ctx, query, opts)
 }
 
 func TestVariadicSumSeries(t *testing.T) {
 	expr, err := compile("sumSeries(foo.bar.*, foo.baz.*)")
 	require.NoError(t, err)
-
 	ctx := common.NewTestContext()
 	ctx.Engine = mockEngine{fn: func(
 		ctx context.Context,
 		query string,
-		start, end time.Time,
-		timeout time.Duration,
+		options storage.FetchOptions,
 	) (*storage.FetchResult, error) {
+		start := options.StartTime
 		switch query {
 		case "foo.bar.*":
 			return storage.NewFetchResult(ctx, []*ts.Series{
 				ts.NewSeries(ctx, "foo.bar.a", start, ts.NewConstantValues(ctx, 1, 3, 1000)),
 				ts.NewSeries(ctx, "foo.bar.b", start, ts.NewConstantValues(ctx, 2, 3, 1000)),
-			}), nil
+			}, block.NewResultMetadata()), nil
 		case "foo.baz.*":
 			return storage.NewFetchResult(ctx, []*ts.Series{
 				ts.NewSeries(ctx, "foo.baz.a", start, ts.NewConstantValues(ctx, 3, 3, 1000)),
 				ts.NewSeries(ctx, "foo.baz.b", start, ts.NewConstantValues(ctx, 4, 3, 1000)),
+			}, block.ResultMetadata{
+				Exhaustive: false,
+				LocalOnly:  false,
+				Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
 			}), nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
@@ -182,6 +184,10 @@ func TestVariadicSumSeries(t *testing.T) {
 
 	require.Equal(t, 1, r.Len())
 	assert.Equal(t, []float64{10, 10, 10}, r.Values[0].SafeValues())
+	assert.False(t, r.Metadata.Exhaustive)
+	assert.False(t, r.Metadata.LocalOnly)
+	require.Equal(t, 1, len(r.Metadata.Warnings))
+	assert.Equal(t, "foo_bar", r.Metadata.Warnings[0].Header())
 }
 
 func TestDiffSeries(t *testing.T) {

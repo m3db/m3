@@ -148,6 +148,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		return
 	}
 
+	meta := terminatedResult.Metadata.CombineMetadata(childResult.Metadata)
 	// NB: merge results from both queries to specify which series have children
 	seenMap, err := mergeTags(terminatedResult, childResult)
 	if err != nil {
@@ -161,6 +162,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
+	handler.AddWarningHeaders(w, meta)
 	// TODO: Support multiple result types
 	if err = findResultsJSON(w, prefix, seenMap); err != nil {
 		logger.Error("unable to print find results", zap.Error(err))

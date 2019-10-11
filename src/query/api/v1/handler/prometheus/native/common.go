@@ -115,7 +115,7 @@ func parseParams(
 	params.End = end
 	step := fetchOpts.Step
 	if step <= 0 {
-		err := fmt.Errorf("expected postive step size, instead got: %d", step)
+		err := fmt.Errorf("expected positive step size, instead got: %d", step)
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, handler.StepParam, err), http.StatusBadRequest)
 	}
 

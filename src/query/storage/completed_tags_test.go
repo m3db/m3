@@ -25,6 +25,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,6 +52,7 @@ func mapToCompletedTag(nameOnly bool, m map[string][]string) CompleteTagsResult 
 	return CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
 		CompletedTags:    tags,
+		Metadata:         block.NewResultMetadata(),
 	}
 }
 
@@ -99,6 +102,7 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 		expected := CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
 			CompletedTags:    []CompletedTag{},
+			Metadata:         block.NewResultMetadata(),
 		}
 
 		assert.Equal(t, expected, actual)
@@ -197,6 +201,40 @@ func TestMergeCompletedTagResult(t *testing.T) {
 
 				expected := mapToCompletedTag(nameOnly, exResult)
 				assert.Equal(t, expected, actual)
+			})
+		}
+	}
+}
+
+var exhaustTests = []struct {
+	name        string
+	exhaustives []bool
+	expected    bool
+}{
+	{"single exhaustive", []bool{true}, true},
+	{"single non-exhaustive", []bool{false}, false},
+	{"multiple exhaustive", []bool{true, true}, true},
+	{"multiple non-exhaustive", []bool{false, false}, false},
+	{"some exhaustive", []bool{true, false}, false},
+	{"mixed", []bool{true, false, true}, false},
+}
+
+func TestMetaMerge(t *testing.T) {
+	for _, nameOnly := range []bool{true, false} {
+		for _, tt := range exhaustTests {
+			builder := NewCompleteTagsResultBuilder(nameOnly)
+			t.Run(fmt.Sprintf("%s_%v", tt.name, nameOnly), func(t *testing.T) {
+				for _, ex := range tt.exhaustives {
+					meta := block.NewResultMetadata()
+					meta.Exhaustive = ex
+					builder.Add(&CompleteTagsResult{
+						CompleteNameOnly: nameOnly,
+						Metadata:         meta,
+					})
+				}
+
+				ctr := builder.Build()
+				assert.Equal(t, tt.expected, ctr.Metadata.Exhaustive)
 			})
 		}
 	}

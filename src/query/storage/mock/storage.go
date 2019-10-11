@@ -37,6 +37,7 @@ type Storage interface {
 	SetErrorBehavior(storage.ErrorBehavior)
 	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
+	SetFetchResults(...*storage.FetchResult)
 	SetSearchSeriesResult(*storage.SearchResults, error)
 	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
 	SetWriteResult(error)
@@ -53,8 +54,9 @@ type mockStorage struct {
 	errorBehavior    storage.ErrorBehavior
 	lastFetchOptions *storage.FetchOptions
 	fetchResult      struct {
-		result *storage.FetchResult
-		err    error
+		results []*storage.FetchResult
+		idx     int
+		err     error
 	}
 	fetchTagsResult struct {
 		result *storage.SearchResults
@@ -97,8 +99,17 @@ func (s *mockStorage) SetErrorBehavior(b storage.ErrorBehavior) {
 func (s *mockStorage) SetFetchResult(result *storage.FetchResult, err error) {
 	s.Lock()
 	defer s.Unlock()
-	s.fetchResult.result = result
+	s.fetchResult.results = []*storage.FetchResult{result}
 	s.fetchResult.err = err
+}
+
+func (s *mockStorage) SetFetchResults(results ...*storage.FetchResult) {
+	s.Lock()
+	defer s.Unlock()
+	s.fetchResult.results = append(
+		make([]*storage.FetchResult, 0, len(results)),
+		results...,
+	)
 }
 
 func (s *mockStorage) SetSearchSeriesResult(result *storage.SearchResults, err error) {
@@ -154,7 +165,13 @@ func (s *mockStorage) Fetch(
 	s.Lock()
 	defer s.Unlock()
 	s.lastFetchOptions = opts
-	return s.fetchResult.result, s.fetchResult.err
+	idx := s.fetchResult.idx
+	if idx >= len(s.fetchResult.results) {
+		idx = 0
+	}
+
+	s.fetchResult.idx = s.fetchResult.idx + 1
+	return s.fetchResult.results[idx], s.fetchResult.err
 }
 
 func (s *mockStorage) FetchBlocks(

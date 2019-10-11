@@ -78,6 +78,7 @@ func decodeCompleteTagsResponse(
 
 func encodeCompleteTagsRequest(
 	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
 ) (*rpc.CompleteTagsRequest, error) {
 	completionType := rpc.CompleteTagsType_DEFAULT
 	if query.CompleteNameOnly {
@@ -85,6 +86,11 @@ func encodeCompleteTagsRequest(
 	}
 
 	matchers, err := encodeTagMatchers(query.TagMatchers)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := encodeFetchOptions(options)
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +104,7 @@ func encodeCompleteTagsRequest(
 			FilterNameTags: query.FilterNameTags,
 			Start:          fromTime(query.Start),
 			End:            fromTime(query.End),
+			Options:        opts,
 		},
 	}, nil
 }
@@ -143,6 +150,8 @@ func encodeToCompressedCompleteTagsDefaultResult(
 				Values: values,
 			},
 		},
+
+		Meta: encodeResultMetadata(results.Metadata),
 	}, nil
 }
 
@@ -161,6 +170,8 @@ func encodeToCompressedCompleteTagsNameOnlyResult(
 				Names: names,
 			},
 		},
+
+		Meta: encodeResultMetadata(results.Metadata),
 	}, nil
 }
 

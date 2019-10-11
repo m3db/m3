@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 )
 
@@ -86,10 +87,18 @@ func (f *fetchExpression) Arguments() []ArgumentASTNode {
 func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	begin := time.Now()
 
-	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, ctx.StartTime,
-		ctx.EndTime, ctx.Timeout)
+	opts := storage.FetchOptions{
+		StartTime: ctx.StartTime,
+		EndTime:   ctx.EndTime,
+		DataOptions: storage.DataOptions{
+			Timeout: ctx.Timeout,
+			Limit:   ctx.Limit,
+		},
+	}
+
+	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	if ctx.TracingEnabled() {
@@ -103,7 +112,11 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	for _, r := range result.SeriesList {
 		r.Specification = f.pathArg.path
 	}
-	return ts.SeriesList{Values: result.SeriesList}, nil
+
+	return ts.SeriesList{
+		Values:   result.SeriesList,
+		Metadata: result.Metadata,
+	}, nil
 }
 
 // Evaluate evaluates the fetch and returns its results as a reflection value, allowing it to be used
@@ -152,7 +165,7 @@ func (f *funcExpression) Arguments() []ArgumentASTNode {
 func (f *funcExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	out, err := f.call.Evaluate(ctx)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	return out.Interface().(ts.SeriesList), nil
@@ -165,7 +178,7 @@ type noopExpression struct{}
 
 // Execute returns nothing
 func (noop noopExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
-	return ts.SeriesList{}, nil
+	return ts.NewSeriesList(), nil
 }
 
 func (noop noopExpression) Name() string {

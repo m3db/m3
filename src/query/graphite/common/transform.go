@@ -210,7 +210,7 @@ func Transform(ctx *Context, in ts.SeriesList, t Transformer, renamer SeriesRena
 // windowTolerance, skip the calculation.
 func Stdev(ctx *Context, in ts.SeriesList, points int, windowTolerance float64, renamer RenamerWithNumPoints) (ts.SeriesList, error) {
 	if points <= 0 {
-		return ts.SeriesList{}, errors.NewInvalidParamsError(fmt.Errorf("invalid window size, points=%d", points))
+		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid window size, points=%d", points))
 	}
 	results := make([]*ts.Series, 0, in.Len())
 	for _, series := range in.Values {

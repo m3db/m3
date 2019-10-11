@@ -73,9 +73,10 @@ func (b seriesBlocks) Less(i, j int) bool {
 func seriesIteratorsToEncodedBlockIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
-	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, opts)
+	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, resultMeta, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +90,7 @@ func seriesIteratorsToEncodedBlockIterators(
 func ConvertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
 	if err := opts.Validate(); err != nil {
@@ -96,20 +98,23 @@ func ConvertM3DBSeriesIterators(
 	}
 
 	if opts.SplittingSeriesByBlock() {
-		return convertM3DBSegmentedBlockIterators(iterators, bounds, opts)
+		return convertM3DBSegmentedBlockIterators(iterators, bounds,
+			resultMeta, opts)
 	}
 
-	return seriesIteratorsToEncodedBlockIterators(iterators, bounds, opts)
+	return seriesIteratorsToEncodedBlockIterators(iterators, bounds,
+		resultMeta, opts)
 }
 
 // convertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
 func convertM3DBSegmentedBlockIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
 	defer iterators.Close()
-	blockBuilder := newEncodedBlockBuilder(opts)
+	blockBuilder := newEncodedBlockBuilder(resultMeta, opts)
 	var (
 		iterAlloc    = opts.IterAlloc()
 		pools        = opts.IteratorPools()

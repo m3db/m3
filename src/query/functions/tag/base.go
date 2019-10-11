@@ -61,7 +61,7 @@ func NewTagOp(
 	return newBaseOp(opType, fn), nil
 }
 
-// baseOp stores required properties for the baseOp
+// baseOp stores required properties for the baseOp.
 type baseOp struct {
 	opType string
 	tagFn  tagTransformFunc
@@ -123,5 +123,13 @@ func (n *baseNode) ProcessBlock(
 	meta := b.Meta()
 	seriesMeta := it.SeriesMeta()
 	meta, seriesMeta = n.op.tagFn(meta, seriesMeta)
-	return b.WithMetadata(meta, seriesMeta)
+	lazyOpts := block.NewLazyOptions().
+		SetMetaTransform(
+			func(block.Metadata) block.Metadata { return meta },
+		).
+		SetSeriesMetaTransform(
+			func([]block.SeriesMeta) []block.SeriesMeta { return seriesMeta },
+		)
+
+	return block.NewLazyBlock(b, lazyOpts), nil
 }

@@ -56,7 +56,7 @@ func diffSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, e
 				common.MaintainNaNTransformer(func(v float64) float64 { return -v }),
 			)
 			if err != nil {
-				return ts.SeriesList{}, err
+				return ts.NewSeriesList(), err
 			}
 			transformedSeries.Values[i] = res.Values[0]
 		}
@@ -95,22 +95,23 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeries second argument must reference exactly one series but instead has %d",
 			len(divisorSeriesList.Values)))
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 	if len(dividendSeriesList.Values) == 0 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"divideSeries first argument must reference at least one series"))
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	divisorSeries := divisorSeriesList.Values[0]
 	results := make([]*ts.Series, len(dividendSeriesList.Values))
 	for idx, dividendSeries := range dividendSeriesList.Values {
 		normalized, minBegin, _, lcmMillisPerStep, err := common.Normalize(ctx, ts.SeriesList{
-			Values: []*ts.Series{dividendSeries, divisorSeries},
+			Values:   []*ts.Series{dividendSeries, divisorSeries},
+			Metadata: divisorSeriesList.Metadata.CombineMetadata(dividendSeriesList.Metadata),
 		})
 		if err != nil {
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 		// NB(bl): Normalized must give back exactly two series of the same length.
 		dividend, divisor := normalized.Values[0], normalized.Values[1]
@@ -195,11 +196,14 @@ func combineSeriesWithWildcards(
 	}
 
 	newSeries := make([]*ts.Series, 0, len(toCombine))
-	for name, series := range toCombine {
-		seriesList := ts.SeriesList{Values: series}
+	for name, combinedSeries := range toCombine {
+		seriesList := ts.SeriesList{
+			Values:   combinedSeries,
+			Metadata: series.Metadata,
+		}
 		combined, err := combineSeries(ctx, multiplePathSpecs(seriesList), name, f)
 		if err != nil {
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 		combined.Values[0].Specification = sf(seriesList)
 		newSeries = append(newSeries, combined.Values...)
@@ -236,7 +240,7 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 
 		if n >= len(parts) || n < 0 {
 			err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by node %d; not enough parts", s.Name(), node))
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 
 		key := parts[n]
@@ -249,15 +253,18 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 
 	f, fexists := summarizeFuncs[fname]
 	if !fexists {
-		return ts.SeriesList{}, errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
+		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
 	}
 
 	newSeries := make([]*ts.Series, 0, len(metaSeries))
-	for key, series := range metaSeries {
-		seriesList := ts.SeriesList{Values: series}
+	for key, metaSeries := range metaSeries {
+		seriesList := ts.SeriesList{
+			Values:   metaSeries,
+			Metadata: series.Metadata,
+		}
 		output, err := combineSeries(ctx, multiplePathSpecs(seriesList), key, f.consolidationFunc)
 		if err != nil {
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 		output.Values[0].Specification = f.specificationFunc(seriesList)
 		newSeries = append(newSeries, output.Values...)
@@ -289,7 +296,7 @@ func combineSeries(ctx *common.Context,
 	normalized, start, end, millisPerStep, err := common.Normalize(ctx, ts.SeriesList(series))
 	if err != nil {
 		err := errors.NewInvalidParamsError(fmt.Errorf("combine series error: %v", err))
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	consolidation := ts.NewConsolidation(ctx, start, end, millisPerStep, f)
@@ -298,7 +305,10 @@ func combineSeries(ctx *common.Context,
 	}
 
 	result := consolidation.BuildSeries(fname, ts.Finalize)
-	return ts.SeriesList{Values: []*ts.Series{result}}, nil
+	return ts.SeriesList{
+		Values:   []*ts.Series{result},
+		Metadata: series.Metadata,
+	}, nil
 }
 
 // weightedAverage takes a series of values and a series of weights and produces a weighted
@@ -322,24 +332,24 @@ func weightedAverage(
 	for _, series := range input.Values {
 		if step != series.MillisPerStep() {
 			err := errors.NewInvalidParamsError(fmt.Errorf("different step sizes in input series not supported"))
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 	}
 
 	for _, series := range weights.Values {
 		if step != series.MillisPerStep() {
 			err := errors.NewInvalidParamsError(fmt.Errorf("different step sizes in input series not supported"))
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 	}
 
 	valuesByKey, err := aliasByNode(ctx, input, node)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 	weightsByKey, err := aliasByNode(ctx, weights, node)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	type pairedSeries struct {
@@ -379,23 +389,26 @@ func weightedAverage(
 		consideredWeights = append(consideredWeights, pair.weights)
 	}
 
+	meta := input.Metadata.CombineMetadata(weights.Metadata)
 	top, err := sumSeries(ctx, multiplePathSpecs(ts.SeriesList{
-		Values: productSeries,
+		Values:   productSeries,
+		Metadata: meta,
 	}))
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	bottom, err := sumSeries(ctx, multiplePathSpecs(ts.SeriesList{
-		Values: consideredWeights,
+		Values:   consideredWeights,
+		Metadata: meta,
 	}))
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	results, err := divideSeries(ctx, singlePathSpec(top), singlePathSpec(bottom))
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	return alias(ctx, singlePathSpec(results), "weightedAverage")
@@ -407,7 +420,7 @@ func countSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesLi
 		return wrapPathExpr("countSeries", series)
 	})
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	r := ts.SeriesList(seriesList)

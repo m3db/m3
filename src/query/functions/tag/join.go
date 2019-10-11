@@ -103,7 +103,6 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 		}
 
 		for i, meta := range seriesMeta {
-
 			seriesTags := meta.Tags.TagsWithKeys(tagNames)
 			seriesTags = seriesTags.Add(matchingCommonTags)
 			if seriesTags.Len() > 0 {

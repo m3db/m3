@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
@@ -1957,7 +1958,7 @@ type mockStorage struct{}
 func (*mockStorage) FetchByQuery(
 	ctx xctx.Context, query string, opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return storage.NewFetchResult(ctx, nil), nil
+	return storage.NewFetchResult(ctx, nil, block.NewResultMetadata()), nil
 }
 
 func TestHoltWintersForecast(t *testing.T) {

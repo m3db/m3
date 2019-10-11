@@ -32,6 +32,7 @@ import (
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/block"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -156,9 +157,17 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 		Return(nil, nil)
 	promRead := readHandler(store, timeoutOpts)
 	req := test.GeneratePromReadRequest()
-	_, err := promRead.read(context.TODO(), httptest.NewRecorder(),
+	recorder := httptest.NewRecorder()
+	res, err := promRead.read(context.TODO(), recorder,
 		req, time.Hour, storage.NewFetchOptions())
-	require.NotNil(t, err, "unable to read from storage")
+	require.Error(t, err, "unable to read from storage")
+	header := recorder.Header().Get(handler.LimitHeader)
+	assert.Equal(t, 0, len(header))
+
+	meta := res.meta
+	assert.True(t, meta.Exhaustive)
+	assert.True(t, meta.LocalOnly)
+	assert.Equal(t, 0, len(meta.Warnings))
 }
 
 func TestQueryMatchMustBeEqual(t *testing.T) {
@@ -254,11 +263,21 @@ func TestMultipleRead(t *testing.T) {
 		SeriesList: ts.SeriesList{
 			ts.NewSeries([]byte("a"), vals, tags),
 		},
+		Metadata: block.ResultMetadata{
+			Exhaustive: true,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		},
 	}
 
 	rTwo := &storage.FetchResult{
 		SeriesList: ts.SeriesList{
 			ts.NewSeries([]byte("c"), valsTwo, tagsTwo),
+		},
+		Metadata: block.ResultMetadata{
+			Exhaustive: false,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{},
 		},
 	}
 
@@ -281,7 +300,7 @@ func TestMultipleRead(t *testing.T) {
 		Execute(gomock.Any(), qTwo, gomock.Any(), gomock.Any()).Return(rTwo, nil)
 
 	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
-	result, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
+	res, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
@@ -296,6 +315,13 @@ func TestMultipleRead(t *testing.T) {
 		},
 	}
 
+	result := res.result
 	assert.Equal(t, expected.Timeseries[0], result[0].Timeseries[0])
 	assert.Equal(t, expected.Timeseries[1], result[1].Timeseries[0])
+
+	meta := res.meta
+	assert.False(t, meta.Exhaustive)
+	assert.True(t, meta.LocalOnly)
+	require.Equal(t, 1, len(meta.Warnings))
+	assert.Equal(t, "foo_bar", meta.Warnings[0].Header())
 }

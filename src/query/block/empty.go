@@ -35,10 +35,6 @@ func (b *emptyBlock) Info() BlockInfo {
 	return NewBlockInfo(BlockEmpty)
 }
 
-func (b *emptyBlock) WithMetadata(meta Metadata, _ []SeriesMeta) (Block, error) {
-	return NewEmptyBlock(meta), nil
-}
-
 func (b *emptyBlock) Meta() Metadata {
 	return b.meta
 }
@@ -83,13 +79,6 @@ type ucEmptyBlock struct {
 }
 
 func (b *ucEmptyBlock) Close() error { return nil }
-
-func (b *ucEmptyBlock) WithMetadata(
-	meta Metadata, _ []SeriesMeta) (UnconsolidatedBlock, error) {
-	return &ucEmptyBlock{
-		meta: meta,
-	}, nil
-}
 
 func (b *ucEmptyBlock) Meta() Metadata {
 	return b.meta

@@ -62,4 +62,9 @@ func TestTime(t *testing.T) {
 	for i, vals := range sink.Values {
 		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), vals[0])
 	}
+
+	resultMeta := sink.Meta.ResultMetadata
+	require.True(t, resultMeta.Exhaustive)
+	require.True(t, resultMeta.LocalOnly)
+	require.Equal(t, 0, len(resultMeta.Warnings))
 }
