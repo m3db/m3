@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package m3
 
 import (
-	"github.com/m3db/m3/src/query/models"
+	"testing"
+
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/block"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 )
 
-// Series is the public interface to a block of timeseries values.
-// Each block has a start time, a logical number of steps, and a step size
-// indicating the number of milliseconds represented by each point.
-type Series struct {
-	name []byte
-	vals Values
-	Tags models.Tags
-}
+func TestExhaustiveTagMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// NewSeries creates a new Series at a given start time, backed by the provided values.
-func NewSeries(name []byte, vals Values, tags models.Tags) *Series {
-	return &Series{
-		name: name,
-		vals: vals,
-		Tags: tags,
+	r := NewMultiFetchTagsResult()
+	for _, tt := range exhaustTests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, ex := range tt.exhaustives {
+				it := client.NewMockTaggedIDsIterator(ctrl)
+				it.EXPECT().Next().Return(false)
+				it.EXPECT().Err().Return(nil)
+				it.EXPECT().Finalize().Return()
+				meta := block.NewResultMetadata()
+				meta.Exhaustive = ex
+				r.Add(it, meta, nil)
+			}
+
+			tagResult, err := r.FinalResult()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, tagResult.Metadata.Exhaustive)
+			assert.NoError(t, r.Close())
+		})
 	}
 }
-
-// Name returns the name of the timeseries block
-func (s *Series) Name() []byte { return s.name }
-
-// Len returns the number of values in the time series. Used for aggregation.
-func (s *Series) Len() int { return s.vals.Len() }
-
-// Values returns the underlying values interface.
-func (s *Series) Values() Values { return s.vals }
-
-// SeriesList represents a slice of series pointers.
-type SeriesList []*Series

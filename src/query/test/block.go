@@ -61,7 +61,12 @@ func NewUnconsolidatedBlockFromDatapointsWithMeta(
 		seriesList[i] = ts.NewSeries(meta[i].Name, dps, meta[i].Tags)
 	}
 
-	b, _ := storage.NewMultiSeriesBlock(seriesList, &storage.FetchQuery{
+	result := &storage.FetchResult{
+		SeriesList: seriesList,
+		Metadata:   block.NewResultMetadata(),
+	}
+
+	b, _ := storage.NewMultiSeriesBlock(result, &storage.FetchQuery{
 		Start:    bounds.Start,
 		End:      bounds.End(),
 		Interval: bounds.StepSize,
@@ -161,8 +166,9 @@ func NewBlockFromValuesWithSeriesMeta(
 	seriesValues [][]float64,
 ) block.Block {
 	blockMeta := block.Metadata{
-		Bounds: bounds,
-		Tags:   models.NewTags(0, models.NewTagOptions()),
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: block.NewResultMetadata(),
 	}
 
 	return NewBlockFromValuesWithMetaAndSeriesMeta(

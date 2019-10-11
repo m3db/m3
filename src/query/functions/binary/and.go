@@ -50,6 +50,8 @@ func makeAndBlock(
 	rSeriesMetas := rIter.SeriesMeta()
 	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
 
+	lMeta.ResultMetadata = lMeta.ResultMetadata.
+		CombineMetadata(rMeta.ResultMetadata)
 	intersection, metas := andIntersect(matching, lSeriesMetas, rSeriesMetas)
 	builder, err := controller.BlockBuilder(queryCtx, lMeta, metas)
 	if err != nil {
