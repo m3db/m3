@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -120,6 +121,24 @@ func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error
 	}, nil
 }
 
+func truncateBoundsToResolution(
+	start time.Time,
+	end time.Time,
+	resolution time.Duration,
+) (time.Time, time.Time) {
+	truncatedStart := start.Truncate(resolution)
+	// NB: if truncated start matches start, it's already valid.
+	if truncatedStart.Before(start) {
+		start = truncatedStart.Add(resolution)
+	}
+
+	length := float64(end.Sub(truncatedStart))
+	steps := math.Floor(length / float64(resolution))
+	truncatedLength := time.Duration(steps) * resolution
+	end = start.Add(truncatedLength)
+	return start, end
+}
+
 func translateTimeseries(
 	ctx xctx.Context,
 	result *storage.FetchResult,
@@ -128,6 +147,7 @@ func translateTimeseries(
 	m3list := result.SeriesList
 	series := make([]*ts.Series, len(m3list))
 	resolutions := result.Metadata.Resolutions
+	fmt.Println("Resolutions", resolutions)
 	if len(series) != len(resolutions) {
 		return nil, fmt.Errorf("number of timeseries %d does not match number of "+
 			"resolutions %d", len(series), len(resolutions))
@@ -139,20 +159,33 @@ func translateTimeseries(
 			return nil, errSeriesNoResolution
 		}
 
+		start, end := truncateBoundsToResolution(start, end, resolution)
 		length := int(end.Sub(start) / resolution)
 		millisPerStep := int(resolution / time.Millisecond)
 		values := ts.NewValues(ctx, millisPerStep, length)
+		dataLength := 0
 		for _, datapoint := range m3series.Values().Datapoints() {
-			index := int(datapoint.Timestamp.Sub(start) / resolution)
-			if index < 0 || index >= length {
-				// Outside of range requested
+			ts := datapoint.Timestamp
+			if ts.Before(start) {
+				// Outside of range requested.
 				continue
 			}
+
+			if ts.After(end) {
+				// No more valid datapoints.
+				break
+			}
+
+			dataLength++
+			index := int(datapoint.Timestamp.Sub(start) / resolution)
 			values.SetValueAt(index, datapoint.Value)
 		}
 
+		// NB: depending on bounds alignment vs resolution, some datapoints may not
+		// fit in the truncated period, so the output should be sanitized.
+		truncatedValues := values.Slice(0, dataLength)
 		name := string(m3series.Name())
-		series[i] = ts.NewSeries(ctx, name, start, values)
+		series[i] = ts.NewSeries(ctx, name, start, truncatedValues)
 	}
 
 	return series, nil
