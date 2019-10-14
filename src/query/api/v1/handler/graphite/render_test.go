@@ -105,11 +105,11 @@ func TestParseQueryResults(t *testing.T) {
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
-	firstTimestamp := truncateStart.Unix() + 10
+	exTimestamp := truncateStart.Unix() + 10
 	expected := fmt.Sprintf(
 		`[{"target":"series_name","datapoints":[[3.000000,%d],`+
-			`[3.000000,%d]],"step_size_ms":%d}]`,
-		firstTimestamp, firstTimestamp+10, resolution/time.Millisecond)
+			`[3.000000,%d],[null,%d]],"step_size_ms":%d}]`,
+		exTimestamp, exTimestamp+10, exTimestamp+20, resolution/time.Millisecond)
 
 	require.Equal(t, expected, string(buf))
 }
@@ -121,7 +121,7 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	endStr := "03/07/15"
 	start, err := graphite.ParseTime(startStr, time.Now(), 0)
 	require.NoError(t, err)
-	_, err = graphite.ParseTime(endStr, time.Now(), 0)
+	end, err := graphite.ParseTime(endStr, time.Now(), 0)
 	require.NoError(t, err)
 
 	resolution := 10 * time.Second
@@ -154,10 +154,10 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	require.NoError(t, err)
 
 	// Expected resolution should be in milliseconds and subsume all datapoints.
-	stepSize := resolution / time.Millisecond * 4
+	exStep := end.Sub(start) / time.Millisecond
 	expected := fmt.Sprintf(
 		`[{"target":"a","datapoints":[[4.000000,%d]],"step_size_ms":%d}]`,
-		start.Unix(), stepSize)
+		start.Unix(), exStep)
 
 	require.Equal(t, expected, string(buf))
 }
