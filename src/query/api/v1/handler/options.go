@@ -63,12 +63,6 @@ type ServiceOptions struct {
 	Force  bool
 }
 
-// ServiceOptionsDefaults is the defaults for optional service options.
-type ServiceOptionsDefaults struct {
-	ServiceEnvironment *string
-	ServiceZone        *string
-}
-
 // M3AggServiceOptions contains the service options that are
 // specific to the M3Agg service.
 type M3AggServiceOptions struct {
