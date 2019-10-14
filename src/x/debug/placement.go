@@ -23,7 +23,9 @@ package debug
 import (
 	"fmt"
 	"io"
+	"net/http"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
@@ -32,32 +34,33 @@ import (
 )
 
 type placementInfoSource struct {
-	getHandler  *placement.GetHandler
-	serviceName string
+	getHandler *placement.GetHandler
+	service    handler.ServiceNameAndDefaults
 }
 
 // NewPlacementInfoSource returns a Source for placement information.
 func NewPlacementInfoSource(
-	iopts instrument.Options,
+	service handler.ServiceNameAndDefaults,
 	placementOpts placement.HandlerOptions,
-	serviceName string,
+	iopts instrument.Options,
 ) (Source, error) {
 	handler := placement.NewGetHandler(placementOpts)
 	return &placementInfoSource{
-		getHandler:  handler,
-		serviceName: serviceName,
+		getHandler: handler,
+		service:    service,
 	}, nil
 }
 
 // Write fetches data about the placement and writes it in the given writer.
 // The data is formatted in json.
-func (p *placementInfoSource) Write(w io.Writer) error {
-	placement, _, err := p.getHandler.Get(p.serviceName, nil)
+func (p *placementInfoSource) Write(w io.Writer, httpReq *http.Request) error {
+	placement, _, err := p.getHandler.Get(p.service, httpReq)
 	if err != nil {
 		return err
 	}
 	if placement == nil {
-		return fmt.Errorf("placement does not exist for service: %s", p.serviceName)
+		return fmt.Errorf("placement does not exist for service: %s",
+			p.service.ServiceName)
 	}
 
 	placementProto, err := placement.Proto()

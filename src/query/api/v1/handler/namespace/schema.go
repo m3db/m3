@@ -64,7 +64,11 @@ func NewSchemaHandler(
 	}
 }
 
-func (h *SchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *SchemaHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
@@ -75,7 +79,7 @@ func (h *SchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handler.NewServiceOptions(svc, r.Header, nil)
 	resp, err := h.Add(md, opts)
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
@@ -108,7 +112,10 @@ func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAdd
 }
 
 // Add adds schema to an existing namespace.
-func (h *SchemaHandler) Add(addReq *admin.NamespaceSchemaAddRequest, opts handler.ServiceOptions) (admin.NamespaceSchemaAddResponse, error) {
+func (h *SchemaHandler) Add(
+	addReq *admin.NamespaceSchemaAddRequest,
+	opts handler.ServiceOptions,
+) (admin.NamespaceSchemaAddResponse, error) {
 	var emptyRep = admin.NamespaceSchemaAddResponse{}
 
 	kvOpts := kv.NewOverrideOptions().
@@ -142,7 +149,11 @@ func NewSchemaResetHandler(
 	}
 }
 
-func (h *SchemaResetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *SchemaResetHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
@@ -153,7 +164,7 @@ func (h *SchemaResetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handler.NewServiceOptions(svc, r.Header, nil)
 	resp, err := h.Reset(md, opts)
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
@@ -186,7 +197,10 @@ func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSche
 }
 
 // Reset resets schema for an existing namespace.
-func (h *SchemaResetHandler) Reset(addReq *admin.NamespaceSchemaResetRequest, opts handler.ServiceOptions) (*admin.NamespaceSchemaResetResponse, error) {
+func (h *SchemaResetHandler) Reset(
+	addReq *admin.NamespaceSchemaResetRequest,
+	opts handler.ServiceOptions,
+) (*admin.NamespaceSchemaResetResponse, error) {
 	var emptyRep = admin.NamespaceSchemaResetResponse{}
 	if !opts.Force {
 		return &emptyRep, fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
