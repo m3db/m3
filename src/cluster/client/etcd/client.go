@@ -260,7 +260,7 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 
 	cluster, ok := c.opts.ClusterForZone(zone)
 	if !ok {
-		return nil, fmt.Errorf("no etcd cluster found for zone %s", zone)
+		return nil, fmt.Errorf("no etcd cluster found for zone: %s", zone)
 	}
 
 	err := c.retrier.Attempt(func() error {

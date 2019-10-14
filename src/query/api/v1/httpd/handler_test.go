@@ -57,6 +57,11 @@ var (
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}
+	svcDefaultOptions         = []handler.ServiceOptionsDefault{
+		func(o handler.ServiceOptions) handler.ServiceOptions {
+			return o
+		},
+	}
 )
 
 func makeTagOptions() models.TagOptions {
@@ -95,7 +100,8 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		models.QueryContextOptions{},
 		instrumentOpts,
 		defaultCPUProfileduration,
-		defaultPlacementServices)
+		defaultPlacementServices,
+		svcDefaultOptions)
 }
 
 func TestHandlerFetchTimeoutError(t *testing.T) {
@@ -107,9 +113,21 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
 	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
-	_, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine, nil, nil,
-		cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, instrument.NewOptions(), defaultCPUProfileduration, defaultPlacementServices)
+	_, err := NewHandler(
+		downsamplerAndWriter,
+		makeTagOptions(),
+		engine,
+		nil,
+		nil,
+		cfg,
+		dbconfig,
+		nil,
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		models.QueryContextOptions{},
+		instrument.NewOptions(),
+		defaultCPUProfileduration,
+		defaultPlacementServices,
+		svcDefaultOptions)
 
 	require.Error(t, err)
 }
@@ -123,9 +141,21 @@ func TestHandlerFetchTimeout(t *testing.T) {
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
 	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
-	h, err := NewHandler(downsamplerAndWriter, makeTagOptions(), engine,
-		nil, nil, cfg, dbconfig, nil, handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		models.QueryContextOptions{}, instrument.NewOptions(), defaultCPUProfileduration, defaultPlacementServices)
+	h, err := NewHandler(
+		downsamplerAndWriter,
+		makeTagOptions(),
+		engine,
+		nil,
+		nil,
+		cfg,
+		dbconfig,
+		nil,
+		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		models.QueryContextOptions{},
+		instrument.NewOptions(),
+		defaultCPUProfileduration,
+		defaultPlacementServices,
+		svcDefaultOptions)
 	require.NoError(t, err)
 	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
 }

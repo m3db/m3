@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -68,6 +69,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -315,14 +318,6 @@ func Run(runOpts RunOptions) {
 	}
 
 	opentracing.SetGlobalTracer(tracer)
-
-	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
-		cpuProfileDuration,
-		iopts,
-	)
-	if err != nil {
-		logger.Error("unable to create debug writer", zap.Error(err))
-	}
 
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
@@ -603,6 +598,38 @@ func Run(runOpts RunOptions) {
 	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
 
 	if cfg.DebugListenAddress != "" {
+		var debugWriter xdebug.ZipWriter
+		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
+			queryconfig.Configuration{}, nil, iopts)
+		if err != nil {
+			logger.Warn("could not create handler options for debug writer", zap.Error(err))
+		} else {
+			envCfg, err := cfg.EnvironmentConfig.Services.SyncCluster()
+			if err != nil || envCfg.Service == nil {
+				logger.Warn("could not get cluster config for debug writer",
+					zap.Error(err),
+					zap.Bool("envCfgServiceIsNil", envCfg.Service == nil))
+			} else {
+				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+					cpuProfileDuration,
+					syncCfg.ClusterClient,
+					handlerOpts,
+					[]handler.ServiceNameAndDefaults{
+						{
+							ServiceName: handler.M3DBServiceName,
+							Defaults: []handler.ServiceOptionsDefault{
+								handler.WithDefaultServiceEnvironment(envCfg.Service.Env),
+								handler.WithDefaultServiceZone(envCfg.Service.Zone),
+							},
+						},
+					},
+					iopts)
+				if err != nil {
+					logger.Error("unable to create debug writer", zap.Error(err))
+				}
+			}
+		}
+
 		go func() {
 			mux := http.DefaultServeMux
 			if debugWriter != nil {
