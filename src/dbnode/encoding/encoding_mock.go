@@ -448,6 +448,62 @@ func (mr *MockOptionsMockRecorder) ByteFieldDictionaryLRUSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteFieldDictionaryLRUSize", reflect.TypeOf((*MockOptions)(nil).ByteFieldDictionaryLRUSize))
 }
 
+// SetIStreamReaderSizeM3TSZ mocks base method
+func (m *MockOptions) SetIStreamReaderSizeM3TSZ(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIStreamReaderSizeM3TSZ", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIStreamReaderSizeM3TSZ indicates an expected call of SetIStreamReaderSizeM3TSZ
+func (mr *MockOptionsMockRecorder) SetIStreamReaderSizeM3TSZ(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIStreamReaderSizeM3TSZ", reflect.TypeOf((*MockOptions)(nil).SetIStreamReaderSizeM3TSZ), value)
+}
+
+// IStreamReaderSizeM3TSZ mocks base method
+func (m *MockOptions) IStreamReaderSizeM3TSZ() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IStreamReaderSizeM3TSZ")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// IStreamReaderSizeM3TSZ indicates an expected call of IStreamReaderSizeM3TSZ
+func (mr *MockOptionsMockRecorder) IStreamReaderSizeM3TSZ() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IStreamReaderSizeM3TSZ", reflect.TypeOf((*MockOptions)(nil).IStreamReaderSizeM3TSZ))
+}
+
+// SetIStreamReaderSizeProto mocks base method
+func (m *MockOptions) SetIStreamReaderSizeProto(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIStreamReaderSizeProto", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIStreamReaderSizeProto indicates an expected call of SetIStreamReaderSizeProto
+func (mr *MockOptionsMockRecorder) SetIStreamReaderSizeProto(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIStreamReaderSizeProto", reflect.TypeOf((*MockOptions)(nil).SetIStreamReaderSizeProto), value)
+}
+
+// IStreamReaderSizeProto mocks base method
+func (m *MockOptions) IStreamReaderSizeProto() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IStreamReaderSizeProto")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// IStreamReaderSizeProto indicates an expected call of IStreamReaderSizeProto
+func (mr *MockOptionsMockRecorder) IStreamReaderSizeProto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IStreamReaderSizeProto", reflect.TypeOf((*MockOptions)(nil).IStreamReaderSizeProto))
+}
+
 // MockIterator is a mock of Iterator interface
 type MockIterator struct {
 	ctrl     *gomock.Controller
