@@ -372,7 +372,7 @@ func (it *iterator) readCustomValues() error {
 				return err
 			}
 		case customField.fieldType == bytesField:
-			if err := it.readBytesValue(i, customField.iteratorBytesFieldDict); err != nil {
+			if err := it.readBytesValue(i, customField); err != nil {
 				return err
 			}
 		case customField.fieldType == boolField:
@@ -517,7 +517,7 @@ func (it *iterator) readFloatValue(i int) error {
 	return it.updateMarshallerWithCustomValues(updateArg)
 }
 
-func (it *iterator) readBytesValue(i int, bytesFieldDict [][]byte) error {
+func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 	bytesChangedControlBit, err := it.stream.ReadBit()
 	if err != nil {
 		return fmt.Errorf(
@@ -553,13 +553,13 @@ func (it *iterator) readBytesValue(i int, bytesFieldDict [][]byte) error {
 		}
 
 		dictIdx := int(dictIdxBits)
-		if dictIdx >= len(bytesFieldDict) || dictIdx < 0 {
+		if dictIdx >= len(customField.iteratorBytesFieldDict) || dictIdx < 0 {
 			return fmt.Errorf(
 				"%s read bytes field dictionary index: %d, but dictionary is size: %d",
-				itErrPrefix, dictIdx, len(bytesFieldDict))
+				itErrPrefix, dictIdx, len(customField.iteratorBytesFieldDict))
 		}
 
-		bytesVal := bytesFieldDict[dictIdx]
+		bytesVal := customField.iteratorBytesFieldDict[dictIdx]
 		it.moveToEndOfBytesDict(i, dictIdx)
 
 		updateArg := updateLastIterArg{i: i, bytesFieldBuf: bytesVal}
