@@ -60,7 +60,7 @@ type iterator struct {
 	byteFieldDictLRUSize int
 	// TODO(rartoul): Update these as we traverse the stream if we encounter
 	// a mid-stream schema change: https://github.com/m3db/m3/issues/1471
-	customFields    []*customFieldState
+	customFields    []customFieldState
 	nonCustomFields []marshalledField
 
 	tsIterator m3tsz.TimestampIterator
@@ -258,7 +258,7 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 		// next time.
 		customFields := it.customFields
 		for i := range customFields {
-			customFields[i] = nil
+			customFields[i] = customFieldState{}
 		}
 		it.customFields = customFields[:0]
 
@@ -272,7 +272,7 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 
 	it.schemaDesc = schemaDesc
 	it.schema = schemaDesc.Get().MessageDescriptor
-	_, it.nonCustomFields = customAndNonCustomFields(nil, nil, it.schema)
+	it.customFields, it.nonCustomFields = customAndNonCustomFields(it.customFields, nil, it.schema)
 }
 
 func (it *iterator) Close() {
@@ -327,11 +327,11 @@ func (it *iterator) readCustomFieldsSchema() error {
 
 	if it.customFields != nil {
 		for i := range it.customFields {
-			it.customFields[i] = nil
+			it.customFields[i] = customFieldState{}
 		}
 		it.customFields = it.customFields[:0]
 	} else {
-		it.customFields = make([]*customFieldState, 0, numCustomFields)
+		it.customFields = make([]customFieldState, 0, numCustomFields)
 	}
 
 	for i := 1; i <= int(numCustomFields); i++ {
@@ -354,7 +354,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 		}
 
 		customFieldState := newCustomFieldState(i, protoFieldType, fieldType)
-		it.customFields = append(it.customFields, &customFieldState)
+		it.customFields = append(it.customFields, customFieldState)
 	}
 
 	return nil
