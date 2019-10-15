@@ -72,6 +72,7 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 func (s *replicatedSessionTestSuite) initReplicatedSession(opts Options, newSessionFunc newSessionFn) {
 	session, err := newReplicatedSession(
 		opts,
+		NewOptionsForAsyncClusters(opts, nil, nil),
 		withNewSessionFn(newSessionFunc),
 	)
 	s.replicatedSession = session.(*replicatedSession)

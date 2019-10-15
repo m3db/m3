@@ -272,10 +272,16 @@ func NewAdminOptions() AdminOptions {
 
 // NewOptionsForAsyncClusters returns a slice of Options, where each is the set of client
 // for a given async client.
-func NewOptionsForAsyncClusters(opts Options) []Options {
+func NewOptionsForAsyncClusters(opts Options, flushSizeOverride *int, flushIntervalOverride *time.Duration) []Options {
 	result := make([]Options, 0, len(opts.AsyncTopologyInitializers()))
 	for _, topoInit := range opts.AsyncTopologyInitializers() {
 		options := opts.SetTopologyInitializer(topoInit)
+		if flushSizeOverride != nil {
+			options = options.SetHostQueueOpsFlushSize(*flushSizeOverride)
+		}
+		if flushIntervalOverride != nil {
+			options = options.SetHostQueueOpsFlushInterval(*flushIntervalOverride)
+		}
 		result = append(result, options)
 	}
 	return result

@@ -101,9 +101,17 @@ type Configuration struct {
 	// operations the client will attempt to buffer for each host before issuing an RPC.
 	TargetHostQueueFlushSize *int `yaml:"targetHostQueueFlushSize"`
 
+	// AsyncTargetHostQueueFlushSize sets the target size for an async host queue flush. This controls how many
+	// operations the client will attempt to buffer for each host before issuing an RPC.
+	AsyncTargetHostQueueFlushSize *int `yaml:"asyncTargetHostQueueFlushSize"`
+
 	// HostQueueFlushInterval sets the interval at which the m3db client will flush the queue for a
 	// given host regardless of the number of batched operations.
 	HostQueueFlushInterval *time.Duration `yaml:"hostQueueFlushInterval"`
+
+	// AsyncHostQueueFlushInterval sets the interval at which the m3db client will flush the queue for a
+	// given async host regardless of the number of batched operations.
+	AsyncHostQueueFlushInterval *time.Duration `yaml:"asyncHostQueueFlushInterval"`
 
 	// UseV2BatchAPIs determines whether the V2 batch APIs are used. Note that the M3DB nodes must
 	// have support for the V2 APIs in order for this feature to be used.
@@ -403,5 +411,6 @@ func (c Configuration) NewAdminClient(
 		opts = opt(opts)
 	}
 
-	return NewAdminClient(opts)
+	asyncClusterOpts := NewOptionsForAsyncClusters(opts, c.AsyncTargetHostQueueFlushSize, c.AsyncHostQueueFlushInterval)
+	return NewAdminClient(opts, asyncClusterOpts...)
 }
