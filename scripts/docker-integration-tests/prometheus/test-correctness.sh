@@ -2,20 +2,26 @@
 
 set -ex
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+t=$(date +%s)
 
 function write_metrics {
   NUM=$1
+  EXTRA=${2:-default}
   echo "Writing $NUM metrics to [0.0.0.0:9003]"
-  # set +x
+  set +x
   for (( i=0; i<$NUM; i++ ))
   do
     curl -X POST 0.0.0.0:9003/writetagged -d '{
       "namespace": "unagg",
-      "id": "{__name__=\"'$METRIC_NAME'\",val=\"'$i'\"}",
+      "id": "{__name__=\"'$METRIC_NAME'\",'$EXTRA'=\"extra\",val=\"'$i'\"}",
       "tags": [
         {
           "name": "__name__",
           "value": "'$METRIC_NAME'"
+        },
+        { 
+          "name": "'$EXTRA'",
+          "value": "extra"
         },
         { 
           "name": "val",
@@ -28,7 +34,7 @@ function write_metrics {
       }
     }'
   done
-  # set -x
+  set -x
 }
  
 function test_instantaneous {
@@ -36,15 +42,13 @@ function test_instantaneous {
   EXPECTED_COUNT=$2
   EXPECTED=$3
   RESPONSE=$(curl -sSL "http://localhost:7201/api/v1/query?query=$QUERY")
-  echo $REPONSE | jq .data.result
   ACTUAL_COUNT=$(echo $RESPONSE | jq '.data.result | length')
   ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.foo | tr -d "\n")
   CONCAT=$(echo $EXPECTED | tr -d " ")
   test $ACTUAL_COUNT = $EXPECTED_COUNT && test $ACTUAL = $CONCAT
 }
 
-function test_replace {
-  export t=$(date +%s)
+function test_replace { 
   METRIC_NAME="quail_$t"
   write_metrics 5
   sleep 1
@@ -54,6 +58,31 @@ function test_replace {
   test_instantaneous $query 5 "\"bar_0\" \"bar_1\" \"bar_2\" \"bar_3\" \"bar_4\""
 }
 
+function test_exists {
+  QUERY=$1
+  EXPECTED_EXISTS=$2
+  EXPECTED_NOT_EXISTS=$3
+  EXPECTED_COUNT=$4
+  echo $QUERY "IS METRIC NAME"
+  RESPONSE=$(curl -sSL "http://localhost:7201/api/v1/query?query=$METRIC_NAME\{$QUERY\}")
+  ACTUAL_COUNT_EXISTS=$(echo $RESPONSE | jq .data.result[].metric.$EXPECTED_EXISTS | grep extra | wc -l)
+  ACTUAL_COUNT_NOT_EXISTS=$(echo $RESPONSE | jq .data.result[].metric.$EXPECTED_NOT_EXISTS | grep extra | wc -l)
+  test $ACTUAL_COUNT_EXISTS = $EXPECTED_COUNT && test $ACTUAL_COUNT_NOT_EXISTS = 0
+}
+
+function test_empty_matcher {
+  export METRIC_NAME="foo_$t"
+  write_metrics 5 exists
+  write_metrics 5 not_exists
+ 
+  retry_with_backoff ATTEMPTS=3 TIMEOUT=1 test_exists 'not_exists=\"\"' exists not_exists 5
+  retry_with_backoff ATTEMPTS=3 TIMEOUT=1 test_exists 'not_exists!=\"\"' not_exists exists 5
+
+  retry_with_backoff ATTEMPTS=3 TIMEOUT=1 test_exists 'exists=\"\"' not_exists exists 5
+  retry_with_backoff ATTEMPTS=3 TIMEOUT=1 test_exists 'exists!=\"\"' exists not_exists 5
+}
+
 function test_correctness {
-  test_replace 
+  test_replace
+  test_empty_matcher
 }
