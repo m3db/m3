@@ -74,8 +74,9 @@ func TestParseQueryNoResults(t *testing.T) {
 
 func TestParseQueryResults(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
-	start := time.Now().Add(-30 * time.Minute)
 	resolution := 10 * time.Second
+	truncateStart := time.Now().Add(-30 * time.Minute).Truncate(resolution)
+	start := truncateStart.Add(time.Second)
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	tags := models.NewTags(0, nil)
 	tags = tags.AddTag(models.Tag{Name: graphite.TagName(0), Value: []byte("foo")})
@@ -104,10 +105,11 @@ func TestParseQueryResults(t *testing.T) {
 
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
+	exTimestamp := truncateStart.Unix() + 10
 	expected := fmt.Sprintf(
 		`[{"target":"series_name","datapoints":[[3.000000,%d],`+
-			`[3.000000,%d],[3.000000,%d]],"step_size_ms":%d}]`,
-		start.Unix(), start.Unix()+10, start.Unix()+20, resolution/time.Millisecond)
+			`[3.000000,%d],[null,%d]],"step_size_ms":%d}]`,
+		exTimestamp, exTimestamp+10, exTimestamp+20, resolution/time.Millisecond)
 
 	require.Equal(t, expected, string(buf))
 }
@@ -138,7 +140,10 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	req := newGraphiteReadHTTPRequest(t)
-	req.URL.RawQuery = "target=foo.bar&from=" + startStr + "&until=" + endStr + "&maxDataPoints=1"
+	req.URL.RawQuery = fmt.Sprintf(
+		"target=foo.bar&from=%s&until=%s&maxDataPoints=1",
+		startStr, endStr,
+	)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
@@ -148,9 +153,11 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	buf, err := ioutil.ReadAll(res.Body)
 	require.NoError(t, err)
 
+	// Expected resolution should be in milliseconds and subsume all datapoints.
+	exStep := end.Sub(start) / time.Millisecond
 	expected := fmt.Sprintf(
 		`[{"target":"a","datapoints":[[4.000000,%d]],"step_size_ms":%d}]`,
-		start.Unix(), end.Sub(start)/time.Millisecond)
+		start.Unix(), exStep)
 
 	require.Equal(t, expected, string(buf))
 }
@@ -158,8 +165,11 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 func TestParseQueryResultsMultiTarget(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	minsAgo := 12
-	start := time.Now().Add(-1 * time.Duration(minsAgo) * time.Minute)
 	resolution := 10 * time.Second
+	start := time.Now().
+		Add(-1 * time.Duration(minsAgo) * time.Minute).
+		Truncate(resolution)
+
 	vals := ts.NewFixedStepValues(resolution, 3, 3, start)
 	seriesList := ts.SeriesList{
 		ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
@@ -175,8 +185,10 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 		models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 	req := newGraphiteReadHTTPRequest(t)
-	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=baz.qux&from=%d&until=%d",
-		start.Unix(), start.Unix()+30)
+	req.URL.RawQuery = fmt.Sprintf(
+		"target=foo.bar&target=baz.qux&from=%d&until=%d",
+		start.Unix(), start.Unix()+30,
+	)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
@@ -228,8 +240,10 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 				models.QueryContextOptions{}, nil, instrument.NewOptions())
 
 			req := newGraphiteReadHTTPRequest(t)
-			req.URL.RawQuery = fmt.Sprintf("target=foo.bar&target=bar.baz&from=%d&until=%d",
-				start.Unix(), start.Unix()+30)
+			req.URL.RawQuery = fmt.Sprintf(
+				"target=foo.bar&target=bar.baz&from=%d&until=%d",
+				start.Unix(), start.Unix()+30,
+			)
 			recorder := httptest.NewRecorder()
 			h.ServeHTTP(recorder, req)
 

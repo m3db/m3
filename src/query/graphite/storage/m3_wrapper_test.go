@@ -99,9 +99,16 @@ func TestTranslateQueryTrailingDot(t *testing.T) {
 func TestTranslateTimeseries(t *testing.T) {
 	ctx := xctx.New()
 	resolution := 10 * time.Second
-	steps := 1
-	start := time.Now()
-	end := start.Add(time.Duration(steps) * resolution)
+	steps := 3
+	start := time.Now().Truncate(resolution).Add(time.Second)
+	end := start.Add(time.Duration(steps) * resolution).Add(time.Second * -2)
+
+	// NB: truncated steps should have 1 less data point than input series since
+	// the first data point is not valid.
+	truncatedSteps := steps - 1
+	truncated := start.Truncate(resolution).Add(resolution)
+	truncatedEnd := truncated.Add(resolution * time.Duration(truncatedSteps))
+
 	expected := 5
 	seriesList := make(m3ts.SeriesList, expected)
 	for i := 0; i < expected; i++ {
@@ -128,7 +135,13 @@ func TestTranslateTimeseries(t *testing.T) {
 
 	require.Equal(t, expected, len(translated))
 	for i, tt := range translated {
-		ex := []float64{float64(i)}
+		ex := make([]float64, truncatedSteps)
+		for j := range ex {
+			ex[j] = float64(i)
+		}
+
+		assert.Equal(t, truncated, tt.StartTime())
+		assert.Equal(t, truncatedEnd, tt.EndTime())
 		assert.Equal(t, ex, tt.SafeValues())
 		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
 	}
@@ -137,9 +150,15 @@ func TestTranslateTimeseries(t *testing.T) {
 func TestTranslateTimeseriesWithTags(t *testing.T) {
 	ctx := xctx.New()
 	resolution := 10 * time.Second
-	steps := 1
-	start := time.Now()
-	end := start.Add(time.Duration(steps) * resolution)
+	steps := 3
+	start := time.Now().Truncate(resolution).Add(time.Second)
+	end := start.Add(time.Duration(steps) * resolution).Add(time.Second * -2)
+
+	// NB: truncated steps should have 1 less data point than input series since
+	// the first data point is not valid.
+	truncatedSteps := steps - 1
+	truncated := start.Truncate(resolution).Add(resolution)
+	truncatedEnd := truncated.Add(resolution * time.Duration(truncatedSteps))
 	expected := 5
 	seriesList := make(m3ts.SeriesList, expected)
 	for i := 0; i < expected; i++ {
@@ -150,7 +169,7 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 	}
 
 	resos := make([]int64, 0, expected)
-	for _ = range seriesList {
+	for range seriesList {
 		resos = append(resos, int64(resolution))
 	}
 
@@ -166,7 +185,13 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 
 	require.Equal(t, expected, len(translated))
 	for i, tt := range translated {
-		ex := []float64{float64(i)}
+		ex := make([]float64, truncatedSteps)
+		for j := range ex {
+			ex[j] = float64(i)
+		}
+
+		assert.Equal(t, truncated, tt.StartTime())
+		assert.Equal(t, truncatedEnd, tt.EndTime())
 		assert.Equal(t, ex, tt.SafeValues())
 		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
 	}
@@ -174,8 +199,8 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 
 func TestFetchByQuery(t *testing.T) {
 	store := mock.NewMockStorage()
-	start := time.Now().Add(time.Hour * -1)
 	resolution := 10 * time.Second
+	start := time.Now().Add(time.Hour * -1).Truncate(resolution).Add(time.Second)
 	steps := 3
 	vals := m3ts.NewFixedStepValues(resolution, steps, 3, start)
 	seriesList := m3ts.SeriesList{
@@ -203,7 +228,7 @@ func TestFetchByQuery(t *testing.T) {
 	wrapper := NewM3WrappedStorage(store, enforcer, instrument.NewOptions())
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
-	end := time.Now()
+	end := start.Add(time.Duration(steps) * resolution)
 	opts := FetchOptions{
 		StartTime: start,
 		EndTime:   end,
@@ -218,7 +243,8 @@ func TestFetchByQuery(t *testing.T) {
 	require.Equal(t, 1, len(result.SeriesList))
 	series := result.SeriesList[0]
 	assert.Equal(t, "a", series.Name())
-	assert.Equal(t, []float64{3, 3, 3}, series.SafeValues())
+	// NB: last point is expected to be truncated.
+	assert.Equal(t, []float64{3, 3}, series.SafeValues())
 
 	// NB: ensure the fetch was called with the base enforcer's child correctly
 	assert.Equal(t, childEnforcer, store.LastFetchOptions().Enforcer)

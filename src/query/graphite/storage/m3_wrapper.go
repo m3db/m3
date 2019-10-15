@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -120,6 +121,24 @@ func translateQuery(query string, opts FetchOptions) (*storage.FetchQuery, error
 	}, nil
 }
 
+func truncateBoundsToResolution(
+	start time.Time,
+	end time.Time,
+	resolution time.Duration,
+) (time.Time, time.Time) {
+	truncatedStart := start.Truncate(resolution)
+	// NB: if truncated start matches start, it's already valid.
+	if truncatedStart.Before(start) {
+		start = truncatedStart.Add(resolution)
+	}
+
+	length := float64(end.Sub(truncatedStart))
+	steps := math.Floor(length / float64(resolution))
+	truncatedLength := time.Duration(steps) * resolution
+	end = start.Add(truncatedLength)
+	return start, end
+}
+
 func translateTimeseries(
 	ctx xctx.Context,
 	result *storage.FetchResult,
@@ -139,15 +158,23 @@ func translateTimeseries(
 			return nil, errSeriesNoResolution
 		}
 
+		start, end := truncateBoundsToResolution(start, end, resolution)
 		length := int(end.Sub(start) / resolution)
 		millisPerStep := int(resolution / time.Millisecond)
 		values := ts.NewValues(ctx, millisPerStep, length)
 		for _, datapoint := range m3series.Values().Datapoints() {
-			index := int(datapoint.Timestamp.Sub(start) / resolution)
-			if index < 0 || index >= length {
-				// Outside of range requested
+			ts := datapoint.Timestamp
+			if ts.Before(start) {
+				// Outside of range requested.
 				continue
 			}
+
+			if !ts.Before(end) {
+				// No more valid datapoints.
+				break
+			}
+
+			index := int(datapoint.Timestamp.Sub(start) / resolution)
 			values.SetValueAt(index, datapoint.Value)
 		}
 
