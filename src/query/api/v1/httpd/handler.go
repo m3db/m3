@@ -250,6 +250,11 @@ func (h *Handler) RegisterRoutes() error {
 		).Methods(method)
 	}
 
+	// Query parse endpoint
+	h.router.HandleFunc(native.PromParseURL,
+		wrapped(native.NewPromParseHandler(h.instrumentOpts)).ServeHTTP,
+	).Methods(native.PromParseHTTPMethod)
+
 	// Series match endpoints
 	for _, method := range remote.PromSeriesMatchHTTPMethods {
 		h.router.HandleFunc(remote.PromSeriesMatchURL,
