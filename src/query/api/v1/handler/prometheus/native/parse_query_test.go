@@ -61,7 +61,7 @@ var parseTests = []struct {
 		}`,
 	},
 	{
-		"1+(foo or sum(rate(bar[5m])))",
+		"1 > bool (foo or sum(rate(bar[5m])))",
 		`{
 			"children": [
 				{
@@ -89,7 +89,7 @@ var parseTests = []struct {
 					"name": "or"
 				}
 			],
-			"name": "+"
+			"name": ">"
 		}`,
 	},
 }
@@ -98,6 +98,141 @@ func TestParse(t *testing.T) {
 	for i, tt := range parseTests {
 		h := NewPromParseHandler(instrument.NewOptions())
 		query := fmt.Sprintf("/parse?query=%s", url.QueryEscape(tt.query))
+		req := httptest.NewRequest("GET", query, nil)
+		w := httptest.NewRecorder()
+
+		h.ServeHTTP(w, req)
+		body := w.Result().Body
+		defer body.Close()
+
+		r, err := ioutil.ReadAll(body)
+		require.NoError(t, err)
+
+		ex := mustPrettyJSON(t, tt.ex)
+		actual := mustPrettyJSON(t, string(r))
+		require.Equal(t, ex, actual,
+			fmt.Sprintf("Run %d:\n%s", i, xtest.Diff(ex, actual)))
+	}
+}
+
+var thresholdTests = []struct {
+	query string
+	ex    string
+}{
+	{
+		"foo",
+		`{
+			"query": {
+				"name":"fetch"
+			}
+		}`,
+	},
+	{
+		"sum(a)-3",
+		`{
+			"query": {
+				"name": "-",
+				"children": [
+					{
+						"name": "sum",
+						"children": [
+							{
+								"name": "fetch"
+							}
+						]
+					},
+					{
+						"name": "scalar"
+					}
+				]
+			}
+		}`,
+	},
+	{
+		"1 > bool 2",
+		`{
+			"query": {
+				"children": [
+					{
+						"name": "scalar"
+					},
+					{
+						"name": "scalar"
+					}
+				],
+				"name": ">"
+			}
+		}`,
+	},
+	{
+		"foo > bar",
+		`{
+			"query": {
+				"children": [
+					{
+						"name": "fetch"
+					},
+					{
+						"name": "fetch"
+					}
+				],
+				"name": ">"
+			}
+		}`,
+	},
+	{
+		"up > 13.37",
+		`{
+			"query": {
+				"name": "fetch"
+			},
+			"threshold": {
+				"comparator": ">",
+				"value": 13.37
+			}
+		}`,
+	},
+	{
+		"1 <= bool (foo or sum(rate(bar[5m])))",
+		`{
+			"query": {
+				"children": [
+					{
+						"name": "fetch"
+					},
+					{
+						"children": [
+							{
+								"children": [
+									{
+										"name": "fetch"
+									}
+								],
+								"name": "rate"
+							}
+						],
+						"name": "sum"
+					}
+				],
+				"name": "or"
+			},
+			"threshold": {
+				"comparator": ">=",
+				"value": 1
+			}
+		}`,
+	},
+}
+
+func TestParseThreshold(t *testing.T) {
+	for i, tt := range thresholdTests {
+		h := NewPromParseHandler(instrument.NewOptions())
+		query := fmt.Sprintf(
+			"/parse?query=%s&%s",
+			url.QueryEscape(tt.query),
+			thresholdParam,
+		)
+
 		req := httptest.NewRequest("GET", query, nil)
 		w := httptest.NewRecorder()
 

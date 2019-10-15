@@ -53,6 +53,7 @@ const (
 	timeParam         = "time"
 	queryParam        = "query"
 	debugParam        = "debug"
+	thresholdParam    = "threshold"
 	endExclusiveParam = "end-exclusive"
 	blockTypeParam    = "block-type"
 
