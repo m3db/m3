@@ -149,7 +149,7 @@ function test_label_values {
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
-
+ 
 function write_carbon {
   CLUSTER=$1
   case $CLUSTER in
@@ -282,6 +282,7 @@ function test_fanout_warning_label_values {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied
 }
 
+
 function test_fanout_warning_graphite {
   # Update write time as it will otherwise not be written correctly.
   t=$(date +%s)
@@ -333,7 +334,7 @@ function test_fanout_warning_missing_zone {
 
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 16 15 remote_store_cluster-c_fetch_warning
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_warning
-
+ 
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_complete_tags_warning
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
 }
@@ -349,3 +350,4 @@ function test_fanout_warnings {
   test_fanout_warning_graphite
   test_fanout_warning_missing_zone
 }
+ 
