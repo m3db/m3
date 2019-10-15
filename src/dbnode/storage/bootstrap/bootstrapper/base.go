@@ -135,7 +135,7 @@ func (b baseBootstrapper) Bootstrap(
 			}...)
 		}
 
-		b.log.Info("bootstrap from source for namespace prepared", logFields...)
+		b.log.Info("bootstrap from source for namespace prepared", prepareLogFields...)
 	}
 
 	nowFn := b.opts.ClockOptions().NowFn()

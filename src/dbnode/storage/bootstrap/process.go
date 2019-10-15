@@ -244,6 +244,7 @@ func (b bootstrapProcess) logFields(
 ) []zapcore.Field {
 	fields := []zapcore.Field{
 		zap.String("bootstrapper", b.bootstrapper.String()),
+		zap.Stringer("namespace", namespace.ID()),
 		zap.Int("numShards", len(shards)),
 		zap.Time("dataFrom", dataTimeWindow.Start),
 		zap.Time("dataTo", dataTimeWindow.End),
