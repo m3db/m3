@@ -36,6 +36,9 @@ var (
 
 	testWriteTaggedArrayPool   writeTaggedBatchRawRequestElementArrayPool
 	testWriteTaggedV2ArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+
+	testFetchBatchRawV2Pool      fetchBatchRawV2RequestPool
+	testFetchBatchRawV2ArrayPool fetchBatchRawV2RequestElementArrayPool
 )
 
 func init() {
@@ -58,6 +61,11 @@ func init() {
 	testWriteTaggedArrayPool.Init()
 	testWriteTaggedV2ArrayPool = newWriteTaggedBatchRawV2RequestElementArrayPool(smallPoolOptions, 0)
 	testWriteTaggedV2ArrayPool.Init()
+
+	testFetchBatchRawV2Pool = newFetchBatchRawV2RequestPool(smallPoolOptions)
+	testFetchBatchRawV2Pool.Init()
+	testFetchBatchRawV2ArrayPool = newFetchBatchRawV2RequestElementArrayPool(smallPoolOptions, 0)
+	testFetchBatchRawV2ArrayPool.Init()
 }
 
 type hostQueueResult struct {

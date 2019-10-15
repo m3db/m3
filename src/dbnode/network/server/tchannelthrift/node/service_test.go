@@ -742,6 +742,121 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 	}
 }
 
+func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	nsID1 := "metrics1"
+	nsID2 := "metrics2"
+
+	streams := map[string]xio.SegmentReader{}
+	series := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"foo": {
+			{start.Add(10 * time.Second), 1.0},
+			{start.Add(20 * time.Second), 2.0},
+		},
+		"bar": {
+			{start.Add(20 * time.Second), 3.0},
+			{start.Add(30 * time.Second), 4.0},
+		},
+	}
+	for id, s := range series {
+		enc := testStorageOpts.EncoderPool().Get()
+		enc.Reset(start, 0, nil)
+		for _, v := range s {
+			dp := ts.Datapoint{
+				Timestamp: v.t,
+				Value:     v.v,
+			}
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
+
+		stream, _ := enc.Stream(encoding.StreamOptions{})
+		streams[id] = stream
+		nsID := nsID1
+		if id == "bar" {
+			nsID = nsID2
+		}
+		mockDB.EXPECT().
+			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			Return([][]xio.BlockReader{
+				[]xio.BlockReader{
+					xio.BlockReader{
+						SegmentReader: stream,
+					},
+				},
+			}, nil)
+	}
+
+	ids := [][]byte{[]byte("foo"), []byte("bar")}
+	elements := []*rpc.FetchBatchRawV2RequestElement{
+		&rpc.FetchBatchRawV2RequestElement{
+			NameSpace:     0,
+			RangeStart:    start.Unix(),
+			RangeEnd:      end.Unix(),
+			ID:            []byte("foo"),
+			RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		},
+		&rpc.FetchBatchRawV2RequestElement{
+			NameSpace:     1,
+			RangeStart:    start.Unix(),
+			RangeEnd:      end.Unix(),
+			ID:            []byte("bar"),
+			RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		},
+	}
+	r, err := service.FetchBatchRawV2(tctx, &rpc.FetchBatchRawV2Request{
+		NameSpaces: [][]byte{[]byte(nsID1), []byte(nsID2)},
+		Elements:   elements,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, len(ids), len(r.Elements))
+	for i, id := range ids {
+		elem := r.Elements[i]
+		require.NotNil(t, elem)
+
+		assert.Nil(t, elem.Err)
+		require.Equal(t, 1, len(elem.Segments))
+
+		seg := elem.Segments[0]
+		require.NotNil(t, seg)
+		require.NotNil(t, seg.Merged)
+
+		var expectHead, expectTail []byte
+		expectSegment, err := streams[string(id)].Segment()
+		require.NoError(t, err)
+
+		if expectSegment.Head != nil {
+			expectHead = expectSegment.Head.Bytes()
+		}
+		if expectSegment.Tail != nil {
+			expectTail = expectSegment.Tail.Bytes()
+		}
+
+		assert.Equal(t, expectHead, seg.Merged.Head)
+		assert.Equal(t, expectTail, seg.Merged.Tail)
+	}
+}
+
 // TestServiceFetchBatchRawOverMaxOutstandingRequests tests that the FetchBatchRaw endpoint
 // will reject requests if the number of outstanding read requests has hit the maximum.
 func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {

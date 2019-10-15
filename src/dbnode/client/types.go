@@ -677,7 +677,10 @@ type enqueueDelayedDoneFn func()
 type enqueueChannel interface {
 	enqueue(peersMetadata []receivedBlockMetadata) error
 	enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error)
-	get() (<-chan []receivedBlockMetadata, error)
+	// read is always safe to call since you can safely range
+	// over a closed channel, and/or do a checked read in case
+	// it is closed (unlike when publishing to a channel).
+	read() <-chan []receivedBlockMetadata
 	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int

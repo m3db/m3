@@ -1900,8 +1900,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	enqueueChInputs, err := enqueueCh.get()
-	require.NoError(t, err)
+	enqueueChInputs := enqueueCh.read()
 	require.Equal(t, 0, len(enqueueChInputs))
 
 	// Actually enqueue the blocks
@@ -1911,8 +1910,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	enqueueDelayedDone()
 
 	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	enqueueChInputs, err = enqueueCh.get()
-	require.NoError(t, err)
+	enqueueChInputs = enqueueCh.read()
 	require.Equal(t, numBlocks, len(enqueueChInputs))
 
 	// Process the blocks
@@ -1923,8 +1921,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	}
 
 	require.Equal(t, 0, enqueueCh.unprocessedLen())
-	enqueueChInputs, err = enqueueCh.get()
-	require.NoError(t, err)
+	enqueueChInputs = enqueueCh.read()
 	require.Equal(t, 0, len(enqueueChInputs))
 }
 
@@ -2493,8 +2490,7 @@ func assertEnqueueChannel(
 	var distinct []receivedBlockMetadata
 	for {
 		var perPeerBlocksMetadata []receivedBlockMetadata
-		enqueueChInputs, err := enqueueCh.get()
-		require.NoError(t, err)
+		enqueueChInputs := enqueueCh.read()
 
 		select {
 		case perPeerBlocksMetadata = <-enqueueChInputs:
