@@ -83,7 +83,7 @@ func NewIterator(
 	descr namespace.SchemaDescr,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
-	stream := encoding.NewIStream(reader)
+	stream := encoding.NewIStream(reader, opts.IStreamReaderSizeProto())
 
 	i := &iterator{
 		opts:       opts,
