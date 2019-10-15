@@ -169,7 +169,7 @@ func translateTimeseries(
 				continue
 			}
 
-			if ts.After(end) {
+			if !ts.Before(end) {
 				// No more valid datapoints.
 				break
 			}
