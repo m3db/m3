@@ -415,6 +415,13 @@ func (n *dbNamespace) ID() ident.ID {
 	return n.id
 }
 
+func (n *dbNamespace) Metadata() namespace.Metadata {
+	// NB(r): metadata is updated in SetSchemaHistory so requires an RLock.
+	n.RLock()
+	defer n.RUnlock()
+	return n.metadata
+}
+
 func (n *dbNamespace) Schema() namespace.SchemaDescr {
 	n.RLock()
 	schema := n.schemaDescr
@@ -818,22 +825,28 @@ func (n *dbNamespace) Bootstrap(
 	workers.Init()
 
 	var (
-		multiErr = xerrors.NewMultiError()
-		mutex    sync.Mutex
-		wg       sync.WaitGroup
+		bootstrappedShards = bootstrapResult.Shards
+		multiErr           = xerrors.NewMultiError()
+		mutex              sync.Mutex
+		wg                 sync.WaitGroup
 	)
 	n.log.Info("bootstrap marking all shards as bootstrapped",
 		zap.Stringer("namespace", n.id),
-		zap.Int("numShards", len(shardResults)),
-		zap.Int64("numSeries", shardResults.NumSeries()))
+		zap.Int("numShards", len(bootstrappedShards.AllIDs())),
+		zap.Int("dataNumSeries", bootstrapResult.DataMetadata.NumSeries),
+		zap.Int("indexNumSeries", bootstrapResult.IndexMetadata.NumSeries))
 	for _, shard := range n.GetOwnedShards() {
-		shard := shard
 		if shard.IsBootstrapped() {
 			// NB(r): No need to mark the shard's series as bootstrapped.
 			continue
 		}
+		if !bootstrappedShards.Has(shard.ID()) {
+			// NB(r): Not a bootstrapped shard.
+			continue
+		}
 
 		wg.Add(1)
+		shard := shard
 		workers.Go(func() {
 			err := shard.Bootstrap()
 
@@ -855,14 +868,13 @@ func (n *dbNamespace) Bootstrap(
 		shardsUnfulfilled := int64(len(unfulfilled))
 		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
 		if shardsUnfulfilled > 0 {
-			str := unfulfilled.SummaryString()
-			errorFmt := "bootstrap completed with unfulfilled ranges"
-			multiErr = multiErr.Add(fmt.Errorf("%s: %s", errorFmt, str))
-			n.log.Error(errorFmt,
-				zap.Error(err),
+			errStr := unfulfilled.SummaryString()
+			errFmt := "bootstrap completed with unfulfilled ranges"
+			multiErr = multiErr.Add(fmt.Errorf("%s: %s", errFmt, errStr))
+			n.log.Error(errFmt,
+				zap.Error(errors.New(errStr)),
 				zap.String("namespace", n.id.String()),
-				zap.String("bootstrapType", bootstrapType),
-			)
+				zap.String("bootstrapType", bootstrapType))
 		}
 	}
 	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())

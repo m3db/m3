@@ -21,9 +21,9 @@
 package bootstrapper
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 const (
@@ -60,28 +60,34 @@ func (noop noOpNoneBootstrapper) String() string {
 	return NoOpNoneBootstrapperName
 }
 
-func (noop noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
-	return true
-}
+func (noop noOpNoneBootstrapper) Bootstrap(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	results := bootstrap.NewNamespaceResults(namespaces)
+	for _, elem := range results.Results.Iter() {
+		id := elem.Key()
+		namespace := elem.Value()
 
-func (noop noOpNoneBootstrapper) BootstrapData(
-	_ namespace.Metadata,
-	targetRanges result.ShardTimeRanges,
-	_ bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	res := result.NewDataBootstrapResult()
-	res.SetUnfulfilled(targetRanges)
-	return res, nil
-}
+		requested, ok := namespaces.Namespaces.Get(id)
+		if !ok {
+			return bootstrap.NamespaceResults{},
+				fmt.Errorf("missing request namespace: %s", id.String())
+		}
 
-func (noop noOpNoneBootstrapper) BootstrapIndex(
-	ns namespace.Metadata,
-	targetRanges result.ShardTimeRanges,
-	opts bootstrap.RunOptions,
-) (result.IndexBootstrapResult, error) {
-	res := result.NewIndexBootstrapResult()
-	res.SetUnfulfilled(targetRanges)
-	return res, nil
+		// Set everything as unfulfilled.
+		namespace.DataResult =
+			requested.DataRunOptions.ShardTimeRanges.ToUnfulfilledDataResult()
+
+		if namespace.Metadata.Options().IndexOptions().Enabled() {
+			namespace.IndexResult =
+				requested.IndexRunOptions.ShardTimeRanges.ToUnfulfilledIndexResult()
+		}
+
+		// Set value after modifications (map is by value).
+		results.Results.Set(id, namespace)
+	}
+
+	return results, nil
 }
 
 // noOpAllBootstrapperProvider is the no-op bootstrapper provider that pretends
@@ -110,22 +116,8 @@ func (noop noOpAllBootstrapper) String() string {
 	return NoOpAllBootstrapperName
 }
 
-func (noop noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
-	return true
-}
-
-func (noop noOpAllBootstrapper) BootstrapData(
-	_ namespace.Metadata,
-	_ result.ShardTimeRanges,
-	_ bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	return result.NewDataBootstrapResult(), nil
-}
-
-func (noop noOpAllBootstrapper) BootstrapIndex(
-	_ namespace.Metadata,
-	_ result.ShardTimeRanges,
-	_ bootstrap.RunOptions,
-) (result.IndexBootstrapResult, error) {
-	return result.NewIndexBootstrapResult(), nil
+func (noop noOpAllBootstrapper) Bootstrap(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	return bootstrap.NewNamespaceResults(namespaces), nil
 }

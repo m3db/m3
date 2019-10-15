@@ -59,19 +59,12 @@ type persistenceFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
+	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
 		opts:  opts,
-		log:   opts.ResultOptions().InstrumentOptions().Logger(),
+		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
-}
-
-func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapSequential:
-		return true
-	}
-	return false
 }
 
 type shardPeerAvailability struct {
@@ -90,7 +83,82 @@ func (s *peersSource) AvailableData(
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
-func (s *peersSource) ReadData(
+func (s *peersSource) AvailableIndex(
+	nsMetadata namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
+	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
+}
+
+func (s *peersSource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	results := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
+
+	// NB(r): Perform all data bootstrapping first then index bootstrapping
+	// to more clearly deliniate which process is slower than the other.
+	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
+	start := nowFn()
+	s.log.Info("bootstrapping time series data from peers start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+
+		r, err := s.readData(md,
+			namespace.DataRunOptions.ShardTimeRanges,
+			namespace.DataRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
+			Metadata:     md,
+			Shards:       namespace.Shards,
+			DataResult:   r,
+			DataMetadata: bootstrap.NamespaceResultDataMetadata{}, // todo: fill in
+		})
+	}
+	s.log.Info("bootstrapping time series data from peers success",
+		zap.Stringer("took", nowFn().Sub(start)))
+
+	start = nowFn()
+	s.log.Info("bootstrapping index metadata from peers start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+
+		r, err := s.readIndex(md,
+			namespace.IndexRunOptions.ShardTimeRanges,
+			namespace.IndexRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result, ok := results.Results.Get(md.ID())
+		if !ok {
+			err = fmt.Errorf("missing expected result for namespace: %s",
+				md.ID().String())
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result.IndexResult = r
+		result.IndexMetadata = bootstrap.NamespaceResultIndexMetadata{} // todo: fill in
+
+		results.Results.Set(md.ID(), result)
+	}
+	s.log.Info("bootstrapping index metadata from peers success",
+		zap.Stringer("took", nowFn().Sub(start)))
+
+	return results, nil
+}
+
+func (s *peersSource) readData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
@@ -506,18 +574,7 @@ func (s *peersSource) flush(
 	return nil
 }
 
-func (s *peersSource) AvailableIndex(
-	nsMetadata namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.ShardTimeRanges, error) {
-	if err := s.validateRunOpts(runOpts); err != nil {
-		return nil, err
-	}
-	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
-}
-
-func (s *peersSource) ReadIndex(
+func (s *peersSource) readIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,

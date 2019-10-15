@@ -97,7 +97,7 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 	s := &fileSystemSource{
 		opts:            opts,
 		fsopts:          opts.FilesystemOptions(),
-		log:             iopts.Logger(),
+		log:             iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
 		idPool:          opts.IdentifierPool(),
 		newReaderFn:     fs.NewReader,
 		dataProcessors:  dataProcessors,
@@ -115,32 +115,12 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 	return s
 }
 
-func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapSequential:
-		return true
-	}
-	return false
-}
-
 func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	return s.availability(md, shardsTimeRanges)
-}
-
-func (s *fileSystemSource) ReadData(
-	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	r, err := s.read(md, shardsTimeRanges, bootstrapDataRunType, runOpts)
-	if err != nil {
-		return nil, err
-	}
-	return r.data, nil
 }
 
 func (s *fileSystemSource) AvailableIndex(
@@ -151,16 +131,68 @@ func (s *fileSystemSource) AvailableIndex(
 	return s.availability(md, shardsTimeRanges)
 }
 
-func (s *fileSystemSource) ReadIndex(
-	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.IndexBootstrapResult, error) {
-	r, err := s.read(md, shardsTimeRanges, bootstrapIndexRunType, runOpts)
-	if err != nil {
-		return nil, err
+func (s *fileSystemSource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	results := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
-	return r.index, nil
+
+	// NB(r): Perform all data bootstrapping first then index bootstrapping
+	// to more clearly deliniate which process is slower than the other.
+	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
+	start := nowFn()
+	s.log.Info("bootstrapping time series data from filesystem start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+
+		r, err := s.read(bootstrapDataRunType, md,
+			namespace.DataRunOptions.ShardTimeRanges,
+			namespace.DataRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
+			Metadata:     md,
+			Shards:       namespace.Shards,
+			DataResult:   r.data,
+			DataMetadata: bootstrap.NamespaceResultDataMetadata{}, // todo: fill in
+		})
+	}
+	s.log.Info("bootstrapping time series data from filesystem success",
+		zap.Stringer("took", nowFn().Sub(start)))
+
+	start = nowFn()
+	s.log.Info("bootstrapping index metadata from filesystem start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+
+		r, err := s.read(bootstrapIndexRunType, md,
+			namespace.IndexRunOptions.ShardTimeRanges,
+			namespace.IndexRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result, ok := results.Results.Get(md.ID())
+		if !ok {
+			err = fmt.Errorf("missing expected result for namespace: %s",
+				md.ID().String())
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result.IndexResult = r.index
+		result.IndexMetadata = bootstrap.NamespaceResultIndexMetadata{} // todo: fill in
+
+		results.Results.Set(md.ID(), result)
+	}
+	s.log.Info("bootstrapping index metadata from filesystem success",
+		zap.Stringer("took", nowFn().Sub(start)))
+
+	return results, nil
 }
 
 func (s *fileSystemSource) availability(
@@ -920,9 +952,9 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 }
 
 func (s *fileSystemSource) read(
+	run runType,
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	run runType,
 	runOpts bootstrap.RunOptions,
 ) (*runResult, error) {
 	var (

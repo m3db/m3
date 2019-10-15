@@ -455,20 +455,6 @@ func (mr *MockBootstrapperMockRecorder) String() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockBootstrapper)(nil).String))
 }
 
-// Can mocks base method
-func (m *MockBootstrapper) Can(strategy Strategy) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Can", strategy)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Can indicates an expected call of Can
-func (mr *MockBootstrapperMockRecorder) Can(strategy interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Can", reflect.TypeOf((*MockBootstrapper)(nil).Can), strategy)
-}
-
 // BootstrapData mocks base method
 func (m *MockBootstrapper) BootstrapData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.DataBootstrapResult, error) {
 	m.ctrl.T.Helper()
@@ -520,20 +506,6 @@ func NewMockSource(ctrl *gomock.Controller) *MockSource {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockSource) EXPECT() *MockSourceMockRecorder {
 	return m.recorder
-}
-
-// Can mocks base method
-func (m *MockSource) Can(strategy Strategy) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Can", strategy)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Can indicates an expected call of Can
-func (mr *MockSourceMockRecorder) Can(strategy interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Can", reflect.TypeOf((*MockSource)(nil).Can), strategy)
 }
 
 // AvailableData mocks base method

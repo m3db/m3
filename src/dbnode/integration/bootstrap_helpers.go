@@ -25,6 +25,7 @@ package integration
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -32,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,11 +43,6 @@ func newTestBootstrapperSource(
 	next bootstrap.Bootstrapper,
 ) bootstrap.BootstrapperProvider {
 	src := testBootstrapperSource{}
-	if opts.can != nil {
-		src.can = opts.can
-	} else {
-		src.can = func(bootstrap.Strategy) bool { return true }
-	}
 
 	if opts.availableData != nil {
 		src.availableData = opts.availableData
@@ -111,7 +106,6 @@ type testBootstrapper struct {
 }
 
 type testBootstrapperSourceOptions struct {
-	can            func(bootstrap.Strategy) bool
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
 	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
@@ -121,15 +115,10 @@ type testBootstrapperSourceOptions struct {
 var _ bootstrap.Source = &testBootstrapperSource{}
 
 type testBootstrapperSource struct {
-	can            func(bootstrap.Strategy) bool
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
 	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
 	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
-}
-
-func (t testBootstrapperSource) Can(strategy bootstrap.Strategy) bool {
-	return t.can(strategy)
 }
 
 func (t testBootstrapperSource) AvailableData(

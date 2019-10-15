@@ -216,7 +216,7 @@ type Database interface {
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
 }
 
-// database is the internal database interface
+// database is the internal database interface.
 type database interface {
 	Database
 
@@ -227,25 +227,28 @@ type database interface {
 	UpdateOwnedNamespaces(namespaces namespace.Map) error
 }
 
-// Namespace is a time series database namespace
+// Namespace is a time series database namespace.
 type Namespace interface {
-	// Options returns the namespace options
+	// Options returns the namespace options.
 	Options() namespace.Options
 
-	// ID returns the ID of the namespace
+	// ID returns the ID of the namespace.
 	ID() ident.ID
+
+	// Metadata returns the metadata of the namespace.
+	Metadata() namespace.Metadata
 
 	// Schema returns the schema of the namespace.
 	Schema() namespace.SchemaDescr
 
-	// NumSeries returns the number of series in the namespace
+	// NumSeries returns the number of series in the namespace.
 	NumSeries() int64
 
-	// Shards returns the shard description
+	// Shards returns the shard description.
 	Shards() []Shard
 }
 
-// NamespacesByID is a sortable slice of namespaces by ID
+// NamespacesByID is a sortable slice of namespaces by ID.∂∂
 type NamespacesByID []Namespace
 
 func (n NamespacesByID) Len() int      { return len(n) }

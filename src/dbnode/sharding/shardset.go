@@ -73,6 +73,11 @@ func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
 	}
 }
 
+func (s *shardSet) Has(shardID uint32) bool {
+	_, ok := s.shardMap[shardID]
+	return ok
+}
+
 func (s *shardSet) Lookup(identifier ident.ID) uint32 {
 	return s.fn(identifier)
 }

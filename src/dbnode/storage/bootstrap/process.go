@@ -407,6 +407,7 @@ func NewNamespaceResults(
 		key := entry.Key()
 		value := entry.Value()
 		resultsMap.Set(key, NamespaceResult{
+			Metadata:    value.Metadata,
 			Shards:      value.Shards,
 			DataResult:  result.NewDataBootstrapResult(),
 			IndexResult: result.NewIndexBootstrapResult(),

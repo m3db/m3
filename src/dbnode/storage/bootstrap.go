@@ -22,15 +22,18 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -182,38 +185,67 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	// NB(xichen): each bootstrapper should be responsible for choosing the most
-	// efficient way of bootstrapping database shards, be it sequential or parallel.
-	shards := m.database.ShardSet().AllIDs()
+	// TODO(r): Move shards into ProcessNamespace since
+	// shards that aren't bootstrapped could actually be
+	// different per namespace.
+	shards := m.database.ShardSet()
+	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		// TODO(r): implement accumulator
+		accumulator := newDatabaseNamespaceDataAccumulator()
+
+		targets = append(targets, bootstrap.ProcessNamespace{
+			Metadata:        namespace.Metadata(),
+			DataAccumulator: accumulator,
+		})
+	}
+
 	start := m.nowFn()
-	m.log.Info("bootstrap started", zap.Int("numShards", len(shards)))
-	bootstrapResult, err := process.Run(start, nil, shards)
+	logFields := []zapcore.Field{
+		zap.Int("numShards", len(shards.All())),
+	}
+	m.log.Info("bootstrap started", logFields...)
+
+	// Run the bootstrap.
+	bootstrapResult, err := process.Run(start, targets, shards)
+
+	logFields = append(logFields,
+		zap.Duration("duration", m.nowFn().Sub(start)))
+
 	if err != nil {
-		m.log.Error("bootstrap data failed",
-			zap.Error(err),
-			zap.Int("numShards", len(shards)),
-			zap.Duration("duration", m.nowFn().Sub(start)))
+		m.log.Error("bootstrap failed",
+			append(logFields, zap.Error(err))...)
 		return err
 	}
 
+	// Use a multi-error here because we want to at least bootstrap
+	// as many of the namespaces as possible.
 	multiErr := xerrors.NewMultiError()
 	for _, namespace := range namespaces {
-		if err := namespace.Bootstrap(bootstrapResult); err != nil {
+		id := namespace.ID()
+		result, ok := bootstrapResult.Results.Get(id)
+		if !ok {
+			err := fmt.Errorf("missing namespace from bootstrap result: %v",
+				id.String())
+			i := m.opts.InstrumentOptions()
+			instrument.EmitAndLogInvariantViolation(i, func(l *zap.Logger) {
+				l.Error("bootstrap failed",
+					append(logFields, zap.Error(err))...)
+			})
+			return err
+		}
+
+		if err := namespace.Bootstrap(result); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 
-	took := m.nowFn().Sub(start)
 	if err := multiErr.FinalError(); err != nil {
 		m.log.Info("bootstrap namespaces failed",
-			zap.Error(err),
-			zap.Int("numShards", len(shards)),
-			zap.Duration("duration", took))
+			append(logFields, zap.Error(err))...)
 		return err
 	}
 
-	m.log.Info("bootstrap success",
-		zap.Int("numShards", len(shards)),
-		zap.Duration("duration", took))
+	m.log.Info("bootstrap success")
 	return nil
 }

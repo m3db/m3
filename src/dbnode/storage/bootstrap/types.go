@@ -143,9 +143,22 @@ type NamespaceResults struct {
 
 // NamespaceResult is the result of a bootstrap process for a given namespace.
 type NamespaceResult struct {
-	Shards      sharding.ShardSet
-	DataResult  result.DataBootstrapResult
-	IndexResult result.IndexBootstrapResult
+	Metadata      namespace.Metadata
+	Shards        sharding.ShardSet
+	DataResult    result.DataBootstrapResult
+	DataMetadata  NamespaceResultDataMetadata
+	IndexResult   result.IndexBootstrapResult
+	IndexMetadata NamespaceResultIndexMetadata
+}
+
+// NamespaceResultDataMetadata is metadata about a data result.
+type NamespaceResultDataMetadata struct {
+	NumSeries int
+}
+
+// NamespaceResultIndexMetadata is metadata about an index result.
+type NamespaceResultIndexMetadata struct {
+	NumSeries int
 }
 
 // TargetRange is a bootstrap target range.
@@ -247,9 +260,6 @@ type Bootstrapper interface {
 	// String returns the name of the bootstrapper
 	String() string
 
-	// Can returns whether a specific bootstrapper strategy can be applied.
-	Can(strategy Strategy) bool
-
 	// Bootstrap performs bootstrapping of series data and index metadata
 	// for the  given time ranges, returning the bootstrapped series data
 	// and index blocks for the time ranges it's unable to fulfill in parallel.
@@ -263,9 +273,6 @@ type Bootstrapper interface {
 // it is important to not rely on state stored in the source itself with the mindset
 // that it will always be set to default values from the constructor.
 type Source interface {
-	// Can returns whether a specific bootstrapper strategy can be applied.
-	Can(strategy Strategy) bool
-
 	// AvailableData returns what time ranges are available for bootstrapping a given set of shards.
 	AvailableData(
 		ns namespace.Metadata,

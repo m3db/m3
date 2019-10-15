@@ -108,14 +108,6 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 	}
 }
 
-func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapSequential:
-		return true
-	}
-	return false
-}
-
 func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -124,17 +116,35 @@ func (s *commitLogSource) AvailableData(
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
-// ReadData will read all commitlog files on disk, as well as as the latest snapshot for
-// each shard/block combination (if it exists) and merge them.
-// TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
-// number of commitlogs / snapshots that we need to read.
-func (s *commitLogSource) ReadData(
+func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	if shardsTimeRanges.IsEmpty() {
-		return result.NewDataBootstrapResult(), nil
+) (result.ShardTimeRanges, error) {
+	return s.availability(ns, shardsTimeRanges, runOpts)
+}
+
+// Read will read all commitlog files on disk, as well as as the latest snapshot for
+// each shard/block combination (if it exists) and merge them.
+// TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
+// number of commitlogs / snapshots that we need to read.
+func (s *commitLogSource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	timeRangesEmpty := true
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		dataRangesNotEmpty := !namespace.DataRunOptions.ShardTimeRanges.IsEmpty()
+		indexRangesNotEmpty := namespace.Metadata.Options().IndexOptions().Enabled() &&
+			!namespace.IndexRunOptions.ShardTimeRanges.IsEmpty()
+		if dataRangesNotEmpty || indexRangesNotEmpty {
+			timeRangesEmpty = false
+			break
+		}
+	}
+	if timeRangesEmpty {
+		// Return empty result with no unfulfilled ranges.
+		return bootstrap.NewNamespaceResults(namespaces), nil
 	}
 
 	var (
@@ -1130,14 +1140,6 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	if emptyErrSum > 0 {
 		s.log.Error("error bootstrapping from commit log", zap.Int("empty unmerged blocks errors", emptyErrSum))
 	}
-}
-
-func (s *commitLogSource) AvailableIndex(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.ShardTimeRanges, error) {
-	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
 func (s *commitLogSource) ReadIndex(
