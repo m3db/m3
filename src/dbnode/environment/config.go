@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -89,8 +90,15 @@ type DynamicConfiguration []*DynamicCluster
 
 // DynamicCluster is a single cluster in a dynamic configuration
 type DynamicCluster struct {
-	Async   bool                      `yaml:"async"`
-	Service *etcdclient.Configuration `yaml:"service"`
+	Async           bool                      `yaml:"async"`
+	ClientOverrides ClientOverrides           `yaml:"clientOverrides"`
+	Service         *etcdclient.Configuration `yaml:"service"`
+}
+
+// ClientOverrides represents M3DB client overrides for a given cluster.
+type ClientOverrides struct {
+	HostQueueFlushInterval   *time.Duration `yaml:"hostQueueFlushInterval"`
+	TargetHostQueueFlushSize *int           `yaml:"targetHostQueueFlushSize"`
 }
 
 // Validate validates the DynamicConfiguration.
@@ -99,6 +107,13 @@ func (c DynamicConfiguration) Validate() error {
 	for _, cfg := range c {
 		if !cfg.Async {
 			syncCount++
+		}
+		if cfg.ClientOverrides.TargetHostQueueFlushSize != nil && *cfg.ClientOverrides.TargetHostQueueFlushSize <= 1 {
+			return fmt.Errorf("target host queue flush size must be larger than zero but was: %d", cfg.ClientOverrides.TargetHostQueueFlushSize)
+		}
+
+		if cfg.ClientOverrides.HostQueueFlushInterval != nil && *cfg.ClientOverrides.HostQueueFlushInterval <= 0 {
+			return fmt.Errorf("host queue flush interval must be larger than zero but was: %s", cfg.ClientOverrides.HostQueueFlushInterval.String())
 		}
 	}
 	if syncCount != 1 {
@@ -126,10 +141,11 @@ type StaticConfiguration []*StaticCluster
 
 // StaticCluster is a single cluster in a static configuration
 type StaticCluster struct {
-	Async          bool                              `yaml:"async"`
-	Namespaces     []namespace.MetadataConfiguration `yaml:"namespaces"`
-	TopologyConfig *topology.StaticConfiguration     `yaml:"topology"`
-	ListenAddress  string                            `yaml:"listenAddress"`
+	Async           bool                              `yaml:"async"`
+	ClientOverrides ClientOverrides                   `yaml:"clientOverrides"`
+	Namespaces      []namespace.MetadataConfiguration `yaml:"namespaces"`
+	TopologyConfig  *topology.StaticConfiguration     `yaml:"topology"`
+	ListenAddress   string                            `yaml:"listenAddress"`
 }
 
 // Validate validates the StaticConfiguration
@@ -138,6 +154,13 @@ func (c StaticConfiguration) Validate() error {
 	for _, cfg := range c {
 		if !cfg.Async {
 			syncCount++
+		}
+		if cfg.ClientOverrides.TargetHostQueueFlushSize != nil && *cfg.ClientOverrides.TargetHostQueueFlushSize <= 1 {
+			return fmt.Errorf("target host queue flush size must be larger than zero but was: %d", cfg.ClientOverrides.TargetHostQueueFlushSize)
+		}
+
+		if cfg.ClientOverrides.HostQueueFlushInterval != nil && *cfg.ClientOverrides.HostQueueFlushInterval <= 0 {
+			return fmt.Errorf("host queue flush interval must be larger than zero but was: %s", cfg.ClientOverrides.HostQueueFlushInterval.String())
 		}
 	}
 	if syncCount != 1 {
@@ -153,6 +176,7 @@ type ConfigureResult struct {
 	ClusterClient        clusterclient.Client
 	KVStore              kv.Store
 	Async                bool
+	ClientOverrides      ClientOverrides
 }
 
 // ConfigureResults stores initializers and kv store for dynamic and static configs
@@ -299,6 +323,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			ClusterClient:        configSvcClient,
 			KVStore:              kv,
 			Async:                cluster.Async,
+			ClientOverrides:      cluster.ClientOverrides,
 		}
 		cfgResults = append(cfgResults, result)
 	}
@@ -360,6 +385,7 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 			TopologyInitializer:  topoInit,
 			KVStore:              m3clusterkvmem.NewStore(),
 			Async:                cluster.Async,
+			ClientOverrides:      cluster.ClientOverrides,
 		}
 		cfgResults = append(cfgResults, result)
 	}

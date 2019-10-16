@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -272,15 +273,15 @@ func NewAdminOptions() AdminOptions {
 
 // NewOptionsForAsyncClusters returns a slice of Options, where each is the set of client
 // for a given async client.
-func NewOptionsForAsyncClusters(opts Options, flushSizeOverride *int, flushIntervalOverride *time.Duration) []Options {
+func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, overrides []environment.ClientOverrides) []Options {
 	result := make([]Options, 0, len(opts.AsyncTopologyInitializers()))
-	for _, topoInit := range opts.AsyncTopologyInitializers() {
+	for i, topoInit := range topoInits {
 		options := opts.SetTopologyInitializer(topoInit)
-		if flushSizeOverride != nil {
-			options = options.SetHostQueueOpsFlushSize(*flushSizeOverride)
+		if overrides[i].HostQueueFlushInterval != nil {
+			options = options.SetHostQueueOpsFlushInterval(*overrides[i].HostQueueFlushInterval)
 		}
-		if flushIntervalOverride != nil {
-			options = options.SetHostQueueOpsFlushInterval(*flushIntervalOverride)
+		if overrides[i].TargetHostQueueFlushSize != nil {
+			options = options.SetHostQueueOpsFlushSize(*overrides[i].TargetHostQueueFlushSize)
 		}
 		result = append(result, options)
 	}
