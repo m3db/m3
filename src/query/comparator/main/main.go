@@ -21,30 +21,44 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
+	"time"
+
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/x/instrument"
 	"go.uber.org/zap"
 )
 
 func main() {
-	poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
 	var (
+		iterPools   = pools.BuildIteratorPools()
+		poolWrapper = pools.NewPoolsWrapper(iterPools)
+
 		iOpts  = instrument.NewOptions()
 		logger = iOpts.Logger()
+
+		encoderPoolOpts = pool.NewObjectPoolOptions()
+		encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
 	)
 
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(time.Now(), nil, true, encoding.NewOptions())
+	})
+
+	querier := &querier{
+		encoderPool:   encoderPool,
+		iteratorPools: iterPools,
+	}
+
 	server := remote.NewGRPCServer(
-		&querier{},
+		querier,
 		models.QueryContextOptions{},
 		poolWrapper,
 		iOpts,
@@ -61,46 +75,4 @@ func main() {
 	if err := server.Serve(listener); err != nil {
 		fmt.Printf("serve err: %s", err.Error())
 	}
-}
-
-type querier struct{}
-
-var _ m3.Querier = &querier{}
-
-// FetchCompressed fetches timeseries data based on a query.
-func (q *querier) FetchCompressed(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (encoding.SeriesIterators, m3.Cleanup, error) {
-	iter, err := test.BuildTestSeriesIterator("foo")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
-	cleanup := func() error {
-		iters.Close()
-		return nil
-	}
-
-	return iters, cleanup, nil
-}
-
-// SearchCompressed fetches matching tags based on a query.
-func (q *querier) SearchCompressed(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) ([]m3.MultiTagResult, m3.Cleanup, error) {
-	return nil, nil, nil
-}
-
-// CompleteTagsCompressed returns autocompleted tag results.
-func (q *querier) CompleteTagsCompressed(
-	ctx context.Context,
-	query *storage.CompleteTagsQuery,
-	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
-	return nil, nil
 }
