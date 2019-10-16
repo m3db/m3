@@ -147,15 +147,6 @@ func constructNodeMap(nodes parser.Nodes, edges parser.Edges) (nodeMap, error) {
 	return nodeMap, nil
 }
 
-func parsingThreshold(r *http.Request) bool {
-	threshold, ok := r.URL.Query()[thresholdParam]
-	if !ok || len(threshold) == 0 {
-		return false
-	}
-
-	return true
-}
-
 func parseRootNode(
 	r *http.Request,
 	logger *zap.Logger,
