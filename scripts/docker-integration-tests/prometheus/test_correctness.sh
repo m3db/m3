@@ -54,6 +54,20 @@ function test_replace {
   test_instantaneous $query 5 "\"bar_0\" \"bar_1\" \"bar_2\" \"bar_3\" \"bar_4\""
 }
 
+function test_parse_query {
+  test $(curl 'http://localhost:7201/api/v1/parse?query=up' | jq .name) = '"fetch"'
+  THRESHOLD=$(curl 'http://localhost:7201/api/v1/threshold?query=up>1')
+  test $(echo $THRESHOLD | jq .threshold.comparator) = '">"'
+  test $(echo $THRESHOLD | jq .threshold.value) = 1
+  test $(echo $THRESHOLD | jq .query.name) = '"fetch"'
+
+  THRESHOLD=$(curl 'http://localhost:7201/api/v1/threshold?query=1>up')
+  test $(echo $THRESHOLD | jq .threshold.comparator) = '"<"'
+  test $(echo $THRESHOLD | jq .threshold.value) = 1
+  test $(echo $THRESHOLD | jq .query.name) = '"fetch"'
+}
+
 function test_correctness {
+  test_parse_query
   test_replace 
 }
