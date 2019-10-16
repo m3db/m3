@@ -167,15 +167,18 @@ func (n FunctionNode) QueryRepresentation() (QueryRepresentation, error) {
 
 func (h *promThresholdHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.instrumentOpts.Logger()
-	root, success := parseRootNode(w, r, logger)
-	if success {
-		queryRepresentation, err := root.QueryRepresentation()
-		if err != nil {
-			xhttp.Error(w, err, http.StatusBadRequest)
-			logger.Error("cannot convert to query representation", zap.Error(err))
-			return
-		}
-
-		xhttp.WriteJSONResponse(w, queryRepresentation, logger)
+	root, err := parseRootNode(r, logger)
+	if err != nil {
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
 	}
+
+	queryRepresentation, err := root.QueryRepresentation()
+	if err != nil {
+		xhttp.Error(w, err, http.StatusBadRequest)
+		logger.Error("cannot convert to query representation", zap.Error(err))
+		return
+	}
+
+	xhttp.WriteJSONResponse(w, queryRepresentation, logger)
 }

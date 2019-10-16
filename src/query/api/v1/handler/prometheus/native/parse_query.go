@@ -157,53 +157,49 @@ func parsingThreshold(r *http.Request) bool {
 }
 
 func parseRootNode(
-	w http.ResponseWriter,
 	r *http.Request,
 	logger *zap.Logger,
-) (FunctionNode, bool) {
+) (FunctionNode, error) {
 	query, err := parseQuery(r)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
 		logger.Error("cannot parse query string", zap.Error(err))
-		return FunctionNode{}, false
+		return FunctionNode{}, err
 	}
 
 	parser, err := promql.Parse(query, models.NewTagOptions())
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
 		logger.Error("cannot parse query PromQL", zap.Error(err))
-		return FunctionNode{}, false
+		return FunctionNode{}, err
 	}
 
 	nodes, edges, err := parser.DAG()
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
 		logger.Error("cannot extract query DAG", zap.Error(err))
-		return FunctionNode{}, false
+		return FunctionNode{}, err
 	}
 
 	funcMap, err := constructNodeMap(nodes, edges)
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
 		logger.Error("cannot construct node map", zap.Error(err))
-		return FunctionNode{}, false
+		return FunctionNode{}, err
 	}
 
 	root, err := funcMap.rootNode()
 	if err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
 		logger.Error("cannot fetch root node", zap.Error(err))
-		return FunctionNode{}, false
+		return FunctionNode{}, err
 	}
 
-	return root, true
+	return root, nil
 }
 
 func (h *promParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.instrumentOpts.Logger()
-	root, success := parseRootNode(w, r, logger)
-	// NB: if successful, need to write teh response.
-	if success {
-		xhttp.WriteJSONResponse(w, root, logger)
+	root, err := parseRootNode(r, logger)
+	if err != nil {
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
 	}
+
+	xhttp.WriteJSONResponse(w, root, logger)
 }
