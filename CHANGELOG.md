@@ -1,5 +1,9 @@
 # Changelog
 
+# 0.14.1
+
+- **All**: Ensure cgo is disabled in release binaries ([#2005](https://github.com/m3db/m3/pull/2005))
+
 # 0.14.0
 
 ## Features
