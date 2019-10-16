@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ type iteratorOptions struct {
 	iteratorPools encoding.IteratorPools
 }
 
-var testIterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
+var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 	return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 }
 
@@ -57,13 +57,8 @@ func buildIterator(
 		encoders = make([]encoding.Encoder, 0, len(dps))
 		readers  = make([][]xio.BlockReader, 0, len(dps))
 
-		sliceOfSlicesIter = xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
-		multiReader       = encoding.NewMultiReaderIterator(
-			testIterAlloc,
-			opts.iteratorPools.MultiReaderIterator(),
-		)
-
-		sb strings.Builder
+		tags = ident.Tags{}
+		sb   strings.Builder
 	)
 
 	for range dps {
@@ -99,8 +94,14 @@ func buildIterator(
 		}
 	}
 
+	multiReader := encoding.NewMultiReaderIterator(
+		iterAlloc,
+		opts.iteratorPools.MultiReaderIterator(),
+	)
+
+	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
-	tags := ident.Tags{}
+
 	for name, value := range tagMap {
 		sb.WriteString(name)
 		sb.WriteRune(sep)

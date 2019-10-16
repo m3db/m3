@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -38,12 +39,15 @@ type querier struct {
 	iteratorPools encoding.IteratorPools
 }
 
+func noop() error { return nil }
+
 func buildDatapoints(
 	seed int64,
 	start time.Time,
 	blockSize time.Duration,
 	resolution time.Duration,
 ) []ts.Datapoint {
+	fmt.Println("Seeding with", seed)
 	rand.Seed(seed)
 	numPoints := int(blockSize / resolution)
 	dps := make([]ts.Datapoint, 0, numPoints)
@@ -52,6 +56,10 @@ func buildDatapoints(
 			Timestamp: start.Add(resolution * time.Duration(i)),
 			Value:     rand.Float64(),
 		})
+
+		if i < 5 {
+			fmt.Println(i, "Added datapoint", dps[i])
+		}
 	}
 
 	return dps
@@ -89,7 +97,7 @@ func (q *querier) FetchCompressed(
 
 	iter, err := buildIterator(dps, tags, opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, noop, err
 	}
 
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
@@ -107,7 +115,7 @@ func (q *querier) SearchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) ([]m3.MultiTagResult, m3.Cleanup, error) {
-	return nil, nil, nil
+	return nil, noop, fmt.Errorf("not impl")
 }
 
 // CompleteTagsCompressed returns autocompleted tag results.
@@ -116,5 +124,14 @@ func (q *querier) CompleteTagsCompressed(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	return nil, nil
+	nameOnly := query.CompleteNameOnly
+	return &storage.CompleteTagsResult{
+		CompleteNameOnly: nameOnly,
+		CompletedTags: []storage.CompletedTag{
+			storage.CompletedTag{
+				Name:   []byte("__name__"),
+				Values: [][]byte{[]byte("quail")},
+			},
+		},
+	}, nil
 }
