@@ -43,7 +43,7 @@ func NewClient(opts Options, asyncOpts ...Options) (Client, error) {
 
 // NewAdminClient creates a new administrative client
 func NewAdminClient(opts AdminOptions, asyncOpts ...Options) (AdminClient, error) {
-	return newClient(opts)
+	return newClient(opts, asyncOpts...)
 }
 
 func newClient(opts Options, asyncOpts ...Options) (*client, error) {
