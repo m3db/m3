@@ -33,71 +33,144 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var parseTests = []struct {
+var thresholdTests = []struct {
 	query string
 	ex    string
 }{
 	{
 		"foo",
-		`{"name":"fetch"}`,
+		`{
+			"query": {
+				"name":"fetch"
+			}
+		}`,
 	},
 	{
 		"sum(a)-3",
 		`{
-			"name": "-",
-			"children": [
-				{
-					"name": "sum",
-					"children": [
-						{
-							"name": "fetch"
-						}
-					]
-				},
-				{
-					"name": "scalar"
-				}
-			]
+			"query": {
+				"name": "-",
+				"children": [
+					{
+						"name": "sum",
+						"children": [
+							{
+								"name": "fetch"
+							}
+						]
+					},
+					{
+						"name": "scalar"
+					}
+				]
+			}
 		}`,
 	},
 	{
-		"1 > bool (foo or sum(rate(bar[5m])))",
+		"1 > bool 2",
 		`{
-			"children": [
-				{
-					"name": "scalar"
-				},
-				{
-					"children": [
-						{
-							"name": "fetch"
-						},
-						{
-							"children": [
-								{
-									"children": [
-										{
-											"name": "fetch"
-										}
-									],
-									"name": "rate"
-								}
-							],
-							"name": "sum"
-						}
-					],
-					"name": "or"
-				}
-			],
-			"name": ">"
+			"query": {
+				"children": [
+					{
+						"name": "scalar"
+					},
+					{
+						"name": "scalar"
+					}
+				],
+				"name": ">"
+			}
+		}`,
+	},
+	{
+		"foo > bar",
+		`{
+			"query": {
+				"children": [
+					{
+						"name": "fetch"
+					},
+					{
+						"name": "fetch"
+					}
+				],
+				"name": ">"
+			}
+		}`,
+	},
+	{
+		"up > 13.37",
+		`{
+			"query": {
+				"name": "fetch"
+			},
+			"threshold": {
+				"comparator": ">",
+				"value": 13.37
+			}
+		}`,
+	},
+	{
+		"1 <= bool (foo or sum(rate(bar[5m])))",
+		`{
+			"query": {
+				"children": [
+					{
+						"name": "fetch"
+					},
+					{
+						"children": [
+							{
+								"children": [
+									{
+										"name": "fetch"
+									}
+								],
+								"name": "rate"
+							}
+						],
+						"name": "sum"
+					}
+				],
+				"name": "or"
+			},
+			"threshold": {
+				"comparator": ">=",
+				"value": 1
+			}
+		}`,
+	},
+	{
+		"foo == -0.31",
+		`{
+			"query": {
+				"name": "fetch"
+			},
+			"threshold": {
+				"comparator": "==",
+				"value": -0.31
+			}
+		}`,
+	},
+	{
+		"0 != bar",
+		`{
+			"query": {
+				"name": "fetch"
+			},
+			"threshold": {
+				"comparator": "!=",
+				"value": 0
+			}
 		}`,
 	},
 }
 
-func TestParse(t *testing.T) {
-	for i, tt := range parseTests {
-		h := NewPromParseHandler(instrument.NewOptions())
-		query := fmt.Sprintf("/parse?query=%s", url.QueryEscape(tt.query))
+func TestParseThreshold(t *testing.T) {
+	for i, tt := range thresholdTests {
+		h := NewPromThresholdHandler(instrument.NewOptions())
+		query := fmt.Sprintf("/threshold?query=%s", url.QueryEscape(tt.query))
+
 		req := httptest.NewRequest("GET", query, nil)
 		w := httptest.NewRecorder()
 
