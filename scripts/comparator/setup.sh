@@ -17,15 +17,14 @@ mkdir -p ./bin
 cp ./src/query/config/m3query-dev-remote.yml ./bin
 
 # build images
-echo "building docker image"
+echo "building docker images"
 
 svc="m3comparator"
 echo "creating image for $svc"
 make ${svc}-linux-amd64
+docker build -t "m3comparator:${REVISION}" -f ./scripts/comparator/m3comparator.Dockerfile ./bin
 
 svc="m3query"
 echo "creating image for $svc"
 make ${svc}-linux-amd64
-
 docker build -t "m3query:${REVISION}" -f ./scripts/comparator/m3query.Dockerfile ./bin
-docker build -t "m3comparator:${REVISION}" -f ./scripts/comparator/m3comparator.Dockerfile ./bin

@@ -33,18 +33,25 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/x/instrument"
+	"go.uber.org/zap"
 )
 
 func main() {
 	poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
+	var (
+		iOpts  = instrument.NewOptions()
+		logger = iOpts.Logger()
+	)
+
 	server := remote.NewGRPCServer(
 		&querier{},
 		models.QueryContextOptions{},
 		poolWrapper,
-		instrument.NewOptions(),
+		iOpts,
 	)
 
 	addr := "0.0.0.0:9000"
+	logger.Info("Starting remote server", zap.String("address", addr))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		fmt.Printf("listener err: %s", err.Error())
