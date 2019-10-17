@@ -319,13 +319,19 @@ func (c *baseNode) processCompletedBlocks(
 // than direct index accesses, as that may cause panics when reaching the end of
 // the datapoint list.
 func getIndices(
-	dp []ts.Datapoint,
+	dps []ts.Datapoint,
 	lBound time.Time,
 	rBound time.Time,
 	init int,
 ) (int, int, bool) {
-	if init >= len(dp) || init < 0 {
+	if init >= len(dps) || init < 0 {
 		return -1, -1, false
+	}
+
+	fmt.Println("Init at", init)
+
+	if init > 0 {
+		init = init - 1
 	}
 
 	var (
@@ -333,15 +339,17 @@ func getIndices(
 		leftBound = false
 	)
 
-	for i, dp := range dp[init:] {
+	for i, dp := range dps[init:] {
 		ts := dp.Timestamp
 		if !leftBound {
 			// Trying to set left bound.
 			if ts.Before(lBound) {
+				// fmt.Println("Skipping point", ts, "before", lBound.Format("3:04:05PM"))
 				// data point before 0.
 				continue
 			}
 
+			fmt.Println("ADDING point", ts)
 			leftBound = true
 			l = i
 		}
@@ -355,13 +363,16 @@ func getIndices(
 	}
 
 	if r == -1 {
-		r = len(dp)
+		r = len(dps)
 	} else {
 		r = r + init
 	}
 
 	if leftBound {
 		l = l + init
+		// if l > 0 {
+		// 	l = l - 1
+		// }
 	}
 
 	return l, r, true
@@ -485,11 +496,15 @@ func (c *baseNode) processSingleRequest(
 			valueBuffer = append(valueBuffer, val...)
 			fmt.Println("iterating Start", init, ":", start.Format("3:04:05PM"), start)
 			fmt.Println("iterating end", end.Format("3:04:05PM"), end)
+			fmt.Println("Value buffer", valueBuffer)
 			l, r, b := getIndices(valueBuffer, start, end, init)
 			if !b {
 				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
 			} else {
-				init = l
+				// if l > 0 {
+				// 	init = l - 1
+				// }
+
 				newVal = c.processor.process(valueBuffer[l:r], iterBounds)
 			}
 

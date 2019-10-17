@@ -201,9 +201,10 @@ func (s *m3storage) FetchBlocks(
 		}, err
 	}
 
+	start := query.Start.Truncate(query.Interval)
 	bounds := models.Bounds{
-		Start:    query.Start,
-		Duration: query.End.Sub(query.Start),
+		Start:    start,
+		Duration: query.End.Sub(start),
 		StepSize: query.Interval,
 	}
 

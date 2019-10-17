@@ -24,7 +24,10 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
+
+	"github.com/m3db/m3/src/query/block"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -37,6 +40,7 @@ var _ m3.Querier = (*querier)(nil)
 type querier struct {
 	encoderPool   encoding.EncoderPool
 	iteratorPools encoding.IteratorPools
+	sync.Once
 }
 
 func noop() error { return nil }
@@ -56,10 +60,6 @@ func buildDatapoints(
 			Timestamp: start.Add(resolution * time.Duration(i)),
 			Value:     rand.Float64(),
 		})
-
-		if i < 20 {
-			fmt.Println(i, "Added datapoint", dps[i])
-		}
 	}
 
 	return dps
@@ -82,7 +82,7 @@ func (q *querier) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (encoding.SeriesIterators, m3.Cleanup, error) {
+) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
 		blockSize  = time.Hour * 12
 		resolution = time.Minute
@@ -95,9 +95,17 @@ func (q *querier) FetchCompressed(
 		dps = [][]ts.Datapoint{dp}
 	)
 
+	q.Do(func() {
+		for i, p := range dp {
+			if i < 36 {
+				fmt.Println(i, "Added datapoint", p)
+			}
+		}
+	})
+
 	iter, err := buildIterator(dps, tags, opts)
 	if err != nil {
-		return nil, noop, err
+		return m3.SeriesFetchResult{}, noop, err
 	}
 
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
@@ -106,7 +114,10 @@ func (q *querier) FetchCompressed(
 		return nil
 	}
 
-	return iters, cleanup, nil
+	return m3.SeriesFetchResult{
+		SeriesIterators: iters,
+		Metadata:        block.NewResultMetadata(),
+	}, cleanup, nil
 }
 
 // SearchCompressed fetches matching tags based on a query.
@@ -114,8 +125,8 @@ func (q *querier) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) ([]m3.MultiTagResult, m3.Cleanup, error) {
-	return nil, noop, fmt.Errorf("not impl")
+) (m3.TagResult, m3.Cleanup, error) {
+	return m3.TagResult{}, noop, fmt.Errorf("not impl")
 }
 
 // CompleteTagsCompressed returns autocompleted tag results.

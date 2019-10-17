@@ -316,6 +316,7 @@ func renderResultsJSON(
 			// NB(r): Removing the optimization of computing startIdx once just in case our assumptions are wrong,
 			// we can always add this optimization back later.  Without this code I see datapoints more often.
 			if dp.Timestamp.Before(params.Start) {
+				fmt.Println("Skipping datapoint", dp.Value, "at", dp.Timestamp.Format("3:04:05PM"), "(((", dp, ")))")
 				continue
 			}
 
