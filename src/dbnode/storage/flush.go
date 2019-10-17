@@ -182,7 +182,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	startTime time.Time,
-) (err error) {
+) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return err
