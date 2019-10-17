@@ -55,7 +55,10 @@ func (b *encodedBlockUnconsolidated) Close() error {
 }
 
 func (b *encodedBlockUnconsolidated) Meta() block.Metadata {
-	return b.meta
+	meta := b.meta
+	meta.Bounds.Start = meta.Bounds.Start.Add(b.options.LookbackDuration()).Truncate(meta.Bounds.StepSize)
+	// meta.Bounds.Start = meta.Bounds.Start.Truncate(b.options.LookbackDuration())
+	return meta
 }
 
 func (b *encodedBlockUnconsolidated) WithMetadata(

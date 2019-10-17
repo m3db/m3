@@ -119,6 +119,8 @@ func (c *baseNode) Process(
 
 	meta := b.Meta()
 	bounds := meta.Bounds
+	// bounds.Start = bounds.Start.Add(time.Minute * 5)
+
 	fmt.Println("Initial bound Start:", bounds.Start.Format("3:04:05PM"), bounds.Start.Unix())
 	fmt.Println("Initial bound End  :", bounds.End().Format("3:04:05PM"), bounds.End().Unix())
 	fmt.Println("Timespec start:", c.transformOpts.TimeSpec().Start.Format("3:04:05PM"), c.transformOpts.TimeSpec().Start.Unix())
@@ -490,6 +492,11 @@ func (c *baseNode) processSingleRequest(
 				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
 			} else {
 				init = l
+				// values := valueBuffer[l:r]
+				// if len(values) > 1 {
+				// 	iterBounds.start = values[0].Timestamp
+				// }
+
 				newVal = c.processor.process(valueBuffer[l:r], iterBounds)
 			}
 

@@ -79,6 +79,7 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
 	}
 
+	fmt.Println("Duration is", duration)
 	var (
 		isRate, isCounter bool
 		rateFn            = standardRateFunc
@@ -119,8 +120,13 @@ type rateNode struct {
 	rateFn            rateFn
 }
 
-func (r *rateNode) process(datapoints ts.Datapoints, _ time.Time) float64 {
-	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec, r.duration)
+func (r *rateNode) process(datapoints ts.Datapoints, bounds iterationBounds) float64 {
+	// fmt.Println("Processing at time", t.Format("3:04:05PM"), t.Unix()/1000)
+	ts := r.timeSpec
+	ts.Start = bounds.start
+	ts.End = bounds.end
+	// ts.End = ts.Start.Add(ts.Step * 5)
+	return r.rateFn(datapoints, r.isRate, r.isCounter, ts, r.duration)
 }
 
 func standardRateFunc(
@@ -139,6 +145,17 @@ func standardRateFunc(
 		firstTS, lastTS     time.Time
 		foundFirst          bool
 	)
+	rangeStart := timeSpec.Start //.Add(-1 * (timeWindow))
+	rangeEnd := timeSpec.End     //.Add(-1 * timeSpec.Step)
+
+	z := make([]float64, 0, len(datapoints))
+	for _, d := range datapoints {
+		z = append(z, d.Value)
+	}
+
+	fmt.Println("Rate function on datapoints", z)
+	fmt.Println("Start:", timeSpec.Start.Format("3:04:05PM"), timeSpec.Start.Unix())
+	fmt.Println("End:", timeSpec.End.Format("3:04:05PM"), timeSpec.End.Unix())
 
 	for i, dp := range datapoints {
 		if math.IsNaN(dp.Value) {
@@ -153,10 +170,12 @@ func standardRateFunc(
 		}
 
 		if isCounter && dp.Value < lastValue {
+			fmt.Println("Adding", lastValue, "to counterCorrection")
 			counterCorrection += lastValue
 		}
 
 		lastValue = dp.Value
+		fmt.Println("Set last value to", lastValue)
 		lastTS = dp.Timestamp
 		lastIdx = i
 	}
@@ -166,14 +185,13 @@ func standardRateFunc(
 	}
 
 	resultValue := lastValue - firstVal + counterCorrection
+	fmt.Println("Set resultValue to", resultValue, "first", firstVal, "last", lastValue)
 
-	rangeStart := timeSpec.Start.Add(-1 * (timeSpec.Step + timeWindow))
 	durationToStart := firstTS.Sub(rangeStart).Seconds()
-
-	rangeEnd := timeSpec.End.Add(-1 * timeSpec.Step)
 	durationToEnd := rangeEnd.Sub(lastTS).Seconds()
-
+	fmt.Println("Duration to start", durationToStart, "to end", durationToEnd)
 	sampledInterval := lastTS.Sub(firstTS).Seconds()
+	fmt.Println("Sampled interval", sampledInterval)
 	averageDurationBetweenSamples := sampledInterval / float64(lastIdx-firstIdx)
 
 	if isCounter && resultValue > 0 && firstVal >= 0 {
@@ -213,6 +231,9 @@ func standardRateFunc(
 	if isRate {
 		resultValue /= timeWindow.Seconds()
 	}
+
+	fmt.Println("Result:", resultValue)
+	fmt.Println("--------------------------------------------------------------")
 
 	return resultValue
 }

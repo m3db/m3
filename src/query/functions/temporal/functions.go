@@ -87,7 +87,7 @@ type functionNode struct {
 	comparisonFunc comparisonFunc
 }
 
-func (f *functionNode) process(datapoints ts.Datapoints, _ time.Time) float64 {
+func (f *functionNode) process(datapoints ts.Datapoints, _ iterationBounds) float64 {
 	if len(datapoints) == 0 {
 		return math.NaN()
 	}

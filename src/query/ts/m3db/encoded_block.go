@@ -107,7 +107,9 @@ func (b *encodedBlock) Close() error {
 }
 
 func (b *encodedBlock) Meta() block.Metadata {
-	return b.meta
+	meta := b.meta
+	meta.Bounds.Start = meta.Bounds.Start.Truncate(b.options.LookbackDuration())
+	return meta
 }
 
 func (b *encodedBlock) buildSeriesMeta() error {

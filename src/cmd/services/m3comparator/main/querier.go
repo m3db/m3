@@ -57,7 +57,7 @@ func buildDatapoints(
 			Value:     rand.Float64(),
 		})
 
-		if i < 5 {
+		if i < 20 {
 			fmt.Println(i, "Added datapoint", dps[i])
 		}
 	}
@@ -91,7 +91,7 @@ func (q *querier) FetchCompressed(
 		opts  = q.buildOptions(start, blockSize)
 		tags  = map[string]string{"__name__": "quail"}
 
-		dp  = buildDatapoints(query.Start.Unix(), start, blockSize, resolution)
+		dp  = buildDatapoints(start.Unix(), start, blockSize, resolution)
 		dps = [][]ts.Datapoint{dp}
 	)
 
