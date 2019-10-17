@@ -714,7 +714,12 @@ func (r shardRepairer) shadowCompare(
 		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	}
 
-	contextPool := r.Options().AdminClient().Options().ContextPool()
+	// TODO(bodu): What do we do when there's more than one admin client configured?
+	adminClients := r.Options().AdminClients()
+	if len(adminClients) < 1 {
+		return errors.New("no admin clients")
+	}
+	contextPool := adminClients[0].Options().ContextPool()
 	readCtx := contextPool.Get()
 	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
 		seriesID := result.ID

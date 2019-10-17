@@ -27,11 +27,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -446,6 +448,38 @@ func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 			require.Equal(t, streamLen, encLen)
 		},
 	})
+}
+
+type testFinalizer struct {
+	t                *testing.T
+	numActiveStreams *atomic.Int32
+}
+
+func (f *testFinalizer) FinalizeBytes(bytes checked.Bytes) {
+	require.Equal(f.t, int32(0), f.numActiveStreams.Load(), "expect 0 active streams when finalizing the byte slice")
+}
+
+func TestEncoderCloseWaitForStream(t *testing.T) {
+	numActiveStreams := atomic.NewInt32(0)
+
+	finalizer := &testFinalizer{t: t, numActiveStreams: numActiveStreams}
+	bytesOptions := checked.NewBytesOptions().SetFinalizer(finalizer)
+	cb := checked.NewBytes(make([]byte, 16), bytesOptions)
+	enc := NewEncoder(testStartTime, cb, false, nil).(*encoder)
+	defer enc.Close()
+
+	numStreams := 8
+	for i := 0; i <= numStreams; i++ {
+		numActiveStreams.Inc()
+		ctx := context.NewContext()
+		_, ok := enc.Stream(ctx)
+		require.True(t, ok)
+		go func(ctx context.Context, idx int) {
+			time.Sleep(time.Duration(idx*rand.Intn(100)) * time.Millisecond)
+			numActiveStreams.Dec()
+			ctx.Close()
+		}(ctx, i)
+	}
 }
 
 type multiplePassesTest struct {

@@ -54,6 +54,9 @@ type Ref interface {
 	// entityt to be extended.
 	DelayFinalizer() resource.Closer
 
+	// Close implements resource.Closer for the purpose of use with DelayFinalizer.
+	Close()
+
 	// TrackObject sets up the initial internal state of the Ref for
 	// leak detection.
 	TrackObject(v interface{})

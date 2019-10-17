@@ -113,7 +113,7 @@ func (os *ostream) ensureCapacityFor(n int) {
 
 		if os.checked != nil {
 			os.checked.DecRef()
-			os.checked.Finalize()
+			os.checked.Close()
 		}
 
 		os.checked = newChecked
@@ -229,7 +229,7 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 	if os.checked != nil {
 		// Release ref of the current raw buffer
 		os.checked.DecRef()
-		os.checked.Finalize()
+		os.checked.Close()
 
 		os.rawBuffer = nil
 		os.checked = nil
