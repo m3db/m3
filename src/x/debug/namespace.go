@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
@@ -40,10 +41,11 @@ type namespaceInfoSource struct {
 
 // NewNamespaceInfoSource returns a Source for namespace information.
 func NewNamespaceInfoSource(
-	iopts instrument.Options,
 	clusterClient clusterclient.Client,
+	instrumentOpts instrument.Options,
 ) Source {
-	handler := namespace.NewGetHandler(clusterClient, iopts)
+	handler := namespace.NewGetHandler(clusterClient,
+		instrumentOpts)
 	return &namespaceInfoSource{
 		handler: handler,
 	}
@@ -51,7 +53,7 @@ func NewNamespaceInfoSource(
 
 // Write fetches data about the namespace and writes it in the given writer.
 // The data is formatted in json.
-func (n *namespaceInfoSource) Write(w io.Writer) error {
+func (n *namespaceInfoSource) Write(w io.Writer, _ *http.Request) error {
 	nsRegistry, err := n.handler.Get()
 	if err != nil {
 		return err

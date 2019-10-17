@@ -60,17 +60,3 @@ func (b *encodedBlockUnconsolidated) Meta() block.Metadata {
 	// meta.Bounds.Start = meta.Bounds.Start.Truncate(b.options.LookbackDuration())
 	return meta
 }
-
-func (b *encodedBlockUnconsolidated) WithMetadata(
-	meta block.Metadata,
-	seriesMetas []block.SeriesMeta,
-) (block.UnconsolidatedBlock, error) {
-	return &encodedBlockUnconsolidated{
-		lastBlock:            b.lastBlock,
-		consolidation:        b.consolidation,
-		seriesBlockIterators: b.seriesBlockIterators,
-		meta:                 meta,
-		seriesMetas:          seriesMetas,
-		options:              b.options,
-	}, nil
-}

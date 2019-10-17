@@ -26,12 +26,6 @@ import (
 	"math"
 )
 
-const (
-	// defaultReaderSize is the default bufio.Reader size, we can keep this
-	// small as we rarely need to peek more than a byte or two at a time.
-	defaultReaderSize = 16
-)
-
 // istream encapsulates a readable stream.
 type istream struct {
 	r         *bufio.Reader // encoded stream
@@ -41,8 +35,8 @@ type istream struct {
 }
 
 // NewIStream creates a new Istream
-func NewIStream(reader io.Reader) IStream {
-	return &istream{r: bufio.NewReaderSize(reader, defaultReaderSize)}
+func NewIStream(reader io.Reader, bufioSize int) IStream {
+	return &istream{r: bufio.NewReaderSize(reader, bufioSize)}
 }
 
 // ReadBit reads the next Bit

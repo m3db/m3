@@ -30,7 +30,7 @@ clusters:
       - namespace: agg
         type: aggregated
         retention: 10h
-        resolution: 15s
+        resolution: 5s
       - namespace: unagg
         type: unaggregated
         retention: 10m
@@ -47,6 +47,15 @@ clusters:
                 - dbnode-cluster-c:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
+
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*
+        policies:
+          - resolution: 5s
+            retention: 10h
 
 tagOptions:
   idScheme: quoted

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -77,6 +78,7 @@ func verifyExpandSeries(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	num int,
+	ex bool,
 	pools xsync.PooledWorkerPool,
 ) {
 	testTags := seriesiter.GenerateTag()
@@ -84,11 +86,19 @@ func verifyExpandSeries(
 
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true, enforcer, nil)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true,
+		block.ResultMetadata{
+			Exhaustive: ex,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		}, enforcer, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
+	require.Equal(t, ex, results.Metadata.Exhaustive)
+	require.Equal(t, 1, len(results.Metadata.Warnings))
+	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
 	require.Len(t, results.SeriesList, num)
 	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(),
 		Value: testTags.Value.Bytes()}}
@@ -99,30 +109,33 @@ func verifyExpandSeries(
 	}
 }
 
-func testExpandSeries(t *testing.T, pools xsync.PooledWorkerPool) {
+func testExpandSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
 	ctrl := gomock.NewController(t)
 
 	for i := 0; i < 100; i++ {
-		verifyExpandSeries(t, ctrl, i, pools)
+		verifyExpandSeries(t, ctrl, i, ex, pools)
 	}
 }
 
 func TestExpandSeriesNilPools(t *testing.T) {
-	testExpandSeries(t, nil)
+	testExpandSeries(t, false, nil)
+	testExpandSeries(t, true, nil)
 }
 
 func TestExpandSeriesValidPools(t *testing.T) {
 	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
-	testExpandSeries(t, pool)
+	testExpandSeries(t, false, pool)
+	testExpandSeries(t, true, pool)
 }
 
 func TestExpandSeriesSmallValidPools(t *testing.T) {
 	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
-	testExpandSeries(t, pool)
+	testExpandSeries(t, false, pool)
+	testExpandSeries(t, true, pool)
 }
 
 func TestFailingExpandSeriesValidPools(t *testing.T) {
@@ -170,13 +183,8 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
 
-	result, err := SeriesIteratorsToFetchResult(
-		mockIters,
-		pool,
-		true,
-		enforcer,
-		nil,
-	)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true,
+		block.NewResultMetadata(), enforcer, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
@@ -210,13 +218,8 @@ func TestOverLimit(t *testing.T) {
 	enforcer.EXPECT().Add(xcost.Cost(2)).
 		Return(xcost.Report{Error: errors.New("error")}).MinTimes(1)
 
-	result, err := SeriesIteratorsToFetchResult(
-		mockIters,
-		pool,
-		true,
-		enforcer,
-		nil,
-	)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true,
+		block.NewResultMetadata(), enforcer, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }

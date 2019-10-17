@@ -144,6 +144,18 @@ type Options interface {
 
 	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
 	ByteFieldDictionaryLRUSize() int
+
+	// SetIStreamReaderSizeM3TSZ sets the istream bufio reader size for m3tsz encoding iteration.
+	SetIStreamReaderSizeM3TSZ(value int) Options
+
+	// IStreamReaderSizeM3TSZ returns the istream bufio reader size for m3tsz encoding iteration.
+	IStreamReaderSizeM3TSZ() int
+
+	// SetIStreamReaderSizeProto sets the istream bufio reader size for proto encoding iteration.
+	SetIStreamReaderSizeProto(value int) Options
+
+	// SetIStreamReaderSizeProto returns the istream bufio reader size for proto encoding iteration.
+	IStreamReaderSizeProto() int
 }
 
 // Iterator is the generic interface for iterating over encoded data.

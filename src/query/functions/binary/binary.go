@@ -188,6 +188,8 @@ func processBothSeries(
 		lSeriesMeta, rSeriesMeta)
 	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta, lMeta.Tags.Opts)
 
+	lMeta.ResultMetadata = lMeta.ResultMetadata.
+		CombineMetadata(rMeta.ResultMetadata)
 	// Use metas from only taken left series
 	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMeta)
 	if err != nil {

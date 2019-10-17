@@ -922,7 +922,10 @@ func TestBothSeries(t *testing.T) {
 			test.EqualsWithNans(t, tt.expected, sink.Values)
 
 			// Extract duped expected metas
-			expectedMeta := block.Metadata{Bounds: bounds}
+			expectedMeta := block.Metadata{
+				Bounds:         bounds,
+				ResultMetadata: block.NewResultMetadata(),
+			}
 			var expectedMetas []block.SeriesMeta
 			expectedMeta.Tags, expectedMetas = utils.DedupeMetadata(
 				tt.expectedMetas, models.NewTagOptions())
@@ -936,10 +939,11 @@ func TestBothSeries(t *testing.T) {
 func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	now := time.Now()
 
-	meta := func(bounds models.Bounds, name string) block.Metadata {
+	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
 		return block.Metadata{
-			Bounds: bounds,
-			Tags:   models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
+			Bounds:         bounds,
+			Tags:           models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
+			ResultMetadata: m,
 		}
 	}
 
@@ -950,14 +954,26 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 			StepSize: time.Minute,
 		}
 
-		lhsMeta  = meta(bounds, "left")
+		lhsResultMeta = block.ResultMetadata{
+			LocalOnly:  true,
+			Exhaustive: false,
+			Warnings:   []block.Warning{},
+		}
+
+		lhsMeta  = meta(bounds, "left", lhsResultMeta)
 		lhsMetas = test.NewSeriesMeta("a", 2)
 		lhs      = [][]float64{{1, 2, 3}, {4, 5, 6}}
 		left     = test.NewBlockFromValuesWithMetaAndSeriesMeta(
 			lhsMeta, lhsMetas, lhs,
 		)
 
-		rhsMeta  = meta(bounds, "right")
+		rhsResultMeta = block.ResultMetadata{
+			LocalOnly:  false,
+			Exhaustive: true,
+			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		}
+
+		rhsMeta  = meta(bounds, "right", rhsResultMeta)
 		rhsMetas = test.NewSeriesMeta("a", 3)[1:]
 		rhs      = [][]float64{{10, 20, 30}, {40, 50, 60}}
 		right    = test.NewBlockFromValuesWithMetaAndSeriesMeta(
@@ -988,10 +1004,17 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 
 	test.EqualsWithNans(t, expected, sink.Values)
 
+	exResultMeta := block.ResultMetadata{
+		LocalOnly:  false,
+		Exhaustive: false,
+		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+	}
+
 	// Extract duped expected metas
 	expectedMeta := block.Metadata{
-		Bounds: bounds,
-		Tags:   models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
+		Bounds:         bounds,
+		Tags:           models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
+		ResultMetadata: exResultMeta,
 	}
 
 	expectedMetas := []block.SeriesMeta{

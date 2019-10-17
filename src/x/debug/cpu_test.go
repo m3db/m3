@@ -22,6 +22,7 @@ package debug
 
 import (
 	"bytes"
+	"net/http"
 	"testing"
 	"time"
 
@@ -32,6 +33,6 @@ func TestCPUProfileSource(t *testing.T) {
 	h := time.Duration(1) * time.Second
 	c := NewCPUProfileSource(h)
 	buff := bytes.NewBuffer([]byte{})
-	c.Write(buff)
+	c.Write(buff, &http.Request{})
 	require.NotZero(t, buff.Len())
 }

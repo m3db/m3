@@ -44,8 +44,7 @@ const (
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
-
-	maxTimeout = 5 * time.Minute
+	maxTimeout          = 5 * time.Minute
 )
 
 var (

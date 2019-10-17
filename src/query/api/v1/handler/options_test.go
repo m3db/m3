@@ -75,7 +75,10 @@ func TestNewServiceOptions(t *testing.T) {
 		for k, v := range test.headers {
 			h.Add(k, v)
 		}
-		opts := NewServiceOptions(test.service, h, test.aggOpts)
+		svcDefaults := ServiceNameAndDefaults{
+			ServiceName: test.service,
+		}
+		opts := NewServiceOptions(svcDefaults, h, test.aggOpts)
 		assert.Equal(t, test.exp, opts)
 	}
 }

@@ -1,5 +1,27 @@
 # Changelog
 
+# 0.14.0
+
+## Features
+
+- **M3Query**: Add a limit exceeded header if too many series are matched for a query when limit is specified ([#1838](https://github.com/m3db/m3/pull/1838))
+- **M3Query**: Graphite datapoint timestamps are now truncated to resolution for deterministic steps independent of start/end query time ([#1997](https://github.com/m3db/m3/pull/1997))
+- **M3Coordinator**: Endpoint for /debug/dump now returns placement/namespace of the current configured database ([#1981](https://github.com/m3db/m3/pull/1981))
+- **M3DB**: Add support for batching writes across namespaces ([#1974](https://github.com/m3db/m3/pull/1974))
+- **M3DB**: Add support for batching fetches across namespaces ([#1987](https://github.com/m3db/m3/pull/1987))
+
+## Performance
+
+- **M3DB**: Optimize fetches to avoid decoding more data than required to satisfy consistency ([#1966](https://github.com/m3db/m3/pull/1966))
+
+## Bug Fixes
+
+- **M3DB**: Fix merge checksumming logic ([#1988](https://github.com/m3db/m3/pull/1988))
+
+## Misc
+
+- **M3Aggregator**: Add aggregator to release binaries ([#1943](https://github.com/m3db/m3/pull/1943))
+
 # 0.13.0
 
 ## Features
@@ -27,15 +49,12 @@
 - **M3DB**: Add support for limiting the amount of outstanding repaired data that can be held in memory at once ([#1885](https://github.com/m3db/m3/pull/1885))
 - **M3Coordinator**: Add namespace and placement information to the dump returned by the debug endpoint ([#1896](https://github.com/m3db/m3/pull/1896))
 - **M3Coordinator**: Add DELETE api for the /topic endpoint ([#1926](https://github.com/m3db/m3/pull/1926))
+- **M3Aggregator:** Make YAML serialization roundtrip for config related types ([#1864](https://github.com/m3db/m3/pull/1864))
 
 ## Performance
 
 - **M3Query**: Improve performance of temporal functions ([#1917](https://github.com/m3db/m3/pull/1917))
 - **M3DB**: Only trigger bootstrap during topology change if a node receives new shards. This should significantly reduce the amount of time certain topology changes (such as node removes) took when performed on larger clusters ([#1868](https://github.com/m3db/m3/pull/1868))
-
-## Features
-
-- **m3aggregator:** Make YAML serialization roundtrip for config related types ([#1864](https://github.com/m3db/m3/pull/1864))
 
 # 0.11.0
 
