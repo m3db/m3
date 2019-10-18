@@ -453,7 +453,7 @@ func (s *commitLogSource) Read(
 	s.logAccumulateOutcome(workers, iter)
 
 	shouldReturnUnfulfilled, err := s.shouldReturnUnfulfilled(
-		encounteredCorruptData, initialTopologyState)
+		workers, encounteredCorruptData, initialTopologyState)
 	if err != nil {
 		return bootstrap.NamespaceResults{}, err
 	}
@@ -834,7 +834,11 @@ func (s *commitLogSource) accumulateWorker(
 
 		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
-				SchemaDesc:            namespace.namespaceContext.Schema,
+				SchemaDesc: namespace.namespaceContext.Schema,
+				// NB(r): Make sure this is the series we originally
+				// checked out for writing too (which should be guaranteed
+				// by the fact during shard tick we do not expire any
+				// series unless they are bootstrapped).
 				MatchUniqueIndex:      true,
 				MatchUniqueIndexValue: entry.UniqueIndex,
 			})
@@ -893,9 +897,18 @@ func (s *commitLogSource) logAccumulateOutcome(
 // bootstrapper is unable to satisfy the bootstrap because all peers are
 // down or if the commitlog contained data that the peers do not have.
 func (s commitLogSource) shouldReturnUnfulfilled(
+	workers []*accumulateWorker,
 	encounteredCorruptData bool,
 	initialTopologyState *topology.StateSnapshot,
 ) (bool, error) {
+	errs := 0
+	for _, worker := range workers {
+		errs += worker.numErrors
+	}
+	if errs > 0 {
+		return true, fmt.Errorf("return unfulfilled: %d accumulate errors", errs)
+	}
+
 	if !s.opts.ReturnUnfulfilledForCorruptCommitLogFiles() {
 		s.log.Info("returning not-unfulfilled: ReturnUnfulfilledForCorruptCommitLogFiles is false")
 		return false, nil

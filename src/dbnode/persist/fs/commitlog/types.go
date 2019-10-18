@@ -126,6 +126,10 @@ type IteratorOpts struct {
 	CommitLogOptions      Options
 	FileFilterPredicate   FileFilterPredicate
 	SeriesFilterPredicate SeriesFilterPredicate
+	// TODO(r): Set option to make sure that ID/Tags aren't pooled
+	// and only cache the series metadata if the caller doesn't
+	// need those feature of the commit log readers (like the
+	// commit log source bootstrapper)
 }
 
 // Options represents the options for the commit log.

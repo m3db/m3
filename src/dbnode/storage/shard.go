@@ -779,13 +779,17 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		if !exists {
 			continue
 		}
+		if !series.IsBootstrapped() {
+			// Only expire series after bootstrapped.
+			continue
+		}
 
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
-			s.logger.Error("observed series with invalid ReaderWriterCount in `purgeExpiredSeries`",
+			s.logger.Error("purgeExpiredSeries encountered invalid series read/write count",
 				zap.String("series", series.ID().String()),
-				zap.Int32("ReaderWriterCount", count))
+				zap.Int32("readerWriterCount", count))
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
