@@ -33,6 +33,7 @@ import (
 	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/uber-go/tally"
 
 	"github.com/spaolacci/murmur3"
 	"github.com/uber/tchannel-go"
@@ -54,6 +55,7 @@ type connPool struct {
 
 	opts               Options
 	host               topology.Host
+	healthyGauge       tally.Gauge
 	pool               []conn
 	poolLen            int64
 	used               int64
@@ -88,6 +90,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	p := &connPool{
 		opts:               opts,
 		host:               host,
+		healthyGauge:       opts.InstrumentOptions().MetricsScope().Gauge("healthy"),
 		pool:               make([]conn, 0, opts.MaxConnectionCount()),
 		poolLen:            0,
 		connectRand:        rand.NewSource(seed),
@@ -254,7 +257,10 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				}
 
 				healthy := failed < attempts
-				if !healthy {
+				if healthy {
+					p.healthyGauge.Update(1)
+				} else {
+					p.healthyGauge.Update(0)
 					// Log health check error
 					log.Debug("health check failed", zap.String("host", p.host.Address()), zap.Error(checkErr))
 
