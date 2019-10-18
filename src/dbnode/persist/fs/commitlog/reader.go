@@ -57,7 +57,11 @@ var (
 // ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
 // that want a convenient way to read all series in the commitlogs
 func ReadAllSeriesPredicate() SeriesFilterPredicate {
-	return func(id ident.ID, namespace ident.ID) bool { return true }
+	return readAllSeriesFn
+}
+
+func readAllSeriesFn(id ident.ID, namespace ident.ID) bool {
+	return true
 }
 
 type seriesMetadata struct {

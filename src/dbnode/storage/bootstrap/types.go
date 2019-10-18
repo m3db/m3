@@ -100,31 +100,12 @@ type NamespaceRunOptions struct {
 	RunOptions      RunOptions
 }
 
-type CheckoutSeriesType uint
-
-const (
-	CheckoutSeriesTypeByIDTags CheckoutSeriesType = iota
-	CheckoutSeriesTypeByKey
-)
-
-type CheckoutSeriesOptions struct {
-	Type     CheckoutSeriesType
-	ByIDTags CheckoutSeriesByIDAndTags
-	ByKey    uint64
-}
-
-type CheckoutSeriesByIDAndTags struct {
-	ID     ident.ID
-	Tags   ident.Tags
-	SetKey uint64
-}
-
 // NamespaceDataAccumulator is the namespace data accumulator.
 type NamespaceDataAccumulator interface {
 	// CheckoutSeries will retrieve a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
-	CheckoutSeries(opts CheckoutSeriesOptions) (series.DatabaseSeries, error)
+	CheckoutSeries(id ident.ID) (series.DatabaseSeries, error)
 
 	// Reset will reset and release all checked out series from
 	// the accumulator so owners can return them and reset the

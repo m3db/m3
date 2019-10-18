@@ -84,18 +84,31 @@ type CommitLog interface {
 	QueueLength() int64
 }
 
+// LogReadMetadata is a set of metadata about a commit log entry being read.
+type LogReadMetadata struct {
+	// FileReadID is a unique index for the current commit log
+	// file that is being read (only unique per-process).
+	FileReadID uint64
+	// SeriesUniqueIndex is the series unique index relative to the
+	// current commit log file being read.
+	SeriesUniqueIndex uint64
+	// NamespaceUniqueIndex is the namespace unique index relative to
+	// the current commit log file being read.
+	NamespaceUniqueIndex uint64
+}
+
 // Iterator provides an iterator for commit logs
 type Iterator interface {
-	// Next returns whether the iterator has the next value
+	// Next returns whether the iterator has the next value.
 	Next() bool
 
-	// Current returns the current commit log entry
-	Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation)
+	// Current returns the current commit log entry.
+	Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, LogReadMetadata)
 
-	// Err returns an error if an error occurred
+	// Err returns an error if an error occurred.
 	Err() error
 
-	// Close the iterator
+	// Close the iterator.
 	Close()
 }
 
