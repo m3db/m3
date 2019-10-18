@@ -1,5 +1,19 @@
 # Changelog
 
+# 0.14.1
+
+## Features
+
+- **M3Query**: Add endpoint that parses query to an AST ([#2002](https://github.com/m3db/m3/pull/2002))
+
+## Bug Fixes
+
+- **M3Query**: Fix label replace lazy block function execution ([#1985](https://github.com/m3db/m3/pull/1985))
+
+## Misc
+
+- **Build**: Ensure CGO is disabled in release binaries ([#2005](https://github.com/m3db/m3/pull/2005))
+
 # 0.14.0
 
 ## Features

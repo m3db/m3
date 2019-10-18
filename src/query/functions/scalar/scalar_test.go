@@ -41,7 +41,7 @@ func TestScalar(t *testing.T) {
 	op, err := NewScalarOp(val, models.NewTagOptions())
 	require.NoError(t, err)
 
-	baseOp, ok := op.(*scalarOp)
+	baseOp, ok := op.(*ScalarOp)
 	require.True(t, ok)
 	start := bounds.Start
 	step := bounds.StepSize
