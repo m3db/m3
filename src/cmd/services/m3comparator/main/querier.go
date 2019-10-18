@@ -28,10 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 )
@@ -90,7 +89,7 @@ func generateSeries(
 	}
 }
 
-func (q *querier) buildOptions(
+func (q *querier) generateOptions(
 	start time.Time,
 	blockSize time.Duration,
 ) iteratorOptions {
@@ -114,11 +113,13 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
+		// TODO: take from config.
 		blockSize = time.Hour * 12
 		start     = query.Start.Truncate(blockSize)
 		end       = query.End.Truncate(blockSize).Add(blockSize)
-		opts      = q.buildOptions(start, blockSize)
+		opts      = q.generateOptions(start, blockSize)
 
+		// TODO: take from config.
 		gens = []seriesGen{
 			seriesGen{"foo", time.Second * 15},
 			seriesGen{"bar", time.Minute * 5},
@@ -195,7 +196,7 @@ func (q *querier) CompleteTagsCompressed(
 		CompletedTags: []storage.CompletedTag{
 			storage.CompletedTag{
 				Name:   []byte("__name__"),
-				Values: [][]byte{[]byte("quail")},
+				Values: [][]byte{[]byte("foo"), []byte("foo"), []byte("quail")},
 			},
 		},
 	}, nil

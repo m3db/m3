@@ -8,6 +8,6 @@ export REVISION
 
 echo "Run m3query, m3comparator, and prometheus containers"
 docker-compose -f ${COMPOSE_FILE} up -d m3comparator
-# docker-compose -f ${COMPOSE_FILE} up -d --build grafana
-# docker-compose -f ${COMPOSE_FILE} up -d --build prometheus
+docker-compose -f ${COMPOSE_FILE} up -d --build grafana
+docker-compose -f ${COMPOSE_FILE} up -d --build prometheus
 docker-compose -f ${COMPOSE_FILE} up -d m3query

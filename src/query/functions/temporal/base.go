@@ -361,9 +361,6 @@ func getIndices(
 
 	if leftBound {
 		l = l + init
-		// if l > 0 {
-		// 	l = l - 1
-		// }
 	}
 
 	return l, r, true
