@@ -121,13 +121,8 @@ func (b Bounds) Nearest(t time.Time) Bounds {
 
 	if startTime.After(t) {
 		diff := startTime.Sub(t)
-		fmt.Println("diff", diff)
 		timeDiff := math.Ceil(float64(diff) / float64(step))
-		fmt.Println("timediff", timeDiff)
 		startTime = startTime.Add(-1 * time.Duration(timeDiff) * step)
-		fmt.Println("start", startTime)
-		// endTime = startTime
-		// startTime = startTime.Add(-1 * duration)
 	}
 
 	return Bounds{

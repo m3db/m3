@@ -184,7 +184,8 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
-	params, rErr := parseParams(r, engine.Options(), h.timeoutOps, fetchOpts, h.instrumentOpts)
+	params, rErr := parseParams(r, engine.Options(),
+		h.timeoutOps, fetchOpts, h.instrumentOpts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
@@ -207,7 +208,10 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
+		return nil, emptyReqParams, &RespError{
+			Err:  err,
+			Code: http.StatusInternalServerError,
+		}
 	}
 
 	// TODO: Support multiple result types

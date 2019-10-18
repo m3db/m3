@@ -21,7 +21,6 @@
 package ts
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
@@ -106,7 +105,6 @@ func (d Datapoints) alignToBounds(
 	dpIdx := 0
 	stepSize := bounds.StepSize
 	t := bounds.Start
-	fmt.Println("Steps", steps)
 	for i := 0; i < steps; i++ {
 		singleStepValues := make(Datapoints, 0, 10)
 		staleThreshold := lookbackDuration
@@ -116,12 +114,9 @@ func (d Datapoints) alignToBounds(
 
 		for dpIdx < numDatapoints && !d[dpIdx].Timestamp.After(t) {
 			point := d[dpIdx]
-			fmt.Println("d[dpIdx].Timestamp", d[dpIdx].Timestamp.Format("3:04:05PM"), "t", t.Format("3:04:05PM"))
 			dpIdx++
-			fmt.Println("Dp indx", dpIdx, "num datapoints", numDatapoints)
 			// Skip stale values
 			if t.Sub(point.Timestamp) > staleThreshold {
-				fmt.Println("Skipping.")
 				continue
 			}
 

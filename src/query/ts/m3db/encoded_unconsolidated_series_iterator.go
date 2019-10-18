@@ -21,7 +21,6 @@
 package m3db
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -86,9 +85,7 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		return false
 	}
 
-	fmt.Println("Bounds", it.meta.Bounds, "lookback", it.lookbackDuration, "step", it.meta.Bounds.StepSize)
 	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
-	fmt.Println("alignedValues:", alignedValues)
 	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
 
 	return next

@@ -84,11 +84,6 @@ func (p *parseState) transformLen() int {
 	return len(p.transforms)
 }
 
-func validOffset(offset time.Duration) error {
-
-	return nil
-}
-
 func (p *parseState) addLazyUnaryTransform(unaryOp string) error {
 	// NB: if unary type is "+", we do not apply any offsets.
 	if unaryOp == binary.PlusType {

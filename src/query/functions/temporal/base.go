@@ -119,15 +119,7 @@ func (c *baseNode) Process(
 
 	meta := b.Meta()
 	bounds := meta.Bounds
-	// offset := c.op.duration % bounds.StepSize
-	// bounds.Start = bounds.Start.Add(offset)
-	fmt.Println("Initial bound Start:", bounds.Start.Format("3:04:05PM"), bounds.Start.Unix())
-	fmt.Println("Initial bound End  :", bounds.End().Format("3:04:05PM"), bounds.End().Unix())
-	fmt.Println("Timespec start:", c.transformOpts.TimeSpec().Start.Format("3:04:05PM"), c.transformOpts.TimeSpec().Start.Unix())
-
 	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec().Start)
-	fmt.Println("Query bound Start  :", queryStartBounds.Start.Format("3:04:05PM"), queryStartBounds.Start.Unix())
-	fmt.Println("Query bound End  :", queryStartBounds.End().Format("3:04:05PM"), queryStartBounds.End().Unix())
 	if bounds.Duration == 0 {
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
@@ -331,8 +323,6 @@ func getIndices(
 		return -1, -1, false
 	}
 
-	fmt.Println("Init at", init)
-
 	if init > 0 {
 		init = init - 1
 	}
@@ -347,12 +337,10 @@ func getIndices(
 		if !leftBound {
 			// Trying to set left bound.
 			if ts.Before(lBound) {
-				// fmt.Println("Skipping point", ts, "before", lBound.Format("3:04:05PM"))
 				// data point before 0.
 				continue
 			}
 
-			fmt.Println("ADDING point", ts)
 			leftBound = true
 			l = i
 		}
@@ -425,10 +413,8 @@ func (c *baseNode) processSingleRequest(
 		seriesMeta  = seriesIter.SeriesMeta()
 	)
 
-	fmt.Println("Before messing with it, bound start is:", meta.Bounds.Start.Format("3:04:05PM"))
 	offset := c.op.duration % meta.Bounds.StepSize
 	meta.Bounds.Start = meta.Bounds.Start.Add(offset)
-	fmt.Println("Starting this with agg duration", aggDuration, "and Aligned time:", meta.Bounds.Start.Format("3:04:05PM"))
 	bounds := meta.Bounds
 
 	// rename series to exclude their __name__ tag as part of function processing.
@@ -501,17 +487,10 @@ func (c *baseNode) processSingleRequest(
 
 			val := series.DatapointsAtStep(i)
 			valueBuffer = append(valueBuffer, val...)
-			fmt.Println("iterating Start", init, ":", start.Format("3:04:05PM"), start)
-			fmt.Println("iterating end", end.Format("3:04:05PM"), end)
-			fmt.Println("Value buffer", valueBuffer)
 			l, r, b := getIndices(valueBuffer, start, end, init)
 			if !b {
 				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
 			} else {
-				// if l > 0 {
-				// 	init = l - 1
-				// }
-
 				newVal = c.processor.process(valueBuffer[l:r], iterBounds)
 			}
 

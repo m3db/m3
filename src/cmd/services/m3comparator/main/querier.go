@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -40,21 +41,25 @@ var _ m3.Querier = (*querier)(nil)
 type querier struct {
 	encoderPool   encoding.EncoderPool
 	iteratorPools encoding.IteratorPools
-	sync.Once
+	sync.Mutex
 }
 
 func noop() error { return nil }
 
-func buildDatapoints(
-	seed int64,
+type seriesBlock []ts.Datapoint
+type tagMap map[string]string
+type series struct {
+	blocks []seriesBlock
+	tags   tagMap
+}
+
+func generateSeriesBlock(
 	start time.Time,
 	blockSize time.Duration,
 	resolution time.Duration,
-) []ts.Datapoint {
-	fmt.Println("Seeding with", seed)
-	rand.Seed(seed)
+) seriesBlock {
 	numPoints := int(blockSize / resolution)
-	dps := make([]ts.Datapoint, 0, numPoints)
+	dps := make(seriesBlock, 0, numPoints)
 	for i := 0; i < numPoints; i++ {
 		dps = append(dps, ts.Datapoint{
 			Timestamp: start.Add(resolution * time.Duration(i)),
@@ -63,6 +68,26 @@ func buildDatapoints(
 	}
 
 	return dps
+}
+
+func generateSeries(
+	start time.Time,
+	end time.Time,
+	blockSize time.Duration,
+	resolution time.Duration,
+	tags tagMap,
+) series {
+	numBlocks := int(float64(end.Sub(start)) / float64(blockSize))
+	blocks := make([]seriesBlock, 0, numBlocks)
+	for i := 0; i < numBlocks; i++ {
+		blocks = append(blocks, generateSeriesBlock(start, blockSize, resolution))
+		start = start.Add(blockSize)
+	}
+
+	return series{
+		blocks: blocks,
+		tags:   tags,
+	}
 }
 
 func (q *querier) buildOptions(
@@ -77,6 +102,11 @@ func (q *querier) buildOptions(
 	}
 }
 
+type seriesGen struct {
+	name string
+	res  time.Duration
+}
+
 // FetchCompressed fetches timeseries data based on a query.
 func (q *querier) FetchCompressed(
 	ctx context.Context,
@@ -84,31 +114,55 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		blockSize  = time.Hour * 12
-		resolution = time.Minute
+		blockSize = time.Hour * 12
+		start     = query.Start.Truncate(blockSize)
+		end       = query.End.Truncate(blockSize).Add(blockSize)
+		opts      = q.buildOptions(start, blockSize)
 
-		start = time.Now().Add(time.Hour * 24 * -7).Truncate(blockSize)
-		opts  = q.buildOptions(start, blockSize)
-		tags  = map[string]string{"__name__": "quail"}
-
-		dp  = buildDatapoints(start.Unix(), start, blockSize, resolution)
-		dps = [][]ts.Datapoint{dp}
+		gens = []seriesGen{
+			seriesGen{"foo", time.Second * 15},
+			seriesGen{"bar", time.Minute * 5},
+			seriesGen{"quail", time.Minute},
+		}
 	)
 
-	q.Do(func() {
-		for i, p := range dp {
-			if i < 36 {
-				fmt.Println(i, "Added datapoint", p)
+	q.Lock()
+	rand.Seed(start.Unix())
+	for _, matcher := range query.TagMatchers {
+		// filter if name, otherwise return all.
+		if bytes.Equal([]byte("__name__"), matcher.Name) {
+			value := string(matcher.Value)
+			for _, gen := range gens {
+				if value == gen.name {
+					gens = []seriesGen{gen}
+					break
+				}
 			}
-		}
-	})
 
-	iter, err := buildIterator(dps, tags, opts)
+			break
+		}
+	}
+
+	seriesList := make([]series, 0, len(gens))
+	for _, gen := range gens {
+		tagMap := map[string]string{
+			"__name__": gen.name,
+			"foobar":   "qux",
+			"name":     gen.name,
+		}
+
+		seriesList = append(
+			seriesList,
+			generateSeries(start, end, blockSize, gen.res, tagMap),
+		)
+	}
+
+	q.Unlock()
+	iters, err := buildSeriesIterators(seriesList, opts)
 	if err != nil {
 		return m3.SeriesFetchResult{}, noop, err
 	}
 
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
 	cleanup := func() error {
 		iters.Close()
 		return nil

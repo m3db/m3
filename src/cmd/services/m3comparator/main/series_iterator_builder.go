@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -48,50 +47,68 @@ var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterat
 	return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 }
 
-func buildIterator(
-	dps [][]ts.Datapoint,
-	tagMap map[string]string,
+func buildBlockReader(
+	block seriesBlock,
+	start time.Time,
 	opts iteratorOptions,
-) (encoding.SeriesIterator, error) {
-	var (
-		encoders = make([]encoding.Encoder, 0, len(dps))
-		readers  = make([][]xio.BlockReader, 0, len(dps))
+) ([]xio.BlockReader, error) {
+	encoder := opts.encoderPool.Get()
+	encoder.Reset(start, len(block), nil)
+	for _, dp := range block {
+		err := encoder.Encode(dp, xtime.Second, nil)
+		if err != nil {
+			encoder.Close()
+			return nil, err
+		}
+	}
 
+	segment := encoder.Discard()
+	encoder.Close()
+	return []xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: xio.NewSegmentReader(segment),
+			Start:         start,
+			BlockSize:     opts.blockSize,
+		},
+	}, nil
+}
+
+func buildTagIteratorAndID(tagMap tagMap) (ident.TagIterator, ident.ID) {
+	var (
 		tags = ident.Tags{}
 		sb   strings.Builder
 	)
 
-	for range dps {
-		encoders = append(encoders, opts.encoderPool.Get())
+	for name, value := range tagMap {
+		sb.WriteString(name)
+		sb.WriteRune(sep)
+		sb.WriteString(value)
+		sb.WriteRune(tagSep)
+		tags.Append(ident.StringTag(name, value))
 	}
 
-	defer func() {
-		for _, e := range encoders {
-			if e != nil {
-				e.Close()
-			}
-		}
-	}()
+	return ident.NewTagsIterator(tags), ident.StringID(sb.String())
+}
 
-	// Build a merged BlockReader
-	for i, datapoints := range dps {
-		encoder := encoders[i]
-		encoder.Reset(opts.start, len(datapoints), nil)
-		if len(datapoints) > 0 {
-			for _, dp := range datapoints {
-				err := encoder.Encode(dp, xtime.Second, nil)
-				if err != nil {
-					return nil, err
-				}
-			}
+func buildSeriesIterator(
+	series series,
+	opts iteratorOptions,
+) (encoding.SeriesIterator, error) {
+	var (
+		blocks  = series.blocks
+		tags    = series.tags
+		readers = make([][]xio.BlockReader, 0, len(blocks))
+		start   = opts.start
+	)
 
-			segment := encoder.Discard()
-			readers = append(readers, []xio.BlockReader{{
-				SegmentReader: xio.NewSegmentReader(segment),
-				Start:         opts.start,
-				BlockSize:     opts.blockSize,
-			}})
+	for _, block := range blocks {
+		seriesBlock, err := buildBlockReader(block, start, opts)
+		if err != nil {
+			return nil, err
 		}
+
+		readers = append(readers, seriesBlock)
+		start = start.Add(opts.blockSize)
 	}
 
 	multiReader := encoding.NewMultiReaderIterator(
@@ -102,19 +119,12 @@ func buildIterator(
 	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 
-	for name, value := range tagMap {
-		sb.WriteString(name)
-		sb.WriteRune(sep)
-		sb.WriteString(value)
-		sb.WriteRune(tagSep)
-		tags.Append(ident.StringTag(name, value))
-	}
-
+	tagIter, id := buildTagIteratorAndID(tags)
 	return encoding.NewSeriesIterator(
 			encoding.SeriesIteratorOptions{
-				ID:             ident.StringID(sb.String()),
+				ID:             id,
 				Namespace:      ident.StringID("ns"),
-				Tags:           ident.NewTagsIterator(tags),
+				Tags:           tagIter,
 				StartInclusive: opts.start,
 				EndExclusive:   opts.start.Add(opts.blockSize),
 				Replicas: []encoding.MultiReaderIterator{
@@ -122,4 +132,24 @@ func buildIterator(
 				},
 			}, nil),
 		nil
+}
+
+func buildSeriesIterators(
+	series []series,
+	opts iteratorOptions,
+) (encoding.SeriesIterators, error) {
+	iters := make([]encoding.SeriesIterator, 0, len(series))
+	for _, s := range series {
+		iter, err := buildSeriesIterator(s, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		iters = append(iters, iter)
+	}
+
+	return encoding.NewSeriesIterators(
+		iters,
+		opts.iteratorPools.MutableSeriesIterators(),
+	), nil
 }
