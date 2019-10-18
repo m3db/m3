@@ -49,6 +49,10 @@ type DatabaseSeries interface {
 	// Tags return the tags of the series.
 	Tags() ident.Tags
 
+	// UniqueIndex is the unique index for the series (for this current
+	// process, unless the time series becomes expired).
+	UniqueIndex() uint64
+
 	// Tick executes async updates
 	Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error)
 
@@ -138,6 +142,7 @@ type DatabaseSeries interface {
 	Reset(
 		id ident.ID,
 		tags ident.Tags,
+		uniqueIndex uint64,
 		blockRetriever QueryableBlockRetriever,
 		onRetrieveBlock block.OnRetrieveBlock,
 		onEvictedFromWiredList block.OnEvictedFromWiredList,
@@ -405,4 +410,12 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
+	// MatchUniqueIndex specifies whether the series unique index
+	// must match the unique index value specified (to ensure series
+	// still is the same series as previously referenced).
+	MatchUniqueIndex bool
+	// MatchUniqueIndexValue is the series unique index value that
+	// must match the current series unique index value (to ensure series
+	// still is the same series as previously referenced).
+	MatchUniqueIndexValue uint64
 }

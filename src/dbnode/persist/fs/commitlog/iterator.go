@@ -127,12 +127,20 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *iterator) Current() LogEntry {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}
 	}
-	return read.series, read.datapoint, read.unit, read.annotation
+	return LogEntry{
+		Series:     read.series,
+		Datapoint:  read.datapoint,
+		Unit:       read.unit,
+		Annotation: read.annotation,
+		Metadata:   LogEntryMetadata{
+			// TODO(r): populate
+		},
+	}
 }
 
 func (i *iterator) Err() error {

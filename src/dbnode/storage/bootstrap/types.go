@@ -105,7 +105,7 @@ type NamespaceDataAccumulator interface {
 	// CheckoutSeries will retrieve a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
-	CheckoutSeries(id ident.ID) (series.DatabaseSeries, error)
+	CheckoutSeries(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
 	// Reset will reset and release all checked out series from
 	// the accumulator so owners can return them and reset the
@@ -115,6 +115,12 @@ type NamespaceDataAccumulator interface {
 	// Close will close the data accumulator and will return an error
 	// if any checked out series have not been released yet with reset.
 	Close() error
+}
+
+// CheckoutSeriesResult is the result of a checkout series operation.
+type CheckoutSeriesResult struct {
+	Series      series.DatabaseSeries
+	UniqueIndex uint64
 }
 
 // NamespaceResults is the result of a bootstrap process.

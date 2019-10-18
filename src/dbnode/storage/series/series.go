@@ -48,6 +48,10 @@ const (
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
+	// ErrSeriesMatchUniqueIndexFailed is returned when MatchUniqueIndex
+	// specified for a write but the value does not match the current series
+	// unique index.
+	ErrSeriesMatchUniqueIndexFailed = errors.New("series write failed due to unique index not matched")
 
 	errSeriesAlreadyBootstrapped         = errors.New("series is already bootstrapped")
 	errSeriesNotBootstrapped             = errors.New("series is not yet bootstrapped")
@@ -62,8 +66,9 @@ type dbSeries struct {
 	// series ID before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
-	id   ident.ID
-	tags ident.Tags
+	id          ident.ID
+	tags        ident.Tags
+	uniqueIndex uint64
 
 	buffer                      databaseBuffer
 	cachedBlocks                block.DatabaseSeriesBlocks
@@ -75,9 +80,9 @@ type dbSeries struct {
 }
 
 // NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ident.ID, tags ident.Tags, opts Options) DatabaseSeries {
+func NewDatabaseSeries(id ident.ID, tags ident.Tags, uniqueIndex uint64, opts Options) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, tags, nil, nil, nil, opts)
+	s.Reset(id, tags, uniqueIndex, nil, nil, nil, opts)
 	return s
 }
 
@@ -116,6 +121,13 @@ func (s *dbSeries) Tags() ident.Tags {
 	tags := s.tags
 	s.RUnlock()
 	return tags
+}
+
+func (s *dbSeries) UniqueIndex() uint64 {
+	s.RLock()
+	uniqueIndex := s.uniqueIndex
+	s.RUnlock()
+	return uniqueIndex
 }
 
 func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error) {
@@ -300,6 +312,16 @@ func (s *dbSeries) Write(
 	wOpts WriteOptions,
 ) (bool, error) {
 	s.Lock()
+	matchUniqueIndex := wOpts.MatchUniqueIndex
+	if matchUniqueIndex && wOpts.MatchUniqueIndexValue != s.uniqueIndex {
+		// NB(r): Match unique index allows for a caller to
+		// reliably take a reference to a series and call Write(...)
+		// later while keeping a direct reference to the series
+		// while the shard and namespace continues to own and manage
+		// the lifecycle of the series.
+		return false, ErrSeriesMatchUniqueIndexFailed
+	}
+
 	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
 	s.Unlock()
 	return wasWritten, err
@@ -602,6 +624,7 @@ func (s *dbSeries) Close() {
 func (s *dbSeries) Reset(
 	id ident.ID,
 	tags ident.Tags,
+	uniqueIndex uint64,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
 	onEvictedFromWiredList block.OnEvictedFromWiredList,
@@ -628,6 +651,7 @@ func (s *dbSeries) Reset(
 	s.id = id
 	s.tags = tags
 
+	s.uniqueIndex = uniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(id, opts)
 	s.opts = opts

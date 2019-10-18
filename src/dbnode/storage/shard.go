@@ -1125,10 +1125,11 @@ func (s *dbShard) newShardEntry(
 	// handle on these.
 	seriesTags.NoFinalize()
 
-	series := s.seriesPool.Get()
-	series.Reset(seriesID, seriesTags, s.seriesBlockRetriever,
-		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
+
+	series := s.seriesPool.Get()
+	series.Reset(seriesID, seriesTags, uniqueIndex, s.seriesBlockRetriever,
+		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	return lookup.NewEntry(series, uniqueIndex), nil
 }
 
