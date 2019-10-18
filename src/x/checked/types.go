@@ -41,12 +41,18 @@ type Ref interface {
 
 	// Finalize will call the finalizer if any, ref count must be zero.
 	Finalize()
+}
 
-	// Finalizer returns the finalizer if any or nil otherwise.
-	Finalizer() resource.Finalizer
+// RefWithOnFinalize is a ref that also offers a custom finalizer on top
+// checked ref counting.
+type RefWithOnFinalize interface {
+	Ref
 
-	// SetFinalizer sets the finalizer.
-	SetFinalizer(f resource.Finalizer)
+	// OnFinalize returns the finalizer callback if any or nil otherwise.
+	OnFinalize() OnFinalize
+
+	// SetFinalizer sets the finalizer callback.
+	SetOnFinalize(f OnFinalize)
 
 	// DelayFinalizer will delay calling the finalizer on this entity
 	// until the closer returned by the method is called at least once.
@@ -60,6 +66,19 @@ type Ref interface {
 	// TrackObject sets up the initial internal state of the Ref for
 	// leak detection.
 	TrackObject(v interface{})
+}
+
+// OnFinalize is callback to cleanup resources on a call to finalize.
+type OnFinalize interface {
+	OnFinalize()
+}
+
+// OnFinalizeFn is a function literal that is a finalizer callback.
+type OnFinalizeFn func()
+
+// OnFinalize will call the function literal as a finalizer callback.
+func (fn OnFinalizeFn) OnFinalize() {
+	fn()
 }
 
 // Read is an entity that checks reads.

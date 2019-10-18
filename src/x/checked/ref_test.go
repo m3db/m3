@@ -83,14 +83,14 @@ func TestRefCountFinalizeBeforeZeroRef(t *testing.T) {
 func TestRefCountFinalizeCallsFinalizer(t *testing.T) {
 	elem := &RefCount{}
 
-	finalizerCalls := 0
-	finalizer := resource.Finalizer(resource.FinalizerFn(func() {
-		finalizerCalls++
+	onFinalizeCalls := 0
+	onFinalize := OnFinalize(OnFinalizeFn(func() {
+		onFinalizeCalls++
 	}))
-	elem.SetFinalizer(finalizer)
+	elem.SetOnFinalize(onFinalize)
 	assert.Equal(t,
-		reflect.ValueOf(finalizer).Pointer(),
-		reflect.ValueOf(elem.Finalizer()).Pointer())
+		reflect.ValueOf(onFinalize).Pointer(),
+		reflect.ValueOf(elem.OnFinalize()).Pointer())
 
 	var err error
 	SetPanicFn(func(e error) {
@@ -103,20 +103,20 @@ func TestRefCountFinalizeCallsFinalizer(t *testing.T) {
 	elem.Finalize()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, finalizerCalls)
+	assert.Equal(t, 1, onFinalizeCalls)
 }
 
 func TestRefCountFinalizerNil(t *testing.T) {
 	elem := &RefCount{}
 
-	assert.Equal(t, (resource.Finalizer)(nil), elem.Finalizer())
+	assert.Equal(t, (OnFinalize)(nil), elem.OnFinalize())
 
 	finalizerCalls := 0
-	elem.SetFinalizer(resource.Finalizer(resource.FinalizerFn(func() {
+	elem.SetOnFinalize(OnFinalize(OnFinalizeFn(func() {
 		finalizerCalls++
 	})))
 
-	assert.NotNil(t, elem.Finalizer())
+	assert.NotNil(t, elem.OnFinalize())
 
 	elem.Finalize()
 
@@ -240,12 +240,12 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("num_delay=%d", test.numDelay), func(t *testing.T) {
-			finalizerCalls := int32(0)
-			finalizer := resource.Finalizer(resource.FinalizerFn(func() {
-				atomic.AddInt32(&finalizerCalls, 1)
+			onFinalizeCalls := int32(0)
+			onFinalize := OnFinalize(OnFinalizeFn(func() {
+				atomic.AddInt32(&onFinalizeCalls, 1)
 			}))
 
-			elem.SetFinalizer(finalizer)
+			elem.SetOnFinalize(onFinalize)
 			elem.IncRef()
 			elem.DecRef()
 
@@ -255,7 +255,7 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			}
 
 			elem.Finalize()
-			require.Equal(t, int32(0), atomic.LoadInt32(&finalizerCalls))
+			require.Equal(t, int32(0), atomic.LoadInt32(&onFinalizeCalls))
 
 			var startWaitingWg, startBeginWg, doneWg sync.WaitGroup
 			startBeginWg.Add(1)
@@ -272,12 +272,12 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 			}
 
 			startWaitingWg.Wait() // Wait for ready to go.
-			require.Equal(t, int32(0), atomic.LoadInt32(&finalizerCalls))
+			require.Equal(t, int32(0), atomic.LoadInt32(&onFinalizeCalls))
 
 			startBeginWg.Done() // Open flood gate.
 			doneWg.Wait()       // Wait for all done.
 
-			require.Equal(t, int32(1), atomic.LoadInt32(&finalizerCalls))
+			require.Equal(t, int32(1), atomic.LoadInt32(&onFinalizeCalls))
 		})
 	}
 }
@@ -285,21 +285,21 @@ func TestRefCountDelayFinalizer(t *testing.T) {
 func TestRefCountDelayFinalizerDoesNotFinalizeUntilDone(t *testing.T) {
 	elem := &RefCount{}
 
-	finalizerCalls := int32(0)
-	finalizer := resource.Finalizer(resource.FinalizerFn(func() {
-		atomic.AddInt32(&finalizerCalls, 1)
+	onFinalizeCalls := int32(0)
+	onFinalize := OnFinalize(OnFinalizeFn(func() {
+		atomic.AddInt32(&onFinalizeCalls, 1)
 	}))
 
-	elem.SetFinalizer(finalizer)
+	elem.SetOnFinalize(onFinalize)
 
 	// Delay finalization and complete immediately, should not cause finalization.
 	delay := elem.DelayFinalizer()
 	delay.Close()
 
-	require.Equal(t, int32(0), atomic.LoadInt32(&finalizerCalls))
+	require.Equal(t, int32(0), atomic.LoadInt32(&onFinalizeCalls))
 
 	elem.Finalize()
-	require.Equal(t, int32(1), atomic.LoadInt32(&finalizerCalls))
+	require.Equal(t, int32(1), atomic.LoadInt32(&onFinalizeCalls))
 }
 
 func TestRefCountDelayFinalizerPropTest(t *testing.T) {
@@ -343,13 +343,13 @@ func TestRefCountDelayFinalizerPropTest(t *testing.T) {
 
 	props.Property("should finalize always once",
 		prop.ForAll(func(input testInput) (bool, error) {
-			finalizerCalls := int32(0)
-			finalizer := resource.Finalizer(resource.FinalizerFn(func() {
-				if n := atomic.AddInt32(&finalizerCalls, 1); n > 1 {
+			onFinalizeCalls := int32(0)
+			onFinalize := OnFinalize(OnFinalizeFn(func() {
+				if n := atomic.AddInt32(&onFinalizeCalls, 1); n > 1 {
 					panic(fmt.Sprintf("called finalizer more than once: %v", n))
 				}
 			}))
-			elem.SetFinalizer(finalizer)
+			elem.SetOnFinalize(onFinalize)
 
 			var startWaitingWg, startBeginWg, startDoneWg, continueWg, doneWg sync.WaitGroup
 			startBeginWg.Add(1)
@@ -390,7 +390,7 @@ func TestRefCountDelayFinalizerPropTest(t *testing.T) {
 			continueWg.Done()     // Continue the close calls.
 			doneWg.Wait()         // Wait for all done.
 
-			if v := atomic.LoadInt32(&finalizerCalls); v != 1 {
+			if v := atomic.LoadInt32(&onFinalizeCalls); v != 1 {
 				return false, fmt.Errorf(
 					"finalizer should have been called once, instead: v=%v", v)
 			}
