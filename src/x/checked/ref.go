@@ -36,7 +36,7 @@ type RefCount struct {
 	ref           int32
 	reads         int32
 	writes        int32
-	finalizer     unsafe.Pointer
+	onFinalize    unsafe.Pointer
 	finalizeState refCountFinalizeState
 }
 
@@ -94,8 +94,8 @@ func (c *RefCount) Finalize() {
 func (c *RefCount) finalizeWithLock() {
 	// Reset the finalize called state for reuse.
 	c.finalizeState.called = false
-	if f := c.Finalizer(); f != nil {
-		f.Finalize()
+	if f := c.OnFinalize(); f != nil {
+		f.OnFinalize()
 	}
 }
 
@@ -120,18 +120,18 @@ func (c *RefCount) Close() {
 	c.finalizeState.Unlock()
 }
 
-// Finalizer returns the finalizer if any or nil otherwise.
-func (c *RefCount) Finalizer() resource.Finalizer {
-	finalizerPtr := (*resource.Finalizer)(atomic.LoadPointer(&c.finalizer))
+// OnFinalize returns the finalizer callback if any or nil otherwise.
+func (c *RefCount) OnFinalize() OnFinalize {
+	finalizerPtr := (*OnFinalize)(atomic.LoadPointer(&c.onFinalize))
 	if finalizerPtr == nil {
 		return nil
 	}
 	return *finalizerPtr
 }
 
-// SetFinalizer sets the finalizer.
-func (c *RefCount) SetFinalizer(f resource.Finalizer) {
-	atomic.StorePointer(&c.finalizer, unsafe.Pointer(&f))
+// SetOnFinalize sets the finalizer callback.
+func (c *RefCount) SetOnFinalize(f OnFinalize) {
+	atomic.StorePointer(&c.onFinalize, unsafe.Pointer(&f))
 }
 
 // IncReads increments the reads count to this entity.
