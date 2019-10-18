@@ -30,7 +30,7 @@ import (
 type Allocator func() interface{}
 
 // CheckedAllocator allocates a checked object for a pool.
-type CheckedAllocator func() checked.ReadWriteRef
+type CheckedAllocator func() checked.ReadWriteRefWithOnFinalize
 
 // ObjectPool provides a pool for objects.
 type ObjectPool interface {
@@ -54,7 +54,7 @@ type CheckedObjectPool interface {
 	// use and when decremented to zero and finalized it will return itself
 	// to the pool. The pool uses the finalizer on the checked value so be sure
 	// not to override it.
-	Get() checked.ReadWriteRef
+	Get() checked.ReadWriteRefWithOnFinalize
 }
 
 // OnPoolAccessErrorFn is a function to call when a pool access error occurs,
