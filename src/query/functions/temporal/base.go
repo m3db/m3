@@ -119,12 +119,15 @@ func (c *baseNode) Process(
 
 	meta := b.Meta()
 	bounds := meta.Bounds
+	// offset := c.op.duration % bounds.StepSize
+	// bounds.Start = bounds.Start.Add(offset)
 	fmt.Println("Initial bound Start:", bounds.Start.Format("3:04:05PM"), bounds.Start.Unix())
 	fmt.Println("Initial bound End  :", bounds.End().Format("3:04:05PM"), bounds.End().Unix())
 	fmt.Println("Timespec start:", c.transformOpts.TimeSpec().Start.Format("3:04:05PM"), c.transformOpts.TimeSpec().Start.Unix())
 
 	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec().Start)
 	fmt.Println("Query bound Start  :", queryStartBounds.Start.Format("3:04:05PM"), queryStartBounds.Start.Unix())
+	fmt.Println("Query bound End  :", queryStartBounds.End().Format("3:04:05PM"), queryStartBounds.End().Unix())
 	if bounds.Duration == 0 {
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
@@ -417,10 +420,16 @@ func (c *baseNode) processSingleRequest(
 	}
 
 	var (
-		meta       = request.blk.Meta()
-		bounds     = meta.Bounds
-		seriesMeta = seriesIter.SeriesMeta()
+		aggDuration = c.op.duration
+		meta        = request.blk.Meta()
+		seriesMeta  = seriesIter.SeriesMeta()
 	)
+
+	fmt.Println("Before messing with it, bound start is:", meta.Bounds.Start.Format("3:04:05PM"))
+	offset := c.op.duration % meta.Bounds.StepSize
+	meta.Bounds.Start = meta.Bounds.Start.Add(offset)
+	fmt.Println("Starting this with agg duration", aggDuration, "and Aligned time:", meta.Bounds.Start.Format("3:04:05PM"))
+	bounds := meta.Bounds
 
 	// rename series to exclude their __name__ tag as part of function processing.
 	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesMeta))
@@ -442,7 +451,6 @@ func (c *baseNode) processSingleRequest(
 		return nil, err
 	}
 
-	aggDuration := c.op.duration
 	depIters := make([]block.UnconsolidatedSeriesIter, 0, len(request.deps))
 	for _, b := range request.deps {
 		iter, err := b.SeriesIter()
@@ -478,7 +486,6 @@ func (c *baseNode) processSingleRequest(
 			}
 		}
 
-		fmt.Println("Starting this with agg duration", aggDuration, "and Aligned time:", bounds.Start)
 		var (
 			newVal float64
 			init   = 0

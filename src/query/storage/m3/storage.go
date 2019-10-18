@@ -201,7 +201,9 @@ func (s *m3storage) FetchBlocks(
 		}, err
 	}
 
-	start := query.Start.Truncate(query.Interval)
+	align := (opts.LookbackDuration() % query.Interval)
+	start := query.Start.Add(align)
+	fmt.Println("???? ", query.Start.Format("3:04:05PM"), "start:", start.Format("3:04:05PM"), "align", align)
 	bounds := models.Bounds{
 		Start:    start,
 		Duration: query.End.Sub(start),
