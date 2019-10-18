@@ -35,25 +35,34 @@ import (
 )
 
 type promParser struct {
-	expr    pql.Expr
-	tagOpts models.TagOptions
+	stepSize time.Duration
+	expr     pql.Expr
+	tagOpts  models.TagOptions
 }
 
 // Parse takes a promQL string and converts parses it into a DAG.
-func Parse(q string, tagOpts models.TagOptions) (parser.Parser, error) {
+func Parse(
+	q string,
+	stepSize time.Duration,
+	tagOpts models.TagOptions,
+) (parser.Parser, error) {
 	expr, err := pql.ParseExpr(q)
 	if err != nil {
 		return nil, err
 	}
 
 	return &promParser{
-		expr:    expr,
-		tagOpts: tagOpts,
+		expr:     expr,
+		stepSize: stepSize,
+		tagOpts:  tagOpts,
 	}, nil
 }
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
-	state := &parseState{tagOpts: p.tagOpts}
+	state := &parseState{
+		stepSize: p.stepSize,
+		tagOpts:  p.tagOpts,
+	}
 	err := state.walk(p.expr)
 	if err != nil {
 		return nil, nil, err
@@ -67,6 +76,7 @@ func (p *promParser) String() string {
 }
 
 type parseState struct {
+	stepSize   time.Duration
 	edges      parser.Edges
 	transforms parser.Nodes
 	tagOpts    models.TagOptions
@@ -116,6 +126,7 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 		return fmt.Errorf("offset must be positive, received: %v", offset)
 	}
 
+	offset = offset - (offset.Truncate(p.stepSize) + p.stepSize)
 	var (
 		tt = func(t time.Time) time.Time { return t.Add(offset) }
 		mt = func(meta block.Metadata) block.Metadata {

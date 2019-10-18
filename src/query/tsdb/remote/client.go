@@ -229,42 +229,7 @@ func (c *grpcClient) FetchBlocks(
 		}, err
 	}
 
-	// If using multiblock, update options to reflect this.
-	if options.BlockType == models.TypeMultiBlock {
-		opts = opts.
-			SetSplitSeriesByBlock(true)
-	}
-
-	align := opts.LookbackDuration()%query.Interval - query.Interval
-	start := query.Start.Add(align)
-	bounds := models.Bounds{
-		Start:    start,
-		Duration: query.End.Sub(start),
-		StepSize: query.Interval,
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		fetchResult.SeriesIterators,
-		bounds,
-		fetchResult.Metadata,
-		opts,
-	)
-
-	if err != nil {
-		return block.Result{
-			Metadata: block.NewResultMetadata(),
-		}, err
-	}
-
-	return block.Result{
-		Blocks:   blocks,
-		Metadata: fetchResult.Metadata,
-	}, nil
+	return m3.FetchResultToBlockResult(fetchResult, query, options, opts)
 }
 
 func (c *grpcClient) SearchSeries(

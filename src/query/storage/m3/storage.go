@@ -166,6 +166,52 @@ func (s *m3storage) Fetch(
 	return fetchResult, nil
 }
 
+// FetchResultToBlockResult converts an encoded SeriesIterator fetch result
+// into blocks.
+func FetchResultToBlockResult(
+	result SeriesFetchResult,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+	opts m3db.Options,
+) (block.Result, error) {
+	// If using multiblock, update options to reflect this.
+	if options.BlockType == models.TypeMultiBlock {
+		opts = opts.
+			SetSplitSeriesByBlock(true)
+	}
+
+	align := opts.LookbackDuration()%query.Interval - query.Interval
+	start := query.Start.Add(align)
+	bounds := models.Bounds{
+		Start:    start,
+		Duration: query.End.Sub(start),
+		StepSize: query.Interval,
+	}
+
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	blocks, err := m3db.ConvertM3DBSeriesIterators(
+		result.SeriesIterators,
+		bounds,
+		result.Metadata,
+		opts,
+	)
+
+	if err != nil {
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
+	}
+
+	return block.Result{
+		Blocks:   blocks,
+		Metadata: result.Metadata,
+	}, nil
+}
+
 func (s *m3storage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -188,12 +234,6 @@ func (s *m3storage) FetchBlocks(
 			opts.LookbackDuration(), options.Enforcer)
 	}
 
-	// If using multiblock, update options to reflect this.
-	if options.BlockType == models.TypeMultiBlock {
-		opts = opts.
-			SetSplitSeriesByBlock(true)
-	}
-
 	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{
@@ -201,47 +241,7 @@ func (s *m3storage) FetchBlocks(
 		}, err
 	}
 
-	align := opts.LookbackDuration()%query.Interval - query.Interval
-	start := query.Start.Add(align)
-	fmt.Println("???? ", query.Start.Format("3:04:05PM"), "start:", start.Format("3:04:05PM"), "align", align)
-	bounds := models.Bounds{
-		Start:    start,
-		Duration: query.End.Sub(start),
-		StepSize: query.Interval,
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	// TODO: mutating this array breaks the abstraction a bit, but it's the least
-	// fussy way I can think of to do this while maintaining the original pooling.
-	// Alternative would be to fetch a new MutableSeriesIterators() instance from
-	// the pool, populate it, and then return the original to the pool, which
-	// feels wasteful.
-	iters := result.SeriesIterators.Iters()
-	for i, iter := range iters {
-		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
-	}
-
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		result.SeriesIterators,
-		bounds,
-		result.Metadata,
-		opts,
-	)
-
-	if err != nil {
-		return block.Result{
-			Metadata: block.NewResultMetadata(),
-		}, err
-	}
-
-	return block.Result{
-		Blocks:   blocks,
-		Metadata: result.Metadata,
-	}, nil
+	return FetchResultToBlockResult(result, query, options, opts)
 }
 
 func (s *m3storage) FetchCompressed(

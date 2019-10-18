@@ -58,7 +58,7 @@ var (
 func init() {
 	SeriesNamespace = "namespace"
 
-	TestTags = map[string]string{"__name__": "quail", "foo": "bar", "baz": "qux"}
+	TestTags = map[string]string{"foo": "bar", "baz": "qux"}
 
 	BlockSize = time.Hour / 2
 
