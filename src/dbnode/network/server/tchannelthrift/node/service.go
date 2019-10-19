@@ -803,15 +803,39 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		nonRetryableErrors int
 	)
 
+	// Call ReadEncoded on each of the IDs in a loop before converting them into segments
+	// to kick off as many async fetches as possible since the "future" is not forced to
+	// resolve until the block readers are converted to a segment.
+	idBRs := make([][][]xio.BlockReader, len(req.Ids))
 	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
 		result.Elements = append(result.Elements, rawResult)
 
 		tsID := s.newID(ctx, req.Ids[i])
-		segments, rpcErr := s.readEncoded(ctx, db, nsID, tsID, start, end)
-		if rpcErr != nil {
-			rawResult.Err = rpcErr
+		encoded, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
+		if err != nil {
+			rawResult.Err = convert.ToRPCError(err)
 			if tterrors.IsBadRequestError(rawResult.Err) {
+				nonRetryableErrors++
+			} else {
+				retryableErrors++
+			}
+			continue
+		}
+		idBRs[i] = encoded
+	}
+
+	// Resolve all the block reader futures for all the ids.
+	for i := 0; i < len(idBRs); i++ {
+		brs := idBRs[i]
+		if brs == nil {
+			continue
+		}
+
+		rpcSegments, err := s.blockReadersToRPCSegments(ctx, brs)
+		if err != nil {
+			result.Elements[i].Err = err
+			if tterrors.IsBadRequestError(err) {
 				nonRetryableErrors++
 			} else {
 				retryableErrors++
@@ -820,7 +844,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		}
 
 		success++
-		rawResult.Segments = segments
+		result.Elements[i].Segments = rpcSegments
 	}
 
 	s.metrics.fetchBatchRaw.ReportSuccess(success)
@@ -1947,14 +1971,18 @@ func (s *service) readEncoded(
 		return nil, convert.ToRPCError(err)
 	}
 
+	return s.blockReadersToRPCSegments(ctx, encoded)
+}
+
+func (s *service) blockReadersToRPCSegments(ctx context.Context, brs [][]xio.BlockReader) ([]*rpc.Segments, *rpc.Error) {
 	segments := s.pools.segmentsArray.Get()
-	segments = segmentsArr(segments).grow(len(encoded))
+	segments = segmentsArr(segments).grow(len(brs))
 	segments = segments[:0]
 	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
 		s.pools.segmentsArray.Put(segments)
 	}))
 
-	for _, readers := range encoded {
+	for _, readers := range brs {
 		converted, err := convert.ToSegments(readers)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
