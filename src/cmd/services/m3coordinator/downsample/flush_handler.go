@@ -58,7 +58,7 @@ type downsamplerFlushHandler struct {
 	sync.RWMutex
 	storage                storage.Storage
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
-	workerPool             xsync.WorkerPool
+	workerPool             xsync.PooledWorkerPool
 	instrumentOpts         instrument.Options
 	metrics                downsamplerFlushHandlerMetrics
 	tagOptions             models.TagOptions
@@ -81,7 +81,7 @@ func newDownsamplerFlushHandlerMetrics(
 func newDownsamplerFlushHandler(
 	storage storage.Storage,
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
-	workerPool xsync.WorkerPool,
+	workerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) handler.Handler {
@@ -119,6 +119,7 @@ type downsamplerFlushHandlerWriter struct {
 func (w *downsamplerFlushHandlerWriter) Write(
 	mp aggregated.ChunkedMetricWithStoragePolicy,
 ) error {
+	// fmt.Printf("!! flushing metric\n")
 	w.wg.Add(1)
 	w.handler.workerPool.Go(func() {
 		defer w.wg.Done()

@@ -59,14 +59,14 @@ const (
 	instanceID                     = "downsampler_local"
 	placementKVKey                 = "/placement"
 	replicationFactor              = 1
-	defaultStorageFlushConcurrency = 20000
 	defaultOpenTimeout             = 10 * time.Second
 	defaultBufferFutureTimedMetric = time.Minute
 	defaultVerboseErrors           = true
 )
 
 var (
-	numShards = runtime.NumCPU()
+	numShards                      = runtime.NumCPU()
+	defaultStorageFlushConcurrency = 2 << 15 // 65k
 
 	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
 	errNoClusterClient         = errors.New("dynamic downsampling enabled with cluster client not set")
@@ -323,9 +323,12 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		return agg{}, err
 	}
 
-	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(serviceID,
+	flushManager, flushHandler, err := o.newAggregatorFlushManagerAndHandler(serviceID,
 		placementManager, flushTimesManager, electionManager, instrumentOpts,
 		storageFlushConcurrency, pools)
+	if err != nil {
+		return agg{}, err
+	}
 
 	bufferPastLimits := defaultBufferPastLimits
 	if numLimitsCfg := len(cfg.BufferPastLimits); numLimitsCfg > 0 {
@@ -614,7 +617,7 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 	instrumentOpts instrument.Options,
 	storageFlushConcurrency int,
 	pools aggPools,
-) (aggregator.FlushManager, handler.Handler) {
+) (aggregator.FlushManager, handler.Handler, error) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
@@ -622,12 +625,18 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 		SetJitterEnabled(false)
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 
-	flushWorkers := xsync.NewWorkerPool(storageFlushConcurrency)
+	flushWorkers, err := xsync.NewPooledWorkerPool(storageFlushConcurrency,
+		xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true))
+	if err != nil {
+		return nil, nil, err
+	}
+
 	flushWorkers.Init()
 	handler := newDownsamplerFlushHandler(o.Storage, pools.metricTagsIteratorPool,
 		flushWorkers, o.TagOptions, instrumentOpts)
 
-	return flushManager, handler
+	return flushManager, handler, nil
 }
 
 type bufferPastLimit struct {

@@ -113,7 +113,9 @@ func NewIngester(
 	}
 
 	poolOpts := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(opts.InstrumentOptions).
+		SetInstrumentOptions(opts.InstrumentOptions.
+			SetMetricsScope(opts.InstrumentOptions.
+				MetricsScope().SubScope("carbon-line-resources"))).
 		SetRefillLowWatermark(0).
 		SetRefillHighWatermark(0).
 		SetSize(defaultResourcePoolSize)
