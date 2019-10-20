@@ -126,7 +126,6 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 		return fmt.Errorf("offset must be positive, received: %v", offset)
 	}
 
-	offset = offset - (offset.Truncate(p.stepSize) + p.stepSize)
 	var (
 		tt = func(t time.Time) time.Time { return t.Add(offset) }
 		mt = func(meta block.Metadata) block.Metadata {

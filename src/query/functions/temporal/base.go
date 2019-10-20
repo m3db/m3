@@ -323,10 +323,6 @@ func getIndices(
 		return -1, -1, false
 	}
 
-	if init > 0 {
-		init = init - 1
-	}
-
 	var (
 		l, r      = init, -1
 		leftBound = false
@@ -361,6 +357,8 @@ func getIndices(
 
 	if leftBound {
 		l = l + init
+	} else {
+		return l, r, false
 	}
 
 	return l, r, true
@@ -408,11 +406,8 @@ func (c *baseNode) processSingleRequest(
 		aggDuration = c.op.duration
 		meta        = request.blk.Meta()
 		seriesMeta  = seriesIter.SeriesMeta()
+		bounds      = meta.Bounds
 	)
-
-	offset := c.op.duration % meta.Bounds.StepSize
-	meta.Bounds.Start = meta.Bounds.Start.Add(offset)
-	bounds := meta.Bounds
 
 	// rename series to exclude their __name__ tag as part of function processing.
 	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesMeta))
@@ -477,17 +472,21 @@ func (c *baseNode) processSingleRequest(
 		)
 
 		for i := 0; i < series.Len(); i++ {
+			val := series.DatapointsAtStep(i)
+			valueBuffer = append(valueBuffer, val...)
+		}
+
+		for i := 0; i < series.Len(); i++ {
 			iterBounds := iterationBounds{
 				start: start,
 				end:   end,
 			}
 
-			val := series.DatapointsAtStep(i)
-			valueBuffer = append(valueBuffer, val...)
 			l, r, b := getIndices(valueBuffer, start, end, init)
 			if !b {
 				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
 			} else {
+				init = l
 				newVal = c.processor.process(valueBuffer[l:r], iterBounds)
 			}
 

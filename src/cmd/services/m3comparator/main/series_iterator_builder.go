@@ -119,6 +119,12 @@ func buildSeriesIterator(
 	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 
+	end := opts.start.Add(opts.blockSize)
+	if len(blocks) > 0 {
+		lastBlock := blocks[len(blocks)-1]
+		end = lastBlock[len(lastBlock)-1].Timestamp
+	}
+
 	tagIter, id := buildTagIteratorAndID(tags)
 	return encoding.NewSeriesIterator(
 			encoding.SeriesIteratorOptions{
@@ -126,7 +132,7 @@ func buildSeriesIterator(
 				Namespace:      ident.StringID("ns"),
 				Tags:           tagIter,
 				StartInclusive: opts.start,
-				EndExclusive:   opts.start.Add(opts.blockSize),
+				EndExclusive:   end,
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
 				},

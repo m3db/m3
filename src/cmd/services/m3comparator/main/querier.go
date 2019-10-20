@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -60,10 +61,13 @@ func generateSeriesBlock(
 	numPoints := int(blockSize / resolution)
 	dps := make(seriesBlock, 0, numPoints)
 	for i := 0; i < numPoints; i++ {
-		dps = append(dps, ts.Datapoint{
+		dp := ts.Datapoint{
 			Timestamp: start.Add(resolution * time.Duration(i)),
 			Value:     rand.Float64(),
-		})
+		}
+
+		dps = append(dps, dp)
+		fmt.Println(i, dp.Timestamp.Format("3:04:05PM"), dp.Value)
 	}
 
 	return dps
@@ -76,7 +80,7 @@ func generateSeries(
 	resolution time.Duration,
 	tags tagMap,
 ) series {
-	numBlocks := int(float64(end.Sub(start)) / float64(blockSize))
+	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(blockSize)))
 	blocks := make([]seriesBlock, 0, numBlocks)
 	for i := 0; i < numBlocks; i++ {
 		blocks = append(blocks, generateSeriesBlock(start, blockSize, resolution))
@@ -156,6 +160,8 @@ func (q *querier) FetchCompressed(
 			seriesList,
 			generateSeries(start, end, blockSize, gen.res, tagMap),
 		)
+
+		start = start.Add(blockSize)
 	}
 
 	q.Unlock()

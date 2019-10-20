@@ -142,14 +142,9 @@ func standardRateFunc(
 		firstTS, lastTS     time.Time
 		foundFirst          bool
 	)
+
 	rangeStart := timeSpec.Start
 	rangeEnd := timeSpec.End
-
-	z := make([]float64, 0, len(datapoints))
-	for _, d := range datapoints {
-		z = append(z, d.Value)
-	}
-
 	for i, dp := range datapoints {
 		if math.IsNaN(dp.Value) {
 			continue
