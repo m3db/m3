@@ -17,7 +17,8 @@ function generate_dash {
       echo ",">>$GENERATED
     fi
 
-    QUERY=$(echo $Q | cut -d ":" -f1)
+    #                                 :| more like "sad" 
+    QUERY=$(echo $Q | cut -d ":" -f1 | sed 's/\"/\\\\\\\"/g')
     INTERVAL=$(echo $Q | cut -d ":" -f2)
 
     awk '{gsub(/\${QUERY}/,"'$QUERY'");print}' $FRAGMENT |
