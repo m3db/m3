@@ -13,8 +13,8 @@ QUERIES=(
 	'quail:5m'
 	'quail:1m'
 	'quail*1:1m'
-	'sum({foobar="qux"}):1m'
-	'sum({foobar="qux"})-1:1m'
+	'sum({foobar=\"qux\"}):1m'
+	'sum({foobar=\"qux\"})-1:1m'
 )
 
 if [[ "$RUN_ONLY" == "false" ]]
