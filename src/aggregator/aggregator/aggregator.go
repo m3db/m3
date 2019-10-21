@@ -343,7 +343,10 @@ func (agg *aggregator) processPlacementWithLock(
 		for _, instance := range placementInstances {
 			placementInstanceIDs = append(placementInstanceIDs, instance.ID())
 		}
-		agg.logger.Error("could not find aggregator instance ID in placement",
+
+		msg := "aggregator instance ID must appear in placement: " +
+			"not found with current instance ID"
+		agg.logger.Error(msg,
 			zap.String("currInstanceID", agg.placementManager.InstanceID()),
 			zap.Strings("placementInstanceIDs", placementInstanceIDs))
 	}

@@ -28,6 +28,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
@@ -55,31 +56,6 @@ var (
 	errNoKVClientConfiguration = errors.New("no kv client configuration")
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
-
-// InstanceIDType is the instance ID type that defines how the
-// instance ID is constructed, which is then used to lookup the
-// aggregator instance in the placement.
-type InstanceIDType string
-
-const (
-	// HostIDInstanceIDType specifies to just use the host ID
-	// as the instance ID for lookup in the placement.
-	HostIDInstanceIDType InstanceIDType = "host_id"
-	// HostIDPortInstanceIDType specifies to use the host ID
-	// concatenated with the port to be used for lookup
-	// in the placement (legacy, how the instance ID used to be constructed
-	// which imposed the strange requirement that the instance ID
-	// in the topology used to require the port concat'd with the
-	// host ID).
-	HostIDPortInstanceIDType InstanceIDType = "host_id_port"
-)
-
-// InstanceIDConfiguration is the instance ID configuration.
-type InstanceIDConfiguration struct {
-	// Type specifies how to construct the instance ID that is
-	// used for lookup of the aggregator in the placement.
-	Type InstanceIDType `yaml:"type"`
-}
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
@@ -178,6 +154,79 @@ type AggregatorConfiguration struct {
 
 	// Pool of entries.
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
+}
+
+// InstanceIDType is the instance ID type that defines how the
+// instance ID is constructed, which is then used to lookup the
+// aggregator instance in the placement.
+type InstanceIDType uint
+
+const (
+	// HostIDInstanceIDType specifies to just use the host ID
+	// as the instance ID for lookup in the placement.
+	HostIDInstanceIDType InstanceIDType = iota
+	// HostIDPortInstanceIDType specifies to use the host ID
+	// concatenated with the port to be used for lookup
+	// in the placement.
+	// NB: this is a legacy instance ID type and is how the instance
+	// ID used to be constructed which imposed the strange
+	// requirement that the instance ID in the topology used to require
+	// the port concat'd with the host ID).
+	HostIDPortInstanceIDType
+
+	// defaultInstanceIDType must be used as the legacy instance ID
+	// since the config needs to be backwards compatible and for those
+	// not explicitly specifying the instance ID type it will cause
+	// existing placements to not work with latest versions of the aggregator
+	// in a backwards compatible fashion.
+	defaultInstanceIDType = HostIDPortInstanceIDType
+)
+
+func (t InstanceIDType) String() string {
+	switch t {
+	case HostIDInstanceIDType:
+		return "host_id"
+	case HostIDPortInstanceIDType:
+		return "host_id_port"
+	}
+	return "unknown"
+}
+
+var (
+	validInstanceIDTypes = []InstanceIDType{
+		HostIDInstanceIDType,
+		HostIDPortInstanceIDType,
+	}
+)
+
+// UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
+func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultInstanceIDType
+		return nil
+	}
+	strs := make([]string, 0, len(validInstanceIDTypes))
+	for _, valid := range validInstanceIDTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf(
+		"invalid InstanceIDType '%s' valid types are: %s", str, strings.Join(strs, ", "),
+	)
+}
+
+// InstanceIDConfiguration is the instance ID configuration.
+type InstanceIDConfiguration struct {
+	// InstanceIDType specifies how to construct the instance ID
+	// that is used for lookup of the aggregator in the placement.
+	InstanceIDType InstanceIDType `yaml:"type"`
 }
 
 // NewAggregatorOptions creates a new set of aggregator options.
@@ -389,21 +438,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {
 	var (
-		// NB(r): For legacy reasons we need to support
-		// the default host ID type to be a concatenation
-		// of the host name and the port for the instance ID,
-		// since that's what it used to be and if this changes
-		// it will break existing placements (since aggregators
-		// will come up and construct their instance IDs differently
-		// and not be able to find themselves in the placement).
-		instanceIDType = HostIDPortInstanceIDType
-		hostIDValue    string
-		err            error
+		hostIDValue string
+		err         error
 	)
-	if c.InstanceID.Type != "" {
-		instanceIDType = c.InstanceID.Type
-	}
-
 	if c.HostID != nil {
 		hostIDValue, err = c.HostID.Resolve()
 	} else {
@@ -413,7 +450,7 @@ func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) 
 		return "", fmt.Errorf("error determining host ID: %v", err)
 	}
 
-	switch instanceIDType {
+	switch c.InstanceID.InstanceIDType {
 	case HostIDInstanceIDType:
 		return hostIDValue, nil
 	case HostIDPortInstanceIDType:
@@ -423,7 +460,8 @@ func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) 
 		}
 		return net.JoinHostPort(hostIDValue, port), nil
 	default:
-		return "", fmt.Errorf("unknown instance ID type: %s", string(instanceIDType))
+		return "", fmt.Errorf("unknown instance ID type: value=%d, str=%s",
+			c.InstanceID.InstanceIDType, c.InstanceID.InstanceIDType.String())
 	}
 }
 
