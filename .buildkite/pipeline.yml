@@ -53,7 +53,7 @@ steps:
           import: github.com/m3db/m3
     <<: *common
   - name: "Prometheus compatibility (:docker:)"
-    command: make clean install-vendor docker-regression-test
+    command: make clean install-vendor docker-compatibility-test
     parallelism: 1
     env:
       CGO_ENABLED: 0

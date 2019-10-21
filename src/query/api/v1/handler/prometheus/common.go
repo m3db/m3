@@ -421,16 +421,20 @@ func RenderSeriesMatchResultsJSON(
 
 // Response represents Prometheus's query response.
 type Response struct {
+	// Status is the response status.
 	Status string `json:"status"`
-	Data   data   `json:"data"`
+	// Data is the response data.
+	Data data `json:"data"`
 }
 
 type data struct {
-	ResultType string  `json:"resultType"`
-	Result     results `json:"result"`
+	// ResultType is the result type for the response.
+	ResultType string `json:"resultType"`
+	// Result is the list of results for the response.
+	Result results `json:"result"`
 }
 
-type results []result
+type results []Result
 
 // Len is the number of elements in the collection.
 func (r results) Len() int { return len(r) }
@@ -452,17 +456,25 @@ func (r results) sort() {
 	sort.Sort(r)
 }
 
-type result struct {
-	Metric tags   `json:"metric"`
-	Values values `json:"values"`
+// Result is the result itself.
+type Result struct {
+	// Metric is the tags for the result.
+	Metric Tags `json:"metric"`
+	// Values is the set of values for the result.
+	Values Values `json:"values"`
 	id     string
 }
 
-type tags map[string]string
-type values []value
-type value []interface{}
+// Tags is a simple representation of Prometheus tags.
+type Tags map[string]string
 
-func (r *result) genID() {
+// Values is a list of values for the Prometheus result.
+type Values []Value
+
+// Value is a single value for Prometheus result.
+type Value []interface{}
+
+func (r *Result) genID() {
 	var sb strings.Builder
 	// NB: this may clash but exact tag values are also checked, and this is a
 	// validation endpoint so there's less concern over correctness.
@@ -531,7 +543,7 @@ func (r results) matches(other results) (MatchInformation, error) {
 	return MatchInformation{FullMatch: true}, nil
 }
 
-func (r result) matches(other result) error {
+func (r Result) matches(other Result) error {
 	// NB: tags should match by here so this is more of a sanity check.
 	if err := r.Metric.matches(other.Metric); err != nil {
 		return err
@@ -540,7 +552,7 @@ func (r result) matches(other result) error {
 	return r.Values.matches(other.Values)
 }
 
-func (t tags) matches(other tags) error {
+func (t Tags) matches(other Tags) error {
 	if len(t) != len(other) {
 		return fmt.Errorf("tag length %d does not match other tag length %d",
 			len(t), len(other))
@@ -559,7 +571,7 @@ func (t tags) matches(other tags) error {
 	return nil
 }
 
-func (v values) matches(other values) error {
+func (v Values) matches(other Values) error {
 	if len(v) != len(other) {
 		return fmt.Errorf("values length %d does not match other values length %d",
 			len(v), len(other))
@@ -574,7 +586,7 @@ func (v values) matches(other values) error {
 	return nil
 }
 
-func (v value) matches(other value) error {
+func (v Value) matches(other Value) error {
 	if len(v) != len(other) {
 		return fmt.Errorf("value length %d does not match other value length %d",
 			len(v), len(other))

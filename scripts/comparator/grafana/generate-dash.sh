@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 GRAFANA_PATH=$GOPATH/src/github.com/m3db/m3/scripts/comparator/grafana
-GENERATED=$GRAFANA_PATH/dash.json
+GENERATED=$GRAFANA_PATH/dash.json.out
 FRAGMENT=$GRAFANA_PATH/m3db_overlaid_dashboard_fragment
 REVISION=$(git rev-parse HEAD)
 

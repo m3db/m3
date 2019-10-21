@@ -67,7 +67,6 @@ func generateSeriesBlock(
 		}
 
 		dps = append(dps, dp)
-		fmt.Println(i, dp.Timestamp.Format("3:04:05PM"), dp.Value)
 	}
 
 	return dps
@@ -79,8 +78,12 @@ func generateSeries(
 	blockSize time.Duration,
 	resolution time.Duration,
 	tags tagMap,
-) series {
+) (series, error) {
 	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(blockSize)))
+	if numBlocks == 0 {
+		return series{}, fmt.Errorf("comparator querier: no blocks generated")
+	}
+
 	blocks := make([]seriesBlock, 0, numBlocks)
 	for i := 0; i < numBlocks; i++ {
 		blocks = append(blocks, generateSeriesBlock(start, blockSize, resolution))
@@ -90,7 +93,7 @@ func generateSeries(
 	return series{
 		blocks: blocks,
 		tags:   tags,
-	}
+	}, nil
 }
 
 func (q *querier) generateOptions(
@@ -125,10 +128,12 @@ func (q *querier) FetchCompressed(
 
 		// TODO: take from config.
 		gens = []seriesGen{
-			seriesGen{"foo", time.Second * 15},
-			seriesGen{"bar", time.Minute * 5},
+			seriesGen{"foo", time.Second},
+			seriesGen{"bar", time.Second * 15},
 			seriesGen{"quail", time.Minute},
 		}
+
+		actualGens []seriesGen
 	)
 
 	q.Lock()
@@ -139,7 +144,7 @@ func (q *querier) FetchCompressed(
 			value := string(matcher.Value)
 			for _, gen := range gens {
 				if value == gen.name {
-					gens = []seriesGen{gen}
+					actualGens = append(actualGens, gen)
 					break
 				}
 			}
@@ -148,20 +153,24 @@ func (q *querier) FetchCompressed(
 		}
 	}
 
-	seriesList := make([]series, 0, len(gens))
-	for _, gen := range gens {
+	if len(actualGens) == 0 {
+		actualGens = gens
+	}
+
+	seriesList := make([]series, 0, len(actualGens))
+	for _, gen := range actualGens {
 		tagMap := map[string]string{
 			"__name__": gen.name,
 			"foobar":   "qux",
 			"name":     gen.name,
 		}
 
-		seriesList = append(
-			seriesList,
-			generateSeries(start, end, blockSize, gen.res, tagMap),
-		)
+		series, err := generateSeries(start, end, blockSize, gen.res, tagMap)
+		if err != nil {
+			return m3.SeriesFetchResult{}, noop, err
+		}
 
-		start = start.Add(blockSize)
+		seriesList = append(seriesList, series)
 	}
 
 	q.Unlock()
