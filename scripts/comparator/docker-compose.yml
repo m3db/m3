@@ -32,7 +32,7 @@ services:
       - "./:/etc/prometheus/"
   grafana:
     build:
-      context: .
+      context: ./grafana
       dockerfile: grafana.Dockerfile
     expose:
       - "3000"

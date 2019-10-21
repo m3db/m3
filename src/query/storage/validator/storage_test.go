@@ -31,7 +31,7 @@ import (
 )
 
 func TestConverter(t *testing.T) {
-	promResult := prometheus.PromResp{
+	promResult := prometheus.Response{
 		Status: "success",
 	}
 
