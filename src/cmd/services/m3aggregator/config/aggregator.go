@@ -162,9 +162,6 @@ type AggregatorConfiguration struct {
 type InstanceIDType uint
 
 const (
-	// HostIDInstanceIDType specifies to just use the host ID
-	// as the instance ID for lookup in the placement.
-	HostIDInstanceIDType InstanceIDType = iota
 	// HostIDPortInstanceIDType specifies to use the host ID
 	// concatenated with the port to be used for lookup
 	// in the placement.
@@ -172,7 +169,10 @@ const (
 	// ID used to be constructed which imposed the strange
 	// requirement that the instance ID in the topology used to require
 	// the port concat'd with the host ID).
-	HostIDPortInstanceIDType
+	HostIDPortInstanceIDType InstanceIDType = iota
+	// HostIDInstanceIDType specifies to just use the host ID
+	// as the instance ID for lookup in the placement.
+	HostIDInstanceIDType
 
 	// defaultInstanceIDType must be used as the legacy instance ID
 	// since the config needs to be backwards compatible and for those
@@ -218,8 +218,7 @@ func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		strs = append(strs, "'"+valid.String()+"'")
 	}
 	return fmt.Errorf(
-		"invalid InstanceIDType '%s' valid types are: %s", str, strings.Join(strs, ", "),
-	)
+		"invalid InstanceIDType '%s' valid types are: %s", str, strings.Join(strs, ", "))
 }
 
 // InstanceIDConfiguration is the instance ID configuration.
