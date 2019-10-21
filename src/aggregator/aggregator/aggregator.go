@@ -316,26 +316,11 @@ func (agg *aggregator) processPlacementWithLock(
 	if !agg.shouldProcessPlacementWithLock(newStagedPlacement, newPlacement) {
 		return nil
 	}
-	var (
-		notFoundInPlacement = false
-		newShardSet         shard.Shards
-	)
+	var newShardSet shard.Shards
 	instance, err := agg.placementManager.InstanceFrom(newPlacement)
 	if err == nil {
 		newShardSet = instance.Shards()
 	} else if err == ErrInstanceNotFoundInPlacement {
-		notFoundInPlacement = true
-		newShardSet = shard.NewShards(nil)
-	} else {
-		return err
-	}
-
-	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
-	if err := agg.updateShardSetIDWithLock(instance); err != nil {
-		return err
-	}
-
-	if notFoundInPlacement {
 		// NB(r): Without this log message it's hard for operators to debug
 		// logs about receiving metrics that the aggregator does not own.
 		placementInstances := newPlacement.Instances()
@@ -345,10 +330,19 @@ func (agg *aggregator) processPlacementWithLock(
 		}
 
 		msg := "aggregator instance ID must appear in placement: " +
-			"not found with current instance ID"
+			"no shards assigned since not found with current instance ID"
 		agg.logger.Error(msg,
 			zap.String("currInstanceID", agg.placementManager.InstanceID()),
 			zap.Strings("placementInstanceIDs", placementInstanceIDs))
+
+		newShardSet = shard.NewShards(nil)
+	} else {
+		return err
+	}
+
+	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
+	if err := agg.updateShardSetIDWithLock(instance); err != nil {
+		return err
 	}
 
 	agg.metrics.placement.updated.Inc(1)
