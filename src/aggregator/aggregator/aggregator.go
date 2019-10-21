@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -114,6 +115,7 @@ type aggregator struct {
 	sleepFn             sleepFn
 	shardsPendingClose  int32
 	metrics             aggregatorMetrics
+	logger              *zap.Logger
 }
 
 // NewAggregator creates a new aggregator.
@@ -134,9 +136,10 @@ func NewAggregator(opts Options) Aggregator {
 		flushHandler:      opts.FlushHandler(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
-		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
 		doneCh:            make(chan struct{}),
 		sleepFn:           time.Sleep,
+		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
+		logger:            iOpts.Logger(),
 	}
 }
 
@@ -313,19 +316,38 @@ func (agg *aggregator) processPlacementWithLock(
 	if !agg.shouldProcessPlacementWithLock(newStagedPlacement, newPlacement) {
 		return nil
 	}
-	var newShardSet shard.Shards
+	var (
+		notFoundInPlacement = false
+		newShardSet         shard.Shards
+	)
 	instance, err := agg.placementManager.InstanceFrom(newPlacement)
 	if err == nil {
 		newShardSet = instance.Shards()
 	} else if err == ErrInstanceNotFoundInPlacement {
+		notFoundInPlacement = true
 		newShardSet = shard.NewShards(nil)
 	} else {
 		return err
 	}
+
 	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
 	if err := agg.updateShardSetIDWithLock(instance); err != nil {
 		return err
 	}
+
+	if notFoundInPlacement {
+		// NB(r): Without this log message it's hard for operators to debug
+		// logs about receiving metrics that the aggregator does not own.
+		placementInstances := newPlacement.Instances()
+		placementInstanceIDs := make([]string, 0, len(placementInstances))
+		for _, instance := range placementInstances {
+			placementInstanceIDs = append(placementInstanceIDs, instance.ID())
+		}
+		agg.logger.Error("could not find aggregator instance ID in placement",
+			zap.String("currInstanceID", agg.placementManager.InstanceID()),
+			zap.Strings("placementInstanceIDs", placementInstanceIDs))
+	}
+
 	agg.metrics.placement.updated.Inc(1)
 	return nil
 }

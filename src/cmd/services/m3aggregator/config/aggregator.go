@@ -56,10 +56,38 @@ var (
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
+// InstanceIDType is the instance ID type that defines how the
+// instance ID is constructed, which is then used to lookup the
+// aggregator instance in the placement.
+type InstanceIDType string
+
+const (
+	// HostIDInstanceIDType specifies to just use the host ID
+	// as the instance ID for lookup in the placement.
+	HostIDInstanceIDType InstanceIDType = "host_id"
+	// HostIDPortInstanceIDType specifies to use the host ID
+	// concatenated with the port to be used for lookup
+	// in the placement (legacy, how the instance ID used to be constructed
+	// which imposed the strange requirement that the instance ID
+	// in the topology used to require the port concat'd with the
+	// host ID).
+	HostIDPortInstanceIDType InstanceIDType = "host_id_port"
+)
+
+// InstanceIDConfiguration is the instance ID configuration.
+type InstanceIDConfiguration struct {
+	// Type specifies how to construct the instance ID that is
+	// used for lookup of the aggregator in the placement.
+	Type InstanceIDType `yaml:"type"`
+}
+
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
 	// HostID is the local host ID configuration.
 	HostID *hostid.Configuration `yaml:"hostID"`
+
+	// InstanceID is the instance ID configuration.
+	InstanceID InstanceIDConfiguration `yaml:"instanceID"`
 
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
@@ -197,7 +225,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetAdminClient(adminClient)
 
-	// Set instance id.
+	// Set instance ID.
 	instanceID, err := c.newInstanceID(address)
 	if err != nil {
 		return nil, err
@@ -361,23 +389,42 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {
 	var (
-		hostName string
-		err      error
+		// NB(r): For legacy reasons we need to support
+		// the default host ID type to be a concatenation
+		// of the host name and the port for the instance ID,
+		// since that's what it used to be and if this changes
+		// it will break existing placements (since aggregators
+		// will come up and construct their instance IDs differently
+		// and not be able to find themselves in the placement).
+		instanceIDType = HostIDPortInstanceIDType
+		hostIDValue    string
+		err            error
 	)
-	if c.HostID != nil {
-		hostName, err = c.HostID.Resolve()
-	} else {
-		hostName, err = os.Hostname()
-	}
-	if err != nil {
-		return "", fmt.Errorf("error determining host name: %v", err)
+	if c.InstanceID.Type != "" {
+		instanceIDType = c.InstanceID.Type
 	}
 
-	_, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+	if c.HostID != nil {
+		hostIDValue, err = c.HostID.Resolve()
+	} else {
+		hostIDValue, err = os.Hostname()
 	}
-	return net.JoinHostPort(hostName, port), nil
+	if err != nil {
+		return "", fmt.Errorf("error determining host ID: %v", err)
+	}
+
+	switch instanceIDType {
+	case HostIDInstanceIDType:
+		return hostIDValue, nil
+	case HostIDPortInstanceIDType:
+		_, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+		}
+		return net.JoinHostPort(hostIDValue, port), nil
+	default:
+		return "", fmt.Errorf("unknown instance ID type: %s", string(instanceIDType))
+	}
 }
 
 func bufferForPastTimedMetricFn(buffer time.Duration) aggregator.BufferForPastTimedMetricFn {

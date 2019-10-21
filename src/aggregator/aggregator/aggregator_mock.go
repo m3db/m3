@@ -348,6 +348,20 @@ func (mr *MockPlacementManagerMockRecorder) Open() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockPlacementManager)(nil).Open))
 }
 
+// InstanceID mocks base method
+func (m *MockPlacementManager) InstanceID() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstanceID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// InstanceID indicates an expected call of InstanceID
+func (mr *MockPlacementManagerMockRecorder) InstanceID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstanceID", reflect.TypeOf((*MockPlacementManager)(nil).InstanceID))
+}
+
 // Placement mocks base method
 func (m *MockPlacementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
 	m.ctrl.T.Helper()
