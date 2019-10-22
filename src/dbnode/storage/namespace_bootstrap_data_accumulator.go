@@ -22,8 +22,63 @@ package storage
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
-func newDatabaseNamespaceDataAccumulator() bootstrap.NamespaceDataAccumulator {
+type namespaceDataAccumulator struct {
+	namespace    databaseNamespace
+	needsRelease []lookup.OnReleaseReadWriteRef
+}
+
+func newDatabaseNamespaceDataAccumulator(
+	namespace databaseNamespace,
+) bootstrap.NamespaceDataAccumulator {
+	return &namespaceDataAccumulator{
+		namespace: namespace,
+	}
+}
+
+func (a *namespaceDataAccumulator) CheckoutSeries(
+	id ident.ID,
+	tags ident.TagIterator,
+) (bootstrap.CheckoutSeriesResult, error) {
+	ref, err := a.namespace.SeriesReadWriteRef(id, tags)
+	if err != nil {
+		return bootstrap.CheckoutSeriesResult{}, err
+	}
+
+	a.needsRelease = append(a.needsRelease, ref.ReleaseReadWriteRef)
+	return bootstrap.CheckoutSeriesResult{
+		Series:      ref.Series,
+		UniqueIndex: ref.UniqueIndex,
+	}, nil
+}
+
+func (a *namespaceDataAccumulator) Release() {
+	// Release all refs.
+	for _, elem := range a.needsRelease {
+		elem.OnReleaseReadWriteRef()
+	}
+
+	// Memset optimization for reset.
+	for i := range a.needsRelease {
+		a.needsRelease[i] = nil
+	}
+	a.needsRelease = a.needsRelease[:0]
+}
+
+func (a *namespaceDataAccumulator) Close() error {
+	if n := len(a.needsRelease); n != 0 {
+		// This is an error case, callers need to be
+		// very explicit in the lifecycle to avoid releasing
+		// refs at the right time so we return this as an error
+		// since there is a code bug if this is called before
+		// releasing all refs.
+		a.Release()
+		err := instrument.InvariantErrorf("closed with still open refs: %d", n)
+		return err
+	}
 	return nil
 }

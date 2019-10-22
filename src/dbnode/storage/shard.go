@@ -779,10 +779,6 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		if !exists {
 			continue
 		}
-		if !series.IsBootstrapped() {
-			// Only expire series after bootstrapped.
-			continue
-		}
 
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
@@ -970,6 +966,62 @@ func (s *dbShard) writeAndIndex(
 	}
 
 	return series, wasWritten, nil
+}
+
+func (s *dbShard) SeriesReadWriteRef(
+	id ident.ID,
+	tags ident.TagIterator,
+	opts ShardSeriesReadWriteRefOptions,
+) (SeriesReadWriteRef, error) {
+	// Try retrieve existing series.
+	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
+
+	if entry != nil {
+		// The read/write ref is already incremented.
+		return SeriesReadWriteRef{
+			Series:              entry.Series,
+			UniqueIndex:         entry.Index,
+			ReleaseReadWriteRef: entry,
+		}, nil
+	}
+
+	// Avoid double lookup by enqueueing insert immediately.
+	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
+
+	// Increment and let caller call the release when done.
+	entry.IncrementReaderWriterCount()
+
+	now := s.nowFn()
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			hasPendingIndexing: opts.ReverseIndex,
+			pendingIndex: dbShardPendingIndex{
+				timestamp:  now,
+				enqueuedAt: now,
+			},
+		},
+	})
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
+
+	if !shardOpts.writeNewSeriesAsync {
+		// Wait if not setup to write new series async.
+		wg.Wait()
+	}
+
+	return SeriesReadWriteRef{
+		Series:              entry.Series,
+		UniqueIndex:         entry.Index,
+		ReleaseReadWriteRef: entry,
+	}, nil
 }
 
 func (s *dbShard) ReadEncoded(

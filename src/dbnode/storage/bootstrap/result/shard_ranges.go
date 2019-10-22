@@ -103,9 +103,7 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 // unfufilled time ranges from the set of shard time ranges.
 func (r ShardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
 	result := NewDataBootstrapResult()
-	for shard, ranges := range r {
-		result.Add(shard, nil, ranges)
-	}
+	result.SetUnfulfilled(r.Copy())
 	return result
 }
 
@@ -113,7 +111,7 @@ func (r ShardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
 // unfufilled time ranges from the set of shard time ranges.
 func (r ShardTimeRanges) ToUnfulfilledIndexResult() IndexBootstrapResult {
 	result := NewIndexBootstrapResult()
-	result.SetUnfulfilled(r)
+	result.SetUnfulfilled(r.Copy())
 	return result
 }
 

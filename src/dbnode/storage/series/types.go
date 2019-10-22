@@ -109,10 +109,16 @@ type DatabaseSeries interface {
 	// IsBootstrapped returns whether the series is bootstrapped or not.
 	IsBootstrapped() bool
 
-	// Load loads data into the series.
+	// Load loads blocks into the series.
 	Load(
 		blocks block.DatabaseSeriesBlocks,
 		blockStates BootstrappedBlockStateSnapshot,
+	) error
+
+	/// Load loads a single block into the series.
+	LoadBlock(
+		block block.DatabaseBlock,
+		writeType WriteType,
 	) error
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.

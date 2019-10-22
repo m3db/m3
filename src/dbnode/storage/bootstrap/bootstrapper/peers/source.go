@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -110,7 +111,7 @@ func (s *peersSource) Read(
 		namespace := elem.Value()
 		md := namespace.Metadata
 
-		r, err := s.readData(md,
+		r, err := s.readData(md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
 			namespace.DataRunOptions.RunOptions)
 		if err != nil {
@@ -160,6 +161,7 @@ func (s *peersSource) Read(
 
 func (s *peersSource) readData(
 	nsMetadata namespace.Metadata,
+	accumulator bootstrap.NamespaceDataAccumulator,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
@@ -253,8 +255,8 @@ func (s *peersSource) readData(
 		workers.Go(func() {
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
-				resultOpts, result, &resultLock, shouldPersist, persistenceQueue,
-				shardRetrieverMgr, blockSize)
+				accumulator, resultOpts, result, &resultLock, shouldPersist,
+				persistenceQueue, shardRetrieverMgr, blockSize)
 		})
 	}
 
@@ -287,10 +289,6 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 		if err == nil {
-			// Safe to add to the shared bootstrap result now.
-			lock.Lock()
-			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
-			lock.Unlock()
 			continue
 		}
 
@@ -300,7 +298,11 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 
 		// Make unfulfilled.
 		lock.Lock()
-		bootstrapResult.Add(flush.shard, nil, xtime.NewRanges(flush.timeRange))
+		unfulfilled := bootstrapResult.Unfulfilled().Copy()
+		unfulfilled.Subtract(result.ShardTimeRanges{
+			flush.shard: xtime.NewRanges(flush.timeRange),
+		})
+		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
 	close(doneCh)
@@ -317,6 +319,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	ranges xtime.Ranges,
 	nsMetadata namespace.Metadata,
 	session client.AdminSession,
+	accumulator bootstrap.NamespaceDataAccumulator,
 	bopts result.Options,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
@@ -326,6 +329,13 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	blockSize time.Duration,
 ) {
 	it := ranges.Iter()
+	tagsIter := ident.NewTagsIterator(ident.Tags{})
+	unfulfill := func(r xtime.Range) {
+		lock.Lock()
+		unfulfilled := bootstrapResult.Unfulfilled()
+		unfulfilled.AddRanges(result.ShardTimeRanges{shard: xtime.NewRanges(r)})
+		lock.Unlock()
+	}
 	for it.Next() {
 		currRange := it.Value()
 
@@ -337,10 +347,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 			if err != nil {
-				// Do not add result at all to the bootstrap result
-				lock.Lock()
-				bootstrapResult.Add(shard, nil, xtime.NewRanges(currRange))
-				lock.Unlock()
+				// No result to add for this bootstrap.
+				unfulfill(currRange)
 				continue
 			}
 
@@ -355,10 +363,32 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			// If not waiting to flush, add straight away to bootstrap result
-			lock.Lock()
-			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-			lock.Unlock()
+			// If not waiting to flush, add straight away to bootstrap result.
+			for _, elem := range shardResult.AllSeries().Iter() {
+				entry := elem.Value()
+
+				tagsIter.Reset(entry.Tags)
+				ref, err := accumulator.CheckoutSeries(entry.ID, tagsIter)
+				if err != nil {
+					unfulfill(currRange)
+					s.log.Error("could not checkout series", zap.Error(err))
+					continue
+				}
+
+				for t, block := range entry.Blocks.AllBlocks() {
+					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+						unfulfill(currRange)
+						s.log.Error("could not load series block", zap.Error(err))
+					}
+					entry.Blocks.RemoveBlockAt(t.ToTime())
+				}
+
+				shardResult.RemoveSeries(entry.ID)
+
+				// Safe to finalize these IDs and Tags, shard result no longer used.
+				entry.ID.Finalize()
+				entry.Tags.Finalize()
+			}
 		}
 	}
 }

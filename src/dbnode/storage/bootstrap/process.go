@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -153,7 +152,6 @@ type bootstrapProcess struct {
 func (b bootstrapProcess) Run(
 	at time.Time,
 	namespaces []ProcessNamespace,
-	shards sharding.ShardSet,
 ) (NamespaceResults, error) {
 	namespacesRunFirst := Namespaces{
 		Namespaces: NewNamespacesMap(NamespacesMapOptions{}),
@@ -169,35 +167,35 @@ func (b bootstrapProcess) Run(
 
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
-			Shards:           shards,
+			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			DataTargetRange:  dataRangeFirst,
 			IndexTargetRange: indexRangeFirst,
 			DataRunOptions: NamespaceRunOptions{
 				ShardTimeRanges: b.newShardTimeRanges(dataRangeFirst.Range,
-					shards.AllIDs()),
+					namespace.Shards),
 				RunOptions: dataRangeFirst.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
 				ShardTimeRanges: b.newShardTimeRanges(indexRangeFirst.Range,
-					shards.AllIDs()),
+					namespace.Shards),
 				RunOptions: indexRangeFirst.RunOptions,
 			},
 		})
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
-			Shards:           shards,
+			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			DataTargetRange:  dataRangeSecond,
 			IndexTargetRange: indexRangeSecond,
 			DataRunOptions: NamespaceRunOptions{
 				ShardTimeRanges: b.newShardTimeRanges(dataRangeSecond.Range,
-					shards.AllIDs()),
+					namespace.Shards),
 				RunOptions: dataRangeSecond.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
 				ShardTimeRanges: b.newShardTimeRanges(indexRangeSecond.Range,
-					shards.AllIDs()),
+					namespace.Shards),
 				RunOptions: indexRangeSecond.RunOptions,
 			},
 		})
@@ -210,7 +208,7 @@ func (b bootstrapProcess) Run(
 	} {
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
-			logFields := b.logFields(namespace.Metadata, shards.AllIDs(),
+			logFields := b.logFields(namespace.Metadata, namespace.Shards,
 				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
 			b.logBootstrapRun(logFields)
 		}
@@ -221,7 +219,7 @@ func (b bootstrapProcess) Run(
 
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
-			logFields := b.logFields(namespace.Metadata, shards.AllIDs(),
+			logFields := b.logFields(namespace.Metadata, namespace.Shards,
 				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
 			b.logBootstrapResult(logFields, err, took)
 		}
@@ -382,13 +380,12 @@ func (b bootstrapProcess) newRunOptions() RunOptions {
 // NewNamespaces returns a new set of bootstrappable namespaces.
 func NewNamespaces(
 	namespaces []ProcessNamespace,
-	shards sharding.ShardSet,
 ) Namespaces {
 	namespacesMap := NewNamespacesMap(NamespacesMapOptions{})
 	for _, ns := range namespaces {
 		namespacesMap.Set(ns.Metadata.ID(), Namespace{
 			Metadata:        ns.Metadata,
-			Shards:          shards,
+			Shards:          ns.Shards,
 			DataAccumulator: ns.DataAccumulator,
 		})
 	}

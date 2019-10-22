@@ -185,29 +185,37 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	// TODO(r): Move shards into ProcessNamespace since
-	// shards that aren't bootstrapped could actually be
-	// different per namespace.
-	shards := m.database.ShardSet()
+	uniqueShards := make(map[uint32]struct{})
 	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
 	for _, namespace := range namespaces {
-		// TODO(r): implement accumulator
-		accumulator := newDatabaseNamespaceDataAccumulator()
+		namespaceShards := namespace.GetOwnedShards()
+		bootstrapShards := make([]uint32, 0, len(namespaceShards))
+		for _, shard := range namespaceShards {
+			if shard.IsBootstrapped() {
+				continue
+			}
+
+			uniqueShards[shard.ID()] = struct{}{}
+			bootstrapShards = append(bootstrapShards, shard.ID())
+		}
+
+		accumulator := newDatabaseNamespaceDataAccumulator(namespace)
 
 		targets = append(targets, bootstrap.ProcessNamespace{
 			Metadata:        namespace.Metadata(),
+			Shards:          bootstrapShards,
 			DataAccumulator: accumulator,
 		})
 	}
 
 	start := m.nowFn()
 	logFields := []zapcore.Field{
-		zap.Int("numShards", len(shards.All())),
+		zap.Int("numShards", len(uniqueShards)),
 	}
 	m.log.Info("bootstrap started", logFields...)
 
 	// Run the bootstrap.
-	bootstrapResult, err := process.Run(start, targets, shards)
+	bootstrapResult, err := process.Run(start, targets)
 
 	logFields = append(logFields,
 		zap.Duration("duration", m.nowFn().Sub(start)))

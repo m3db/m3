@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -53,17 +52,15 @@ type ProcessProvider interface {
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(
-		start time.Time,
-		namespaces []ProcessNamespace,
-		shards sharding.ShardSet,
-	) (NamespaceResults, error)
+	Run(start time.Time, namespaces []ProcessNamespace) (NamespaceResults, error)
 }
 
 // ProcessNamespace is a namespace to pass to the bootstrap process.
 type ProcessNamespace struct {
 	// Metadata of the namespace being bootstrapped.
 	Metadata namespace.Metadata
+	// Shards is the shards to bootstrap for the bootstrap process.
+	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
 }
@@ -78,7 +75,7 @@ type Namespace struct {
 	// Metadata of the namespace being bootstrapped.
 	Metadata namespace.Metadata
 	// Shards is the shards for the namespace being bootstrapped.
-	Shards sharding.ShardSet
+	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
 	// DataTargetRange is the data target bootstrap range.
@@ -107,10 +104,10 @@ type NamespaceDataAccumulator interface {
 	// series is released.
 	CheckoutSeries(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
-	// Reset will reset and release all checked out series from
+	// Release will reset and release all checked out series from
 	// the accumulator so owners can return them and reset the
 	// keys lookup.
-	Reset() error
+	Release()
 
 	// Close will close the data accumulator and will return an error
 	// if any checked out series have not been released yet with reset.
@@ -131,7 +128,7 @@ type NamespaceResults struct {
 // NamespaceResult is the result of a bootstrap process for a given namespace.
 type NamespaceResult struct {
 	Metadata      namespace.Metadata
-	Shards        sharding.ShardSet
+	Shards        []uint32
 	DataResult    result.DataBootstrapResult
 	DataMetadata  NamespaceResultDataMetadata
 	IndexResult   result.IndexBootstrapResult
@@ -226,19 +223,6 @@ type BootstrapperProvider interface {
 	// Provide constructs a bootstrapper.
 	Provide() (Bootstrapper, error)
 }
-
-// TODO: Get rid of sequential/parallel bootstrapping concept
-// TODO: Get rid of sequential/parallel bootstrapping concept
-// TODO: Get rid of sequential/parallel bootstrapping concept
-// Strategy describes a bootstrap strategy.
-type Strategy int
-
-const (
-	// BootstrapSequential describes whether a bootstrap can use the sequential bootstrap strategy.
-	BootstrapSequential Strategy = iota
-	// BootstrapParallel describes whether a bootstrap can use the parallel bootstrap strategy.
-	BootstrapParallel
-)
 
 // Bootstrapper is the interface for different bootstrapping mechanisms.  Note that a bootstrapper
 // can and will be reused so it is important to not rely on state stored in the bootstrapper itself

@@ -22,8 +22,6 @@ package bootstrap
 
 import (
 	"time"
-
-	"github.com/m3db/m3/src/dbnode/sharding"
 )
 
 type noOpBootstrapProcessProvider struct{}
@@ -49,7 +47,6 @@ type noOpBootstrapProcess struct{}
 func (b noOpBootstrapProcess) Run(
 	start time.Time,
 	namespaces []ProcessNamespace,
-	shards sharding.ShardSet,
 ) (NamespaceResults, error) {
-	return NewNamespaceResults(NewNamespaces(namespaces, shards)), nil
+	return NewNamespaceResults(NewNamespaces(namespaces)), nil
 }

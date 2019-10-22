@@ -453,6 +453,16 @@ func (s *dbSeries) Load(
 	return nil
 }
 
+func (s *dbSeries) LoadBlock(
+	block block.DatabaseBlock,
+	writeType WriteType,
+) error {
+	s.Lock()
+	defer s.Unlock()
+	s.buffer.Load(block, writeType)
+	return nil
+}
+
 func (s *dbSeries) OnRetrieveBlock(
 	id ident.ID,
 	tags ident.TagIterator,

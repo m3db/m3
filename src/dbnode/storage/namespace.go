@@ -667,6 +667,21 @@ func (n *dbNamespace) WriteTagged(
 	return series, wasWritten, err
 }
 
+func (n *dbNamespace) SeriesReadWriteRef(
+	id ident.ID,
+	tags ident.TagIterator,
+) (SeriesReadWriteRef, error) {
+	shard, _, err := n.shardFor(id)
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
+
+	opts := ShardSeriesReadWriteRefOptions{
+		ReverseIndex: n.reverseIndex != nil,
+	}
+	return shard.SeriesReadWriteRef(id, tags, opts)
+}
+
 func (n *dbNamespace) QueryIDs(
 	ctx context.Context,
 	query index.Query,
@@ -832,16 +847,31 @@ func (n *dbNamespace) Bootstrap(
 	)
 	n.log.Info("bootstrap marking all shards as bootstrapped",
 		zap.Stringer("namespace", n.id),
-		zap.Int("numShards", len(bootstrappedShards.AllIDs())),
+		zap.Int("numShards", len(bootstrappedShards)),
 		zap.Int("dataNumSeries", bootstrapResult.DataMetadata.NumSeries),
 		zap.Int("indexNumSeries", bootstrapResult.IndexMetadata.NumSeries))
 	for _, shard := range n.GetOwnedShards() {
-		if shard.IsBootstrapped() {
-			// NB(r): No need to mark the shard's series as bootstrapped.
+		// Make sure it was bootstrapped during this bootstrap run.
+		shardID := shard.ID()
+		bootstrapped := false
+		for _, elem := range bootstrappedShards {
+			if elem == shardID {
+				bootstrapped = true
+				break
+			}
+		}
+		if !bootstrapped {
+			// NB(r): Not bootstrapped in this bootstrap run.
 			continue
 		}
-		if !bootstrappedShards.Has(shard.ID()) {
-			// NB(r): Not a bootstrapped shard.
+
+		if shard.IsBootstrapped() {
+			// Since no concurrent bootstraps, we should never
+			// have just bootstrapped this shard if it's not already
+			// bootstrapped.
+			err := instrument.InvariantErrorf(
+				"bootstrapped already bootstrapped shard: %d", shardID)
+			multiErr = multiErr.Add(err)
 			continue
 		}
 

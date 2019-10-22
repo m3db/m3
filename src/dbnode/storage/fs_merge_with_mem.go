@@ -117,6 +117,9 @@ func (m *fsMergeWithMem) ForEachRemaining(
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
 		seriesID := seriesElement.Value
+
+		// NB(r): Why isn't the tags just put in the linked list
+		// series element?
 		tags, ok, err := m.shard.TagsFromSeriesID(seriesID)
 		if err != nil {
 			return err

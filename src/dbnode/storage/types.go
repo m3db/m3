@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -372,6 +373,19 @@ type databaseNamespace interface {
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(shardID uint32, blockStart time.Time) (fileOpState, error)
+
+	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// must make sure to call the release callback once finished
+	// with the reference.
+	SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error)
+}
+
+// SeriesReadWriteRef is a read/write reference for a series,
+// must make sure to release
+type SeriesReadWriteRef struct {
+	Series              series.DatabaseSeries
+	UniqueIndex         uint64
+	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
 }
 
 // Shard is a time series database shard.
@@ -519,7 +533,24 @@ type databaseShard interface {
 	) (repair.MetadataComparisonResult, error)
 
 	// TagsFromSeriesID returns the series tags from a series ID.
+	// TODO(r): Seems like this is a work around that shouldn't be
+	// necessary given the callsites that current exist?
 	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error)
+
+	// SeriesReadWriteRef returns a read/write ref to a series, callers
+	// must make sure to call the release callback once finished
+	// with the reference.
+	SeriesReadWriteRef(
+		id ident.ID,
+		tags ident.TagIterator,
+		opts ShardSeriesReadWriteRefOptions,
+	) (SeriesReadWriteRef, error)
+}
+
+// ShardSeriesReadWriteRefOptions is options for SeriesReadWriteRef
+// for the shard.
+type ShardSeriesReadWriteRefOptions struct {
+	ReverseIndex bool
 }
 
 // namespaceIndex indexes namespace writes.

@@ -338,7 +338,7 @@ func (s *commitLogSource) Read(
 	}
 
 	var (
-		// NB(r): Use pointer type for the namespace map so we don't have to
+		// NB(r): Use pointer type for the namespaces so we don't have to
 		// memcopy the large namespace context struct to the work channel and
 		// can pass by pointer.
 		// For the commit log series map we use by value since it grows
@@ -364,17 +364,14 @@ func (s *commitLogSource) Read(
 		if currFileReadID != lastFileReadID {
 			// NB(r): If switched between files, we can reuse slice and
 			// map which is useful so map doesn't grow infinitely.
-			for k := range commitLogNamespaces {
-				commitLogNamespaces[k] = nil
-			}
-			commitLogNamespaces = commitLogNamespaces[:0]
 			for k := range commitLogSeries {
 				delete(commitLogSeries, k)
 			}
 			lastFileReadID = currFileReadID
 		}
 
-		// First lookup series.
+		// First lookup series, if not found we are guaranteed to have
+		// the series metadata returned by the commit log reader.
 		seriesKey := seriesMapKey{
 			fileReadID:  entry.Metadata.FileReadID,
 			uniqueIndex: entry.Metadata.SeriesUniqueIndex,
@@ -445,6 +442,7 @@ func (s *commitLogSource) Read(
 				tagIter = tagDecoder
 			}
 
+			// Check out the series for writing.
 			series, err := accumulator.CheckoutSeries(entry.Series.ID, tagIter)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
@@ -484,10 +482,18 @@ func (s *commitLogSource) Read(
 	closeWorkerChannels()
 
 	// Block until all required data from the commit log has been read and
-	// encoded by the worker goroutines
+	// accumulated by the worker goroutines.
 	wg.Wait()
-	s.logAccumulateOutcome(workers, iter)
 
+	// NB(r): Now that all accumulate workers are done we can release the
+	// series held onto by any checking out of series.
+	for _, elem := range namespaces.Namespaces.Iter() {
+		ns := elem.Value()
+		ns.DataAccumulator.Release()
+	}
+
+	// Log the outcome and calculate if required to return unfulfilled.
+	s.logAccumulateOutcome(workers, iter)
 	shouldReturnUnfulfilled, err := s.shouldReturnUnfulfilled(
 		workers, encounteredCorruptData, initialTopologyState)
 	if err != nil {
