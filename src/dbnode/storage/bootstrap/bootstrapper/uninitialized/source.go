@@ -139,7 +139,6 @@ func (s *uninitializedTopologySource) Read(
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
-
 	for _, elem := range namespaces.Namespaces.Iter() {
 		ns := elem.Value()
 
@@ -170,6 +169,8 @@ func (s *uninitializedTopologySource) Read(
 				namespaceResult.IndexResult = missing.ToUnfulfilledIndexResult()
 			}
 		}
+
+		results.Results.Set(ns.Metadata.ID(), namespaceResult)
 	}
 
 	return results, nil

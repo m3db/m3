@@ -908,7 +908,9 @@ func (n *dbNamespace) Bootstrap(
 		}
 	}
 	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())
-	markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
+	if n.reverseIndex != nil {
+		markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
+	}
 
 	err := multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

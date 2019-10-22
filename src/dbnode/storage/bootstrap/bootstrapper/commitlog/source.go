@@ -965,7 +965,6 @@ func (s commitLogSource) shouldReturnUnfulfilled(
 	if !shardsReplicated {
 		s.log.Info("returning not-unfulfilled: replication is not enabled")
 	}
-
 	return shardsReplicated, nil
 }
 
