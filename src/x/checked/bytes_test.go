@@ -21,8 +21,8 @@
 package checked
 
 import (
-	"fmt"
 	"runtime/debug"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,17 +64,19 @@ func TestBytes(t *testing.T) {
 	onFinalize = func(finalizing Bytes) {
 		// Ensure that RefCount.Finalize was called before the bytesRef finalizer.
 		stack := debug.Stack()
-		// TODO: check if RefCount.Finalize was called before the bytesRef finalizer
-		// instead of just printing stack.
-		// i.e. this looks good:
-		/*
-			github.com/m3db/m3/src/x/checked.(*bytesRef).OnFinalize(0xc00009e080)
-				/Users/r/go/src/github.com/m3db/m3/src/x/checked/bytes.go:129 +0x81
-			github.com/m3db/m3/src/x/checked.(*RefCount).Finalize(0xc00009e080)
-				/Users/r/go/src/github.com/m3db/m3/src/x/checked/ref.go:77 +0xbd
-			github.com/m3db/m3/src/x/checked.TestBytes(0xc00011e100)
-		*/
-		fmt.Printf("calling stack: %s\n", stack)
+		var (
+			refCountFinalizeLineNumber   int
+			bytesRefOnFinalizeLineNumber int
+		)
+		for idx, line := range strings.Split(string(stack), "\n") {
+			if strings.Contains(line, "(*bytesRef).OnFinalize") {
+				bytesRefOnFinalizeLineNumber = idx
+			}
+			if strings.Contains(line, "(*RefCount).Finalize") {
+				refCountFinalizeLineNumber = idx
+			}
+		}
+		assert.True(t, refCountFinalizeLineNumber > bytesRefOnFinalizeLineNumber)
 
 		// Ensure closing the ref we created
 		assert.Equal(t, b, finalizing)
