@@ -87,9 +87,8 @@ func TestCommitLogReadWrite(t *testing.T) {
 
 	i := 0
 	iterOpts := IteratorOpts{
-		CommitLogOptions:      opts,
-		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		CommitLogOptions:    opts,
+		FileFilterPredicate: ReadAllPredicate(),
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
@@ -484,9 +483,8 @@ func newInitState(
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	writesOnDisk := make(map[string]map[xtime.UnixNano]generatedWrite)
 	iterOpts := IteratorOpts{
-		CommitLogOptions:      s.opts,
-		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		CommitLogOptions:    s.opts,
+		FileFilterPredicate: ReadAllPredicate(),
 	}
 	// Based on the corruption type this could return some corrupt files
 	// or it could not, so we don't check it.

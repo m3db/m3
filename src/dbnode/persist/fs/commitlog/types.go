@@ -101,9 +101,6 @@ type LogEntryMetadata struct {
 	// SeriesUniqueIndex is the series unique index relative to the
 	// current commit log file being read.
 	SeriesUniqueIndex uint64
-	// NamespaceUniqueIndex is the namespace unique index relative to
-	// the current commit log file being read.
-	NamespaceUniqueIndex uint64
 }
 
 // Iterator provides an iterator for commit logs
@@ -123,13 +120,20 @@ type Iterator interface {
 
 // IteratorOpts is a struct that contains coptions for the Iterator
 type IteratorOpts struct {
-	CommitLogOptions      Options
-	FileFilterPredicate   FileFilterPredicate
-	SeriesFilterPredicate SeriesFilterPredicate
-	// TODO(r): Set option to make sure that ID/Tags aren't pooled
-	// and only cache the series metadata if the caller doesn't
-	// need those feature of the commit log readers (like the
-	// commit log source bootstrapper)
+	CommitLogOptions    Options
+	FileFilterPredicate FileFilterPredicate
+	// ReturnMetadataAsRef will return all series metadata such as ID,
+	// tags and namespace as a reference instead of returning pooled
+	// or allocated byte/string/ID references.
+	// Useful if caller does not hold onto the result between calls to
+	// the next read log entry and wants to avoid allocations and pool
+	// contention.
+	// Note: Series metadata will only be set on the result of a log
+	// entry read if the series is read for the first time for the
+	// combined tuple of FileReadID and SeriesUniqueIndex returned by
+	// the LogEntryMetadata. EncodedTags will also be returned
+	// instead of Tags on the series metadata.
+	ReturnMetadataAsRef bool
 }
 
 // Options represents the options for the commit log.
@@ -225,9 +229,3 @@ type FileFilterInfo struct {
 // FileFilterPredicate is a predicate that allows the caller to determine
 // which commitlogs the iterator should read from.
 type FileFilterPredicate func(f FileFilterInfo) bool
-
-// SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
-// should be returned from the Commit log reader. The predicate is pushed down to the
-// reader level to prevent having to run the same function for every datapoint for a
-// given series.
-type SeriesFilterPredicate func(id ident.ID, namespace ident.ID) bool

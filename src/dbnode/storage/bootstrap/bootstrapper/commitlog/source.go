@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -77,14 +79,8 @@ type commitLogSource struct {
 	metrics commitLogSourceMetrics
 }
 
-type namespaceMap map[namespaceMapKey]*namespaceMapEntry
-
-type namespaceMapKey struct {
-	fileReadID  uint64
-	uniqueIndex uint64
-}
-
-type namespaceMapEntry struct {
+type bootstrapNamespace struct {
+	namespaceID             []byte
 	bootstrapping           bool
 	dataAndIndexShardRanges result.ShardTimeRanges
 	namespace               namespace.Metadata
@@ -101,13 +97,14 @@ type seriesMapKey struct {
 }
 
 type seriesMapEntry struct {
-	series bootstrap.CheckoutSeriesResult
+	namespace *bootstrapNamespace
+	series    bootstrap.CheckoutSeriesResult
 }
 
 // accumulateArg contains all the information a worker go-routine needs to encode
 // accumulate a write.
 type accumulateArg struct {
-	namespace  *namespaceMapEntry
+	namespace  *bootstrapNamespace
 	series     bootstrap.CheckoutSeriesResult
 	shard      uint32
 	dp         ts.Datapoint
@@ -290,9 +287,13 @@ func (s *commitLogSource) Read(
 	// Setup the commit log iterator.
 	var (
 		iterOpts = commitlog.IteratorOpts{
-			CommitLogOptions:      s.opts.CommitLogOptions(),
-			FileFilterPredicate:   s.readCommitLogFilePredicate,
-			SeriesFilterPredicate: commitlog.ReadAllSeriesPredicate(),
+			CommitLogOptions:    s.opts.CommitLogOptions(),
+			FileFilterPredicate: s.readCommitLogFilePredicate,
+			// NB(r): ReturnMetadataAsRef used to all series metadata as
+			// references instead of pulling from pool and allocating,
+			// which means need to not hold onto any references returned
+			// from a call to the commit log read log entry call.
+			ReturnMetadataAsRef: true,
 		}
 		startCommitLogsRead = s.nowFn()
 	)
@@ -345,11 +346,14 @@ func (s *commitLogSource) Read(
 		// read and just have a by value struct stored in the map (also makes
 		// reusing memory set aside on a per series level between commit
 		// log files much easier to do).
-		commitLogNamespaces = make(map[namespaceMapKey]*namespaceMapEntry)
-		commitLogSeries     = make(map[seriesMapKey]seriesMapEntry)
-		workerEnqueue       = 0
-		tagsIter            = ident.NewTagsIterator(ident.Tags{})
+		commitLogNamespaces    = make([]*bootstrapNamespace, 4)
+		commitLogSeries        = make(map[seriesMapKey]seriesMapEntry)
+		workerEnqueue          = 0
+		tagDecoder             = s.opts.CommitLogOptions().FilesystemOptions().TagDecoderPool().Get()
+		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
 	)
+	tagDecoderCheckedBytes.IncRef()
+
 	// Read and accumulate all the log entries in the commit log that we need
 	// to read.
 	var lastFileReadID uint64
@@ -358,65 +362,97 @@ func (s *commitLogSource) Read(
 
 		currFileReadID := entry.Metadata.FileReadID
 		if currFileReadID != lastFileReadID {
-			// NB(r): If switched between files, we can reuse the map which is
-			// useful so map doesn't grow infinitely.
+			// NB(r): If switched between files, we can reuse slice and
+			// map which is useful so map doesn't grow infinitely.
 			for k := range commitLogNamespaces {
-				delete(commitLogNamespaces, k)
+				commitLogNamespaces[k] = nil
 			}
+			commitLogNamespaces = commitLogNamespaces[:0]
 			for k := range commitLogSeries {
 				delete(commitLogSeries, k)
 			}
 			lastFileReadID = currFileReadID
 		}
 
-		// First lookup namespace metadata.
-		namespacesKey := namespaceMapKey{
-			fileReadID:  entry.Metadata.FileReadID,
-			uniqueIndex: entry.Metadata.NamespaceUniqueIndex,
-		}
-		namespaceEntry, ok := commitLogNamespaces[namespacesKey]
-		if !ok {
-			// NB(r): Need to create an entry into our namespaces, this will happen
-			// at most once per commit log file read and unique namespace.
-			nsID := entry.Series.Namespace
-			nsResult, ok := namespaceResults[nsID.String()]
-			if !ok {
-				// Not bootstrapping this namespace.
-				namespaceEntry = &namespaceMapEntry{
-					bootstrapping: false,
-				}
-			} else {
-				// Bootstrapping this namespace.
-				nsMetadata := nsResult.namespace.Metadata
-				namespaceEntry = &namespaceMapEntry{
-					bootstrapping:           true,
-					dataAndIndexShardRanges: nsResult.dataAndIndexShardRanges,
-					namespace:               nsMetadata,
-					namespaceContext:        namespace.NewContextFrom(nsMetadata),
-					dataBlockSize:           nsMetadata.Options().RetentionOptions().BlockSize(),
-					accumulator:             nsResult.namespace.DataAccumulator,
-				}
-			}
-			commitLogNamespaces[namespacesKey] = namespaceEntry
-		}
-
-		// Lookup series.
+		// First lookup series.
 		seriesKey := seriesMapKey{
 			fileReadID:  entry.Metadata.FileReadID,
 			uniqueIndex: entry.Metadata.SeriesUniqueIndex,
 		}
 		seriesEntry, ok := commitLogSeries[seriesKey]
 		if !ok {
-			accumulator := namespaceEntry.accumulator
-			tagsIter.Reset(entry.Series.Tags)
-			series, err := accumulator.CheckoutSeries(entry.Series.ID, tagsIter)
-			tagsIter.Close()
+			// Resolve the namespace.
+			var (
+				nsID      = entry.Series.Namespace
+				nsIDBytes = nsID.Bytes()
+				ns        *bootstrapNamespace
+			)
+			for _, elem := range commitLogNamespaces {
+				if bytes.Equal(elem.namespaceID, nsIDBytes) {
+					ns = elem
+					break
+				}
+			}
+			if ns == nil {
+				// NB(r): Need to create an entry into our namespaces, this will happen
+				// at most once per commit log file read and unique namespace.
+				nsResult, ok := namespaceResults[nsID.String()]
+				// Take a copy so that not taking ref to reused bytes from the commit log.
+				nsIDCopy := append([]byte(nil), nsIDBytes...)
+				if !ok {
+					// Not bootstrapping this namespace.
+					ns = &bootstrapNamespace{
+						namespaceID:   nsIDCopy,
+						bootstrapping: false,
+					}
+				} else {
+					// Bootstrapping this namespace.
+					nsMetadata := nsResult.namespace.Metadata
+					ns = &bootstrapNamespace{
+						namespaceID:             nsIDCopy,
+						bootstrapping:           true,
+						dataAndIndexShardRanges: nsResult.dataAndIndexShardRanges,
+						namespace:               nsMetadata,
+						namespaceContext:        namespace.NewContextFrom(nsMetadata),
+						dataBlockSize:           nsMetadata.Options().RetentionOptions().BlockSize(),
+						accumulator:             nsResult.namespace.DataAccumulator,
+					}
+				}
+				// Append for quick re-lookup with other series.
+				commitLogNamespaces = append(commitLogNamespaces, ns)
+			}
+
+			// Resolve the series in the accumulator.
+			accumulator := ns.accumulator
+
+			// NB(r): Make only encoded tags is used and not series.Tags (we
+			// explicitly ask for references to be returned and to avoid
+			// decoding the tags if we don't have to).
+			if decodedTags := len(entry.Series.Tags.Values()); decodedTags > 0 {
+				msg := "commit log reader expects encoded tags"
+				instrumentOpts := s.opts.ResultOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
+					l.Error(msg, zap.Int("decodedTags", decodedTags))
+				})
+				err := instrument.InvariantErrorf(fmt.Sprintf("%s: decoded=%d", msg, decodedTags))
+				return bootstrap.NamespaceResults{}, err
+			}
+
+			var tagIter ident.TagIterator
+			if len(entry.Series.EncodedTags) > 0 {
+				tagDecoderCheckedBytes.Reset(entry.Series.EncodedTags)
+				tagDecoder.Reset(tagDecoderCheckedBytes)
+				tagIter = tagDecoder
+			}
+
+			series, err := accumulator.CheckoutSeries(entry.Series.ID, tagIter)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
 
 			seriesEntry = seriesMapEntry{
-				series: series,
+				namespace: ns,
+				series:    series,
 			}
 			commitLogSeries[seriesKey] = seriesEntry
 		}
@@ -425,7 +461,7 @@ func (s *commitLogSource) Read(
 		workerEnqueue++
 		worker := workers[workerEnqueue%numWorkers]
 		worker.inputCh <- accumulateArg{
-			namespace:  namespaceEntry,
+			namespace:  seriesEntry.namespace,
 			series:     seriesEntry.series,
 			shard:      entry.Series.Shard,
 			dp:         entry.Datapoint,
@@ -852,7 +888,7 @@ func (s *commitLogSource) accumulateWorker(
 }
 
 func (s *commitLogSource) shouldAccmulateForTime(
-	ns *namespaceMapEntry,
+	ns *bootstrapNamespace,
 	shard uint32,
 	timestamp time.Time,
 ) bool {
