@@ -31,15 +31,15 @@ import (
 // UpdateSchemaRegistry updates schema registry with namespace updates.
 func UpdateSchemaRegistry(newNamespaces Map, schemaReg SchemaRegistry, log *zap.Logger) error {
 	schemaUpdates := newNamespaces.Metadatas()
-	merr := xerrors.NewMultiError()
+	multiErr := xerrors.NewMultiError()
 	for _, metadata := range schemaUpdates {
 		var (
-			curSchemaID = "none"
+			curSchemaID   = "none"
 			curSchemaNone = true
 		)
 		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
 		if err != nil {
-			merr = merr.Add(fmt.Errorf("cannot get latest namespace schema: %v", err))
+			multiErr = multiErr.Add(fmt.Errorf("cannot get latest namespace schema: %v", err))
 			continue
 		}
 
@@ -50,7 +50,7 @@ func UpdateSchemaRegistry(newNamespaces Map, schemaReg SchemaRegistry, log *zap.
 				msg := "namespace schema update invalid with empty deploy ID"
 				log.Warn(msg, zap.Stringer("namespace", metadata.ID()),
 					zap.String("currentSchemaID", curSchemaID))
-				merr = merr.Add(fmt.Errorf("%s: namespace=%s", msg, metadata.ID().String()))
+				multiErr = multiErr.Add(fmt.Errorf("%s: namespace=%s", msg, metadata.ID().String()))
 				continue
 			}
 		}
@@ -59,12 +59,12 @@ func UpdateSchemaRegistry(newNamespaces Map, schemaReg SchemaRegistry, log *zap.
 		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
 		if !found {
 			if !curSchemaNone {
-				// NB(r): Only interpret this as a warning/error if already had a schema
+				// NB(r): Only interpret this as a warning/error if already had a schema,
 				// otherwise this is just a namespace that is not using protobuf schemas.
 				msg := "namespace schema not found on update"
 				log.Warn(msg, zap.Stringer("namespace", metadata.ID()),
 					zap.String("currentSchema", curSchemaID))
-				merr = merr.Add(fmt.Errorf("%s: namespace=%s", msg, metadata.ID().String()))
+				multiErr = multiErr.Add(fmt.Errorf("%s: namespace=%s", msg, metadata.ID().String()))
 			}
 			continue
 		}
@@ -78,13 +78,12 @@ func UpdateSchemaRegistry(newNamespaces Map, schemaReg SchemaRegistry, log *zap.
 			log.Warn(msg,
 				zap.Stringer("namespace", metadata.ID()),
 				zap.Error(err))
-			merr = merr.Add(fmt.Errorf("%s: namespace=%s, error=%v",
+			multiErr = multiErr.Add(fmt.Errorf("%s: namespace=%s, error=%v",
 				msg, metadata.ID().String(), err))
 		}
 	}
-	if merr.Empty() {
-		return nil
+	if !multiErr.Empty() {
+		return multiErr
 	}
-	return merr
+	return nil
 }
-
