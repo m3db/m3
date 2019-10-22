@@ -346,7 +346,7 @@ func (s *commitLogSource) Read(
 		// read and just have a by value struct stored in the map (also makes
 		// reusing memory set aside on a per series level between commit
 		// log files much easier to do).
-		commitLogNamespaces    = make([]*bootstrapNamespace, 4)
+		commitLogNamespaces    = make([]*bootstrapNamespace, 0, 4)
 		commitLogSeries        = make(map[seriesMapKey]seriesMapEntry)
 		workerEnqueue          = 0
 		tagDecoder             = s.opts.CommitLogOptions().FilesystemOptions().TagDecoderPool().Get()
