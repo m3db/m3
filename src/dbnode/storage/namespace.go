@@ -890,6 +890,8 @@ func (n *dbNamespace) Bootstrap(
 	wg.Wait()
 
 	if n.reverseIndex != nil {
+		n.log.Info("bootstrap index with bootstrapped index segments",
+			zap.Int("numIndexBlocks", len(bootstrapResult.IndexResult.IndexResults())))
 		err := n.reverseIndex.Bootstrap(bootstrapResult.IndexResult.IndexResults())
 		multiErr = multiErr.Add(err)
 	}
