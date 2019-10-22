@@ -1,5 +1,15 @@
 # Changelog
 
+# 0.14.2
+
+## Bug Fixes
+
+- **M3DB**: Fix the persist cycle not cleaning up state for reuse when flush times cannot be calculated ([#2007](https://github.com/m3db/m3/pull/2007))
+
+## Misc 
+
+- **M3Aggregator**: Do not require aggregator ID to be joined with port and add instance initialization debug logs ([#2012](https://github.com/m3db/m3/pull/2012))
+
 # 0.14.1
 
 ## Features
