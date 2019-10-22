@@ -30,7 +30,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init 
     "replication_factor": 2,
     "instances": [
         {
-            "id": "m3aggregator01:6000",
+            "id": "m3aggregator01",
             "isolation_group": "availability-zone-a",
             "zone": "embedded",
             "weight": 100,
@@ -39,7 +39,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init 
             "port": 6000
         },
         {
-            "id": "m3aggregator02:6000",
+            "id": "m3aggregator02",
             "isolation_group": "availability-zone-b",
             "zone": "embedded",
             "weight": 100,

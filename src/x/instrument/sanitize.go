@@ -76,7 +76,7 @@ func (t *MetricSanitizationType) UnmarshalYAML(unmarshal func(interface{}) error
 		*t = defaultMetricSanitization
 		return nil
 	}
-	strs := make([]string, len(validMetricSanitizationTypes))
+	strs := make([]string, 0, len(validMetricSanitizationTypes))
 	for _, valid := range validMetricSanitizationTypes {
 		if str == valid.String() {
 			*t = valid
