@@ -49,22 +49,6 @@ type Ref interface {
 	Finalize()
 }
 
-// RefWithOnFinalize is a ref that also offers a custom finalizer on top
-// checked ref counting.
-type RefWithOnFinalize interface {
-	Ref
-
-	// OnFinalize returns the finalizer callback if any or nil otherwise.
-	OnFinalize() OnFinalize
-
-	// SetOnFinalizer sets the finalizer callback.
-	SetOnFinalize(f OnFinalize)
-
-	// TrackObject sets up the initial internal state of the Ref for
-	// leak detection.
-	TrackObject(v interface{})
-}
-
 // OnFinalize is callback to cleanup resources on a call to finalize.
 type OnFinalize interface {
 	OnFinalize()
