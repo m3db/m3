@@ -1,32 +1,45 @@
 #!/usr/bin/env bash
 
 set -ex
-COMPARATOR=$GOPATH/src/github.com/m3db/m3/scripts/comparator
+export COMPARATOR=$GOPATH/src/github.com/m3db/m3/scripts/comparator
 source $COMPARATOR/docker-setup.sh
-source $COMPARATOR/grafana/generate-dash.sh
+
+export REVISION=$(git rev-parse HEAD)
+
 CI=${CI:-true}
 RUN_ONLY=${RUN_ONLY:-false}
 
-QUERIES=(
-	'rate(quail[5m]):15s'
-	'rate(quail[1m]):30s'
-	'quail:5m'
-	'quail:1m'
-	'quail*1:1m'
-	'sum({foobar="qux"}):1m'
-	'sum({foobar="qux"})-1:1m'
-)
+export QUERY_FILE=$COMPARATOR/queries
+export START=$(date -v-4H +%s)
+export END=$(( $START + 10800 ))
+
+function generate_dash {
+	GRAFANA_PATH=$COMPARATOR/grafana
+
+	TEMPLATE=$GRAFANA_PATH/dashboard.tmpl
+	OUTPUT=$GRAFANA_PATH/dash.json.out
+
+	GENERATOR=$GRAFANA_PATH/generate_dash.go
+	
+	go run $GENERATOR \
+		-r=$REVISION \
+		-q=$QUERY_FILE \
+		-o=$OUTPUT \
+		-t=$TEMPLATE \
+		-s=$START \
+		-e=$END
+}
 
 if [[ "$RUN_ONLY" == "false" ]]
 then
 	DASH_QUERY=""
 	for query in "${QUERIES[@]}"
 	do
-		DASH_QUERY=$(echo $DASH_QUERY $query)
+		DASH_QUERY=$(echo $DASH_QUERY "$query")
 	done
 
 	echo "generating grafana dashboard"
-	generate_dash $DASH_QUERY
+	generate_dash
 
 	echo "setting up containers"
 	$COMPARATOR/setup.sh
@@ -47,10 +60,10 @@ function defer {
 
 if [[ "$RUN_ONLY" == "false" ]]
 then
-	trap defer EXIT
+	trap defer EXIT 
 fi
 
-for query in "${QUERIES[@]}"
+while read query
 do
-	$comparator -query=$query
-done
+	$comparator -query="$query" -s=$START -e=$END
+done < $QUERY_FILE

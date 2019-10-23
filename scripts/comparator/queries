@@ -1,0 +1,17 @@
+rate(quail[5m]):15s
+rate(quail[1m]):30s
+rate(quail[123s]):179s
+rate(quail[112s] offset 5m):1m
+quail:5m
+quail:1m
+quail offset 60s:1m
+quail*1:1m
+sum({foobar="qux"}):1m
+sum({foobar="qux"})-1:1m
+sum({foobar="qux"} offset 1m)-1:1m
+clamp_max(quail, 0.5):1m
+clamp_max(quail offset 60s, 0.5):30s
+deriv(quail[5m]):15m
+label_replace(quail,"foo", "$1!", "name", "(.*)"):1m
+label_replace(quail,"foo", "$1!", "name", "(.*)")-100:1m
+label_replace(quail offset 1m, "foo", "$1!", "name", "(.*)"):1m

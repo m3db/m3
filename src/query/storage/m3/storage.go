@@ -180,8 +180,7 @@ func FetchResultToBlockResult(
 			SetSplitSeriesByBlock(true)
 	}
 
-	align := opts.LookbackDuration()%query.Interval - query.Interval
-	start := query.Start.Add(align)
+	start := query.Start
 	bounds := models.Bounds{
 		Start:    start,
 		Duration: query.End.Sub(start),

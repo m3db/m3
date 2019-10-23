@@ -26,12 +26,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"go.uber.org/zap"
 )
 
@@ -52,13 +54,14 @@ func main() {
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
 		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
 
-		pStart = flag.Int64("start", now.Add(time.Hour*-6).Unix(), "start time")
-		pEnd   = flag.Int64("end", now.Add(time.Hour).Unix(), "start end")
+		pStart   = flag.Int64("s", now.Add(time.Hour*-3).Unix(), "start time")
+		pEnd     = flag.Int64("e", now.Unix(), "start end")
+		pRetries = flag.Int64("r", 5, "retries")
 	)
 
 	flag.Parse()
 	var (
-		query        = *pQ
+		query        = strings.Trim(*pQ, `"`)
 		promAddress  = *pPromAddress
 		queryAddress = *pQueryAddress
 
@@ -77,7 +80,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	query = splitQuery[0]
+	query = url.QueryEscape(splitQuery[0])
 	step := splitQuery[1]
 
 	if len(promAddress) == 0 {
@@ -101,24 +104,51 @@ func main() {
 	)
 
 	promURL := fmt.Sprintf("http://%s%s", promAddress, url)
+	queryURL := fmt.Sprintf("http://%s%s", queryAddress, url)
+
+	retries := int(*pRetries)
+	for i := 0; i < retries; i++ {
+		err := runComparison(promURL, queryURL, log)
+		if err == nil {
+			return
+		}
+
+		time.Sleep(time.Second)
+		log.Info(
+			"retrying query",
+			zap.String("promURL", promURL),
+			zap.String("queryURL", queryURL),
+			zap.Int("attempt", i),
+		)
+	}
+
+	os.Exit(1)
+}
+
+func runComparison(
+	promURL string,
+	queryURL string,
+	log *zap.Logger,
+) error {
 	promResult, err := parseResult(promURL, log)
 	if err != nil {
 		log.Error("Could not parse prometheus result", zap.Error(err))
-		os.Exit(1)
+		return err
 	}
 
-	queryURL := fmt.Sprintf("http://%s%s", queryAddress, url)
 	queryResult, err := parseResult(queryURL, log)
 	if err != nil {
 		log.Error("Could not parse m3query result", zap.Error(err))
-		os.Exit(1)
+		return err
 	}
 
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
 		log.Error("results do not match", zap.Error((err)))
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 }
 
 func parseResult(
@@ -129,6 +159,10 @@ func parseResult(
 	response, err := http.Get(endpoint)
 	if err != nil {
 		return result, err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return result, fmt.Errorf("response failed with code %s", response.Status)
 	}
 
 	body := response.Body

@@ -153,6 +153,21 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	return nil
 }
 
+func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
+	if offset == 0 {
+		return offset
+	}
+
+	align := offset % step
+	if align != 0 {
+		// NB: Prometheus rounds offsets up to step size, e.g. a 61 second offset with
+		// a 1 minute stepsize gets rounded to a 2 minute offset.
+		align -= step
+	}
+
+	return offset - align
+}
+
 func (p *parseState) walk(node pql.Node) error {
 	if node == nil {
 		return nil
@@ -180,6 +195,8 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.MatrixSelector:
+		// Align offset to stepSize.
+		n.Offset = adjustOffset(n.Offset, p.stepSize)
 		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -192,6 +209,8 @@ func (p *parseState) walk(node pql.Node) error {
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
+		// Align offset to stepSize.
+		n.Offset = adjustOffset(n.Offset, p.stepSize)
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
 		if err != nil {
 			return err
