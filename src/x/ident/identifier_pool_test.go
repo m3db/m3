@@ -93,10 +93,10 @@ func (s idPoolTestSuite) TestPoolBinaryID() {
 
 	bid := s.pool.BinaryID(v)
 	s.Require().Equal(1+nr, v.NumRef())
+	v.DecRef()
 	bid.Finalize()
 	s.Require().Nil(bid.(*id).data)
-	s.Require().NotNil(v.Bytes())
-	s.Require().Equal(nr, v.NumRef())
+	s.Require().Equal(nr-1, v.NumRef())
 }
 
 func (s idPoolTestSuite) TestPoolGetBinaryTag() {
@@ -127,14 +127,15 @@ func (s idPoolTestSuite) TestPoolBinaryTag() {
 	s.Require().Equal(1+nr, tagName.NumRef())
 	s.Require().Equal(1+vr, tagValue.NumRef())
 
+	tagName.DecRef()
+	tagValue.DecRef()
+
 	tag.Finalize()
 	s.Require().Nil(tag.Name)
-	s.Require().NotNil(tagName.Bytes())
-	s.Require().Equal(nr, tagName.NumRef())
+	s.Require().Equal(nr-1, tagName.NumRef())
 
 	s.Require().Nil(tag.Value)
-	s.Require().NotNil(tagValue.Bytes())
-	s.Require().Equal(vr, tagValue.NumRef())
+	s.Require().Equal(vr-1, tagValue.NumRef())
 }
 
 func (s idPoolTestSuite) TestPoolGetStringID() {
