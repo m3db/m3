@@ -10,8 +10,8 @@ CI=${CI:-true}
 RUN_ONLY=${RUN_ONLY:-false}
 
 export QUERY_FILE=$COMPARATOR/queries
-export START=$(date -v-4H +%s)
-export END=$(( $START + 10800 ))
+export END=$(date +%s)
+export START=$(( $END - 10800 ))
 
 function generate_dash {
 	GRAFANA_PATH=$COMPARATOR/grafana

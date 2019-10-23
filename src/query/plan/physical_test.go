@@ -42,6 +42,7 @@ func testRequestParams() models.RequestParams {
 	return models.RequestParams{
 		Now:              time.Now(),
 		LookbackDuration: defaultLookbackDuration,
+		Step:             time.Second,
 	}
 }
 
