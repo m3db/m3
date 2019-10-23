@@ -22,7 +22,6 @@ package fs
 
 import (
 	"io"
-	"log"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
@@ -340,7 +339,6 @@ func persistSegment(
 	persistFn persist.DataFn,
 ) error {
 	checksum := digest.SegmentChecksum(segment)
-	log.Println("persistSegment  / segment -> ", segment)
 	return persistFn(id, tags, segment, checksum)
 }
 
