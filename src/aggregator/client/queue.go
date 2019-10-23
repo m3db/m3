@@ -83,7 +83,7 @@ func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*t = defaultDropType
 		return nil
 	}
-	strs := make([]string, len(validDropTypes))
+	strs := make([]string, 0, len(validDropTypes))
 	for _, valid := range validDropTypes {
 		if str == valid.String() {
 			*t = valid
