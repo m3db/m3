@@ -510,7 +510,6 @@ func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
 
 	copied := append([]byte(nil), b[:n]...)
 	cb := checked.NewBytes(copied, nil)
-	//cb.IncRef()
 	return cb
 }
 
