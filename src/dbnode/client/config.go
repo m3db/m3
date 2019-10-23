@@ -97,14 +97,6 @@ type Configuration struct {
 	// AsyncWriteMaxConcurrency is the maximum concurrency for async write requests.
 	AsyncWriteMaxConcurrency *int `yaml:"asyncWriteMaxConcurrency"`
 
-	// TargetHostQueueFlushSize sets the target size for a host queue flush. This controls how many
-	// operations the client will attempt to buffer for each host before issuing an RPC.
-	TargetHostQueueFlushSize *int `yaml:"targetHostQueueFlushSize"`
-
-	// HostQueueFlushInterval sets the interval at which the m3db client will flush the queue for a
-	// given host regardless of the number of batched operations.
-	HostQueueFlushInterval *time.Duration `yaml:"hostQueueFlushInterval"`
-
 	// UseV2BatchAPIs determines whether the V2 batch APIs are used. Note that the M3DB nodes must
 	// have support for the V2 APIs in order for this feature to be used.
 	UseV2BatchAPIs *bool `yaml:"useV2BatchAPIs"`
@@ -191,14 +183,6 @@ func (c *Configuration) Validate() error {
 			*c.AsyncWriteMaxConcurrency)
 	}
 
-	if c.TargetHostQueueFlushSize != nil && *c.TargetHostQueueFlushSize <= 1 {
-		return fmt.Errorf("target host queue flush size must be larger than zero but was: %d", c.TargetHostQueueFlushSize)
-	}
-
-	if c.HostQueueFlushInterval != nil && *c.HostQueueFlushInterval <= 0 {
-		return fmt.Errorf("host queue flush interval must be larger than zero but was: %s", c.HostQueueFlushInterval.String())
-	}
-
 	if err := c.Proto.Validate(); err != nil {
 		return fmt.Errorf("error validating M3DB client proto configuration: %v", err)
 	}
@@ -283,11 +267,15 @@ func (c Configuration) NewAdminClient(
 		cfgParams.HashingSeed = c.HashingConfiguration.Seed
 	}
 
-	topoInit := params.TopologyInitializer
-	asyncTopoInits := []topology.Initializer{}
+	var (
+		syncTopoInit         = params.TopologyInitializer
+		syncClientOverrides  environment.ClientOverrides
+		asyncTopoInits       = []topology.Initializer{}
+		asyncClientOverrides = []environment.ClientOverrides{}
+	)
 
 	var buildAsyncPool bool
-	if topoInit == nil {
+	if syncTopoInit == nil {
 		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
 		if err != nil {
 			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
@@ -297,15 +285,17 @@ func (c Configuration) NewAdminClient(
 		for _, envCfg := range envCfgs {
 			if envCfg.Async {
 				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+				asyncClientOverrides = append(asyncClientOverrides, envCfg.ClientOverrides)
 				buildAsyncPool = true
 			} else {
-				topoInit = envCfg.TopologyInitializer
+				syncTopoInit = envCfg.TopologyInitializer
+				syncClientOverrides = envCfg.ClientOverrides
 			}
 		}
 	}
 
 	v := NewAdminOptions().
-		SetTopologyInitializer(topoInit).
+		SetTopologyInitializer(syncTopoInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
@@ -366,11 +356,11 @@ func (c Configuration) NewAdminClient(
 	if c.FetchRetry != nil {
 		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
 	}
-	if c.TargetHostQueueFlushSize != nil {
-		v = v.SetHostQueueOpsFlushSize(*c.TargetHostQueueFlushSize)
+	if syncClientOverrides.TargetHostQueueFlushSize != nil {
+		v = v.SetHostQueueOpsFlushSize(*syncClientOverrides.TargetHostQueueFlushSize)
 	}
-	if c.HostQueueFlushInterval != nil {
-		v = v.SetHostQueueOpsFlushInterval(*c.HostQueueFlushInterval)
+	if syncClientOverrides.HostQueueFlushInterval != nil {
+		v = v.SetHostQueueOpsFlushInterval(*syncClientOverrides.HostQueueFlushInterval)
 	}
 
 	encodingOpts := params.EncodingOptions
@@ -403,5 +393,6 @@ func (c Configuration) NewAdminClient(
 		opts = opt(opts)
 	}
 
-	return NewAdminClient(opts)
+	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
+	return NewAdminClient(opts, asyncClusterOpts...)
 }

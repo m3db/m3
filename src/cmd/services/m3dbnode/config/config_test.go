@@ -397,8 +397,6 @@ func TestConfiguration(t *testing.T) {
     proto: null
     asyncWriteWorkerPoolSize: null
     asyncWriteMaxConcurrency: null
-    targetHostQueueFlushSize: null
-    hostQueueFlushInterval: null
     useV2BatchAPIs: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
@@ -595,6 +593,9 @@ func TestConfiguration(t *testing.T) {
   config:
     services:
     - async: false
+      clientOverrides:
+        hostQueueFlushInterval: null
+        targetHostQueueFlushSize: null
       service:
         zone: embedded
         env: production

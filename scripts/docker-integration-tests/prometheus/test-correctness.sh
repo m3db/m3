@@ -82,7 +82,21 @@ function test_empty_matcher {
   retry_with_backoff ATTEMPTS=3 TIMEOUT=1 test_exists 'exists!=\"\"' exists not_exists 5
 }
 
+function test_parse_threshold {
+  test $(curl 'http://localhost:7201/api/v1/parse?query=up' | jq .name) = '"fetch"'
+  THRESHOLD=$(curl 'http://localhost:7201/api/v1/threshold?query=up>1')
+  test $(echo $THRESHOLD | jq .threshold.comparator) = '">"'
+  test $(echo $THRESHOLD | jq .threshold.value) = 1
+  test $(echo $THRESHOLD | jq .query.name) = '"fetch"'
+
+  THRESHOLD=$(curl 'http://localhost:7201/api/v1/threshold?query=1>up')
+  test $(echo $THRESHOLD | jq .threshold.comparator) = '"<"'
+  test $(echo $THRESHOLD | jq .threshold.value) = 1
+  test $(echo $THRESHOLD | jq .query.name) = '"fetch"' 
+}
+
 function test_correctness {
-  test_replace
+  test_parse_threshold
+  test_replace 
   test_empty_matcher
 }
