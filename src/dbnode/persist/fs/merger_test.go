@@ -441,8 +441,11 @@ func testMergeWith(
 		persist.PreparedDataPersist{
 			Persist: func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error {
 				persisted = append(persisted, persistedData{
-					id:      id,
-					segment: segment,
+					id: id,
+					// NB(bodu): Once data is persisted the `ts.Segment` gets finalized
+					// so we can't read from it anymore or that violates the read after
+					// free invariant. So we `Clone` the segment here.
+					segment: segment.Clone(nil),
 				})
 				return nil
 			},
@@ -507,7 +510,7 @@ func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
 
 	copied := append([]byte(nil), b[:n]...)
 	cb := checked.NewBytes(copied, nil)
-	cb.IncRef()
+	//cb.IncRef()
 	return cb
 }
 
