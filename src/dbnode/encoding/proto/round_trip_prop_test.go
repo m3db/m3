@@ -300,6 +300,9 @@ func TestBijectivityProp(t *testing.T) {
 			messageBytes = append(messageBytes, mBytes)
 		}
 
+		ctx := context.NewContext()
+		defer ctx.Close()
+
 		// First verify that if the same input byte slices are passed then the same stream will always
 		// be generated.
 		for i := 0; i < 10; i++ {
@@ -312,7 +315,7 @@ func TestBijectivityProp(t *testing.T) {
 				}
 			}
 
-			currStream, ok := enc.Stream(encoding.StreamOptions{})
+			currStream, ok := enc.Stream(ctx)
 			if !ok {
 				return false, fmt.Errorf("encoder returned empty stream")
 			}
@@ -357,7 +360,7 @@ func TestBijectivityProp(t *testing.T) {
 				return false, fmt.Errorf("expected %d messages but got %d", len(input.messages), j)
 			}
 
-			currStream, ok := enc.Stream(encoding.StreamOptions{})
+			currStream, ok := enc.Stream(ctx)
 			if !ok {
 				return false, fmt.Errorf("encoder returned empty stream")
 			}
