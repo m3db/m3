@@ -64,10 +64,8 @@ func TestBytes(t *testing.T) {
 	onFinalize = func(finalizing Bytes) {
 		// Ensure that RefCount.Finalize was called before the bytesRef finalizer.
 		stack := debug.Stack()
-		var (
-			refCountFinalizeLineNumber   int
-			bytesRefOnFinalizeLineNumber int
-		)
+		refCountFinalizeLineNumber := -1
+		bytesRefOnFinalizeLineNumber := -1
 		for idx, line := range strings.Split(string(stack), "\n") {
 			if strings.Contains(line, "(*bytesRef).OnFinalize") {
 				bytesRefOnFinalizeLineNumber = idx
@@ -76,6 +74,7 @@ func TestBytes(t *testing.T) {
 				refCountFinalizeLineNumber = idx
 			}
 		}
+		assert.True(t, (refCountFinalizeLineNumber > -1) && (bytesRefOnFinalizeLineNumber > -1))
 		assert.True(t, refCountFinalizeLineNumber > bytesRefOnFinalizeLineNumber)
 
 		// Ensure closing the ref we created
