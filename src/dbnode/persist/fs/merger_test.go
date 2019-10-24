@@ -494,13 +494,14 @@ func assertPersistedAsExpected(
 }
 
 func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
-	ctx := contextPool.Get()
-	defer ctx.Close()
 	encoder := encoderPool.Get()
 	defer encoder.Close()
 	for _, dp := range dps {
 		encoder.Encode(dp, xtime.Second, nil)
 	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	r, ok := encoder.Stream(ctx)
 	require.True(t, ok)

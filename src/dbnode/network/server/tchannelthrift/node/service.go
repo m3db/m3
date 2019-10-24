@@ -924,9 +924,9 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 		tsID := s.newID(ctx, elem.ID)
 
 		nsIdx := nsIDs[int(elem.NameSpace)]
-		encodedResult, rpcErr := db.ReadEncoded(ctx, nsIdx, tsID, start, end)
-		if rpcErr != nil {
-			rawResult.Err = convert.ToRPCError(rpcErr)
+		encodedResult, err := db.ReadEncoded(ctx, nsIdx, tsID, start, end)
+		if err != nil {
+			rawResult.Err = convert.ToRPCError(err)
 			if tterrors.IsBadRequestError(rawResult.Err) {
 				nonRetryableErrors++
 			} else {
@@ -937,7 +937,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 
 		segments, rpcErr := s.readEncodedResult(ctx, encodedResult)
 		if rpcErr != nil {
-			rawResult.Err = convert.ToRPCError(rpcErr)
+			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
 				nonRetryableErrors++
 			} else {
