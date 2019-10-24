@@ -787,7 +787,7 @@ func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		nsID := nsID1
 		if id == "bar" {
