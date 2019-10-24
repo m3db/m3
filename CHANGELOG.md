@@ -4,6 +4,8 @@
 
 ## Features
 - **Config**: support env var expansion using go.uber.org/config. 
+- **Config**: Deprecate listenaddress expansion in favor of go.uber.org/config 
+env var expansion ([#2017](https://github.com/m3db/m3/pull/2017/files))
 
 # 0.14.1
 
