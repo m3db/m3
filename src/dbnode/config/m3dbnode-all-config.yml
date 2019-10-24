@@ -2,7 +2,6 @@
 coordinator:
   # Address for M3Coordinator to listen for traffic.
   listenAddress:
-    type: "config"
     value: "0.0.0.0:7201"
 
   # All configured M3DB namespaces must be listed in this config if running an

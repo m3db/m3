@@ -20,6 +20,21 @@
 
 // Package listenaddress provides a configuration struct for resolving
 // a listen address from YAML.
+//
+// Deprecation notice:
+// The environment resolution behavior of this
+// class has largely been superseded
+// by config environment interpolation in go.uber.org/config (see config/README.md for
+// details). Instead of:
+//
+//     listenAddress:
+//       type: environment
+//       envVarListenPort: MY_PORT_VAR
+//
+//  one can do:
+//
+//     listenAddress:
+//       value: 0.0.0.0:${MY_PORT_VAR}
 package listenaddress
 
 import (
@@ -45,22 +60,30 @@ const (
 
 // Configuration is the configuration for resolving a listen address.
 type Configuration struct {
-	// ListenAddressType is the port type for the port
-	ListenAddressType Resolver `yaml:"type" validate:"nonzero"`
+	// DeprecatedListenAddressType is the port type for the port
+	// DEPRECATED: use config interpolation with `value` (config/README.md)
+	DeprecatedListenAddressType Resolver `yaml:"type"`
 
 	// Value is the config specified listen address if using config port type.
 	Value *string `yaml:"value"`
 
 	// EnvVarListenPort specifies the environment variable name for the listen address port.
-	EnvVarListenPort *string `yaml:"envVarListenPort"`
+	// DEPRECATED: use config interpolation with `value` (config/README.md)
+	DeprecatedEnvVarListenPort *string `yaml:"envVarListenPort"`
 
-	// EnvVarListenHost specifies the environment variable name for the listen address hostname.
-	EnvVarListenHost *string `yaml:"envVarListenHost"`
+	// DeprecatedEnvVarListenHost specifies the environment variable name for the listen address hostname.
+	// DEPRECATED: use config interpolation with `value` (config/README.md)
+	DeprecatedEnvVarListenHost *string `yaml:"envVarListenHost"`
 }
 
 // Resolve returns the resolved listen address given the configuration.
 func (c Configuration) Resolve() (string, error) {
-	listenAddrType := c.ListenAddressType
+	listenAddrType := c.DeprecatedListenAddressType
+
+	if listenAddrType == "" {
+		// Default to ConfigResolver
+		listenAddrType = ConfigResolver
+	}
 
 	var listenAddress string
 	switch listenAddrType {
@@ -74,23 +97,23 @@ func (c Configuration) Resolve() (string, error) {
 
 	case EnvironmentResolver:
 		// environment variable for port is required
-		if c.EnvVarListenPort == nil {
+		if c.DeprecatedEnvVarListenPort == nil {
 			err := fmt.Errorf("missing port env var name using: resolver=%s",
 				string(listenAddrType))
 			return "", err
 		}
-		portStr := os.Getenv(*c.EnvVarListenPort)
+		portStr := os.Getenv(*c.DeprecatedEnvVarListenPort)
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
 			err := fmt.Errorf("invalid port env var value using: resolver=%s, name=%s",
-				string(listenAddrType), *c.EnvVarListenPort)
+				string(listenAddrType), *c.DeprecatedEnvVarListenPort)
 			return "", err
 		}
 		// if environment variable for hostname is not set, use the default
-		if c.EnvVarListenHost == nil {
+		if c.DeprecatedEnvVarListenHost == nil {
 			listenAddress = fmt.Sprintf("%s:%d", defaultHostname, port)
 		} else {
-			envHost := os.Getenv(*c.EnvVarListenHost)
+			envHost := os.Getenv(*c.DeprecatedEnvVarListenHost)
 			listenAddress = fmt.Sprintf("%s:%d", envHost, port)
 		}
 
