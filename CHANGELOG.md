@@ -1,5 +1,10 @@
 # Changelog
 
+# 0.14.2 (upcoming)
+
+## Features
+- **Config**: support env var expansion using go.uber.org/config. 
+
 # 0.14.1
 
 ## Features
