@@ -23,13 +23,12 @@ package config
 
 import (
 	"errors"
-	"io/ioutil"
 	"reflect"
 	"strings"
 
+	"go.uber.org/config"
 	"go.uber.org/zap"
 	validator "gopkg.in/validator.v2"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -42,37 +41,49 @@ var errNoFilesToLoad = errors.New("attempt to load config with no files")
 type Options struct {
 	DisableUnmarshalStrict bool
 	DisableValidate        bool
+	Expand                 config.LookupFunc
 }
 
 // LoadFile loads a config from a file.
-func LoadFile(config interface{}, file string, opts Options) error {
-	return LoadFiles(config, []string{file}, opts)
+func LoadFile(dst interface{}, file string, opts Options) error {
+	return LoadFiles(dst, []string{file}, opts)
 }
 
 // LoadFiles loads a config from list of files. If value for a property is
 // present in multiple files, the value from the last file will be applied.
 // Validation is done after merging all values.
-func LoadFiles(config interface{}, files []string, opts Options) error {
+func LoadFiles(dst interface{}, files []string, opts Options) error {
 	if len(files) == 0 {
 		return errNoFilesToLoad
 	}
+
+	yamlOpts := make([]config.YAMLOption, 0, len(files))
 	for _, name := range files {
-		data, err := ioutil.ReadFile(name)
-		if err != nil {
-			return err
-		}
-		unmarshal := yaml.UnmarshalStrict
-		if opts.DisableUnmarshalStrict {
-			unmarshal = yaml.Unmarshal
-		}
-		if err := unmarshal(data, config); err != nil {
-			return err
-		}
+		yamlOpts = append(yamlOpts, config.File(name))
 	}
+
+	if opts.DisableUnmarshalStrict {
+		yamlOpts = append(yamlOpts, config.Permissive())
+	}
+
+	if opts.Expand != nil {
+		yamlOpts = append(yamlOpts, config.Expand(opts.Expand))
+	}
+
+	provider, err := config.NewYAML(yamlOpts...)
+	if err != nil {
+		return err
+	}
+
+	if err := provider.Get(config.Root).Populate(dst); err != nil {
+		return err
+	}
+
 	if opts.DisableValidate {
 		return nil
 	}
-	return validator.Validate(config)
+
+	return validator.Validate(dst)
 }
 
 // deprecationCheck checks the config for deprecated fields and returns any in
