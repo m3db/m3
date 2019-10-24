@@ -3,7 +3,7 @@
 set -xe
 
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/test_correctness.sh
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/test-correctness.sh
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/prometheus/docker-compose.yml
 # quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
@@ -115,13 +115,13 @@ function test_query_limits_applied {
   # coordinator (limit set to 100 in m3coordinator.yml)
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{name!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
 
   # Test the default series limit applied when directly querying 
   # coordinator (limit set by header)
   echo "Test query limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{name!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
 }
 
 function prometheus_query_native {
