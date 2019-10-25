@@ -32,6 +32,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
@@ -53,6 +54,10 @@ var (
 	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
 	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
 	errOutOfOrderUpdateOpenLease                     = errors.New("received update open lease volumes out of order")
+
+	// NB(r): Since this is mainly IO bound work, perfectly
+	// find to do this in parallel.
+	concurrentCacheShardIndices = 16
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -208,7 +213,16 @@ func (m *seekerManager) Open(
 }
 
 func (m *seekerManager) CacheShardIndices(shards []uint32) error {
-	multiErr := xerrors.NewMultiError()
+	var (
+		multiErr    = xerrors.NewMultiError()
+		resultsLock sync.Mutex
+		wg          sync.WaitGroup
+	)
+
+	// NB(r): Since this is mainly IO bound work, perfectly
+	// find to do this in parallel.
+	workers := xsync.NewWorkerPool(concurrentCacheShardIndices)
+	workers.Init()
 
 	for _, shard := range shards {
 		byTime := m.seekersByTime(shard)
@@ -218,10 +232,18 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		byTime.accessed = true
 		byTime.Unlock()
 
-		if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+		wg.Add(1)
+		workers.Go(func() {
+			defer wg.Done()
+			if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
+				resultsLock.Lock()
+				multiErr = multiErr.Add(err)
+				resultsLock.Unlock()
+			}
+		})
 	}
+
+	wg.Wait()
 
 	return multiErr.FinalError()
 }
