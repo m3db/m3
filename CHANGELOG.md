@@ -5,6 +5,7 @@
 ## Bug Fixes
 
 - **M3DB**: Fix the persist cycle not cleaning up state for reuse when flush times cannot be calculated ([#2007](https://github.com/m3db/m3/pull/2007))
+- **M3Query**: Add specialized matchers for empty EQ/NEQ matchers ([#1986](https://github.com/m3db/m3/pull/1986))
 
 ## Misc 
 
