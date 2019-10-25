@@ -480,11 +480,6 @@ type databaseShard interface {
 	// has been loaded using LoadBootstrapBlocks.
 	Bootstrap() error
 
-	// LoadBootstrapBlocks partially bootstraps the shard with
-	// provided data, it is expected Bootstrap() will be called once
-	// all provided data is loaded.
-	LoadBootstrapBlocks(series *result.Map) error
-
 	// LoadBlocks does the same thing as LoadBootstrapBlocks,
 	// except it can be called more than once and after a shard is
 	// bootstrapped already.

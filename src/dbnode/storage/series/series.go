@@ -38,13 +38,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type bootstrapState int
-
-const (
-	bootstrapNotStarted bootstrapState = iota
-	bootstrapped
-)
-
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
@@ -72,7 +65,6 @@ type dbSeries struct {
 
 	buffer                      databaseBuffer
 	cachedBlocks                block.DatabaseSeriesBlocks
-	bs                          bootstrapState
 	blockRetriever              QueryableBlockRetriever
 	onRetrieveBlock             block.OnRetrieveBlock
 	blockOnEvictedFromWiredList block.OnEvictedFromWiredList
@@ -98,7 +90,6 @@ func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
 func newDatabaseSeries() *dbSeries {
 	series := &dbSeries{
 		cachedBlocks: block.NewDatabaseSeriesBlocks(0),
-		bs:           bootstrapNotStarted,
 	}
 	series.buffer = newDatabaseBuffer()
 	return series
@@ -286,23 +277,6 @@ func (s *dbSeries) NumActiveBlocks() int {
 	return value
 }
 
-func (s *dbSeries) Bootstrap() error {
-	s.Lock()
-	defer s.Unlock()
-	if s.bs != bootstrapNotStarted {
-		return errSeriesAlreadyBootstrapped
-	}
-	s.bs = bootstrapped
-	return nil
-}
-
-func (s *dbSeries) IsBootstrapped() bool {
-	s.RLock()
-	state := s.bs
-	s.RUnlock()
-	return state == bootstrapped
-}
-
 func (s *dbSeries) Write(
 	ctx context.Context,
 	timestamp time.Time,
@@ -403,54 +377,6 @@ func (s *dbSeries) FetchBlocksMetadata(
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	b.SetOnEvictedFromWiredList(s.blockOnEvictedFromWiredList)
 	s.cachedBlocks.AddBlock(b)
-}
-
-func (s *dbSeries) Load(
-	blocksToLoad block.DatabaseSeriesBlocks,
-	blockStates BootstrappedBlockStateSnapshot,
-) error {
-	s.Lock()
-	defer s.Unlock()
-
-	for _, block := range blocksToLoad.AllBlocks() {
-		if s.bs != bootstrapped {
-			// The data being loaded is not part of the bootstrap process then it needs to be
-			// loaded as a cold write because the load could be happening concurrently with
-			// other processes like the flush (as opposed to bootstrap which cannot happen
-			// concurrently with a flush) and there is no way to know if this series/block
-			// combination has been warm flushed or not yet since updating the shard block state
-			// doesn't happen until the entire flush completes.
-			//
-			// As a result the only safe operation is to load the block as a cold write which
-			// ensures that the data will eventually be flushed and merged with the existing data
-			// on disk in the two scenarios where the Load() API is used (cold writes and repairs).
-			s.buffer.Load(block, ColdWrite)
-			continue
-		}
-
-		blStartNano := xtime.ToUnixNano(block.StartTime())
-		blState := blockStates.Snapshot[blStartNano]
-		if !blState.WarmRetrievable {
-			// If the block being bootstrapped has never been warm flushed before then the block
-			// can be loaded into the buffer as a WarmWrite because a subsequent warm flush will
-			// ensure that it gets persisted to disk.
-			//
-			// If the ColdWrites feature is disabled then this branch should always be followed.
-			s.buffer.Load(block, WarmWrite)
-		} else {
-			// If the block being bootstrapped has been warm flushed before then the block should
-			// be loaded into the buffer as a ColdWrite so that a subsequent cold flush will ensure
-			// that it gets persisted to disk.
-			//
-			// This branch can be executed in the situation that a cold write was received for a block
-			// that had already been flushed to disk. Before the cold write could be persisted to disk
-			// via a cold flush, the node crashed and began bootsrapping itself. The cold write would be
-			// read out of the commitlog and would eventually be loaded into the buffer via this branch.
-			s.buffer.Load(block, ColdWrite)
-		}
-	}
-
-	return nil
 }
 
 func (s *dbSeries) LoadBlock(
@@ -567,12 +493,10 @@ func (s *dbSeries) WarmFlush(
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
+	// Need a write lock because the buffer WarmFlush method mutates
+	// state (by performing a pro-active merge).
 	s.Lock()
 	defer s.Unlock()
-
-	if s.bs != bootstrapped {
-		return FlushOutcomeErr, errSeriesNotBootstrapped
-	}
 
 	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
@@ -587,10 +511,6 @@ func (s *dbSeries) Snapshot(
 	// state (by performing a pro-active merge).
 	s.Lock()
 	defer s.Unlock()
-
-	if s.bs != bootstrapped {
-		return errSeriesNotBootstrapped
-	}
 
 	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
@@ -665,7 +585,6 @@ func (s *dbSeries) Reset(
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(id, opts)
 	s.opts = opts
-	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
 	s.blockOnEvictedFromWiredList = onEvictedFromWiredList

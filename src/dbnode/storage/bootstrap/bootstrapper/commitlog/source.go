@@ -28,7 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 
 	"github.com/m3db/m3/src/cluster/shard"
@@ -740,16 +739,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		zap.Time("blockStart", blockStart),
 		zap.Int("volume", mostRecentCompleteSnapshot.ID.VolumeIndex))
 
-	blocks := block.NewDatabaseSeriesBlocks(1)
-	states := series.BootstrappedBlockStateSnapshot{
-		Snapshot: map[xtime.UnixNano]series.BlockState{
-			xtime.ToUnixNano(blockStart): series.BlockState{
-				// NB(r): Snapshot data always has no flushed block
-				// so always is a warm retrievable type.
-				WarmRetrievable: true,
-			},
-		},
-	}
 	for {
 		id, tags, data, expectedChecksum, err := reader.Read()
 		if err != nil && err != io.EOF {
@@ -773,25 +762,19 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			return fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
 		}
 
-		series, err := accumulator.CheckoutSeries(id, tags)
+		ref, err := accumulator.CheckoutSeries(id, tags)
 		if err != nil {
 			return err
 		}
 
-		// Add block to blocks.
-		blocks.AddBlock(dbBlock)
-
 		// Load into series.
-		if err := series.Series.Load(blocks, states); err != nil {
+		if err := ref.Series.LoadBlock(dbBlock, series.WarmWrite); err != nil {
 			return err
 		}
 
 		// Always finalize both ID and tags after loading block.
 		id.Finalize()
 		tags.Close()
-
-		// Clear block.
-		blocks.RemoveBlockAt(blockStart)
 	}
 
 	return nil

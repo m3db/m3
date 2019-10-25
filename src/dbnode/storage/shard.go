@@ -177,7 +177,6 @@ type dbShard struct {
 	currRuntimeOptions       dbShardRuntimeOptions
 	logger                   *zap.Logger
 	metrics                  dbShardMetrics
-	newSeriesBootstrapped    bool
 	ticking                  bool
 	shard                    uint32
 }
@@ -194,14 +193,13 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create                     tally.Counter
-	close                      tally.Counter
-	closeStart                 tally.Counter
-	closeLatency               tally.Timer
-	insertAsyncInsertErrors    tally.Counter
-	insertAsyncBootstrapErrors tally.Counter
-	insertAsyncWriteErrors     tally.Counter
-	seriesTicked               tally.Gauge
+	create                  tally.Counter
+	close                   tally.Counter
+	closeStart              tally.Counter
+	closeLatency            tally.Timer
+	insertAsyncInsertErrors tally.Counter
+	insertAsyncWriteErrors  tally.Counter
+	seriesTicked            tally.Gauge
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -212,9 +210,6 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 		closeLatency: scope.Timer("close-latency"),
 		insertAsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "insert-series",
-		}).Counter("insert-async.errors"),
-		insertAsyncBootstrapErrors: scope.Tagged(map[string]string{
-			"error_type": "bootstrap-series",
 		}).Counter("insert-async.errors"),
 		insertAsyncWriteErrors: scope.Tagged(map[string]string{
 			"error_type": "write-value",
@@ -300,7 +295,6 @@ func newDatabaseShard(
 
 	if !needsBootstrap {
 		s.bootstrapState = Bootstrapped
-		s.newSeriesBootstrapped = true
 	}
 
 	if blockRetriever != nil {
@@ -1314,13 +1308,6 @@ func (s *dbShard) insertSeriesSync(
 		return nil, err
 	}
 
-	if s.newSeriesBootstrapped {
-		if err := entry.Series.Bootstrap(); err != nil {
-			entry = nil // Don't increment the writer count for this series
-			return nil, err
-		}
-	}
-
 	s.insertNewShardEntryWithLock(entry)
 	return entry, nil
 }
@@ -1328,7 +1315,7 @@ func (s *dbShard) insertSeriesSync(
 func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
-	// finalize it
+	// finalize it.
 	copiedID := entry.Series.ID()
 	listElem := s.list.PushBack(entry)
 	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
@@ -1399,11 +1386,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
-		if s.newSeriesBootstrapped {
-			if err := entry.Series.Bootstrap(); err != nil {
-				s.metrics.insertAsyncBootstrapErrors.Inc(1)
-			}
-		}
+
 		s.insertNewShardEntryWithLock(entry)
 	}
 	s.Unlock()
@@ -1835,29 +1818,10 @@ func (s *dbShard) Bootstrap() error {
 	// (will be passed to series.Load() as BlockState).
 	s.bootstrapFlushStates()
 
-	// From this point onwards, all newly created series that aren't in
-	// the existing map should be considered bootstrapped because they
-	// have no data within the retention period.
-	s.Lock()
-	s.newSeriesBootstrapped = true
-	s.Unlock()
-
-	// Find the series with no data within the retention period but has
-	// buffered data points since server start. Any new series added
-	// after this will be marked as bootstrapped.
-	multiErr := xerrors.NewMultiError()
-	s.forEachShardEntry(func(entry *lookup.Entry) bool {
-		seriesEntry := entry.Series
-		if seriesEntry.IsBootstrapped() {
-			return true
-		}
-		multiErr = multiErr.Add(seriesEntry.Bootstrap())
-		return true
-	})
-
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
 	// this earlier as block lease verification will fail due to the shards not being bootstrapped
 	// (and as a result no leases can be verified since the flush state is not yet known).
+	multiErr := xerrors.NewMultiError()
 	if err := s.cacheShardIndices(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
@@ -1867,16 +1831,6 @@ func (s *dbShard) Bootstrap() error {
 	s.Unlock()
 
 	return multiErr.FinalError()
-}
-
-func (s *dbShard) LoadBootstrapBlocks(
-	seriesToLoad *result.Map,
-) error {
-	if seriesToLoad == nil {
-		return errTriedToLoadNilSeries
-	}
-
-	return s.loadSeries(seriesToLoad, true)
 }
 
 func (s *dbShard) LoadBlocks(
@@ -1895,32 +1849,11 @@ func (s *dbShard) LoadBlocks(
 	}
 	s.Unlock()
 
-	return s.loadSeries(seriesToLoad, false)
-}
-
-func (s *dbShard) loadSeries(
-	seriesToLoad *result.Map,
-	bootstrap bool,
-) error {
-	if seriesToLoad == nil {
-		return nil
-	}
-
-	if !bootstrap {
-		memTracker := s.opts.MemoryTracker()
-		estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
-		ok := memTracker.IncNumLoadedBytes(estimatedSize)
-		if !ok {
-			return ErrDatabaseLoadLimitHit
-		}
-	}
-
-	// Safe to use the same snapshot for all the series since the block states can't change while
-	// this is running since no warm/cold flushes can occur while the bootstrap is ongoing.
-	blockStates := s.BlockStatesSnapshot()
-	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
-	if !bootstrapped {
-		return errFlushStateIsNotBootstrapped
+	memTracker := s.opts.MemoryTracker()
+	estimatedSize := result.EstimateMapBytesSize(seriesToLoad)
+	ok := memTracker.IncNumLoadedBytes(estimatedSize)
+	if !ok {
+		return ErrDatabaseLoadLimitHit
 	}
 
 	multiErr := xerrors.NewMultiError()
@@ -1953,12 +1886,23 @@ func (s *dbShard) loadSeries(
 			dbBlocks.Tags.Finalize()
 		}
 
-		err = entry.Series.Load(dbBlocks.Blocks, blockStatesSnapshot)
-		if err != nil {
-			multiErr = multiErr.Add(err)
+		for _, block := range dbBlocks.Blocks.AllBlocks() {
+			// NB(rartoul): The data being loaded is not part of the bootstrap process then it needs to be
+			// loaded as a cold write because the load could be happening concurrently with
+			// other processes like the flush (as opposed to bootstrap which cannot happen
+			// concurrently with a flush) and there is no way to know if this series/block
+			// combination has been warm flushed or not yet since updating the shard block state
+			// doesn't happen until the entire flush completes.
+			//
+			// As a result the only safe operation is to load the block as a cold write which
+			// ensures that the data will eventually be flushed and merged with the existing data
+			// on disk in the two scenarios where the Load() API is used (cold writes and repairs).
+			err = entry.Series.LoadBlock(block, series.ColdWrite)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			}
+			// Cannot close blocks once done as series takes ref to them.
 		}
-
-		// Cannot close blocks once done as series takes ref to them.
 
 		// Always decrement the writer count, avoid continue on bootstrap error
 		entry.DecrementReaderWriterCount()

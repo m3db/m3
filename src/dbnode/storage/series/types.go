@@ -103,18 +103,6 @@ type DatabaseSeries interface {
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
-	// Bootstrap marks the series as bootstrapped.
-	Bootstrap() error
-
-	// IsBootstrapped returns whether the series is bootstrapped or not.
-	IsBootstrapped() bool
-
-	// Load loads blocks into the series.
-	Load(
-		blocks block.DatabaseSeriesBlocks,
-		blockStates BootstrappedBlockStateSnapshot,
-	) error
-
 	/// Load loads a single block into the series.
 	LoadBlock(
 		block block.DatabaseBlock,
