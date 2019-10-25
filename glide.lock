@@ -1,5 +1,5 @@
-hash: 6f999e6981ec189be9b4b4f8c7f4860c3ab304c39ec75bf8e7531094a32cb259
-updated: 2019-10-04T13:32:26.527615-04:00
+hash: 54d750cfc681a3acbdc3a39a51626e0ed1804f93fce5955ca5676d9940eabd6b
+updated: 2019-10-22T14:33:44.916139609-04:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -112,7 +112,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: 41f2deade2cfab59facd263e918d7c05f656c2e9
+  version: 462e86d8716b36a1397b30ef77fb11105065a232
   subpackages:
   - utf8
 - name: github.com/davecgh/go-spew
@@ -130,12 +130,12 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-kit/kit
-  version: dc489b75b9cdbf29c739534c2aa777cabb034954
+  version: fbab14bd4c487151b206c2a41ecfbb015e32c1e0
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
-  version: 432dd90af23366a89a611c020003fc8ba281ae5d
+  version: 07c9b44f60d7ffdfb7d8efe1ad539965737836dc
 - name: github.com/go-playground/locales
   version: 630ebbb602847eba93e75ae38bbc7bb7abcf1ff3
   subpackages:
@@ -143,7 +143,7 @@ imports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/gogo/protobuf
-  version: 0ca988a254f991240804bf9821f3450d87ccbb1b
+  version: 5628607bb4c51c3157aacc3a50f0ab707582b805
   subpackages:
   - gogoproto
   - jsonpb
@@ -199,7 +199,7 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/hashicorp/hcl
-  version: cf7d376da96d9cecec7c7483cec2735efe54a410
+  version: 99e2f22d1c94b272184d97dd9d252866409100ab
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -281,7 +281,7 @@ imports:
 - name: github.com/mitchellh/mapstructure
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/oklog/ulid
-  version: e51a56f2a4c1bf73c967ca6d45d5366bade31943
+  version: be3bccf06dda9a40aa6800c4736ac77f2fef987f
 - name: github.com/opentracing-contrib/go-stdlib
   version: cf7a6c988dc994e945d2715565026f3cc8718689
   subpackages:
@@ -297,9 +297,9 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 8fe62057ea2d46ce44254c98e84e810044dbe197
+  version: 728039f679cbcd4f6a54e080d2219a4c4928c546
 - name: github.com/pilosa/pilosa
-  version: bc9747cc0f19702d9753de7ea9375d8311dfc706
+  version: 29e6bd29d7db38d17be01cea3a452e554089b108
   subpackages:
   - logger
   - stats
@@ -377,7 +377,7 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: f31dc0aaab5a2feeca5c41783abbc347731fd08e
+  version: 8c9545af88b134710ab1cd196795e7f2388358d7
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
   subpackages:
@@ -455,6 +455,11 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
   version: df976f2515e274675050de7b3f42545de80594fd
+- name: go.uber.org/config
+  version: c9c3d11a88c1a266ced73d92e22e1d36d2bc2ed6
+  subpackages:
+  - internal/merge
+  - internal/unreachable
 - name: go.uber.org/multierr
   version: 71e610a0e48dbda460d9c18adca8b5f2de04a7c1
 - name: go.uber.org/zap
@@ -527,7 +532,7 @@ imports:
   - protobuf/ptype
   - protobuf/source_context
 - name: google.golang.org/grpc
-  version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
+  version: 401e0e00e4bb830a10496d64cd95e068c5bf50de
   subpackages:
   - balancer
   - codes
@@ -572,12 +577,12 @@ imports:
   vcs: git
 testImports:
 - name: github.com/glycerine/go-unsnap-stream
-  version: 98d31706395aaac22e29676617f2ee37bee55b5a
+  version: f9677308dec2b35e76737f9713df328ad11b1fea
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
-  version: efe20429c9b7b2a358aba9ba2d40ad56d966ce00
+  version: ade0ca4ace05af96235d107023ab018ee921309c
   subpackages:
   - msgp
