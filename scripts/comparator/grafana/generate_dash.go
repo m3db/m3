@@ -22,11 +22,11 @@ package main
 
 import (
 	"flag"
-	"text/template"
 	"os"
+	"text/template"
 	"time"
 
-	"github.com/m3db/m3/scripts/comparator"
+	"github.com/m3db/m3/scripts/comparator/utils"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -37,7 +37,7 @@ type TemplateData struct {
 	Revision string
 	Start    string
 	End      string
-	Queries  []comparator.GrafanaQueries
+	Queries  []utils.GrafanaQueries
 }
 
 func paramError(err string, log *zap.Logger) {
@@ -87,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	queries, err := comparator.ParseFileToGrafanaQueries(qFile, log)
+	queries, err := utils.ParseFileToGrafanaQueries(qFile, log)
 	if err != nil {
 		log.Error("could not parse file to Grafana queries", zap.Error(err))
 		os.Exit(1)

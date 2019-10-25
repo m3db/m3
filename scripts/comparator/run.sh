@@ -10,22 +10,21 @@ CI=${CI:-true}
 RUN_ONLY=${RUN_ONLY:-false}
 
 export QUERY_FILE=$COMPARATOR/queries.json
+export GRAFANA_PATH=$COMPARATOR/grafana
+export DASHBOARD=$GRAFANA_PATH/dash.json.out
 
 export END=${END:-$(date +%s)}
 export START=${START:-$(( $END - 10800 ))}
 
 function generate_dash {
-	GRAFANA_PATH=$COMPARATOR/grafana
-
 	TEMPLATE=$GRAFANA_PATH/dashboard.tmpl
-	OUTPUT=$GRAFANA_PATH/dash.json.out
 
 	GENERATOR=$GRAFANA_PATH/generate_dash.go
 	
 	go run $GENERATOR \
 		-r=$REVISION \
 		-q=$QUERY_FILE \
-		-o=$OUTPUT \
+		-o=$DASHBOARD \
 		-t=$TEMPLATE \
 		-s=$START \
 		-e=$END
@@ -33,14 +32,11 @@ function generate_dash {
 
 if [[ "$RUN_ONLY" == "false" ]]
 then
-	DASH_QUERY=""
-	for query in "${QUERIES[@]}"
-	do
-		DASH_QUERY=$(echo $DASH_QUERY "$query")
-	done
-
-	echo "generating grafana dashboard"
-	generate_dash
+	if [[ ! "$CI" == "true" ]]
+	then
+		echo "generating grafana dashboard"
+		generate_dash
+	fi
 
 	echo "setting up containers"
 	$COMPARATOR/setup.sh
@@ -50,12 +46,17 @@ then
 fi
 
 comparator=$COMPARATOR/compare.out
-go build -o $comparator $COMPARATOR/compare.go
+go build -o $comparator $COMPARATOR/.
 function defer {
 	rm $comparator
 	if [[ "$CI" == "true" ]]
 	then
 		teardown_docker $CI
+	else
+		if [[ "$RUN_ONLY" == "false" ]]
+		then
+			rm $DASHBOARD
+		fi
 	fi
 }
 
@@ -64,7 +65,4 @@ then
 	trap defer EXIT 
 fi
 
-while read query
-do
-	$comparator -query="$query" -s=$START -e=$END
-done < $QUERY_FILE
+$comparator -input=$QUERY_FILE -s=$START -e=$END

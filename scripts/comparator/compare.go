@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package comparator
+package main
 
 import (
 	"encoding/json"
@@ -29,6 +29,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3/scripts/comparator/utils"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -48,7 +49,7 @@ func main() {
 
 		now = time.Now()
 
-		pQueryFile    = flag.String("query", "", "the query file")
+		pQueryFile    = flag.String("input", "", "the query file")
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
 		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
 
@@ -86,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	queries, err := parseFileToPromQLQueryGroup(queryFile, start, end, log)
+	queries, err := utils.ParseFileToPromQLQueryGroup(queryFile, start, end, log)
 	if err != nil {
 		log.Error("could not parse file to PromQL queries", zap.Error(err))
 		os.Exit(1)
@@ -111,15 +112,15 @@ func main() {
 }
 
 func runQueryGroup(
-	queryGroup promQLQueryGroup,
+	queryGroup utils.PromQLQueryGroup,
 	promAddress string,
 	queryAddress string,
 	log *zap.Logger,
 ) error {
-	log.Info("running query group", zap.String("group", queryGroup.queryGroup))
+	log.Info("running query group", zap.String("group", queryGroup.QueryGroup))
 
 	var multiErr xerrors.MultiError
-	for _, query := range queryGroup.queries {
+	for _, query := range queryGroup.Queries {
 		promURL := fmt.Sprintf("http://%s%s", promAddress, query)
 		queryURL := fmt.Sprintf("http://%s%s", queryAddress, query)
 		if err := runComparison(promURL, queryURL, log); err != nil {

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package comparator
+package utils
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const queryFormat string = "/api/v1/query_range?start=%d&end=%dquery=%s&step=%s"
+const queryFmt string = "/api/v1/query_range?start=%d&end=%d&query=%s&step=%s"
 
 // InputQueries is a slice of InputQuery.
 type InputQueries []InputQuery
@@ -45,17 +45,19 @@ type InputQuery struct {
 	Steps []string `json:"steps"`
 }
 
-// promQLQueryGroup is a list of constructed PromQL query groups.
-type promQLQueryGroup struct {
-	queryGroup string
-	queries    []string
+// PromQLQueryGroup is a list of constructed PromQL query groups.
+type PromQLQueryGroup struct {
+	// QueryGroup is the general category for these queries.
+	QueryGroup string
+	// Queries is a list of PromQL compatible queries.
+	Queries []string
 }
 
 func (q InputQueries) constructPromQL(
 	start int64,
 	end int64,
-) []promQLQueryGroup {
-	queries := make([]promQLQueryGroup, 0, len(q))
+) []PromQLQueryGroup {
+	queries := make([]PromQLQueryGroup, 0, len(q))
 	for _, inQuery := range q {
 		queries = append(queries, inQuery.constructPromQL(start, end))
 	}
@@ -63,18 +65,19 @@ func (q InputQueries) constructPromQL(
 	return queries
 }
 
-func (q InputQuery) constructPromQL(start int64, end int64) promQLQueryGroup {
+func (q InputQuery) constructPromQL(start int64, end int64) PromQLQueryGroup {
 	queries := make([]string, 0, len(q.Queries)*len(q.Steps))
 	for _, inQuery := range q.Queries {
 		for _, inStep := range q.Steps {
-			query := fmt.Sprintf(queryFormat, start, end, inQuery, inStep)
+			q := strings.ReplaceAll(inQuery, " ", "+")
+			query := fmt.Sprintf(queryFmt, start, end, q, inStep)
 			queries = append(queries, query)
 		}
 	}
 
-	return promQLQueryGroup{
-		queryGroup: q.QueryGroup,
-		queries:    queries,
+	return PromQLQueryGroup{
+		QueryGroup: q.QueryGroup,
+		Queries:    queries,
 	}
 }
 
@@ -104,14 +107,14 @@ func parseFileToQueries(
 	return queries, err
 }
 
-// parseFileToPromQLQueryGroup parses a JSON queries file
+// ParseFileToPromQLQueryGroup parses a JSON queries file
 // into PromQL query groups.
-func parseFileToPromQLQueryGroup(
+func ParseFileToPromQLQueryGroup(
 	fileName string,
 	start int64,
 	end int64,
 	log *zap.Logger,
-) ([]promQLQueryGroup, error) {
+) ([]PromQLQueryGroup, error) {
 	queries, err := parseFileToQueries(fileName, log)
 	if err != nil {
 		return nil, err
