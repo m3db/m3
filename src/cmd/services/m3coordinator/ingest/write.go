@@ -45,7 +45,7 @@ var (
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, xtime.Unit)
+	Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte)
 	Reset() error
 	Error() error
 }
@@ -58,6 +58,7 @@ type DownsamplerAndWriter interface {
 		tags models.Tags,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
+		annotation []byte,
 		overrides WriteOptions,
 	) error
 
@@ -113,6 +114,7 @@ func (d *downsamplerAndWriter) Write(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
+	annotation []byte,
 	overrides WriteOptions,
 ) error {
 	multiErr := xerrors.NewMultiError()
@@ -124,7 +126,7 @@ func (d *downsamplerAndWriter) Write(
 	}
 
 	if d.shouldWrite(overrides) {
-		err := d.writeToStorage(ctx, tags, datapoints, unit, overrides)
+		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -248,6 +250,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
+	annotation []byte,
 	overrides WriteOptions,
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
@@ -256,6 +259,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
+			Annotation: annotation,
 			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
 	}
@@ -275,6 +279,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
+				Annotation: annotation,
 				Attributes: storageAttributesFromPolicy(p),
 			})
 			if err != nil {
@@ -316,7 +321,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 
 		for iter.Next() {
-			tags, datapoints, unit := iter.Current()
+			tags, datapoints, unit, annotation := iter.Current()
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
@@ -325,6 +330,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 						Tags:       tags,
 						Datapoints: datapoints,
 						Unit:       unit,
+						Annotation: annotation,
 						Attributes: storageAttributesFromPolicy(p),
 					})
 					if err != nil {
@@ -370,7 +376,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 	for iter.Next() {
 		appender.Reset()
-		tags, datapoints, _ := iter.Current()
+		tags, datapoints, _, _ := iter.Current()
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
