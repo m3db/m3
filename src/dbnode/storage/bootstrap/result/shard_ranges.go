@@ -154,7 +154,7 @@ func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
 	return min, max
 }
 
-// MinMaxRange returns the duration between the min and the max.
+// MinMaxRange returns the duration range between the min and the max.
 func (r ShardTimeRanges) MinMaxRange() time.Duration {
 	min, max := r.MinMax()
 	return max.Sub(min)
