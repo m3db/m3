@@ -1,4 +1,4 @@
-hash: 6f999e6981ec189be9b4b4f8c7f4860c3ab304c39ec75bf8e7531094a32cb259
+hash: 54d750cfc681a3acbdc3a39a51626e0ed1804f93fce5955ca5676d9940eabd6b
 updated: 2019-10-04T13:32:26.527615-04:00
 imports:
 - name: github.com/alecthomas/units
@@ -455,6 +455,8 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
   version: df976f2515e274675050de7b3f42545de80594fd
+- name: go.uber.org/config
+  version: 46dea54a68b3e94c239093186902985c7ced97b5
 - name: go.uber.org/multierr
   version: 71e610a0e48dbda460d9c18adca8b5f2de04a7c1
 - name: go.uber.org/zap
