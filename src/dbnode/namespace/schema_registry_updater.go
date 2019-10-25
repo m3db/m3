@@ -22,7 +22,6 @@ package namespace
 
 import (
 	"fmt"
-	"strings"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
 
@@ -39,10 +38,12 @@ func UpdateSchemaRegistry(newNamespaces Map, schemaReg SchemaRegistry, log *zap.
 			curSchemaNone = true
 		)
 		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
-		// NB(bodu): Schema history not found is a valid error as this occurs on initial bootstrap for the db.
-		if err != nil && !strings.Contains(err.Error(), "schema history is not found for") {
-			multiErr = multiErr.Add(fmt.Errorf("cannot get latest namespace schema: %v", err))
-			continue
+		if err != nil {
+			// NB(bodu): Schema history not found is a valid error as this occurs on initial bootstrap for the db.
+			if _, ok := err.(*schemaHistoryNotFoundError); !ok {
+				multiErr = multiErr.Add(fmt.Errorf("cannot get latest namespace schema: %v", err))
+				continue
+			}
 		}
 
 		if curSchema != nil {
