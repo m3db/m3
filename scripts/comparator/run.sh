@@ -9,9 +9,10 @@ export REVISION=$(git rev-parse HEAD)
 CI=${CI:-true}
 RUN_ONLY=${RUN_ONLY:-false}
 
-export QUERY_FILE=$COMPARATOR/queries
-export END=$(date +%s)
-export START=$(( $END - 10800 ))
+export QUERY_FILE=$COMPARATOR/queries.json
+
+export END=${END:-$(date +%s)}
+export START=${START:-$(( $END - 10800 ))}
 
 function generate_dash {
 	GRAFANA_PATH=$COMPARATOR/grafana

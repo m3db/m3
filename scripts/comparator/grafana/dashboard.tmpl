@@ -18,106 +18,121 @@
   "id": 1,
   "links": [],
   "panels": [
-  {{- range .Queries }}
+  {{range $i, $v := .Queries}}{{if $i}},{{end}}
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "-- Mixed --",
-      "fill": 1,
-      "fillGradient": 0,
+      "collapsed": true,
+      "datasource": null,
       "gridPos": {
-        "h": 9,
-        "w": 12,
+        "h": 1,
+        "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": {{.Idx}},
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
+      "id": {{$v.Index}},
+      "panels": [{{range $idx, $q := $v.Queries }}{{with $q}}{{if $idx}},{{end}}
         {
-          "datasource": "M3Query",
-          "expr": "{{.Query}}",
-          "hide": false,
-          "interval": "{{.Interval}}",
-          "legendFormat": "m3",
-          "refId": "A"
-        },
-        {
-          "datasource": "Prometheus",
-          "expr": "{{.Query}}",
-          "hide": false,
-          "interval": "{{.Interval}}",
-          "legendFormat": "prom",
-          "refId": "B"
-        }
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "-- Mixed --",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": {{if .Left}}0{{else}}12{{end}},
+            "y": 0
+          },
+          "id": {{.Index}},
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "datasource": "M3Query",
+              "expr": "{{.Query}}",
+              "hide": false,
+              "interval": "{{.Interval}}",
+              "legendFormat": "m3",
+              "refId": "A"
+            },
+            {
+              "datasource": "Prometheus",
+              "expr": "{{.Query}}",
+              "hide": false,
+              "interval": "{{.Interval}}",
+              "legendFormat": "prom",
+              "refId": "B"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "{{.Query}} : {{.Interval}}",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        }{{end}}{{end}}
       ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "{{.Query}} : {{.Interval}}",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    }{{if .Next}},{{end}}
-  {{- end}}
-    ],
+      "title": "{{$v.QueryGroup}}",
+      "type": "row"
+    }
+  {{end}}
+  ],
   "refresh": false,
   "schemaVersion": 20,
   "style": "dark",

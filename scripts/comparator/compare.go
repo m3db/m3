@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package comparator
 
 import (
 	"encoding/json"
@@ -26,12 +26,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -49,19 +48,17 @@ func main() {
 
 		now = time.Now()
 
-		pQ = flag.String("query", "rate(quail[5m]):15s",
-			"query for comparison, delimited with step size by `:`")
+		pQueryFile    = flag.String("query", "", "the query file")
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
 		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
 
-		pStart   = flag.Int64("s", now.Add(time.Hour*-3).Unix(), "start time")
-		pEnd     = flag.Int64("e", now.Unix(), "start end")
-		pRetries = flag.Int64("r", 5, "retries")
+		pStart = flag.Int64("s", now.Add(time.Hour*-3).Unix(), "start time")
+		pEnd   = flag.Int64("e", now.Unix(), "start end")
 	)
 
 	flag.Parse()
 	var (
-		query        = strings.Trim(*pQ, `"`)
+		queryFile    = *pQueryFile
 		promAddress  = *pPromAddress
 		queryAddress = *pQueryAddress
 
@@ -69,19 +66,10 @@ func main() {
 		end   = *pEnd
 	)
 
-	if len(query) == 0 {
+	if len(queryFile) == 0 {
 		paramError("No query found", log)
 		os.Exit(1)
 	}
-
-	splitQuery := strings.Split(query, ":")
-	if len(splitQuery) != 2 {
-		paramError("Query has no delimiter", log)
-		os.Exit(1)
-	}
-
-	query = url.QueryEscape(splitQuery[0])
-	step := splitQuery[1]
 
 	if len(promAddress) == 0 {
 		paramError("No prom address found", log)
@@ -98,31 +86,53 @@ func main() {
 		os.Exit(1)
 	}
 
-	url := fmt.Sprintf(
-		"/api/v1/query_range?query=%s&start=%d&end=%d&step=%s",
-		query, start, end, step,
-	)
-
-	promURL := fmt.Sprintf("http://%s%s", promAddress, url)
-	queryURL := fmt.Sprintf("http://%s%s", queryAddress, url)
-
-	retries := int(*pRetries)
-	for i := 0; i < retries; i++ {
-		err := runComparison(promURL, queryURL, log)
-		if err == nil {
-			return
-		}
-
-		time.Sleep(time.Second)
-		log.Info(
-			"retrying query",
-			zap.String("promURL", promURL),
-			zap.String("queryURL", queryURL),
-			zap.Int("attempt", i),
-		)
+	queries, err := parseFileToPromQLQueryGroup(queryFile, start, end, log)
+	if err != nil {
+		log.Error("could not parse file to PromQL queries", zap.Error(err))
+		os.Exit(1)
 	}
 
-	os.Exit(1)
+	var multiErr xerrors.MultiError
+	for _, queryGroup := range queries {
+		if err := runQueryGroup(
+			queryGroup,
+			promAddress,
+			queryAddress,
+			log,
+		); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	if multiErr.LastError() != nil {
+		log.Error("mismatched queries detected")
+		os.Exit(1)
+	}
+}
+
+func runQueryGroup(
+	queryGroup promQLQueryGroup,
+	promAddress string,
+	queryAddress string,
+	log *zap.Logger,
+) error {
+	log.Info("running query group", zap.String("group", queryGroup.queryGroup))
+
+	var multiErr xerrors.MultiError
+	for _, query := range queryGroup.queries {
+		promURL := fmt.Sprintf("http://%s%s", promAddress, query)
+		queryURL := fmt.Sprintf("http://%s%s", queryAddress, query)
+		if err := runComparison(promURL, queryURL, log); err != nil {
+			multiErr = multiErr.Add(err)
+			log.Error(
+				"mismatched query",
+				zap.String("promURL", promURL),
+				zap.String("queryURL", queryURL),
+			)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
 func runComparison(
@@ -132,19 +142,19 @@ func runComparison(
 ) error {
 	promResult, err := parseResult(promURL, log)
 	if err != nil {
-		log.Error("Could not parse prometheus result", zap.Error(err))
+		log.Error("failed to parse Prometheus result", zap.Error(err))
 		return err
 	}
 
 	queryResult, err := parseResult(queryURL, log)
 	if err != nil {
-		log.Error("Could not parse m3query result", zap.Error(err))
+		log.Error("failed to parse M3Query result", zap.Error(err))
 		return err
 	}
 
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
-		log.Error("results do not match", zap.Error((err)))
+		log.Error("mismatch", zap.Error((err)))
 		return err
 	}
 

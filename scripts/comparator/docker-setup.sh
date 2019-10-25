@@ -13,7 +13,7 @@ function setup_docker {
   docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes m3query
 
   CI=$1
-	if [[ "$CI" != "true" ]]
+  if [[ "$CI" != "true" ]]
   then
     echo "run grafana container"
     docker-compose -f ${COMPOSE_FILE} up -d --build --renew-anon-volumes grafana
@@ -23,7 +23,7 @@ function setup_docker {
 function teardown_docker {
   CI=$1
    # CI fails to stop all containers sometimes
-	if [[ "$CI" == "true" ]]
+  if [[ "$CI" == "true" ]]
   then
     docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers"
   fi

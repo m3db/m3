@@ -21,13 +21,12 @@
 package main
 
 import (
-	"bufio"
 	"flag"
-	"html/template"
+	"text/template"
 	"os"
-	"strings"
 	"time"
 
+	"github.com/m3db/m3/scripts/comparator"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
@@ -38,15 +37,7 @@ type TemplateData struct {
 	Revision string
 	Start    string
 	End      string
-	Queries  []Query
-}
-
-// Query is the query itself.
-type Query struct {
-	Idx      int
-	Interval string
-	Query    template.HTML
-	Next     bool
+	Queries  []comparator.GrafanaQueries
 }
 
 func paramError(err string, log *zap.Logger) {
@@ -96,13 +87,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	file, err := os.Open(qFile)
+	queries, err := comparator.ParseFileToGrafanaQueries(qFile, log)
 	if err != nil {
-		log.Error("could not open file", zap.Error(err))
+		log.Error("could not parse file to Grafana queries", zap.Error(err))
 		os.Exit(1)
 	}
 
-	defer file.Close()
 	opts := os.O_RDWR | os.O_CREATE | os.O_TRUNC
 	outputFile, err := os.OpenFile(output, opts, 0777)
 	if err != nil {
@@ -111,36 +101,6 @@ func main() {
 	}
 
 	defer outputFile.Close()
-	queries := make([]Query, 0, 10)
-	scanner := bufio.NewScanner(file)
-	i := 0
-	for scanner.Scan() {
-		q := scanner.Text()
-		splitQuery := strings.Split(q, ":")
-		if len(splitQuery) != 2 {
-			paramError("Query has no delimiter", log)
-			os.Exit(1)
-		}
-
-		query := strings.ReplaceAll(splitQuery[0], `"`, `\"`)
-		interval := splitQuery[1]
-		queries = append(queries, Query{
-			Idx:      i,
-			Interval: interval,
-			Query:    template.HTML(query),
-		})
-
-		i++
-	}
-
-	for i := range queries {
-		queries[i].Next = i+1 < len(queries)
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Error("could not read file", zap.Error(err))
-		os.Exit(1)
-	}
 
 	start := time.Unix(*pStart, 0)
 	end := time.Unix(*pEnd, 0)

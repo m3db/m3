@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 )
@@ -120,6 +121,8 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
+		defaultName = models.NewTagOptions().MetricName()
+
 		// TODO: take from config.
 		blockSize = time.Hour * 12
 		start     = query.Start.Truncate(blockSize)
@@ -140,7 +143,7 @@ func (q *querier) FetchCompressed(
 	rand.Seed(start.Unix())
 	for _, matcher := range query.TagMatchers {
 		// filter if name, otherwise return all.
-		if bytes.Equal([]byte("__name__"), matcher.Name) {
+		if bytes.Equal([]byte(defaultName), matcher.Name) {
 			value := string(matcher.Value)
 			for _, gen := range gens {
 				if value == gen.name {
