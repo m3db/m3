@@ -9,6 +9,8 @@
 ## Misc 
 
 - **M3Aggregator**: Do not require aggregator ID to be joined with port and add instance initialization debug logs ([#2012](https://github.com/m3db/m3/pull/2012))
+- **All**: Support env var expansion using [go.uber.org/config](go.uber.org/config) ([#2016](https://github.com/m3db/m3/pull/2016))
+- **All**: Deprecate listen address expansion in favor of [go.uber.org/config](go.uber.org/config) env var expansion ([#2017](https://github.com/m3db/m3/pull/2017))
 
 # 0.14.1
 

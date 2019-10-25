@@ -21,12 +21,15 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/config"
 )
 
 const (
@@ -100,7 +103,9 @@ func TestLoadFile(t *testing.T) {
 	require.Error(t, err)
 
 	fname := writeFile(t, goodConfig)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	err = LoadFile(&cfg, fname, Options{})
 	require.NoError(t, err)
@@ -126,7 +131,9 @@ func TestLoadWithInvalidFile(t *testing.T) {
 	require.Error(t, err)
 
 	fname := writeFile(t, goodConfig)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	// non-exist file in the file list
 	err = LoadFiles(&cfg, []string{fname, "./no-config.yaml"}, Options{})
@@ -141,7 +148,9 @@ func TestLoadFileInvalidKey(t *testing.T) {
 	var cfg configuration
 
 	fname := writeFile(t, badConfigInvalidKey)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	err := LoadFile(&cfg, fname, Options{})
 	require.Error(t, err)
@@ -151,7 +160,9 @@ func TestLoadFileInvalidKeyDisableMarshalStrict(t *testing.T) {
 	var cfg configuration
 
 	fname := writeFile(t, badConfigInvalidKey)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	err := LoadFile(&cfg, fname, Options{DisableUnmarshalStrict: true})
 	require.NoError(t, err)
@@ -164,7 +175,9 @@ func TestLoadFileInvalidValue(t *testing.T) {
 	var cfg configuration
 
 	fname := writeFile(t, badConfigInvalidValue)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	err := LoadFile(&cfg, fname, Options{})
 	require.Error(t, err)
@@ -174,7 +187,9 @@ func TestLoadFileInvalidValueDisableValidate(t *testing.T) {
 	var cfg configuration
 
 	fname := writeFile(t, badConfigInvalidValue)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	err := LoadFile(&cfg, fname, Options{DisableValidate: true})
 	require.NoError(t, err)
@@ -185,7 +200,9 @@ func TestLoadFileInvalidValueDisableValidate(t *testing.T) {
 
 func TestLoadFilesExtends(t *testing.T) {
 	fname := writeFile(t, goodConfig)
-	defer os.Remove(fname)
+	defer func() {
+		require.NoError(t, os.Remove(fname))
+	}()
 
 	partialConfig := `
 buffer_space: 8080
@@ -194,7 +211,9 @@ servers:
     - server4:8080
 `
 	partial := writeFile(t, partialConfig)
-	defer os.Remove(partial)
+	defer func() {
+		require.NoError(t, os.Remove(partial))
+	}()
 
 	var cfg configuration
 	err := LoadFiles(&cfg, []string{fname, partial}, Options{})
@@ -203,6 +222,42 @@ servers:
 	require.Equal(t, "localhost:4385", cfg.ListenAddress)
 	require.Equal(t, 8080, cfg.BufferSpace)
 	require.Equal(t, []string{"server3:8080", "server4:8080"}, cfg.Servers)
+}
+
+func TestLoadFilesDeepExtends(t *testing.T) {
+	type innerConfig struct {
+		K1 string `yaml:"k1"`
+		K2 string `yaml:"k2"`
+	}
+
+	type nestedConfig struct {
+		Foo innerConfig `yaml:"foo"`
+	}
+
+	const (
+		base = `
+foo:
+  k1: v1_base
+  k2: v2_base
+`
+		override = `
+foo:
+  k1: v1_override
+`
+	)
+
+	baseFile, overrideFile := writeFile(t, base), writeFile(t, override)
+
+	var cfg nestedConfig
+	require.NoError(t, LoadFiles(&cfg, []string{baseFile, overrideFile}, Options{}))
+
+	assert.Equal(t, nestedConfig{
+		Foo: innerConfig{
+			K1: "v1_override",
+			K2: "v2_base",
+		},
+	}, cfg)
+
 }
 
 func TestLoadFilesValidateOnce(t *testing.T) {
@@ -219,10 +274,14 @@ func TestLoadFilesValidateOnce(t *testing.T) {
     `
 
 	fname1 := writeFile(t, invalidConfig1)
-	defer os.Remove(fname1)
+	defer func() {
+		require.NoError(t, os.Remove(fname1))
+	}()
 
 	fname2 := writeFile(t, invalidConfig2)
-	defer os.Remove(invalidConfig2)
+	defer func() {
+		require.NoError(t, os.Remove(fname2))
+	}()
 
 	// Either config by itself will not pass validation.
 	var cfg1 configuration
@@ -243,12 +302,86 @@ func TestLoadFilesValidateOnce(t *testing.T) {
 	require.Equal(t, []string{"server2:8010"}, mergedCfg.Servers)
 }
 
+func TestLoadFilesEnvExpansion(t *testing.T) {
+	const withEnv = `
+    listen_address: localhost:${PORT:8080}
+    buffer_space: ${BUFFER_SPACE}
+    servers:
+      - server2:8010
+    `
+
+	mapLookup := func(m map[string]string) config.LookupFunc {
+		return func(s string) (string, bool) {
+			r, ok := m[s]
+			return r, ok
+		}
+	}
+
+	cases := []struct {
+		Name        string
+		Input       map[string]string
+		Expected    configuration
+		ExpectedErr error
+	}{{
+		Name: "all_provided",
+		Input: map[string]string{
+			"PORT":         "9090",
+			"BUFFER_SPACE": "256",
+		},
+		Expected: configuration{
+			ListenAddress: "localhost:9090",
+			BufferSpace:   256,
+			Servers:       []string{"server2:8010"},
+		},
+	}, {
+		Name: "missing_no_default",
+		Input: map[string]string{
+			"PORT": "9090",
+			// missing BUFFER_SPACE,
+		},
+		ExpectedErr: errors.New("couldn't expand environment: default is empty for \"BUFFER_SPACE\" (use \"\" for empty string)"),
+	}, {
+		Name: "missing_with_default",
+		Input: map[string]string{
+			"BUFFER_SPACE": "256",
+		},
+		Expected: configuration{
+			ListenAddress: "localhost:8080",
+			BufferSpace:   256,
+			Servers:       []string{"server2:8010"},
+		},
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			fname1 := writeFile(t, withEnv)
+			defer func() {
+				require.NoError(t, os.Remove(fname1))
+			}()
+			var cfg configuration
+
+			err := LoadFile(&cfg, fname1, Options{
+				Expand: mapLookup(tc.Input),
+			})
+			if tc.ExpectedErr != nil {
+				require.EqualError(t, err, tc.ExpectedErr.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.Expected, cfg)
+		})
+	}
+}
+
 func TestDeprecationCheck(t *testing.T) {
 	t.Run("StandardConfig", func(t *testing.T) {
 		// OK
 		var cfg configuration
 		fname := writeFile(t, goodConfig)
-		defer os.Remove(fname)
+		defer func() {
+			require.NoError(t, os.Remove(fname))
+		}()
 
 		err := LoadFile(&cfg, fname, Options{})
 		require.NoError(t, err)
@@ -269,7 +402,9 @@ bar: 42
 `
 		var cfg2 configurationDeprecated
 		fname2 := writeFile(t, badConfig)
-		defer os.Remove(fname2)
+		defer func() {
+			require.NoError(t, os.Remove(fname2))
+		}()
 
 		err = LoadFile(&cfg2, fname2, Options{})
 		require.NoError(t, err)
@@ -295,7 +430,9 @@ commitlog:
   blockSize: 23
 `
 		fname := writeFile(t, nc)
-		defer os.Remove(fname)
+		defer func() {
+			require.NoError(t, os.Remove(fname))
+		}()
 
 		err := LoadFile(&cfg, fname, Options{})
 		require.NoError(t, err)
@@ -329,7 +466,9 @@ multiple:
 `
 
 		fname2 := writeFile(t, nc)
-		defer os.Remove(fname2)
+		defer func() {
+			require.NoError(t, os.Remove(fname2))
+		}()
 
 		err = LoadFile(&cfg2, fname2, Options{})
 		require.NoError(t, err)
