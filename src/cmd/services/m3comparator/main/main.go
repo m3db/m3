@@ -64,7 +64,7 @@ func main() {
 	)
 
 	addr := "0.0.0.0:9000"
-	logger.Info("Starting remote server", zap.String("address", addr))
+	logger.Info("starting remote server", zap.String("address", addr))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		logger.Error("listener error", zap.Error(err))

@@ -316,18 +316,7 @@ func renderResultsJSON(
 			// NB(r): Removing the optimization of computing startIdx once just in case our assumptions are wrong,
 			// we can always add this optimization back later.  Without this code I see datapoints more often.
 			if dp.Timestamp.Before(params.Start) {
-				usePoint := false
-				// Add in the point if the next point is within the range. This allows
-				// graphs to be extrapolated.
-				if length < i+1 {
-					if !vals.DatapointAt(i + 1).Timestamp.After(params.Start) {
-						usePoint = true
-					}
-				}
-
-				if !usePoint {
-					continue
-				}
+				continue
 			}
 
 			jw.BeginArray()

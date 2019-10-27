@@ -100,12 +100,14 @@ func generateSeries(
 func (q *querier) generateOptions(
 	start time.Time,
 	blockSize time.Duration,
+	tagOptions models.TagOptions,
 ) iteratorOptions {
 	return iteratorOptions{
 		start:         start,
 		blockSize:     blockSize,
 		encoderPool:   q.encoderPool,
 		iteratorPools: q.iteratorPools,
+		tagOptions:    tagOptions,
 	}
 }
 
@@ -121,13 +123,12 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		defaultName = models.NewTagOptions().MetricName()
-
 		// TODO: take from config.
 		blockSize = time.Hour * 12
 		start     = query.Start.Truncate(blockSize)
 		end       = query.End.Truncate(blockSize).Add(blockSize)
-		opts      = q.generateOptions(start, blockSize)
+		tagOpts   = models.NewTagOptions()
+		opts      = q.generateOptions(start, blockSize, tagOpts)
 
 		// TODO: take from config.
 		gens = []seriesGen{
@@ -140,10 +141,11 @@ func (q *querier) FetchCompressed(
 	)
 
 	q.Lock()
+	defer q.Unlock()
 	rand.Seed(start.Unix())
 	for _, matcher := range query.TagMatchers {
 		// filter if name, otherwise return all.
-		if bytes.Equal([]byte(defaultName), matcher.Name) {
+		if bytes.Equal(opts.tagOptions.MetricName(), matcher.Name) {
 			value := string(matcher.Value)
 			for _, gen := range gens {
 				if value == gen.name {
@@ -176,7 +178,6 @@ func (q *querier) FetchCompressed(
 		seriesList = append(seriesList, series)
 	}
 
-	q.Unlock()
 	iters, err := buildSeriesIterators(seriesList, opts)
 	if err != nil {
 		return m3.SeriesFetchResult{}, noop, err
@@ -209,6 +210,7 @@ func (q *querier) CompleteTagsCompressed(
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
 	nameOnly := query.CompleteNameOnly
+	// TODO: take from config.
 	return &storage.CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
 		CompletedTags: []storage.CompletedTag{

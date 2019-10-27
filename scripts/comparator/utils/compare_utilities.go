@@ -22,15 +22,14 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
 )
-
-const queryFmt string = "/api/v1/query_range?start=%d&end=%d&query=%s&step=%s"
 
 // InputQueries is a slice of InputQuery.
 type InputQueries []InputQuery
@@ -69,8 +68,13 @@ func (q InputQuery) constructPromQL(start int64, end int64) PromQLQueryGroup {
 	queries := make([]string, 0, len(q.Queries)*len(q.Steps))
 	for _, inQuery := range q.Queries {
 		for _, inStep := range q.Steps {
-			q := strings.ReplaceAll(inQuery, " ", "+")
-			query := fmt.Sprintf(queryFmt, start, end, q, inStep)
+			values := make(url.Values)
+			values.Add("query", inQuery)
+			values.Add("step", inStep)
+			values.Add("start", strconv.Itoa(int(start)))
+			values.Add("end", strconv.Itoa(int(end)))
+			query := "/api/v1/query_range?" + values.Encode()
+
 			queries = append(queries, query)
 		}
 	}
@@ -98,7 +102,7 @@ func parseFileToQueries(
 		return nil, err
 	}
 
-	queries := make(InputQueries, 10)
+	queries := make(InputQueries, 0, 10)
 	if err := json.Unmarshal(buf, &queries); err != nil {
 		log.Error("could not unmarhsal queries", zap.Error(err))
 		return nil, err

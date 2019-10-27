@@ -22,13 +22,13 @@ package main
 
 import (
 	"io"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -41,6 +41,7 @@ type iteratorOptions struct {
 	start         time.Time
 	encoderPool   encoding.EncoderPool
 	iteratorPools encoding.IteratorPools
+	tagOptions    models.TagOptions
 }
 
 var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
@@ -63,7 +64,6 @@ func buildBlockReader(
 	}
 
 	segment := encoder.Discard()
-	encoder.Close()
 	return []xio.BlockReader{
 		xio.BlockReader{
 			SegmentReader: xio.NewSegmentReader(segment),
@@ -73,21 +73,26 @@ func buildBlockReader(
 	}, nil
 }
 
-func buildTagIteratorAndID(tagMap tagMap) (ident.TagIterator, ident.ID) {
+func buildTagIteratorAndID(
+	tagMap tagMap,
+	opts models.TagOptions,
+) (ident.TagIterator, ident.ID) {
 	var (
-		tags = ident.Tags{}
-		sb   strings.Builder
+		tags      = ident.Tags{}
+		modelTags = models.NewTags(len(tagMap), opts)
 	)
 
 	for name, value := range tagMap {
-		sb.WriteString(name)
-		sb.WriteRune(sep)
-		sb.WriteString(value)
-		sb.WriteRune(tagSep)
+		modelTags = modelTags.AddOrUpdateTag(models.Tag{
+			Name:  []byte(name),
+			Value: []byte(value),
+		})
+
 		tags.Append(ident.StringTag(name, value))
 	}
 
-	return ident.NewTagsIterator(tags), ident.StringID(sb.String())
+	id := string(modelTags.ID())
+	return ident.NewTagsIterator(tags), ident.StringID(id)
 }
 
 func buildSeriesIterator(
@@ -125,7 +130,7 @@ func buildSeriesIterator(
 		end = lastBlock[len(lastBlock)-1].Timestamp
 	}
 
-	tagIter, id := buildTagIteratorAndID(tags)
+	tagIter, id := buildTagIteratorAndID(tags, opts.tagOptions)
 	return encoding.NewSeriesIterator(
 			encoding.SeriesIteratorOptions{
 				ID:             id,

@@ -358,6 +358,7 @@ func getIndices(
 	if leftBound {
 		l = l + init
 	} else {
+		// if left bound was not found, there are no valid candidate points here.
 		return l, r, false
 	}
 
