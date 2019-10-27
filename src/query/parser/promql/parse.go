@@ -154,18 +154,15 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 }
 
 func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
-	if offset == 0 {
+	// handles case where offset is 0 too.
+	align := offset % step
+	if align == 0 {
 		return offset
 	}
 
-	align := offset % step
-	if align != 0 {
-		// NB: Prometheus rounds offsets up to step size, e.g. a 61 second offset with
-		// a 1 minute stepsize gets rounded to a 2 minute offset.
-		align -= step
-	}
-
-	return offset - align
+	// NB: Prometheus rounds offsets up to step size, e.g. a 61 second offset with
+	// a 1 minute stepsize gets rounded to a 2 minute offset.
+	return offset + step - align
 }
 
 func (p *parseState) walk(node pql.Node) error {

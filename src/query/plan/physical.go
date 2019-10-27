@@ -107,7 +107,14 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 	}
 
 	startShift := maxOffset + maxRange
-	alignedShift := startShift - (startShift % p.TimeSpec.Step)
+	shift := startShift % p.TimeSpec.Step
+	extraStep := p.TimeSpec.Step
+	if shift == 0 {
+		// NB: if the start is divisible by offset, no need to take an extra step.
+		extraStep = 0
+	}
+
+	alignedShift := startShift - extraStep - shift
 	p.TimeSpec.Start = p.TimeSpec.Start.Add(-1 * alignedShift)
 	return p
 }
