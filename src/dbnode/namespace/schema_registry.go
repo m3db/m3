@@ -31,6 +31,18 @@ import (
 	"go.uber.org/zap"
 )
 
+func newSchemaHistoryNotFoundError(nsIDStr string) error {
+	return &schemaHistoryNotFoundError{nsIDStr}
+}
+
+type schemaHistoryNotFoundError struct {
+	nsIDStr string
+}
+
+func (s *schemaHistoryNotFoundError) Error() string {
+	return fmt.Sprintf("schema history is not found for %s", s.nsIDStr)
+}
+
 type schemaRegistry struct {
 	sync.RWMutex
 
@@ -125,7 +137,7 @@ func (sr *schemaRegistry) getSchemaHistory(nsIDStr string) (SchemaHistory, error
 
 	history, ok := sr.registry[nsIDStr]
 	if !ok {
-		return nil, fmt.Errorf("schema history is not found for %v", nsIDStr)
+		return nil, newSchemaHistoryNotFoundError(nsIDStr)
 	}
 	return history.Get().(SchemaHistory), nil
 }

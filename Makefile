@@ -421,7 +421,7 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(retool_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
