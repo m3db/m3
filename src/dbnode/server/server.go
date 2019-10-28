@@ -33,6 +33,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/x/xpool"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
@@ -495,7 +497,7 @@ func Run(runOpts RunOptions) {
 		// to service a cache miss
 		retrieverOpts := fs.NewBlockRetrieverOptions().
 			SetBytesPool(opts.BytesPool()).
-			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetRetrieveRequestPool(opts.RetrieveRequestPool()).
 			SetIdentifierPool(opts.IdentifierPool()).
 			SetBlockLeaseManager(blockLeaseManager)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
@@ -567,6 +569,7 @@ func Run(runOpts RunOptions) {
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
+		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
@@ -1261,13 +1264,12 @@ func withEncodingAndPoolingOptions(
 		scope.SubScope("closers-pool"))
 
 	contextPoolOpts := poolOptions(
-		policy.ContextPool.PoolPolicy,
+		policy.ContextPool,
 		scope.SubScope("context-pool"))
 
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
-		SetFinalizerPoolOptions(closersPoolOpts).
-		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityOrDefault()))
+		SetFinalizerPoolOptions(closersPoolOpts))
 
 	iteratorPool := encoding.NewReaderIteratorPool(
 		poolOptions(
@@ -1351,11 +1353,19 @@ func withEncodingAndPoolingOptions(
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
 		fetchBlocksMetadataResultsPoolPolicy.CapacityOrDefault())
 
+	bytesWrapperPoolOpts := poolOptions(
+		policy.CheckedBytesWrapperPool,
+		scope.SubScope("checked-bytes-wrapper-pool"))
+	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(
+		bytesWrapperPoolOpts)
+	bytesWrapperPool.Init()
+
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
-		SetSegmentReaderPool(segmentReaderPool)
+		SetSegmentReaderPool(segmentReaderPool).
+		SetCheckedBytesWrapperPool(bytesWrapperPool)
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
@@ -1386,6 +1396,10 @@ func withEncodingAndPoolingOptions(
 	bucketVersionsPool := series.NewBufferBucketVersionsPool(
 		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
 
+	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool,
+		poolOptions(policy.RetrieveRequestPool, scope.SubScope("retrieve-request-pool")))
+	retrieveRequestPool.Init()
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -1397,7 +1411,9 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
 		SetWriteBatchPool(writeBatchPool).
 		SetBufferBucketPool(bucketPool).
-		SetBufferBucketVersionsPool(bucketVersionsPool)
+		SetBufferBucketVersionsPool(bucketVersionsPool).
+		SetRetrieveRequestPool(retrieveRequestPool).
+		SetCheckedBytesWrapperPool(bytesWrapperPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
@@ -1479,7 +1495,8 @@ func withEncodingAndPoolingOptions(
 		SetFSTSegmentOptions(
 			opts.IndexOptions().FSTSegmentOptions().
 				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+				SetInstrumentOptions(iopts).
+				SetContextPool(opts.ContextPool())).
 		SetSegmentBuilderOptions(
 			opts.IndexOptions().SegmentBuilderOptions().
 				SetPostingsListPool(postingsList)).

@@ -143,11 +143,6 @@ type QueryResults interface {
 	// mutates the state of the results after obtaining a reference to the map
 	// with this call.
 	Map() *ResultsMap
-
-	// NoFinalize marks the Results such that a subsequent call to Finalize()
-	// will be a no-op and will not return the object to the pool or release any
-	// of its resources.
-	NoFinalize()
 }
 
 // QueryResultsOptions is a set of options to use for query results.

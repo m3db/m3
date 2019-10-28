@@ -119,9 +119,9 @@ func (e *idElement) Prev() *idElement {
 // idList represents a doubly linked list.
 // The zero value for idList is an empty list ready to use.
 type idList struct {
-	root  idElement // sentinel list element, only &root, root.prev, and root.next are used
-	len   int       // current list length excluding (this) sentinel element
-	ePool *idElementPool
+	root idElement // sentinel list element, only &root, root.prev, and root.next are used
+	len  int       // current list length excluding (this) sentinel element
+	Pool *idElementPool
 }
 
 // Init initializes or clears list l.
@@ -129,15 +129,15 @@ func (l *idList) Init() *idList {
 	l.root.next = &l.root
 	l.root.prev = &l.root
 	l.len = 0
-	if l.ePool == nil {
-		l.ePool = newIDElementPool(nil)
+	if l.Pool == nil {
+		l.Pool = newIDElementPool(nil)
 	}
 	return l
 }
 
 // newIDList returns an initialized list.
 func newIDList(p *idElementPool) *idList {
-	l := &idList{ePool: p}
+	l := &idList{Pool: p}
 	return l.Init()
 }
 
@@ -182,7 +182,7 @@ func (l *idList) insert(e, at *idElement) *idElement {
 
 // insertValue is a convenience wrapper for inserting using the list's pool.
 func (l *idList) insertValue(v ident.ID, at *idElement) *idElement {
-	e := l.ePool.get()
+	e := l.Pool.get()
 	e.Value = v
 	return l.insert(e, at)
 }
@@ -206,7 +206,7 @@ func (l *idList) Remove(e *idElement) ident.ID {
 		// if e.list == l, l must have been initialized when e was inserted
 		// in l or l == nil (e is a zero Element) and l.remove will crash.
 		l.remove(e)
-		l.ePool.put(e)
+		l.Pool.put(e)
 	}
 	return e.Value
 }

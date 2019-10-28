@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -91,6 +91,9 @@ func TestClosedEncoderIsNotUsable(t *testing.T) {
 }
 
 func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	start := time.Now().Truncate(time.Second)
 	enc := newTestEncoder(start)
 	enc.SetSchema(namespace.GetTestSchemaDescr(testVLSchema))
@@ -103,27 +106,28 @@ func TestEncoderIsNotCorruptedByInvalidWrites(t *testing.T) {
 	err = enc.Encode(dp, xtime.Second, vlBytes)
 	require.NoError(t, err)
 
-	bytesBeforeBadWrite := getCurrEncoderBytes(t, enc)
+	bytesBeforeBadWrite := getCurrEncoderBytes(ctx, t, enc)
 
 	dp = ts.Datapoint{Timestamp: start.Add(2 * time.Second)}
 	err = enc.Encode(dp, xtime.Second, []byte("not-valid-proto"))
 	require.Error(t, err)
 
-	bytesAfterBadWrite := getCurrEncoderBytes(t, enc)
+	bytesAfterBadWrite := getCurrEncoderBytes(ctx, t, enc)
 	// Ensure that the encoder detect that the protobuf message was invalid
 	// before writing any data.
 	require.Equal(t, bytesBeforeBadWrite, bytesAfterBadWrite)
 }
 
-func getCurrEncoderBytes(t *testing.T, enc *Encoder) []byte {
-	stream, ok := enc.Stream(encoding.StreamOptions{})
+func getCurrEncoderBytes(ctx context.Context, t *testing.T, enc *Encoder) []byte {
+	stream, ok := enc.Stream(ctx)
 	require.True(t, ok)
 
 	currSeg, err := stream.Segment()
 	require.NoError(t, err)
 
+	result := append([]byte(nil), currSeg.Head.Bytes()...)
 	if currSeg.Tail != nil {
-		require.Equal(t, 0, currSeg.Tail.Len())
+		result = append(result, currSeg.Tail.Bytes()...)
 	}
-	return currSeg.Head.Bytes()
+	return result
 }

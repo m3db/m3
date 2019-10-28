@@ -746,6 +746,7 @@ func newMergerTestFn(
 	multiIterPool encoding.MultiReaderIteratorPool,
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
+	contextPool context.Pool,
 	nsOpts namespace.Options,
 ) fs.Merger {
 	return &noopMerger{}

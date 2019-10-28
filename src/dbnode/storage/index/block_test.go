@@ -364,6 +364,25 @@ func TestBlockQueryAfterClose(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestBlockQueryWithCancelledQuery(t *testing.T) {
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	b, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, start, b.StartTime())
+	require.Equal(t, start.Add(time.Hour), b.EndTime())
+
+	// Precancel query.
+	cancellable := resource.NewCancellableLifetime()
+	cancellable.Cancel()
+
+	_, err = b.Query(context.NewContext(), cancellable,
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+	require.Error(t, err)
+	require.Equal(t, errCancelledQuery, err)
+}
+
 func TestBlockQueryExecutorError(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
@@ -495,10 +514,17 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		dIter.EXPECT().Close(),
 		exec.EXPECT().Close(),
 	)
-	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	_, err = b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{},
 		NewQueryResults(nil, QueryResultsOptions{}, testOpts), emptyLogFields)
 	require.Error(t, err)
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
@@ -531,7 +557,10 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
@@ -541,7 +570,11 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
@@ -570,40 +603,16 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	_, err = b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
-}
 
-func TestBlockMockQueryExecutorExecIterExecCloseErr(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
-	require.NoError(t, err)
-
-	b, ok := blk.(*block)
-	require.True(t, ok)
-
-	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
-		return exec, nil
-	}
-
-	dIter := doc.NewMockIterator(ctrl)
-	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
-		dIter.EXPECT().Next().Return(false),
-		dIter.EXPECT().Err().Return(nil),
-		dIter.EXPECT().Close().Return(nil),
-		exec.EXPECT().Close().Return(fmt.Errorf("randomerr")),
-	)
-	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{}, results, emptyLogFields)
-	require.Error(t, err)
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryLimit(t *testing.T) {
@@ -635,7 +644,10 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	)
 	limit := 1
 	results := NewQueryResults(nil, QueryResultsOptions{SizeLimit: 1}, testOpts)
-	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
@@ -645,7 +657,11 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryLimitExhaustive(t *testing.T) {
@@ -678,7 +694,10 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	limit := 2
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
@@ -689,7 +708,11 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
@@ -724,7 +747,10 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
@@ -735,7 +761,11 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
@@ -771,7 +801,10 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
@@ -782,13 +815,17 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockAddResultsAddsSegment(t *testing.T) {
@@ -1200,13 +1237,13 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
@@ -1277,7 +1314,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		numFound++
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-			ident.NewTagsIterator(t1)))
+			t1))
 	}
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
@@ -1285,7 +1322,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		numFound++
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-			ident.NewTagsIterator(t2)))
+			t2))
 	}
 
 	require.Equal(t, 1, numFound)
@@ -1361,13 +1398,13 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
@@ -1437,13 +1474,13 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()

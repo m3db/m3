@@ -172,7 +172,8 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
-				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
+				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
+				SetContextPool(opts.ContextPool())
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
 				return nil, err
 			}
