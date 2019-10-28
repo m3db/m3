@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -956,6 +957,18 @@ type Options interface {
 
 	// BufferBucketVersionsPool returns the BufferBucketVersions pool.
 	BufferBucketVersionsPool() *series.BufferBucketVersionsPool
+
+	// SetRetrieveRequestPool sets the retrieve request pool.
+	SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options
+
+	// RetrieveRequestPool gets the retrieve request pool.
+	RetrieveRequestPool() fs.RetrieveRequestPool
+
+	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
+	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
+
+	// CheckedBytesWrapperPool returns the checked bytes wrapper pool.
+	CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool
 
 	// SetSchemaRegistry sets the schema registry the database uses.
 	SetSchemaRegistry(registry namespace.SchemaRegistry) Options

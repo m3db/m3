@@ -462,6 +462,21 @@ func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
 	require.Empty(t, flushTimes)
 }
 
+func TestFlushManagerNamespaceFlushTimesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns1.EXPECT().
+		NeedsFlush(gomock.Any(), gomock.Any()).
+		Return(false, errors.New("an error")).
+		AnyTimes()
+	_, err := fm.namespaceFlushTimes(ns1, now)
+	require.Error(t, err)
+}
+
 func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -250,12 +250,16 @@ func clone(id ident.ID) []byte {
 type Opts struct {
 	IdentPool        ident.Pool
 	CheckedBytesPool pool.CheckedBytesPool
+	NoClone          bool
 }
 
 // wrapBytes wraps the provided bytes into an ident.ID backed by pooled types,
 // such that calling Finalize() on the returned type returns the resources to
 // the pools.
 func (o Opts) wrapBytes(b []byte) ident.ID {
+	if o.NoClone {
+		return ident.BytesID(b)
+	}
 	cb := o.CheckedBytesPool.Get(len(b))
 	cb.IncRef()
 	cb.AppendAll(b)
@@ -270,7 +274,12 @@ func ToMetric(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
 	if len(d.ID) == 0 {
 		return nil, nil, errInvalidResultMissingID
 	}
-	return opts.wrapBytes(d.ID), newTagIter(d, opts), nil
+	return opts.wrapBytes(d.ID), ToMetricTags(d, opts), nil
+}
+
+// ToMetricTags converts the provided doc to metric tags.
+func ToMetricTags(d doc.Document, opts Opts) ident.TagIterator {
+	return newTagIter(d, opts)
 }
 
 // tagIter exposes an ident.TagIterator interface over a doc.Document.

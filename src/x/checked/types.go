@@ -39,18 +39,27 @@ type Ref interface {
 	// NumRef returns the ref count to this entity.
 	NumRef() int
 
+	// DelayFinalizer will delay calling the finalizer on this entity
+	// until the closer returned by the method is called at least once.
+	// This is useful for dependent resources requiring the lifetime of this
+	// entityt to be extended.
+	DelayFinalizer() resource.Closer
+
 	// Finalize will call the finalizer if any, ref count must be zero.
 	Finalize()
+}
 
-	// Finalizer returns the finalizer if any or nil otherwise.
-	Finalizer() resource.Finalizer
+// OnFinalize is callback to cleanup resources on a call to finalize.
+type OnFinalize interface {
+	OnFinalize()
+}
 
-	// SetFinalizer sets the finalizer.
-	SetFinalizer(f resource.Finalizer)
+// OnFinalizeFn is a function literal that is a finalizer callback.
+type OnFinalizeFn func()
 
-	// TrackObject sets up the initial internal state of the Ref for
-	// leak detection.
-	TrackObject(v interface{})
+// OnFinalize will call the function literal as a finalizer callback.
+func (fn OnFinalizeFn) OnFinalize() {
+	fn()
 }
 
 // Read is an entity that checks reads.

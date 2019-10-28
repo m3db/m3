@@ -107,7 +107,7 @@ type fetchBatchOpFinalizer struct {
 	pool *fetchBatchOpPool
 }
 
-func (f fetchBatchOpFinalizer) Finalize() {
+func (f fetchBatchOpFinalizer) OnFinalize() {
 	f.pool.Put(f.ref)
 }
 
@@ -128,7 +128,7 @@ func (p *fetchBatchOpPool) Init() {
 		f.completionFns = make([]completionFn, 0, p.capacity)
 		f.finalizer.ref = f
 		f.finalizer.pool = p
-		f.SetFinalizer(&f.finalizer)
+		f.SetOnFinalize(&f.finalizer)
 
 		f.IncRef()
 		f.reset()
