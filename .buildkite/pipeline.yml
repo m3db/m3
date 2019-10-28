@@ -52,6 +52,16 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
+  - name: "Prometheus compatibility (:docker:)"
+    command: make clean install-vendor docker-compatibility-test
+    parallelism: 1
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.12.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+    <<: *common
   - name: "Integration (dbnode Recently Read) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=recently_read

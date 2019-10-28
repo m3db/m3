@@ -33,8 +33,8 @@ var (
 	}
 )
 
-func (t ErrorBehavior) String() string {
-	switch t {
+func (e ErrorBehavior) String() string {
+	switch e {
 	case BehaviorFail:
 		return "fail"
 	case BehaviorWarn:
@@ -58,14 +58,14 @@ func ParseErrorBehavior(str string) (ErrorBehavior, error) {
 }
 
 // UnmarshalYAML unmarshals an error behavior.
-func (v *ErrorBehavior) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (e *ErrorBehavior) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
 
 	if value, err := ParseErrorBehavior(str); err == nil {
-		*v = value
+		*e = value
 		return nil
 	}
 

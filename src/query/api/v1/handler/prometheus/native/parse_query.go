@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/models"
@@ -157,7 +158,7 @@ func parseRootNode(
 		return FunctionNode{}, err
 	}
 
-	parser, err := promql.Parse(query, models.NewTagOptions())
+	parser, err := promql.Parse(query, time.Second, models.NewTagOptions())
 	if err != nil {
 		logger.Error("cannot parse query PromQL", zap.Error(err))
 		return FunctionNode{}, err

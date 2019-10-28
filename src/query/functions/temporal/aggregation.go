@@ -141,7 +141,7 @@ type aggNode struct {
 	aggFunc    func([]float64) float64
 }
 
-func (a *aggNode) process(datapoints ts.Datapoints, _ time.Time) float64 {
+func (a *aggNode) process(datapoints ts.Datapoints, _ iterationBounds) float64 {
 	return a.aggFunc(datapoints.Values())
 }
 

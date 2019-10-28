@@ -25,7 +25,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/errors"
@@ -45,6 +49,7 @@ const (
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 	maxTimeout          = 5 * time.Minute
+	tolerance           = 0.0000001
 )
 
 var (
@@ -417,22 +422,213 @@ func RenderSeriesMatchResultsJSON(
 	return jw.Close()
 }
 
-// PromResp represents Prometheus's query response.
-type PromResp struct {
+// Response represents Prometheus's query response.
+type Response struct {
+	// Status is the response status.
 	Status string `json:"status"`
-	Data   struct {
-		ResultType string `json:"resultType"`
-		Result     []struct {
-			Metric map[string]string `json:"metric"`
-			// todo(braskin): use `Datapoints` instead of interface{} in values
-			// Values is [float, string]
-			Values [][]interface{} `json:"values"`
-		} `json:"result"`
-	} `json:"data"`
+	// Data is the response data.
+	Data data `json:"data"`
+}
+
+type data struct {
+	// ResultType is the result type for the response.
+	ResultType string `json:"resultType"`
+	// Result is the list of results for the response.
+	Result results `json:"result"`
+}
+
+type results []Result
+
+// Len is the number of elements in the collection.
+func (r results) Len() int { return len(r) }
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (r results) Less(i, j int) bool {
+	return r[i].id < r[j].id
+}
+
+// Swap swaps the elements with indexes i and j.
+func (r results) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+
+func (r results) sort() {
+	for _, result := range r {
+		result.genID()
+	}
+
+	sort.Sort(r)
+}
+
+// Result is the result itself.
+type Result struct {
+	// Metric is the tags for the result.
+	Metric Tags `json:"metric"`
+	// Values is the set of values for the result.
+	Values Values `json:"values"`
+	id     string
+}
+
+// Tags is a simple representation of Prometheus tags.
+type Tags map[string]string
+
+// Values is a list of values for the Prometheus result.
+type Values []Value
+
+// Value is a single value for Prometheus result.
+type Value []interface{}
+
+func (r *Result) genID() {
+	var sb strings.Builder
+	// NB: this may clash but exact tag values are also checked, and this is a
+	// validation endpoint so there's less concern over correctness.
+	for k, v := range r.Metric {
+		sb.WriteString(k)
+		sb.WriteString(`:"`)
+		sb.WriteString(v)
+		sb.WriteString(`",`)
+	}
+
+	r.id = sb.String()
+}
+
+// MatchInformation describes how well two responses match.
+type MatchInformation struct {
+	// FullMatch indicates a full match.
+	FullMatch bool
+	// NoMatch indicates that the responses do not match sufficiently.
+	NoMatch bool
+}
+
+// Matches compares two responses and determines how closely they match.
+func (p Response) Matches(other Response) (MatchInformation, error) {
+	if p.Status != other.Status {
+		err := fmt.Errorf("status %s does not match other status %s",
+			p.Status, other.Status)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return p.Data.matches(other.Data)
+}
+
+func (d data) matches(other data) (MatchInformation, error) {
+	if d.ResultType != other.ResultType {
+		err := fmt.Errorf("result type %s does not match other result type %s",
+			d.ResultType, other.ResultType)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return d.Result.matches(other.Result)
+}
+
+func (r results) matches(other results) (MatchInformation, error) {
+	if len(r) != len(other) {
+		err := fmt.Errorf("result length %d does not match other result length %d",
+			len(r), len(other))
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	r.sort()
+	other.sort()
+	for i, result := range r {
+		if err := result.matches(other[i]); err != nil {
+			return MatchInformation{
+				NoMatch: true,
+			}, err
+		}
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r Result) matches(other Result) error {
+	// NB: tags should match by here so this is more of a sanity check.
+	if err := r.Metric.matches(other.Metric); err != nil {
+		return err
+	}
+
+	return r.Values.matches(other.Values)
+}
+
+func (t Tags) matches(other Tags) error {
+	if len(t) != len(other) {
+		return fmt.Errorf("tag length %d does not match other tag length %d",
+			len(t), len(other))
+	}
+
+	for k, v := range t {
+		if vv, ok := other[k]; ok {
+			if v != vv {
+				return fmt.Errorf("tag %s does not match other tag length %s", v, vv)
+			}
+		} else {
+			return fmt.Errorf("tag %s not found in other tagset", v)
+		}
+	}
+
+	return nil
+}
+
+func (v Values) matches(other Values) error {
+	if len(v) != len(other) {
+		return fmt.Errorf("values length %d does not match other values length %d",
+			len(v), len(other))
+	}
+
+	for i, val := range v {
+		if err := val.matches(other[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v Value) matches(other Value) error {
+	if len(v) != 2 {
+		return fmt.Errorf("value length %d must be 2", len(v))
+	}
+
+	if len(other) != 2 {
+		return fmt.Errorf("other value length %d must be 2", len(other))
+	}
+
+	tsV := fmt.Sprint(v[0])
+	tsOther := fmt.Sprint(v[0])
+	if tsV != tsOther {
+		return fmt.Errorf("ts %s does not match other ts %s", tsV, tsOther)
+	}
+
+	valV, err := strconv.ParseFloat(fmt.Sprint(v[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	valOther, err := strconv.ParseFloat(fmt.Sprint(other[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	if math.Abs(valV-valOther) > tolerance {
+		return fmt.Errorf("point %f does not match other point %f", valV, valOther)
+	}
+
+	for i, val := range v {
+		otherVal := other[i]
+		if val != otherVal {
+		}
+	}
+
+	return nil
 }
 
 // PromDebug represents the input and output that are used in the debug endpoint.
 type PromDebug struct {
-	Input   PromResp `json:"input"`
-	Results PromResp `json:"results"`
+	Input   Response `json:"input"`
+	Results Response `json:"results"`
 }

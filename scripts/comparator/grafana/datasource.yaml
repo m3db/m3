@@ -1,0 +1,9 @@
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+  - name: M3Query
+    type: prometheus
+    access: proxy
+    url: http://m3query:7201

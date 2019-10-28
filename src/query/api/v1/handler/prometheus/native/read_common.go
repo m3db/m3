@@ -72,7 +72,7 @@ func read(
 	emptyResult := readResult{meta: block.NewResultMetadata()}
 
 	// TODO: Capture timing
-	parser, err := promql.Parse(params.Query, tagOpts)
+	parser, err := promql.Parse(params.Query, params.Step, tagOpts)
 	if err != nil {
 		return emptyResult, err
 	}

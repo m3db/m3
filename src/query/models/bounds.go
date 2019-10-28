@@ -22,6 +22,7 @@ package models
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -118,9 +119,10 @@ func (b Bounds) Nearest(t time.Time) Bounds {
 		}
 	}
 
-	for startTime.After(t) {
-		endTime = startTime
-		startTime = startTime.Add(-1 * duration)
+	if startTime.After(t) {
+		diff := startTime.Sub(t)
+		timeDiff := math.Ceil(float64(diff) / float64(step))
+		startTime = startTime.Add(-1 * time.Duration(timeDiff) * step)
 	}
 
 	return Bounds{
