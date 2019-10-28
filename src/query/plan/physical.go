@@ -40,7 +40,7 @@ type PhysicalPlan struct {
 	LookbackDuration time.Duration
 }
 
-// ResultOp is resonsible for delivering results to the clients.
+// ResultOp is responsible for delivering results to the clients.
 type ResultOp struct {
 	Parent parser.NodeID
 }

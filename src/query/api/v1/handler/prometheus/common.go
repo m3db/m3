@@ -25,8 +25,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,6 +49,7 @@ const (
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
 	maxTimeout          = 5 * time.Minute
+	tolerance           = 0.0000001
 )
 
 var (
@@ -587,15 +590,37 @@ func (v Values) matches(other Values) error {
 }
 
 func (v Value) matches(other Value) error {
-	if len(v) != len(other) {
-		return fmt.Errorf("value length %d does not match other value length %d",
-			len(v), len(other))
+	if len(v) != 2 {
+		return fmt.Errorf("value length %d must be 2", len(v))
+	}
+
+	if len(other) != 2 {
+		return fmt.Errorf("other value length %d must be 2", len(other))
+	}
+
+	tsV := fmt.Sprint(v[0])
+	tsOther := fmt.Sprint(v[0])
+	if tsV != tsOther {
+		return fmt.Errorf("ts %s does not match other ts %s", tsV, tsOther)
+	}
+
+	valV, err := strconv.ParseFloat(fmt.Sprint(v[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	valOther, err := strconv.ParseFloat(fmt.Sprint(other[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	if math.Abs(valV-valOther) > tolerance {
+		return fmt.Errorf("point %f does not match other point %f", valV, valOther)
 	}
 
 	for i, val := range v {
 		otherVal := other[i]
 		if val != otherVal {
-			return fmt.Errorf("value %v does not match other value %d", val, otherVal)
 		}
 	}
 
