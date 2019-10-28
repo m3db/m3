@@ -22,7 +22,7 @@ package node
 
 import (
 	"bytes"
-	"context"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"sort"
@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
@@ -68,7 +67,6 @@ var (
 
 func init() {
 	// Set all pool sizes to 1 for tests
-	checkedBytesPoolSize = 1
 	segmentArrayPoolSize = 1
 	writeBatchPooledReqPoolSize = 1
 }
@@ -271,7 +269,7 @@ func TestServiceQuery(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -288,14 +286,14 @@ func TestServiceQuery(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
 		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+	)))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
 		ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
-	))
+	)))
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -520,7 +518,7 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
-	stream, _ := enc.Stream(encoding.StreamOptions{})
+	stream, _ := enc.Stream(ctx)
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
 		Return([][]xio.BlockReader{
@@ -691,7 +689,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -789,7 +787,7 @@ func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		nsID := nsID1
 		if id == "bar" {
@@ -907,7 +905,7 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -1112,7 +1110,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 
 		seg, err := streams[id].Segment()
@@ -1495,7 +1493,7 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(context.Background(), sp))
+	ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
 
 	start := time.Now().Add(-2 * time.Hour)
 	end := start.Add(2 * time.Hour)
@@ -1529,7 +1527,7 @@ func TestServiceFetchTagged(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -1546,14 +1544,14 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+	)))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("dzk", "baz"),
-	))
+	)))
 
 	mockDB.EXPECT().QueryIDs(
 		gomock.Any(),
@@ -1649,14 +1647,14 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+	)))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("dzk", "baz"),
-	))
+	)))
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1743,8 +1741,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
-	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.Tags{}))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.Tags{}))
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),

@@ -177,22 +177,29 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Setup retriever.
 	var (
-		filePathPrefix = filepath.Join(dir, "")
-		fsOpts         = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
-
+		filePathPrefix             = filepath.Join(dir, "")
+		fsOpts                     = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 		fetchConcurrency           = 4
 		seekConcurrency            = 4 * fetchConcurrency
 		updateOpenLeaseConcurrency = 4
-		opts                       = testBlockRetrieverOptions{
-			retrieverOpts: defaultTestBlockRetrieverOptions.
-				SetFetchConcurrency(fetchConcurrency).
-				SetRequestPoolOptions(pool.NewObjectPoolOptions().
-					// NB(r): Try to make sure same req structs are reused frequently
-					// to surface any race issues that might occur with pooling.
-					SetSize(fetchConcurrency / 2)),
-			fsOpts: fsOpts,
-		}
+		// NB(r): Try to make sure same req structs are reused frequently
+		// to surface any race issues that might occur with pooling.
+		poolOpts = pool.NewObjectPoolOptions().
+				SetSize(fetchConcurrency / 2)
 	)
+	segReaderPool := xio.NewSegmentReaderPool(poolOpts)
+	segReaderPool.Init()
+
+	retrieveRequestPool := NewRetrieveRequestPool(segReaderPool, poolOpts)
+	retrieveRequestPool.Init()
+
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: defaultTestBlockRetrieverOptions.
+			SetFetchConcurrency(fetchConcurrency).
+			SetRetrieveRequestPool(retrieveRequestPool),
+		fsOpts: fsOpts,
+	}
+
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 

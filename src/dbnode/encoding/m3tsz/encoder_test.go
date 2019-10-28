@@ -27,10 +27,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -150,7 +153,10 @@ func TestWriteAnnotation(t *testing.T) {
 }
 
 func getBytes(t *testing.T, e encoding.Encoder) []byte {
-	r, ok := e.Stream(encoding.StreamOptions{})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	r, ok := e.Stream(ctx)
 	if !ok {
 		return nil
 	}
@@ -196,8 +202,11 @@ func TestWriteTimeUnit(t *testing.T) {
 }
 
 func TestEncodeNoAnnotation(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -233,8 +242,11 @@ func TestEncodeNoAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithAnnotation(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -274,8 +286,11 @@ func TestEncodeWithAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithTimeUnit(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -309,8 +324,11 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 }
 
 func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	_, ok := encoder.Stream(encoding.StreamOptions{})
+	_, ok := encoder.Stream(ctx)
 	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
@@ -361,11 +379,14 @@ func TestInitTimeUnit(t *testing.T) {
 }
 
 func TestEncoderResets(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	enc := getTestOptEncoder(testStartTime)
 	defer enc.Close()
 
 	require.Equal(t, 0, enc.os.Len())
-	_, ok := enc.Stream(encoding.StreamOptions{})
+	_, ok := enc.Stream(ctx)
 	require.False(t, ok)
 
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
@@ -374,7 +395,7 @@ func TestEncoderResets(t *testing.T) {
 	now := time.Now()
 	enc.Reset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok = enc.Stream(encoding.StreamOptions{})
+	_, ok = enc.Stream(ctx)
 	require.False(t, ok)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
@@ -384,7 +405,7 @@ func TestEncoderResets(t *testing.T) {
 
 	enc.DiscardReset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	_, ok = enc.Stream(encoding.StreamOptions{})
+	_, ok = enc.Stream(ctx)
 	require.False(t, ok)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
@@ -412,8 +433,11 @@ func TestEncoderLastEncoded(t *testing.T) {
 func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 	testMultiplePasses(t, multiplePassesTest{
 		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+			ctx := context.NewContext()
+			defer ctx.BlockingClose()
+
 			encLen := enc.Len()
-			stream, ok := enc.Stream(encoding.StreamOptions{})
+			stream, ok := enc.Stream(ctx)
 
 			var streamLen int
 			if ok {
@@ -424,6 +448,38 @@ func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 			require.Equal(t, streamLen, encLen)
 		},
 	})
+}
+
+type testFinalizer struct {
+	t                *testing.T
+	numActiveStreams *atomic.Int32
+}
+
+func (f *testFinalizer) FinalizeBytes(bytes checked.Bytes) {
+	require.Equal(f.t, int32(0), f.numActiveStreams.Load(), "expect 0 active streams when finalizing the byte slice")
+}
+
+func TestEncoderCloseWaitForStream(t *testing.T) {
+	numActiveStreams := atomic.NewInt32(0)
+
+	finalizer := &testFinalizer{t: t, numActiveStreams: numActiveStreams}
+	bytesOptions := checked.NewBytesOptions().SetFinalizer(finalizer)
+	cb := checked.NewBytes(make([]byte, 16), bytesOptions)
+	enc := NewEncoder(testStartTime, cb, false, nil).(*encoder)
+	defer enc.Close()
+
+	numStreams := 8
+	for i := 0; i <= numStreams; i++ {
+		numActiveStreams.Inc()
+		ctx := context.NewContext()
+		_, ok := enc.Stream(ctx)
+		require.True(t, ok)
+		go func(ctx context.Context, idx int) {
+			time.Sleep(time.Duration(idx*rand.Intn(100)) * time.Millisecond)
+			numActiveStreams.Dec()
+			ctx.Close()
+		}(ctx, i)
+	}
 }
 
 type multiplePassesTest struct {

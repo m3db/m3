@@ -29,9 +29,6 @@ import (
 // Allocator allocates an object for a pool.
 type Allocator func() interface{}
 
-// CheckedAllocator allocates a checked object for a pool.
-type CheckedAllocator func() checked.ReadWriteRef
-
 // ObjectPool provides a pool for objects.
 type ObjectPool interface {
 	// Init initializes the pool.
@@ -42,19 +39,6 @@ type ObjectPool interface {
 
 	// Put returns an object to the pool.
 	Put(obj interface{})
-}
-
-// CheckedObjectPool provides a checked pool for objects.
-type CheckedObjectPool interface {
-	// Init initializes the pool.
-	Init(alloc CheckedAllocator)
-
-	// Get provides an object from the pool to return it to the pool simply
-	// increment it immediately, continue to increment and decrement through
-	// use and when decremented to zero and finalized it will return itself
-	// to the pool. The pool uses the finalizer on the checked value so be sure
-	// not to override it.
-	Get() checked.ReadWriteRef
 }
 
 // OnPoolAccessErrorFn is a function to call when a pool access error occurs,
