@@ -30,6 +30,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -67,7 +69,6 @@ var (
 
 // Options configures the ingester.
 type Options struct {
-	Debug             bool
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
 }
@@ -221,10 +222,11 @@ func (i *ingester) write(
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
 			downsampleAndStoragePolicies.WriteStoragePolicies = rule.storagePolicies
 
-			if i.opts.Debug {
+			debugLog := i.logger.Check(zapcore.DebugLevel, "carbon metric matched by pattern")
+			if debugLog != nil {
 				i.logger.Info("carbon metric matched by pattern",
-					zap.String("name", string(resources.name)),
-					zap.Any("pattern", rule.rule.Pattern),
+					zap.ByteString("name", resources.name),
+					zap.String("pattern", rule.rule.Pattern),
 					zap.Any("mappingRules", rule.mappingRules),
 					zap.Any("storagePolicies", rule.storagePolicies))
 			}
@@ -237,10 +239,8 @@ func (i *ingester) write(
 	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
 		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
-		if i.opts.Debug {
-			i.logger.Info("no rules matched carbon metric, skipping",
-				zap.String("name", string(resources.name)))
-		}
+		i.logger.Debug("no rules matched carbon metric, skipping",
+			zap.ByteString("name", resources.name))
 		return false
 	}
 
@@ -263,10 +263,8 @@ func (i *ingester) write(
 		return false
 	}
 
-	if i.opts.Debug {
-		i.logger.Info("successfully wrote carbon metric",
-			zap.String("name", string(resources.name)))
-	}
+	i.logger.Debug("successfully wrote carbon metric",
+		zap.ByteString("name", resources.name))
 	return true
 }
 

@@ -292,7 +292,6 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	Debug          bool                              `yaml:"debug"`
 	ListenAddress  string                            `yaml:"listenAddress"`
 	MaxConcurrency int                               `yaml:"maxConcurrency"`
 	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
