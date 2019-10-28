@@ -86,6 +86,21 @@ func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTags", reflect.TypeOf((*MockStorage)(nil).CompleteTags), arg0, arg1, arg2)
 }
 
+// CompleteTagsCompressed mocks base method
+func (m *MockStorage) CompleteTagsCompressed(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*storage.CompleteTagsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteTagsCompressed", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*storage.CompleteTagsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteTagsCompressed indicates an expected call of CompleteTagsCompressed
+func (mr *MockStorageMockRecorder) CompleteTagsCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTagsCompressed", reflect.TypeOf((*MockStorage)(nil).CompleteTagsCompressed), arg0, arg1, arg2)
+}
+
 // ErrorBehavior mocks base method
 func (m *MockStorage) ErrorBehavior() storage.ErrorBehavior {
 	m.ctrl.T.Helper()

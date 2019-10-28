@@ -31,27 +31,24 @@ import (
 )
 
 func TestConverter(t *testing.T) {
-	promResult := prometheus.PromResp{
+	promResult := prometheus.Response{
 		Status: "success",
 	}
 
-	vals := [][]interface{}{
+	vals := prometheus.Values{
 		{1543434975.200, "10"},
 		{1543434985.200, "12"},
 		{1543434995.200, "14"},
 	}
 
-	metrics := map[string]string{
+	metrics := prometheus.Tags{
 		"__name__": "test_name",
 		"tag_one":  "val_one",
 	}
 
 	promResult.Data.ResultType = "matrix"
 	promResult.Data.Result = append(promResult.Data.Result,
-		struct {
-			Metric map[string]string `json:"metric"`
-			Values [][]interface{}   `json:"values"`
-		}{
+		prometheus.Result{
 			Values: vals,
 			Metric: metrics,
 		},
