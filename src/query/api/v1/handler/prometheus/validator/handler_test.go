@@ -22,6 +22,7 @@ package validator
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -327,10 +328,14 @@ func TestValidateEndpoint(t *testing.T) {
 	server, debugHandler := newServer()
 	defer server.Close()
 
-	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithMismatch())
+	req, _ := http.NewRequest("POST", PromDebugURL+
+		"?start=1543434961&end=1543435005&step=14&query=go_gc_duration_seconds",
+		newBodyWithMismatch())
+
 	recorder := httptest.NewRecorder()
 	debugHandler.ServeHTTP(recorder, req)
 
+	fmt.Println(recorder.Body.String())
 	var mismatches MismatchesJSON
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &mismatches))
 	assert.False(t, mismatches.Correct)
@@ -338,7 +343,9 @@ func TestValidateEndpoint(t *testing.T) {
 
 	mismatchesList := mismatches.MismatchesList[0]
 	assert.Len(t, mismatchesList.Mismatches, 1)
-	assert.Equal(t, "__name__=go_gc_duration_seconds,instance=localhost:9090,job=prometheus,quantile=1,", mismatchesList.Mismatches[0].Name)
+	assert.Equal(t, "__name__=go_gc_duration_seconds,"+
+		"instance=localhost:9090,job=prometheus,quantile=1,",
+		mismatchesList.Mismatches[0].Name)
 	assert.Equal(t, 0.012203, mismatchesList.Mismatches[0].M3Val)
 }
 
@@ -346,7 +353,10 @@ func TestValidateEndpointWithNumM3dpMismatch(t *testing.T) {
 	server, debugHandler := newServer()
 	defer server.Close()
 
-	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithNumM3dpMismatch())
+	req, _ := http.NewRequest("POST", PromDebugURL+
+		"?start=1543431461&end=1543435005&step=14&query=go_gc_duration_seconds",
+		newBodyWithNumM3dpMismatch())
+
 	recorder := httptest.NewRecorder()
 	debugHandler.ServeHTTP(recorder, req)
 
@@ -365,7 +375,10 @@ func TestValidateEndpointWithNumPromdpMismatch(t *testing.T) {
 	server, debugHandler := newServer()
 	defer server.Close()
 
-	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithNumPromdpMismatch())
+	req, _ := http.NewRequest("POST", PromDebugURL+
+		"?start=1543431461&end=1543435005&step=14&query=go_gc_duration_seconds",
+		newBodyWithNumPromdpMismatch())
+
 	recorder := httptest.NewRecorder()
 	debugHandler.ServeHTTP(recorder, req)
 

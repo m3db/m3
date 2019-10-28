@@ -58,6 +58,13 @@ type Querier interface {
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
 	) (TagResult, Cleanup, error)
+
+	// CompleteTagsCompressed returns autocompleted tag results.
+	CompleteTagsCompressed(
+		ctx context.Context,
+		query *genericstorage.CompleteTagsQuery,
+		options *genericstorage.FetchOptions,
+	) (*genericstorage.CompleteTagsResult, error)
 }
 
 // SeriesFetchResult is a fetch result with associated metadata.

@@ -166,6 +166,51 @@ func (s *m3storage) Fetch(
 	return fetchResult, nil
 }
 
+// FetchResultToBlockResult converts an encoded SeriesIterator fetch result
+// into blocks.
+func FetchResultToBlockResult(
+	result SeriesFetchResult,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+	opts m3db.Options,
+) (block.Result, error) {
+	// If using multiblock, update options to reflect this.
+	if options.BlockType == models.TypeMultiBlock {
+		opts = opts.
+			SetSplitSeriesByBlock(true)
+	}
+
+	start := query.Start
+	bounds := models.Bounds{
+		Start:    start,
+		Duration: query.End.Sub(start),
+		StepSize: query.Interval,
+	}
+
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	blocks, err := m3db.ConvertM3DBSeriesIterators(
+		result.SeriesIterators,
+		bounds,
+		result.Metadata,
+		opts,
+	)
+
+	if err != nil {
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
+	}
+
+	return block.Result{
+		Blocks:   blocks,
+		Metadata: result.Metadata,
+	}, nil
+}
+
 func (s *m3storage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -188,12 +233,6 @@ func (s *m3storage) FetchBlocks(
 			opts.LookbackDuration(), options.Enforcer)
 	}
 
-	// If using multiblock, update options to reflect this.
-	if options.BlockType == models.TypeMultiBlock {
-		opts = opts.
-			SetSplitSeriesByBlock(true)
-	}
-
 	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{
@@ -201,44 +240,7 @@ func (s *m3storage) FetchBlocks(
 		}, err
 	}
 
-	bounds := models.Bounds{
-		Start:    query.Start,
-		Duration: query.End.Sub(query.Start),
-		StepSize: query.Interval,
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	// TODO: mutating this array breaks the abstraction a bit, but it's the least
-	// fussy way I can think of to do this while maintaining the original pooling.
-	// Alternative would be to fetch a new MutableSeriesIterators() instance from
-	// the pool, populate it, and then return the original to the pool, which
-	// feels wasteful.
-	iters := result.SeriesIterators.Iters()
-	for i, iter := range iters {
-		iters[i] = NewAccountedSeriesIter(iter, enforcer, options.Scope)
-	}
-
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		result.SeriesIterators,
-		bounds,
-		result.Metadata,
-		opts,
-	)
-
-	if err != nil {
-		return block.Result{
-			Metadata: block.NewResultMetadata(),
-		}, err
-	}
-
-	return block.Result{
-		Blocks:   blocks,
-		Metadata: result.Metadata,
-	}, nil
+	return FetchResultToBlockResult(result, query, options, opts)
 }
 
 func (s *m3storage) FetchCompressed(
@@ -396,6 +398,15 @@ func (s *m3storage) SearchSeries(
 		Metrics:  metrics,
 		Metadata: tagResult.Metadata,
 	}, nil
+}
+
+// CompleteTagsCompressed has the same behavior as CompleteTags.
+func (s *m3storage) CompleteTagsCompressed(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	return s.CompleteTags(ctx, query, options)
 }
 
 func (s *m3storage) CompleteTags(

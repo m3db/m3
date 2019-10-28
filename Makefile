@@ -63,6 +63,7 @@ SERVICES :=     \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
+	m3comparator  \
 
 SUBDIRS :=    \
 	x           \
@@ -232,6 +233,12 @@ docs-test:
 docker-integration-test:
 	@echo "--- Running Docker integration test"
 	./scripts/docker-integration-tests/run.sh
+
+
+.PHONY: docker-compatibility-test
+docker-compatibility-test:
+	@echo "--- Running Prometheus compatibility test"
+	./scripts/comparator/run.sh
 
 .PHONY: site-build
 site-build:

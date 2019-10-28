@@ -154,9 +154,10 @@ func TestConsolidation(t *testing.T) {
 		{Timestamp: startTime.Add(74 * time.Second), Value: 20.5},
 	}
 
-	consolidation := NewConsolidation(ctx, startTime, endTime, 10*1000, func(a, b float64, count int) float64 {
-		return a + b
-	})
+	consolidation := NewConsolidation(
+		ctx, startTime, endTime, 10*1000, func(a, b float64, count int) float64 {
+			return a + b
+		})
 
 	for i := range datapoints {
 		consolidation.AddDatapoint(datapoints[i].Timestamp, datapoints[i].Value)
