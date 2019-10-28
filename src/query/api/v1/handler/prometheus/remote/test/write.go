@@ -37,7 +37,7 @@ import (
 // write request.
 func GeneratePromWriteRequest() *prompb.WriteRequest {
 	req := &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{{
+		Timeseries: []prompb.TimeSeries{{
 			Labels: []prompb.Label{
 				{Name: []byte("__name__"), Value: []byte("first")},
 				{Name: []byte("foo"), Value: []byte("bar")},

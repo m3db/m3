@@ -169,7 +169,7 @@ func id(lowerCaseTags map[string]string, name string) string {
 	return buffer.String()
 }
 
-func metricsToPromTS(m Metrics) *prompb.TimeSeries {
+func metricsToPromTS(m Metrics) prompb.TimeSeries {
 	tags := models.NewTags(len(m.Tags), nil)
 	for n, v := range m.Tags {
 		tags = tags.AddTagWithoutNormalizing(
@@ -180,14 +180,14 @@ func metricsToPromTS(m Metrics) *prompb.TimeSeries {
 	tags.Normalize()
 	labels := storage.TagsToPromLabels(tags)
 	samples := metricsPointsToSamples(m.Value, m.Time)
-	return &prompb.TimeSeries{
+	return prompb.TimeSeries{
 		Labels:  labels,
 		Samples: samples,
 	}
 }
 
 func marshalTSDBToProm(dataChannel <-chan []byte, metricChannel chan<- *bytes.Reader, batchSize int) {
-	timeseries := make([]*prompb.TimeSeries, batchSize)
+	timeseries := make([]prompb.TimeSeries, batchSize)
 	idx := 0
 	for data := range dataChannel {
 		if len(data) == 0 {
@@ -210,7 +210,7 @@ func marshalTSDBToProm(dataChannel <-chan []byte, metricChannel chan<- *bytes.Re
 	}
 }
 
-func encodeWriteRequest(ts []*prompb.TimeSeries) *bytes.Reader {
+func encodeWriteRequest(ts []prompb.TimeSeries) *bytes.Reader {
 	req := &prompb.WriteRequest{
 		Timeseries: ts,
 	}
