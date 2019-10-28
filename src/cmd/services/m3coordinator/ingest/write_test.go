@@ -109,9 +109,12 @@ var (
 		},
 	}
 
+	testAnnotation1 = []byte("first")
+	testAnnotation2 = []byte("second")
+
 	testEntries = []testIterEntry{
-		{tags: testTags1, datapoints: testDatapoints1},
-		{tags: testTags2, datapoints: testDatapoints2},
+		{tags: testTags1, datapoints: testDatapoints1, annotation: testAnnotation1},
+		{tags: testTags2, datapoints: testDatapoints2, annotation: testAnnotation2},
 	}
 
 	defaultOverride = WriteOptions{}
@@ -127,6 +130,7 @@ type testIter struct {
 type testIterEntry struct {
 	tags       models.Tags
 	datapoints []ts.Datapoint
+	annotation []byte
 }
 
 func newTestIter(entries []testIterEntry) *testIter {
@@ -141,13 +145,13 @@ func (i *testIter) Next() bool {
 	return i.idx < len(i.entries)
 }
 
-func (i *testIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
+func (i *testIter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
 	if len(i.entries) == 0 || i.idx < 0 || i.idx >= len(i.entries) {
-		return models.EmptyTags(), nil, 0
+		return models.EmptyTags(), nil, 0, nil
 	}
 
 	curr := i.entries[i.idx]
-	return curr.tags, curr.datapoints, xtime.Second
+	return curr.tags, curr.datapoints, xtime.Second, curr.annotation
 }
 
 func (i *testIter) Reset() error {
@@ -167,10 +171,10 @@ func TestDownsampleAndWrite(t *testing.T) {
 		testDownsamplerAndWriterOptions{})
 
 	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
-	expectDefaultStorageWrites(session, testDatapoints1)
+	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride)
 	require.NoError(t, err)
 }
 
@@ -188,10 +192,10 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 		DownsampleMappingRules: nil,
 	}
 
-	expectDefaultStorageWrites(session, testDatapoints1)
+	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(context.Background(),
-		testTags1, testDatapoints1, xtime.Second, overrides)
+		testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
 	require.NoError(t, err)
 }
 
@@ -226,10 +230,10 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 	}
 
 	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, expectedSamplesAppenderOptions)
-	expectDefaultStorageWrites(session, testDatapoints1)
+	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
 	require.NoError(t, err)
 }
 
@@ -250,7 +254,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
 	require.NoError(t, err)
 }
 
@@ -297,7 +301,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
 	}
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
 	require.NoError(t, err)
 }
 
@@ -309,10 +313,10 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 		testDownsamplerAndWriterOptions{})
 	downAndWrite.downsampler = nil
 
-	expectDefaultStorageWrites(session, testDatapoints1)
+	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, defaultOverride)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride)
 	require.NoError(t, err)
 }
 
@@ -349,13 +353,12 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	mockMetricsAppender.EXPECT().Reset().Times(2)
 	mockMetricsAppender.EXPECT().Finalize()
 
-	for _, dp := range testDatapoints1 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
-	}
-	for _, dp := range testDatapoints2 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	for _, entry := range testEntries {
+		for _, dp := range entry.datapoints {
+			session.EXPECT().WriteTagged(
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
+			)
+		}
 	}
 
 	iter := newTestIter(testEntries)
@@ -371,13 +374,12 @@ func TestDownsampleAndWriteBatchNoDownsampler(t *testing.T) {
 		testDownsamplerAndWriterOptions{})
 	downAndWrite.downsampler = nil
 
-	for _, dp := range testDatapoints1 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
-	}
-	for _, dp := range testDatapoints2 {
-		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+	for _, entry := range testEntries {
+		for _, dp := range entry.datapoints {
+			session.EXPECT().WriteTagged(
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
+			)
+		}
 	}
 
 	iter := newTestIter(testEntries)
@@ -416,18 +418,23 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 			},
 		}).
 		Return(mockSamplesAppender, nil)
-	for _, tag := range testTags1.Tags {
-		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+
+	entries := testEntries[:1]
+	for _, entry := range entries {
+		for _, tag := range entry.tags.Tags {
+			mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+		}
+		for _, dp := range entry.datapoints {
+			mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		}
 	}
-	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
-	}
+
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Reset()
 	mockMetricsAppender.EXPECT().Finalize()
 
-	iter := newTestIter(testEntries[:1])
+	iter := newTestIter(entries)
 	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{
 		DownsampleOverride:     true,
 		DownsampleMappingRules: overrideMappingRules,
@@ -457,15 +464,19 @@ func TestDownsampleAndWriteBatchOverrideStoragePolicies(t *testing.T) {
 	}
 	downAndWrite, _, session := newTestDownsamplerAndWriter(t, ctrl, testOpts)
 
+	entries := testEntries[:1]
 	for _, namespace := range testOpts.aggregatedNamespaces {
-		for _, dp := range testDatapoints1 {
-			namespaceMatcher := ident.NewIDMatcher(namespace.NamespaceID.String())
-			session.EXPECT().WriteTagged(namespaceMatcher,
-				gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+		for _, entry := range entries {
+			for _, dp := range entry.datapoints {
+				namespaceMatcher := ident.NewIDMatcher(namespace.NamespaceID.String())
+				session.EXPECT().WriteTagged(
+					namespaceMatcher, gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
+				)
+			}
 		}
 	}
 
-	iter := newTestIter(testEntries[:1])
+	iter := newTestIter(entries)
 	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{
 		DownsampleOverride:     true,
 		DownsampleMappingRules: nil,
@@ -502,10 +513,10 @@ func expectDefaultDownsampling(
 	mockMetricsAppender.EXPECT().Finalize()
 }
 
-func expectDefaultStorageWrites(session *client.MockSession, datapoints []ts.Datapoint) {
+func expectDefaultStorageWrites(session *client.MockSession, datapoints []ts.Datapoint, annotation []byte) {
 	for _, dp := range datapoints {
 		session.EXPECT().WriteTagged(
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), gomock.Any())
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), annotation)
 	}
 }
 

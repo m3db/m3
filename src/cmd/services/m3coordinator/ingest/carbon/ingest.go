@@ -254,7 +254,8 @@ func (i *ingester) write(
 	}
 
 	err = i.downsamplerAndWriter.Write(
-		ctx, tags, resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
+		ctx, tags, resources.datapoints, xtime.Second, nil, downsampleAndStoragePolicies,
+	)
 
 	if err != nil {
 		i.logger.Error("err writing carbon metric",
