@@ -223,8 +223,7 @@ func (i *ingester) write(
 
 			debugLog := i.logger.Check(zapcore.DebugLevel, "carbon metric matched by pattern")
 			if debugLog != nil {
-				i.logger.Info("carbon metric matched by pattern",
-					zap.ByteString("name", resources.name),
+				debugLog.Write(zap.ByteString("name", resources.name),
 					zap.String("pattern", rule.rule.Pattern),
 					zap.Any("mappingRules", rule.mappingRules),
 					zap.Any("storagePolicies", rule.storagePolicies))
@@ -238,8 +237,10 @@ func (i *ingester) write(
 	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
 		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
-		i.logger.Debug("no rules matched carbon metric, skipping",
-			zap.ByteString("name", resources.name))
+		debugLog := i.logger.Check(zapcore.DebugLevel, "no rules matched carbon metric, skipping")
+		if debugLog != nil {
+			debugLog.Write(zap.ByteString("name", resources.name))
+		}
 		return false
 	}
 
@@ -262,8 +263,10 @@ func (i *ingester) write(
 		return false
 	}
 
-	i.logger.Debug("successfully wrote carbon metric",
-		zap.ByteString("name", resources.name))
+	debugLog := i.logger.Check(zapcore.DebugLevel, "successfully wrote carbon metric")
+	if debugLog != nil {
+		debugLog.Write(zap.ByteString("name", resources.name))
+	}
 	return true
 }
 
