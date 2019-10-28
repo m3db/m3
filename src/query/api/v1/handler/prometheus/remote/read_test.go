@@ -305,12 +305,12 @@ func TestMultipleRead(t *testing.T) {
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
 			&prompb.TimeSeries{
-				Labels:  []*prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
-				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
+				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
 			&prompb.TimeSeries{
-				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
-				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 2}},
+				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []prompb.Sample{{Timestamp: promNow, Value: 2}},
 			},
 		},
 	}
