@@ -108,7 +108,7 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
-		log.Fatalf("error in series iterator: %v, err")
+		log.Fatalf("error in series iterator: %v", err)
 	}
 }
 
@@ -152,7 +152,7 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
 	}
 	if err := seriesIter.Err(); err != nil {
-		log.Fatalf("error in series iterator: %v, err")
+		log.Fatalf("error in series iterator: %v", err)
 	}
 
 	// TODO(rartoul): Show an example of how to execute a FetchTagged() call with an index query.
