@@ -42,6 +42,7 @@ func testRequestParams() models.RequestParams {
 	return models.RequestParams{
 		Now:              time.Now(),
 		LookbackDuration: defaultLookbackDuration,
+		Step:             time.Second,
 	}
 }
 
@@ -88,13 +89,15 @@ func TestShiftTime(t *testing.T) {
 
 	p, err := NewPhysicalPlan(lp, params)
 	require.NoError(t, err)
-	assert.Equal(t, params.Start.Add(-1*params.LookbackDuration), p.TimeSpec.Start,
-		fmt.Sprintf("start is not now - lookback"))
-	fetchTransform = parser.NewTransformFromOperation(functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
+	assert.Equal(t, params.Start.Add(-1*params.LookbackDuration),
+		p.TimeSpec.Start, fmt.Sprintf("start is not now - lookback"))
+	fetchTransform = parser.NewTransformFromOperation(
+		functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
 	transforms = parser.Nodes{fetchTransform, countTransform}
 	lp, _ = NewLogicalPlan(transforms, edges)
 	p, err = NewPhysicalPlan(lp, params)
 	require.NoError(t, err)
-	assert.Equal(t, params.Start.Add(-1*(time.Minute+time.Hour+defaultLookbackDuration)), p.TimeSpec.Start,
+	assert.Equal(t, params.Start.
+		Add(-1*(time.Minute+time.Hour+defaultLookbackDuration)), p.TimeSpec.Start,
 		"start time offset by fetch")
 }

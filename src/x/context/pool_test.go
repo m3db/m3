@@ -29,7 +29,7 @@ import (
 )
 
 func TestContextPool(t *testing.T) {
-	opts := NewOptions().SetInitPooledFinalizerCapacity(0)
+	opts := NewOptions()
 	pool := NewPool(opts)
 
 	ctx := pool.Get()

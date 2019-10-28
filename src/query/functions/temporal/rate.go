@@ -119,8 +119,11 @@ type rateNode struct {
 	rateFn            rateFn
 }
 
-func (r *rateNode) process(datapoints ts.Datapoints, _ time.Time) float64 {
-	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec, r.duration)
+func (r *rateNode) process(datapoints ts.Datapoints, bounds iterationBounds) float64 {
+	ts := r.timeSpec
+	ts.Start = bounds.start
+	ts.End = bounds.end
+	return r.rateFn(datapoints, r.isRate, r.isCounter, ts, r.duration)
 }
 
 func standardRateFunc(
@@ -140,6 +143,8 @@ func standardRateFunc(
 		foundFirst          bool
 	)
 
+	rangeStart := timeSpec.Start
+	rangeEnd := timeSpec.End
 	for i, dp := range datapoints {
 		if math.IsNaN(dp.Value) {
 			continue
@@ -166,13 +171,8 @@ func standardRateFunc(
 	}
 
 	resultValue := lastValue - firstVal + counterCorrection
-
-	rangeStart := timeSpec.Start.Add(-1 * (timeSpec.Step + timeWindow))
 	durationToStart := firstTS.Sub(rangeStart).Seconds()
-
-	rangeEnd := timeSpec.End.Add(-1 * timeSpec.Step)
 	durationToEnd := rangeEnd.Sub(lastTS).Seconds()
-
 	sampledInterval := lastTS.Sub(firstTS).Seconds()
 	averageDurationBetweenSamples := sampledInterval / float64(lastIdx-firstIdx)
 
@@ -217,7 +217,13 @@ func standardRateFunc(
 	return resultValue
 }
 
-func irateFunc(datapoints ts.Datapoints, isRate bool, _ bool, timeSpec transform.TimeSpec, _ time.Duration) float64 {
+func irateFunc(
+	datapoints ts.Datapoints,
+	isRate bool,
+	_ bool,
+	timeSpec transform.TimeSpec,
+	_ time.Duration,
+) float64 {
 	dpsLen := len(datapoints)
 	if dpsLen < 2 {
 		return math.NaN()
@@ -259,8 +265,8 @@ func irateFunc(datapoints ts.Datapoints, isRate bool, _ bool, timeSpec transform
 	return resultValue
 }
 
-// findNonNanIdx iterates over the values backwards until we find a non-NaN value,
-// then returns its index
+// findNonNanIdx iterates over the values backwards until we find a non-NaN
+// value, then returns its index.
 func findNonNanIdx(dps ts.Datapoints, startingIdx int) int {
 	for i := startingIdx; i >= 0; i-- {
 		if !math.IsNaN(dps[i].Value) {

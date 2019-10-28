@@ -49,7 +49,7 @@ func (p noopProcessor) initialize(
 	return &p
 }
 
-func (p *noopProcessor) process(dps ts.Datapoints, _ time.Time) float64 {
+func (p *noopProcessor) process(dps ts.Datapoints, _ iterationBounds) float64 {
 	vals := dps.Values()
 	sum := 0.0
 	for _, n := range vals {

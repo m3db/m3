@@ -81,12 +81,7 @@ func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsLis
 	}
 
 	closer := plc.startReportLoop()
-	return &PostingsListCache{
-		lru:     lru,
-		size:    size,
-		opts:    opts,
-		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
-	}, closer, nil
+	return plc, closer, nil
 }
 
 // GetRegexp returns the cached results for the provided regexp query, if any.
@@ -205,9 +200,7 @@ func (q *PostingsListCache) startReportLoop() Closer {
 			default:
 			}
 
-			q.Lock()
 			q.Report()
-			q.Unlock()
 			time.Sleep(reportLoopInterval)
 		}
 	}()

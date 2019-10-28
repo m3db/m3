@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -44,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -3699,6 +3701,62 @@ func (m *MockOptions) BufferBucketVersionsPool() *series.BufferBucketVersionsPoo
 func (mr *MockOptionsMockRecorder) BufferBucketVersionsPool() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BufferBucketVersionsPool", reflect.TypeOf((*MockOptions)(nil).BufferBucketVersionsPool))
+}
+
+// SetRetrieveRequestPool mocks base method
+func (m *MockOptions) SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRetrieveRequestPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRetrieveRequestPool indicates an expected call of SetRetrieveRequestPool
+func (mr *MockOptionsMockRecorder) SetRetrieveRequestPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetrieveRequestPool", reflect.TypeOf((*MockOptions)(nil).SetRetrieveRequestPool), value)
+}
+
+// RetrieveRequestPool mocks base method
+func (m *MockOptions) RetrieveRequestPool() fs.RetrieveRequestPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetrieveRequestPool")
+	ret0, _ := ret[0].(fs.RetrieveRequestPool)
+	return ret0
+}
+
+// RetrieveRequestPool indicates an expected call of RetrieveRequestPool
+func (mr *MockOptionsMockRecorder) RetrieveRequestPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrieveRequestPool", reflect.TypeOf((*MockOptions)(nil).RetrieveRequestPool))
+}
+
+// SetCheckedBytesWrapperPool mocks base method
+func (m *MockOptions) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPool indicates an expected call of SetCheckedBytesWrapperPool
+func (mr *MockOptionsMockRecorder) SetCheckedBytesWrapperPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCheckedBytesWrapperPool", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesWrapperPool), value)
+}
+
+// CheckedBytesWrapperPool mocks base method
+func (m *MockOptions) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckedBytesWrapperPool")
+	ret0, _ := ret[0].(xpool.CheckedBytesWrapperPool)
+	return ret0
+}
+
+// CheckedBytesWrapperPool indicates an expected call of CheckedBytesWrapperPool
+func (mr *MockOptionsMockRecorder) CheckedBytesWrapperPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapperPool", reflect.TypeOf((*MockOptions)(nil).CheckedBytesWrapperPool))
 }
 
 // SetSchemaRegistry mocks base method

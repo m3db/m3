@@ -46,7 +46,7 @@ type grpcServer struct {
 	createAt         time.Time
 	poolErr          error
 	batchSize        int
-	storage          m3.Storage
+	querier          m3.Querier
 	queryContextOpts models.QueryContextOptions
 	poolWrapper      *pools.PoolWrapper
 	once             sync.Once
@@ -64,7 +64,7 @@ func min(a, b int) int {
 
 // NewGRPCServer builds a grpc server which must be started later.
 func NewGRPCServer(
-	store m3.Storage,
+	querier m3.Querier,
 	queryContextOpts models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
 	instrumentOpts instrument.Options,
@@ -72,7 +72,7 @@ func NewGRPCServer(
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
 		createAt:         time.Now(),
-		storage:          store,
+		querier:          querier,
 		queryContextOpts: queryContextOpts,
 		poolWrapper:      poolWrapper,
 		instrumentOpts:   instrumentOpts,
@@ -126,8 +126,7 @@ func (s *grpcServer) Fetch(
 		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 	}
 
-	result, cleanup, err := s.storage.FetchCompressed(ctx,
-		storeQuery, fetchOpts)
+	result, cleanup, err := s.querier.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
@@ -185,8 +184,8 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	searchResults, cleanup, err := s.storage.SearchCompressed(ctx,
-		searchQuery, fetchOpts)
+	searchResults, cleanup, err := s.querier.SearchCompressed(ctx, searchQuery,
+		fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to search tags", zap.Error(err))
@@ -240,7 +239,7 @@ func (s *grpcServer) CompleteTags(
 		return err
 	}
 
-	completed, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
+	completed, err := s.querier.CompleteTagsCompressed(ctx, completeTagsQuery, fetchOpts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		return err

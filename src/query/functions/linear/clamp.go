@@ -65,6 +65,14 @@ func clampFn(max bool, roundTo float64) block.ValueTransform {
 	return func(v float64) float64 { return math.Max(v, roundTo) }
 }
 
+func removeName(meta []block.SeriesMeta) []block.SeriesMeta {
+	for i, m := range meta {
+		meta[i].Tags = m.Tags.WithoutName()
+	}
+
+	return meta
+}
+
 // NewClampOp creates a new clamp op based on the type and arguments
 func NewClampOp(args []interface{}, opType string) (parser.Params, error) {
 	isMax := opType == ClampMaxType
@@ -78,6 +86,8 @@ func NewClampOp(args []interface{}, opType string) (parser.Params, error) {
 	}
 
 	fn := clampFn(isMax, clampTo)
-	lazyOpts := block.NewLazyOptions().SetValueTransform(fn)
+	lazyOpts := block.NewLazyOptions().
+		SetValueTransform(fn).
+		SetSeriesMetaTransform(removeName)
 	return lazy.NewLazyOp(opType, lazyOpts)
 }

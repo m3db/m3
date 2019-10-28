@@ -530,7 +530,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 				},
 			}
 
-			store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
+			store.EXPECT().CompleteTagsCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(expected, nil)
 
 			listener := startServer(t, ctrl, store)
