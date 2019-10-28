@@ -170,9 +170,6 @@ func TimeToPromTimestamp(timestamp time.Time) int64 {
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
-// TODO(rartoul): We should pool all of these intermediary datastructures, or
-// at least the []*prompb.Sample (as thats the most heavily allocated object)
-// since we have full control over the lifecycle.
 func FetchResultToPromResult(
 	result *FetchResult,
 	keepEmpty bool,
@@ -217,9 +214,6 @@ func (t sortableLabels) Less(i, j int) bool {
 
 // TagsToPromLabels converts tags to prometheus labels.
 func TagsToPromLabels(tags models.Tags) []prompb.Label {
-	// Perform bulk allocation upfront then convert to pointers afterwards
-	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-	// if modifying.
 	l := tags.Len()
 	labels := make([]prompb.Label, 0, l)
 
@@ -250,10 +244,7 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 		seriesLen  = series.Len()
 		values     = series.Values()
 		datapoints = values.Datapoints()
-		// Perform bulk allocation upfront then convert to pointers afterwards
-		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-		// if modifying.
-		samples = make([]prompb.Sample, 0, seriesLen)
+		samples    = make([]prompb.Sample, 0, seriesLen)
 	)
 	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
