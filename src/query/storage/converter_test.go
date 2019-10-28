@@ -45,10 +45,10 @@ import (
 
 func TestLabelConversion(t *testing.T) {
 	// NB: sorted order (__name__, foo, le)
-	labels := []*prompb.Label{
-		&prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
-		&prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
-		&prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
+	labels := []prompb.Label{
+		prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
+		prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
+		prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
 	}
 
 	opts := models.NewTagOptions().
@@ -375,8 +375,8 @@ func TestFetchResultToPromResult(t *testing.T) {
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
 			&prompb.TimeSeries{
-				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
-				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
 		},
 	}
@@ -388,12 +388,12 @@ func TestFetchResultToPromResult(t *testing.T) {
 	expected = &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
 			&prompb.TimeSeries{
-				Labels:  []*prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
-				Samples: []*prompb.Sample{},
+				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
+				Samples: []prompb.Sample{},
 			},
 			&prompb.TimeSeries{
-				Labels:  []*prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
-				Samples: []*prompb.Sample{{Timestamp: promNow, Value: 1}},
+				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
 			},
 		},
 	}
