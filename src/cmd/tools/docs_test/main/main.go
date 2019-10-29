@@ -115,8 +115,13 @@ func main() {
 						},
 					}
 					resp, err := client.Head(resolvedPath)
-					if err == nil && resp.StatusCode/100 != 2 {
-						err = fmt.Errorf("expected 2xx status code: status=%v", resp.StatusCode)
+					if err == nil {
+						class := resp.StatusCode / 100
+						// Ignore 5xx errors since they are indicative of a problem with the external server
+						// and not our documentation.
+						if class != 2 && class != 5 {
+							err = fmt.Errorf("unexpected status code: status=%v", resp.StatusCode)
+						}
 					}
 					if err != nil {
 						return abort(checkedLinkError(checked, err))

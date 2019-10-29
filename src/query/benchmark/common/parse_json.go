@@ -220,9 +220,9 @@ func encodeWriteRequest(ts []*prompb.TimeSeries) *bytes.Reader {
 	return b
 }
 
-func metricsPointsToSamples(value float64, timestamp int64) []*prompb.Sample {
-	return []*prompb.Sample{
-		&prompb.Sample{
+func metricsPointsToSamples(value float64, timestamp int64) []prompb.Sample {
+	return []prompb.Sample{
+		prompb.Sample{
 			Value:     value,
 			Timestamp: timestamp,
 		},

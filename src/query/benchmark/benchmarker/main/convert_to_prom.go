@@ -175,9 +175,9 @@ func marshalTSDBToProm(opentsdb string) (*prompb.TimeSeries, error) {
 	}, nil
 }
 
-func metricsPointsToSamples(value float64, timestamp int64) []*prompb.Sample {
-	return []*prompb.Sample{
-		&prompb.Sample{
+func metricsPointsToSamples(value float64, timestamp int64) []prompb.Sample {
+	return []prompb.Sample{
+		prompb.Sample{
 			Value:     value,
 			Timestamp: timestamp,
 		},
