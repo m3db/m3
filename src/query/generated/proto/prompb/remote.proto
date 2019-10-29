@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-package prometheus;
+package m3prometheus;
 
 option go_package = "prompb";
 
@@ -8,7 +8,7 @@ import "github.com/m3db/m3/src/query/generated/proto/prompb/types.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 message WriteRequest {
-  repeated prometheus.TimeSeries timeseries = 1 [(gogoproto.nullable) = false];
+  repeated m3prometheus.TimeSeries timeseries = 1 [(gogoproto.nullable) = false];
 }
 
 message ReadRequest {
@@ -23,9 +23,9 @@ message ReadResponse {
 message Query {
   int64 start_timestamp_ms = 1;
   int64 end_timestamp_ms = 2;
-  repeated prometheus.LabelMatcher matchers = 3;
+  repeated m3prometheus.LabelMatcher matchers = 3;
 }
 
 message QueryResult {
-  repeated prometheus.TimeSeries timeseries = 1;
+  repeated m3prometheus.TimeSeries timeseries = 1;
 }
