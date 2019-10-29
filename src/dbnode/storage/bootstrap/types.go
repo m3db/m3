@@ -99,18 +99,24 @@ type NamespaceRunOptions struct {
 
 // NamespaceDataAccumulator is the namespace data accumulator.
 type NamespaceDataAccumulator interface {
-	// CheckoutSeries will retrieve a series for writing to
+	// CheckoutSeriesWithoutLock will retrieve a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
-	CheckoutSeries(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
+	// Note: Without lock variant does not perform any locking and callers
+	// must ensure non-parallel access themselves, this helps avoid
+	// overhead of the lock for the commit log bootstrapper which reads
+	// in a single threaded manner.
+	CheckoutSeriesWithoutLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
-	// Release will reset and release all checked out series from
-	// the accumulator so owners can return them and reset the
-	// keys lookup.
-	Release()
+	// CheckoutSeriesWithLock will retrieve a series for writing to
+	// and when the accumulator is closed it will ensure that the
+	// series is released.
+	// Note: With lock variant perform locking and callers do not need
+	// to be concerned about parallel access.
+	CheckoutSeriesWithLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
-	// Close will close the data accumulator and will return an error
-	// if any checked out series have not been released yet with reset.
+	// Close will close the data accumulator and will release
+	// all series read/write refs.
 	Close() error
 }
 

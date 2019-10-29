@@ -368,7 +368,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				entry := elem.Value()
 
 				tagsIter.Reset(entry.Tags)
-				ref, err := accumulator.CheckoutSeries(entry.ID, tagsIter)
+				ref, err := accumulator.CheckoutSeriesWithLock(entry.ID, tagsIter)
 				if err != nil {
 					unfulfill(currRange)
 					s.log.Error("could not checkout series", zap.Error(err))

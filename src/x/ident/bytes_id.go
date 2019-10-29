@@ -59,7 +59,7 @@ func (v BytesID) IsNoFinalize() bool {
 func (v BytesID) Finalize() {
 }
 
-var _ ID = &ReuseableBytesID{}
+var _ ID = (*ReuseableBytesID)(nil)
 
 // ReuseableBytesID is a reuseable bytes ID, use with extreme care in
 // places where the lifecycle is known (there is no checking with this
@@ -107,6 +107,7 @@ func (i *ReuseableBytesID) Finalize() {
 	// Noop as it will be re-used.
 }
 
+// String reutnrs the bytes ID as a string.
 func (i *ReuseableBytesID) String() string {
 	return string(i.bytes)
 }

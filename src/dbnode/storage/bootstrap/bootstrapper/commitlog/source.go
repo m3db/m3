@@ -260,8 +260,7 @@ func (s *commitLogSource) Read(
 
 	// Setup the series accumulator pipeline.
 	var (
-		// TODO(r): rename EncodingConcurrency to AccumulateConcurrency.
-		numWorkers = s.opts.EncodingConcurrency()
+		numWorkers = s.opts.AccumulateConcurrency()
 		workers    = make([]*accumulateWorker, 0, numWorkers)
 	)
 	for i := 0; i < numWorkers; i++ {
@@ -441,8 +440,10 @@ func (s *commitLogSource) Read(
 				tagIter = tagDecoder
 			}
 
-			// Check out the series for writing.
-			series, err := accumulator.CheckoutSeries(entry.Series.ID, tagIter)
+			// Check out the series for writing, no need for concurrency
+			// as commit log bootstrapper does not perform parallel
+			// checking out of series.
+			series, err := accumulator.CheckoutSeriesWithoutLock(entry.Series.ID, tagIter)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
@@ -762,7 +763,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			return fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
 		}
 
-		ref, err := accumulator.CheckoutSeries(id, tags)
+		// NB(r): No parallelization required to checkout the series.
+		ref, err := accumulator.CheckoutSeriesWithoutLock(id, tags)
 		if err != nil {
 			return err
 		}

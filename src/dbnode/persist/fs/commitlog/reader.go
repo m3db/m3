@@ -41,11 +41,12 @@ import (
 )
 
 var (
+	commitLogFileReadCounter = atomic.NewUint64(0)
+
 	// var instead of const so we can modify them in tests.
 	defaultDecodeEntryBufSize = 1024
 	decoderInBufChanSize      = 1000
 	decoderOutBufChanSize     = 1000
-	commitLogFileReadCounter  = atomic.NewUint64(0)
 )
 
 var (
@@ -215,7 +216,7 @@ func (r *reader) namespaceIDReused(id []byte) ident.ID {
 	}
 	if namespaceID == nil {
 		// Take a copy and keep around to reuse later.
-		namespaceBytes := append([]byte(nil), id...)
+		namespaceBytes := append(make([]byte, len(id)), id...)
 		namespaceID = ident.BytesID(namespaceBytes)
 		r.namespacesRead = append(r.namespacesRead, namespaceRead{
 			namespaceIDBytes: namespaceBytes,
@@ -323,7 +324,9 @@ func (r *reader) seriesMetadataForEntry(
 }
 
 func (r *reader) Close() error {
-	return r.chunkReader.fd.Close()
+	err := r.chunkReader.fd.Close()
+	*r = reader{}
+	return err
 }
 
 func resizeBufferOrGrowIfNeeded(buf []byte, length int) []byte {

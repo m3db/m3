@@ -94,6 +94,8 @@ type seekerManager struct {
 	status          seekerManagerStatus
 	isUpdatingLease bool
 
+	cacheShardIndicesWorkers xsync.WorkerPool
+
 	// seekersByShardIdx provides access to all seekers, first partitioned by
 	// shard and then by block start.
 	seekersByShardIdx      []*seekersByTime
@@ -104,6 +106,7 @@ type seekerManager struct {
 	newOpenSeekerFn        newOpenSeekerFn
 	sleepFn                func(d time.Duration)
 	openCloseLoopDoneCh    chan struct{}
+
 	// Pool of seeker resources that can be used to open new seekers.
 	reusableSeekerResourcesPool pool.ObjectPool
 }
@@ -168,12 +171,18 @@ func NewSeekerManager(
 		return NewReusableSeekerResources(opts)
 	})
 
+	// NB(r): Since this is mainly IO bound work, perfectly
+	// find to do this in parallel.
+	cacheShardIndicesWorkers := xsync.NewWorkerPool(concurrentCacheShardIndices)
+	cacheShardIndicesWorkers.Init()
+
 	m := &seekerManager{
 		bytesPool:                   bytesPool,
 		filePathPrefix:              opts.FilePathPrefix(),
 		opts:                        opts,
 		blockRetrieverOpts:          blockRetrieverOpts,
 		fetchConcurrency:            blockRetrieverOpts.FetchConcurrency(),
+		cacheShardIndicesWorkers:    cacheShardIndicesWorkers,
 		logger:                      opts.InstrumentOptions().Logger(),
 		openCloseLoopDoneCh:         make(chan struct{}),
 		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
@@ -218,12 +227,6 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		resultsLock sync.Mutex
 		wg          sync.WaitGroup
 	)
-
-	// NB(r): Since this is mainly IO bound work, perfectly
-	// find to do this in parallel.
-	workers := xsync.NewWorkerPool(concurrentCacheShardIndices)
-	workers.Init()
-
 	for _, shard := range shards {
 		byTime := m.seekersByTime(shard)
 
@@ -233,13 +236,13 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		byTime.Unlock()
 
 		wg.Add(1)
-		workers.Go(func() {
-			defer wg.Done()
+		m.cacheShardIndicesWorkers.Go(func() {
 			if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
 				resultsLock.Lock()
 				multiErr = multiErr.Add(err)
 				resultsLock.Unlock()
 			}
+			wg.Done()
 		})
 	}
 

@@ -22,6 +22,7 @@ package series
 
 import (
 	"errors"
+	"math"
 	"sync"
 	"time"
 
@@ -529,6 +530,7 @@ func (s *dbSeries) Close() {
 	// See Reset() for why these aren't finalized
 	s.id = nil
 	s.tags = ident.Tags{}
+	s.uniqueIndex = math.MaxUint64
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
@@ -580,8 +582,8 @@ func (s *dbSeries) Reset(
 	// a long period of time.
 	s.id = id
 	s.tags = tags
-
 	s.uniqueIndex = uniqueIndex
+
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(id, opts)
 	s.opts = opts

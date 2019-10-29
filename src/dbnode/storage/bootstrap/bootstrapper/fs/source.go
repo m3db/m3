@@ -641,6 +641,16 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		err         error
 	)
 
+	defer func() {
+		// Can finalize the ID and tags always.
+		if id != nil {
+			id.Finalize()
+		}
+		if tagsIter != nil {
+			tagsIter.Close()
+		}
+	}()
+
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		id, tagsIter, data, _, err = r.Read()
@@ -651,14 +661,10 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("error reading data file: %v", err)
 	}
 
-	ref, err := accumulator.CheckoutSeries(id, tagsIter)
+	ref, err := accumulator.CheckoutSeriesWithLock(id, tagsIter)
 	if err != nil {
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}
-
-	// Can finalize the ID and tags now have a ref to series.
-	id.Finalize()
-	tagsIter.Close()
 
 	switch seriesCachePolicy {
 	case series.CacheAll:

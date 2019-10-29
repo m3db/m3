@@ -249,7 +249,7 @@ type Namespace interface {
 	Shards() []Shard
 }
 
-// NamespacesByID is a sortable slice of namespaces by ID.∂∂
+// NamespacesByID is a sortable slice of namespaces by ID.
 type NamespacesByID []Namespace
 
 func (n NamespacesByID) Len() int      { return len(n) }
@@ -383,8 +383,13 @@ type databaseNamespace interface {
 // SeriesReadWriteRef is a read/write reference for a series,
 // must make sure to release
 type SeriesReadWriteRef struct {
-	Series              series.DatabaseSeries
-	UniqueIndex         uint64
+	// Series reference for read/writing.
+	Series series.DatabaseSeries
+	// UniqueIndex is the unique index of the series.
+	UniqueIndex uint64
+	// ReleaseReadWriteRef must be called after using the series ref
+	// to release the reference count to the series so it can
+	// be expired by the owning shard eventually.
 	ReleaseReadWriteRef lookup.OnReleaseReadWriteRef
 }
 
@@ -542,7 +547,7 @@ type databaseShard interface {
 	) (SeriesReadWriteRef, error)
 }
 
-// ShardSeriesReadWriteRefOptions is options for SeriesReadWriteRef
+// ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
 // for the shard.
 type ShardSeriesReadWriteRefOptions struct {
 	ReverseIndex bool
