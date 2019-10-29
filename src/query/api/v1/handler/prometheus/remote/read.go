@@ -70,9 +70,10 @@ func NewPromReadHandler(
 	keepEmpty bool,
 	instrumentOpts instrument.Options,
 ) http.Handler {
+	subScope := instrumentOpts.MetricsScope().SubScope("remote")
 	return &PromReadHandler{
 		engine:              engine,
-		promReadMetrics:     newPromReadMetrics(instrumentOpts.MetricsScope()),
+		promReadMetrics:     newPromReadMetrics(subScope),
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		keepEmpty:           keepEmpty,
@@ -84,6 +85,7 @@ type promReadMetrics struct {
 	fetchSuccess      tally.Counter
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -94,10 +96,12 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 			Counter("fetch.errors"),
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
 	}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	req, rErr := h.parseRequest(r)
@@ -152,6 +156,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	timer.Stop()
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
