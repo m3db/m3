@@ -70,10 +70,11 @@ func NewPromReadHandler(
 	keepEmpty bool,
 	instrumentOpts instrument.Options,
 ) http.Handler {
-	subScope := instrumentOpts.MetricsScope().SubScope("remote")
+	taggedScope := instrumentOpts.MetricsScope().
+		Tagged(map[string]string{"handler": "remote-read"})
 	return &PromReadHandler{
 		engine:              engine,
-		promReadMetrics:     newPromReadMetrics(subScope),
+		promReadMetrics:     newPromReadMetrics(taggedScope),
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		keepEmpty:           keepEmpty,

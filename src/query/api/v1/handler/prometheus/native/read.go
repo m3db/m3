@@ -117,12 +117,14 @@ func NewPromReadHandler(
 	keepNans bool,
 	instrumentOpts instrument.Options,
 ) *PromReadHandler {
+	taggedScope := instrumentOpts.MetricsScope().
+		Tagged(map[string]string{"handler": "remote-read"})
 	h := &PromReadHandler{
 		engine:              engine,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		tagOpts:             tagOpts,
 		limitsCfg:           limitsCfg,
-		promReadMetrics:     newPromReadMetrics(instrumentOpts.MetricsScope()),
+		promReadMetrics:     newPromReadMetrics(taggedScope),
 		timeoutOps:          timeoutOpts,
 		keepNans:            keepNans,
 		instrumentOpts:      instrumentOpts,
@@ -134,7 +136,6 @@ func NewPromReadHandler(
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
-
 	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
