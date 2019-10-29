@@ -5,9 +5,10 @@ package prometheus;
 option go_package = "prompb";
 
 import "github.com/m3db/m3/src/query/generated/proto/prompb/types.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 message WriteRequest {
-  repeated prometheus.TimeSeries timeseries = 1;
+  repeated prometheus.TimeSeries timeseries = 1 [(gogoproto.nullable) = false];
 }
 
 message ReadRequest {

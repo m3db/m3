@@ -112,7 +112,7 @@ func convertToProm(fromFile, dir, toFile string, workers int, batchSize int, log
 			if err != nil {
 				return 0, err
 			}
-			series := make([]*prompb.TimeSeries, 0, batchSize)
+			series := make([]prompb.TimeSeries, 0, batchSize)
 
 			for line := 0; line < batchSize; line++ {
 				if scanner.Scan() {
@@ -139,7 +139,7 @@ func convertToProm(fromFile, dir, toFile string, workers int, batchSize int, log
 	return lines, nil
 }
 
-func encodeWriteRequest(ts []*prompb.TimeSeries) []byte {
+func encodeWriteRequest(ts []prompb.TimeSeries) []byte {
 	req := &prompb.WriteRequest{
 		Timeseries: ts,
 	}
@@ -155,11 +155,11 @@ type metrics struct {
 	Value float64           `json:"value"`
 }
 
-func marshalTSDBToProm(opentsdb string) (*prompb.TimeSeries, error) {
+func marshalTSDBToProm(opentsdb string) (prompb.TimeSeries, error) {
 	var m metrics
 	data := []byte(opentsdb)
 	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, err
+		return prompb.TimeSeries{}, err
 	}
 
 	tags := models.EmptyTags()
@@ -169,7 +169,7 @@ func marshalTSDBToProm(opentsdb string) (*prompb.TimeSeries, error) {
 
 	labels := storage.TagsToPromLabels(tags)
 	samples := metricsPointsToSamples(m.Value, m.Time)
-	return &prompb.TimeSeries{
+	return prompb.TimeSeries{
 		Labels:  labels,
 		Samples: samples,
 	}, nil
