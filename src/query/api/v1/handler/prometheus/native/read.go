@@ -118,7 +118,7 @@ func NewPromReadHandler(
 	instrumentOpts instrument.Options,
 ) *PromReadHandler {
 	taggedScope := instrumentOpts.MetricsScope().
-		Tagged(map[string]string{"handler": "remote-read"})
+		Tagged(map[string]string{"handler": "native-read"})
 	h := &PromReadHandler{
 		engine:              engine,
 		fetchOptionsBuilder: fetchOptionsBuilder,
