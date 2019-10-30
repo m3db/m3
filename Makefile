@@ -113,6 +113,11 @@ endif
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
 
+.PHONY: $(SERVICE)-docker-dev
+$(SERVICE)-docker-dev: $(SERVICE)-linux-amd64
+	cp -r ./src/$(SERVICE)/config ./bin/config/$(SERVICE)
+	docker build -t $(SERVICE):dev -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+
 endef
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
