@@ -21,25 +21,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-/*
-	Package prompb is a generated protocol buffer package.
-
-	It is generated from these files:
-		github.com/m3db/m3/src/query/generated/proto/prompb/remote.proto
-		github.com/m3db/m3/src/query/generated/proto/prompb/types.proto
-
-	It has these top-level messages:
-		WriteRequest
-		ReadRequest
-		ReadResponse
-		Query
-		QueryResult
-		Sample
-		TimeSeries
-		Label
-		Labels
-		LabelMatcher
-*/
 package prompb
 
 import proto "github.com/gogo/protobuf/proto"
@@ -53,12 +34,6 @@ import io "io"
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the proto package it is being compiled against.
-// A compilation error at this line likely means your copy of the
-// proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type WriteRequest struct {
 	Timeseries []TimeSeries `protobuf:"bytes,1,rep,name=timeseries" json:"timeseries"`
