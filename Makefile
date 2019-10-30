@@ -113,6 +113,22 @@ endif
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
 
+.PHONY: $(SERVICE)-docker-dev
+$(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
+	mkdir -p ./bin/config
+	
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+
+	# Build development docker image
+	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+
+.PHONY: $(SERVICE)-docker-dev-push
+$(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
+	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
+	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
+
 endef
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
@@ -471,10 +487,13 @@ fossa: install-tools
 fossa-test: fossa
 	PATH=$(combined_bin_paths):$(PATH) fossa test
 
-.PHONY: clean
-clean:
-	@rm -f *.html *.xml *.out *.test
+.PHONY: clean-build
+clean-build:
 	@rm -rf $(BUILD)
+
+.PHONY: clean
+clean: clean-build
+	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(VENDOR)
 	@rm -rf ./src/ctl/ui/build
 

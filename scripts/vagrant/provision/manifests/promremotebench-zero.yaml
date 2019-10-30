@@ -34,7 +34,7 @@ spec:
         - name: PROMREMOTEBENCH_LABELS_JSON_ENV
           value: '{"generator":"PROMREMOTEBENCH_POD_NAME"}'
         - name: PROMREMOTEBENCH_QUERY
-          value: "true"
+          value: "false"
         - name: PROMREMOTEBENCH_QUERY_TARGET
           value: http://m3coordinator-dedicated-test-cluster:7201/api/v1/query_range
         - name: PROMREMOTEBENCH_QUERY_CONCURRENCY
