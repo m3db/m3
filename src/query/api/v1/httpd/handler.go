@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
@@ -321,6 +322,18 @@ func (h *Handler) RegisterRoutes() error {
 		placement.RegisterRoutes(h.router, h.serviceOptionDefaults, placementOpts)
 		namespace.RegisterRoutes(h.router, h.clusterClient, h.serviceOptionDefaults, h.instrumentOpts)
 		topic.RegisterRoutes(h.router, h.clusterClient, h.config, h.instrumentOpts)
+
+		// Experimental endpoints.
+		if h.config.Experimental.Enabled {
+			experimentalAnnotatedWriteHandler := annotated.NewHandler(
+				h.downsamplerAndWriter,
+				h.tagOptions,
+				h.instrumentOpts.MetricsScope().Tagged(map[string]string{"api_group": "experimental"}),
+			)
+			h.router.HandleFunc(annotated.WriteURL,
+				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
+			).Methods(annotated.WriteHTTPMethod)
+		}
 	}
 
 	h.registerHealthEndpoints()
