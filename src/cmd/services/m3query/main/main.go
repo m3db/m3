@@ -22,29 +22,30 @@ package main
 
 import (
 	"flag"
+	"log"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/configflag"
 	"github.com/m3db/m3/src/x/etcd"
 )
 
-var configFiles xconfig.FlagStringSlice
-
 func main() {
-	flag.Var(&configFiles, "f", "configuration file(s)")
-	flag.Parse()
+	var configOpts configflag.Options
+	configOpts.Register()
 
-	if len(configFiles) == 0 || len(configFiles[0]) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
+	flag.Parse()
 
 	// Set globals for etcd related packages.
 	etcd.SetGlobals()
 
+	var cfg config.Configuration
+	if err := configOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
+		log.Fatal(err.Error())
+	}
 	server.Run(server.RunOptions{
-		ConfigFiles: configFiles,
+		Config: cfg,
 	})
 }

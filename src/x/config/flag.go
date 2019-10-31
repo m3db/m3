@@ -19,33 +19,3 @@
 // THE SOFTWARE.
 
 package config
-
-import (
-	"flag"
-	"fmt"
-)
-
-var _ flag.Value = &FlagStringSlice{}
-
-// FlagStringSlice represents a slice of strings. When used as a flag variable,
-// it allows for multiple string values. For example, it can be used like this:
-// 	var configFiles FlagStringSlice
-// 	flag.Var(&configFiles, "f", "configuration file(s)")
-// Then it can be invoked like this:
-// 	./app -f file1.yaml -f file2.yaml -f valueN.yaml
-// Finally, when the flags are parsed, the variable contains all the values.
-type FlagStringSlice []string
-
-// String() returns a string implmentation of the slice.
-func (i *FlagStringSlice) String() string {
-	if i == nil {
-		return ""
-	}
-	return fmt.Sprintf("%v", ([]string)(*i))
-}
-
-// Set appends a string value to the slice.
-func (i *FlagStringSlice) Set(value string) error {
-	*i = append(*i, value)
-	return nil
-}

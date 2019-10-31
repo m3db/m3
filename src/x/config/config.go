@@ -23,6 +23,7 @@ package config
 
 import (
 	"errors"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"go.uber.org/config"
 	"go.uber.org/zap"
 	validator "gopkg.in/validator.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -98,6 +100,11 @@ func LoadFiles(dst interface{}, files []string, opts Options) error {
 	}
 
 	return validator.Validate(dst)
+}
+
+// Dump writes the given configuration to stream dst as YAML.
+func Dump(cfg interface{}, dst io.Writer) error {
+	return yaml.NewEncoder(dst).Encode(cfg)
 }
 
 // deprecationCheck checks the config for deprecated fields and returns any in

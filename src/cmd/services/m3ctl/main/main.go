@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/ctl/service/r2"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/configflag"
 	"github.com/m3db/m3/src/x/etcd"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -47,21 +49,20 @@ const (
 )
 
 func main() {
-	configFile := flag.String("f", "m3ctl.yml", "configuration file")
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+	configOpts := configflag.Options{
+		ConfigFiles: configflag.FlagStringSlice{Value: []string{"m3ctl.yml"}},
 	}
+
+	configOpts.Register()
+
+	flag.Parse()
 
 	// Set globals for etcd related packages.
 	etcd.SetGlobals()
 
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
-		fmt.Printf("error loading config file: %v\n", err)
-		os.Exit(1)
+	if err := configOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
+		log.Fatal(err.Error())
 	}
 
 	rawLogger, err := cfg.Logging.BuildLogger()
