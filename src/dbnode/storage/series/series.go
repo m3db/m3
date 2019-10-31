@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"math"
 	"sync"
 	"time"
 
@@ -497,9 +496,9 @@ func (s *dbSeries) WarmFlush(
 	// Need a write lock because the buffer WarmFlush method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	defer s.Unlock()
-
-	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	s.Unlock()
+	return outcome, err
 }
 
 func (s *dbSeries) Snapshot(
@@ -530,7 +529,7 @@ func (s *dbSeries) Close() {
 	// See Reset() for why these aren't finalized.
 	s.id = nil
 	s.tags = ident.Tags{}
-	s.uniqueIndex = math.MaxUint64
+	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:

@@ -961,7 +961,8 @@ func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
 }
 
 func (d *db) nextIndex() uint64 {
-	// Start with index at "1" so that a default "uniqueIndex" with "0" is invalid.
+	// Start with index at "1" so that a default "uniqueIndex"
+	// with "0" is invalid (AddUint64 will return the new value).
 	return atomic.AddUint64(&d.created, 1)
 }
 

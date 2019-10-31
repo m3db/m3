@@ -418,8 +418,9 @@ func (n *dbNamespace) ID() ident.ID {
 func (n *dbNamespace) Metadata() namespace.Metadata {
 	// NB(r): metadata is updated in SetSchemaHistory so requires an RLock.
 	n.RLock()
-	defer n.RUnlock()
-	return n.metadata
+	result := n.metadata
+	n.RUnlock()
+	return result
 }
 
 func (n *dbNamespace) Schema() namespace.SchemaDescr {
@@ -847,9 +848,7 @@ func (n *dbNamespace) Bootstrap(
 	)
 	n.log.Info("bootstrap marking all shards as bootstrapped",
 		zap.Stringer("namespace", n.id),
-		zap.Int("numShards", len(bootstrappedShards)),
-		zap.Int("dataNumSeries", bootstrapResult.DataMetadata.NumSeries),
-		zap.Int("indexNumSeries", bootstrapResult.IndexMetadata.NumSeries))
+		zap.Int("numShards", len(bootstrappedShards)))
 	for _, shard := range n.GetOwnedShards() {
 		// Make sure it was bootstrapped during this bootstrap run.
 		shardID := shard.ID()
@@ -890,9 +889,10 @@ func (n *dbNamespace) Bootstrap(
 	wg.Wait()
 
 	if n.reverseIndex != nil {
+		indexResults := bootstrapResult.IndexResult.IndexResults()
 		n.log.Info("bootstrap index with bootstrapped index segments",
-			zap.Int("numIndexBlocks", len(bootstrapResult.IndexResult.IndexResults())))
-		err := n.reverseIndex.Bootstrap(bootstrapResult.IndexResult.IndexResults())
+			zap.Int("numIndexBlocks", len(indexResults)))
+		err := n.reverseIndex.Bootstrap(indexResults)
 		multiErr = multiErr.Add(err)
 	}
 

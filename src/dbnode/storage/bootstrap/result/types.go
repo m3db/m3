@@ -54,6 +54,9 @@ type IndexBootstrapResult interface {
 
 	// Add adds an index block result.
 	Add(block IndexBlock, unfulfilled ShardTimeRanges)
+
+	// NumSeries returns total number of series sum from all segments.
+	NumSeries() int
 }
 
 // IndexResults is a set of index blocks indexed by block start.

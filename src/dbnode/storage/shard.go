@@ -982,7 +982,6 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	// Avoid double lookup by enqueueing insert immediately.
 	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		return SeriesReadWriteRef{}, err

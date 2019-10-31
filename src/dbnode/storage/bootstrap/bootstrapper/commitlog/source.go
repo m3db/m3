@@ -28,8 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/series"
-
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -37,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
@@ -165,8 +164,6 @@ func (s *commitLogSource) AvailableIndex(
 
 type readNamespaceResult struct {
 	namespace               bootstrap.Namespace
-	dataMetadata            bootstrap.NamespaceResultDataMetadata
-	indexMetadata           bootstrap.NamespaceResultIndexMetadata
 	dataAndIndexShardRanges result.ShardTimeRanges
 }
 
@@ -512,12 +509,10 @@ func (s *commitLogSource) Read(
 			}
 		}
 		bootstrapResult.Results.Set(id, bootstrap.NamespaceResult{
-			Metadata:      ns.namespace.Metadata,
-			Shards:        ns.namespace.Shards,
-			DataResult:    dataResult,
-			DataMetadata:  ns.dataMetadata,
-			IndexResult:   indexResult,
-			IndexMetadata: ns.indexMetadata,
+			Metadata:    ns.namespace.Metadata,
+			Shards:      ns.namespace.Shards,
+			DataResult:  dataResult,
+			IndexResult: indexResult,
 		})
 	}
 

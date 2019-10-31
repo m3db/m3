@@ -106,7 +106,7 @@ func (s *peersSource) Read(
 	// to more clearly deliniate which process is slower than the other.
 	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 	start := nowFn()
-	s.log.Info("bootstrapping time series data from peers start")
+	s.log.Info("bootstrapping time series data start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -119,17 +119,16 @@ func (s *peersSource) Read(
 		}
 
 		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
-			Metadata:     md,
-			Shards:       namespace.Shards,
-			DataResult:   r,
-			DataMetadata: bootstrap.NamespaceResultDataMetadata{}, // todo: fill in
+			Metadata:   md,
+			Shards:     namespace.Shards,
+			DataResult: r,
 		})
 	}
-	s.log.Info("bootstrapping time series data from peers success",
-		zap.Stringer("took", nowFn().Sub(start)))
+	s.log.Info("bootstrapping time series data success",
+		zap.Duration("took", nowFn().Sub(start)))
 
 	start = nowFn()
-	s.log.Info("bootstrapping index metadata from peers start")
+	s.log.Info("bootstrapping index metadata start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -149,12 +148,11 @@ func (s *peersSource) Read(
 		}
 
 		result.IndexResult = r
-		result.IndexMetadata = bootstrap.NamespaceResultIndexMetadata{} // todo: fill in
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata from peers success",
-		zap.Stringer("took", nowFn().Sub(start)))
+	s.log.Info("bootstrapping index metadata success",
+		zap.Duration("took", nowFn().Sub(start)))
 
 	return results, nil
 }
@@ -375,15 +373,12 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 					continue
 				}
 
-				for t, block := range entry.Blocks.AllBlocks() {
+				for _, block := range entry.Blocks.AllBlocks() {
 					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}
-					entry.Blocks.RemoveBlockAt(t.ToTime())
 				}
-
-				shardResult.RemoveSeries(entry.ID)
 
 				// Safe to finalize these IDs and Tags, shard result no longer used.
 				entry.ID.Finalize()
@@ -415,7 +410,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 			)
 		}
 	} else {
-		s.log.Error("error fetching bootstrap blocks from peers",
+		s.log.Error("error fetching bootstrap blocks",
 			zap.Uint32("shard", shard),
 			zap.Error(err),
 		)

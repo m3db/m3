@@ -80,26 +80,26 @@ type Namespace struct {
 	DataAccumulator NamespaceDataAccumulator
 	// DataTargetRange is the data target bootstrap range.
 	DataTargetRange TargetRange
-	// IndexTargetRange is the data target bootstrap range.
+	// IndexTargetRange is the index target bootstrap range.
 	IndexTargetRange TargetRange
-	// DataRunOptions is a set of run options for the current
-	// series data bootstrap run.
+	// DataRunOptions are the options for data bootstrap for this
+	// namespace.
 	DataRunOptions NamespaceRunOptions
-	// IndexRunOptions is a set of run options for the current
-	// series index metadata bootstrap run.
+	// IndexRunOptions are the options for the index bootstrap for this
+	// namespace.
 	IndexRunOptions NamespaceRunOptions
 }
 
-// NamespaceRunOptions is the namespace run options for the current
-// bootstrap process run.
+// NamespaceRunOptions are the run options for a bootstrap process run.
 type NamespaceRunOptions struct {
 	ShardTimeRanges result.ShardTimeRanges
 	RunOptions      RunOptions
 }
 
 // NamespaceDataAccumulator is the namespace data accumulator.
+// TODO(r): Consider rename this to a better name.
 type NamespaceDataAccumulator interface {
-	// CheckoutSeriesWithoutLock will retrieve a series for writing to
+	// CheckoutSeriesWithoutLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
 	// Note: Without lock variant does not perform any locking and callers
@@ -108,7 +108,7 @@ type NamespaceDataAccumulator interface {
 	// in a single threaded manner.
 	CheckoutSeriesWithoutLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
-	// CheckoutSeriesWithLock will retrieve a series for writing to
+	// CheckoutSeriesWithLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
 	// Note: With lock variant perform locking and callers do not need
@@ -133,22 +133,10 @@ type NamespaceResults struct {
 
 // NamespaceResult is the result of a bootstrap process for a given namespace.
 type NamespaceResult struct {
-	Metadata      namespace.Metadata
-	Shards        []uint32
-	DataResult    result.DataBootstrapResult
-	DataMetadata  NamespaceResultDataMetadata
-	IndexResult   result.IndexBootstrapResult
-	IndexMetadata NamespaceResultIndexMetadata
-}
-
-// NamespaceResultDataMetadata is metadata about a data result.
-type NamespaceResultDataMetadata struct {
-	NumSeries int
-}
-
-// NamespaceResultIndexMetadata is metadata about an index result.
-type NamespaceResultIndexMetadata struct {
-	NumSeries int
+	Metadata    namespace.Metadata
+	Shards      []uint32
+	DataResult  result.DataBootstrapResult
+	IndexResult result.IndexBootstrapResult
 }
 
 // TargetRange is a bootstrap target range.
