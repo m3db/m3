@@ -245,7 +245,7 @@ func (m *bootstrapManager) bootstrap() error {
 	bootstrapResult, err := process.Run(start, targets)
 
 	logFields = append(logFields,
-		zap.Duration("duration", m.nowFn().Sub(start)))
+		zap.Duration("bootstrapDuration", m.nowFn().Sub(start)))
 
 	if err != nil {
 		m.log.Error("bootstrap failed",
@@ -281,6 +281,6 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	m.log.Info("bootstrap success")
+	m.log.Info("bootstrap success", logFields...)
 	return nil
 }

@@ -439,9 +439,6 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	}
 	wg.Wait()
 
-	// All done with any series checked out during accumulation.
-	accumulator.Release()
-
 	return runResult
 }
 

@@ -75,12 +75,12 @@ func (noop noOpNoneBootstrapper) Bootstrap(
 		}
 
 		// Set everything as unfulfilled.
-		namespace.DataResult =
-			requested.DataRunOptions.ShardTimeRanges.ToUnfulfilledDataResult()
+		shardTimeRanges := requested.DataRunOptions.ShardTimeRanges
+		namespace.DataResult = shardTimeRanges.ToUnfulfilledDataResult()
 
 		if namespace.Metadata.Options().IndexOptions().Enabled() {
-			namespace.IndexResult =
-				requested.IndexRunOptions.ShardTimeRanges.ToUnfulfilledIndexResult()
+			shardTimeRanges := requested.IndexRunOptions.ShardTimeRanges
+			namespace.IndexResult = shardTimeRanges.ToUnfulfilledIndexResult()
 		}
 
 		// Set value after modifications (map is by value).

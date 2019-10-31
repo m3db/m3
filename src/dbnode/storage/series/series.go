@@ -527,7 +527,7 @@ func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
 
-	// See Reset() for why these aren't finalized
+	// See Reset() for why these aren't finalized.
 	s.id = nil
 	s.tags = ident.Tags{}
 	s.uniqueIndex = math.MaxUint64
@@ -562,10 +562,7 @@ func (s *dbSeries) Reset(
 	onEvictedFromWiredList block.OnEvictedFromWiredList,
 	opts Options,
 ) {
-	s.Lock()
-	defer s.Unlock()
-
-	// NB(r): We explicitly do not place this ID back into an
+	// NB(r): We explicitly do not place the ID back into an
 	// existing pool as high frequency users of series IDs such
 	// as the commit log need to use the reference without the
 	// overhead of ownership tracking. In addition, the blocks
@@ -580,14 +577,17 @@ func (s *dbSeries) Reset(
 	// Since series are purged so infrequently the overhead
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
+	//
+	// The same goes for the series tags.
+	s.Lock()
 	s.id = id
 	s.tags = tags
 	s.uniqueIndex = uniqueIndex
-
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(id, opts)
 	s.opts = opts
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
 	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
+	s.Unlock()
 }

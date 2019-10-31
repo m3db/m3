@@ -325,13 +325,14 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	for iter.Next() {
 		entry := iter.Current()
 
-		seriesWrites := writesBySeries[entry.Series.ID.String()]
+		id := entry.Series.ID.String()
+		seriesWrites := writesBySeries[id]
 		write := seriesWrites.writes[seriesWrites.readPosition]
 
 		write.assert(t, entry.Series, entry.Datapoint, entry.Unit, entry.Annotation)
 
 		seriesWrites.readPosition++
-		writesBySeries[entry.Series.ID.String()] = seriesWrites
+		writesBySeries[id] = seriesWrites
 	}
 
 	require.NoError(t, iter.Err())

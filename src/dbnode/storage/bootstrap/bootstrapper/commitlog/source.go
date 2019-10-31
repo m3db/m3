@@ -485,13 +485,6 @@ func (s *commitLogSource) Read(
 	// accumulated by the worker goroutines.
 	wg.Wait()
 
-	// NB(r): Now that all accumulate workers are done we can release the
-	// series held onto by any checking out of series.
-	for _, elem := range namespaces.Namespaces.Iter() {
-		ns := elem.Value()
-		ns.DataAccumulator.Release()
-	}
-
 	// Log the outcome and calculate if required to return unfulfilled.
 	s.logAccumulateOutcome(workers, iter)
 	shouldReturnUnfulfilled, err := s.shouldReturnUnfulfilled(

@@ -86,31 +86,30 @@ func (b baseBootstrapper) Bootstrap(
 	}
 	for _, elem := range namespaces.Namespaces.Iter() {
 		id := elem.Key()
-		namespace := elem.Value()
 
 		// Shallow copy the namespace, do not modify namespaces input to bootstrap call.
-		currNamespace := namespace
+		currNamespace := elem.Value()
 
-		dataRange := currNamespace.DataRunOptions.ShardTimeRanges.MinMaxRange()
+		dataShardTimeRanges := currNamespace.DataRunOptions.ShardTimeRanges
+		dataMin, dataMax, dataRange := dataShardTimeRanges.MinMaxRange()
 		requestedLogFields := append(logFieldsCopy(logFields), []zapcore.Field{
 			zap.String("namespace", id.String()),
 			zap.Int("numShards", len(currNamespace.Shards)),
 			zap.Duration("dataRange", dataRange),
 		}...)
 		if dataRange > 0 {
-			dataMin, dataMax := currNamespace.DataRunOptions.ShardTimeRanges.MinMax()
 			requestedLogFields = append(requestedLogFields, []zapcore.Field{
 				zap.Time("dataFrom", dataMin),
 				zap.Time("dataTo", dataMax),
 			}...)
 		}
-		if namespace.Metadata.Options().IndexOptions().Enabled() {
-			indexRange := currNamespace.IndexRunOptions.ShardTimeRanges.MinMaxRange()
+		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
+			indexShardTimeRanges := currNamespace.IndexRunOptions.ShardTimeRanges
+			indexMin, indexMax, indexRange := indexShardTimeRanges.MinMaxRange()
 			requestedLogFields = append(requestedLogFields, []zapcore.Field{
 				zap.Duration("indexRange", indexRange),
 			}...)
 			if indexRange > 0 {
-				indexMin, indexMax := currNamespace.IndexRunOptions.ShardTimeRanges.MinMax()
 				requestedLogFields = append(requestedLogFields, []zapcore.Field{
 					zap.Time("indexFrom", indexMin),
 					zap.Time("indexTo", indexMax),
@@ -118,11 +117,12 @@ func (b baseBootstrapper) Bootstrap(
 			}
 		}
 
-		b.log.Info("bootstrap from source for namespace requested", requestedLogFields...)
+		b.log.Info("bootstrap from source requested",
+			requestedLogFields...)
 
-		dataAvailable, err := b.src.AvailableData(namespace.Metadata,
-			namespace.DataRunOptions.ShardTimeRanges.Copy(),
-			namespace.DataRunOptions.RunOptions)
+		dataAvailable, err := b.src.AvailableData(currNamespace.Metadata,
+			currNamespace.DataRunOptions.ShardTimeRanges.Copy(),
+			currNamespace.DataRunOptions.RunOptions)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -130,10 +130,10 @@ func (b baseBootstrapper) Bootstrap(
 		currNamespace.DataRunOptions.ShardTimeRanges = dataAvailable
 
 		// Prepare index if required.
-		if namespace.Metadata.Options().IndexOptions().Enabled() {
-			indexAvailable, err := b.src.AvailableIndex(namespace.Metadata,
-				namespace.DataRunOptions.ShardTimeRanges.Copy(),
-				namespace.DataRunOptions.RunOptions)
+		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
+			indexAvailable, err := b.src.AvailableIndex(currNamespace.Metadata,
+				currNamespace.IndexRunOptions.ShardTimeRanges.Copy(),
+				currNamespace.IndexRunOptions.RunOptions)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
@@ -145,27 +145,27 @@ func (b baseBootstrapper) Bootstrap(
 		curr.Namespaces.Set(id, currNamespace)
 
 		// Log the metadata about bootstrapping this namespace.
-		dataRange = currNamespace.DataRunOptions.ShardTimeRanges.MinMaxRange()
+		dataShardTimeRanges = currNamespace.DataRunOptions.ShardTimeRanges
+		dataMin, dataMax, dataRange = dataShardTimeRanges.MinMaxRange()
 		prepareLogFields := append(logFieldsCopy(logFields), []zapcore.Field{
 			zap.String("namespace", id.String()),
 			zap.Int("numShards", len(currNamespace.DataRunOptions.ShardTimeRanges)),
 			zap.Duration("dataRange", dataRange),
 		}...)
 		if dataRange > 0 {
-			dataMin, dataMax := currNamespace.DataRunOptions.ShardTimeRanges.MinMax()
 			prepareLogFields = append(prepareLogFields, []zapcore.Field{
 				zap.Time("dataFrom", dataMin),
 				zap.Time("dataTo", dataMax),
 			}...)
 		}
 
-		if namespace.Metadata.Options().IndexOptions().Enabled() {
-			indexRange := currNamespace.IndexRunOptions.ShardTimeRanges.MinMaxRange()
+		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
+			indexShardTimeRanges := currNamespace.IndexRunOptions.ShardTimeRanges
+			indexMin, indexMax, indexRange := indexShardTimeRanges.MinMaxRange()
 			prepareLogFields = append(prepareLogFields, []zapcore.Field{
 				zap.Duration("indexRange", indexRange),
 			}...)
 			if indexRange > 0 {
-				indexMin, indexMax := currNamespace.IndexRunOptions.ShardTimeRanges.MinMax()
 				prepareLogFields = append(prepareLogFields, []zapcore.Field{
 					zap.Time("indexFrom", indexMin),
 					zap.Time("indexTo", indexMax),
@@ -173,7 +173,7 @@ func (b baseBootstrapper) Bootstrap(
 			}
 		}
 
-		b.log.Info("bootstrap from source for namespace ready", prepareLogFields...)
+		b.log.Info("bootstrap from source ready", prepareLogFields...)
 	}
 
 	nowFn := b.opts.ClockOptions().NowFn()
@@ -185,7 +185,7 @@ func (b baseBootstrapper) Bootstrap(
 	logFields = append(logFields, zap.Duration("took", nowFn().Sub(begin)))
 	if err != nil {
 		errorLogFields := append(logFieldsCopy(logFields), zap.Error(err))
-		b.log.Info("bootstrapping from source completed with error", errorLogFields...)
+		b.log.Error("error bootstrapping from source", errorLogFields...)
 	}
 	if err != nil {
 		return bootstrap.NamespaceResults{}, err
@@ -197,7 +197,7 @@ func (b baseBootstrapper) Bootstrap(
 	}
 	for _, elem := range namespaces.Namespaces.Iter() {
 		id := elem.Key()
-		namespace := elem.Value()
+		requestedNamespace := elem.Value()
 
 		currResult, ok := currResults.Results.Get(id)
 		if !ok {
@@ -215,7 +215,7 @@ func (b baseBootstrapper) Bootstrap(
 		nextNamespace := currNamespace
 
 		// Calculate bootstrap time ranges.
-		dataRequired := namespace.DataRunOptions.ShardTimeRanges.Copy()
+		dataRequired := requestedNamespace.DataRunOptions.ShardTimeRanges.Copy()
 		dataCurrRequested := currNamespace.DataRunOptions.ShardTimeRanges.Copy()
 		dataCurrFulfilled := dataCurrRequested.Copy()
 		dataCurrFulfilled.Subtract(currResult.DataResult.Unfulfilled())
@@ -234,9 +234,9 @@ func (b baseBootstrapper) Bootstrap(
 			indexCurrRequested = result.ShardTimeRanges{}
 			indexCurrFulfilled = result.ShardTimeRanges{}
 		)
-		if namespace.Metadata.Options().IndexOptions().Enabled() {
+		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			// Calculate bootstrap time ranges.
-			indexRequired = namespace.IndexRunOptions.ShardTimeRanges.Copy()
+			indexRequired = requestedNamespace.IndexRunOptions.ShardTimeRanges.Copy()
 			indexCurrRequested = currNamespace.IndexRunOptions.ShardTimeRanges.Copy()
 			indexCurrFulfilled = indexCurrRequested.Copy()
 			indexCurrFulfilled.Subtract(currResult.IndexResult.Unfulfilled())
@@ -266,29 +266,27 @@ func (b baseBootstrapper) Bootstrap(
 		}
 
 		// Log the result.
+		_, _, dataRangeRequestedRange := dataCurrRequested.MinMaxRange()
+		_, _, dataRangeFulfilledRange := dataCurrFulfilled.MinMaxRange()
+		_, _, indexRangeRequestedRange := indexCurrRequested.MinMaxRange()
+		_, _, indexRangeFulfilledRange := indexCurrFulfilled.MinMaxRange()
 		successLogFields := append(logFieldsCopy(logFields), []zapcore.Field{
 			zap.String("namespace", id.String()),
 			zap.Int("numShards", len(currNamespace.Shards)),
+			zap.Duration("dataRangeRequested", dataRangeRequestedRange),
+			zap.Duration("dataRangeFulfilled", dataRangeFulfilledRange),
+			zap.Duration("indexRangeRequested", indexRangeRequestedRange),
+			zap.Duration("indexRangeFulfilled", indexRangeFulfilledRange),
 		}...)
 		successLogFields = append(successLogFields,
-			zap.Duration("dataRangeRequested", dataCurrRequested.MinMaxRange()))
-		successLogFields = append(successLogFields,
-			zap.Duration("dataRangeFulfilled", dataCurrFulfilled.MinMaxRange()))
-		successLogFields = append(successLogFields,
-			zap.Duration("indexRangeRequested", indexCurrRequested.MinMaxRange()))
-		successLogFields = append(successLogFields,
-			zap.Duration("indexRangeFulfilled", indexCurrFulfilled.MinMaxRange()))
-
-		successLogFields = append(successLogFields,
 			zap.Int("dataNumSeries", currResult.DataMetadata.NumSeries))
-		if namespace.Metadata.Options().IndexOptions().Enabled() {
+		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			successLogFields = append(successLogFields,
 				zap.Int("indexNumSeries", currResult.IndexMetadata.NumSeries))
 		}
 
 		b.log.Info("bootstrapping from source completed successfully",
 			successLogFields...)
-
 	}
 
 	// Unless next bootstrapper is required, this is the final results.
@@ -305,7 +303,7 @@ func (b baseBootstrapper) Bootstrap(
 		// Now merge the final results.
 		for _, elem := range nextResults.Results.Iter() {
 			id := elem.Key()
-			namespace := elem.Value()
+			currNamespace := elem.Value()
 
 			finalResult, ok := finalResults.Results.Get(id)
 			if !ok {
@@ -316,9 +314,9 @@ func (b baseBootstrapper) Bootstrap(
 			// NB(r): Since we originally passed all unfulfilled ranges to the
 			// next bootstrapper, the final unfulfilled is simply what it could
 			// not fulfill.
-			finalResult.DataResult.SetUnfulfilled(namespace.DataResult.Unfulfilled().Copy())
-			if namespace.Metadata.Options().IndexOptions().Enabled() {
-				finalResult.IndexResult.SetUnfulfilled(namespace.IndexResult.Unfulfilled().Copy())
+			finalResult.DataResult.SetUnfulfilled(currNamespace.DataResult.Unfulfilled().Copy())
+			if currNamespace.Metadata.Options().IndexOptions().Enabled() {
+				finalResult.IndexResult.SetUnfulfilled(currNamespace.IndexResult.Unfulfilled().Copy())
 			}
 
 			// Map is by value, set the result altered struct.
