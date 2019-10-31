@@ -23,6 +23,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 
@@ -35,13 +36,23 @@ const (
 	deprecatedPrefix = "Deprecated"
 )
 
-var errNoFilesToLoad = errors.New("attempt to load config with no files")
+var (
+	errNoFilesToLoad = errors.New("attempt to load config with no files")
+
+	// osLookupEnv allows simple mocking of os.LookupEnv for the test of that
+	// code path. Use Expand option
+	// for most test cases instead.
+	osLookupEnv = os.LookupEnv
+)
 
 // Options is an options set used when parsing config.
 type Options struct {
 	DisableUnmarshalStrict bool
 	DisableValidate        bool
-	Expand                 config.LookupFunc
+
+	// Expand provides values for templated strings of the form ${KEY}.
+	// By default, we extract these values from the environment.
+	Expand config.LookupFunc
 }
 
 // LoadFile loads a config from a file.
@@ -66,9 +77,12 @@ func LoadFiles(dst interface{}, files []string, opts Options) error {
 		yamlOpts = append(yamlOpts, config.Permissive())
 	}
 
-	if opts.Expand != nil {
-		yamlOpts = append(yamlOpts, config.Expand(opts.Expand))
+	expand := opts.Expand
+	if expand == nil {
+		expand = osLookupEnv
 	}
+
+	yamlOpts = append(yamlOpts, config.Expand(expand))
 
 	provider, err := config.NewYAML(yamlOpts...)
 	if err != nil {
