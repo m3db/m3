@@ -230,10 +230,6 @@ func TestBootstrapIndex(t *testing.T) {
 	defer tester.Finish()
 	tester.TestReadWith(src)
 
-	vals, err := tester.DumpValues()
-	require.NoError(t, err)
-
-	fmt.Println(vals)
 	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
 	results, ok := tester.Results.Results.Get(nsMetadata.ID())
 	require.True(t, ok)
@@ -484,10 +480,6 @@ func TestBootstrapIndeexErr(t *testing.T) {
 	defer tester.Finish()
 	tester.TestReadWith(src)
 
-	vals, err := tester.DumpValues()
-	require.NoError(t, err)
-
-	fmt.Println(vals)
 	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
 	results, ok := tester.Results.Results.Get(nsMetadata.ID())
 	require.True(t, ok)
