@@ -181,6 +181,7 @@ func (s *peersSource) readData(
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
+
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -299,7 +300,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		// Make unfulfilled.
 		lock.Lock()
 		unfulfilled := bootstrapResult.Unfulfilled().Copy()
-		unfulfilled.Subtract(result.ShardTimeRanges{
+		unfulfilled.AddRanges(result.ShardTimeRanges{
 			flush.shard: xtime.NewRanges(flush.timeRange),
 		})
 		bootstrapResult.SetUnfulfilled(unfulfilled)
@@ -674,7 +675,6 @@ func (s *peersSource) readIndex(
 						markUnfulfilled(err)
 						continue
 					}
-
 					for metadata.Next() {
 						_, dataBlock := metadata.Current()
 

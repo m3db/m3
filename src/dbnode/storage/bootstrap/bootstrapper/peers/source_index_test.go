@@ -27,10 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -149,6 +151,15 @@ func TestBootstrapIndex(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSessionCalls := []*gomock.Call{}
 
+	goodResult := result.NewShardResult(0, opts.ResultOptions())
+	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
+	goodID := ident.StringID("foo")
+	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(goodResult, nil).AnyTimes()
+
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
 		// Find and expect calls for blocks
 		matchedBlock := false
@@ -209,17 +220,24 @@ func TestBootstrapIndex(t *testing.T) {
 	gomock.InOrder(mockAdminSessionCalls...)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
-	res, err := src.ReadIndex(nsMetadata, shardTimeRanges,
-		testDefaultRunOpts)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, shardTimeRanges, nsMetadata)
+	defer tester.Finish()
+	tester.TestReadWith(src)
+
+	vals, err := tester.DumpValues()
 	require.NoError(t, err)
 
-	indexResults := res.IndexResults()
+	fmt.Println(vals)
+	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	results, ok := tester.Results.Results.Get(nsMetadata.ID())
+	require.True(t, ok)
+	indexResults := results.IndexResult.IndexResults()
 	numBlocksWithData := 0
 	for _, b := range indexResults {
 		if len(b.Segments()) != 0 {
@@ -297,15 +315,15 @@ func TestBootstrapIndex(t *testing.T) {
 	t2 := indexStart.Add(indexBlockSize)
 	t3 := t2.Add(indexBlockSize)
 
-	blk1, ok := res.IndexResults()[xtime.ToUnixNano(t1)]
+	blk1, ok := indexResults[xtime.ToUnixNano(t1)]
 	require.True(t, ok)
 	assertShardRangesEqual(t, result.NewShardTimeRanges(t1, t2, 0), blk1.Fulfilled())
 
-	blk2, ok := res.IndexResults()[xtime.ToUnixNano(t2)]
+	blk2, ok := indexResults[xtime.ToUnixNano(t2)]
 	require.True(t, ok)
 	assertShardRangesEqual(t, result.NewShardTimeRanges(t2, t3, 0), blk2.Fulfilled())
 
-	for _, blk := range res.IndexResults() {
+	for _, blk := range indexResults {
 		if blk.BlockStart().Equal(t1) || blk.BlockStart().Equal(t2) {
 			continue // already checked above
 		}
@@ -317,7 +335,7 @@ func TestBootstrapIndex(t *testing.T) {
 	}
 }
 
-func TestBootstrapIndexErr(t *testing.T) {
+func TestBootstrapIndeexErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -386,6 +404,15 @@ func TestBootstrapIndexErr(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSessionCalls := []*gomock.Call{}
 
+	goodResult := result.NewShardResult(0, opts.ResultOptions())
+	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
+	goodID := ident.StringID("foo")
+	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(goodResult, nil).AnyTimes()
+
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
 		// Find and expect calls for blocks
 		matchedBlock := false
@@ -446,16 +473,25 @@ func TestBootstrapIndexErr(t *testing.T) {
 	gomock.InOrder(mockAdminSessionCalls...)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).Times(1)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
-	res, err := src.ReadIndex(nsMetadata, shardTimeRanges, testDefaultRunOpts)
+
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, shardTimeRanges, nsMetadata)
+	defer tester.Finish()
+	tester.TestReadWith(src)
+
+	vals, err := tester.DumpValues()
 	require.NoError(t, err)
 
-	indexResults := res.IndexResults()
+	fmt.Println(vals)
+	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	results, ok := tester.Results.Results.Get(nsMetadata.ID())
+	require.True(t, ok)
+	indexResults := results.IndexResult.IndexResults()
 	numBlocksWithData := 0
 	for _, b := range indexResults {
 		if len(b.Segments()) != 0 {
@@ -466,11 +502,11 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 	t1 := indexStart
 
-	blk1, ok := res.IndexResults()[xtime.ToUnixNano(t1)]
+	blk1, ok := indexResults[xtime.ToUnixNano(t1)]
 	require.True(t, ok)
 	require.True(t, blk1.Fulfilled().IsEmpty())
 
-	for _, blk := range res.IndexResults() {
+	for _, blk := range indexResults {
 		if blk.BlockStart().Equal(t1) {
 			continue // already checked above
 		}
