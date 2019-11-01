@@ -317,17 +317,25 @@ func TestLoadFilesEnvExpansion(t *testing.T) {
 		}
 	}
 
-	cases := []struct {
+	newMapLookupOptions := func(m map[string]string) Options {
+		return Options{
+			Expand: mapLookup(m),
+		}
+	}
+
+	type testCase struct {
 		Name        string
-		Input       map[string]string
+		Options     Options
 		Expected    configuration
 		ExpectedErr error
-	}{{
+	}
+
+	cases := []testCase{{
 		Name: "all_provided",
-		Input: map[string]string{
+		Options: newMapLookupOptions(map[string]string{
 			"PORT":         "9090",
 			"BUFFER_SPACE": "256",
-		},
+		}),
 		Expected: configuration{
 			ListenAddress: "localhost:9090",
 			BufferSpace:   256,
@@ -335,16 +343,16 @@ func TestLoadFilesEnvExpansion(t *testing.T) {
 		},
 	}, {
 		Name: "missing_no_default",
-		Input: map[string]string{
+		Options: newMapLookupOptions(map[string]string{
 			"PORT": "9090",
 			// missing BUFFER_SPACE,
-		},
+		}),
 		ExpectedErr: errors.New("couldn't expand environment: default is empty for \"BUFFER_SPACE\" (use \"\" for empty string)"),
 	}, {
 		Name: "missing_with_default",
-		Input: map[string]string{
+		Options: newMapLookupOptions(map[string]string{
 			"BUFFER_SPACE": "256",
-		},
+		}),
 		Expected: configuration{
 			ListenAddress: "localhost:8080",
 			BufferSpace:   256,
@@ -352,26 +360,49 @@ func TestLoadFilesEnvExpansion(t *testing.T) {
 		},
 	}}
 
+	doTest := func(t *testing.T, tc testCase) {
+		fname1 := writeFile(t, withEnv)
+		defer func() {
+			require.NoError(t, os.Remove(fname1))
+		}()
+		var cfg configuration
+
+		err := LoadFile(&cfg, fname1, tc.Options)
+		if tc.ExpectedErr != nil {
+			require.EqualError(t, err, tc.ExpectedErr.Error())
+			return
+		}
+
+		require.NoError(t, err)
+		assert.Equal(t, tc.Expected, cfg)
+	}
+
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			fname1 := writeFile(t, withEnv)
-			defer func() {
-				require.NoError(t, os.Remove(fname1))
-			}()
-			var cfg configuration
-
-			err := LoadFile(&cfg, fname1, Options{
-				Expand: mapLookup(tc.Input),
-			})
-			if tc.ExpectedErr != nil {
-				require.EqualError(t, err, tc.ExpectedErr.Error())
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.Expected, cfg)
+			doTest(t, tc)
 		})
 	}
+
+	t.Run("uses os.LookupEnv by default", func(t *testing.T) {
+		curOSLookupEnv := osLookupEnv
+		osLookupEnv = mapLookup(map[string]string{
+			"PORT":         "9090",
+			"BUFFER_SPACE": "256",
+		})
+		defer func() {
+			osLookupEnv = curOSLookupEnv
+		}()
+
+		doTest(t, testCase{
+			// use defaults
+			Options: Options{},
+			Expected: configuration{
+				ListenAddress: "localhost:9090",
+				BufferSpace:   256,
+				Servers:       []string{"server2:8010"},
+			},
+		})
+	})
 }
 
 func TestDeprecationCheck(t *testing.T) {
