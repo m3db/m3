@@ -504,7 +504,7 @@ func newDownsampler(
 	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
-	autoMappingRules []downsample.MappingRule,
+	autoMappingRules []downsample.AutoMappingRule,
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
@@ -553,8 +553,8 @@ func newDownsampler(
 
 func newDownsamplerAutoMappingRules(
 	namespaces []m3.ClusterNamespace,
-) ([]downsample.MappingRule, error) {
-	var autoMappingRules []downsample.MappingRule
+) ([]downsample.AutoMappingRule, error) {
+	var autoMappingRules []downsample.AutoMappingRule
 	for _, namespace := range namespaces {
 		opts := namespace.Options()
 		attrs := opts.Attributes()
@@ -567,7 +567,7 @@ func newDownsamplerAutoMappingRules(
 			if downsampleOpts.All {
 				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
 					xtime.Second, attrs.Retention)
-				autoMappingRules = append(autoMappingRules, downsample.MappingRule{
+				autoMappingRules = append(autoMappingRules, downsample.AutoMappingRule{
 					// NB(r): By default we will apply just keep all last values
 					// since coordinator only uses downsampling with Prometheus
 					// remote write endpoint.

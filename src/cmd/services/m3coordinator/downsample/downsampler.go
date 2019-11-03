@@ -49,7 +49,7 @@ type SampleAppenderOptions struct {
 // use instead of matching against default and dynamic matched rules
 // for an ID.
 type SamplesAppenderOverrideRules struct {
-	MappingRules []MappingRule
+	MappingRules []AutoMappingRule
 }
 
 // SamplesAppender is a downsampling samples appender,
