@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/pipeline"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -39,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -46,6 +49,9 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
+	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
+	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/clock"
@@ -53,6 +59,8 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"github.com/pborman/uuid"
 )
 
 const (
@@ -63,6 +71,7 @@ const (
 	defaultOpenTimeout             = 10 * time.Second
 	defaultBufferFutureTimedMetric = time.Minute
 	defaultVerboseErrors           = true
+	defaultMatcherCacheCapacity    = 100000
 )
 
 var (
@@ -85,7 +94,7 @@ type DownsamplerOptions struct {
 	StorageFlushConcurrency int
 	ClusterClient           clusterclient.Client
 	RulesKVStore            kv.Store
-	AutoMappingRules        []MappingRule
+	AutoMappingRules        []AutoMappingRule
 	NameTag                 string
 	ClockOptions            clock.Options
 	InstrumentOptions       instrument.Options
@@ -97,14 +106,14 @@ type DownsamplerOptions struct {
 	TagOptions              models.TagOptions
 }
 
-// MappingRule is a mapping rule to apply to metrics.
-type MappingRule struct {
+// AutoMappingRule is a mapping rule to apply to metrics.
+type AutoMappingRule struct {
 	Aggregations []aggregation.Type
 	Policies     policy.StoragePolicies
 }
 
 // StagedMetadatas returns the corresponding staged metadatas for this mapping rule.
-func (r MappingRule) StagedMetadatas() (metadata.StagedMetadatas, error) {
+func (r AutoMappingRule) StagedMetadatas() (metadata.StagedMetadatas, error) {
 	aggID, err := aggregation.CompressTypes(r.Aggregations...)
 	if err != nil {
 		return nil, err
@@ -170,6 +179,10 @@ type agg struct {
 
 // Configuration configurates a downsampler.
 type Configuration struct {
+	// Rules is a set of downsample rules, if this rules configuration is set
+	// then only these rules will be used and none from the KV store.
+	Rules *RulesConfiguration `yaml:"rules"`
+
 	// RemoteAggregator specifies that downsampling should be done remotely
 	// by sending values to a remote m3aggregator cluster which then
 	// can forward the aggregated values to stateless m3coordinator backends.
@@ -189,6 +202,228 @@ type Configuration struct {
 
 	// BufferPastLimits specifies the buffer past limits.
 	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
+}
+
+// RulesConfiguration is a set of rules configuration to use for downsampling.
+type RulesConfiguration struct {
+	// MappingRules are the mapping rules that sets retention and resolution
+	// for metrics given a filter to match metrics against.
+	MappingRules []MappingRuleConfiguration `yaml:"mappingRules"`
+
+	// RollupRules are the rollup rules that sets specific aggregations for sets
+	// of metrics given a filter to match metrics against.
+	RollupRules []RollupRuleConfiguration `yaml:"rollupRules"`
+}
+
+// MappingRuleConfiguration is a mapping rule configuration.
+type MappingRuleConfiguration struct {
+	// Filter is a string separated filter of labe name to label value
+	// glob patterns to filter the mapping rule to.
+	// e.g. "app:*nginx* foo:bar baz:qux*qaz*"
+	Filter string `yaml:"filter"`
+
+	// Aggregations is the aggregations to apply to the set of metrics.
+	// One of:
+	// - "Last"
+	// - "Min"
+	// - "Max"
+	// - "Mean"
+	// - "Median"
+	// - "Count"
+	// - "Sum"
+	// - "SumSq"
+	// - "Stdev"
+	// - "P10"
+	// - "P20"
+	// - "P30"
+	// - "P40"
+	// - "P50"
+	// - "P60"
+	// - "P70"
+	// - "P80"
+	// - "P90"
+	// - "P95"
+	// - "P99"
+	// - "P999"
+	// - "P9999"
+	Aggregations []aggregation.Type `yaml:"aggregations"`
+
+	// StoragePolicies is the retention/resolution storage policies to keep the
+	// matched metrics at.
+	StoragePolicies []StoragePolicyConfiguration `yaml:"storagePolicies"`
+
+	// Drop specifies to drop any metrics that match the filter rather than
+	// keeping them with a storage policy.
+	Drop bool `yaml:"drop"`
+
+	// Optional fields follows.
+
+	// Name is optional.
+	Name string `yaml:"name"`
+}
+
+// Rule returns the mapping rule for the mapping rule configuration.
+func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
+	id := uuid.New()
+	name := r.Name
+	if name == "" {
+		name = id
+	}
+	filter := r.Filter
+
+	aggID, err := aggregation.CompressTypes(r.Aggregations...)
+	if err != nil {
+		return view.MappingRule{}, err
+	}
+
+	storagePolicies, err := StoragePolicyConfigurations(r.StoragePolicies).StoragePolicies()
+	if err != nil {
+		return view.MappingRule{}, err
+	}
+
+	var drop policy.DropPolicy
+	if r.Drop {
+		drop = policy.DropMust
+	}
+
+	return view.MappingRule{
+		ID:              id,
+		Name:            name,
+		Filter:          filter,
+		AggregationID:   aggID,
+		StoragePolicies: storagePolicies,
+		DropPolicy:      drop,
+	}, nil
+}
+
+// StoragePolicyConfiguration is the storage policy to apply to a set of metrics.
+type StoragePolicyConfiguration struct {
+	Retention  time.Duration `yaml:"retention"`
+	Resolution time.Duration `yaml:"resolution"`
+}
+
+// StoragePolicy returns the corresponding storage policy.
+func (p StoragePolicyConfiguration) StoragePolicy() (policy.StoragePolicy, error) {
+	return policy.ParseStoragePolicy(p.Resolution.String() + ":" + p.Retention.String())
+}
+
+// StoragePolicyConfigurations are a set of storage policy configurations.
+type StoragePolicyConfigurations []StoragePolicyConfiguration
+
+// StoragePolicies returns storage policies.
+func (p StoragePolicyConfigurations) StoragePolicies() (policy.StoragePolicies, error) {
+	var storagePolicies policy.StoragePolicies
+	for _, policy := range p {
+		value, err := policy.StoragePolicy()
+		if err != nil {
+			return nil, err
+		}
+		storagePolicies = append(storagePolicies, value)
+	}
+	return storagePolicies, nil
+}
+
+// RollupRuleConfiguration is a rollup rule configuration.
+type RollupRuleConfiguration struct {
+	// Filter is a string separated filter of labe name to label value
+	// glob patterns to filter the mapping rule to.
+	// e.g. "app:*nginx* foo:bar baz:qux*qaz*"
+	Filter string `yaml:"filter"`
+
+	// Transforms are a set of of rollup rule transforms.
+	Transforms []TransformConfiguration `yaml:"transforms"`
+
+	// StoragePolicies is the retention/resolution storage policies to keep the
+	// matched metrics at.
+	StoragePolicies []StoragePolicyConfiguration `yaml:"storagePolicies"`
+
+	// Optional fields follows.
+
+	// Name is optional.
+	Name string `yaml:"name"`
+}
+
+// Rule returns the rollup rule for the rollup rule configuration.
+func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
+	id := uuid.New()
+	name := r.Name
+	if name == "" {
+		name = id
+	}
+	filter := r.Filter
+
+	storagePolicies, err := StoragePolicyConfigurations(r.StoragePolicies).StoragePolicies()
+	if err != nil {
+		return view.RollupRule{}, err
+	}
+
+	var ops []pipeline.OpUnion
+	for _, elem := range r.Transforms {
+
+		switch {
+		case elem.Rollup != nil:
+			// cfg := elem.Rollup
+			// op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{})
+			// if err != nil {
+			// 	return view.RollupRule{}, err
+			// }
+		case elem.Aggregate != nil:
+
+		case elem.Transform != nil:
+
+		}
+
+	}
+
+	targetPipeline := pipeline.NewPipeline(ops)
+
+	targets := []view.RollupTarget{
+		view.RollupTarget{
+			Pipeline:        targetPipeline,
+			StoragePolicies: storagePolicies,
+		},
+	}
+
+	return view.RollupRule{
+		ID:      id,
+		Name:    name,
+		Filter:  filter,
+		Targets: targets,
+	}, nil
+}
+
+// TransformConfiguration is a rollup rule transform operation, only one
+// single operation is allowed to be specified on any one transform configuration.
+type TransformConfiguration struct {
+	Rollup    *RollupOperationConfiguration    `yaml:"rollup"`
+	Aggregate *AggregateOperationConfiguration `yaml:"aggregate"`
+	Transform *TransformOperationConfiguration `yaml:"transform"`
+}
+
+// RollupOperationConfiguration is a rollup operation.
+type RollupOperationConfiguration struct {
+	// MetricName is the name of the new metric that is emitted after
+	// the rollup is applied with it's aggregations and group by's.
+	MetricName string `yaml:"metricName"`
+
+	// GroupBy is a set of labels to group by, only these remain on the
+	// new metric name produced by the rollup operation.
+	GroupBy []aggregation.Type `yaml:"groupBy"`
+
+	// Aggregations is a set of aggregate operations to perform.
+	Aggregations []aggregation.Type `yaml:"aggregations"`
+}
+
+// AggregateOperationConfiguration is an aggregate operation.
+type AggregateOperationConfiguration struct {
+	// Aggregations are set of aggregation operations.
+	Aggregations []aggregation.Type `yaml:"aggregations"`
+}
+
+// TransformOperationConfiguration is a transform operation.
+type TransformOperationConfiguration struct {
+	// Transforms are a set of transform operations.
+	Transforms []transformation.Type `yaml:"transforms"`
 }
 
 // RemoteAggregatorConfiguration specifies a remote aggregator
@@ -241,7 +476,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 	var (
 		storageFlushConcurrency = defaultStorageFlushConcurrency
-		rulesStore              = o.RulesKVStore
+		rulesKVStore            = o.RulesKVStore
 		clockOpts               = o.ClockOptions
 		instrumentOpts          = o.InstrumentOptions
 		scope                   = instrumentOpts.MetricsScope()
@@ -265,8 +500,79 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	pools := o.newAggregatorPools()
 	ruleSetOpts := o.newAggregatorRulesOptions(pools)
 
-	matcher, err := o.newAggregatorMatcher(clockOpts, instrumentOpts,
-		ruleSetOpts, rulesStore)
+	matcherOpts := matcher.NewOptions().
+		SetClockOptions(clockOpts).
+		SetInstrumentOptions(instrumentOpts).
+		SetRuleSetOptions(ruleSetOpts).
+		SetKVStore(rulesKVStore)
+
+	// NB(r): If rules are being explicitlly set in config then we are
+	// going to use an in memory KV store for rules and explicitly set them up.
+	if cfg.Rules != nil {
+		kvStore := mem.NewStore()
+		matcherOpts = matcherOpts.SetKVStore(kvStore)
+
+		// Initialize the namespaces
+		_, err := rulesKVStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
+		if err != nil {
+			return agg{}, err
+		}
+
+		rulesetKeyFmt := matcherOpts.RuleSetKeyFn()([]byte("%s"))
+		rulesStoreOpts := ruleskv.NewStoreOptions(matcherOpts.NamespacesKey(),
+			rulesetKeyFmt, nil)
+		rulesStore := ruleskv.NewStore(kvStore, rulesStoreOpts)
+
+		ruleNamespaces, err := rulesStore.ReadNamespaces()
+		if err != nil {
+			return agg{}, err
+		}
+
+		updateMetadata := rules.NewRuleSetUpdateHelper(0).
+			NewUpdateMetadata(time.Now().UnixNano(), "config")
+		rs := rules.NewEmptyRuleSet("default", updateMetadata)
+		for _, mappingRule := range cfg.Rules.MappingRules {
+			rule, err := mappingRule.Rule()
+			if err != nil {
+				return agg{}, err
+			}
+
+			_, err = rs.AddMappingRule(rule, updateMetadata)
+			if err != nil {
+				return agg{}, err
+			}
+		}
+
+		for _, mappingRule := range cfg.Rules.MappingRules {
+			rule, err := mappingRule.Rule()
+			if err != nil {
+				return agg{}, err
+			}
+
+			_, err = rs.AddMappingRule(rule, updateMetadata)
+			if err != nil {
+				return agg{}, err
+			}
+		}
+
+		for _, rollupRule := range cfg.Rules.RollupRules {
+			rule, err := rollupRule.Rule()
+			if err != nil {
+				return agg{}, err
+			}
+
+			_, err = rs.AddRollupRule(rule, updateMetadata)
+			if err != nil {
+				return agg{}, err
+			}
+		}
+
+		if err := rulesStore.WriteAll(ruleNamespaces, rs); err != nil {
+			return agg{}, err
+		}
+	}
+
+	matcher, err := o.newAggregatorMatcher(matcherOpts)
 	if err != nil {
 		return agg{}, err
 	}
@@ -527,21 +833,13 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 }
 
 func (o DownsamplerOptions) newAggregatorMatcher(
-	clockOpts clock.Options,
-	instrumentOpts instrument.Options,
-	ruleSetOpts rules.Options,
-	rulesStore kv.Store,
+	opts matcher.Options,
 ) (matcher.Matcher, error) {
-	opts := matcher.NewOptions().
-		SetClockOptions(clockOpts).
-		SetInstrumentOptions(instrumentOpts).
-		SetRuleSetOptions(ruleSetOpts).
-		SetKVStore(rulesStore)
-
 	cacheOpts := cache.NewOptions().
-		SetClockOptions(clockOpts).
-		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().SubScope("matcher-cache")))
+		SetCapacity(defaultMatcherCacheCapacity).
+		SetClockOptions(opts.ClockOptions()).
+		SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")))
 
 	cache := cache.NewCache(cacheOpts)
 

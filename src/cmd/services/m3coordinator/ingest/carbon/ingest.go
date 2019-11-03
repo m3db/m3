@@ -396,10 +396,12 @@ func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
 		}
 
 		if rule.Aggregation.EnabledOrDefault() {
-			compiledRule.mappingRules = []downsample.MappingRule{downsample.MappingRule{
-				Aggregations: []aggregation.Type{rule.Aggregation.TypeOrDefault()},
-				Policies:     storagePolicies,
-			}}
+			compiledRule.mappingRules = []downsample.AutoMappingRule{
+				downsample.AutoMappingRule{
+					Aggregations: []aggregation.Type{rule.Aggregation.TypeOrDefault()},
+					Policies:     storagePolicies,
+				},
+			}
 		} else {
 			compiledRule.storagePolicies = storagePolicies
 		}
@@ -444,6 +446,6 @@ type lineResources struct {
 type ruleAndRegex struct {
 	rule            config.CarbonIngesterRuleConfiguration
 	regexp          *regexp.Regexp
-	mappingRules    []downsample.MappingRule
+	mappingRules    []downsample.AutoMappingRule
 	storagePolicies []policy.StoragePolicy
 }

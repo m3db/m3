@@ -47,10 +47,10 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
-	"go.uber.org/zap"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var (
@@ -66,7 +66,7 @@ const (
 
 func TestDownsamplerAggregationWithAutoMappingRules(t *testing.T) {
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []MappingRule{
+		autoMappingRules: []AutoMappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
@@ -130,7 +130,7 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 func TestDownsamplerAggregationWithTimedSamples(t *testing.T) {
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
 		timedSamples: true,
-		autoMappingRules: []MappingRule{
+		autoMappingRules: []AutoMappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
@@ -147,7 +147,7 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 		sampleAppenderOpts: &SampleAppenderOptions{
 			Override: true,
 			OverrideRules: SamplesAppenderOverrideRules{
-				MappingRules: []MappingRule{
+				MappingRules: []AutoMappingRule{
 					{
 						Aggregations: []aggregation.Type{aggregation.Mean},
 						Policies: []policy.StoragePolicy{
@@ -161,7 +161,7 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 			"gauge0":   5.0,
 			"counter0": 2.0,
 		},
-		autoMappingRules: []MappingRule{
+		autoMappingRules: []AutoMappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
@@ -182,7 +182,7 @@ func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 	remoteClientMock.EXPECT().Init().Return(nil)
 
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		autoMappingRules: []MappingRule{
+		autoMappingRules: []AutoMappingRule{
 			{
 				Aggregations: []aggregation.Type{testAggregationType},
 				Policies:     testAggregationStoragePolicies,
@@ -460,7 +460,7 @@ type testDownsamplerOptions struct {
 	instrumentOpts instrument.Options
 
 	// Options for the test
-	autoMappingRules   []MappingRule
+	autoMappingRules   []AutoMappingRule
 	timedSamples       bool
 	sampleAppenderOpts *SampleAppenderOptions
 	remoteClientMock   *client.MockClient
