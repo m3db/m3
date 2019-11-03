@@ -25,6 +25,7 @@ import (
 	"io"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -36,24 +37,27 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type blockList []xio.SegmentReader
+// ReadersForID is a slice of readers that share a series ID.
+type ReadersForID []ReaderAtTime
 
-type blockMap map[string]blockList
+// ReaderMap is a map containing all gathered block segment readers.
+type ReaderMap map[string]ReadersForID
 
 // TestDataAccumulator is a NamespaceDataAccumulator that captures any
 // series inserts for examination.
 type TestDataAccumulator struct {
-	t        *testing.T
-	ctrl     *gomock.Controller
-	ns       string
-	pool     encoding.MultiReaderIteratorPool
-	blockMap blockMap
+	t         *testing.T
+	ctrl      *gomock.Controller
+	ns        string
+	pool      encoding.MultiReaderIteratorPool
+	readerMap ReaderMap
 }
 
 // DecodedValues is a slice of series datapoints.
@@ -62,22 +66,47 @@ type DecodedValues []series.DecodedTestValue
 // DecodedBlockMap is a map of decoded datapoints per series ID.
 type DecodedBlockMap map[string]DecodedValues
 
+// ReaderAtTime indicates the block start for incoming readers.
+type ReaderAtTime struct {
+	// Start is the block start time.
+	Start time.Time
+	// Reader is the block segment reader.
+	Reader xio.SegmentReader
+	// Tags is the list of tags in map format.
+	Tags map[string]string
+}
+
 // DumpValues decodes any accumulated values and returns them as values.
-func (a *TestDataAccumulator) DumpValues() (DecodedBlockMap, error) {
-	decodedMap := make(DecodedBlockMap, len(a.blockMap))
+func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
+	if len(a.readerMap) == 0 {
+		return nil
+	}
+
+	decodedMap := make(DecodedBlockMap, len(a.readerMap))
 	iter := a.pool.Get()
 	defer iter.Close()
-	for k, v := range a.blockMap {
-		value, err := series.DecodeSegmentValues(v, iter, nil)
-		if err != nil && err != io.EOF {
-			return nil, err
+	for k, v := range a.readerMap {
+		readers := make([]xio.SegmentReader, 0, len(v))
+		for _, r := range v {
+			readers = append(readers, r.Reader)
+		}
+
+		value, err := series.DecodeSegmentValues(readers, iter, nil)
+		if err != nil {
+			if err != io.EOF {
+				// fail test.
+				require.NoError(a.t, err)
+			}
+
+			// NB: print out that we encountered EOF here to assist debugging tests.
+			fmt.Println("EOF: segment had no values.")
 		}
 
 		sort.Sort(series.ValuesByTime(value))
 		decodedMap[k] = value
 	}
 
-	return decodedMap, nil
+	return decodedMap
 }
 
 // CheckoutSeries will retrieve a series for writing to
@@ -87,6 +116,18 @@ func (a *TestDataAccumulator) CheckoutSeries(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (CheckoutSeriesResult, error) {
+	decodedTags := make(map[string]string, tags.Len())
+	for tags.Next() {
+		tag := tags.Current()
+		name := tag.Name.String()
+		value := tag.Value.String()
+		if len(name) > 0 && len(value) > 0 {
+			decodedTags[name] = value
+		}
+	}
+
+	require.NoError(a.t, tags.Err())
+	stringID := id.String()
 	var streamErr error
 	mockSeries := series.NewMockDatabaseSeries(a.ctrl)
 	mockSeries.EXPECT().
@@ -98,7 +139,11 @@ func (a *TestDataAccumulator) CheckoutSeries(
 				return err
 			}
 
-			a.blockMap[id.String()] = append(a.blockMap[id.String()], reader)
+			a.readerMap[stringID] = append(a.readerMap[stringID], ReaderAtTime{
+				Start:  bl.StartTime(),
+				Reader: reader,
+				Tags:   decodedTags,
+			})
 			return nil
 		}).AnyTimes()
 
@@ -158,11 +203,11 @@ func BuildNamespacesTester(
 	accumulators := make([]*TestDataAccumulator, 0, len(mds))
 	for _, md := range mds {
 		acc := &TestDataAccumulator{
-			t:        t,
-			ctrl:     ctrl,
-			pool:     iterPool,
-			ns:       md.ID().String(),
-			blockMap: make(blockMap),
+			t:         t,
+			ctrl:      ctrl,
+			pool:      iterPool,
+			ns:        md.ID().String(),
+			readerMap: make(ReaderMap),
 		}
 
 		accumulators = append(accumulators, acc)
@@ -196,18 +241,41 @@ func BuildNamespacesTester(
 type DecodedNamespaceMap map[string]DecodedBlockMap
 
 // DumpValues dumps any accumulated blocks as decoded series per namespace.
-func (nt *NamespacesTester) DumpValues() (DecodedNamespaceMap, error) {
+func (nt *NamespacesTester) DumpValues() DecodedNamespaceMap {
 	nsMap := make(DecodedNamespaceMap, len(nt.Accumulators))
 	for _, acc := range nt.Accumulators {
-		block, err := acc.DumpValues()
-		if err != nil {
-			return nil, err
-		}
+		block := acc.DumpValues()
 
-		nsMap[acc.ns] = block
+		if block != nil {
+			nsMap[acc.ns] = block
+		}
 	}
 
-	return nsMap, nil
+	return nsMap
+}
+
+// DumpReadersForNamespace dumps the readers and their start times for a given
+// namespace.
+func (nt *NamespacesTester) DumpReadersForNamespace(
+	md namespace.Metadata,
+) ReaderMap {
+	id := md.ID().String()
+	for _, acc := range nt.Accumulators {
+		if acc.ns == id {
+			return acc.readerMap
+		}
+	}
+
+	assert.FailNow(nt.t, fmt.Sprintf("namespace with id %s not found "+
+		"valid namespaces are %v", id, nt.Namespaces))
+	return nil
+}
+
+// ResultForNamespace gives the result for the given namespace.
+func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
+	result, found := nt.Results.Results.Get(id)
+	require.True(nt.t, found)
+	return result
 }
 
 // TestBootstrapWith bootstraps the current Namespaces with the
@@ -226,6 +294,44 @@ func (nt *NamespacesTester) TestReadWith(s Source) {
 	nt.Results = res
 }
 
+func (nt *NamespacesTester) validateRanges(
+	name string,
+	ac xtime.Ranges,
+	ex xtime.Ranges,
+) {
+	// Make range eclipses expected
+	removedRange := ex.RemoveRanges(ac)
+	require.True(nt.t, removedRange.IsEmpty(),
+		fmt.Sprintf("%s: actual range %v does not match expected range %v "+
+			"diff: %v", name, ac, ex, removedRange))
+
+	// Now make sure no ranges outside of expected
+	expectedWithAddedRanges := ex.AddRanges(ac)
+
+	require.Equal(nt.t, ex.Len(), expectedWithAddedRanges.Len())
+	iter := ex.Iter()
+	withAddedRangesIter := expectedWithAddedRanges.Iter()
+	for iter.Next() && withAddedRangesIter.Next() {
+		require.True(nt.t, iter.Value().Equal(withAddedRangesIter.Value()))
+	}
+}
+
+func (nt *NamespacesTester) validateShardTimeRanges(
+	name string,
+	r result.ShardTimeRanges,
+	ex result.ShardTimeRanges,
+) {
+	assert.Equal(nt.t, len(ex), len(r),
+		fmt.Sprintf("%s: expected %v and actual %v size mismatch", name, ex, r))
+	for k, val := range r {
+		expectedVal, found := ex[k]
+		require.True(nt.t, found,
+			fmt.Sprintf("%s: expected shard map %v does not have key %d; actual: %v",
+				name, ex, k, r))
+		nt.validateRanges(name, val, expectedVal)
+	}
+}
+
 // TestUnfulfilledForNamespace ensures the given namespace has the expected
 // range flagged as unfulfilled.
 func (nt *NamespacesTester) TestUnfulfilledForNamespace(
@@ -233,18 +339,13 @@ func (nt *NamespacesTester) TestUnfulfilledForNamespace(
 	ex result.ShardTimeRanges,
 	exIdx result.ShardTimeRanges,
 ) {
-	id := md.ID()
-	ns, found := nt.Results.Results.Get(id)
-	require.True(nt.t, found, fmt.Sprintf("no namespace for id: %s", id))
-
+	ns := nt.ResultForNamespace(md.ID())
 	actual := ns.DataResult.Unfulfilled()
-	assert.True(nt.t, actual.Equal(ex),
-		fmt.Sprintf("data: expected %v does not match actual %v", ex, actual))
+	nt.validateShardTimeRanges("data", actual, ex)
 
 	if md.Options().IndexOptions().Enabled() {
 		actual := ns.IndexResult.Unfulfilled()
-		assert.True(nt.t, actual.Equal(exIdx),
-			fmt.Sprintf("index: expected %v does not match actual %v", ex, actual))
+		nt.validateShardTimeRanges("index", actual, exIdx)
 	}
 }
 
@@ -262,9 +363,7 @@ func (nt *NamespacesTester) TestUnfulfilledForIDIsEmpty(
 	id ident.ID,
 	useIndex bool,
 ) {
-	ns, found := nt.Results.Results.Get(id)
-	require.True(nt.t, found, fmt.Sprintf("no namespace for id: %s", id))
-
+	ns := nt.ResultForNamespace(id)
 	actual := ns.DataResult.Unfulfilled()
 	assert.True(nt.t, actual.IsEmpty(), fmt.Sprintf("data: not empty %v", actual))
 

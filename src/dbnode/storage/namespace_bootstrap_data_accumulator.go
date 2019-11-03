@@ -32,7 +32,9 @@ type namespaceDataAccumulator struct {
 	needsRelease []lookup.OnReleaseReadWriteRef
 }
 
-func newDatabaseNamespaceDataAccumulator(
+// NewDatabaseNamespaceDataAccumulator creates a data accumulator for
+// the namespace.
+func NewDatabaseNamespaceDataAccumulator(
 	namespace databaseNamespace,
 ) bootstrap.NamespaceDataAccumulator {
 	return &namespaceDataAccumulator{

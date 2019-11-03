@@ -29,8 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -85,19 +83,19 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				SetWiredList(wl).
 				SetDatabaseBlockPool(blPool),
 		)
-		shard       = testDatabaseShard(t, opts)
-		id          = ident.StringID("foo")
-		seriesEntry = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
+		shard = testDatabaseShard(t, opts)
+		id    = ident.StringID("foo")
+		// seriesEntry = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	)
 
-	seriesEntry.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
-	seriesEntry.Load(
-		series.LoadOptions{Bootstrap: true},
-		nil,
-		series.BootstrappedBlockStateSnapshot{})
-	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(seriesEntry, 0))
-	shard.Unlock()
+	// seriesEntry.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
+	// seriesEntry.Load(
+	// 	series.LoadOptions{Bootstrap: true},
+	// 	nil,
+	// 	series.BootstrappedBlockStateSnapshot{})
+	// shard.Lock()
+	// shard.insertNewShardEntryWithLock(lookup.NewEntry(seriesEntry, 0))
+	// shard.Unlock()
 
 	var (
 		wg        = sync.WaitGroup{}

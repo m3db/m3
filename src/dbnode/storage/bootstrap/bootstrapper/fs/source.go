@@ -170,6 +170,12 @@ func (s *fileSystemSource) Read(
 		namespace := elem.Value()
 		md := namespace.Metadata
 
+		if !md.Options().IndexOptions().Enabled() {
+			s.log.Info("options disabled for namespace",
+				zap.String("ns", md.ID().String()))
+			continue
+		}
+
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			namespace.IndexRunOptions.RunOptions)
@@ -576,6 +582,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				fulfilled := result.ShardTimeRanges{
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				}
+				fmt.Println("Fulfilled", fulfilled)
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 					ns.Options().IndexOptions())
 			}

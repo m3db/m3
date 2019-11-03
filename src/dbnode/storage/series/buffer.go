@@ -1166,12 +1166,11 @@ func (b *BufferBucket) writeToEncoderIndex(
 
 func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	streams := make([]xio.BlockReader, 0, len(b.loadedBlocks)+len(b.encoders))
-
-	for i := range b.loadedBlocks {
-		if b.loadedBlocks[i].Len() == 0 {
+	for _, bl := range b.loadedBlocks {
+		if bl.Len() == 0 {
 			continue
 		}
-		if s, err := b.loadedBlocks[i].Stream(ctx); err == nil && s.IsNotEmpty() {
+		if s, err := bl.Stream(ctx); err == nil && s.IsNotEmpty() {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
 		}

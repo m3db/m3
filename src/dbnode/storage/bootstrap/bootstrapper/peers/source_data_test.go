@@ -210,8 +210,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	defer tester.Finish()
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
-	vals, err := tester.DumpValues()
-	require.NoError(t, err)
+	vals := tester.DumpValues()
 	assert.Equal(t, 1, len(vals))
 	series, found := vals[nsMetadata.ID().String()]
 	require.True(t, found)
@@ -402,8 +401,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		tester.TestReadWith(src)
 		tester.TestUnfulfilledForNamespaceIsEmpty(testNsMd)
 
-		vals, err := tester.DumpValues()
-		require.NoError(t, err)
+		vals := tester.DumpValues()
 		assert.Equal(t, 1, len(vals))
 		series, found := vals[testNsMd.ID().String()]
 		require.True(t, found)

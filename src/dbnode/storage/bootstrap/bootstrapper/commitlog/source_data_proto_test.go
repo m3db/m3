@@ -22,9 +22,10 @@ package commitlog
 
 import (
 	"testing"
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -56,30 +57,29 @@ func testProtoNsMetadata(t *testing.T) namespace.Metadata {
 	return md
 }
 
-func setProtoAnnotation(value []testValue) []testValue {
-	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
-	for i := 0; i < len(value); i++ {
-		value[i].v = 0
-		value[i].a = protoIter.Next()
-	}
-	return value
-}
+// func setProtoAnnotation(value []testValue) []testValue {
+// 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
+// 	for i := 0; i < len(value); i++ {
+// 		value[i].v = 0
+// 		value[i].a = protoIter.Next()
+// 	}
+// 	return value
+// }
 
-func TestProtoReadOrderedValues(t *testing.T) {
-	opts := testProtoOptions()
-	md := testProtoNsMetadata(t)
-	testReadOrderedValues(t, opts, md, setProtoAnnotation)
-}
+// func TestProtoReadOrderedValues(t *testing.T) {
+// 	opts := testProtoOptions()
+// 	md := testProtoNsMetadata(t)
+// 	testReadOrderedValues(t, opts, md, setProtoAnnotation)
+// }
 
-func TestProtoReadUnorderedValues(t *testing.T) {
-	opts := testProtoOptions()
-	md := testProtoNsMetadata(t)
-	testReadUnorderedValues(t, opts, md, setProtoAnnotation)
-}
+// func TestProtoReadUnorderedValues(t *testing.T) {
+// 	opts := testProtoOptions()
+// 	md := testProtoNsMetadata(t)
+// 	testReadUnorderedValues(t, opts, md, setProtoAnnotation)
+// }
 
-func TestProtoItMergesSnapshotsAndCommitLogs(t *testing.T) {
-	opts := testProtoOptions()
-	md := testProtoNsMetadata(t)
-	testItMergesSnapshotsAndCommitLogs(t, opts, md, setProtoAnnotation)
-}
-
+// func TestProtoItMergesSnapshotsAndCommitLogs(t *testing.T) {
+// 	opts := testProtoOptions()
+// 	md := testProtoNsMetadata(t)
+// 	testItMergesSnapshotsAndCommitLogs(t, opts, md, setProtoAnnotation)
+// }

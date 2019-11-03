@@ -78,16 +78,17 @@ type Namespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
-	// DataTargetRange is the data target bootstrap range.
-	DataTargetRange TargetRange
-	// IndexTargetRange is the data target bootstrap range.
-	IndexTargetRange TargetRange
 	// DataRunOptions is a set of run options for the current
 	// series data bootstrap run.
 	DataRunOptions NamespaceRunOptions
 	// IndexRunOptions is a set of run options for the current
 	// series index metadata bootstrap run.
 	IndexRunOptions NamespaceRunOptions
+	// TODO: delete these two attributes.
+	// DataTargetRange is the data target bootstrap range.
+	DataTargetRange TargetRange
+	// IndexTargetRange is the data target bootstrap range.
+	IndexTargetRange TargetRange
 }
 
 // NamespaceRunOptions is the namespace run options for the current

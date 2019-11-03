@@ -57,7 +57,7 @@ func MergedDataBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
 		return i
 	}
 	i.Unfulfilled().AddRanges(j.Unfulfilled())
-	return j
+	return i
 }
 
 type shardResult struct {

@@ -199,8 +199,7 @@ func (m *bootstrapManager) bootstrap() error {
 			bootstrapShards = append(bootstrapShards, shard.ID())
 		}
 
-		accumulator := newDatabaseNamespaceDataAccumulator(namespace)
-
+		accumulator := NewDatabaseNamespaceDataAccumulator(namespace)
 		targets = append(targets, bootstrap.ProcessNamespace{
 			Metadata:        namespace.Metadata(),
 			Shards:          bootstrapShards,

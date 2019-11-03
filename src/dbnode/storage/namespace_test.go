@@ -33,8 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -45,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -320,103 +317,103 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
-func TestNamespaceBootstrapBootstrapping(t *testing.T) {
-	ns, closer := newTestNamespace(t)
-	defer closer()
-	ns.bootstrapState = Bootstrapping
-	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(time.Now(), nil))
-}
+// func TestNamespaceBootstrapBootstrapping(t *testing.T) {
+// 	ns, closer := newTestNamespace(t)
+// 	defer closer()
+// 	ns.bootstrapState = Bootstrapping
+// 	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(time.Now(), nil))
+// }
 
-func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
-	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
-		namespace.NewOptions().SetBootstrapEnabled(false))
-	defer closer()
-	require.NoError(t, ns.Bootstrap(time.Now(), nil))
-	require.Equal(t, Bootstrapped, ns.bootstrapState)
-}
+// func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
+// 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+// 		namespace.NewOptions().SetBootstrapEnabled(false))
+// 	defer closer()
+// 	require.NoError(t, ns.Bootstrap(time.Now(), nil))
+// 	require.Equal(t, Bootstrapped, ns.bootstrapState)
+// }
 
-func TestNamespaceBootstrapAllShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
+// func TestNamespaceBootstrapAllShards(t *testing.T) {
+// 	ctrl := gomock.NewController(xtest.Reporter{T: t})
+// 	defer ctrl.Finish()
 
-	ns, closer := newTestNamespace(t)
-	defer closer()
+// 	ns, closer := newTestNamespace(t)
+// 	defer closer()
 
-	start := time.Now()
+// 	start := time.Now()
 
-	errs := []error{nil, errors.New("foo")}
-	bs := bootstrap.NewMockProcess(ctrl)
-	bs.EXPECT().
-		Run(start, ns.metadata, sharding.IDs(testShardIDs)).
-		Return(bootstrap.ProcessResult{
-			DataResult:  result.NewDataBootstrapResult(),
-			IndexResult: result.NewIndexBootstrapResult(),
-		}, nil)
+// 	errs := []error{nil, errors.New("foo")}
+// 	bs := bootstrap.NewMockProcess(ctrl)
+// 	bs.EXPECT().
+// 		Run(start, ns.metadata, sharding.IDs(testShardIDs)).
+// 		Return(bootstrap.ProcessResult{
+// 			DataResult:  result.NewDataBootstrapResult(),
+// 			IndexResult: result.NewIndexBootstrapResult(),
+// 		}, nil)
 
-	shardIDs := make([]uint32, 0, len(errs))
-	for i := range errs {
-		shardID := uint32(i)
-		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().IsBootstrapped().Return(false)
-		shard.EXPECT().ID().Return(shardID).AnyTimes()
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
-		ns.shards[testShardIDs[i].ID()] = shard
-		shardIDs = append(shardIDs, shardID)
-	}
+// 	shardIDs := make([]uint32, 0, len(errs))
+// 	for i := range errs {
+// 		shardID := uint32(i)
+// 		shard := NewMockdatabaseShard(ctrl)
+// 		shard.EXPECT().IsBootstrapped().Return(false)
+// 		shard.EXPECT().ID().Return(shardID).AnyTimes()
+// 		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
+// 		ns.shards[testShardIDs[i].ID()] = shard
+// 		shardIDs = append(shardIDs, shardID)
+// 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
-	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
-}
+// 	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
+// 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
+// }
 
-func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-	var (
-		needsBootstrap, alreadyBootstrapped []shard.Shard
-		needsBootstrapShardIDs              []uint32
-	)
-	for i, shard := range testShardIDs {
-		if i%2 == 0 {
-			needsBootstrap = append(needsBootstrap, shard)
-			needsBootstrapShardIDs = append(needsBootstrapShardIDs, shard.ID())
-		} else {
-			alreadyBootstrapped = append(alreadyBootstrapped, shard)
-		}
-	}
+// 	var (
+// 		needsBootstrap, alreadyBootstrapped []shard.Shard
+// 		needsBootstrapShardIDs              []uint32
+// 	)
+// 	for i, shard := range testShardIDs {
+// 		if i%2 == 0 {
+// 			needsBootstrap = append(needsBootstrap, shard)
+// 			needsBootstrapShardIDs = append(needsBootstrapShardIDs, shard.ID())
+// 		} else {
+// 			alreadyBootstrapped = append(alreadyBootstrapped, shard)
+// 		}
+// 	}
 
-	require.True(t, len(needsBootstrap) > 0)
-	require.True(t, len(alreadyBootstrapped) > 0)
+// 	require.True(t, len(needsBootstrap) > 0)
+// 	require.True(t, len(alreadyBootstrapped) > 0)
 
-	ns, closer := newTestNamespace(t)
-	defer closer()
+// 	ns, closer := newTestNamespace(t)
+// 	defer closer()
 
-	start := time.Now()
+// 	start := time.Now()
 
-	bs := bootstrap.NewMockProcess(ctrl)
-	bs.EXPECT().
-		Run(start, ns.metadata, sharding.IDs(needsBootstrap)).
-		Return(bootstrap.ProcessResult{
-			DataResult:  result.NewDataBootstrapResult(),
-			IndexResult: result.NewIndexBootstrapResult(),
-		}, nil)
+// 	bs := bootstrap.NewMockProcess(ctrl)
+// 	bs.EXPECT().
+// 		Run(start, ns.metadata, sharding.IDs(needsBootstrap)).
+// 		Return(bootstrap.ProcessResult{
+// 			DataResult:  result.NewDataBootstrapResult(),
+// 			IndexResult: result.NewIndexBootstrapResult(),
+// 		}, nil)
 
-	for _, testShard := range needsBootstrap {
-		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().IsBootstrapped().Return(false)
-		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
-		ns.shards[testShard.ID()] = shard
-	}
-	for _, testShard := range alreadyBootstrapped {
-		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().IsBootstrapped().Return(true)
-		ns.shards[testShard.ID()] = shard
-	}
+// 	for _, testShard := range needsBootstrap {
+// 		shard := NewMockdatabaseShard(ctrl)
+// 		shard.EXPECT().IsBootstrapped().Return(false)
+// 		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
+// 		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+// 		ns.shards[testShard.ID()] = shard
+// 	}
+// 	for _, testShard := range alreadyBootstrapped {
+// 		shard := NewMockdatabaseShard(ctrl)
+// 		shard.EXPECT().IsBootstrapped().Return(true)
+// 		ns.shards[testShard.ID()] = shard
+// 	}
 
-	require.NoError(t, ns.Bootstrap(start, bs))
-	require.Equal(t, Bootstrapped, ns.bootstrapState)
-}
+// 	require.NoError(t, ns.Bootstrap(start, bs))
+// 	require.Equal(t, Bootstrapped, ns.bootstrapState)
+// }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
@@ -1178,24 +1175,24 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	require.NoError(t, ns.Close())
 }
 
-func TestNamespaceTicksIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// func TestNamespaceTicksIndex(t *testing.T) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-	idx := NewMocknamespaceIndex(ctrl)
-	ns, closer := newTestNamespaceWithIndex(t, idx)
-	defer closer()
-	for _, s := range ns.shards {
-		if s != nil {
-			s.Bootstrap(nil)
-		}
-	}
+// 	idx := NewMocknamespaceIndex(ctrl)
+// 	ns, closer := newTestNamespaceWithIndex(t, idx)
+// 	defer closer()
+// 	for _, s := range ns.shards {
+// 		if s != nil {
+// 			s.Bootstrap(nil)
+// 		}
+// 	}
 
-	ctx := context.NewCancellable()
-	idx.EXPECT().Tick(ctx, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
-	err := ns.Tick(ctx, time.Now())
-	require.NoError(t, err)
-}
+// 	ctx := context.NewCancellable()
+// 	idx.EXPECT().Tick(ctx, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
+// 	err := ns.Tick(ctx, time.Now())
+// 	require.NoError(t, err)
+// }
 
 func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	ns, closer := newTestNamespace(t)
