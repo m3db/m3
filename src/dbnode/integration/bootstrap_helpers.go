@@ -52,14 +52,6 @@ func newTestBootstrapperSource(
 		}
 	}
 
-	if opts.readData != nil {
-		src.readData = opts.readData
-	} else {
-		src.readData = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error) {
-			return result.NewDataBootstrapResult(), nil
-		}
-	}
-
 	if opts.availableIndex != nil {
 		src.availableIndex = opts.availableIndex
 	} else {
@@ -68,11 +60,11 @@ func newTestBootstrapperSource(
 		}
 	}
 
-	if opts.readIndex != nil {
-		src.readIndex = opts.readIndex
+	if opts.read != nil {
+		src.read = opts.read
 	} else {
-		src.readIndex = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error) {
-			return result.NewIndexBootstrapResult(), nil
+		src.read = func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+			return bootstrap.NewNamespaceResults(namespaces), nil
 		}
 	}
 
@@ -107,18 +99,16 @@ type testBootstrapper struct {
 
 type testBootstrapperSourceOptions struct {
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
+	read           func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
 }
 
 var _ bootstrap.Source = &testBootstrapperSource{}
 
 type testBootstrapperSource struct {
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
+	read           func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
 }
 
 func (t testBootstrapperSource) AvailableData(
@@ -129,14 +119,6 @@ func (t testBootstrapperSource) AvailableData(
 	return t.availableData(ns, shardsTimeRanges, runOpts)
 }
 
-func (t testBootstrapperSource) ReadData(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	opts bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	return t.readData(ns, shardsTimeRanges, opts)
-}
-
 func (t testBootstrapperSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -145,12 +127,10 @@ func (t testBootstrapperSource) AvailableIndex(
 	return t.availableIndex(ns, shardsTimeRanges, runOpts)
 }
 
-func (t testBootstrapperSource) ReadIndex(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	opts bootstrap.RunOptions,
-) (result.IndexBootstrapResult, error) {
-	return t.readIndex(ns, shardsTimeRanges, opts)
+func (t testBootstrapperSource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	return t.read(namespaces)
 }
 
 func (t testBootstrapperSource) String() string {
