@@ -582,7 +582,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				fulfilled := result.ShardTimeRanges{
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				}
-				fmt.Println("Fulfilled", fulfilled)
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 					ns.Options().IndexOptions())
 			}

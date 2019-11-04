@@ -90,11 +90,15 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 }
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
+	return testNsMetadataWithIndex(t, true)
+}
+
+func testNsMetadataWithIndex(t *testing.T, indexOn bool) namespace.Metadata {
 	ropts := testRetentionOptions.SetBlockSize(testBlockSize)
 	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
 		SetIndexOptions(testNamespaceIndexOptions.
-			SetEnabled(true).
+			SetEnabled(indexOn).
 			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
 	return md
@@ -146,6 +150,19 @@ func testTimeRanges() xtime.Ranges {
 
 func testShardTimeRanges() result.ShardTimeRanges {
 	return map[uint32]xtime.Ranges{testShard: testTimeRanges()}
+}
+
+func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
+	// NB: since index files are not corrupted on this run, it's expected that
+	// `testBlockSize` values should be fulfilled in the index block. This is
+	// `testBlockSize` rather than `testIndexSize` since the files generated
+	// by this test use 2 hour (which is `testBlockSize`) reader blocks.
+	return map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testStart.Add(testBlockSize),
+			End:   testStart.Add(11 * time.Hour),
+		}),
+	}
 }
 
 func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) {
@@ -477,10 +494,22 @@ func TestReadOpenFileError(t *testing.T) {
 	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
 }
 
-func TestReadDataCorruptionError(t *testing.T) {
+func TestReadDataCorruptionErrorNoIndex(t *testing.T) {
+	testReadDataCorruptionErrorWithIndexEnabled(t, false, testShardTimeRanges())
+}
+
+func TestReadDataCorruptionErrorWithIndex(t *testing.T) {
+	expectedIndex := testBootstrappingIndexShardTimeRanges()
+	testReadDataCorruptionErrorWithIndexEnabled(t, true, expectedIndex)
+}
+
+func testReadDataCorruptionErrorWithIndexEnabled(
+	t *testing.T,
+	enabled bool,
+	expectedIndexUnfulfilled result.ShardTimeRanges,
+) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
-	fmt.Println(dir)
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
@@ -492,15 +521,12 @@ func TestReadDataCorruptionError(t *testing.T) {
 	src := newFileSystemSource(newTestOptions(dir))
 	strs := testShardTimeRanges()
 
-	nsMD := testNsMetadata(t)
+	nsMD := testNsMetadataWithIndex(t, enabled)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, strs, nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
-	// NB: the index files are not corrupt, so this should set the entire range
-	// as fulfilled, shouldn't it?
-	// range as unfulfilled?
-	tester.TestUnfulfilledForNamespace(nsMD, strs, strs)
+	tester.TestUnfulfilledForNamespace(nsMD, strs, expectedIndexUnfulfilled)
 }
 
 func TestReadTimeFilter(t *testing.T) {
@@ -525,7 +551,20 @@ func TestReadPartialError(t *testing.T) {
 	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
-func TestReadValidateError(t *testing.T) {
+func TestReadValidateErrorNoIndex(t *testing.T) {
+	testReadValidateErrorWithIndexEnabled(t, false, testShardTimeRanges())
+}
+
+func TestReadValidateErrorWithIndex(t *testing.T) {
+	expectedIndex := testBootstrappingIndexShardTimeRanges()
+	testReadValidateErrorWithIndexEnabled(t, true, expectedIndex)
+}
+
+func testReadValidateErrorWithIndexEnabled(
+	t *testing.T,
+	enabled bool,
+	expectedIndexUnfulfilled result.ShardTimeRanges,
+) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -571,17 +610,30 @@ func TestReadValidateError(t *testing.T) {
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
-	nsMD := testNsMetadata(t)
+	nsMD := testNsMetadataWithIndex(t, enabled)
 	ranges := testShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
 		ranges, nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
-	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
+	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
 }
 
-func TestReadOpenError(t *testing.T) {
+func TestReadOpenErrorNoIndex(t *testing.T) {
+	testReadOpenError(t, false, testShardTimeRanges())
+}
+
+func TestReadOpenErrorWithIndex(t *testing.T) {
+	expectedIndex := testBootstrappingIndexShardTimeRanges()
+	testReadOpenError(t, true, expectedIndex)
+}
+
+func testReadOpenError(
+	t *testing.T,
+	enabled bool,
+	expectedIndexUnfulfilled result.ShardTimeRanges,
+) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -617,14 +669,14 @@ func TestReadOpenError(t *testing.T) {
 		Open(rOpts).
 		Return(errors.New("error"))
 
-	nsMD := testNsMetadata(t)
+	nsMD := testNsMetadataWithIndex(t, enabled)
 	ranges := testShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
 		ranges, nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
-	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
+	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
 }
 
 func testReadDeleteOnError(t *testing.T) {

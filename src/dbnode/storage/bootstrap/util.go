@@ -312,7 +312,9 @@ func (nt *NamespacesTester) validateRanges(
 	iter := ex.Iter()
 	withAddedRangesIter := expectedWithAddedRanges.Iter()
 	for iter.Next() && withAddedRangesIter.Next() {
-		require.True(nt.t, iter.Value().Equal(withAddedRangesIter.Value()))
+		require.True(nt.t, iter.Value().Equal(withAddedRangesIter.Value()),
+			fmt.Sprintf("%s: actual range %v does not match expected range %v",
+				name, ac, ex))
 	}
 }
 
