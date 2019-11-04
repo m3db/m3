@@ -27,8 +27,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/metrics/pipeline"
-
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -41,11 +39,15 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
@@ -86,6 +88,7 @@ var (
 	errNoTagDecoderOptions     = errors.New("dynamic downsampling enabled with tag decoder options not set")
 	errNoTagEncoderPoolOptions = errors.New("dynamic downsampling enabled with tag encoder pool options not set")
 	errNoTagDecoderPoolOptions = errors.New("dynamic downsampling enabled with tag decoder pool options not set")
+	errRollupRuleNoTransforms  = errors.New("rollup rule has no transforms set")
 )
 
 // DownsamplerOptions is a set of required downsampler options.
@@ -359,20 +362,63 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 
 	var ops []pipeline.OpUnion
 	for _, elem := range r.Transforms {
-
 		switch {
 		case elem.Rollup != nil:
-			// cfg := elem.Rollup
-			// op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{})
-			// if err != nil {
-			// 	return view.RollupRule{}, err
-			// }
+			cfg := elem.Rollup
+			aggregationTypes, err := AggregationTypes(cfg.Aggregations).Proto()
+			if err != nil {
+				return view.RollupRule{}, err
+			}
+			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
+				Type: pipelinepb.PipelineOp_ROLLUP,
+				Rollup: &pipelinepb.RollupOp{
+					NewName:          cfg.MetricName,
+					Tags:             cfg.GroupBy,
+					AggregationTypes: aggregationTypes,
+				},
+			})
+			if err != nil {
+				return view.RollupRule{}, err
+			}
+			ops = append(ops, op)
 		case elem.Aggregate != nil:
-
+			cfg := elem.Aggregate
+			aggregationType, err := cfg.Type.Proto()
+			if err != nil {
+				return view.RollupRule{}, err
+			}
+			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
+				Type: pipelinepb.PipelineOp_AGGREGATION,
+				Aggregation: &pipelinepb.AggregationOp{
+					Type: aggregationType,
+				},
+			})
+			if err != nil {
+				return view.RollupRule{}, err
+			}
+			ops = append(ops, op)
 		case elem.Transform != nil:
-
+			cfg := elem.Transform
+			var transformType transformationpb.TransformationType
+			err := cfg.Type.ToProto(&transformType)
+			if err != nil {
+				return view.RollupRule{}, err
+			}
+			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
+				Type: pipelinepb.PipelineOp_AGGREGATION,
+				Transformation: &pipelinepb.TransformationOp{
+					Type: transformType,
+				},
+			})
+			if err != nil {
+				return view.RollupRule{}, err
+			}
+			ops = append(ops, op)
 		}
+	}
 
+	if len(ops) == 0 {
+		return view.RollupRule{}, errRollupRuleNoTransforms
 	}
 
 	targetPipeline := pipeline.NewPipeline(ops)
@@ -408,7 +454,7 @@ type RollupOperationConfiguration struct {
 
 	// GroupBy is a set of labels to group by, only these remain on the
 	// new metric name produced by the rollup operation.
-	GroupBy []aggregation.Type `yaml:"groupBy"`
+	GroupBy []string `yaml:"groupBy"`
 
 	// Aggregations is a set of aggregate operations to perform.
 	Aggregations []aggregation.Type `yaml:"aggregations"`
@@ -416,14 +462,30 @@ type RollupOperationConfiguration struct {
 
 // AggregateOperationConfiguration is an aggregate operation.
 type AggregateOperationConfiguration struct {
-	// Aggregations are set of aggregation operations.
-	Aggregations []aggregation.Type `yaml:"aggregations"`
+	// Type is an aggregation operation type.
+	Type aggregation.Type `yaml:"type"`
 }
 
 // TransformOperationConfiguration is a transform operation.
 type TransformOperationConfiguration struct {
-	// Transforms are a set of transform operations.
-	Transforms []transformation.Type `yaml:"transforms"`
+	// Type is an transformation operation type.
+	Type transformation.Type `yaml:"type"`
+}
+
+// AggregationTypes is a set of aggregation types.
+type AggregationTypes []aggregation.Type
+
+// Proto returns a set of aggregation types as their protobuf value.
+func (t AggregationTypes) Proto() ([]aggregationpb.AggregationType, error) {
+	result := make([]aggregationpb.AggregationType, 0, len(t))
+	for _, elem := range t {
+		value, err := elem.Proto()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, value)
+	}
+	return result, nil
 }
 
 // RemoteAggregatorConfiguration specifies a remote aggregator
