@@ -143,6 +143,20 @@ func (mr *MockBytesMockRecorder) DecWrites() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecWrites", reflect.TypeOf((*MockBytes)(nil).DecWrites))
 }
 
+// DelayFinalizer mocks base method
+func (m *MockBytes) DelayFinalizer() resource.Closer {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DelayFinalizer")
+	ret0, _ := ret[0].(resource.Closer)
+	return ret0
+}
+
+// DelayFinalizer indicates an expected call of DelayFinalizer
+func (mr *MockBytesMockRecorder) DelayFinalizer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DelayFinalizer", reflect.TypeOf((*MockBytes)(nil).DelayFinalizer))
+}
+
 // Finalize mocks base method
 func (m *MockBytes) Finalize() {
 	m.ctrl.T.Helper()
@@ -153,20 +167,6 @@ func (m *MockBytes) Finalize() {
 func (mr *MockBytesMockRecorder) Finalize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockBytes)(nil).Finalize))
-}
-
-// Finalizer mocks base method
-func (m *MockBytes) Finalizer() resource.Finalizer {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Finalizer")
-	ret0, _ := ret[0].(resource.Finalizer)
-	return ret0
-}
-
-// Finalizer indicates an expected call of Finalizer
-func (mr *MockBytesMockRecorder) Finalizer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalizer", reflect.TypeOf((*MockBytes)(nil).Finalizer))
 }
 
 // IncReads mocks base method
@@ -295,28 +295,4 @@ func (m *MockBytes) Resize(arg0 int) {
 func (mr *MockBytesMockRecorder) Resize(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resize", reflect.TypeOf((*MockBytes)(nil).Resize), arg0)
-}
-
-// SetFinalizer mocks base method
-func (m *MockBytes) SetFinalizer(arg0 resource.Finalizer) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetFinalizer", arg0)
-}
-
-// SetFinalizer indicates an expected call of SetFinalizer
-func (mr *MockBytesMockRecorder) SetFinalizer(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizer", reflect.TypeOf((*MockBytes)(nil).SetFinalizer), arg0)
-}
-
-// TrackObject mocks base method
-func (m *MockBytes) TrackObject(arg0 interface{}) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "TrackObject", arg0)
-}
-
-// TrackObject indicates an expected call of TrackObject
-func (mr *MockBytesMockRecorder) TrackObject(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrackObject", reflect.TypeOf((*MockBytes)(nil).TrackObject), arg0)
 }

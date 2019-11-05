@@ -69,7 +69,11 @@ func NewAddHandler(
 	}
 }
 
-func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(
+	svc handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
@@ -80,7 +84,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handler.NewServiceOptions(svc, r.Header, nil)
 	nsRegistry, err := h.Add(md, opts)
 	if err != nil {
 		if err == errNamespaceExists {
@@ -117,7 +121,10 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, 
 }
 
 // Add adds a namespace.
-func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest, opts handler.ServiceOptions) (nsproto.Registry, error) {
+func (h *AddHandler) Add(
+	addReq *admin.NamespaceAddRequest,
+	opts handler.ServiceOptions,
+) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)

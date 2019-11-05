@@ -63,7 +63,7 @@ type Values interface {
 	) []Datapoints
 }
 
-// A Datapoint is a single data value reported at a given time
+// A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
 	Timestamp time.Time
 	Value     float64
@@ -106,13 +106,17 @@ func (d Datapoints) alignToBounds(
 	stepSize := bounds.StepSize
 	t := bounds.Start
 	for i := 0; i < steps; i++ {
-		singleStepValues := make(Datapoints, 0)
+		singleStepValues := make(Datapoints, 0, 10)
+		staleThreshold := lookbackDuration
+		if stepSize > lookbackDuration {
+			staleThreshold = stepSize
+		}
 
 		for dpIdx < numDatapoints && !d[dpIdx].Timestamp.After(t) {
 			point := d[dpIdx]
 			dpIdx++
 			// Skip stale values
-			if t.Sub(point.Timestamp) > lookbackDuration {
+			if t.Sub(point.Timestamp) > staleThreshold {
 				continue
 			}
 
@@ -124,7 +128,7 @@ func (d Datapoints) alignToBounds(
 		if writeForward {
 			if len(singleStepValues) == 0 && dpIdx > 0 {
 				prevPoint := d[dpIdx-1]
-				if t.Sub(prevPoint.Timestamp) <= lookbackDuration {
+				if t.Sub(prevPoint.Timestamp) <= staleThreshold {
 					singleStepValues = Datapoints{prevPoint}
 				}
 			}

@@ -22,6 +22,7 @@ package debug
 
 import (
 	"bytes"
+	"net/http"
 	"testing"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -32,9 +33,9 @@ import (
 func TestNamespaceSource(t *testing.T) {
 	_, mockClient := newHandlerOptsAndClient(t)
 	iOpts := instrument.NewOptions()
-	n := NewNamespaceInfoSource(iOpts, mockClient)
+	n := NewNamespaceInfoSource(mockClient, iOpts)
 
 	buff := bytes.NewBuffer([]byte{})
-	n.Write(buff)
+	n.Write(buff, &http.Request{})
 	require.NotZero(t, buff.Len())
 }

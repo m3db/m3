@@ -63,7 +63,7 @@ function prometheus_remote_write {
   network=$(docker network ls --format '{{.ID}}' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
-    -u http://coordinator01:7201/api/v1/prom/remote/write \
+    -u http://dbnode01:7201/api/v1/prom/remote/write \
     -t __name__:${metric_name}                            \
     -h "M3-Metrics-Type: ${metrics_type}"                 \
     -h "M3-Storage-Policy: ${metrics_storage_policy}"     \

@@ -195,6 +195,29 @@ func TestAddTags(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
+func TestAddTagsIfNotExists(t *testing.T) {
+	tags := NewTags(3, nil)
+	tags = tags.AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("z"), Value: []byte("4")},
+	})
+
+	tags = tags.AddTagsIfNotExists([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("c"), Value: []byte("3")},
+	})
+
+	expected := []Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("c"), Value: []byte("3")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
+
+	assert.Equal(t, expected, tags.Tags)
+}
+
 func TestAddTagWithoutNormalizing(t *testing.T) {
 	tags := NewTags(4, nil)
 

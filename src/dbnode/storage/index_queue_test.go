@@ -315,6 +315,8 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	now := time.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
@@ -335,7 +337,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
-		ident.NewTagsIterator(tags)))
+		tags))
 }
 
 func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
@@ -344,6 +346,8 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	now := time.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()

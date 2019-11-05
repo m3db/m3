@@ -38,8 +38,19 @@ var (
 
 func TestListenAddressResolver(t *testing.T) {
 	cfg := Configuration{
-		ListenAddressType: ConfigResolver,
-		Value:             &defaultListen,
+		DeprecatedListenAddressType: ConfigResolver,
+		Value:                       &defaultListen,
+	}
+
+	value, err := cfg.Resolve()
+	require.NoError(t, err)
+
+	assert.Equal(t, defaultListen, value)
+}
+
+func TestListenAddressResolverDefaultsToConfigResolver(t *testing.T) {
+	cfg := Configuration{
+		Value: &defaultListen,
 	}
 
 	value, err := cfg.Resolve()
@@ -50,7 +61,7 @@ func TestListenAddressResolver(t *testing.T) {
 
 func TestConfigResolverErrorWhenMissing(t *testing.T) {
 	cfg := Configuration{
-		ListenAddressType: ConfigResolver,
+		DeprecatedListenAddressType: ConfigResolver,
 	}
 
 	_, err := cfg.Resolve()
@@ -63,8 +74,8 @@ func TestEnvironmentVariableResolverWithDefault(t *testing.T) {
 	require.NoError(t, os.Setenv(envListenPort, envPort))
 
 	cfg := Configuration{
-		ListenAddressType: EnvironmentResolver,
-		EnvVarListenPort:  &envListenPort,
+		DeprecatedListenAddressType: EnvironmentResolver,
+		DeprecatedEnvVarListenPort:  &envListenPort,
 	}
 
 	value, err := cfg.Resolve()
@@ -81,9 +92,9 @@ func TestEnvironmentVariableResolver(t *testing.T) {
 	require.NoError(t, os.Setenv(envListenHost, envHost))
 
 	cfg := Configuration{
-		ListenAddressType: EnvironmentResolver,
-		EnvVarListenPort:  &envListenPort,
-		EnvVarListenHost:  &envListenHost,
+		DeprecatedListenAddressType: EnvironmentResolver,
+		DeprecatedEnvVarListenPort:  &envListenPort,
+		DeprecatedEnvVarListenHost:  &envListenHost,
 	}
 
 	value, err := cfg.Resolve()
@@ -99,8 +110,8 @@ func TestInvalidEnvironmentVariableResolver(t *testing.T) {
 	require.NoError(t, os.Setenv(varName, expected))
 
 	cfg := Configuration{
-		ListenAddressType: EnvironmentResolver,
-		EnvVarListenPort:  &varName,
+		DeprecatedListenAddressType: EnvironmentResolver,
+		DeprecatedEnvVarListenPort:  &varName,
 	}
 
 	_, err := cfg.Resolve()
@@ -109,7 +120,7 @@ func TestInvalidEnvironmentVariableResolver(t *testing.T) {
 
 func TestEnvironmentResolverErrorWhenNameMissing(t *testing.T) {
 	cfg := Configuration{
-		ListenAddressType: EnvironmentResolver,
+		DeprecatedListenAddressType: EnvironmentResolver,
 	}
 
 	_, err := cfg.Resolve()
@@ -120,8 +131,8 @@ func TestEnvironmentResolverErrorWhenValueMissing(t *testing.T) {
 	varName := "OTHER_LISTEN_ENV_PORT"
 
 	cfg := Configuration{
-		ListenAddressType: EnvironmentResolver,
-		EnvVarListenPort:  &varName,
+		DeprecatedListenAddressType: EnvironmentResolver,
+		DeprecatedEnvVarListenPort:  &varName,
 	}
 
 	_, err := cfg.Resolve()
@@ -130,7 +141,7 @@ func TestEnvironmentResolverErrorWhenValueMissing(t *testing.T) {
 
 func TestUnknownResolverError(t *testing.T) {
 	cfg := Configuration{
-		ListenAddressType: "some-unknown-resolver",
+		DeprecatedListenAddressType: "some-unknown-resolver",
 	}
 
 	_, err := cfg.Resolve()

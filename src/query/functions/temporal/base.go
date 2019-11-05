@@ -314,12 +314,12 @@ func (c *baseNode) processCompletedBlocks(
 // than direct index accesses, as that may cause panics when reaching the end of
 // the datapoint list.
 func getIndices(
-	dp []ts.Datapoint,
+	dps []ts.Datapoint,
 	lBound time.Time,
 	rBound time.Time,
 	init int,
 ) (int, int, bool) {
-	if init >= len(dp) || init < 0 {
+	if init >= len(dps) || init < 0 {
 		return -1, -1, false
 	}
 
@@ -328,7 +328,7 @@ func getIndices(
 		leftBound = false
 	)
 
-	for i, dp := range dp[init:] {
+	for i, dp := range dps[init:] {
 		ts := dp.Timestamp
 		if !leftBound {
 			// Trying to set left bound.
@@ -341,7 +341,7 @@ func getIndices(
 			l = i
 		}
 
-		if ts.Before(rBound) {
+		if !ts.After(rBound) {
 			continue
 		}
 
@@ -350,13 +350,16 @@ func getIndices(
 	}
 
 	if r == -1 {
-		r = len(dp)
+		r = len(dps)
 	} else {
 		r = r + init
 	}
 
 	if leftBound {
 		l = l + init
+	} else {
+		// if left bound was not found, there are no valid candidate points here.
+		return l, r, false
 	}
 
 	return l, r, true
@@ -386,6 +389,11 @@ func buildValueBuffer(
 	return make(ts.Datapoints, 0, l)
 }
 
+type iterationBounds struct {
+	start time.Time
+	end   time.Time
+}
+
 func (c *baseNode) processSingleRequest(
 	request processRequest,
 	valueBuffer ts.Datapoints,
@@ -396,9 +404,10 @@ func (c *baseNode) processSingleRequest(
 	}
 
 	var (
-		meta       = request.blk.Meta()
-		bounds     = meta.Bounds
-		seriesMeta = seriesIter.SeriesMeta()
+		aggDuration = c.op.duration
+		meta        = request.blk.Meta()
+		seriesMeta  = seriesIter.SeriesMeta()
+		bounds      = meta.Bounds
 	)
 
 	// rename series to exclude their __name__ tag as part of function processing.
@@ -421,7 +430,6 @@ func (c *baseNode) processSingleRequest(
 		return nil, err
 	}
 
-	aggDuration := c.op.duration
 	depIters := make([]block.UnconsolidatedSeriesIter, 0, len(request.deps))
 	for _, b := range request.deps {
 		iter, err := b.SeriesIter()
@@ -458,21 +466,29 @@ func (c *baseNode) processSingleRequest(
 		}
 
 		var (
-			newVal      float64
-			init        = 0
-			alignedTime = bounds.Start
-			start       = alignedTime.Add(-1 * aggDuration)
+			newVal float64
+			init   = 0
+			end    = bounds.Start
+			start  = end.Add(-1 * aggDuration)
 		)
 
 		for i := 0; i < series.Len(); i++ {
 			val := series.DatapointsAtStep(i)
 			valueBuffer = append(valueBuffer, val...)
-			l, r, b := getIndices(valueBuffer, start, alignedTime, init)
+		}
+
+		for i := 0; i < series.Len(); i++ {
+			iterBounds := iterationBounds{
+				start: start,
+				end:   end,
+			}
+
+			l, r, b := getIndices(valueBuffer, start, end, init)
 			if !b {
-				newVal = c.processor.process(ts.Datapoints{}, alignedTime)
+				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
 			} else {
 				init = l
-				newVal = c.processor.process(valueBuffer[l:r], alignedTime)
+				newVal = c.processor.process(valueBuffer[l:r], iterBounds)
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {
@@ -480,7 +496,7 @@ func (c *baseNode) processSingleRequest(
 			}
 
 			start = start.Add(bounds.StepSize)
-			alignedTime = alignedTime.Add(bounds.StepSize)
+			end = end.Add(bounds.StepSize)
 		}
 	}
 
@@ -520,7 +536,7 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 
 // processor is implemented by the underlying transforms.
 type processor interface {
-	process(valueBuffer ts.Datapoints, evaluationTime time.Time) float64
+	process(valueBuffer ts.Datapoints, evaluationTime iterationBounds) float64
 }
 
 // makeProcessor is a way to create a transform.

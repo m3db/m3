@@ -41,7 +41,7 @@ type debugStorage struct {
 }
 
 // NewStorage creates a new debug storage instance.
-func NewStorage(promReadResp prometheus.PromResp, lookbackDuration time.Duration) (storage.Storage, error) {
+func NewStorage(promReadResp prometheus.Response, lookbackDuration time.Duration) (storage.Storage, error) {
 	seriesList, err := PromResultToSeriesList(promReadResp, models.NewTagOptions())
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (s *debugStorage) FetchBlocks(
 }
 
 // PromResultToSeriesList converts a prom result to a series list
-func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.TagOptions) ([]*ts.Series, error) {
+func PromResultToSeriesList(promReadResp prometheus.Response, tagOptions models.TagOptions) ([]*ts.Series, error) {
 	if promReadResp.Data.ResultType != "matrix" {
 		return nil, fmt.Errorf("unsupported result type found: %s", promReadResp.Data.ResultType)
 	}

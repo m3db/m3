@@ -229,18 +229,6 @@ func (mr *MockQueryResultsMockRecorder) Map() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Map", reflect.TypeOf((*MockQueryResults)(nil).Map))
 }
 
-// NoFinalize mocks base method
-func (m *MockQueryResults) NoFinalize() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NoFinalize")
-}
-
-// NoFinalize indicates an expected call of NoFinalize
-func (mr *MockQueryResultsMockRecorder) NoFinalize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NoFinalize", reflect.TypeOf((*MockQueryResults)(nil).NoFinalize))
-}
-
 // MockQueryResultsPool is a mock of QueryResultsPool interface
 type MockQueryResultsPool struct {
 	ctrl     *gomock.Controller

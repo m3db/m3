@@ -246,3 +246,6 @@ import:
     subpackages:
       - unix
     version: c178f38b412c7b426e4e97be2e75d11ff7b8d4d4
+
+  - package: go.uber.org/config
+    version: ^1.3.1

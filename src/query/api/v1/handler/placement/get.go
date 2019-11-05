@@ -70,13 +70,17 @@ func NewGetHandler(opts HandlerOptions) *GetHandler {
 	return &GetHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *GetHandler) ServeHTTP(
+	service handler.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOptions)
 	)
 
-	placement, badRequest, err := h.Get(serviceName, r)
+	placement, badRequest, err := h.Get(service, r)
 	if err != nil && badRequest {
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
@@ -107,7 +111,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 // Get gets a placement.
 func (h *GetHandler) Get(
-	serviceName string,
+	svc handler.ServiceNameAndDefaults,
 	httpReq *http.Request,
 ) (placement placement.Placement, badRequest bool, err error) {
 	var headers http.Header
@@ -115,9 +119,7 @@ func (h *GetHandler) Get(
 		headers = httpReq.Header
 	}
 
-	opts := handler.NewServiceOptions(
-		serviceName, headers, h.m3AggServiceOptions)
-
+	opts := handler.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		return nil, false, err

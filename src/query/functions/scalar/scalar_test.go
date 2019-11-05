@@ -41,7 +41,7 @@ func TestScalar(t *testing.T) {
 	op, err := NewScalarOp(val, models.NewTagOptions())
 	require.NoError(t, err)
 
-	baseOp, ok := op.(*scalarOp)
+	baseOp, ok := op.(*ScalarOp)
 	require.True(t, ok)
 	start := bounds.Start
 	step := bounds.StepSize
@@ -62,4 +62,9 @@ func TestScalar(t *testing.T) {
 	for _, v := range vals {
 		assert.Equal(t, val, v)
 	}
+
+	resultMeta := sink.Meta.ResultMetadata
+	require.True(t, resultMeta.Exhaustive)
+	require.True(t, resultMeta.LocalOnly)
+	require.Equal(t, 0, len(resultMeta.Warnings))
 }

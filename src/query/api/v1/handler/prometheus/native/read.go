@@ -117,12 +117,14 @@ func NewPromReadHandler(
 	keepNans bool,
 	instrumentOpts instrument.Options,
 ) *PromReadHandler {
+	taggedScope := instrumentOpts.MetricsScope().
+		Tagged(map[string]string{"handler": "native-read"})
 	h := &PromReadHandler{
 		engine:              engine,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		tagOpts:             tagOpts,
 		limitsCfg:           limitsCfg,
-		promReadMetrics:     newPromReadMetrics(instrumentOpts.MetricsScope()),
+		promReadMetrics:     newPromReadMetrics(taggedScope),
 		timeoutOps:          timeoutOpts,
 		keepNans:            keepNans,
 		instrumentOpts:      instrumentOpts,
@@ -134,7 +136,6 @@ func NewPromReadHandler(
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
-
 	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
@@ -184,7 +185,8 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
-	params, rErr := parseParams(r, engine.Options(), h.timeoutOps, fetchOpts, h.instrumentOpts)
+	params, rErr := parseParams(r, engine.Options(),
+		h.timeoutOps, fetchOpts, h.instrumentOpts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
@@ -199,20 +201,24 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts, w, params, h.instrumentOpts)
+	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts,
+		w, params, h.instrumentOpts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
+		return nil, emptyReqParams, &RespError{
+			Err:  err,
+			Code: http.StatusInternalServerError,
+		}
 	}
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-
-	return result, params, nil
+	handler.AddWarningHeaders(w, result.meta)
+	return result.series, params, nil
 }
 
 func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {

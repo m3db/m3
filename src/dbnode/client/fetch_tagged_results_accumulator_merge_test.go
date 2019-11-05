@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -583,7 +584,7 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
-	reader, ok := enc.Stream(encoding.StreamOptions{})
+	reader, ok := enc.Stream(context.NewContext())
 	if !ok {
 		return nil
 	}

@@ -65,8 +65,11 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
 		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
@@ -83,7 +86,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		body, _ = ioutil.ReadAll(resp.Body)
@@ -116,7 +119,11 @@ func TestPlacementAddHandler_SafeErr_NoNewInstance(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		handler.ServeHTTP(serviceName, w, req)
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
@@ -148,7 +155,11 @@ func TestPlacementAddHandler_SafeErr_NotAllAvailable(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		handler.ServeHTTP(serviceName, w, req)
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
@@ -207,7 +218,11 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		}
 
 		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(nil, nil, errors.New("test err"))
-		handler.ServeHTTP(serviceName, w, req)
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
@@ -240,7 +255,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		} else {
 			mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(existingPlacement.Clone().SetVersion(1), nil, nil)
 		}
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		body, _ = ioutil.ReadAll(resp.Body)

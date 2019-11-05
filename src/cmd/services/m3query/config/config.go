@@ -292,10 +292,12 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	Debug          bool                              `yaml:"debug"`
-	ListenAddress  string                            `yaml:"listenAddress"`
-	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	// Deprecated: simply use the logger debug level, this has been deprecated
+	// in favor of setting the log level to debug.
+	DeprecatedDebug bool                              `yaml:"debug"`
+	ListenAddress   string                            `yaml:"listenAddress"`
+	MaxConcurrency  int                               `yaml:"maxConcurrency"`
+	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration

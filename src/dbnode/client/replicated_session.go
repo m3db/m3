@@ -78,7 +78,7 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 	}
 }
 
-func newReplicatedSession(opts Options, options ...replicatedSessionOption) (clientSession, error) {
+func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicatedSessionOption) (clientSession, error) {
 	workerPool := opts.AsyncWriteWorkerPool()
 
 	scope := opts.InstrumentOptions().MetricsScope()
@@ -100,7 +100,7 @@ func newReplicatedSession(opts Options, options ...replicatedSessionOption) (cli
 	if err := session.setSession(opts); err != nil {
 		return nil, err
 	}
-	if err := session.setAsyncSessions(NewOptionsForAsyncClusters(opts)); err != nil {
+	if err := session.setAsyncSessions(asyncOpts); err != nil {
 		return nil, err
 	}
 

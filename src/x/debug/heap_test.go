@@ -22,6 +22,7 @@ package debug
 
 import (
 	"bytes"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,6 @@ import (
 func TestHeapDumpSource(t *testing.T) {
 	heapDumpSource := NewHeapDumpSource()
 	buff := bytes.NewBuffer([]byte{})
-	heapDumpSource.Write(buff)
+	heapDumpSource.Write(buff, &http.Request{})
 	require.NotZero(t, buff.Len())
 }

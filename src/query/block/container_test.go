@@ -72,6 +72,44 @@ var (
 	}
 )
 
+func TestContainerBlockMergesResultMeta(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	b := NewMockBlock(ctrl)
+	meta := Metadata{
+		Tags:   models.NewTags(0, models.NewTagOptions()),
+		Bounds: containerBounds,
+		ResultMetadata: ResultMetadata{
+			Exhaustive: false,
+			LocalOnly:  true,
+		},
+	}
+
+	b.EXPECT().Meta().Return(meta).AnyTimes()
+
+	bTwo := NewMockBlock(ctrl)
+	metaTwo := Metadata{
+		Tags:   models.NewTags(0, models.NewTagOptions()),
+		Bounds: containerBounds,
+		ResultMetadata: ResultMetadata{
+			Exhaustive: true,
+			LocalOnly:  true,
+			Warnings:   []Warning{Warning{"foo", "bar"}},
+		},
+	}
+
+	bTwo.EXPECT().Meta().Return(metaTwo).AnyTimes()
+
+	container, err := NewContainerBlock(b, bTwo)
+	assert.NoError(t, err)
+
+	resultMeta := container.Meta().ResultMetadata
+	assert.False(t, resultMeta.Exhaustive)
+	assert.True(t, resultMeta.LocalOnly)
+	assert.Equal(t, 1, len(resultMeta.Warnings))
+}
+
 func buildStepBlock(ctrl *gomock.Controller, v float64, first bool) Block {
 	b := NewMockBlock(ctrl)
 	meta := Metadata{

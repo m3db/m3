@@ -22,13 +22,16 @@ package encoding
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
-	defaultDefaultTimeUnit      = xtime.Second
-	defaultByteFieldDictLRUSize = 4
+	defaultDefaultTimeUnit        = xtime.Second
+	defaultByteFieldDictLRUSize   = 4
+	defaultIStreamReaderSizeM3TSZ = 16
+	defaultIStreamReaderSizeProto = 128
 )
 
 var (
@@ -37,22 +40,27 @@ var (
 )
 
 type options struct {
-	defaultTimeUnit      xtime.Unit
-	timeEncodingSchemes  TimeEncodingSchemes
-	markerEncodingScheme MarkerEncodingScheme
-	encoderPool          EncoderPool
-	readerIteratorPool   ReaderIteratorPool
-	bytesPool            pool.CheckedBytesPool
-	segmentReaderPool    xio.SegmentReaderPool
-	byteFieldDictLRUSize int
+	defaultTimeUnit         xtime.Unit
+	timeEncodingSchemes     TimeEncodingSchemes
+	markerEncodingScheme    MarkerEncodingScheme
+	encoderPool             EncoderPool
+	readerIteratorPool      ReaderIteratorPool
+	bytesPool               pool.CheckedBytesPool
+	segmentReaderPool       xio.SegmentReaderPool
+	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool
+	byteFieldDictLRUSize    int
+	iStreamReaderSizeM3TSZ  int
+	iStreamReaderSizeProto  int
 }
 
 func newOptions() Options {
 	return &options{
-		defaultTimeUnit:      defaultDefaultTimeUnit,
-		timeEncodingSchemes:  defaultTimeEncodingSchemes,
-		markerEncodingScheme: defaultMarkerEncodingScheme,
-		byteFieldDictLRUSize: defaultByteFieldDictLRUSize,
+		defaultTimeUnit:        defaultDefaultTimeUnit,
+		timeEncodingSchemes:    defaultTimeEncodingSchemes,
+		markerEncodingScheme:   defaultMarkerEncodingScheme,
+		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
+		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,
+		iStreamReaderSizeProto: defaultIStreamReaderSizeProto,
 	}
 }
 
@@ -131,6 +139,16 @@ func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
 }
 
+func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	opts := *o
+	opts.checkedBytesWrapperPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	return o.checkedBytesWrapperPool
+}
+
 func (o *options) SetByteFieldDictionaryLRUSize(value int) Options {
 	opts := *o
 	opts.byteFieldDictLRUSize = value
@@ -139,4 +157,24 @@ func (o *options) SetByteFieldDictionaryLRUSize(value int) Options {
 
 func (o *options) ByteFieldDictionaryLRUSize() int {
 	return o.byteFieldDictLRUSize
+}
+
+func (o *options) SetIStreamReaderSizeM3TSZ(value int) Options {
+	opts := *o
+	opts.iStreamReaderSizeM3TSZ = value
+	return &opts
+}
+
+func (o *options) IStreamReaderSizeM3TSZ() int {
+	return o.iStreamReaderSizeM3TSZ
+}
+
+func (o *options) SetIStreamReaderSizeProto(value int) Options {
+	opts := *o
+	opts.iStreamReaderSizeProto = value
+	return &opts
+}
+
+func (o *options) IStreamReaderSizeProto() int {
+	return o.iStreamReaderSizeProto
 }

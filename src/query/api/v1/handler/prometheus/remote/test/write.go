@@ -37,24 +37,24 @@ import (
 // write request.
 func GeneratePromWriteRequest() *prompb.WriteRequest {
 	req := &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{{
-			Labels: []*prompb.Label{
+		Timeseries: []prompb.TimeSeries{{
+			Labels: []prompb.Label{
 				{Name: []byte("__name__"), Value: []byte("first")},
 				{Name: []byte("foo"), Value: []byte("bar")},
 				{Name: []byte("biz"), Value: []byte("baz")},
 			},
-			Samples: []*prompb.Sample{
+			Samples: []prompb.Sample{
 				{Value: 1.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 				{Value: 2.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 			},
 		},
 			{
-				Labels: []*prompb.Label{
+				Labels: []prompb.Label{
 					{Name: []byte("__name__"), Value: []byte("second")},
 					{Name: []byte("foo"), Value: []byte("qux")},
 					{Name: []byte("bar"), Value: []byte("baz")},
 				},
-				Samples: []*prompb.Sample{
+				Samples: []prompb.Sample{
 					{Value: 3.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 					{Value: 4.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 				},

@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
@@ -157,7 +158,7 @@ var (
 	contextPtrType              = reflect.TypeOf(&common.Context{})
 	timeSeriesType              = reflect.TypeOf(&ts.Series{})
 	timeSeriesListType          = reflect.SliceOf(timeSeriesType)
-	seriesListType              = reflect.TypeOf(ts.SeriesList{})
+	seriesListType              = reflect.TypeOf(ts.NewSeriesList())
 	unaryContextShifterPtrType  = reflect.TypeOf(&unaryContextShifter{})
 	binaryContextShifterPtrType = reflect.TypeOf(&binaryContextShifter{})
 	singlePathSpecType          = reflect.TypeOf(singlePathSpec{})
@@ -362,6 +363,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 			series = make([]*ts.Series, 0, len(in))
 			// Assume all sorted until proven otherwise
 			sortedAll = true
+			meta      = block.NewResultMetadata()
 		)
 		for i := len(f.in); i < len(in); i++ {
 			v := in[i].Interface().(ts.SeriesList)
@@ -372,6 +374,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 				sortedAll = false
 			}
 
+			meta = meta.CombineMetadata(v.Metadata)
 			series = append(series, v.Values...)
 		}
 
@@ -380,6 +383,7 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 			// Only consider the aggregation of all these series lists
 			// sorted if and only if all originally had a sort applied
 			SortApplied: sortedAll,
+			Metadata:    meta,
 		})
 
 		in = in[:len(f.in)+1]
@@ -508,7 +512,7 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 
 	// context shifter ptr is nil, nothing to do here, return empty series.
 	if result.IsNil() {
-		return reflect.ValueOf(ts.SeriesList{}), nil
+		return reflect.ValueOf(ts.NewSeriesList()), nil
 	}
 
 	contextShifter := result.Elem()

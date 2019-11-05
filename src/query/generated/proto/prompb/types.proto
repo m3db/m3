@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-package prometheus;
+package m3prometheus;
 
 option go_package = "prompb";
 
@@ -12,8 +12,8 @@ message Sample {
 }
 
 message TimeSeries {
-  repeated Label labels   = 1;
-  repeated Sample samples = 2;
+  repeated Label labels   = 1 [(gogoproto.nullable) = false];;
+  repeated Sample samples = 2 [(gogoproto.nullable) = false];;
 }
 
 message Label {

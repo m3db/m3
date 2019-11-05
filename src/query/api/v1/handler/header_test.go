@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,56 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pool
+package handler
 
 import (
+	"fmt"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/query/block"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCheckedObjectPool(t *testing.T) {
-	type obj struct {
-		checked.RefCount
-		x int
-	}
+func TestAddWarningHeaders(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 0, len(recorder.Header()))
 
-	opts := NewObjectPoolOptions().SetSize(1)
+	recorder = httptest.NewRecorder()
+	meta.Exhaustive = false
+	ex := LimitHeaderSeriesLimitApplied
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
 
-	p := NewCheckedObjectPool(opts)
-	p.Init(func() checked.ReadWriteRef {
-		return &obj{}
-	})
+	recorder = httptest.NewRecorder()
+	meta.AddWarning("foo", "bar")
+	ex = fmt.Sprintf("%s,%s_%s", LimitHeaderSeriesLimitApplied, "foo", "bar")
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
 
-	assert.Equal(t, 1, checkedObjectPoolLen(p))
-
-	o := p.Get().(*obj)
-	assert.Equal(t, 0, checkedObjectPoolLen(p))
-
-	o.IncRef()
-	o.IncWrites()
-	o.x = 3
-	o.DecWrites()
-	o.DecRef()
-	o.Finalize()
-
-	assert.Equal(t, 1, checkedObjectPoolLen(p))
-
-	o = p.Get().(*obj)
-	assert.Equal(t, 0, checkedObjectPoolLen(p))
-
-	o.IncRef()
-	o.IncReads()
-	assert.Equal(t, 3, o.x)
-}
-
-func TestCheckedObjectPoolNoOptions(t *testing.T) {
-	p := NewCheckedObjectPool(nil)
-	assert.NotNil(t, p)
-}
-
-func checkedObjectPoolLen(p CheckedObjectPool) int {
-	return len(p.(*checkedObjectPool).pool.(*objectPool).values)
+	recorder = httptest.NewRecorder()
+	meta.Exhaustive = true
+	ex = "foo_bar"
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
 }

@@ -36,8 +36,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -470,7 +470,7 @@ func (s *peersSource) flush(
 	var (
 		ropts     = nsMetadata.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
-		tmpCtx    = context.NewContext()
+		flushCtx  = s.opts.ContextPool().Get()
 	)
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
@@ -513,30 +513,30 @@ func (s *peersSource) flush(
 				continue
 			}
 
-			tmpCtx.Reset()
-			stream, err := bl.Stream(tmpCtx)
+			flushCtx.Reset()
+			stream, err := bl.Stream(flushCtx)
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			segment, err := stream.Segment()
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			checksum, err := bl.Checksum()
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err
 				break
 			}
 
 			err = prepared.Persist(s.ID, s.Tags, segment, checksum)
-			tmpCtx.BlockingClose()
+			flushCtx.BlockingCloseReset()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
 				break

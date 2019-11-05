@@ -73,9 +73,8 @@ import (
 )
 
 const (
-	serviceName            = "m3query"
-	cpuProfileDuration     = 5 * time.Second
-	defaultM3DBServiceName = "m3db"
+	serviceName        = "m3query"
+	cpuProfileDuration = 5 * time.Second
 )
 
 var (
@@ -290,10 +289,25 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
 
+	var serviceOptionDefaults []handler.ServiceOptionsDefault
+	if dbCfg := runOpts.DBConfig; dbCfg != nil {
+		cluster, err := dbCfg.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			logger.Fatal("could not resolve embedded db cluster info",
+				zap.Error(err))
+		}
+		if svcCfg := cluster.Service; svcCfg != nil {
+			serviceOptionDefaults = append(serviceOptionDefaults,
+				handler.WithDefaultServiceEnvironment(svcCfg.Env))
+			serviceOptionDefaults = append(serviceOptionDefaults,
+				handler.WithDefaultServiceZone(svcCfg.Zone))
+		}
+	}
+
 	handler, err := httpd.NewHandler(downsamplerAndWriter, tagOptions, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, perQueryEnforcer,
 		fetchOptsBuilder, queryCtxOpts, instrumentOptions, cpuProfileDuration,
-		[]string{defaultM3DBServiceName})
+		[]string{handler.M3DBServiceName}, serviceOptionDefaults)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
@@ -939,7 +953,6 @@ func startCarbonIngestion(
 	// Create ingester.
 	ingester, err := ingestcarbon.NewIngester(
 		downsamplerAndWriter, rules, ingestcarbon.Options{
-			Debug:             ingesterCfg.Debug,
 			InstrumentOptions: carbonIOpts,
 			WorkerPool:        workerPool,
 		})

@@ -30,29 +30,46 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPromReadHandler_Read(t *testing.T) {
+	testPromReadHandler_Read(t, block.NewResultMetadata(), "")
+	testPromReadHandler_Read(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandler_Read(t, block.ResultMetadata{Exhaustive: false},
+		handler.LimitHeaderSeriesLimitApplied)
+}
+
+func testPromReadHandler_Read(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
 	promRead := setup.Handlers.Read
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	m := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
@@ -61,8 +78,11 @@ func TestPromReadHandler_Read(t *testing.T) {
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, err := read(context.TODO(), promRead.engine, setup.QueryOpts,
-		setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(), r, instrument.NewOptions())
+	result, err := read(context.TODO(), promRead.engine,
+		setup.QueryOpts, setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(),
+		r, instrument.NewOptions())
+
+	seriesList := result.series
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
@@ -80,13 +100,31 @@ type M3QLResp []struct {
 	StepSizeMs int               `json:"step_size_ms"`
 }
 
-func TestPromReadHandler_ReadM3QL(t *testing.T) {
+func TestPromReadHandlerRead(t *testing.T) {
+	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
+		handler.LimitHeaderSeriesLimitApplied)
+}
+
+func testPromReadHandlerRead(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
 	promRead := setup.Handlers.Read
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	meta := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(meta, seriesMeta, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
@@ -95,6 +133,9 @@ func TestPromReadHandler_ReadM3QL(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	promRead.ServeHTTP(recorder, req)
+
+	header := recorder.Header().Get(handler.LimitHeader)
+	assert.Equal(t, ex, header)
 
 	var m3qlResp M3QLResp
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
@@ -106,6 +147,7 @@ func TestPromReadHandler_ReadM3QL(t *testing.T) {
 	assert.Equal(t, "dummy1", m3qlResp[1].Target)
 	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"}, m3qlResp[1].Tags)
 	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
+
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {
