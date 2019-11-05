@@ -111,10 +111,10 @@ type accumulateArg struct {
 }
 
 type accumulateWorker struct {
-	inputCh           chan accumulateArg
-	datapointsSkipped int
-	datapointsRead    int
-	numErrors         int
+	inputCh                     chan accumulateArg
+	datapointsSkippedNotInRange int
+	datapointsRead              int
+	numErrors                   int
 }
 
 func newCommitLogSource(
@@ -292,20 +292,22 @@ func (s *commitLogSource) Read(
 			// from a call to the commit log read log entry call.
 			ReturnMetadataAsRef: true,
 		}
-		startCommitLogsRead = s.nowFn()
+		datapointsSkippedNotBootstrappingNamespace = 0
+		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
 	defer func() {
-		datapointsSkipped := 0
+		datapointsSkippedNotInRange := 0
 		datapointsRead := 0
 		for _, worker := range workers {
-			datapointsSkipped += worker.datapointsSkipped
+			datapointsSkippedNotInRange += worker.datapointsSkippedNotInRange
 			datapointsRead += worker.datapointsRead
 		}
 		s.log.Info("read finished",
 			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
-			zap.Int("datapointsSkipped", datapointsSkipped),
-			zap.Int("datapointsRead", datapointsRead))
+			zap.Int("datapointsRead", datapointsRead),
+			zap.Int("datapointsSkippedNotInRange", datapointsSkippedNotInRange),
+			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace))
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -415,43 +417,62 @@ func (s *commitLogSource) Read(
 				// Append for quick re-lookup with other series.
 				commitLogNamespaces = append(commitLogNamespaces, ns)
 			}
+			if !ns.bootstrapping {
+				// NB(r): Just set the series map entry to the memoized
+				// fact that we are not bootstrapping this namespace.
+				seriesEntry = seriesMapEntry{
+					namespace: ns,
+				}
+			} else {
+				// Resolve the series in the accumulator.
+				accumulator := ns.accumulator
 
-			// Resolve the series in the accumulator.
-			accumulator := ns.accumulator
+				// NB(r): Make only encoded tags is used and not series.Tags (we
+				// explicitly ask for references to be returned and to avoid
+				// decoding the tags if we don't have to).
+				if decodedTags := len(entry.Series.Tags.Values()); decodedTags > 0 {
+					msg := "commit log reader expects encoded tags"
+					instrumentOpts := s.opts.ResultOptions().InstrumentOptions()
+					instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
+						l.Error(msg, zap.Int("decodedTags", decodedTags))
+					})
+					err := instrument.InvariantErrorf(fmt.Sprintf("%s: decoded=%d", msg, decodedTags))
+					return bootstrap.NamespaceResults{}, err
+				}
 
-			// NB(r): Make only encoded tags is used and not series.Tags (we
-			// explicitly ask for references to be returned and to avoid
-			// decoding the tags if we don't have to).
-			if decodedTags := len(entry.Series.Tags.Values()); decodedTags > 0 {
-				msg := "commit log reader expects encoded tags"
-				instrumentOpts := s.opts.ResultOptions().InstrumentOptions()
-				instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
-					l.Error(msg, zap.Int("decodedTags", decodedTags))
-				})
-				err := instrument.InvariantErrorf(fmt.Sprintf("%s: decoded=%d", msg, decodedTags))
-				return bootstrap.NamespaceResults{}, err
+				var tagIter ident.TagIterator
+				if len(entry.Series.EncodedTags) > 0 {
+					tagDecoderCheckedBytes.Reset(entry.Series.EncodedTags)
+					tagDecoder.Reset(tagDecoderCheckedBytes)
+					tagIter = tagDecoder
+				} else {
+					// NB(r): Always expect a tag iterator in checkout series.
+					tagIter = ident.EmptyTagIterator
+				}
+
+				// Check out the series for writing, no need for concurrency
+				// as commit log bootstrapper does not perform parallel
+				// checking out of series.
+				series, err := accumulator.CheckoutSeriesWithoutLock(entry.Series.ID, tagIter)
+				if err != nil {
+					return bootstrap.NamespaceResults{}, err
+				}
+
+				// Record the fact we are bootstrapping this namespace.
+				seriesEntry = seriesMapEntry{
+					namespace: ns,
+					series:    series,
+				}
 			}
 
-			var tagIter ident.TagIterator
-			if len(entry.Series.EncodedTags) > 0 {
-				tagDecoderCheckedBytes.Reset(entry.Series.EncodedTags)
-				tagDecoder.Reset(tagDecoderCheckedBytes)
-				tagIter = tagDecoder
-			}
-
-			// Check out the series for writing, no need for concurrency
-			// as commit log bootstrapper does not perform parallel
-			// checking out of series.
-			series, err := accumulator.CheckoutSeriesWithoutLock(entry.Series.ID, tagIter)
-			if err != nil {
-				return bootstrap.NamespaceResults{}, err
-			}
-
-			seriesEntry = seriesMapEntry{
-				namespace: ns,
-				series:    series,
-			}
+			// Remember the parsed metadata for this series.
 			commitLogSeries[seriesKey] = seriesEntry
+		}
+
+		// If not bootstrapping this namespace then skip this result.
+		if !seriesEntry.namespace.bootstrapping {
+			datapointsSkippedNotBootstrappingNamespace++
+			continue
 		}
 
 		// Distribute work.
@@ -845,7 +866,7 @@ func (s *commitLogSource) startAccumulateWorker(
 			annotation = input.annotation
 		)
 		if !s.shouldAccumulateForTime(namespace, shard, dp.Timestamp) {
-			worker.datapointsSkipped++
+			worker.datapointsSkippedNotInRange++
 			continue
 		}
 
@@ -860,6 +881,7 @@ func (s *commitLogSource) startAccumulateWorker(
 				// series unless they are bootstrapped).
 				MatchUniqueIndex:      true,
 				MatchUniqueIndexValue: entry.UniqueIndex,
+				BootstrapWrite:        true,
 			})
 		if err != nil {
 			// NB(r): Only log first error per worker since this could be very

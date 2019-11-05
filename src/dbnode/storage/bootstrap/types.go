@@ -102,6 +102,8 @@ type NamespaceDataAccumulator interface {
 	// CheckoutSeriesWithoutLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
+	// If indexing is not enabled, tags is still required, simply pass
+	// ident.EmptyTagIterator.
 	// Note: Without lock variant does not perform any locking and callers
 	// must ensure non-parallel access themselves, this helps avoid
 	// overhead of the lock for the commit log bootstrapper which reads
@@ -111,6 +113,8 @@ type NamespaceDataAccumulator interface {
 	// CheckoutSeriesWithLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
+	// If indexing is not enabled, tags is still required, simply pass
+	// ident.EmptyTagIterator.
 	// Note: With lock variant perform locking and callers do not need
 	// to be concerned about parallel access.
 	CheckoutSeriesWithLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)

@@ -216,7 +216,7 @@ func (r *reader) namespaceIDReused(id []byte) ident.ID {
 	}
 	if namespaceID == nil {
 		// Take a copy and keep around to reuse later.
-		namespaceBytes := append(make([]byte, len(id)), id...)
+		namespaceBytes := append(make([]byte, 0, len(id)), id...)
 		namespaceID = ident.BytesID(namespaceBytes)
 		r.namespacesRead = append(r.namespacesRead, namespaceRead{
 			namespaceIDBytes: namespaceBytes,

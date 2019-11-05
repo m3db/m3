@@ -272,6 +272,11 @@ func (b *dbBuffer) Write(
 		writeType   WriteType
 	)
 	switch {
+	case wOpts.BootstrapWrite:
+		writeType = WarmWrite
+		// Bootstrap writes are always warm writes.
+		// TODO(r): Validate that the block doesn't reside on disk by asking
+		// the shard for it's bootstrap flush states.
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
 		if !b.coldWritesEnabled {
@@ -432,6 +437,9 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 }
 
 func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
+	// TODO(r): If warm write then validate that the block doesn't reside on
+	// disk by asking the shard for it's bootstrap flush states and verifying
+	// the block does not exist yet.
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)
