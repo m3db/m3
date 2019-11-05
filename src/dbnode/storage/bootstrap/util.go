@@ -81,13 +81,6 @@ type ReaderAtTime struct {
 	Tags map[string]string
 }
 
-func (a *TestDataAccumulator) reset() {
-	a.Lock()
-	a.readerMap = make(ReaderMap)
-	a.writeMap = make(DecodedBlockMap)
-	a.Unlock()
-}
-
 // DumpValues decodes any accumulated values and returns them as values.
 func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 	if len(a.readerMap) == 0 {
@@ -130,7 +123,7 @@ func (a *TestDataAccumulator) CheckoutSeries(
 ) (CheckoutSeriesResult, error) {
 	var decodedTags map[string]string
 	if tags != nil {
-		decodedTags := make(map[string]string, tags.Len())
+		decodedTags = make(map[string]string, tags.Len())
 		for tags.Next() {
 			tag := tags.Current()
 			name := tag.Name.String()
@@ -160,6 +153,7 @@ func (a *TestDataAccumulator) CheckoutSeries(
 				Reader: reader,
 				Tags:   decodedTags,
 			})
+
 			return nil
 		}).AnyTimes()
 
@@ -367,12 +361,6 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 	res, err := b.Bootstrap(nt.Namespaces)
 	assert.NoError(nt.t, err)
 	nt.Results = res
-}
-
-func (nt *NamespacesTester) reset() {
-	for _, acc := range nt.Accumulators {
-		acc.reset()
-	}
 }
 
 // TestReadWith reads the current Namespaces with the
