@@ -865,11 +865,11 @@ func (n *dbNamespace) Bootstrap(
 		}
 
 		if shard.IsBootstrapped() {
-			// Since no concurrent bootstraps, we should never
-			// have just bootstrapped this shard if it's not already
-			// bootstrapped.
+			// No concurrent bootstraps, this is an invariant since
+			// we only select bootstrapping the shard for a run if it's
+			// not already bootstrapped.
 			err := instrument.InvariantErrorf(
-				"bootstrapped already bootstrapped shard: %d", shardID)
+				"bootstrapper already bootstrapped shard: %d", shardID)
 			multiErr = multiErr.Add(err)
 			continue
 		}
@@ -896,28 +896,41 @@ func (n *dbNamespace) Bootstrap(
 		multiErr = multiErr.Add(err)
 	}
 
-	markAnyUnfulfilled := func(bootstrapType string, unfulfilled result.ShardTimeRanges) {
+	markAnyUnfulfilled := func(
+		bootstrapType string,
+		unfulfilled result.ShardTimeRanges,
+	) error {
 		shardsUnfulfilled := int64(len(unfulfilled))
 		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
-		if shardsUnfulfilled > 0 {
-			errStr := unfulfilled.SummaryString()
-			errFmt := "bootstrap completed with unfulfilled ranges"
-			multiErr = multiErr.Add(fmt.Errorf("%s: %s", errFmt, errStr))
-			n.log.Error(errFmt,
-				zap.Error(errors.New(errStr)),
-				zap.String("namespace", n.id.String()),
-				zap.String("bootstrapType", bootstrapType))
+		if shardsUnfulfilled == 0 {
+			return nil
 		}
+
+		errStr := unfulfilled.SummaryString()
+		errFmt := "bootstrap completed with unfulfilled ranges"
+		n.log.Error(errFmt,
+			zap.Error(errors.New(errStr)),
+			zap.String("namespace", n.id.String()),
+			zap.String("bootstrapType", bootstrapType))
+		return fmt.Errorf("%s: %s", errFmt, errStr)
 	}
-	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())
+
+	r := bootstrapResult
+	if err := markAnyUnfulfilled("data", r.DataResult.Unfulfilled()); err != nil {
+		multiErr = multiErr.Add(err)
+	}
 	if n.reverseIndex != nil {
-		markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
+		if err := markAnyUnfulfilled("index", r.IndexResult.Unfulfilled()); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	err := multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	success = err == nil
 
+	// NB(r): "success" is read by the defer above and depending on if true/false
+	// will set the namespace status as bootstrapped or not.
+	success = err == nil
 	return err
 }
 

@@ -1812,9 +1812,7 @@ func (s *dbShard) Bootstrap() error {
 	s.bootstrapState = Bootstrapping
 	s.Unlock()
 
-	// Iterate flushed time ranges to determine which blocks are retrievable. This step happens
-	// first because the flushState information is required for bootstrapping individual series
-	// (will be passed to series.Load() as BlockState).
+	// Iterate flushed time ranges to determine which blocks are retrievable.
 	s.bootstrapFlushStates()
 
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call

@@ -99,8 +99,8 @@ type seriesMapEntry struct {
 	series    bootstrap.CheckoutSeriesResult
 }
 
-// accumulateArg contains all the information a worker go-routine needs to encode
-// accumulate a write.
+// accumulateArg contains all the information a worker go-routine needs to
+// accumulate a write for encoding into the database.
 type accumulateArg struct {
 	namespace  *bootstrapNamespace
 	series     bootstrap.CheckoutSeriesResult
@@ -178,8 +178,9 @@ func (s *commitLogSource) Read(
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		dataRangesNotEmpty := !namespace.DataRunOptions.ShardTimeRanges.IsEmpty()
-		indexRangesNotEmpty := namespace.Metadata.Options().IndexOptions().Enabled() &&
-			!namespace.IndexRunOptions.ShardTimeRanges.IsEmpty()
+
+		indexEnabled := namespace.Metadata.Options().IndexOptions().Enabled()
+		indexRangesNotEmpty := indexEnabled && !namespace.IndexRunOptions.ShardTimeRanges.IsEmpty()
 		if dataRangesNotEmpty || indexRangesNotEmpty {
 			timeRangesEmpty = false
 			break
@@ -192,12 +193,13 @@ func (s *commitLogSource) Read(
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData
-		doneReadingData        = s.metrics.emitBootstrapping()
-		encounteredCorruptData = false
-		fsOpts                 = s.opts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix         = fsOpts.FilePathPrefix()
-		namespaceResults       = make(map[string]*readNamespaceResult)
-		initialTopologyState   *topology.StateSnapshot
+		doneReadingData         = s.metrics.emitBootstrapping()
+		encounteredCorruptData  = false
+		fsOpts                  = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix          = fsOpts.FilePathPrefix()
+		namespaceResults        = make(map[string]*readNamespaceResult)
+		setInitialTopologyState bool
+		initialTopologyState    *topology.StateSnapshot
 	)
 	defer doneReadingData()
 
@@ -215,14 +217,14 @@ func (s *commitLogSource) Read(
 			shardTimeRanges.AddRanges(ns.IndexRunOptions.ShardTimeRanges)
 		}
 
-		namespaceResult := &readNamespaceResult{
+		namespaceResults[ns.Metadata.ID().String()] = &readNamespaceResult{
 			namespace:               ns,
 			dataAndIndexShardRanges: shardTimeRanges,
 		}
-		namespaceResults[ns.Metadata.ID().String()] = namespaceResult
 
 		// Make the initial topology state available.
-		if initialTopologyState == nil {
+		if !setInitialTopologyState {
+			setInitialTopologyState = true
 			initialTopologyState = ns.DataRunOptions.RunOptions.InitialTopologyState()
 		}
 
@@ -253,7 +255,7 @@ func (s *commitLogSource) Read(
 	}
 
 	s.log.Info("read snapshots done",
-		zap.Stringer("took", s.nowFn().Sub(startSnapshotsRead)))
+		zap.Duration("took", s.nowFn().Sub(startSnapshotsRead)))
 
 	// Setup the series accumulator pipeline.
 	var (
@@ -327,7 +329,7 @@ func (s *commitLogSource) Read(
 		worker := worker
 		wg.Add(1)
 		go func() {
-			s.accumulateWorker(worker)
+			s.startAccumulateWorker(worker)
 			wg.Done()
 		}()
 	}
@@ -341,7 +343,7 @@ func (s *commitLogSource) Read(
 		// read and just have a by value struct stored in the map (also makes
 		// reusing memory set aside on a per series level between commit
 		// log files much easier to do).
-		commitLogNamespaces    = make([]*bootstrapNamespace, 0, 4)
+		commitLogNamespaces    []*bootstrapNamespace
 		commitLogSeries        = make(map[seriesMapKey]seriesMapEntry)
 		workerEnqueue          = 0
 		tagDecoder             = s.opts.CommitLogOptions().FilesystemOptions().TagDecoderPool().Get()
@@ -453,6 +455,8 @@ func (s *commitLogSource) Read(
 		}
 
 		// Distribute work.
+		// NB(r): In future we could batch a few points together before sending
+		// to a channel to alleviate lock contention/stress on the channels.
 		workerEnqueue++
 		worker := workers[workerEnqueue%numWorkers]
 		worker.inputCh <- accumulateArg{
@@ -827,7 +831,7 @@ func (s *commitLogSource) readCommitLogFilePredicate(f commitlog.FileFilterInfo)
 	return ok
 }
 
-func (s *commitLogSource) accumulateWorker(
+func (s *commitLogSource) startAccumulateWorker(
 	worker *accumulateWorker,
 ) {
 	ctx := context.NewContext()
@@ -840,7 +844,7 @@ func (s *commitLogSource) accumulateWorker(
 			unit       = input.unit
 			annotation = input.annotation
 		)
-		if !s.shouldAccmulateForTime(namespace, shard, dp.Timestamp) {
+		if !s.shouldAccumulateForTime(namespace, shard, dp.Timestamp) {
 			worker.datapointsSkipped++
 			continue
 		}
@@ -858,15 +862,21 @@ func (s *commitLogSource) accumulateWorker(
 				MatchUniqueIndexValue: entry.UniqueIndex,
 			})
 		if err != nil {
-			// NB(r): Debug log since this could be very noisy if it
-			// actually fails.
-			s.log.Debug("failed to write commit log entry", zap.Error(err))
+			// NB(r): Only log first error per worker since this could be very
+			// noisy if it actually fails for "most" writes.
+			if worker.numErrors == 0 {
+				s.log.Error("failed to write commit log entry", zap.Error(err))
+			} else {
+				// Always write a debug log, most of these will go nowhere if debug
+				// logging not enabled however.
+				s.log.Debug("failed to write commit log entry", zap.Error(err))
+			}
 			worker.numErrors++
 		}
 	}
 }
 
-func (s *commitLogSource) shouldAccmulateForTime(
+func (s *commitLogSource) shouldAccumulateForTime(
 	ns *bootstrapNamespace,
 	shard uint32,
 	timestamp time.Time,
