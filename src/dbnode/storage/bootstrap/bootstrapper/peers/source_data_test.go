@@ -400,13 +400,6 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		defer tester.Finish()
 		tester.TestReadWith(src)
 		tester.TestUnfulfilledForNamespaceIsEmpty(testNsMd)
-
-		vals := tester.DumpValues()
-		assert.Equal(t, 1, len(vals))
-		series, found := vals[testNsMd.ID().String()]
-		require.True(t, found)
-		assert.Equal(t, 0, len(series))
-
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1,
 		}, persists)

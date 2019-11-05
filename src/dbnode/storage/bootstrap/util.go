@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,11 +54,15 @@ type ReaderMap map[string]ReadersForID
 // TestDataAccumulator is a NamespaceDataAccumulator that captures any
 // series inserts for examination.
 type TestDataAccumulator struct {
+	sync.Mutex
+
 	t         *testing.T
 	ctrl      *gomock.Controller
 	ns        string
 	pool      encoding.MultiReaderIteratorPool
 	readerMap ReaderMap
+	// writeMap is a map to which values are written directly.
+	writeMap DecodedBlockMap
 }
 
 // DecodedValues is a slice of series datapoints.
@@ -74,6 +79,13 @@ type ReaderAtTime struct {
 	Reader xio.SegmentReader
 	// Tags is the list of tags in map format.
 	Tags map[string]string
+}
+
+func (a *TestDataAccumulator) reset() {
+	a.Lock()
+	a.readerMap = make(ReaderMap)
+	a.writeMap = make(DecodedBlockMap)
+	a.Unlock()
 }
 
 // DumpValues decodes any accumulated values and returns them as values.
@@ -116,17 +128,21 @@ func (a *TestDataAccumulator) CheckoutSeries(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (CheckoutSeriesResult, error) {
-	decodedTags := make(map[string]string, tags.Len())
-	for tags.Next() {
-		tag := tags.Current()
-		name := tag.Name.String()
-		value := tag.Value.String()
-		if len(name) > 0 && len(value) > 0 {
-			decodedTags[name] = value
+	var decodedTags map[string]string
+	if tags != nil {
+		decodedTags := make(map[string]string, tags.Len())
+		for tags.Next() {
+			tag := tags.Current()
+			name := tag.Name.String()
+			value := tag.Value.String()
+			if len(name) > 0 && len(value) > 0 {
+				decodedTags[name] = value
+			}
 		}
+
+		require.NoError(a.t, tags.Err())
 	}
 
-	require.NoError(a.t, tags.Err())
 	stringID := id.String()
 	var streamErr error
 	mockSeries := series.NewMockDatabaseSeries(a.ctrl)
@@ -146,6 +162,30 @@ func (a *TestDataAccumulator) CheckoutSeries(
 			})
 			return nil
 		}).AnyTimes()
+
+	mockSeries.EXPECT().Write(
+		gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(
+			func(
+				c context.Context,
+				ts time.Time,
+				val float64,
+				unit xtime.Unit,
+				annotation []byte,
+				writeOpts series.WriteOptions,
+			) (bool, error) {
+				a.Lock()
+				a.writeMap[stringID] = append(
+					a.writeMap[stringID], series.DecodedTestValue{
+						Timestamp:  ts,
+						Value:      val,
+						Unit:       unit,
+						Annotation: annotation,
+					})
+				a.Unlock()
+				return true, nil
+			}).AnyTimes()
 
 	// NB: unique index doesn't matter here.
 	return CheckoutSeriesResult{
@@ -208,6 +248,7 @@ func BuildNamespacesTester(
 			pool:      iterPool,
 			ns:        md.ID().String(),
 			readerMap: make(ReaderMap),
+			writeMap:  make(DecodedBlockMap),
 		}
 
 		accumulators = append(accumulators, acc)
@@ -254,6 +295,48 @@ func (nt *NamespacesTester) DumpValues() DecodedNamespaceMap {
 	return nsMap
 }
 
+// DumpValuesForNamespace dumps any accumulated blocks as decoded series.
+func (nt *NamespacesTester) DumpValuesForNamespace(
+	md namespace.Metadata,
+) DecodedBlockMap {
+	id := md.ID().String()
+	for _, acc := range nt.Accumulators {
+		if acc.ns == id {
+			return acc.DumpValues()
+		}
+	}
+
+	assert.FailNow(nt.t, fmt.Sprintf("namespace with id %s not found "+
+		"valid namespaces are %v", id, nt.Namespaces))
+	return nil
+}
+
+// DumpWrites dumps the writes encountered for all namespaces.
+func (nt *NamespacesTester) DumpWrites() DecodedNamespaceMap {
+	nsMap := make(DecodedNamespaceMap, len(nt.Accumulators))
+	for _, acc := range nt.Accumulators {
+		nsMap[acc.ns] = acc.writeMap
+	}
+
+	return nsMap
+}
+
+// DumpWritesForNamespace dumps the writes encountered for the given namespace.
+func (nt *NamespacesTester) DumpWritesForNamespace(
+	md namespace.Metadata,
+) DecodedBlockMap {
+	id := md.ID().String()
+	for _, acc := range nt.Accumulators {
+		if acc.ns == id {
+			return acc.writeMap
+		}
+	}
+
+	assert.FailNow(nt.t, fmt.Sprintf("namespace with id %s not found "+
+		"valid namespaces are %v", id, nt.Namespaces))
+	return nil
+}
+
 // DumpReadersForNamespace dumps the readers and their start times for a given
 // namespace.
 func (nt *NamespacesTester) DumpReadersForNamespace(
@@ -284,6 +367,12 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 	res, err := b.Bootstrap(nt.Namespaces)
 	assert.NoError(nt.t, err)
 	nt.Results = res
+}
+
+func (nt *NamespacesTester) reset() {
+	for _, acc := range nt.Accumulators {
+		acc.reset()
+	}
 }
 
 // TestReadWith reads the current Namespaces with the

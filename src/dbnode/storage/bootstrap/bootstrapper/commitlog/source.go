@@ -50,10 +50,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errIndexingNotEnableForNamespace = errors.New("indexing not enabled for namespace")
-)
-
 const (
 	workerChannelSize = 256
 )
@@ -375,6 +371,7 @@ func (s *commitLogSource) Read(
 			fileReadID:  entry.Metadata.FileReadID,
 			uniqueIndex: entry.Metadata.SeriesUniqueIndex,
 		}
+
 		seriesEntry, ok := commitLogSeries[seriesKey]
 		if !ok {
 			// Resolve the namespace.
@@ -856,7 +853,6 @@ func (s *commitLogSource) accumulateWorker(
 		}
 
 		worker.datapointsRead++
-
 		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc: namespace.namespaceContext.Schema,
