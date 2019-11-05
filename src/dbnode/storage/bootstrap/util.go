@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -61,6 +61,7 @@ type TestDataAccumulator struct {
 	ns        string
 	pool      encoding.MultiReaderIteratorPool
 	readerMap ReaderMap
+	schema    namespace.SchemaDescr
 	// writeMap is a map to which values are written directly.
 	writeMap DecodedBlockMap
 }
@@ -96,7 +97,7 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 			readers = append(readers, r.Reader)
 		}
 
-		value, err := series.DecodeSegmentValues(readers, iter, nil)
+		value, err := series.DecodeSegmentValues(readers, iter, a.schema)
 		if err != nil {
 			if err != io.EOF {
 				// fail test.
@@ -212,19 +213,7 @@ type NamespacesTester struct {
 	Results NamespaceResults
 }
 
-// BuildNamespacesTester builds a NamespacesTester.
-func BuildNamespacesTester(
-	t *testing.T,
-	runOpts RunOptions,
-	ranges result.ShardTimeRanges,
-	mds ...namespace.Metadata,
-) NamespacesTester {
-	shards := make([]uint32, 0, len(ranges))
-	for shard := range ranges {
-		shards = append(shards, shard)
-	}
-
-	ctrl := gomock.NewController(t)
+func buildDefaultIterPool() encoding.MultiReaderIteratorPool {
 	iterPool := encoding.NewMultiReaderIteratorPool(pool.NewObjectPoolOptions())
 	iterPool.Init(
 		func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
@@ -232,10 +221,48 @@ func BuildNamespacesTester(
 				m3tsz.DefaultIntOptimizationEnabled,
 				encoding.NewOptions())
 		})
+	return iterPool
+}
 
+// BuildNamespacesTester builds a NamespacesTester.
+func BuildNamespacesTester(
+	t *testing.T,
+	runOpts RunOptions,
+	ranges result.ShardTimeRanges,
+	mds ...namespace.Metadata,
+) NamespacesTester {
+
+	return BuildNamespacesTesterWithReaderIteratorPool(
+		t,
+		runOpts,
+		ranges,
+		nil,
+		mds...,
+	)
+}
+
+// BuildNamespacesTesterWithReaderIteratorPool builds a NamespacesTester.
+func BuildNamespacesTesterWithReaderIteratorPool(
+	t *testing.T,
+	runOpts RunOptions,
+	ranges result.ShardTimeRanges,
+	iterPool encoding.MultiReaderIteratorPool,
+	mds ...namespace.Metadata,
+) NamespacesTester {
+	shards := make([]uint32, 0, len(ranges))
+	for shard := range ranges {
+		shards = append(shards, shard)
+	}
+
+	if iterPool == nil {
+		iterPool = buildDefaultIterPool()
+	}
+
+	ctrl := gomock.NewController(t)
 	namespacesMap := NewNamespacesMap(NamespacesMapOptions{})
 	accumulators := make([]*TestDataAccumulator, 0, len(mds))
 	for _, md := range mds {
+		nsCtx := namespace.NewContextFrom(md)
 		acc := &TestDataAccumulator{
 			t:         t,
 			ctrl:      ctrl,
@@ -243,6 +270,7 @@ func BuildNamespacesTester(
 			ns:        md.ID().String(),
 			readerMap: make(ReaderMap),
 			writeMap:  make(DecodedBlockMap),
+			schema:    nsCtx.Schema,
 		}
 
 		accumulators = append(accumulators, acc)
@@ -457,3 +485,37 @@ func (nt *NamespacesTester) TestUnfulfilledForIDIsEmpty(
 func (nt *NamespacesTester) Finish() {
 	nt.ctrl.Finish()
 }
+
+// NamespaceMatcher is a matcher for namespaces.
+type NamespaceMatcher struct {
+	// Namespaces are the expected namespaces.
+	Namespaces Namespaces
+}
+
+// String describes what the matcher matches.
+func (m NamespaceMatcher) String() string { return "namespace query" }
+
+// Matches returns whether x is a match.
+func (m NamespaceMatcher) Matches(x interface{}) bool {
+	ns, ok := x.(Namespaces)
+	if !ok {
+		return false
+	}
+
+	for _, v := range ns.Namespaces.Iter() {
+		other, found := m.Namespaces.Namespaces.Get(v.Key())
+		if !found {
+			return false
+		}
+
+		val := v.Value()
+		if !other.Metadata.Equal(val.Metadata) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// NB: assert NamespaceMatcher is a gomock.Matcher
+var _ gomock.Matcher = (*NamespaceMatcher)(nil)

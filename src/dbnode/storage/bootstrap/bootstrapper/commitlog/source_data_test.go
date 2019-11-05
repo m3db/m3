@@ -350,7 +350,8 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	testItMergesSnapshotsAndCommitLogs(t, opts, md, nil)
 }
 
-func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
+func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
+	md namespace.Metadata, setAnn setAnnotation) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -433,7 +434,8 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 		snapshotValues = setAnn(snapshotValues)
 	}
 
-	encoder := opts.ResultOptions().DatabaseBlockOptions().EncoderPool().Get()
+	encoderPool := opts.ResultOptions().DatabaseBlockOptions().EncoderPool()
+	encoder := encoderPool.Get()
 	encoder.Reset(snapshotValues[0].t, 10, nsCtx.Schema)
 	for _, value := range snapshotValues {
 		dp := ts.Datapoint{
@@ -470,29 +472,28 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges}
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
-	defer tester.Finish()
+	tester := bootstrap.BuildNamespacesTesterWithReaderIteratorPool(
+		t,
+		testDefaultRunOpts,
+		targetRanges,
+		opts.ResultOptions().DatabaseBlockOptions().MultiReaderIteratorPool(),
+		md,
+	)
 
+	defer tester.Finish()
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
 	read := tester.DumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
+	verifyShardResultsAreCorrect(t, commitLogValues[0:3], read)
 
 	// NB: this case is a little tricky in that it's combining writes that come
 	// through both the `.Write()` and `.LoadBlock()` methods, which get read
 	// separately in the bootstrap test utility. Thus it's necessary to combine
 	// the results from both paths here prior to comparison.
-	vals := tester.DumpValuesForNamespace(md)
-	for k, v := range vals {
-		seriesVals, found := read[k]
-		require.True(t, found)
-		read[k] = append(seriesVals, v...)
-	}
-
-	expectedValues := append([]testValue{}, snapshotValues...)
-	expectedValues = append(expectedValues, commitLogValues[0:3]...)
-	verifyShardResultsAreCorrect(t, expectedValues, read)
+	read = tester.DumpValuesForNamespace(md)
+	verifyShardResultsAreCorrect(t, snapshotValues, read)
 }
 
 type setAnnotation func([]testValue) []testValue
