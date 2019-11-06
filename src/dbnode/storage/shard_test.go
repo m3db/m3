@@ -31,9 +31,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -851,9 +855,9 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 // 	return series
 // }
 
-// func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
-// 	return addTestSeriesWithCount(shard, id, 0)
-// }
+func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
+	return addTestSeriesWithCount(shard, id, 0)
+}
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
 	return addTestSeriesWithCountAndBootstrap(shard, id, count, true)
@@ -862,7 +866,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
 	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, 1, shard.seriesOpts)
 	if bootstrap {
-		seriesEntry.Load(series.LoadOptions{Bootstrap: true}, nil, series.BootstrappedBlockStateSnapshot{})
+		// seriesEntry.Load(series.LoadOptions{Bootstrap: true}, nil, series.BootstrappedBlockStateSnapshot{})
 	}
 	shard.Lock()
 	entry := lookup.NewEntry(seriesEntry, 0)
@@ -874,24 +878,24 @@ func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32
 	return seriesEntry
 }
 
-// func writeShardAndVerify(
-// 	ctx context.Context,
-// 	t *testing.T,
-// 	shard *dbShard,
-// 	id string,
-// 	now time.Time,
-// 	value float64,
-// 	expectedShouldWrite bool,
-// 	expectedIdx uint64,
-// ) {
-// 	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
-// 		now, value, xtime.Second, nil, series.WriteOptions{})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, expectedShouldWrite, wasWritten)
-// 	assert.Equal(t, id, series.ID.String())
-// 	assert.Equal(t, "testns1", series.Namespace.String())
-// 	assert.Equal(t, expectedIdx, series.UniqueIndex)
-// }
+func writeShardAndVerify(
+	ctx context.Context,
+	t *testing.T,
+	shard *dbShard,
+	id string,
+	now time.Time,
+	value float64,
+	expectedShouldWrite bool,
+	expectedIdx uint64,
+) {
+	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
+		now, value, xtime.Second, nil, series.WriteOptions{})
+	assert.NoError(t, err)
+	assert.Equal(t, expectedShouldWrite, wasWritten)
+	assert.Equal(t, id, series.ID.String())
+	assert.Equal(t, "testns1", series.Namespace.String())
+	assert.Equal(t, expectedIdx, series.UniqueIndex)
+}
 
 // func TestShardTick(t *testing.T) {
 // 	dir, err := ioutil.TempDir("", "testdir")

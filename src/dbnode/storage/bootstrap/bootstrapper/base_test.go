@@ -34,6 +34,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -100,13 +101,11 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	return res
 }
 
-// func testResult(results map[uint32]testShardResult) result.DataBootstrapResult {
-// 	result := result.NewDataBootstrapResult()
-// 	for shard, entry := range results {
-// 		result.Add(shard, entry.result, entry.unfulfilled)
-// 	}
-// 	return result
-// }
+func testResult(results result.ShardTimeRanges) result.DataBootstrapResult {
+	result := result.NewDataBootstrapResult()
+	result.SetUnfulfilled(results)
+	return result
+}
 
 func validateBlock(t *testing.T, expectedBlock, actualBlock block.DatabaseBlock) {
 	if expectedBlock == nil {
@@ -131,137 +130,162 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 	}
 }
 
-// func validateResult(t *testing.T, expected, actual result.DataBootstrapResult) {
-// 	if expected == nil {
-// 		require.Nil(t, actual)
-// 		return
-// 	}
+func validateResult(t *testing.T, expected, actual result.DataBootstrapResult) {
+	if expected == nil {
+		require.Nil(t, actual)
+		return
+	}
 
-// 	expectedShardResults := expected.ShardResults()
-// 	actualShardResults := actual.ShardResults()
+	expectedUnfulfilled := expected.Unfulfilled()
+	actualUnfulfilled := actual.Unfulfilled()
 
-// 	require.Equal(t, len(expectedShardResults), len(actualShardResults))
+	require.Equal(t, len(expectedUnfulfilled), len(actualUnfulfilled))
 
-// 	for shard, result := range expected.ShardResults() {
-// 		_, ok := actualShardResults[shard]
-// 		require.True(t, ok)
-// 		es := result.AllSeries()
-// 		as := actualShardResults[shard].AllSeries()
-// 		require.Equal(t, es.Len(), as.Len())
-// 		for _, entry := range es.Iter() {
-// 			id, expectedSeries := entry.Key(), entry.Value()
-// 			actualSeries, exists := as.Get(id)
-// 			require.True(t, exists)
-// 			validateSeries(t, expectedSeries.Blocks, actualSeries.Blocks)
-// 		}
-// 	}
+	for shard, ranges := range expectedUnfulfilled {
+		_, ok := actualUnfulfilled[shard]
+		require.True(t, ok)
+		validateRanges(t, ranges, actualUnfulfilled[shard])
+	}
+}
 
-// 	expectedUnfulfilled := expected.Unfulfilled()
-// 	actualUnfulfilled := actual.Unfulfilled()
+func validateRanges(t *testing.T, expected, actual xtime.Ranges) {
+	require.Equal(t, expected.Len(), actual.Len())
+	eit := expected.Iter()
+	ait := actual.Iter()
+	for eit.Next() {
+		require.True(t, ait.Next())
+		require.Equal(t, eit.Value(), ait.Value())
+	}
+	require.False(t, ait.Next())
+}
 
-// 	require.Equal(t, len(expectedUnfulfilled), len(actualUnfulfilled))
+func equalRanges(expected, actual xtime.Ranges) bool {
+	if expected.Len() != actual.Len() {
+		return false
+	}
+	eit := expected.Iter()
+	ait := actual.Iter()
+	read := 0
+	mustRead := expected.Len()
+	for eit.Next() && ait.Next() {
+		if eit.Value() != ait.Value() {
+			return false
+		}
+	}
+	return read == mustRead
+}
 
-// 	for shard, ranges := range expectedUnfulfilled {
-// 		_, ok := actualUnfulfilled[shard]
-// 		require.True(t, ok)
-// 		validateRanges(t, ranges, actualUnfulfilled[shard])
-// 	}
-// }
+type shardTimeRangesMatcher struct {
+	expected map[uint32]xtime.Ranges
+}
 
-// func validateRanges(t *testing.T, expected, actual xtime.Ranges) {
-// 	require.Equal(t, expected.Len(), actual.Len())
-// 	eit := expected.Iter()
-// 	ait := actual.Iter()
-// 	for eit.Next() {
-// 		require.True(t, ait.Next())
-// 		require.Equal(t, eit.Value(), ait.Value())
-// 	}
-// 	require.False(t, ait.Next())
-// }
+func (m shardTimeRangesMatcher) Matches(x interface{}) bool {
+	actual, ok := x.(result.ShardTimeRanges)
+	if !ok {
+		return false
+	}
 
-// func equalRanges(expected, actual xtime.Ranges) bool {
-// 	if expected.Len() != actual.Len() {
-// 		return false
-// 	}
-// 	eit := expected.Iter()
-// 	ait := actual.Iter()
-// 	read := 0
-// 	mustRead := expected.Len()
-// 	for eit.Next() && ait.Next() {
-// 		if eit.Value() != ait.Value() {
-// 			return false
-// 		}
-// 	}
-// 	return read == mustRead
-// }
+	for shard, ranges := range m.expected {
+		actualRanges, ok := actual[shard]
+		if !ok {
+			return false
+		}
+		if equalRanges(ranges, actualRanges) {
+			return false
+		}
+	}
 
-// type shardTimeRangesMatcher struct {
-// 	expected map[uint32]xtime.Ranges
-// }
+	return true
+}
 
-// func (m shardTimeRangesMatcher) Matches(x interface{}) bool {
-// 	actual, ok := x.(result.ShardTimeRanges)
-// 	if !ok {
-// 		return false
-// 	}
+func (m shardTimeRangesMatcher) String() string {
+	return "shardTimeRangesMatcher"
+}
 
-// 	for shard, ranges := range m.expected {
-// 		actualRanges, ok := actual[shard]
-// 		if !ok {
-// 			return false
-// 		}
-// 		if equalRanges(ranges, actualRanges) {
-// 			return false
-// 		}
-// 	}
+func TestBaseBootstrapperEmptyRange(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	src, _, base := testBaseBootstrapper(t, ctrl)
+	testNs := testNsMetadata(t)
 
-// 	return true
-// }
+	opts := bootstrap.NamespaceResultsMapOptions{}
+	results := bootstrap.NewNamespaceResultsMap(opts)
+	results.Set(testNs.ID(), bootstrap.NamespaceResult{
+		Metadata:    testNs,
+		DataResult:  result.NewDataBootstrapResult(),
+		IndexResult: result.NewIndexBootstrapResult(),
+	})
 
-// func (m shardTimeRangesMatcher) String() string {
-// 	return "shardTimeRangesMatcher"
-// }
+	rngs := result.ShardTimeRanges{}
+	nsResults := bootstrap.NamespaceResults{Results: results}
+	src.EXPECT().AvailableData(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(rngs, nil)
 
-// func TestBaseBootstrapperEmptyRange(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	_, _, base := testBaseBootstrapper(t, ctrl)
-// 	testNs := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, rngs, testNs)
+	defer tester.Finish()
 
-// 	// Test non-nil empty range
-// 	res, err := base.BootstrapData(testNs, map[uint32]xtime.Ranges{}, testDefaultRunOpts)
-// 	require.NoError(t, err)
-// 	require.Equal(t, 0, len(res.ShardResults()))
-// 	require.True(t, res.Unfulfilled().IsEmpty())
+	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
+	src.EXPECT().Read(matcher).DoAndReturn(
+		func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+			return nsResults, nil
+		})
 
-// 	res, err = base.BootstrapData(testNs, nil, testDefaultRunOpts)
-// 	require.NoError(t, err)
-// 	require.Equal(t, 0, len(res.ShardResults()))
-// 	require.True(t, res.Unfulfilled().IsEmpty())
-// }
+	// Test non-nil empty range
+	tester.TestBootstrapWith(base)
+	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
+	assert.Equal(t, nsResults, tester.Results)
+}
 
-// func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	source, _, base := testBaseBootstrapper(t, ctrl)
-// 	testNs := testNsMetadata(t)
+func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	src, _, base := testBaseBootstrapper(t, ctrl)
+	testNs := testNsMetadata(t)
 
-// 	targetRanges := testShardTimeRanges()
-// 	result := testResult(map[uint32]testShardResult{
-// 		testShard: {result: shardResult(testBlockEntry{"foo", nil, testTargetStart})},
-// 	})
+	opts := bootstrap.NamespaceResultsMapOptions{}
+	results := bootstrap.NewNamespaceResultsMap(opts)
+	results.Set(testNs.ID(), bootstrap.NamespaceResult{
+		Metadata:    testNs,
+		DataResult:  result.NewDataBootstrapResult(),
+		IndexResult: result.NewIndexBootstrapResult(),
+	})
 
-// 	source.EXPECT().
-// 		AvailableData(testNs, targetRanges, testDefaultRunOpts).
-// 		Return(targetRanges, nil)
-// 	source.EXPECT().
-// 		ReadData(testNs, targetRanges, testDefaultRunOpts).
-// 		Return(result, nil)
+	nsResults := bootstrap.NamespaceResults{Results: results}
+	targetRanges := testShardTimeRanges()
 
-// 	res, err := base.BootstrapData(testNs, targetRanges, testDefaultRunOpts)
-// 	require.NoError(t, err)
-// 	validateResult(t, result, res)
-// }
+	src.EXPECT().AvailableData(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(targetRanges, nil)
+
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges,
+		testNs)
+	defer tester.Finish()
+
+	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
+	src.EXPECT().Read(matcher).DoAndReturn(
+		func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+			return nsResults, nil
+		})
+
+	// Test non-nil empty range
+	tester.TestBootstrapWith(base)
+	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
+	assert.Equal(t, nsResults, tester.Results)
+
+	// result := testResult(result.ShardTimeRanges{
+	// 	testShard: shardResult(testBlockEntry{"foo", nil, testTargetStart}),
+	// })
+
+	// // source.EXPECT().
+	// // 	AvailableData(testNs, targetRanges, testDefaultRunOpts).
+	// // 	Return(targetRanges, nil)
+	// // source.EXPECT().
+	// // 	ReadData(testNs, targetRanges, testDefaultRunOpts).
+	// // 	Return(result, nil)
+
+	// res, err := base.BootstrapData(testNs, targetRanges, testDefaultRunOpts)
+	// require.NoError(t, err)
+	// validateResult(t, result, res)
+}
 
 // func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 // 	ctrl := gomock.NewController(t)
@@ -471,7 +495,6 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 // 	nextResult.Add(result.NewIndexBlock(testTargetStart.Add(1*time.Hour),
 // 		[]segment.Segment{segSecond}, secondHalf), nil)
 
-// 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(false)
 // 	source.EXPECT().
 // 		AvailableIndex(testNs, shardTimeRangesMatcher{targetRanges}, testDefaultRunOpts).
 // 		Return(firstHalf, nil)
