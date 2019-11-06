@@ -543,7 +543,6 @@ func verifyValuesAreCorrect(
 	}
 
 	count := 0
-	megaFound := true
 	for _, ex := range values {
 		id := ex.s.ID.String()
 		acList := actual[id]
@@ -556,34 +555,8 @@ func verifyValuesAreCorrect(
 		}
 
 		if !found {
-			fmt.Println("Could not find id", id, "!")
-			megaFound = false
-			break
+			return fmt.Errorf("could not find %s", id)
 		}
-	}
-
-	if !megaFound {
-		fmt.Println("Should have", len(actual), "values")
-		for s, vv := range actual {
-			if s != "m" {
-				continue
-			}
-
-			fmt.Println("id", s, "!")
-			for _, v := range vv {
-				fmt.Println(v.Value, v.Annotation, v.Timestamp, v.Unit)
-			}
-		}
-
-		for _, ex := range values {
-			id := ex.s.ID.String()
-			if id != "m" {
-				continue
-			}
-			fmt.Println(ex.v, ex.a, ex.t, ex.u, "not found id", id, "!")
-		}
-
-		return fmt.Errorf("could not find")
 	}
 
 	// Ensure there are no extra values in the actual result.
@@ -593,12 +566,10 @@ func verifyValuesAreCorrect(
 	}
 
 	if actualCount != count {
-		fmt.Println("REE")
 		return fmt.Errorf("expected %d values, got %d values", count, actualCount)
 	}
 
 	if count != len(values) {
-		fmt.Println("REEEEEEE")
 		return fmt.Errorf("expected %d values, got %d values", count, len(values))
 	}
 

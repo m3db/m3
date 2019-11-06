@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -43,9 +44,18 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 		return now
 	}))
 
+	id := ident.StringID("a")
+	meta, err := namespace.NewMetadata(id, namespace.NewOptions())
+	require.NoError(t, err)
+
 	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Bootstrap(gomock.Any()).Return(fmt.Errorf("an error"))
-	ns.EXPECT().ID().Return(ident.StringID("test"))
+	gomock.InOrder(
+		ns.EXPECT().GetOwnedShards().Return([]databaseShard{}),
+		ns.EXPECT().Metadata().Return(meta),
+		ns.EXPECT().ID().Return(id),
+		ns.EXPECT().Bootstrap(gomock.Any()).Return(fmt.Errorf("an error")),
+	)
+
 	namespaces := []databaseNamespace{ns}
 
 	db := NewMockdatabase(ctrl)
@@ -55,7 +65,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
-	err := bsm.Bootstrap()
+	err = bsm.Bootstrap()
 
 	require.NotNil(t, err)
 	require.Equal(t, "an error", err.Error())
@@ -77,17 +87,22 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	m.EXPECT().EnableFileOps().AnyTimes()
 
 	db := NewMockdatabase(ctrl)
-
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
-
 	ns := NewMockdatabaseNamespace(ctrl)
+	id := ident.StringID("testBootstrap")
+	meta, err := namespace.NewMetadata(id, namespace.NewOptions())
+	require.NoError(t, err)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Metadata().Return(meta).AnyTimes()
+
 	ns.EXPECT().
 		Bootstrap(gomock.Any()).
 		Return(nil).
-		Do(func(arg0, arg1 interface{}) {
+		Do(func(arg0 interface{}) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
@@ -104,13 +119,13 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 		})
 	ns.EXPECT().
 		ID().
-		Return(ident.StringID("test")).
+		Return(id).
 		Times(2)
 	db.EXPECT().
 		GetOwnedNamespaces().
 		Return([]databaseNamespace{ns}, nil).
 		Times(2)
 
-	err := bsm.Bootstrap()
+	err = bsm.Bootstrap()
 	require.Nil(t, err)
 }

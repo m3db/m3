@@ -246,6 +246,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		wg.Done()
 	}
 
+	assert.NoError(t, shard.Bootstrap())
 	for _, id := range writeIDs {
 		id := id
 		go func() {
@@ -263,8 +264,8 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		// err := shard.Bootstrap(bootstrapResult)
-		// assert.NoError(t, err)
+		err := shard.LoadBlocks(bootstrapResult)
+		assert.NoError(t, err)
 	}()
 
 	go func() {

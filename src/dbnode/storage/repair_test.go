@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
@@ -164,22 +165,23 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 		numIters = 1
 	)
 
-	// if withLimit {
-	// 	numIters = 2
-	// 	shard.EXPECT().Load(gomock.Any()).Return(nil)
-	// 	shard.EXPECT().Load(gomock.Any()).DoAndReturn(func(*result.Map) error {
-	// 		// Return an error that we've hit the limit, but also start a delayed
-	// 		// goroutine to release the throttle repair process.
-	// 		go func() {
-	// 			time.Sleep(10 * time.Millisecond)
-	// 			memTracker.DecPendingLoadedBytes()
-	// 		}()
-	// 		return ErrDatabaseLoadLimitHit
-	// 	})
-	// 	shard.EXPECT().Load(gomock.Any()).Return(nil)
-	// } else {
-	// 	shard.EXPECT().Load(gomock.Any())
-	// }
+	if withLimit {
+		numIters = 2
+		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
+		shard.EXPECT().LoadBlocks(gomock.Any()).DoAndReturn(func(*result.Map) error {
+			// Return an error that we've hit the limit, but also start a delayed
+			// goroutine to release the throttle repair process.
+			go func() {
+				time.Sleep(10 * time.Millisecond)
+				memTracker.DecPendingLoadedBytes()
+			}()
+			return ErrDatabaseLoadLimitHit
+		})
+		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
+	} else {
+		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
+	}
+
 	for i := 0; i < numIters; i++ {
 		expectedResults := block.NewFetchBlocksMetadataResults()
 		results := block.NewFetchBlockMetadataResults()
@@ -416,7 +418,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		FetchBlocksMetadataV2(any, start, end, any, nonNilPageToken, fetchOpts).
 		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
-	// shard.EXPECT().Load(gomock.Any())
+	shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
 
 	inputBlocks := []block.ReplicaMetadata{
 		{
