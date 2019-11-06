@@ -116,34 +116,6 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 	return decodedMap
 }
 
-func print(a ...interface{}) {
-	fmt.Println(a...)
-}
-
-func noPrint(a ...interface{}) {}
-
-func printForID(id string) func(...interface{}) {
-	if id == "m" {
-		return print
-	}
-
-	return noPrint
-}
-
-// PrintForID is temp
-func PrintForID(id string, fields ...interface{}) func(...interface{}) {
-	if id == "m" {
-		return func(in ...interface{}) {
-			all := make([]interface{}, 0, len(fields))
-			all = append(all, in...)
-			all = append(all, fields...)
-			fmt.Println(all...)
-		}
-	}
-
-	return noPrint
-}
-
 // CheckoutSeries will retrieve a series for writing to
 // and when the accumulator is closed it will ensure that the
 // series is released.
@@ -404,16 +376,37 @@ func (nt *NamespacesTester) DumpWritesForNamespace(
 	return nil
 }
 
-// HasNamespace returns true if there is an accumulator for the namespace.
-func (nt *NamespacesTester) HasNamespace(md namespace.Metadata) bool {
+// DumpAllForNamespace dumps all results for a single namespace. The results are
+// unsorted, so if that's important, they should be sorted prior to comparison.
+func (nt *NamespacesTester) DumpAllForNamespace(
+	md namespace.Metadata,
+) (DecodedBlockMap, error) {
 	id := md.ID().String()
 	for _, acc := range nt.Accumulators {
-		if acc.ns == id {
-			return true
+		if acc.ns != id {
+			continue
 		}
+
+		writeMap := acc.writeMap
+		dumpMap := acc.DumpValues()
+		merged := make(DecodedBlockMap, len(writeMap)+len(dumpMap))
+		for k, v := range writeMap {
+			merged[k] = v
+		}
+
+		for k, v := range dumpMap {
+			if vals, found := merged[k]; found {
+				merged[k] = append(vals, v...)
+			} else {
+				merged[k] = v
+			}
+		}
+
+		return merged, nil
 	}
 
-	return false
+	return nil, fmt.Errorf("namespace with id %s not found "+
+		"valid namespaces are %v", id, nt.Namespaces)
 }
 
 // DumpReadersForNamespace dumps the readers and their start times for a given

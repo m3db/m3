@@ -147,18 +147,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			orderedWritesBySeries := map[string][]generatedWrite{}
 			for _, write := range input.writes {
 				id := write.series.ID
-				// if "m" == write.series.ID.String() {
-				// 	fmt.Println("ordered write dp to id m !", write.datapoint)
-				// }
 				writesForSeries, ok := orderedWritesBySeries[id.String()]
 				if !ok {
 					writesForSeries = []generatedWrite{}
 				}
 				writesForSeries = append(writesForSeries, write)
 				orderedWritesBySeries[id.String()] = writesForSeries
-				// if "m" == write.series.ID.String() {
-				// 	fmt.Println("writes:", orderedWritesBySeries[id.String()])
-				// }
 			}
 
 			for _, writesForSeries := range orderedWritesBySeries {
@@ -168,13 +162,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			if input.snapshotExists {
-				// fmt.Println("with snapshot")
 				compressedWritesByShards := map[uint32]map[string][]byte{}
 				for seriesID, writesForSeries := range orderedWritesBySeries {
 					shard := hashIDToShard(ident.StringID(seriesID))
 					encodersBySeries, ok := compressedWritesByShards[shard]
 					if !ok {
-						// fmt.Println("not found", seriesID, writesForSeries)
 						encodersBySeries = map[string][]byte{}
 						compressedWritesByShards[shard] = encodersBySeries
 					}
@@ -185,7 +177,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						// properly bootstrap from both snapshot files and commit logs and merge them together.
 						// Note that if the commit log does not exist we ignore the snapshot time because we need
 						// the snapshot to include all the data.
-						// fmt.Println("Encoding", value.datapoint, "to", shard)
 						if !input.commitLogExists ||
 							value.arrivedAt.Before(input.snapshotTime) ||
 							value.arrivedAt.Equal(input.snapshotTime) {
@@ -236,7 +227,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						checkedBytes := checked.NewBytes(data, nil)
 						checkedBytes.IncRef()
 						tags := orderedWritesBySeries[seriesID][0].series.Tags
-						// fmt.Println("Writing series", seriesID, "to disk")
 						writer.Write(ident.StringID(seriesID), tags, checkedBytes, digest.Checksum(data))
 					}
 
@@ -276,17 +266,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					// Only write datapoints that are not in the snapshots.
 					if input.snapshotExists &&
 						!write.arrivedAt.After(input.snapshotTime) {
-						// fmt.Println("already snapshotted dp to id m !", write.datapoint)
 						continue
 					}
 
 					lock.Lock()
 					currentTime = write.arrivedAt
 					lock.Unlock()
-
-					// if "m" == write.series.ID.String() {
-					// 	fmt.Println("writing dp to id m !", write.datapoint)
-					// }
 
 					err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
 					if err != nil {
@@ -357,7 +342,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			)
 			for _, write := range input.writes {
 				shard := write.series.Shard
-				// fmt.Println("Adding", write.datapoint, "to", shard)
 				if _, ok := allShardsMap[shard]; !ok {
 					allShardsSlice = append(allShardsSlice, shard)
 				}
@@ -439,45 +423,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			}
 
-			// err = verifyShardResultsAreCorrect(nsCtx, values, blockSize,
-			// 	dataResult.ShardResults(), bootstrapOpts)
-			// if err != nil {
-			// 	return false, err
-			// }
-			if !tester.HasNamespace(nsMeta) {
-				return false, fmt.Errorf("no namespace found for %s", nsMeta.ID().String())
-			}
-
-			// read := tester.DumpWritesForNamespace(nsMeta)
-			// require.Equal(t, 1, len(read))
-			// enforceValuesAreCorrect(t, commitLogValues[0:3], read)
-
-			vals := tester.DumpValuesForNamespace(nsMeta)
-			writes := tester.DumpWritesForNamespace(nsMeta)
-
-			for k, v := range vals {
-				if seriesVals, found := writes[k]; found {
-					// fmt.Println("Found!", writes[k])
-					writes[k] = append(seriesVals, v...)
-					// fmt.Println("Appended!", writes[k])
-				} else {
-					writes[k] = v
-				}
-			}
-
-			err = verifyValuesAreCorrect(values, writes)
+			written, err := tester.DumpAllForNamespace(nsMeta)
 			if err != nil {
 				return false, err
 			}
 
 			indexResult := nsResult.IndexResult
-			// indexBlockSize := nsMeta.Options().IndexOptions().BlockSize()
-			// err = verifyIndexResultsAreCorrect(
-			// 	values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
-			// if err != nil {
-			// 	return false, err
-			// }
-
 			if shouldReturnUnfulfilled {
 				if indexResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -489,6 +440,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						"index result unfulfilled in single node cluster should be empty but was: %s",
 						indexResult.Unfulfilled().String())
 				}
+			}
+
+			err = verifyValuesAreCorrect(values, written)
+			if err != nil {
+				return false, err
 			}
 
 			return true, nil
@@ -635,10 +591,6 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 		} else {
 			a = a.Add(bufferPast)
 		}
-
-		// if id == "m" {
-		// 	fmt.Println("Generating with id", id, "shard", hashIDToShard(ident.StringID(id)))
-		// }
 
 		return generatedWrite{
 			arrivedAt: a,

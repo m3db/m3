@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"testing"
 	"time"
 
@@ -166,7 +167,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 
 	read := tester.DumpWritesForNamespace(md)
 	require.Equal(t, 2, len(read))
-	verifyShardResultsAreCorrect(t, values[:4], read)
+	enforceValuesAreCorrect(t, values[:4], read)
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -221,7 +222,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 
 	read := tester.DumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
-	verifyShardResultsAreCorrect(t, values, read)
+	enforceValuesAreCorrect(t, values, read)
 }
 
 // TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a
@@ -286,7 +287,7 @@ func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(
 
 	read := tester.DumpWritesForNamespace(md)
 	require.Equal(t, 2, len(read))
-	verifyShardResultsAreCorrect(t, values, read)
+	enforceValuesAreCorrect(t, values, read)
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -340,7 +341,7 @@ func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, se
 
 	read := tester.DumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
-	verifyShardResultsAreCorrect(t, values[1:3], read)
+	enforceValuesAreCorrect(t, values[1:3], read)
 }
 
 func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
@@ -486,14 +487,14 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 
 	read := tester.DumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
-	verifyShardResultsAreCorrect(t, commitLogValues[0:3], read)
+	enforceValuesAreCorrect(t, commitLogValues[0:3], read)
 
 	// NB: this case is a little tricky in that it's combining writes that come
 	// through both the `.Write()` and `.LoadBlock()` methods, which get read
 	// separately in the bootstrap test utility. Thus it's necessary to combine
 	// the results from both paths here prior to comparison.
 	read = tester.DumpValuesForNamespace(md)
-	verifyShardResultsAreCorrect(t, snapshotValues, read)
+	enforceValuesAreCorrect(t, snapshotValues, read)
 }
 
 type setAnnotation func([]testValue) []testValue
@@ -518,22 +519,31 @@ type seriesShardResult struct {
 
 func equals(ac series.DecodedTestValue, ex testValue) bool {
 	return ac.Timestamp.Equal(ex.t) &&
-		ac.Value == ex.v &&
+		math.Abs(ac.Value-ex.v) < 0.000001 &&
 		ac.Unit == ex.u &&
 		bytes.Equal(ac.Annotation, ex.a)
 }
 
-func verifyShardResultsAreCorrect(
+func enforceValuesAreCorrect(
 	t *testing.T,
 	values []testValue,
 	actual bootstrap.DecodedBlockMap,
 ) {
-	if actual == nil {
-		require.Equal(t, 0, len(values))
-		return
+	require.NoError(t, verifyValuesAreCorrect(values, actual))
+}
+
+func verifyValuesAreCorrect(
+	values []testValue,
+	actual bootstrap.DecodedBlockMap,
+) error {
+	if actual == nil || len(actual) == 0 {
+		if 0 != len(values) {
+			return fmt.Errorf("expected %v, got nil", values)
+		}
 	}
 
 	count := 0
+	megaFound := true
 	for _, ex := range values {
 		id := ex.s.ID.String()
 		acList := actual[id]
@@ -545,7 +555,35 @@ func verifyShardResultsAreCorrect(
 			}
 		}
 
-		require.True(t, found, fmt.Sprintf("could not find %s", id))
+		if !found {
+			fmt.Println("Could not find id", id, "!")
+			megaFound = false
+			break
+		}
+	}
+
+	if !megaFound {
+		fmt.Println("Should have", len(actual), "values")
+		for s, vv := range actual {
+			if s != "m" {
+				continue
+			}
+
+			fmt.Println("id", s, "!")
+			for _, v := range vv {
+				fmt.Println(v.Value, v.Annotation, v.Timestamp, v.Unit)
+			}
+		}
+
+		for _, ex := range values {
+			id := ex.s.ID.String()
+			if id != "m" {
+				continue
+			}
+			fmt.Println(ex.v, ex.a, ex.t, ex.u, "not found id", id, "!")
+		}
+
+		return fmt.Errorf("could not find")
 	}
 
 	// Ensure there are no extra values in the actual result.
@@ -554,8 +592,17 @@ func verifyShardResultsAreCorrect(
 		actualCount += len(v)
 	}
 
-	require.Equal(t, actualCount, count)
-	require.Equal(t, actualCount, len(values))
+	if actualCount != count {
+		fmt.Println("REE")
+		return fmt.Errorf("expected %d values, got %d values", count, actualCount)
+	}
+
+	if count != len(values) {
+		fmt.Println("REEEEEEE")
+		return fmt.Errorf("expected %d values, got %d values", count, len(values))
+	}
+
+	return nil
 }
 
 type testCommitLogIterator struct {
