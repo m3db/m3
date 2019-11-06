@@ -109,3 +109,8 @@ func Munmap(b []byte) error {
 
 	return nil
 }
+
+// Free mmapped memory.
+func Free(b []byte) error {
+	return syscall.Madvise(b, syscall.MADV_DONTNEED)
+}

@@ -25,6 +25,7 @@ package mmap
 import (
 	"fmt"
 	"syscall"
+	"unsafe"
 )
 
 // Fd mmaps a file
@@ -80,4 +81,19 @@ func Munmap(b []byte) error {
 	}
 
 	return nil
+}
+
+// Free mmapped memory.
+func Free(b []byte) error {
+	return madvise(b, syscall.MADV_DONTNEED)
+}
+
+// This is required because the unix package does not support the madvise system call on OS X.
+func madvise(b []byte, advice int) (err error) {
+	_, _, e1 := syscall.Syscall(syscall.SYS_MADVISE, uintptr(unsafe.Pointer(&b[0])),
+		uintptr(len(b)), uintptr(advice))
+	if e1 != 0 {
+		err = e1
+	}
+	return
 }

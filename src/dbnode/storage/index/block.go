@@ -1242,6 +1242,8 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		return result, errUnableToTickBlockClosed
 	}
 
+	multiErr := xerrors.NewMultiError()
+
 	// Add foreground/background segments.
 	for _, seg := range b.foregroundSegments {
 		result.NumSegments++
@@ -1257,10 +1259,15 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
+			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+				if err := immSeg.FreeMmap(); err != nil {
+					multiErr.Add(err)
+				}
+			}
 		}
 	}
 
-	return result, nil
+	return result, multiErr.FinalError()
 }
 
 func (b *block) Seal() error {
