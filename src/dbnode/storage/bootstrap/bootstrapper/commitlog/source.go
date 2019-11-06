@@ -438,16 +438,18 @@ func (s *commitLogSource) Read(
 				tagIter = tagDecoder
 			}
 
-			// Check out the series for writing.
 			series, err := accumulator.CheckoutSeries(entry.Series.ID, tagIter)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
 
+			series.Shard = entry.Series.Shard
 			seriesEntry = seriesMapEntry{
 				namespace: ns,
 				series:    series,
 			}
+
+			// Check out the series for writing.
 			commitLogSeries[seriesKey] = seriesEntry
 		}
 
@@ -457,7 +459,7 @@ func (s *commitLogSource) Read(
 		worker.inputCh <- accumulateArg{
 			namespace:  seriesEntry.namespace,
 			series:     seriesEntry.series,
-			shard:      entry.Series.Shard,
+			shard:      seriesEntry.series.Shard,
 			dp:         entry.Datapoint,
 			unit:       entry.Unit,
 			annotation: entry.Annotation,
@@ -847,6 +849,7 @@ func (s *commitLogSource) accumulateWorker(
 			unit       = input.unit
 			annotation = input.annotation
 		)
+
 		if !s.shouldAccmulateForTime(namespace, shard, dp.Timestamp) {
 			worker.datapointsSkipped++
 			continue

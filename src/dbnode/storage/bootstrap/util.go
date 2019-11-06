@@ -64,6 +64,7 @@ type TestDataAccumulator struct {
 	schema    namespace.SchemaDescr
 	// writeMap is a map to which values are written directly.
 	writeMap DecodedBlockMap
+	results  map[string]CheckoutSeriesResult
 }
 
 // DecodedValues is a slice of series datapoints.
@@ -115,6 +116,34 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 	return decodedMap
 }
 
+func print(a ...interface{}) {
+	fmt.Println(a...)
+}
+
+func noPrint(a ...interface{}) {}
+
+func printForID(id string) func(...interface{}) {
+	if id == "m" {
+		return print
+	}
+
+	return noPrint
+}
+
+// PrintForID is temp
+func PrintForID(id string, fields ...interface{}) func(...interface{}) {
+	if id == "m" {
+		return func(in ...interface{}) {
+			all := make([]interface{}, 0, len(fields))
+			all = append(all, in...)
+			all = append(all, fields...)
+			fmt.Println(all...)
+		}
+	}
+
+	return noPrint
+}
+
 // CheckoutSeries will retrieve a series for writing to
 // and when the accumulator is closed it will ensure that the
 // series is released.
@@ -138,8 +167,17 @@ func (a *TestDataAccumulator) CheckoutSeries(
 	}
 
 	stringID := id.String()
+
+	a.Lock()
+	if result, found := a.results[stringID]; found {
+		a.Unlock()
+		return result, nil
+	}
+
+	a.Unlock()
 	var streamErr error
 	mockSeries := series.NewMockDatabaseSeries(a.ctrl)
+
 	mockSeries.EXPECT().
 		LoadBlock(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(bl block.DatabaseBlock, _ series.WriteType) error {
@@ -163,12 +201,12 @@ func (a *TestDataAccumulator) CheckoutSeries(
 		gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(
 			func(
-				c context.Context,
+				_ context.Context,
 				ts time.Time,
 				val float64,
 				unit xtime.Unit,
 				annotation []byte,
-				writeOpts series.WriteOptions,
+				_ series.WriteOptions,
 			) (bool, error) {
 				a.Lock()
 				a.writeMap[stringID] = append(
@@ -182,10 +220,16 @@ func (a *TestDataAccumulator) CheckoutSeries(
 				return true, nil
 			}).AnyTimes()
 
-	// NB: unique index doesn't matter here.
-	return CheckoutSeriesResult{
-		Series: mockSeries,
-	}, streamErr
+	a.Lock()
+	result := CheckoutSeriesResult{
+		Series:      mockSeries,
+		UniqueIndex: uint64(len(a.results) + 1),
+	}
+
+	a.results[stringID] = result
+	a.Unlock()
+
+	return result, streamErr
 }
 
 // Release will reset and release all checked out series from
@@ -268,6 +312,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 			ctrl:      ctrl,
 			pool:      iterPool,
 			ns:        md.ID().String(),
+			results:   make(map[string]CheckoutSeriesResult),
 			readerMap: make(ReaderMap),
 			writeMap:  make(DecodedBlockMap),
 			schema:    nsCtx.Schema,
@@ -357,6 +402,18 @@ func (nt *NamespacesTester) DumpWritesForNamespace(
 	assert.FailNow(nt.t, fmt.Sprintf("namespace with id %s not found "+
 		"valid namespaces are %v", id, nt.Namespaces))
 	return nil
+}
+
+// HasNamespace returns true if there is an accumulator for the namespace.
+func (nt *NamespacesTester) HasNamespace(md namespace.Metadata) bool {
+	id := md.ID().String()
+	for _, acc := range nt.Accumulators {
+		if acc.ns == id {
+			return true
+		}
+	}
+
+	return false
 }
 
 // DumpReadersForNamespace dumps the readers and their start times for a given

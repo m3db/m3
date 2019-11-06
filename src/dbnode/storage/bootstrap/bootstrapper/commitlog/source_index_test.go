@@ -148,7 +148,9 @@ func TestBootstrapIndex(t *testing.T) {
 
 	values := append(valuesNs, invalidNs...)
 	values = append(values, valuesOtherNs...)
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
@@ -179,10 +181,10 @@ func TestBootstrapIndex(t *testing.T) {
 	tester.TestUnfulfilledForNamespaceIsEmpty(md3)
 
 	nsWrites := tester.DumpWritesForNamespace(md1)
-	verifyShardResultsAreCorrect(t, valuesNs, nsWrites)
+	enforceValuesAreCorrect(t, valuesNs, nsWrites)
 
 	otherNamespaceWrites := tester.DumpWritesForNamespace(md2)
-	verifyShardResultsAreCorrect(t, valuesOtherNs, otherNamespaceWrites)
+	enforceValuesAreCorrect(t, valuesOtherNs, otherNamespaceWrites)
 
 	noWrites := tester.DumpWritesForNamespace(md3)
 	require.Equal(t, 0, len(noWrites))

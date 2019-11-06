@@ -118,6 +118,7 @@ type NamespaceDataAccumulator interface {
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
 	Series      series.DatabaseSeries
+	Shard       uint32
 	UniqueIndex uint64
 }
 
