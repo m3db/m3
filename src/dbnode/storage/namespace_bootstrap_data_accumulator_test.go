@@ -25,58 +25,127 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
 )
 
-// NewDatabaseNamespaceDataAccumulator creates a data accumulator for
-// // the namespace.
-// func NewDatabaseNamespaceDataAccumulator(
-// 	namespace databaseNamespace,
-// ) bootstrap.NamespaceDataAccumulator {
-// 	return &namespaceDataAccumulator{
-// 		namespace: namespace,
-// 	}
-// }
+var (
+	id        = ident.StringID("foo")
+	idErr     = ident.StringID("bar")
+	tagIter   ident.TagIterator
+	uniqueIdx = uint64(10)
+)
 
-func TestCheckoutSeries(t *testing.T) { //} (bootstrap.CheckoutSeriesResult, error) {
+type releaser struct {
+	calls int
+}
+
+func (r *releaser) OnReleaseReadWriteRef() {
+	r.calls++
+}
+
+func TestCheckoutSeries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ns := NewMockdatabaseNamespace(ctrl)
-	acc := NewDatabaseNamespaceDataAccumulator(ns)
-	id := ident.StringID("foo")
-	var tagIter ident.TagIterator
-	acc.CheckoutSeries(id, tagIter)
+	var (
+		ns     = NewMockdatabaseNamespace(ctrl)
+		series = series.NewMockDatabaseSeries(ctrl)
+		acc    = NewDatabaseNamespaceDataAccumulator(ns)
 
-	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(nil, errors.New("err"))
-	_, err := acc.CheckoutSeries(id, tagIter)
+		release = &releaser{}
+		ref     = SeriesReadWriteRef{
+			UniqueIndex:         uniqueIdx,
+			Series:              series,
+			ReleaseReadWriteRef: release,
+		}
+	)
+
+	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
+	ns.EXPECT().SeriesReadWriteRef(idErr, tagIter).
+		Return(SeriesReadWriteRef{}, errors.New("err"))
+
+	_, err := acc.CheckoutSeries(idErr, tagIter)
 	require.Error(t, err)
+
+	seriesResult, err := acc.CheckoutSeries(id, tagIter)
+	require.NoError(t, err)
+	require.Equal(t, series, seriesResult.Series)
+	require.Equal(t, uniqueIdx, seriesResult.UniqueIndex)
+
+	cast, ok := acc.(*namespaceDataAccumulator)
+	require.True(t, ok)
+	require.Equal(t, 1, len(cast.needsRelease))
+	require.Equal(t, release, cast.needsRelease[0])
+	// Ensure it hasn't been released.
+	require.Equal(t, 0, release.calls)
 }
 
-// func (a *namespaceDataAccumulator) TestRelease() {
-// 	// Release all refs.
-// 	for _, elem := range a.needsRelease {
-// 		elem.OnReleaseReadWriteRef()
-// 	}
+func TestAccumulatorRelease(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// 	// Memset optimization for reset.
-// 	for i := range a.needsRelease {
-// 		a.needsRelease[i] = nil
-// 	}
-// 	a.needsRelease = a.needsRelease[:0]
-// }
+	var (
+		ns  = NewMockdatabaseNamespace(ctrl)
+		acc = NewDatabaseNamespaceDataAccumulator(ns)
 
-// func (a *namespaceDataAccumulator) TestClose() error {
-// 	if n := len(a.needsRelease); n != 0 {
-// 		// This is an error case, callers need to be
-// 		// very explicit in the lifecycle to avoid releasing
-// 		// refs at the right time so we return this as an error
-// 		// since there is a code bug if this is called before
-// 		// releasing all refs.
-// 		a.Release()
-// 		err := instrument.InvariantErrorf("closed with still open refs: %d", n)
-// 		return err
-// 	}
-// 	return nil
-// }
+		release = &releaser{}
+		ref     = SeriesReadWriteRef{
+			UniqueIndex:         uniqueIdx,
+			Series:              series.NewMockDatabaseSeries(ctrl),
+			ReleaseReadWriteRef: release,
+		}
+	)
+
+	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
+	_, err := acc.CheckoutSeries(id, tagIter)
+	require.NoError(t, err)
+
+	cast, ok := acc.(*namespaceDataAccumulator)
+	require.True(t, ok)
+	require.Equal(t, 1, len(cast.needsRelease))
+	require.Equal(t, release, cast.needsRelease[0])
+
+	acc.Release()
+	require.Equal(t, 0, len(cast.needsRelease))
+	// ensure release has been called.
+	require.Equal(t, 1, release.calls)
+
+	// ensure double release does not panic.
+	acc.Release()
+	require.NoError(t, acc.Close())
+}
+
+func TestAccumulatorErrorsOnCloseWithoutRelease(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ns  = NewMockdatabaseNamespace(ctrl)
+		acc = NewDatabaseNamespaceDataAccumulator(ns)
+
+		release = &releaser{}
+		ref     = SeriesReadWriteRef{
+			UniqueIndex:         uniqueIdx,
+			Series:              series.NewMockDatabaseSeries(ctrl),
+			ReleaseReadWriteRef: release,
+		}
+	)
+
+	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
+	_, err := acc.CheckoutSeries(id, tagIter)
+	require.NoError(t, err)
+
+	cast, ok := acc.(*namespaceDataAccumulator)
+	require.True(t, ok)
+	require.Equal(t, 1, len(cast.needsRelease))
+	require.Equal(t, release, cast.needsRelease[0])
+
+	err = acc.Close()
+	// ensure release has been called regardless of error status.
+	require.Equal(t, 0, len(cast.needsRelease))
+	require.Equal(t, 1, release.calls)
+
+	require.Error(t, err)
+}

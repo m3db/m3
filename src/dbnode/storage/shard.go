@@ -78,6 +78,8 @@ var (
 	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
 	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
 
+	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
+	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 )
 

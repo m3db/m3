@@ -22,7 +22,9 @@ package series
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"sort"
 	"testing"
 	"time"
 
@@ -108,6 +110,8 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	bl := block.NewMockDatabaseBlock(ctrl)
 	bl.EXPECT().StartTime().Return(curr)
+	bl.EXPECT().Stream(gomock.Any()).Return(xio.BlockReader{}, nil)
+	bl.EXPECT().Close()
 
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 	err := series.LoadBlock(bl, WarmWrite)
@@ -150,6 +154,8 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 
 	bl := block.NewMockDatabaseBlock(ctrl)
 	bl.EXPECT().StartTime().Return(curr)
+	bl.EXPECT().Stream(gomock.Any()).Return(xio.BlockReader{}, nil)
+	bl.EXPECT().Close()
 
 	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 	err := series.LoadBlock(bl, WarmWrite)
@@ -242,129 +248,131 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 // It also ensures that blocks for the bootstrap path blockStarts that have not been warm flushed yet
 // are loaded as warm writes and block for blockStarts that have already been warm flushed are loaded as
 // cold writes and that for the load path everything is loaded as cold writes.
-// func TestSeriesBootstrapAndLoad(t *testing.T) {
-// 	testCases := []struct {
-// 		title    string
-// 		loadOpts LoadOptions
-// 		f        func(
-// 			series DatabaseSeries,
-// 			blocks block.DatabaseSeriesBlocks,
-// 			blockStates BootstrappedBlockStateSnapshot)
-// 	}{
-// 		{
-// 			title:    "load",
-// 			loadOpts: LoadOptions{},
-// 		},
-// 		{
-// 			title:    "bootstrap",
-// 			loadOpts: LoadOptions{Bootstrap: true},
-// 		},
-// 	}
+func TestSeriesBootstrapAndLoad(t *testing.T) {
+	testCases := []struct {
+		title         string
+		bootstrapping bool
+	}{
+		{
+			title:         "load",
+			bootstrapping: false,
+		},
+		{
+			title:         "bootstrap",
+			bootstrapping: true,
+		},
+	}
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.title, func(t *testing.T) {
-// 			var (
-// 				opts      = newSeriesTestOptions()
-// 				blockSize = opts.RetentionOptions().BlockSize()
-// 				curr      = time.Now().Truncate(blockSize)
-// 				start     = curr
-// 			)
-// 			opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-// 				return curr
-// 			}))
-// 			series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			var (
+				opts      = newSeriesTestOptions()
+				blockSize = opts.RetentionOptions().BlockSize()
+				curr      = time.Now().Truncate(blockSize)
+				start     = curr
+			)
+			opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+				return curr
+			}))
+			series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 
-// 			rawWrites := []value{
-// 				{curr.Add(mins(1)), 2, xtime.Second, nil},
-// 				{curr.Add(mins(3)), 3, xtime.Second, nil},
-// 				{curr.Add(mins(5)), 4, xtime.Second, nil},
-// 			}
+			rawWrites := []DecodedTestValue{
+				{curr.Add(mins(1)), 2, xtime.Second, nil},
+				{curr.Add(mins(3)), 3, xtime.Second, nil},
+				{curr.Add(mins(5)), 4, xtime.Second, nil},
+			}
 
-// 			for _, v := range rawWrites {
-// 				curr = v.Timestamp
-// 				verifyWriteToSeries(t, series, v)
-// 			}
+			for _, v := range rawWrites {
+				curr = v.Timestamp
+				verifyWriteToSeries(t, series, v)
+			}
 
-// 			var (
-// 				loadWrites = []value{
-// 					// Ensure each value is in a separate block so since block.DatabaseSeriesBlocks
-// 					// can only store a single block per block start).
-// 					{curr.Add(blockSize), 5, xtime.Second, nil},
-// 					{curr.Add(2 * blockSize), 6, xtime.Second, nil},
-// 				}
-// 				nsCtx                        = namespace.Context{}
-// 				blockOpts                    = opts.DatabaseBlockOptions()
-// 				blocks                       = block.NewDatabaseSeriesBlocks(len(loadWrites))
-// 				alreadyWarmFlushedBlockStart = curr.Add(blockSize).Truncate(blockSize)
-// 				notYetWarmFlushedBlockStart  = curr.Add(2 * blockSize).Truncate(blockSize)
-// 				blockStates                  = BootstrappedBlockStateSnapshot{
-// 					Snapshot: map[xtime.UnixNano]BlockState{
-// 						// Exercise both code paths.
-// 						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
-// 							WarmRetrievable: true,
-// 						},
-// 						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
-// 							WarmRetrievable: false,
-// 						},
-// 					},
-// 				}
-// 			)
-// 			for _, v := range loadWrites {
-// 				curr = v.Timestamp
-// 				enc := opts.EncoderPool().Get()
-// 				blockStart := v.Timestamp.Truncate(blockSize)
-// 				enc.Reset(blockStart, 0, nil)
-// 				dp := ts.Datapoint{Timestamp: v.Timestamp, Value: v.Value}
-// 				require.NoError(t, enc.Encode(dp, v.Unit, nil))
+			var (
+				loadWrites = []DecodedTestValue{
+					// Ensure each value is in a separate block so since block.DatabaseSeriesBlocks
+					// can only store a single block per block start).
+					{curr.Add(blockSize), 5, xtime.Second, nil},
+					{curr.Add(2 * blockSize), 6, xtime.Second, nil},
+				}
+				nsCtx     = namespace.Context{}
+				blockOpts = opts.DatabaseBlockOptions()
+				// blocks    = block.NewDatabaseSeriesBlocks(len(loadWrites))
+				alreadyWarmFlushedBlockStart = curr.Add(blockSize).Truncate(blockSize)
+				notYetWarmFlushedBlockStart  = curr.Add(2 * blockSize).Truncate(blockSize)
+				blockStates                  = BootstrappedBlockStateSnapshot{
+					Snapshot: map[xtime.UnixNano]BlockState{
+						// Exercise both code paths.
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
+							WarmRetrievable: true,
+						},
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
+							WarmRetrievable: false,
+						},
+					},
+				}
+			)
+			for _, v := range loadWrites {
+				curr = v.Timestamp
+				enc := opts.EncoderPool().Get()
+				blockStart := v.Timestamp.Truncate(blockSize)
+				enc.Reset(blockStart, 0, nil)
+				dp := ts.Datapoint{Timestamp: v.Timestamp, Value: v.Value}
+				require.NoError(t, enc.Encode(dp, v.Unit, nil))
 
-// 				dbBlock := block.NewDatabaseBlock(blockStart, blockSize, enc.Discard(), blockOpts, nsCtx)
-// 				blocks.AddBlock(dbBlock)
-// 			}
+				dbBlock := block.NewDatabaseBlock(blockStart, blockSize, enc.Discard(), blockOpts, nsCtx)
 
-// 			_, err := series.Load(tc.loadOpts, blocks, blockStates)
-// 			require.NoError(t, err)
+				writeType := ColdWrite
+				if tc.bootstrapping {
+					if blockStart.Equal(notYetWarmFlushedBlockStart) {
+						writeType = WarmWrite
+					}
+				}
 
-// 			t.Run("Data can be read", func(t *testing.T) {
-// 				ctx := context.NewContext()
-// 				defer ctx.Close()
+				series.LoadBlock(dbBlock, writeType)
+			}
 
-// 				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
-// 				require.NoError(t, err)
+			t.Run("Data can be read", func(t *testing.T) {
+				ctx := context.NewContext()
+				defer ctx.Close()
 
-// 				expectedData := append(rawWrites, loadWrites...)
-// 				requireReaderValuesEqual(t, expectedData, results, opts, nsCtx)
-// 			})
+				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				require.NoError(t, err)
 
-// 			t.Run("blocks loaded as warm/cold writes correctly", func(t *testing.T) {
-// 				optimizedTimes := series.ColdFlushBlockStarts(blockStates)
-// 				coldFlushBlockStarts := []xtime.UnixNano{}
-// 				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
-// 					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
-// 				})
-// 				// Cold flush block starts don't come back in any particular order so
-// 				// sort them for easier comparisons.
-// 				sort.Slice(coldFlushBlockStarts, func(i, j int) bool {
-// 					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
-// 				})
+				expectedData := append(rawWrites, loadWrites...)
+				requireReaderValuesEqual(t, expectedData, results, opts, nsCtx)
+			})
 
-// 				if tc.loadOpts.Bootstrap {
-// 					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
-// 					// correctly based on the flush state.
-// 					expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
-// 					require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
-// 				} else {
-// 					// If its just a regular load then everything should be loaded as cold writes for correctness
-// 					// since flushes and loads can happen concurrently.
-// 					expectedColdFlushBlockStarts := []xtime.UnixNano{
-// 						xtime.ToUnixNano(alreadyWarmFlushedBlockStart),
-// 						xtime.ToUnixNano(notYetWarmFlushedBlockStart),
-// 					}
-// 					require.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
-// 				}
-// 			})
-// 		})
-// 	}
-// }
+			t.Run("blocks loaded as warm/cold writes correctly", func(t *testing.T) {
+				optimizedTimes := series.ColdFlushBlockStarts(blockStates)
+				coldFlushBlockStarts := []xtime.UnixNano{}
+				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
+					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
+				})
+				// Cold flush block starts don't come back in any particular order so
+				// sort them for easier comparisons.
+				sort.Slice(coldFlushBlockStarts, func(i, j int) bool {
+					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
+				})
+
+				fmt.Println(tc)
+				if tc.bootstrapping {
+					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
+					// correctly based on the flush state.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
+					assert.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				} else {
+					// If its just a regular load then everything should be loaded as cold writes for correctness
+					// since flushes and loads can happen concurrently.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart),
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart),
+					}
+					assert.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				}
+			})
+		})
+	}
+}
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {
 	opts := newSeriesTestOptions()
@@ -828,9 +836,12 @@ func TestSeriesFetchBlocks(t *testing.T) {
 		SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 	}, nil)
 	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
+
 	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(starts[1])
 	b.EXPECT().Stream(ctx).Return(xio.EmptyBlockReader, errors.New("bar"))
 	blocks.EXPECT().BlockAt(starts[1]).Return(b, true)
+
 	blocks.EXPECT().BlockAt(starts[2]).Return(nil, false)
 
 	// Set up the buffer
@@ -1027,12 +1038,14 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	opts := newSeriesTestOptions()
 	opts = opts.SetRetentionOptions(opts.RetentionOptions().
 		SetRetentionPeriod(40 * 24 * time.Hour).
-		// A block size of 5 days is not equally as divisible as seconds from time zero and seconds from time epoch.
+		// A block size of 5 days is not equally as divisible as seconds from time
+		// zero and seconds from time epoch.
 		// now := time.Now()
 		// blockSize := 5 * 24 * time.Hour
 		// fmt.Println(now) -> 2018-01-24 14:29:31.624265 -0500 EST m=+0.003810489
 		// fmt.Println(now.Truncate(blockSize)) -> 2018-01-21 19:00:00 -0500 EST
-		// fmt.Println(time.Unix(0, now.UnixNano()/int64(blockSize)*int64(blockSize))) -> 2018-01-23 19:00:00 -0500 EST
+		// fmt.Println(time.Unix(0, now.UnixNano()/int64(blockSize)*int64(blockSize)))
+		//                                       -> 2018-01-23 19:00:00 -0500 EST
 		SetBlockSize(5 * 24 * time.Hour).
 		SetBufferFuture(10 * time.Minute).
 		SetBufferPast(20 * time.Minute))
@@ -1047,17 +1060,21 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil, WriteOptions{})
+	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute),
+		1, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil, WriteOptions{})
+	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute),
+		2, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil, WriteOptions{})
+	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute),
+		3, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute), namespace.Context{})
+	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
+		curr.Add(time.Minute), namespace.Context{})
 	require.NoError(t, err)
 	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)
@@ -1101,7 +1118,8 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 
 	// Add block that was not retrieved from disk
 	nonDiskBlock := block.NewMockDatabaseBlock(ctrl)
-	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
+	nonDiskBlock.EXPECT().StartTime().
+		Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
 	blocks.AddBlock(nonDiskBlock)
 
 	series.cachedBlocks = blocks

@@ -22,7 +22,7 @@ package commitlog
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	"math"
 	"testing"
@@ -92,7 +92,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	src.newIteratorFn = func(
 		_ commitlog.IteratorOpts,
 	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
-		return nil, nil, fmt.Errorf("an error")
+		return nil, nil, errors.New("an error")
 	}
 
 	ranges := xtime.Ranges{}
@@ -140,7 +140,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	bar := ts.Series{Namespace: nsCtx.ID, Shard: 1, ID: ident.StringID("bar")}
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start, 1.0, xtime.Second, nil},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
 		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
@@ -196,7 +196,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
 		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, nil},
@@ -264,7 +264,7 @@ func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(
 	bar := ts.Series{
 		Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start, 1.0, xtime.Second, nil},
 		{bar, start, 2.0, xtime.Second, nil},
 	}
@@ -315,13 +315,13 @@ func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, se
 	})
 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
-
-	values := []testValue{
+	values := testValues{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
 		{foo, start, 2.0, xtime.Nanosecond, nil},
 		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
 		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
 	}
+
 	if setAnn != nil {
 		values = setAnn(values)
 	}
@@ -366,7 +366,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		ranges    = xtime.Ranges{}
 
 		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
-		commitLogValues = []testValue{
+		commitLogValues = testValues{
 			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
 			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
@@ -428,7 +428,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	mockReader.EXPECT().Entries().Return(1).AnyTimes()
 	mockReader.EXPECT().Close().Return(nil).AnyTimes()
 
-	snapshotValues := []testValue{
+	snapshotValues := testValues{
 		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
 	}
 	if setAnn != nil {
@@ -497,7 +497,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	enforceValuesAreCorrect(t, snapshotValues, read)
 }
 
-type setAnnotation func([]testValue) []testValue
+type setAnnotation func(testValues) testValues
 type annotationEqual func([]byte, []byte) bool
 
 type testValue struct {
@@ -524,66 +524,53 @@ func equals(ac series.DecodedTestValue, ex testValue) bool {
 		bytes.Equal(ac.Annotation, ex.a)
 }
 
+type testValues []testValue
+
+func (v testValues) toDecodedBlockMap() bootstrap.DecodedBlockMap {
+	blockMap := make(bootstrap.DecodedBlockMap, len(v))
+	for _, bl := range v {
+		id := bl.s.ID.String()
+		val := series.DecodedTestValue{
+			Timestamp:  bl.t,
+			Value:      bl.v,
+			Unit:       bl.u,
+			Annotation: bl.a,
+		}
+
+		if values, found := blockMap[id]; found {
+			blockMap[id] = append(values, val)
+		} else {
+			blockMap[id] = bootstrap.DecodedValues{val}
+		}
+	}
+
+	return blockMap
+}
+
 func enforceValuesAreCorrect(
 	t *testing.T,
-	values []testValue,
+	values testValues,
 	actual bootstrap.DecodedBlockMap,
 ) {
 	require.NoError(t, verifyValuesAreCorrect(values, actual))
 }
 
 func verifyValuesAreCorrect(
-	values []testValue,
+	values testValues,
 	actual bootstrap.DecodedBlockMap,
 ) error {
-	if actual == nil || len(actual) == 0 {
-		if 0 != len(values) {
-			return fmt.Errorf("expected %v, got nil", values)
-		}
-	}
-
-	count := 0
-	for _, ex := range values {
-		id := ex.s.ID.String()
-		acList := actual[id]
-		found := false
-		for _, ac := range acList {
-			if equals(ac, ex) {
-				count++
-				found = true
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("could not find %s", id)
-		}
-	}
-
-	// Ensure there are no extra values in the actual result.
-	actualCount := 0
-	for _, v := range actual {
-		actualCount += len(v)
-	}
-
-	if actualCount != count {
-		return fmt.Errorf("expected %d values, got %d values", count, actualCount)
-	}
-
-	if count != len(values) {
-		return fmt.Errorf("expected %d values, got %d values", count, len(values))
-	}
-
-	return nil
+	expected := values.toDecodedBlockMap()
+	return expected.VerifyEquals(actual)
 }
 
 type testCommitLogIterator struct {
-	values []testValue
+	values testValues
 	idx    int
 	err    error
 	closed bool
 }
 
-type testValuesByTime []testValue
+type testValuesByTime testValues
 
 func (v testValuesByTime) Len() int      { return len(v) }
 func (v testValuesByTime) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
@@ -591,7 +578,7 @@ func (v testValuesByTime) Less(i, j int) bool {
 	return v[i].t.Before(v[j].t)
 }
 
-func newTestCommitLogIterator(values []testValue, err error) *testCommitLogIterator {
+func newTestCommitLogIterator(values testValues, err error) *testCommitLogIterator {
 	return &testCommitLogIterator{values: values, idx: -1, err: err}
 }
 
