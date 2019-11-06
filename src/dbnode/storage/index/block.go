@@ -1259,6 +1259,7 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
 			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
 				if err := immSeg.FreeMmap(); err != nil {
 					multiErr.Add(err)
