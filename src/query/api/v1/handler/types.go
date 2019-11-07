@@ -29,4 +29,7 @@ const (
 
 	// RoutePrefixV1 is the v1 prefix for all coordinator routes
 	RoutePrefixV1 = "/api/v1"
+
+	// RoutePrefixExperimenta is the experimental prefix for all coordinator routes
+	RoutePrefixExperimental = "/api/experimental"
 )
