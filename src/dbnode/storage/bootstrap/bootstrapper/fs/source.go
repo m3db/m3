@@ -599,7 +599,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
 					zap.Stringer("requestedRanges", requestedRanges),
-					zap.Error(err),
+					zap.Error(instrument.InvariantErrorf(err.Error())),
 				)
 			})
 		}
