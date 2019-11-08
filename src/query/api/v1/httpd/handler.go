@@ -211,7 +211,10 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	nativeSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(nativeSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(nativeSource).
+			Tagged(v1APIGroup),
+		)
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
 		h.timeoutOpts, keepNans, nativeSourceInstrumentOpts)
