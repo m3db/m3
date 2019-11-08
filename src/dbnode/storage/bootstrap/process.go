@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -219,9 +220,16 @@ func (b bootstrapProcess) Run(
 
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
+			nsID := namespace.Metadata.ID()
+			result, ok := res.Results.Get(nsID)
+			if !ok {
+				return NamespaceResults{},
+					fmt.Errorf("result missing for namespace: %v", nsID.String())
+			}
+
 			logFields := b.logFields(namespace.Metadata, namespace.Shards,
 				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
-			b.logBootstrapResult(logFields, err, took)
+			b.logBootstrapResult(result, logFields, err, took)
 		}
 
 		if err != nil {
@@ -277,11 +285,15 @@ func (b bootstrapProcess) logBootstrapRun(
 }
 
 func (b bootstrapProcess) logBootstrapResult(
+	result NamespaceResult,
 	logFields []zapcore.Field,
 	err error,
 	took time.Duration,
 ) {
-	logFields = append(logFields, zap.Duration("took", took))
+	logFields = append(logFields,
+		zap.Int("numIndexBlocks", len(result.IndexResult.IndexResults())))
+	logFields = append(logFields,
+		zap.Duration("took", took))
 	if err != nil {
 		logFields = append(logFields, zap.Error(err))
 		b.log.Info("bootstrap range completed with error", logFields...)
@@ -438,6 +450,9 @@ func MergeNamespaceResults(a, b NamespaceResults) NamespaceResults {
 			other.DataResult)
 		elem.IndexResult = result.MergedIndexBootstrapResult(elem.IndexResult,
 			other.IndexResult)
+
+		// Save back the merged results.
+		a.Results.Set(id, elem)
 
 		// Remove from b, then can directly add to a all non-merged results.
 		b.Results.Delete(id)

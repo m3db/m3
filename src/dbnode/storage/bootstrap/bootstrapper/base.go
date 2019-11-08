@@ -270,6 +270,7 @@ func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBoo
 			zap.Duration("dataRangeFulfilled", dataRangeFulfilledRange),
 			zap.Duration("indexRangeRequested", indexRangeRequestedRange),
 			zap.Duration("indexRangeFulfilled", indexRangeFulfilledRange),
+			zap.Int("numIndexBlocks", len(currResult.IndexResult.IndexResults())),
 		}...)
 
 		b.log.Info("bootstrapping from source completed successfully",
