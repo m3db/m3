@@ -268,10 +268,15 @@ func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBoo
 			zap.Int("numShards", len(currNamespace.Shards)),
 			zap.Duration("dataRangeRequested", dataRangeRequestedRange),
 			zap.Duration("dataRangeFulfilled", dataRangeFulfilledRange),
-			zap.Duration("indexRangeRequested", indexRangeRequestedRange),
-			zap.Duration("indexRangeFulfilled", indexRangeFulfilledRange),
-			zap.Int("numIndexBlocks", len(currResult.IndexResult.IndexResults())),
 		}...)
+
+		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
+			successLogFields = append(successLogFields, []zapcore.Field{
+				zap.Duration("indexRangeRequested", indexRangeRequestedRange),
+				zap.Duration("indexRangeFulfilled", indexRangeFulfilledRange),
+				zap.Int("numIndexBlocks", len(currResult.IndexResult.IndexResults())),
+			}...)
+		}
 
 		b.log.Info("bootstrapping from source completed successfully",
 			successLogFields...)
