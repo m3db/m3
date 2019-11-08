@@ -62,7 +62,7 @@ func NewHandler(
 	return &Handler{
 		writer:     writer,
 		tagOptions: tagOptions,
-		metrics:    newHandlerMetrics(scope),
+		metrics:    newHandlerMetrics(scope.Tagged(map[string]string{"handler": "annotated-write"})),
 	}
 }
 
