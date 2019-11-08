@@ -20,15 +20,6 @@
 
 package storage
 
-import (
-	"errors"
-	"testing"
-
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/stretchr/testify/require"
-)
-
 // NewDatabaseNamespaceDataAccumulator creates a data accumulator for
 // // the namespace.
 // func NewDatabaseNamespaceDataAccumulator(
@@ -39,20 +30,20 @@ import (
 // 	}
 // }
 
-func TestCheckoutSeries(t *testing.T) { //} (bootstrap.CheckoutSeriesResult, error) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// func TestCheckoutSeries(t *testing.T) { //} (bootstrap.CheckoutSeriesResult, error) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-	ns := NewMockdatabaseNamespace(ctrl)
-	acc := NewDatabaseNamespaceDataAccumulator(ns)
-	id := ident.StringID("foo")
-	var tagIter ident.TagIterator
-	acc.CheckoutSeries(id, tagIter)
+// 	ns := NewMockdatabaseNamespace(ctrl)
+// 	acc := NewDatabaseNamespaceDataAccumulator(ns)
+// 	id := ident.StringID("foo")
+// 	var tagIter ident.TagIterator
+// 	acc.CheckoutSeries(id, tagIter)
 
-	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(nil, errors.New("err"))
-	_, err := acc.CheckoutSeries(id, tagIter)
-	require.Error(t, err)
-}
+// 	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(nil, errors.New("err"))
+// 	_, err := acc.CheckoutSeries(id, tagIter)
+// 	require.Error(t, err)
+// }
 
 // func (a *namespaceDataAccumulator) TestRelease() {
 // 	// Release all refs.

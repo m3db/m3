@@ -252,10 +252,6 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 	testCases := []struct {
 		title         string
 		bootstrapping bool
-		f             func(
-			series DatabaseSeries,
-			blocks block.DatabaseSeriesBlocks,
-			blockStates BootstrappedBlockStateSnapshot)
 	}{
 		{
 			title:         "load",
