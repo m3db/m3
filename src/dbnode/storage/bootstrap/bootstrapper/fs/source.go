@@ -595,12 +595,16 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		err := s.persistBootstrapIndexSegment(ns, requestedRanges, runResult)
 		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
+			s.log.Error("persist fs index bootstrap failed",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("requestedRanges", requestedRanges),
+				zap.Error(err))
+			s.log.Sync()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
 					zap.Stringer("requestedRanges", requestedRanges),
-					zap.Error(instrument.InvariantErrorf(err.Error())),
-				)
+					zap.Error(err.Error()))
 			})
 		}
 	}
