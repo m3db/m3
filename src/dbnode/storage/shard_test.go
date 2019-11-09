@@ -889,6 +889,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 	for i := int32(0); i < count; i++ {
 		entry.IncrementReaderWriterCount()
 	}
+	shard.Lock()
 	shard.insertNewShardEntryWithLock(entry)
 	shard.Unlock()
 	return seriesEntry
