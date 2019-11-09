@@ -455,10 +455,6 @@ func (s *commitLogSource) Read(
 					return bootstrap.NamespaceResults{}, err
 				}
 
-				// TODO: Make this get set by CheckoutSeries.
-				// TODO: Make this get set by CheckoutSeries.
-				// TODO: Make this get set by CheckoutSeries.
-				series.Shard = entry.Series.Shard
 				seriesEntry = seriesMapEntry{
 					namespace: ns,
 					series:    series,

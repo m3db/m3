@@ -325,7 +325,10 @@ func (r *reader) seriesMetadataForEntry(
 
 func (r *reader) Close() error {
 	err := r.chunkReader.fd.Close()
+	// NB(r): Reset to free resources, but explicitly do
+	// not support reopening for now.
 	*r = reader{}
+	r.hasBeenOpened = true
 	return err
 }
 

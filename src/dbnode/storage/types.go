@@ -386,8 +386,10 @@ type databaseNamespace interface {
 type SeriesReadWriteRef struct {
 	// Series reference for read/writing.
 	Series series.DatabaseSeries
-	// UniqueIndex is the unique index of the series.
+	// UniqueIndex is the unique index of the series (as applicable).
 	UniqueIndex uint64
+	// Shard is the shard of the series.
+	Shard uint32
 	// ReleaseReadWriteRef must be called after using the series ref
 	// to release the reference count to the series so it can
 	// be expired by the owning shard eventually.
