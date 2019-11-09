@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -213,8 +214,8 @@ func (enc *Encoder) encodeSchemaAndOrTimeUnit(
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *Encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
-	seg := enc.segment(true)
+func (enc *Encoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
+	seg := enc.segmentZeroCopy(ctx)
 	if seg.Len() == 0 {
 		return nil, false
 	}
@@ -227,24 +228,48 @@ func (enc *Encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool
 	return xio.NewSegmentReader(seg), true
 }
 
-func (enc *Encoder) segment(copy bool) ts.Segment {
+func (enc *Encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	length := enc.stream.Len()
 	if enc.stream.Len() == 0 {
 		return ts.Segment{}
 	}
 
+	// We need a tail to capture an immutable snapshot of the encoder data
+	// as the last byte can change after this method returns.
+	rawBuffer, _ := enc.stream.Rawbytes()
+	lastByte := rawBuffer[length-1]
+
+	// Take ref up to last byte.
+	headBytes := rawBuffer[:length-1]
+
+	// Zero copy from the output stream.
 	var head checked.Bytes
-	buffer, _ := enc.stream.Rawbytes()
-	if !copy {
-		// Take ref from the ostream.
-		head = enc.stream.Discard()
+	if pool := enc.opts.CheckedBytesWrapperPool(); pool != nil {
+		head = pool.Get(headBytes)
 	} else {
-		// Copy into new buffer.
-		head = enc.newBuffer(length)
-		head.IncRef()
-		head.AppendAll(buffer)
-		head.DecRef()
+		head = checked.NewBytes(headBytes, nil)
 	}
+
+	// Make sure the ostream bytes ref is delayed from finalizing
+	// until this operation is complete (since this is zero copy).
+	buffer, _ := enc.stream.CheckedBytes()
+	ctx.RegisterCloser(buffer.DelayFinalizer())
+
+	// Take a shared ref to a known good tail.
+	tail := tails[lastByte]
+
+	// Only discard the head since tails are shared for process life time.
+	return ts.NewSegment(head, tail, ts.FinalizeHead)
+}
+
+func (enc *Encoder) segmentTakeOwnership() ts.Segment {
+	length := enc.stream.Len()
+	if length == 0 {
+		return ts.Segment{}
+	}
+
+	// Take ref from the ostream.
+	head := enc.stream.Discard()
 
 	return ts.NewSegment(head, nil, ts.FinalizeHead)
 }
@@ -516,7 +541,7 @@ func (enc *Encoder) Close() {
 // Discard closes the encoder and transfers ownership of the data stream to
 // the caller.
 func (enc *Encoder) Discard() ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 	// Close the encoder since its no longer needed
 	enc.Close()
 	return segment
@@ -525,13 +550,9 @@ func (enc *Encoder) Discard() ts.Segment {
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
 func (enc *Encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
 	return segment
-}
-
-func (enc *Encoder) discard() ts.Segment {
-	return enc.segment(false)
 }
 
 // Bytes returns the raw bytes of the underlying data stream. Does not
@@ -887,4 +908,15 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 		return bytesPool.Get(capacity)
 	}
 	return checked.NewBytes(make([]byte, 0, capacity), nil)
+}
+
+// tails is a list of all possible tails based on the
+// byte value of the last byte. For the proto encoder
+// they are all the same.
+var tails [256]checked.Bytes
+
+func init() {
+	for i := 0; i < 256; i++ {
+		tails[i] = checked.NewBytes([]byte{byte(i)}, nil)
+	}
 }

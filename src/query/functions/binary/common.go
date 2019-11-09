@@ -164,6 +164,9 @@ func combineMetaAndSeriesMeta(
 		otherSeriesMeta[i].Tags = m.Tags.Add(otherMetaTagsToAdd)
 	}
 
+	meta.ResultMetadata = meta.ResultMetadata.
+		CombineMetadata(otherMeta.ResultMetadata)
+
 	return meta,
 		seriesMeta,
 		otherSeriesMeta,

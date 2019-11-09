@@ -1463,6 +1463,7 @@ func (s *session) fetchIDsAttempt(
 		resultErr              error
 		resultErrs             int32
 		majority               int32
+		numReplicas            int32
 		consistencyLevel       topology.ReadConsistencyLevel
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
@@ -1514,6 +1515,7 @@ func (s *session) fetchIDsAttempt(
 
 	consistencyLevel = s.state.readLevel
 	majority = int32(s.state.majority)
+	numReplicas = int32(s.state.replicas)
 
 	// NB(prateek): namespaceAccessors tracks the number of pending accessors for nsID.
 	// It is set to incremented by `replica` for each requested ID during fetch enqueuing,
@@ -1570,8 +1572,15 @@ func (s *session) fetchIDsAttempt(
 				resultErrLock.Unlock()
 			} else {
 				resultsLock.RLock()
-				successIters := results[:success]
+				numItersToInclude := int(success)
+				numDesired := topology.NumDesiredForReadConsistency(consistencyLevel, int(numReplicas), int(majority))
+				if numDesired < numItersToInclude {
+					// Avoid decoding more data than is required to satisfy the consistency guarantees.
+					numItersToInclude = numDesired
+				}
+				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
+
 				iter := s.pools.seriesIterator.Get()
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
@@ -1584,7 +1593,7 @@ func (s *session) fetchIDsAttempt(
 					Namespace:      namespaceID,
 					StartInclusive: startInclusive,
 					EndExclusive:   endExclusive,
-					Replicas:       successIters,
+					Replicas:       itersToInclude,
 				})
 				iters.SetAt(idx, iter)
 			}

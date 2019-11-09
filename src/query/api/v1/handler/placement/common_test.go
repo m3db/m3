@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -52,8 +53,12 @@ func TestPlacementService(t *testing.T) {
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
 		placementService, algo, err := ServiceWithAlgo(
-			mockClient, handler.NewServiceOptions(handler.M3DBServiceName, nil, nil), time.Time{}, nil)
+			mockClient, handler.NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, placementService)
 		assert.NotNil(t, algo)
@@ -61,7 +66,7 @@ func TestPlacementService(t *testing.T) {
 		// Test Services returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
 		placementService, err = Service(
-			mockClient, handler.NewServiceOptions(handler.M3DBServiceName, nil, nil), time.Time{}, nil)
+			mockClient, handler.NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy service error")
 
@@ -69,7 +74,7 @@ func TestPlacementService(t *testing.T) {
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
 		placementService, err = Service(
-			mockClient, handler.NewServiceOptions(handler.M3DBServiceName, nil, nil), time.Time{}, nil)
+			mockClient, handler.NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy placement error")
 	})
@@ -100,10 +105,13 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 			})
 
 		var (
-			serviceValue     = handler.M3DBServiceName
+			serviceValue = handler.M3DBServiceName
+			svcDefaults  = apihandler.ServiceNameAndDefaults{
+				ServiceName: handler.M3DBServiceName,
+			}
 			environmentValue = "bar_env"
 			zoneValue        = "baz_zone"
-			opts             = handler.NewServiceOptions(serviceValue, nil, nil)
+			opts             = handler.NewServiceOptions(svcDefaults, nil, nil)
 		)
 		opts.ServiceEnvironment = environmentValue
 		opts.ServiceZone = zoneValue

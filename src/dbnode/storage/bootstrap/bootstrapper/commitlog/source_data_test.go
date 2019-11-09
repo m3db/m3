@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -234,15 +235,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
-	testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t, opts, md, nil)
-}
 
-func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(
-	t *testing.T,
-	opts Options,
-	md namespace.Metadata,
-	setAnn setAnnotation,
-) {
 	nsCtx := namespace.NewContextFrom(md)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -267,9 +260,6 @@ func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
 		{bar, start, 2.0, xtime.Second, nil},
-	}
-	if setAnn != nil {
-		values = setAnn(values)
 	}
 
 	src.newIteratorFn = func(
@@ -446,7 +436,10 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		encoder.Encode(dp, value.u, value.a)
 	}
 
-	reader, ok := encoder.Stream(encoding.StreamOptions{})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	reader, ok := encoder.Stream(ctx)
 	require.True(t, ok)
 
 	seg, err := reader.Segment()
@@ -567,10 +560,6 @@ func verifyValuesAreCorrect(
 
 	if actualCount != count {
 		return fmt.Errorf("expected %d values, got %d values", count, actualCount)
-	}
-
-	if count != len(values) {
-		return fmt.Errorf("expected %d values, got %d values", count, len(values))
 	}
 
 	return nil

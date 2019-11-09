@@ -70,7 +70,7 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 		opts:  opts,
 		value: value,
 	}
-	b.SetFinalizer(b)
+	b.SetOnFinalize(b)
 	// NB(r): Tracking objects causes interface allocation
 	// so avoid if we are not performing any leak detection.
 	if leakDetectionEnabled() {
@@ -124,7 +124,7 @@ func (b *bytesRef) Reset(v []byte) {
 	b.DecWrites()
 }
 
-func (b *bytesRef) Finalize() {
+func (b *bytesRef) OnFinalize() {
 	if finalizer := b.opts.Finalizer(); finalizer != nil {
 		finalizer.FinalizeBytes(b)
 	}

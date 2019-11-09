@@ -71,8 +71,9 @@ type timeNode struct {
 func (n *timeNode) Execute(queryCtx *models.QueryContext) error {
 	bounds := n.opts.TimeSpec().Bounds()
 	meta := block.Metadata{
-		Bounds: bounds,
-		Tags:   models.NewTags(0, n.tagOptions),
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, n.tagOptions),
+		ResultMetadata: block.NewResultMetadata(),
 	}
 
 	seriesMeta := []block.SeriesMeta{

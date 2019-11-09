@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -70,8 +71,11 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 }
 
 func (s *replicatedSessionTestSuite) initReplicatedSession(opts Options, newSessionFunc newSessionFn) {
+	topoInits := opts.AsyncTopologyInitializers()
+	overrides := make([]environment.ClientOverrides, len(topoInits))
 	session, err := newReplicatedSession(
 		opts,
+		NewOptionsForAsyncClusters(opts, topoInits, overrides),
 		withNewSessionFn(newSessionFunc),
 	)
 	s.replicatedSession = session.(*replicatedSession)

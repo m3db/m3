@@ -47,7 +47,9 @@ function setup_single_m3db_node {
   local dbnode_host=${DBNODE_HOST:-dbnode01}
   local dbnode_port=${DBNODE_PORT:-9000}
   local dbnode_health_port=${DBNODE_HEALTH_PORT:-9002}
+  local dbnode_id=${DBNODE_ID:-m3db_local}
   local coordinator_port=${COORDINATOR_PORT:-7201}
+  local zone=${ZONE:-embedded}
 
   echo "Wait for API to be available"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
@@ -62,9 +64,9 @@ function setup_single_m3db_node {
     "replicationFactor": 1,
     "hosts": [
       {
-          "id": "m3db_local",
+          "id": "'${dbnode_id}'",
           "isolation_group": "rack-a",
-          "zone": "embedded",
+          "zone": "'${zone}'",
           "weight": 1024,
           "address": "'"${dbnode_host}"'",
           "port": '"${dbnode_port}"'
@@ -74,7 +76,7 @@ function setup_single_m3db_node {
 
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
 
   wait_for_namespaces
 

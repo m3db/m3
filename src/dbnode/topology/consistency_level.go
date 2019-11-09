@@ -101,7 +101,7 @@ func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	if str == "" {
 		return errConsistencyLevelUnspecified
 	}
-	strs := make([]string, len(validConsistencyLevels))
+	strs := make([]string, 0, len(validConsistencyLevels))
 	for _, valid := range validConsistencyLevels {
 		if str == valid.String() {
 			*l = valid
@@ -192,7 +192,7 @@ func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) erro
 	if str == "" {
 		return errClusterConnectConsistencyLevelUnspecified
 	}
-	strs := make([]string, len(validConnectConsistencyLevels))
+	strs := make([]string, 0, len(validConnectConsistencyLevels))
 	for _, valid := range validConnectConsistencyLevels {
 		if str == valid.String() {
 			*l = valid
@@ -284,7 +284,7 @@ func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) 
 	if str == "" {
 		return errReadConsistencyLevelUnspecified
 	}
-	strs := make([]string, len(validReadConsistencyLevels))
+	strs := make([]string, 0, len(validReadConsistencyLevels))
 	for _, valid := range validReadConsistencyLevels {
 		if str == valid.String() {
 			*l = valid
@@ -370,6 +370,22 @@ func ReadConsistencyAchieved(
 		return numSuccess > 0 // Meets one
 	case ReadConsistencyLevelNone:
 		return true // Always meets none
+	}
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+}
+
+// NumDesiredForReadConsistency returns the number of replicas that would ideally be used to
+// satisfy the read consistency.
+func NumDesiredForReadConsistency(level ReadConsistencyLevel, numReplicas, majority int) int {
+	switch level {
+	case ReadConsistencyLevelAll:
+		return numReplicas
+	case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
+		return majority
+	case ReadConsistencyLevelOne:
+		return 1
+	case ReadConsistencyLevelNone:
+		return 0
 	}
 	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 }

@@ -496,9 +496,9 @@ func (s *dbSeries) WarmFlush(
 	// Need a write lock because the buffer WarmFlush method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	defer s.Unlock()
-
-	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	s.Unlock()
+	return outcome, err
 }
 
 func (s *dbSeries) Snapshot(
@@ -526,9 +526,10 @@ func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
 
-	// See Reset() for why these aren't finalized
+	// See Reset() for why these aren't finalized.
 	s.id = nil
 	s.tags = ident.Tags{}
+	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
@@ -560,10 +561,7 @@ func (s *dbSeries) Reset(
 	onEvictedFromWiredList block.OnEvictedFromWiredList,
 	opts Options,
 ) {
-	s.Lock()
-	defer s.Unlock()
-
-	// NB(r): We explicitly do not place this ID back into an
+	// NB(r): We explicitly do not place the ID back into an
 	// existing pool as high frequency users of series IDs such
 	// as the commit log need to use the reference without the
 	// overhead of ownership tracking. In addition, the blocks
@@ -578,9 +576,11 @@ func (s *dbSeries) Reset(
 	// Since series are purged so infrequently the overhead
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
+	//
+	// The same goes for the series tags.
+	s.Lock()
 	s.id = id
 	s.tags = tags
-
 	s.uniqueIndex = uniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(id, opts)
@@ -588,4 +588,5 @@ func (s *dbSeries) Reset(
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
 	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
+	s.Unlock()
 }

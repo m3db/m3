@@ -78,40 +78,49 @@ type Namespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
-	// DataRunOptions is a set of run options for the current
-	// series data bootstrap run.
-	DataRunOptions NamespaceRunOptions
-	// IndexRunOptions is a set of run options for the current
-	// series index metadata bootstrap run.
-	IndexRunOptions NamespaceRunOptions
-	// TODO: delete these two attributes.
 	// DataTargetRange is the data target bootstrap range.
 	DataTargetRange TargetRange
-	// IndexTargetRange is the data target bootstrap range.
+	// IndexTargetRange is the index target bootstrap range.
 	IndexTargetRange TargetRange
+	// DataRunOptions are the options for data bootstrap for this
+	// namespace.
+	DataRunOptions NamespaceRunOptions
+	// IndexRunOptions are the options for the index bootstrap for this
+	// namespace.
+	IndexRunOptions NamespaceRunOptions
 }
 
-// NamespaceRunOptions is the namespace run options for the current
-// bootstrap process run.
+// NamespaceRunOptions are the run options for a bootstrap process run.
 type NamespaceRunOptions struct {
 	ShardTimeRanges result.ShardTimeRanges
 	RunOptions      RunOptions
 }
 
 // NamespaceDataAccumulator is the namespace data accumulator.
+// TODO(r): Consider rename this to a better name.
 type NamespaceDataAccumulator interface {
-	// CheckoutSeries will retrieve a series for writing to
+	// CheckoutSeriesWithoutLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
-	CheckoutSeries(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
+	// If indexing is not enabled, tags is still required, simply pass
+	// ident.EmptyTagIterator.
+	// Note: Without lock variant does not perform any locking and callers
+	// must ensure non-parallel access themselves, this helps avoid
+	// overhead of the lock for the commit log bootstrapper which reads
+	// in a single threaded manner.
+	CheckoutSeriesWithoutLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
-	// Release will reset and release all checked out series from
-	// the accumulator so owners can return them and reset the
-	// keys lookup.
-	Release()
+	// CheckoutSeriesWithLock retrieves a series for writing to
+	// and when the accumulator is closed it will ensure that the
+	// series is released.
+	// If indexing is not enabled, tags is still required, simply pass
+	// ident.EmptyTagIterator.
+	// Note: With lock variant perform locking and callers do not need
+	// to be concerned about parallel access.
+	CheckoutSeriesWithLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
 
-	// Close will close the data accumulator and will return an error
-	// if any checked out series have not been released yet with reset.
+	// Close will close the data accumulator and will release
+	// all series read/write refs.
 	Close() error
 }
 
@@ -129,22 +138,10 @@ type NamespaceResults struct {
 
 // NamespaceResult is the result of a bootstrap process for a given namespace.
 type NamespaceResult struct {
-	Metadata      namespace.Metadata
-	Shards        []uint32
-	DataResult    result.DataBootstrapResult
-	DataMetadata  NamespaceResultDataMetadata
-	IndexResult   result.IndexBootstrapResult
-	IndexMetadata NamespaceResultIndexMetadata
-}
-
-// NamespaceResultDataMetadata is metadata about a data result.
-type NamespaceResultDataMetadata struct {
-	NumSeries int
-}
-
-// NamespaceResultIndexMetadata is metadata about an index result.
-type NamespaceResultIndexMetadata struct {
-	NumSeries int
+	Metadata    namespace.Metadata
+	Shards      []uint32
+	DataResult  result.DataBootstrapResult
+	IndexResult result.IndexBootstrapResult
 }
 
 // TargetRange is a bootstrap target range.

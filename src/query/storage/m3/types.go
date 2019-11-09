@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 )
@@ -49,53 +50,73 @@ type Querier interface {
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
-	) (encoding.SeriesIterators, Cleanup, error)
+	) (SeriesFetchResult, Cleanup, error)
 
 	// SearchCompressed fetches matching tags based on a query.
 	SearchCompressed(
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
-	) ([]MultiTagResult, Cleanup, error)
+	) (TagResult, Cleanup, error)
+
+	// CompleteTagsCompressed returns autocompleted tag results.
+	CompleteTagsCompressed(
+		ctx context.Context,
+		query *genericstorage.CompleteTagsQuery,
+		options *genericstorage.FetchOptions,
+	) (*genericstorage.CompleteTagsResult, error)
+}
+
+// SeriesFetchResult is a fetch result with associated metadata.
+type SeriesFetchResult struct {
+	// Metadata is the set of metadata associated with the fetch result.
+	Metadata block.ResultMetadata
+	// SeriesIterators is the list of series iterators for the result.
+	SeriesIterators encoding.SeriesIterators
 }
 
 // MultiFetchResult is a deduping accumalator for series iterators
 // that allows merging using a given strategy.
 type MultiFetchResult interface {
-	// Add adds series iterators with corresponding attributes to the accumulator.
+	// Add appends series fetch results to the accumulator.
 	Add(
+		fetchResult SeriesFetchResult,
 		attrs genericstorage.Attributes,
-		iterators encoding.SeriesIterators,
 		err error,
 	)
 
-	// FinalResult returns a series iterators object containing
-	// deduplicated series values.
-	FinalResult() (encoding.SeriesIterators, error)
+	// FinalResult returns a series fetch result containing deduplicated series
+	// iterators and their metadata, and any errors encountered.
+	FinalResult() (SeriesFetchResult, error)
 
-	// FinalResultWithAttrs returns a series iterators object containing
-	// deduplicated series values, attributes corresponding to these iterators,
-	// and any errors encountered.
-	FinalResultWithAttrs() (
-		encoding.SeriesIterators,
-		[]genericstorage.Attributes,
-		error,
-	)
+	// FinalResult returns a series fetch result containing deduplicated series
+	// iterators and their metadata, as well as any attributes corresponding to
+	// these results, and any errors encountered.
+	FinalResultWithAttrs() (SeriesFetchResult, []genericstorage.Attributes, error)
 
 	// Close releases all resources held by this accumulator.
 	Close() error
 }
 
+// TagResult is a fetch tag result with associated metadata.
+type TagResult struct {
+	// Metadata is the set of metadata associated with the fetch result.
+	Metadata block.ResultMetadata
+	// Tags is the list of tags for the result.
+	Tags []MultiTagResult
+}
+
 // MultiFetchTagsResult is a deduping accumalator for tag iterators.
 type MultiFetchTagsResult interface {
-	// Add adds tagged ID iterators to the accumulator.f
+	// Add adds tagged ID iterators to the accumulator.
 	Add(
 		newIterator client.TaggedIDsIterator,
+		meta block.ResultMetadata,
 		err error,
 	)
 	// FinalResult returns a deduped list of tag iterators with
 	// corresponding series IDs.
-	FinalResult() ([]MultiTagResult, error)
+	FinalResult() (TagResult, error)
 	// Close releases all resources held by this accumulator.
 	Close() error
 }

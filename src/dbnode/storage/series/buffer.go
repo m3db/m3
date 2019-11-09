@@ -272,6 +272,11 @@ func (b *dbBuffer) Write(
 		writeType   WriteType
 	)
 	switch {
+	case wOpts.BootstrapWrite:
+		writeType = WarmWrite
+		// Bootstrap writes are always warm writes.
+		// TODO(r): Validate that the block doesn't reside on disk by asking
+		// the shard for it's bootstrap flush states.
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
 		if !b.coldWritesEnabled {
@@ -432,6 +437,9 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 }
 
 func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
+	// TODO(r): If warm write then validate that the block doesn't reside on
+	// disk by asking the shard for it's bootstrap flush states and verifying
+	// the block does not exist yet.
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)
@@ -494,7 +502,7 @@ func (b *dbBuffer) Snapshot(
 		}
 
 		var ok bool
-		mergedStream, ok = encoder.Stream(encoding.StreamOptions{})
+		mergedStream, ok = encoder.Stream(ctx)
 		if !ok {
 			// Don't write out series with no data.
 			return nil
@@ -553,7 +561,7 @@ func (b *dbBuffer) WarmFlush(
 			return FlushOutcomeErr, err
 		}
 
-		stream, ok = encoder.Stream(encoding.StreamOptions{})
+		stream, ok = encoder.Stream(ctx)
 		encoder.Close()
 	}
 
@@ -738,7 +746,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if opts.IncludeChecksums {
 			// Checksum calculations are best effort since we can't calculate one if there
 			// are multiple streams without performing an expensive merge.
-			checksum, err = bv.checksumIfSingleStream()
+			checksum, err = bv.checksumIfSingleStream(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -917,11 +925,11 @@ func (b *BufferBucketVersions) streamsLen() int {
 	return res
 }
 
-func (b *BufferBucketVersions) checksumIfSingleStream() (*uint32, error) {
+func (b *BufferBucketVersions) checksumIfSingleStream(ctx context.Context) (*uint32, error) {
 	if len(b.buckets) != 1 {
 		return nil, nil
 	}
-	return b.buckets[0].checksumIfSingleStream()
+	return b.buckets[0].checksumIfSingleStream(ctx)
 }
 
 func (b *BufferBucketVersions) write(
@@ -1177,7 +1185,7 @@ func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	}
 	for i := range b.encoders {
 		start := b.start
-		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOptions{}); ok {
+		if s, ok := b.encoders[i].encoder.Stream(ctx); ok {
 			br := xio.BlockReader{
 				SegmentReader: s,
 				Start:         start,
@@ -1202,10 +1210,10 @@ func (b *BufferBucket) streamsLen() int {
 	return length
 }
 
-func (b *BufferBucket) checksumIfSingleStream() (*uint32, error) {
+func (b *BufferBucket) checksumIfSingleStream(ctx context.Context) (*uint32, error) {
 	if b.hasJustSingleEncoder() {
 		enc := b.encoders[0].encoder
-		stream, ok := enc.Stream(encoding.StreamOptions{})
+		stream, ok := enc.Stream(ctx)
 		if !ok {
 			return nil, nil
 		}
@@ -1301,7 +1309,7 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 	}
 
 	for i := range b.encoders {
-		if s, ok := b.encoders[i].encoder.Stream(encoding.StreamOptions{}); ok {
+		if s, ok := b.encoders[i].encoder.Stream(ctx); ok {
 			merges++
 			readers = append(readers, s)
 			streams = append(streams, s)
@@ -1363,7 +1371,7 @@ func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Contex
 	if b.hasJustSingleEncoder() {
 		b.resetLoadedBlocks()
 		// Already merged as a single encoder.
-		stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+		stream, ok := b.encoders[0].encoder.Stream(ctx)
 		if !ok {
 			return nil, false, nil
 		}
@@ -1396,7 +1404,7 @@ func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Contex
 		return nil, false, errIncompleteMerge
 	}
 
-	stream, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+	stream, ok := b.encoders[0].encoder.Stream(ctx)
 	if !ok {
 		return nil, false, nil
 	}

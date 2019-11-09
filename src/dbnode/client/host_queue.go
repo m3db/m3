@@ -412,8 +412,13 @@ func (q *queue) drainWriteOpV2(
 		currV2WriteReq.NameSpaces = append(currV2WriteReq.NameSpaces, namespace.Bytes())
 		nsIdx = len(currV2WriteReq.NameSpaces) - 1
 	}
-	v.requestV2.NameSpace = int64(nsIdx)
-	currV2WriteReq.Elements = append(currV2WriteReq.Elements, &v.requestV2)
+
+	// Copy the request because operations are shared across multiple host queues so mutating
+	// them directly is racey.
+	// TODO(rartoul): Consider adding a pool for this.
+	requestCopy := v.requestV2
+	requestCopy.NameSpace = int64(nsIdx)
+	currV2WriteReq.Elements = append(currV2WriteReq.Elements, &requestCopy)
 	currV2WriteOps = append(currV2WriteOps, op)
 	if len(currV2WriteReq.Elements) == q.opts.WriteBatchSize() {
 		// Reached write batch limit, write async and reset.
@@ -448,8 +453,13 @@ func (q *queue) drainTaggedWriteOpV2(
 		currV2WriteTaggedReq.NameSpaces = append(currV2WriteTaggedReq.NameSpaces, namespace.Bytes())
 		nsIdx = len(currV2WriteTaggedReq.NameSpaces) - 1
 	}
-	v.requestV2.NameSpace = int64(nsIdx)
-	currV2WriteTaggedReq.Elements = append(currV2WriteTaggedReq.Elements, &v.requestV2)
+
+	// Copy the request because operations are shared across multiple host queues so mutating
+	// them directly is racey.
+	// TODO(rartoul): Consider adding a pool for this.
+	requestCopy := v.requestV2
+	requestCopy.NameSpace = int64(nsIdx)
+	currV2WriteTaggedReq.Elements = append(currV2WriteTaggedReq.Elements, &requestCopy)
 	currV2WriteTaggedOps = append(currV2WriteTaggedOps, op)
 	if len(currV2WriteTaggedReq.Elements) == q.opts.WriteBatchSize() {
 		// Reached write batch limit, write async and reset.
@@ -485,6 +495,7 @@ func (q *queue) drainFetchBatchRawV2Op(
 		nsIdx = len(currV2FetchBatchRawReq.NameSpaces) - 1
 	}
 	for i := range v.requestV2Elements {
+		// Each host queue gets its own fetchBatchOp so mutating the NameSpace field here is safe.
 		v.requestV2Elements[i].NameSpace = int64(nsIdx)
 		currV2FetchBatchRawReq.Elements = append(currV2FetchBatchRawReq.Elements, &v.requestV2Elements[i])
 	}
@@ -515,8 +526,8 @@ func (q *queue) asyncTaggedWrite(
 
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeTaggedBatchRawRequestPool.Put(req)
 			q.writeTaggedBatchRawRequestElementArrayPool.Put(elems)
+			q.writeTaggedBatchRawRequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
@@ -576,8 +587,8 @@ func (q *queue) asyncTaggedWriteV2(
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeTaggedBatchRawV2RequestPool.Put(req)
 			q.writeTaggedBatchRawV2RequestElementArrayPool.Put(req.Elements)
+			q.writeTaggedBatchRawV2RequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
@@ -640,8 +651,8 @@ func (q *queue) asyncWrite(
 
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeBatchRawRequestPool.Put(req)
 			q.writeBatchRawRequestElementArrayPool.Put(elems)
+			q.writeBatchRawRequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}
@@ -700,8 +711,8 @@ func (q *queue) asyncWriteV2(
 	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeBatchRawV2RequestPool.Put(req)
 			q.writeBatchRawV2RequestElementArrayPool.Put(req.Elements)
+			q.writeBatchRawV2RequestPool.Put(req)
 			q.opsArrayPool.Put(ops)
 			q.Done()
 		}

@@ -1,0 +1,9 @@
+global:
+  external_labels:
+    role: "remote"
+  scrape_interval:     15s
+  evaluation_interval: 15s
+ 
+remote_read:
+  - url: http://m3query:7201/api/v1/prom/remote/read
+    read_recent: true

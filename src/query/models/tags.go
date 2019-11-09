@@ -386,6 +386,29 @@ func (t Tags) AddOrUpdateTag(tag Tag) Tags {
 	return t.AddTag(tag)
 }
 
+// AddTagsIfNotExists is used to add a list of tags with unique names
+// and maintain sorted order.
+func (t Tags) AddTagsIfNotExists(tags []Tag) Tags {
+	for _, tt := range tags {
+		t = t.addIfMissingTag(tt)
+	}
+
+	return t.Normalize()
+}
+
+// addIfMissingTag is used to add a single tag and maintain sorted order,
+// or to replace the value of an existing tag.
+func (t Tags) addIfMissingTag(tag Tag) Tags {
+	tags := t.Tags
+	for _, tt := range tags {
+		if bytes.Equal(tag.Name, tt.Name) {
+			return t
+		}
+	}
+
+	return t.AddTag(tag)
+}
+
 // Add is used to add two tag structures and maintain sorted order.
 func (t Tags) Add(other Tags) Tags {
 	t.Tags = append(t.Tags, other.Tags...)

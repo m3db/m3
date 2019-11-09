@@ -131,9 +131,9 @@ func (m *bootstrapManager) Bootstrap() error {
 	// Keep performing bootstraps until none pending
 	multiErr := xerrors.NewMultiError()
 	for {
-		err := m.bootstrap()
-		if err != nil {
-			multiErr = multiErr.Add(err)
+		bootstrapErr := m.bootstrap()
+		if bootstrapErr != nil {
+			multiErr = multiErr.Add(bootstrapErr)
 		}
 
 		m.Lock()
@@ -146,9 +146,19 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 		m.Unlock()
 
-		if !currPending {
-			break
+		if currPending {
+			// NB(r): Requires another bootstrap.
+			continue
 		}
+
+		if bootstrapErr != nil {
+			// NB(r): Last bootstrap failed.
+			m.log.Info("retrying bootstrap due to bootstrap failure")
+			continue
+		}
+
+		// No pending bootstraps and last finished successfully.
+		break
 	}
 
 	// NB(xichen): in order for bootstrapped data to be flushed to disk, a tick
@@ -185,8 +195,24 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	uniqueShards := make(map[uint32]struct{})
+	uniqueShards := make(map[uint32]struct{}, m.database.ShardSet().Max())
 	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	accmulators := make([]bootstrap.NamespaceDataAccumulator, 0, len(namespaces))
+	defer func() {
+		// Close all accumulators at bootstrap completion, only error
+		// it returns is if already closed, so this is a code bug if ever
+		// an error returned.
+		for _, accumulator := range accmulators {
+			if err := accumulator.Close(); err != nil {
+				instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+					func(l *zap.Logger) {
+						l.Error("could not close bootstrap data accumulator",
+							zap.Error(err))
+					})
+			}
+		}
+	}()
+
 	for _, namespace := range namespaces {
 		namespaceShards := namespace.GetOwnedShards()
 		bootstrapShards := make([]uint32, 0, len(namespaceShards))
@@ -200,6 +226,8 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 
 		accumulator := NewDatabaseNamespaceDataAccumulator(namespace)
+		accmulators = append(accmulators, accumulator)
+
 		targets = append(targets, bootstrap.ProcessNamespace{
 			Metadata:        namespace.Metadata(),
 			Shards:          bootstrapShards,
@@ -217,7 +245,7 @@ func (m *bootstrapManager) bootstrap() error {
 	bootstrapResult, err := process.Run(start, targets)
 
 	logFields = append(logFields,
-		zap.Duration("duration", m.nowFn().Sub(start)))
+		zap.Duration("bootstrapDuration", m.nowFn().Sub(start)))
 
 	if err != nil {
 		m.log.Error("bootstrap failed",
@@ -253,6 +281,6 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	m.log.Info("bootstrap success")
+	m.log.Info("bootstrap success", logFields...)
 	return nil
 }

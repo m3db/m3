@@ -412,4 +412,9 @@ type WriteOptions struct {
 	// must match the current series unique index value (to ensure series
 	// still is the same series as previously referenced).
 	MatchUniqueIndexValue uint64
+	// BootstrapWrite allows a warm write outside the time window as long as the
+	// block hasn't been already flushed on disk, this is useful for
+	// bootstrappers filling data they know have not already been flushed to
+	// disk.
+	BootstrapWrite bool
 }

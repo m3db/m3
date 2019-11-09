@@ -142,7 +142,7 @@ func (s *fileSystemSource) Read(
 	// to more clearly deliniate which process is slower than the other.
 	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 	start := nowFn()
-	s.log.Info("bootstrapping time series data from filesystem start")
+	s.log.Info("bootstrapping time series data start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -155,20 +155,23 @@ func (s *fileSystemSource) Read(
 		}
 
 		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
-			Metadata:     md,
-			Shards:       namespace.Shards,
-			DataResult:   r.data,
-			DataMetadata: bootstrap.NamespaceResultDataMetadata{}, // todo: fill in
+			Metadata:   md,
+			Shards:     namespace.Shards,
+			DataResult: r.data,
 		})
 	}
-	s.log.Info("bootstrapping time series data from filesystem success",
-		zap.Stringer("took", nowFn().Sub(start)))
+	s.log.Info("bootstrapping time series data success",
+		zap.Duration("took", nowFn().Sub(start)))
 
 	start = nowFn()
-	s.log.Info("bootstrapping index metadata from filesystem start")
+	s.log.Info("bootstrapping index metadata start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
+		if !md.Options().IndexOptions().Enabled() {
+			// Not bootstrapping for index.
+			continue
+		}
 
 		if !md.Options().IndexOptions().Enabled() {
 			s.log.Info("options disabled for namespace",
@@ -191,11 +194,10 @@ func (s *fileSystemSource) Read(
 		}
 
 		result.IndexResult = r.index
-		result.IndexMetadata = bootstrap.NamespaceResultIndexMetadata{} // todo: fill in
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata from filesystem success",
+	s.log.Info("bootstrapping index metadata success",
 		zap.Stringer("took", nowFn().Sub(start)))
 
 	return results, nil
@@ -249,8 +251,8 @@ func (s *fileSystemSource) shardAvailability(
 }
 
 func (s *fileSystemSource) enqueueReaders(
-	ns namespace.Metadata,
 	run runType,
+	ns namespace.Metadata,
 	runOpts bootstrap.RunOptions,
 	shardsTimeRanges result.ShardTimeRanges,
 	readerPool *readerPool,
@@ -262,7 +264,7 @@ func (s *fileSystemSource) enqueueReaders(
 	shouldPersistIndexBootstrap := run == bootstrapIndexRunType && s.shouldPersist(runOpts)
 	if !shouldPersistIndexBootstrap {
 		// Normal run, open readers
-		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
+		s.enqueueReadersGroupedByBlockSize(run, ns, runOpts,
 			shardsTimeRanges, readerPool, readersCh)
 		return
 	}
@@ -292,14 +294,14 @@ func (s *fileSystemSource) enqueueReaders(
 			// greater than the number of shards.
 			continue
 		}
-		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
+		s.enqueueReadersGroupedByBlockSize(run, ns, runOpts,
 			bucket, readerPool, readersCh)
 	}
 }
 
 func (s *fileSystemSource) enqueueReadersGroupedByBlockSize(
-	ns namespace.Metadata,
 	run runType,
+	ns namespace.Metadata,
 	runOpts bootstrap.RunOptions,
 	shardTimeRanges result.ShardTimeRanges,
 	readerPool *readerPool,
@@ -405,9 +407,9 @@ func (s *fileSystemSource) newShardReaders(
 }
 
 func (s *fileSystemSource) bootstrapFromReaders(
+	run runType,
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
-	run runType,
 	runOpts bootstrap.RunOptions,
 	readerPool *readerPool,
 	retriever block.DatabaseBlockRetriever,
@@ -437,16 +439,13 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		timeWindowReaders := timeWindowReaders
 		wg.Add(1)
 		processors.Go(func() {
-			s.loadShardReadersDataIntoShardResult(ns, accumulator, run,
+			s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
 				runOpts, runResult, resultOpts, shardRetrieverMgr,
 				timeWindowReaders, readerPool)
 			wg.Done()
 		})
 	}
 	wg.Wait()
-
-	// All done with any series checked out during accumulation.
-	accumulator.Release()
 
 	return runResult
 }
@@ -490,9 +489,9 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 }
 
 func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
+	run runType,
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
-	run runType,
 	runOpts bootstrap.RunOptions,
 	runResult *runResult,
 	ropts result.Options,
@@ -532,6 +531,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			)
 			switch run {
 			case bootstrapDataRunType:
+				// Pass, since nothing to do.
 			case bootstrapIndexRunType:
 				indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
 			default:
@@ -609,8 +609,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
 					zap.Stringer("requestedRanges", requestedRanges),
-					zap.Error(err),
-				)
+					zap.Error(err))
 			})
 		}
 	}
@@ -647,6 +646,16 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		err         error
 	)
 
+	defer func() {
+		// Can finalize the ID and tags always.
+		if id != nil {
+			id.Finalize()
+		}
+		if tagsIter != nil {
+			tagsIter.Close()
+		}
+	}()
+
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		id, tagsIter, data, _, err = r.Read()
@@ -657,14 +666,10 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("error reading data file: %v", err)
 	}
 
-	ref, err := accumulator.CheckoutSeries(id, tagsIter)
+	ref, err := accumulator.CheckoutSeriesWithLock(id, tagsIter)
 	if err != nil {
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}
-
-	// Can finalize the ID and tags now have a ref to series.
-	id.Finalize()
-	tagsIter.Close()
 
 	switch seriesCachePolicy {
 	case series.CacheAll:
@@ -994,10 +999,10 @@ func (s *fileSystemSource) read(
 	// hence why its created on demand each time.
 	readerPool := newReaderPool(s.newReaderPoolOpts)
 	readersCh := make(chan timeWindowReaders)
-	go s.enqueueReaders(md, run, runOpts, shardsTimeRanges,
+	go s.enqueueReaders(run, md, runOpts, shardsTimeRanges,
 		readerPool, readersCh)
-	bootstrapFromDataReadersResult := s.bootstrapFromReaders(md, accumulator,
-		run, runOpts, readerPool, blockRetriever, readersCh)
+	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
+		accumulator, runOpts, readerPool, blockRetriever, readersCh)
 
 	// Merge any existing results if necessary.
 	setOrMergeResult(bootstrapFromDataReadersResult)

@@ -94,7 +94,7 @@ func AliasByNode(_ *Context, seriesList ts.SeriesList, nodes ...int) (ts.SeriesL
 func AliasSub(_ *Context, input ts.SeriesList, search, replace string) (ts.SeriesList, error) {
 	regex, err := regexp.Compile(search)
 	if err != nil {
-		return ts.SeriesList{}, err
+		return ts.NewSeriesList(), err
 	}
 
 	output := make([]*ts.Series, input.Len())
@@ -119,7 +119,7 @@ func AliasSub(_ *Context, input ts.SeriesList, search, replace string) (ts.Serie
 				return submatches[index]
 			})
 			if err != nil {
-				return ts.SeriesList{}, err
+				return ts.NewSeriesList(), err
 			}
 			output[idx] = series.RenamedTo(newName)
 		}

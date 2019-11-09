@@ -36,8 +36,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -106,7 +106,7 @@ func (s *peersSource) Read(
 	// to more clearly deliniate which process is slower than the other.
 	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 	start := nowFn()
-	s.log.Info("bootstrapping time series data from peers start")
+	s.log.Info("bootstrapping time series data start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -119,20 +119,23 @@ func (s *peersSource) Read(
 		}
 
 		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
-			Metadata:     md,
-			Shards:       namespace.Shards,
-			DataResult:   r,
-			DataMetadata: bootstrap.NamespaceResultDataMetadata{}, // todo: fill in
+			Metadata:   md,
+			Shards:     namespace.Shards,
+			DataResult: r,
 		})
 	}
-	s.log.Info("bootstrapping time series data from peers success",
-		zap.Stringer("took", nowFn().Sub(start)))
+	s.log.Info("bootstrapping time series data success",
+		zap.Duration("took", nowFn().Sub(start)))
 
 	start = nowFn()
-	s.log.Info("bootstrapping index metadata from peers start")
+	s.log.Info("bootstrapping index metadata start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
+		if !md.Options().IndexOptions().Enabled() {
+			// Not bootstrapping for index.
+			continue
+		}
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
@@ -149,12 +152,11 @@ func (s *peersSource) Read(
 		}
 
 		result.IndexResult = r
-		result.IndexMetadata = bootstrap.NamespaceResultIndexMetadata{} // todo: fill in
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata from peers success",
-		zap.Stringer("took", nowFn().Sub(start)))
+	s.log.Info("bootstrapping index metadata success",
+		zap.Duration("took", nowFn().Sub(start)))
 
 	return results, nil
 }
@@ -369,22 +371,19 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				entry := elem.Value()
 
 				tagsIter.Reset(entry.Tags)
-				ref, err := accumulator.CheckoutSeries(entry.ID, tagsIter)
+				ref, err := accumulator.CheckoutSeriesWithLock(entry.ID, tagsIter)
 				if err != nil {
 					unfulfill(currRange)
 					s.log.Error("could not checkout series", zap.Error(err))
 					continue
 				}
 
-				for t, block := range entry.Blocks.AllBlocks() {
+				for _, block := range entry.Blocks.AllBlocks() {
 					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}
-					entry.Blocks.RemoveBlockAt(t.ToTime())
 				}
-
-				shardResult.RemoveSeries(entry.ID)
 
 				// Safe to finalize these IDs and Tags, shard result no longer used.
 				entry.ID.Finalize()
@@ -416,7 +415,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 			)
 		}
 	} else {
-		s.log.Error("error fetching bootstrap blocks from peers",
+		s.log.Error("error fetching bootstrap blocks",
 			zap.Uint32("shard", shard),
 			zap.Error(err),
 		)
@@ -476,7 +475,7 @@ func (s *peersSource) flush(
 	var (
 		ropts     = nsMetadata.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
-		tmpCtx    = context.NewContext()
+		flushCtx  = s.opts.ContextPool().Get()
 	)
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
@@ -519,30 +518,30 @@ func (s *peersSource) flush(
 				continue
 			}
 
-			tmpCtx.Reset()
-			stream, err := bl.Stream(tmpCtx)
+			flushCtx.Reset()
+			stream, err := bl.Stream(flushCtx)
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			segment, err := stream.Segment()
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			checksum, err := bl.Checksum()
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err
 				break
 			}
 
 			err = prepared.Persist(s.ID, s.Tags, segment, checksum)
-			tmpCtx.BlockingClose()
+			flushCtx.BlockingCloseReset()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
 				break

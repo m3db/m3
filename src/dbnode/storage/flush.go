@@ -194,7 +194,8 @@ func (m *flushManager) dataWarmFlush(
 		// Flush first because we will only snapshot if there are no outstanding flushes.
 		flushTimes, err := m.namespaceFlushTimes(ns, startTime)
 		if err != nil {
-			return err
+			multiErr = multiErr.Add(err)
+			continue
 		}
 		err = m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
 		if err != nil {

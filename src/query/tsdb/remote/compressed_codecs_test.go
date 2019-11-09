@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -219,9 +220,15 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 }
 
 func TestEncodeToCompressedFetchResult(t *testing.T) {
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
+	iters := encoding.NewSeriesIterators(
+		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
+			buildTestSeriesIterator(t)}, nil)
 	ip := test.MakeMockIteratorPool()
-	fetchResult, err := encodeToCompressedSeries(iters, ip)
+	result := m3.SeriesFetchResult{
+		SeriesIterators: iters,
+	}
+
+	fetchResult, err := encodeToCompressedSeries(result, ip)
 	require.NoError(t, err)
 
 	require.Len(t, fetchResult, 2)
@@ -240,16 +247,29 @@ func TestEncodeToCompressedFetchResult(t *testing.T) {
 }
 
 func TestDecodeCompressedFetchResult(t *testing.T) {
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
-	compressed, err := encodeToCompressedSeries(iters, nil)
+	iters := encoding.NewSeriesIterators(
+		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
+			buildTestSeriesIterator(t)}, nil)
+	result := m3.SeriesFetchResult{
+		SeriesIterators: iters,
+	}
+
+	compressed, err := encodeToCompressedSeries(result, nil)
 	require.Error(t, err)
 	require.Nil(t, compressed)
 }
 
 func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 	ip := test.MakeMockIteratorPool()
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
-	compressed, err := encodeToCompressedSeries(iters, ip)
+	iters := encoding.NewSeriesIterators(
+		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
+			buildTestSeriesIterator(t)}, nil)
+
+	result := m3.SeriesFetchResult{
+		SeriesIterators: iters,
+	}
+
+	compressed, err := encodeToCompressedSeries(result, ip)
 	require.NoError(t, err)
 	require.Len(t, compressed, 2)
 	for _, series := range compressed {

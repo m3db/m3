@@ -982,7 +982,6 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	// Avoid double lookup by enqueueing insert immediately.
 	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		return SeriesReadWriteRef{}, err
@@ -1547,7 +1546,7 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	var (
 		res             = s.opts.FetchBlocksMetadataResultsPool().Get()
-		tmpCtx          = context.NewContext()
+		fetchCtx        = s.contextPool.Get()
 		nextIndexCursor *int64
 	)
 
@@ -1565,11 +1564,14 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 			return true
 		}
 
-		// Use a temporary context here so the stream readers can be returned to
-		// pool after we finish fetching the metadata for this series.
-		tmpCtx.Reset()
-		metadata, err := entry.Series.FetchBlocksMetadata(tmpCtx, start, end, opts)
-		tmpCtx.BlockingClose()
+		// Use a context here that we finalize immediately so the stream
+		// readers can be returned to pool after we finish fetching the
+		// metadata for this series.
+		// NB(r): Use a pooled context for pooled finalizers/closers but
+		// reuse so don't need to put and get from the pool each iteration.
+		fetchCtx.Reset()
+		metadata, err := entry.Series.FetchBlocksMetadata(ctx, start, end, opts)
+		fetchCtx.BlockingCloseReset()
 		if err != nil {
 			loopErr = err
 			return false
@@ -1813,9 +1815,7 @@ func (s *dbShard) Bootstrap() error {
 	s.bootstrapState = Bootstrapping
 	s.Unlock()
 
-	// Iterate flushed time ranges to determine which blocks are retrievable. This step happens
-	// first because the flushState information is required for bootstrapping individual series
-	// (will be passed to series.Load() as BlockState).
+	// Iterate flushed time ranges to determine which blocks are retrievable.
 	s.bootstrapFlushStates()
 
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
@@ -2020,16 +2020,17 @@ func (s *dbShard) WarmFlush(
 	}
 
 	var multiErr xerrors.MultiError
-	tmpCtx := context.NewContext()
+	flushCtx := s.contextPool.Get() // From pool so finalizers are from pool.
 
 	flushResult := dbShardFlushResult{}
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
-		tmpCtx.Reset()
-		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist, nsCtx)
-		tmpCtx.BlockingClose()
+		flushCtx.Reset()
+		flushOutcome, err := curr.WarmFlush(flushCtx, blockStart, prepared.Persist, nsCtx)
+		// Use BlockingCloseReset so context doesn't get returned to the pool.
+		flushCtx.BlockingCloseReset()
 
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -2131,7 +2132,7 @@ func (s *dbShard) ColdFlush(
 
 	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
 		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),
-		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.namespace.Options())
+		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.opts.ContextPool(), s.namespace.Options())
 	mergeWithMem := s.newFSMergeWithMemFn(s, s, dirtySeries, dirtySeriesToWrite)
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
@@ -2239,14 +2240,14 @@ func (s *dbShard) Snapshot(
 		return err
 	}
 
-	tmpCtx := context.NewContext()
+	snapshotCtx := s.contextPool.Get()
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
-		tmpCtx.Reset()
-		err := series.Snapshot(tmpCtx, blockStart, prepared.Persist, nsCtx)
-		tmpCtx.BlockingClose()
+		snapshotCtx.Reset()
+		err := series.Snapshot(snapshotCtx, blockStart, prepared.Persist, nsCtx)
+		snapshotCtx.BlockingCloseReset()
 
 		if err != nil {
 			multiErr = multiErr.Add(err)

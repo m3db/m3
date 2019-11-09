@@ -447,7 +447,7 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
+func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
@@ -477,12 +477,12 @@ func (i *promTSIter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
+func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0
+		return models.EmptyTags(), nil, 0, nil
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond
+	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond, nil
 }
 
 func (i *promTSIter) Reset() error {

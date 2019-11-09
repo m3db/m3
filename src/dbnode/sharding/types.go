@@ -40,9 +40,6 @@ type ShardSet interface {
 	// AllIDs returns a slice to the shard IDs in this set.
 	AllIDs() []uint32
 
-	// Has returns whether the shard set has a given shard ID.
-	Has(shardID uint32) bool
-
 	// Lookup will return a shard for a given identifier.
 	Lookup(id ident.ID) uint32
 

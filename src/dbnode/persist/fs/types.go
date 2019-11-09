@@ -471,23 +471,17 @@ type BlockRetrieverOptions interface {
 	// Validate validates the options.
 	Validate() error
 
-	// SetRequestPoolOptions sets the request pool options.
-	SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions
+	// SetRetrieveRequestPool sets the retrieve request pool.
+	SetRetrieveRequestPool(value RetrieveRequestPool) BlockRetrieverOptions
 
-	// RequestPoolOptions returns the request pool options.
-	RequestPoolOptions() pool.ObjectPoolOptions
+	// RetrieveRequestPool returns the retrieve request pool.
+	RetrieveRequestPool() RetrieveRequestPool
 
 	// SetBytesPool sets the bytes pool.
 	SetBytesPool(value pool.CheckedBytesPool) BlockRetrieverOptions
 
 	// BytesPool returns the bytes pool.
 	BytesPool() pool.CheckedBytesPool
-
-	// SetSegmentReaderPool sets the segment reader pool.
-	SetSegmentReaderPool(value xio.SegmentReaderPool) BlockRetrieverOptions
-
-	// SegmentReaderPool returns the segment reader pool.
-	SegmentReaderPool() xio.SegmentReaderPool
 
 	// SetFetchConcurrency sets the fetch concurrency.
 	SetFetchConcurrency(value int) BlockRetrieverOptions
@@ -553,5 +547,6 @@ type NewMergerFn func(
 	multiIterPool encoding.MultiReaderIteratorPool,
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
+	contextPool context.Pool,
 	nsOpts namespace.Options,
 ) Merger

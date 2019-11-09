@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -162,41 +163,41 @@ func (b bootstrapProcess) Run(
 	for _, namespace := range namespaces {
 		ropts := namespace.Metadata.Options().RetentionOptions()
 		idxopts := namespace.Metadata.Options().IndexOptions()
-		dataRangeFirst, dataRangeSecond := b.targetRangesForData(at, ropts)
-		indexRangeFirst, indexRangeSecond := b.targetRangesForIndex(at, ropts, idxopts)
+		dataRanges := b.targetRangesForData(at, ropts)
+		indexRanges := b.targetRangesForIndex(at, ropts, idxopts)
 
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
-			DataTargetRange:  dataRangeFirst,
-			IndexTargetRange: indexRangeFirst,
+			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
+			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: b.newShardTimeRanges(dataRangeFirst.Range,
-					namespace.Shards),
-				RunOptions: dataRangeFirst.RunOptions,
+				ShardTimeRanges: b.newShardTimeRanges(
+					dataRanges.firstRangeWithPersistTrue.Range, namespace.Shards),
+				RunOptions: dataRanges.firstRangeWithPersistTrue.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: b.newShardTimeRanges(indexRangeFirst.Range,
-					namespace.Shards),
-				RunOptions: indexRangeFirst.RunOptions,
+				ShardTimeRanges: b.newShardTimeRanges(
+					indexRanges.firstRangeWithPersistTrue.Range, namespace.Shards),
+				RunOptions: indexRanges.firstRangeWithPersistTrue.RunOptions,
 			},
 		})
-		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
+		namespacesRunSecond.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
-			DataTargetRange:  dataRangeSecond,
-			IndexTargetRange: indexRangeSecond,
+			DataTargetRange:  dataRanges.secondRangeWithPersistFalse,
+			IndexTargetRange: indexRanges.secondRangeWithPersistFalse,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: b.newShardTimeRanges(dataRangeSecond.Range,
-					namespace.Shards),
-				RunOptions: dataRangeSecond.RunOptions,
+				ShardTimeRanges: b.newShardTimeRanges(
+					dataRanges.secondRangeWithPersistFalse.Range, namespace.Shards),
+				RunOptions: dataRanges.secondRangeWithPersistFalse.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: b.newShardTimeRanges(indexRangeSecond.Range,
-					namespace.Shards),
-				RunOptions: indexRangeSecond.RunOptions,
+				ShardTimeRanges: b.newShardTimeRanges(
+					indexRanges.secondRangeWithPersistFalse.Range, namespace.Shards),
+				RunOptions: indexRanges.secondRangeWithPersistFalse.RunOptions,
 			},
 		})
 	}
@@ -219,9 +220,16 @@ func (b bootstrapProcess) Run(
 
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
+			nsID := namespace.Metadata.ID()
+			result, ok := res.Results.Get(nsID)
+			if !ok {
+				return NamespaceResults{},
+					fmt.Errorf("result missing for namespace: %v", nsID.String())
+			}
+
 			logFields := b.logFields(namespace.Metadata, namespace.Shards,
 				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
-			b.logBootstrapResult(logFields, err, took)
+			b.logBootstrapResult(result, logFields, err, took)
 		}
 
 		if err != nil {
@@ -277,11 +285,17 @@ func (b bootstrapProcess) logBootstrapRun(
 }
 
 func (b bootstrapProcess) logBootstrapResult(
+	result NamespaceResult,
 	logFields []zapcore.Field,
 	err error,
 	took time.Duration,
 ) {
-	logFields = append(logFields, zap.Duration("took", took))
+	logFields = append(logFields,
+		zap.Duration("took", took))
+	if result.IndexResult != nil {
+		logFields = append(logFields,
+			zap.Int("numIndexBlocks", len(result.IndexResult.IndexResults())))
+	}
 	if err != nil {
 		logFields = append(logFields, zap.Error(err))
 		b.log.Info("bootstrap range completed with error", logFields...)
@@ -294,7 +308,7 @@ func (b bootstrapProcess) logBootstrapResult(
 func (b bootstrapProcess) targetRangesForData(
 	at time.Time,
 	ropts retention.Options,
-) (TargetRange, TargetRange) {
+) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
@@ -308,7 +322,7 @@ func (b bootstrapProcess) targetRangesForIndex(
 	at time.Time,
 	ropts retention.Options,
 	idxopts namespace.IndexOptions,
-) (TargetRange, TargetRange) {
+) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
@@ -326,10 +340,15 @@ type targetRangesOptions struct {
 	bufferFuture          time.Duration
 }
 
+type targetRangesResult struct {
+	firstRangeWithPersistTrue   TargetRange
+	secondRangeWithPersistFalse TargetRange
+}
+
 func (b bootstrapProcess) targetRanges(
 	at time.Time,
 	opts targetRangesOptions,
-) (TargetRange, TargetRange) {
+) targetRangesResult {
 	start := at.Add(-opts.retentionPeriod).
 		Truncate(opts.blockSize)
 	midPoint := at.
@@ -347,7 +366,8 @@ func (b bootstrapProcess) targetRanges(
 	// bootstrap with persistence so we don't keep the full raw
 	// data in process until we finish bootstrapping which could
 	// cause the process to OOM.
-	return TargetRange{
+	return targetRangesResult{
+		firstRangeWithPersistTrue: TargetRange{
 			Range: xtime.Range{Start: start, End: midPoint},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled: true,
@@ -356,7 +376,8 @@ func (b bootstrapProcess) targetRanges(
 				// data in memory at once.
 				FileSetType: persist.FileSetFlushType,
 			}),
-		}, TargetRange{
+		},
+		secondRangeWithPersistFalse: TargetRange{
 			Range: xtime.Range{Start: midPoint, End: cutover},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled: true,
@@ -366,7 +387,8 @@ func (b bootstrapProcess) targetRanges(
 				// from just the commit log bootstrapper.
 				FileSetType: persist.FileSetSnapshotType,
 			}),
-		}
+		},
+	}
 }
 
 func (b bootstrapProcess) newRunOptions() RunOptions {
@@ -416,7 +438,8 @@ func NewNamespaceResults(
 	}
 }
 
-// MergeNamespaceResults merges two namespace results.
+// MergeNamespaceResults merges two namespace results, this will mutate
+// both a and b and return a merged copy of them reusing one of the results.
 func MergeNamespaceResults(a, b NamespaceResults) NamespaceResults {
 	for _, entry := range a.Results.Iter() {
 		id := entry.Key()
@@ -429,6 +452,9 @@ func MergeNamespaceResults(a, b NamespaceResults) NamespaceResults {
 			other.DataResult)
 		elem.IndexResult = result.MergedIndexBootstrapResult(elem.IndexResult,
 			other.IndexResult)
+
+		// Save back the merged results.
+		a.Results.Set(id, elem)
 
 		// Remove from b, then can directly add to a all non-merged results.
 		b.Results.Delete(id)

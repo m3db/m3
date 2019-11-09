@@ -332,9 +332,9 @@ func LabelMatchersToModelMatcher(
 	lMatchers []*labels.Matcher,
 	tagOpts models.TagOptions,
 ) (models.Matchers, error) {
-	matchers := make(models.Matchers, len(lMatchers))
-	for i, m := range lMatchers {
-		modelType, err := promTypeToM3(m.Type)
+	matchers := make(models.Matchers, 0, len(lMatchers))
+	for _, m := range lMatchers {
+		matchType, err := promTypeToM3(m.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -346,12 +346,25 @@ func LabelMatchersToModelMatcher(
 			name = []byte(m.Name)
 		}
 
-		match, err := models.NewMatcher(modelType, name, []byte(m.Value))
+		value := []byte(m.Value)
+		// NB: special case here since by Prometheus convention, a NEQ tag with no
+		// provided value is interpreted as verifying that the tag exists.
+		// Similarily, EQ tag with no provided value is interpreted as ensuring that
+		// the tag does not exist.
+		if len(value) == 0 {
+			if matchType == models.MatchNotEqual {
+				matchType = models.MatchField
+			} else if matchType == models.MatchEqual {
+				matchType = models.MatchNotField
+			}
+		}
+
+		match, err := models.NewMatcher(matchType, name, value)
 		if err != nil {
 			return nil, err
 		}
 
-		matchers[i] = match
+		matchers = append(matchers, match)
 	}
 
 	return matchers, nil

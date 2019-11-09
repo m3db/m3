@@ -187,7 +187,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 					}
 
-					reader, ok := encoder.Stream(encoding.StreamOptions{})
+					ctx := context.NewContext()
+					reader, ok := encoder.Stream(ctx)
 					if ok {
 						seg, err := reader.Segment()
 						if err != nil {
@@ -201,6 +202,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 						encodersBySeries[seriesID] = bytes
 					}
+					ctx.Close()
+
 					compressedWritesByShards[shard] = encodersBySeries
 				}
 

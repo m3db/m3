@@ -92,6 +92,7 @@ type Handler struct {
 	instrumentOpts        instrument.Options
 	cpuProfileDuration    time.Duration
 	placementServiceNames []string
+	serviceOptionDefaults []handler.ServiceOptionsDefault
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -114,6 +115,7 @@ func NewHandler(
 	instrumentOpts instrument.Options,
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
+	serviceOptionDefaults []handler.ServiceOptionsDefault,
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
@@ -149,6 +151,7 @@ func NewHandler(
 		instrumentOpts:        instrumentOpts,
 		cpuProfileDuration:    cpuProfileDuration,
 		placementServiceNames: placementServiceNames,
+		serviceOptionDefaults: serviceOptionDefaults,
 	}, nil
 }
 
@@ -247,6 +250,14 @@ func (h *Handler) RegisterRoutes() error {
 		).Methods(method)
 	}
 
+	// Query parse endpoints
+	h.router.HandleFunc(native.PromParseURL,
+		wrapped(native.NewPromParseHandler(h.instrumentOpts)).ServeHTTP,
+	).Methods(native.PromParseHTTPMethod)
+	h.router.HandleFunc(native.PromThresholdURL,
+		wrapped(native.NewPromThresholdHandler(h.instrumentOpts)).ServeHTTP,
+	).Methods(native.PromThresholdHTTPMethod)
+
 	// Series match endpoints
 	for _, method := range remote.PromSeriesMatchHTTPMethods {
 		h.router.HandleFunc(remote.PromSeriesMatchURL,
@@ -278,13 +289,21 @@ func (h *Handler) RegisterRoutes() error {
 			return err
 		}
 
+		var placementServices []handler.ServiceNameAndDefaults
+		for _, serviceName := range h.placementServiceNames {
+			service := handler.ServiceNameAndDefaults{
+				ServiceName: serviceName,
+				Defaults:    h.serviceOptionDefaults,
+			}
+			placementServices = append(placementServices, service)
+		}
+
 		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 			h.cpuProfileDuration,
-			h.instrumentOpts,
 			h.clusterClient,
 			placementOpts,
-			h.placementServiceNames,
-		)
+			placementServices,
+			h.instrumentOpts)
 		if err != nil {
 			return fmt.Errorf("unable to create debug writer: %v", err)
 		}
@@ -294,13 +313,13 @@ func (h *Handler) RegisterRoutes() error {
 			wrapped(debugWriter.HTTPHandler()).ServeHTTP)
 
 		err = database.RegisterRoutes(h.router, h.clusterClient,
-			h.config, h.embeddedDbCfg, h.instrumentOpts)
+			h.config, h.embeddedDbCfg, h.serviceOptionDefaults, h.instrumentOpts)
 		if err != nil {
 			return err
 		}
 
-		placement.RegisterRoutes(h.router, placementOpts)
-		namespace.RegisterRoutes(h.router, h.clusterClient, h.instrumentOpts)
+		placement.RegisterRoutes(h.router, h.serviceOptionDefaults, placementOpts)
+		namespace.RegisterRoutes(h.router, h.clusterClient, h.serviceOptionDefaults, h.instrumentOpts)
 		topic.RegisterRoutes(h.router, h.clusterClient, h.config, h.instrumentOpts)
 	}
 

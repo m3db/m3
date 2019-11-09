@@ -53,7 +53,7 @@ t=$(date +%s)
 echo "foo.min.aggregate.baz 41 $t" | nc 0.0.0.0 7204
 echo "foo.min.aggregate.baz 42 $t" | nc 0.0.0.0 7204
 echo "Attempting to read min aggregated carbon metric"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.aggregate.baz 41
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.aggregate.baz 41
 
 echo "Writing out a carbon metric that should not be aggregated"
 t=$(date +%s)
@@ -64,7 +64,7 @@ t=$(date +%s)
 echo "foo.min.already-aggregated.baz 42 $t" | nc 0.0.0.0 7204
 echo "foo.min.already-aggregated.baz 43 $t" | nc 0.0.0.0 7204
 echo "Attempting to read unaggregated carbon metric"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.already-aggregated.baz 43
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.already-aggregated.baz 43
 
 echo "Writing out a carbon metric that should should use the default mean aggregation"
 t=$(date +%s)
@@ -72,7 +72,7 @@ t=$(date +%s)
 echo "foo.min.catch-all.baz 10 $t" | nc 0.0.0.0 7204
 echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
 
 # Test writing and reading IDs with colons in them.
 t=$(date +%s)

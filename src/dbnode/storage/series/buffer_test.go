@@ -432,7 +432,10 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	emptyEncoder.Reset(curr, 0, nil)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 
-	_, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	_, ok := b.encoders[0].encoder.Stream(ctx)
 	require.False(t, ok)
 
 	encoder := opts.EncoderPool().Get()
@@ -445,7 +448,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	blopts := opts.DatabaseBlockOptions()
 	newBlock := block.NewDatabaseBlock(curr, 0, encoder.Discard(), blopts, namespace.Context{})
 	b.loadedBlocks = append(b.loadedBlocks, newBlock)
-	ctx := opts.ContextPool().Get()
+
 	stream, err := b.loadedBlocks[0].Stream(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
@@ -795,6 +798,9 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
@@ -829,7 +835,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		for j := range bucket.encoders {
 			encoder := bucket.encoders[j].encoder
 
-			_, ok := encoder.Stream(encoding.StreamOptions{})
+			_, ok := encoder.Stream(ctx)
 			require.True(t, ok)
 
 			encoders = append(encoders, encoder)
@@ -852,9 +858,6 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	assert.Equal(t, 1, r.mergedOutOfOrderBlocks)
 
 	// Check values correct.
-	ctx := context.NewContext()
-	defer ctx.Close()
-
 	results, err := buffer.ReadEncoded(ctx, start, end, namespace.Context{})
 	assert.NoError(t, err)
 	expected := make([]DecodedTestValue, len(data))
@@ -872,7 +875,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -993,6 +996,8 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 
 	// Perform one valid write to setup the state of the buffer.
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	wasWritten, err := buffer.Write(ctx, curr, 1, xtime.Second, nil, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
@@ -1006,7 +1011,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		// Reset the encoder to simulate the situation in which an encoder is present but
@@ -1054,6 +1059,10 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Create test data to perform out of order writes that will create two in-order
@@ -1092,7 +1101,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -1117,8 +1126,6 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	}
 
 	// Perform a snapshot.
-	ctx := context.NewContext()
-	defer ctx.Close()
 	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
 	assert.NoError(t, err)
 
@@ -1132,7 +1139,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -1208,6 +1215,8 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 		warmEncoders []encoding.Encoder
 		coldEncoders []encoding.Encoder
 	)
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	buckets, ok := buffer.bucketVersionsAt(start)
 	require.True(t, ok)
@@ -1218,7 +1227,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		warmEncoders = append(warmEncoders, encoder)
@@ -1231,7 +1240,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		coldEncoders = append(coldEncoders, encoder)
@@ -1258,8 +1267,6 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	}
 
 	// Perform a snapshot.
-	ctx := context.NewContext()
-	defer ctx.Close()
 	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
 	require.NoError(t, err)
 
@@ -1274,7 +1281,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		warmEncoders = append(warmEncoders, encoder)
@@ -1293,7 +1300,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		coldEncoders = append(coldEncoders, encoder)

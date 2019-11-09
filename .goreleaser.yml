@@ -1,7 +1,10 @@
 project_name: m3
 builds:
-  - main: ./src/cmd/services/m3dbnode/main/main.go
+  - id: m3dbnode
+    main: ./src/cmd/services/m3dbnode/main/main.go
     binary: m3dbnode
+    env:
+      - CGO_ENABLED=0
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
       -X {{.Env.BASE_PACKAGE}}.Branch={{.Env.GIT_BRANCH}}
@@ -16,8 +19,11 @@ builds:
       # - windows
     goarch:
       - amd64
-  - main: ./src/cmd/services/m3coordinator/main/main.go
+  - id: m3coordinator
+    main: ./src/cmd/services/m3coordinator/main/main.go
     binary: m3coordinator
+    env:
+      - CGO_ENABLED=0
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
       -X {{.Env.BASE_PACKAGE}}.Branch={{.Env.GIT_BRANCH}}
@@ -32,8 +38,11 @@ builds:
       # - windows
     goarch:
       - amd64
-  - main: ./src/cmd/services/m3query/main/main.go
+  - id: m3query
+    main: ./src/cmd/services/m3query/main/main.go
     binary: m3query
+    env:
+      - CGO_ENABLED=0
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
       -X {{.Env.BASE_PACKAGE}}.Branch={{.Env.GIT_BRANCH}}
@@ -46,8 +55,11 @@ builds:
       - darwin
       # Issue #692 tracks Windows support.
       # - windows
-  - main: ./src/cmd/services/m3aggregator/main/main.go
+  - id: m3aggregator
+    main: ./src/cmd/services/m3aggregator/main/main.go
     binary: m3aggregator
+    env:
+      - CGO_ENABLED=0
     ldflags: >-
       -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
       -X {{.Env.BASE_PACKAGE}}.Branch={{.Env.GIT_BRANCH}}

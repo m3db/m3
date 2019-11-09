@@ -30,6 +30,8 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -53,15 +55,20 @@ type options struct {
 	persistManager              persist.Manager
 	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptionsManager       m3dbruntime.OptionsManager
+	contextPool                 context.Pool
 }
 
-// NewOptions creates new bootstrap options
+// NewOptions creates new bootstrap options.
 func NewOptions() Options {
 	return &options{
 		resultOpts:                  result.NewOptions(),
 		defaultShardConcurrency:     defaultDefaultShardConcurrency,
 		shardPersistenceConcurrency: defaultShardPersistenceConcurrency,
 		persistenceMaxQueueSize:     defaultPersistenceMaxQueueSize,
+		// Use a zero pool, this should be overriden at config time.
+		contextPool: context.NewPool(context.NewOptions().
+			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
+			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
 	}
 }
 
@@ -158,4 +165,14 @@ func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Opt
 
 func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
 	return o.runtimeOptionsManager
+}
+
+func (o *options) SetContextPool(value context.Pool) Options {
+	opts := *o
+	opts.contextPool = value
+	return &opts
+}
+
+func (o *options) ContextPool() context.Pool {
+	return o.contextPool
 }

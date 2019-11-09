@@ -47,6 +47,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -67,7 +68,6 @@ var (
 
 // Options configures the ingester.
 type Options struct {
-	Debug             bool
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
 }
@@ -221,10 +221,10 @@ func (i *ingester) write(
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
 			downsampleAndStoragePolicies.WriteStoragePolicies = rule.storagePolicies
 
-			if i.opts.Debug {
-				i.logger.Info("carbon metric matched by pattern",
-					zap.String("name", string(resources.name)),
-					zap.Any("pattern", rule.rule.Pattern),
+			debugLog := i.logger.Check(zapcore.DebugLevel, "carbon metric matched by pattern")
+			if debugLog != nil {
+				debugLog.Write(zap.ByteString("name", resources.name),
+					zap.String("pattern", rule.rule.Pattern),
 					zap.Any("mappingRules", rule.mappingRules),
 					zap.Any("storagePolicies", rule.storagePolicies))
 			}
@@ -237,9 +237,9 @@ func (i *ingester) write(
 	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
 		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
-		if i.opts.Debug {
-			i.logger.Info("no rules matched carbon metric, skipping",
-				zap.String("name", string(resources.name)))
+		debugLog := i.logger.Check(zapcore.DebugLevel, "no rules matched carbon metric, skipping")
+		if debugLog != nil {
+			debugLog.Write(zap.ByteString("name", resources.name))
 		}
 		return false
 	}
@@ -254,7 +254,8 @@ func (i *ingester) write(
 	}
 
 	err = i.downsamplerAndWriter.Write(
-		ctx, tags, resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
+		ctx, tags, resources.datapoints, xtime.Second, nil, downsampleAndStoragePolicies,
+	)
 
 	if err != nil {
 		i.logger.Error("err writing carbon metric",
@@ -263,9 +264,9 @@ func (i *ingester) write(
 		return false
 	}
 
-	if i.opts.Debug {
-		i.logger.Info("successfully wrote carbon metric",
-			zap.String("name", string(resources.name)))
+	debugLog := i.logger.Check(zapcore.DebugLevel, "successfully wrote carbon metric")
+	if debugLog != nil {
+		debugLog.Write(zap.ByteString("name", resources.name))
 	}
 	return true
 }

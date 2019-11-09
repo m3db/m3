@@ -102,7 +102,7 @@ func GetPercentile(input []float64, percentile float64, interpolate bool) float6
 // NPercentile returns percentile-percent of each series in the seriesList.
 func NPercentile(ctx *Context, in ts.SeriesList, percentile float64, pn PercentileNamer) (ts.SeriesList, error) {
 	if percentile < 0.0 || percentile > 100.0 {
-		return ts.SeriesList{}, ErrInvalidPercentile(percentile)
+		return ts.NewSeriesList(), ErrInvalidPercentile(percentile)
 	}
 	results := make([]*ts.Series, 0, in.Len())
 	for _, s := range in.Values {
@@ -132,10 +132,13 @@ func RemoveByPercentile(
 ) (ts.SeriesList, error) {
 	results := make([]*ts.Series, 0, in.Len())
 	for _, series := range in.Values {
-		single := ts.SeriesList{Values: []*ts.Series{series}}
+		single := ts.SeriesList{
+			Values:   []*ts.Series{series},
+			Metadata: in.Metadata,
+		}
 		percentileSeries, err := NPercentile(ctx, single, percentile, pn)
 		if err != nil {
-			return ts.SeriesList{}, err
+			return ts.NewSeriesList(), err
 		}
 
 		numSteps := series.Len()

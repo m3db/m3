@@ -93,7 +93,7 @@ func (s *remoteStorage) Type() storage.Type {
 }
 
 func (s *remoteStorage) Name() string {
-	return fmt.Sprintf("remote_store [%s]", s.opts.Name)
+	return fmt.Sprintf("remote_store_%s", s.opts.Name)
 }
 
 func (s *remoteStorage) Close() error {
