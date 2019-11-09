@@ -132,10 +132,10 @@ func (s *peersSource) Read(
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
-                if md.Options().IndexOptions().Enabled() {
-                        // Not bootstrapping for index.
-                        continue
-                }
+		if !md.Options().IndexOptions().Enabled() {
+			// Not bootstrapping for index.
+			continue
+		}
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
