@@ -455,22 +455,14 @@ func (s *commitLogSource) Read(
 					return bootstrap.NamespaceResults{}, err
 				}
 
-
-				// Check out the series for writing, no need for concurrency
-				// as commit log bootstrapper does not perform parallel
-				// checking out of series.
-			series, err := accumulator.CheckoutSeries(entry.Series.ID, tagIter)
-			if err != nil {
-				return bootstrap.NamespaceResults{}, err
-			}
-
-			// TODO: Make this get set by CheckoutSeries.
-			// TODO: Make this get set by CheckoutSeries.
-			// TODO: Make this get set by CheckoutSeries.
-			series.Shard = entry.Series.Shard
-			seriesEntry = seriesMapEntry{
-				namespace: ns,
-				series:    series,
+				// TODO: Make this get set by CheckoutSeries.
+				// TODO: Make this get set by CheckoutSeries.
+				// TODO: Make this get set by CheckoutSeries.
+				series.Shard = entry.Series.Shard
+				seriesEntry = seriesMapEntry{
+					namespace: ns,
+					series:    series,
+				}
 			}
 
 			// Check out the series for writing.

@@ -51,6 +51,9 @@ type ReadersForID []ReaderAtTime
 // ReaderMap is a map containing all gathered block segment readers.
 type ReaderMap map[string]ReadersForID
 
+// Must implement NamespaceDataAccumulator.
+var _ NamespaceDataAccumulator = (*TestDataAccumulator)(nil)
+
 // TestDataAccumulator is a NamespaceDataAccumulator that captures any
 // series inserts for examination.
 type TestDataAccumulator struct {
@@ -116,10 +119,29 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 	return decodedMap
 }
 
-// CheckoutSeries will retrieve a series for writing to
+// CheckoutSeriesWithLock will retrieve a series for writing to
 // and when the accumulator is closed it will ensure that the
-// series is released.
-func (a *TestDataAccumulator) CheckoutSeries(
+// series is released (with lock).
+func (a *TestDataAccumulator) CheckoutSeriesWithLock(
+	id ident.ID,
+	tags ident.TagIterator,
+) (CheckoutSeriesResult, error) {
+	a.Lock()
+	defer a.Unlock()
+	return a.checkoutSeriesWithLock(id, tags)
+}
+
+// CheckoutSeriesWithoutLock will retrieve a series for writing to
+// and when the accumulator is closed it will ensure that the
+// series is released (without lock).
+func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
+	id ident.ID,
+	tags ident.TagIterator,
+) (CheckoutSeriesResult, error) {
+	return a.checkoutSeriesWithLock(id, tags)
+}
+
+func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (CheckoutSeriesResult, error) {
@@ -139,14 +161,10 @@ func (a *TestDataAccumulator) CheckoutSeries(
 	}
 
 	stringID := id.String()
-
-	a.Lock()
 	if result, found := a.results[stringID]; found {
-		a.Unlock()
 		return result, nil
 	}
 
-	a.Unlock()
 	var streamErr error
 	mockSeries := series.NewMockDatabaseSeries(a.ctrl)
 
