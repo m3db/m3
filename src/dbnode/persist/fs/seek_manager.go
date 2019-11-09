@@ -220,10 +220,9 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 	)
 
 	// NB(r): Since this is mainly IO bound work, perfectly
-	// find to do this in parallel.
+	// fine to do this in parallel.
 	workers := xsync.NewWorkerPool(concurrentCacheShardIndices)
 	workers.Init()
-
 	for _, shard := range shards {
 		byTime := m.seekersByTime(shard)
 
@@ -244,29 +243,31 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 	}
 
 	wg.Wait()
-
 	return multiErr.FinalError()
 }
 
 func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
+	startNano := xtime.ToUnixNano(start)
 	byTime := m.seekersByTime(shard)
 
 	// Try fast RLock() first.
 	byTime.RLock()
-	startNano := xtime.ToUnixNano(start)
-	seekers, ok := byTime.seekers[startNano]
-
-	// Seekers are open: good to test but still hold RLock while doing so
-	if ok && seekers.active.wg == nil {
+	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
+		// Seekers are open: good to test but still hold RLock while doing so
 		idExists := seekers.active.bloomFilter.Test(id.Bytes())
 		byTime.RUnlock()
 		return idExists, nil
-	} else {
-		byTime.RUnlock()
 	}
+
+	byTime.RUnlock()
 
 	byTime.Lock()
 	defer byTime.Unlock()
+
+	// Check if raced with another call to this method
+	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
+		return seekers.active.bloomFilter.Test(id.Bytes()), nil
+	}
 
 	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
 	if err != nil {
@@ -784,6 +785,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		m.RUnlock()
 		return byTime
 	}
+
 	m.RUnlock()
 
 	m.Lock()
@@ -796,14 +798,10 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 	}
 
 	seekersByShardIdx := make([]*seekersByTime, shard+1)
-
-	for i := range seekersByShardIdx {
-		if i < len(m.seekersByShardIdx) {
-			seekersByShardIdx[i] = m.seekersByShardIdx[i]
-			continue
-		}
-		seekersByShardIdx[i] = &seekersByTime{
-			shard:   uint32(i),
+	idx := copy(seekersByShardIdx, m.seekersByShardIdx)
+	for ; idx < len(seekersByShardIdx); idx++ {
+		seekersByShardIdx[idx] = &seekersByTime{
+			shard:   uint32(idx),
 			seekers: make(map[xtime.UnixNano]rotatableSeekers),
 		}
 	}

@@ -629,6 +629,11 @@ func (m NamespaceMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
+	equalRange := func(a, b TargetRange) bool {
+		return a.Range.Start.Equal(b.Range.Start) &&
+			a.Range.End.Equal(b.Range.End)
+	}
+
 	for _, v := range ns.Namespaces.Iter() {
 		other, found := m.Namespaces.Namespaces.Get(v.Key())
 		if !found {
@@ -637,6 +642,14 @@ func (m NamespaceMatcher) Matches(x interface{}) bool {
 
 		val := v.Value()
 		if !other.Metadata.Equal(val.Metadata) {
+			return false
+		}
+
+		if !equalRange(val.DataTargetRange, other.DataTargetRange) {
+			return false
+		}
+
+		if !equalRange(val.IndexTargetRange, other.IndexTargetRange) {
 			return false
 		}
 	}
