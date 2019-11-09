@@ -291,9 +291,11 @@ func (b bootstrapProcess) logBootstrapResult(
 	took time.Duration,
 ) {
 	logFields = append(logFields,
-		zap.Int("numIndexBlocks", len(result.IndexResult.IndexResults())))
-	logFields = append(logFields,
 		zap.Duration("took", took))
+	if result.IndexResult != nil {
+		logFields = append(logFields,
+			zap.Int("numIndexBlocks", len(result.IndexResult.IndexResults())))
+	}
 	if err != nil {
 		logFields = append(logFields, zap.Error(err))
 		b.log.Info("bootstrap range completed with error", logFields...)
