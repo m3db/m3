@@ -168,6 +168,10 @@ func (s *fileSystemSource) Read(
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
+		if md.Options().IndexOptions().Enabled() {
+			// Not bootstrapping for index.
+			continue
+		}
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
