@@ -76,9 +76,10 @@ type FetchBlockResult struct {
 
 // FetchBlocksMetadataOptions are options used when fetching blocks metadata.
 type FetchBlocksMetadataOptions struct {
-	IncludeSizes     bool
-	IncludeChecksums bool
-	IncludeLastRead  bool
+	IncludeSizes        bool
+	IncludeChecksums    bool
+	IncludeLastRead     bool
+	OnlyFetchTokenBlock bool
 }
 
 // FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered

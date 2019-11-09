@@ -28,8 +28,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -59,6 +59,8 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/m3db/bitset"
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
@@ -939,49 +941,70 @@ func (i *nsIndex) flushBlockSegment(
 
 	ctx := i.opts.ContextPool().Get()
 	for _, shard := range shards {
-		var (
-			first     = true
-			pageToken PageToken
-		)
-		for first || pageToken != nil {
-			first = false
+		// Fetch active data first.
+		i.fetchBlocksMetadata(ctx, indexBlock, shard, nil, builder)
 
-			var (
-				opts    = block.FetchBlocksMetadataOptions{}
-				limit   = defaultFlushReadDataBlocksBatchSize
-				results block.FetchBlocksMetadataResults
-				err     error
-			)
-			ctx.Reset()
-			results, pageToken, err = shard.FetchBlocksMetadataV2(ctx,
-				indexBlock.StartTime(), indexBlock.EndTime(),
-				limit, pageToken, opts)
-			if err != nil {
-				return err
-			}
-
-			for _, result := range results.Results() {
-				doc, err := convert.FromMetricIter(result.ID, result.Tags)
-				if err != nil {
-					return err
-				}
-
-				_, err = builder.Insert(doc)
-				if err != nil && err != m3ninxindex.ErrDuplicateID {
-					return err
-				}
-			}
-
-			results.Close()
-
-			// Use BlockingCloseReset so that we can reuse the context without
-			// it going back to the pool.
-			ctx.BlockingCloseReset()
+		// Fetch flushed data next.
+		token := &pagetoken.PageToken{
+			FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
+				CurrBlockStartUnixNanos: indexBlock.StartTime().UnixNano(),
+			},
 		}
+		data, err := proto.Marshal(token)
+		if err != nil {
+			return err
+		}
+		i.fetchBlocksMetadata(ctx, indexBlock, shard, data, builder)
 	}
 
 	// Finally flush this segment
 	return preparedPersist.Persist(builder)
+}
+
+func (i *nsIndex) fetchBlocksMetadata(
+	ctx context.Context,
+	indexBlock index.Block,
+	shard databaseShard,
+	pageToken PageToken,
+	builder segment.DocumentsBuilder,
+) error {
+	first := true
+	for first || pageToken != nil {
+		first = false
+
+		var (
+			opts    = block.FetchBlocksMetadataOptions{OnlyFetchTokenBlock: true}
+			limit   = defaultFlushReadDataBlocksBatchSize
+			results block.FetchBlocksMetadataResults
+			err     error
+		)
+		ctx.Reset()
+		results, pageToken, err = shard.FetchBlocksMetadataV2(ctx,
+			indexBlock.StartTime(), indexBlock.EndTime(),
+			limit, pageToken, opts)
+		if err != nil {
+			return err
+		}
+
+		for _, result := range results.Results() {
+			doc, err := convert.FromMetricIter(result.ID, result.Tags)
+			if err != nil {
+				return err
+			}
+
+			_, err = builder.Insert(doc)
+			if err != nil && err != m3ninxindex.ErrDuplicateID {
+				return err
+			}
+		}
+
+		results.Close()
+
+		// Use BlockingCloseReset so that we can reuse the context without
+		// it going back to the pool.
+		ctx.BlockingCloseReset()
+	}
+	return nil
 }
 
 func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {

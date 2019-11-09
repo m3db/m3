@@ -812,6 +812,34 @@ func (mr *MockBlockMockRecorder) EvictMutableSegments() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictMutableSegments))
 }
 
+// NeedsColdFlushMutableSegmentsEvicted mocks base method
+func (m *MockBlock) NeedsColdFlushMutableSegmentsEvicted() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsColdFlushMutableSegmentsEvicted")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsColdFlushMutableSegmentsEvicted indicates an expected call of NeedsColdFlushMutableSegmentsEvicted
+func (mr *MockBlockMockRecorder) NeedsColdFlushMutableSegmentsEvicted() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsColdFlushMutableSegmentsEvicted", reflect.TypeOf((*MockBlock)(nil).NeedsColdFlushMutableSegmentsEvicted))
+}
+
+// EvictColdFlushMutableSegments mocks base method
+func (m *MockBlock) EvictColdFlushMutableSegments() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EvictColdFlushMutableSegments")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EvictColdFlushMutableSegments indicates an expected call of EvictColdFlushMutableSegments
+func (mr *MockBlockMockRecorder) EvictColdFlushMutableSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictColdFlushMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictColdFlushMutableSegments))
+}
+
 // Close mocks base method
 func (m *MockBlock) Close() error {
 	m.ctrl.T.Helper()

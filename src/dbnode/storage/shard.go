@@ -1701,6 +1701,11 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			continue
 		}
 
+		// NB(bodu): If specified, we only want to return results for the token block.
+		if opts.OnlyFetchTokenBlock && !blockStart.Equal(tokenBlockStart) {
+			return result, nil, nil
+		}
+
 		var pos readerPosition
 		if !tokenBlockStart.IsZero() {
 			// Was previously seeking through a previous block, need to validate
