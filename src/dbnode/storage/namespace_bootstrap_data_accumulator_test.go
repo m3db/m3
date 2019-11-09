@@ -29,17 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// NewDatabaseNamespaceDataAccumulator creates a data accumulator for
-// // the namespace.
-// func NewDatabaseNamespaceDataAccumulator(
-// 	namespace databaseNamespace,
-// ) bootstrap.NamespaceDataAccumulator {
-// 	return &namespaceDataAccumulator{
-// 		namespace: namespace,
-// 	}
-// }
-
-func TestCheckoutSeries(t *testing.T) { //} (bootstrap.CheckoutSeriesResult, error) {
+func TestCheckoutSeries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -47,36 +37,9 @@ func TestCheckoutSeries(t *testing.T) { //} (bootstrap.CheckoutSeriesResult, err
 	acc := NewDatabaseNamespaceDataAccumulator(ns)
 	id := ident.StringID("foo")
 	var tagIter ident.TagIterator
-	acc.CheckoutSeries(id, tagIter)
+	acc.CheckoutSeriesWithLock(id, tagIter)
 
 	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(nil, errors.New("err"))
-	_, err := acc.CheckoutSeries(id, tagIter)
+	_, err := acc.CheckoutSeriesWithLock(id, tagIter)
 	require.Error(t, err)
 }
-
-// func (a *namespaceDataAccumulator) TestRelease() {
-// 	// Release all refs.
-// 	for _, elem := range a.needsRelease {
-// 		elem.OnReleaseReadWriteRef()
-// 	}
-
-// 	// Memset optimization for reset.
-// 	for i := range a.needsRelease {
-// 		a.needsRelease[i] = nil
-// 	}
-// 	a.needsRelease = a.needsRelease[:0]
-// }
-
-// func (a *namespaceDataAccumulator) TestClose() error {
-// 	if n := len(a.needsRelease); n != 0 {
-// 		// This is an error case, callers need to be
-// 		// very explicit in the lifecycle to avoid releasing
-// 		// refs at the right time so we return this as an error
-// 		// since there is a code bug if this is called before
-// 		// releasing all refs.
-// 		a.Release()
-// 		err := instrument.InvariantErrorf("closed with still open refs: %d", n)
-// 		return err
-// 	}
-// 	return nil
-// }

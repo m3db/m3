@@ -21,19 +21,39 @@
 package storage
 
 import (
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -144,46 +164,6 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	}
 }
 
-func TestShardBootstrapWithError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := DefaultTestOptions()
-	s := testDatabaseShard(t, opts)
-	defer s.Close()
-
-	fooSeries := series.NewMockDatabaseSeries(ctrl)
-	fooSeries.EXPECT().ID().Return(ident.StringID("foo")).AnyTimes()
-	fooSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	barSeries := series.NewMockDatabaseSeries(ctrl)
-	barSeries.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
-	barSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	s.Lock()
-	s.insertNewShardEntryWithLock(lookup.NewEntry(fooSeries, 0))
-	s.insertNewShardEntryWithLock(lookup.NewEntry(barSeries, 0))
-	s.Unlock()
-
-	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, fooBlocks, gomock.Any()).Return(series.LoadResult{}, nil)
-	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, barBlocks, gomock.Any()).Return(series.LoadResult{}, errors.New("series error"))
-	barSeries.EXPECT().IsBootstrapped().Return(true)
-
-	fooID := ident.StringID("foo")
-	barID := ident.StringID("bar")
-
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-	bootstrappedSeries.Set(fooID, result.DatabaseSeriesBlocks{ID: fooID, Blocks: fooBlocks})
-	bootstrappedSeries.Set(barID, result.DatabaseSeriesBlocks{ID: barID, Blocks: barBlocks})
-
-	err := s.Bootstrap(bootstrappedSeries)
-
-	require.NotNil(t, err)
-	require.Equal(t, "series error", err.Error())
-	require.Equal(t, Bootstrapped, s.bootstrapState)
-}
-
 // TestShardBootstrapWithFlushVersion ensures that the shard is able to bootstrap
 // the cold flush version from the info files.
 func TestShardBootstrapWithFlushVersion(t *testing.T) {
@@ -212,7 +192,6 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
 	mockSeries.EXPECT().ID().Return(mockSeriesID).AnyTimes()
 	mockSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	mockSeries.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
@@ -264,7 +243,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	}
 	mockSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, blocks, blockStateSnapshot)
 
-	err = s.Bootstrap(bootstrappedSeries)
+	err = s.LoadBlocks(bootstrappedSeries)
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
