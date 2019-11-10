@@ -451,8 +451,8 @@ func (d *db) queueBootstrapWithLock() {
 		// enqueue a new bootstrap to execute before the current bootstrap
 		// completes.
 		go func() {
-			if err := d.mediator.Bootstrap(); err != nil {
-				d.log.Error("error while bootstrapping", zap.Error(err))
+			if result, err := d.mediator.Bootstrap(); err != nil && !result.AlreadyBootstrapping {
+				d.log.Error("error bootstrapping", zap.Error(err))
 			}
 		}()
 	}
@@ -827,7 +827,8 @@ func (d *db) Bootstrap() error {
 	d.Lock()
 	d.bootstraps++
 	d.Unlock()
-	return d.mediator.Bootstrap()
+	_, err := d.mediator.Bootstrap()
+	return err
 }
 
 func (d *db) IsBootstrapped() bool {

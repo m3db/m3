@@ -2207,11 +2207,12 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) LastBootstrapCompletionTime(
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseBootstrapManager) Bootstrap() error {
+func (m *MockdatabaseBootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(BootstrapResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
@@ -2708,11 +2709,12 @@ func (mr *MockdatabaseMediatorMockRecorder) LastBootstrapCompletionTime() *gomoc
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseMediator) Bootstrap() error {
+func (m *MockdatabaseMediator) Bootstrap() (BootstrapResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(BootstrapResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap

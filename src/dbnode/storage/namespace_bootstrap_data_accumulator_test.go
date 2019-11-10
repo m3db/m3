@@ -24,6 +24,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+
+	"github.com/m3db/m3/src/dbnode/storage/series"
+
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
@@ -35,11 +39,55 @@ func TestCheckoutSeries(t *testing.T) {
 
 	ns := NewMockdatabaseNamespace(ctrl)
 	acc := NewDatabaseNamespaceDataAccumulator(ns)
-	id := ident.StringID("foo")
-	var tagIter ident.TagIterator
-	acc.CheckoutSeriesWithLock(id, tagIter)
+	s := series.NewMockDatabaseSeries(ctrl)
 
-	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(nil, errors.New("err"))
-	_, err := acc.CheckoutSeriesWithLock(id, tagIter)
+	releases := 0
+	releaseReadWriteRef := lookup.NewMockOnReleaseReadWriteRef(ctrl)
+	releaseReadWriteRef.EXPECT().OnReleaseReadWriteRef().Do(func() {
+		releases++
+	})
+
+	result := SeriesReadWriteRef{
+		Series:              s,
+		Shard:               42,
+		UniqueIndex:         4242,
+		ReleaseReadWriteRef: releaseReadWriteRef,
+	}
+
+	ns.EXPECT().
+		SeriesReadWriteRef(ident.NewIDMatcher("foo"),
+			ident.NewTagIterMatcher(ident.EmptyTagIterator)).
+		Return(result, nil)
+
+	_, err := acc.CheckoutSeriesWithLock(ident.StringID("foo"),
+		ident.EmptyTagIterator)
+	require.NoError(t, err)
+
+	// Ensure not released yet.
+	require.Equal(t, 0, releases)
+
+	err = acc.Close()
+	require.NoError(t, err)
+
+	// Now ensure released after close.
+	require.Equal(t, 1, releases)
+}
+
+func TestCheckoutSeriesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	acc := NewDatabaseNamespaceDataAccumulator(ns)
+
+	ns.EXPECT().
+		SeriesReadWriteRef(ident.NewIDMatcher("foo"),
+			ident.NewTagIterMatcher(ident.EmptyTagIterator)).
+		Return(SeriesReadWriteRef{}, errors.New("an error"))
+	_, err := acc.CheckoutSeriesWithLock(ident.StringID("foo"),
+		ident.EmptyTagIterator)
 	require.Error(t, err)
+
+	err = acc.Close()
+	require.NoError(t, err)
 }

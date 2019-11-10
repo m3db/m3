@@ -649,10 +649,16 @@ type databaseBootstrapManager interface {
 	LastBootstrapCompletionTime() (time.Time, bool)
 
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
-	Bootstrap() error
+	Bootstrap() (BootstrapResult, error)
 
 	// Report reports runtime information.
 	Report()
+}
+
+// BootstrapResult is a bootstrap result.
+type BootstrapResult struct {
+	ErrorsBootstrap      []error
+	AlreadyBootstrapping bool
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
@@ -762,7 +768,7 @@ type databaseMediator interface {
 	LastBootstrapCompletionTime() (time.Time, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
-	Bootstrap() error
+	Bootstrap() (BootstrapResult, error)
 
 	// DisableFileOps disables file operations.
 	DisableFileOps()

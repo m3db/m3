@@ -161,31 +161,34 @@ func (m *MockNamespaceDataAccumulator) EXPECT() *MockNamespaceDataAccumulatorMoc
 	return m.recorder
 }
 
-// CheckoutSeries mocks base method
-func (m *MockNamespaceDataAccumulator) CheckoutSeries(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
+// CheckoutSeriesWithoutLock mocks base method
+func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithoutLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckoutSeries", id, tags)
+	ret := m.ctrl.Call(m, "CheckoutSeriesWithoutLock", id, tags)
 	ret0, _ := ret[0].(CheckoutSeriesResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CheckoutSeries indicates an expected call of CheckoutSeries
-func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeries(id, tags interface{}) *gomock.Call {
+// CheckoutSeriesWithoutLock indicates an expected call of CheckoutSeriesWithoutLock
+func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithoutLock(id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeries", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeries), id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithoutLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithoutLock), id, tags)
 }
 
-// Release mocks base method
-func (m *MockNamespaceDataAccumulator) Release() {
+// CheckoutSeriesWithLock mocks base method
+func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Release")
+	ret := m.ctrl.Call(m, "CheckoutSeriesWithLock", id, tags)
+	ret0, _ := ret[0].(CheckoutSeriesResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// Release indicates an expected call of Release
-func (mr *MockNamespaceDataAccumulatorMockRecorder) Release() *gomock.Call {
+// CheckoutSeriesWithLock indicates an expected call of CheckoutSeriesWithLock
+func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithLock(id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).Release))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithLock), id, tags)
 }
 
 // Close mocks base method

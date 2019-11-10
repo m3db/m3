@@ -215,7 +215,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		// existing ids
 		if i < 20 {
-			addTestSeriesWithCountAndBootstrap(shard, id, 0, false)
+			addTestSeriesWithCount(shard, id, 0)
 		}
 		// write ids
 		if i >= 10 {

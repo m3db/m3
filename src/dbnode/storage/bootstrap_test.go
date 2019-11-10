@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -49,13 +50,6 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	require.NoError(t, err)
 
 	ns := NewMockdatabaseNamespace(ctrl)
-	gomock.InOrder(
-		ns.EXPECT().GetOwnedShards().Return([]databaseShard{}),
-		ns.EXPECT().Metadata().Return(meta),
-		ns.EXPECT().ID().Return(id),
-		ns.EXPECT().Bootstrap(gomock.Any()).Return(fmt.Errorf("an error")),
-	)
-
 	namespaces := []databaseNamespace{ns}
 
 	db := NewMockdatabase(ctrl)
@@ -64,12 +58,31 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
-	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
-	err = bsm.Bootstrap()
 
-	require.NotNil(t, err)
-	require.Equal(t, "an error", err.Error())
-	require.Equal(t, Bootstrapped, bsm.state)
+	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
+	// Don't sleep.
+	bsm.sleepFn = func(time.Duration) {}
+
+	gomock.InOrder(
+		ns.EXPECT().GetOwnedShards().Return([]databaseShard{}),
+		ns.EXPECT().Metadata().Return(meta),
+		ns.EXPECT().ID().Return(id),
+		ns.EXPECT().
+			Bootstrap(gomock.Any()).
+			Return(fmt.Errorf("an error")).
+			Do(func(bootstrapResult bootstrap.NamespaceResult) {
+				// After returning an error, make sure we don't re-enqueue.
+				bsm.bootstrapFn = func() error {
+					return nil
+				}
+			}),
+	)
+
+	result, err := bsm.Bootstrap()
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(result.ErrorsBootstrap))
+	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
@@ -106,7 +119,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
-			err := bsm.Bootstrap()
+			_, err := bsm.Bootstrap()
 			assert.Error(t, err)
 			assert.Equal(t, errBootstrapEnqueued, err)
 			assert.False(t, bsm.IsBootstrapped())
@@ -126,6 +139,6 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 		Return([]databaseNamespace{ns}, nil).
 		Times(2)
 
-	err = bsm.Bootstrap()
+	_, err = bsm.Bootstrap()
 	require.Nil(t, err)
 }

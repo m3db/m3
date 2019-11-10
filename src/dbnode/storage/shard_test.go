@@ -221,30 +221,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	blocks.EXPECT().AllBlocks().AnyTimes()
-	blocks.EXPECT().Len().AnyTimes()
-	bootstrappedSeries.Set(mockSeriesID, result.DatabaseSeriesBlocks{
-		ID:     mockSeriesID,
-		Blocks: blocks,
-	})
-
-	// Ensure that the bootstrapped flush/block states get passed to the series.Load()
-	// method properly.
-	blockStateSnapshot := series.BootstrappedBlockStateSnapshot{
-		Snapshot: map[xtime.UnixNano]series.BlockState{},
-	}
-	for i, blockStart := range blockStarts {
-		blockStateSnapshot.Snapshot[xtime.ToUnixNano(blockStart)] = series.BlockState{
-			WarmRetrievable: true,
-			ColdVersion:     i,
-		}
-	}
-	mockSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, blocks, blockStateSnapshot)
-
-	err = s.LoadBlocks(bootstrappedSeries)
+	err = s.Bootstrap()
 	require.NoError(t, err)
+
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
 	for i, blockStart := range blockStarts {
@@ -303,9 +282,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-
-	err = s.Bootstrap(bootstrappedSeries)
+	err = s.Bootstrap()
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
@@ -344,9 +321,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
 	mockRetrieverMgr.EXPECT().Retriever(s.namespace).Return(mockRetriever, nil)
 
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-
-	err = s.Bootstrap(bootstrappedSeries)
+	err = s.Bootstrap()
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 }
@@ -393,15 +368,15 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
 
 	seriesMap := sr.AllSeries()
-	require.NoError(t, s.Bootstrap(nil))
+	require.NoError(t, s.Bootstrap())
 
 	// First load will never trigger the limit.
-	require.NoError(t, s.Load(seriesMap))
+	require.NoError(t, s.LoadBlocks(seriesMap))
 
 	if shouldReturnError {
-		require.Error(t, s.Load(seriesMap))
+		require.Error(t, s.LoadBlocks(seriesMap))
 	} else {
-		require.NoError(t, s.Load(seriesMap))
+		require.NoError(t, s.LoadBlocks(seriesMap))
 	}
 }
 
@@ -413,7 +388,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
-	s.Bootstrap(nil)
+	s.Bootstrap()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
@@ -484,7 +459,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
-	s.Bootstrap(nil)
+	s.Bootstrap()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
@@ -573,7 +548,7 @@ func TestShardColdFlush(t *testing.T) {
 
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	require.NoError(t, shard.Bootstrap())
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
 
@@ -653,7 +628,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	require.NoError(t, shard.Bootstrap())
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
 
@@ -836,14 +811,7 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
-	return addTestSeriesWithCountAndBootstrap(shard, id, count, true)
-}
-
-func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
 	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, 1, shard.seriesOpts)
-	if bootstrap {
-		seriesEntry.Load(series.LoadOptions{Bootstrap: true}, nil, series.BootstrappedBlockStateSnapshot{})
-	}
 	shard.Lock()
 	entry := lookup.NewEntry(seriesEntry, 0)
 	for i := int32(0); i < count; i++ {
