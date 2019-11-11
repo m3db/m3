@@ -26,6 +26,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -265,10 +266,20 @@ func filterNaNSeries(
 
 func renderResultsJSON(
 	w io.Writer,
-	series []*ts.Series,
-	params models.RequestParams,
+	result ServeResult,
 	keepNans bool,
+	includeExemplars bool,
 ) {
+	debug.PrintStack()
+	fmt.Printf("result: %+v\n", result)
+
+	series := result.SeriesList
+	params := result.RequestParams
+
+	if len(result.ExemplarsList) == 0 {
+		includeExemplars = false
+	}
+
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
 	if !keepNans {
 		series = filterNaNSeries(series, params.Start, params.End)
@@ -288,7 +299,7 @@ func renderResultsJSON(
 
 	jw.BeginObjectField("result")
 	jw.BeginArray()
-	for _, s := range series {
+	for seriesIdx, s := range series {
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
@@ -301,9 +312,19 @@ func renderResultsJSON(
 		jw.BeginObjectField("values")
 		jw.BeginArray()
 		vals := s.Values()
+		var exemplars ts.SeriesExemplar
+		if includeExemplars && seriesIdx < len(result.ExemplarsList) {
+			exemplars = result.ExemplarsList[seriesIdx]
+			fmt.Printf("exemplars: %+v\n", exemplars)
+		}
 		length := s.Len()
-		for i := 0; i < length; i++ {
-			dp := vals.DatapointAt(i)
+		examplarIdx := 0
+		if len(exemplars) > vals.Len() {
+			examplarIdx = len(exemplars) - vals.Len()
+		}
+		fmt.Printf("len %d vs %d; dp: %+v\nex: %+v\n", vals.Len(), len(exemplars), vals, exemplars)
+		for timeIdx := 0; timeIdx < length; timeIdx++ {
+			dp := vals.DatapointAt(timeIdx)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
 			if !keepNans && math.IsNaN(dp.Value) {
@@ -322,6 +343,13 @@ func renderResultsJSON(
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
+			if includeExemplars && examplarIdx < len(exemplars) {
+				if exemplars[examplarIdx] != nil {
+					e := strings.Split(strings.Split(string(exemplars[examplarIdx]), "trace_id")[1], ":")[0][2:]
+					jw.WriteString(e)
+				}
+				examplarIdx++
+			}
 			jw.EndArray()
 		}
 		jw.EndArray()

@@ -23,6 +23,7 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
@@ -260,28 +261,37 @@ func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
-) (*ts.Series, error) {
+) (*ts.Series, ts.SeriesExemplar, error) {
 	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
+	exemplars := make(ts.SeriesExemplar, 0)
 	for iter.Next() {
-		dp, _, _ := iter.Current()
+		dp, _, annotation := iter.Current()
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
+		if len(annotation) > 0 {
+			fmt.Printf("annon: %s dp: %d\n", string(annotation), dp.Timestamp.Unix())
+			exemplars = append(exemplars, ts.Exemplar(annotation))
+		} else {
+			exemplars = append(exemplars, nil)
+		}
 	}
 
 	if err := iter.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	r := enforcer.Add(xcost.Cost(len(datapoints)))
 	if r.Error != nil {
-		return nil, r.Error
+		return nil, nil, r.Error
 	}
 
-	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
+	fmt.Printf("LENGTH  %d vs %d\n", datapoints.Len(), len(exemplars))
+
+	return ts.NewSeries(metric.ID, datapoints, metric.Tags), exemplars, nil
 }
 
 // Fall back to sequential decompression if unable to decompress concurrently
@@ -290,14 +300,27 @@ func decompressSequentially(
 	enforcer cost.ChainedEnforcer,
 	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
+	includeExemplars bool,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
+	var exemplarsList ts.SeriesExemplarList
+	if includeExemplars {
+		exemplarsList = make(ts.SeriesExemplarList, 0, len(iters))
+	}
+
 	for _, iter := range iters {
-		series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
+		series, exemplars, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 		if err != nil {
 			return nil, err
 		}
 		seriesList = append(seriesList, series)
+		if includeExemplars {
+			exemplarsList = append(exemplarsList, exemplars)
+		}
+	}
+
+	if includeExemplars {
+		metadata.ExemplarsList = exemplarsList
 	}
 
 	return &FetchResult{
@@ -312,8 +335,8 @@ func decompressConcurrently(
 	enforcer cost.ChainedEnforcer,
 	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
+	includeExemplars bool,
 ) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, len(iters))
 	errorCh := make(chan error, 1)
 	done := make(chan struct{})
 	stopped := func() bool {
@@ -323,6 +346,12 @@ func decompressConcurrently(
 		default:
 			return false
 		}
+	}
+
+	seriesList := make([]*ts.Series, len(iters))
+	var exemplarsList ts.SeriesExemplarList
+	if includeExemplars {
+		exemplarsList = make(ts.SeriesExemplarList, len(iters))
 	}
 
 	var wg sync.WaitGroup
@@ -335,7 +364,7 @@ func decompressConcurrently(
 				return
 			}
 
-			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
+			series, exemplars, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 			if err != nil {
 				// Return the first error that is encountered.
 				select {
@@ -346,6 +375,9 @@ func decompressConcurrently(
 				return
 			}
 			seriesList[i] = series
+			if includeExemplars {
+				exemplarsList[i] = exemplars
+			}
 		})
 	}
 
@@ -353,6 +385,10 @@ func decompressConcurrently(
 	close(errorCh)
 	if err := <-errorCh; err != nil {
 		return nil, err
+	}
+
+	if includeExemplars {
+		metadata.ExemplarsList = exemplarsList
 	}
 
 	return &FetchResult{
@@ -369,16 +405,20 @@ func SeriesIteratorsToFetchResult(
 	metadata block.ResultMetadata,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
+	fetchOptions *FetchOptions,
 ) (*FetchResult, error) {
 	if cleanupSeriesIters {
 		defer seriesIterators.Close()
 	}
 
+	includeExemplars := fetchOptions != nil && fetchOptions.IncludeExemplars
+
 	iters := seriesIterators.Iters()
 	if readWorkerPool == nil {
-		return decompressSequentially(iters, enforcer, metadata, tagOptions)
+		return decompressSequentially(iters, enforcer,
+			metadata, tagOptions, includeExemplars)
 	}
 
 	return decompressConcurrently(iters, readWorkerPool,
-		enforcer, metadata, tagOptions)
+		enforcer, metadata, tagOptions, includeExemplars)
 }

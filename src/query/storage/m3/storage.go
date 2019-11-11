@@ -144,6 +144,7 @@ func (s *m3storage) Fetch(
 		result.Metadata,
 		enforcer,
 		s.opts.TagOptions(),
+		options,
 	)
 
 	if err != nil {
@@ -221,7 +222,8 @@ func (s *m3storage) FetchBlocks(
 		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
 
 	// If using decoded block, return the legacy path.
-	if options.BlockType == models.TypeDecodedBlock {
+	if options.BlockType == models.TypeDecodedBlock ||
+		options.IncludeExemplars {
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
 			return block.Result{

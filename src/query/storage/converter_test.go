@@ -91,7 +91,7 @@ func verifyExpandSeries(
 			Exhaustive: ex,
 			LocalOnly:  true,
 			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-		}, enforcer, nil)
+		}, enforcer, nil, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -184,7 +184,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
 
 	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true,
-		block.NewResultMetadata(), enforcer, nil)
+		block.NewResultMetadata(), enforcer, nil, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
@@ -219,7 +219,7 @@ func TestOverLimit(t *testing.T) {
 		Return(xcost.Report{Error: errors.New("error")}).MinTimes(1)
 
 	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true,
-		block.NewResultMetadata(), enforcer, nil)
+		block.NewResultMetadata(), enforcer, nil, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
@@ -335,7 +335,7 @@ func TestIteratorToTsSeries(t *testing.T) {
 		enforcer := cost.NewMockChainedEnforcer(ctrl)
 		enforcer.EXPECT().Add(xcost.Cost(2)).Times(1)
 
-		dps, err := iteratorToTsSeries(mockIter, enforcer, models.NewTagOptions())
+		dps, _, err := iteratorToTsSeries(mockIter, enforcer, models.NewTagOptions())
 
 		assert.Nil(t, dps)
 		assert.EqualError(t, err, expectedErr.Error())

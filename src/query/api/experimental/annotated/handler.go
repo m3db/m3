@@ -52,7 +52,7 @@ var errEmptyBody = errors.New("request body is empty")
 type Handler struct {
 	writer     ingest.DownsamplerAndWriter
 	tagOptions models.TagOptions
-	metrics    handlerMetrics
+	//metrics    handlerMetrics
 }
 
 // NewHandler returns a new HTTP handler for writing annotated datapoints.
@@ -62,13 +62,13 @@ func NewHandler(
 	return &Handler{
 		writer:     writer,
 		tagOptions: tagOptions,
-		metrics:    newHandlerMetrics(scope),
+		//metrics:    newHandlerMetrics(scope),
 	}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Body == nil {
-		h.metrics.writeErrorsClient.Inc(1)
+		//h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, errEmptyBody, http.StatusBadRequest)
 		return
 	}
@@ -76,7 +76,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	req, err := parseRequest(r.Body)
 	if err != nil {
-		h.metrics.writeErrorsClient.Inc(1)
+		//h.metrics.writeErrorsClient.Inc(1)
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
@@ -94,14 +94,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var (
-			status  = http.StatusBadRequest
-			counter = h.metrics.writeErrorsClient
+			status = http.StatusBadRequest
+			//counter = h.metrics.writeErrorsClient
 		)
 		if foundInternalErr {
 			status = http.StatusInternalServerError
-			counter = h.metrics.writeErrorsServer
+			//counter = h.metrics.writeErrorsServer
 		}
-		counter.Inc(1)
+		//counter.Inc(1)
 
 		err = fmt.Errorf(
 			"unable to write metric batch, encountered %d errors: %v", len(batchErr.Errors()), batchErr.Error(),
@@ -110,7 +110,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.metrics.writeSuccess.Inc(1)
+	//h.metrics.writeSuccess.Inc(1)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -133,16 +133,16 @@ func parseRequest(r io.Reader) (prompb.AnnotatedWriteRequest, error) {
 	return req, nil
 }
 
-type handlerMetrics struct {
-	writeSuccess      tally.Counter
-	writeErrorsServer tally.Counter
-	writeErrorsClient tally.Counter
-}
+// type handlerMetrics struct {
+// 	writeSuccess      tally.Counter
+// 	writeErrorsServer tally.Counter
+// 	writeErrorsClient tally.Counter
+// }
 
-func newHandlerMetrics(s tally.Scope) handlerMetrics {
-	return handlerMetrics{
-		writeSuccess:      s.SubScope("write").Counter("success"),
-		writeErrorsServer: s.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
-		writeErrorsClient: s.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
-	}
-}
+// func newHandlerMetrics(s tally.Scope) handlerMetrics {
+// 	return handlerMetrics{
+// 		writeSuccess:      s.SubScope("write").Counter("success"),
+// 		writeErrorsServer: s.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
+// 		writeErrorsClient: s.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+// 	}
+// }

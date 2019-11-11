@@ -149,6 +149,8 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		fetchOpts.LookbackDuration = &lookback
 	}
 
+	// TODO: IncludeExemplars parsing?
+
 	return fetchOpts, nil
 }
 

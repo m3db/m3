@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // Metadata is metadata for a block, describing size and common tags across
@@ -65,6 +66,9 @@ type ResultMetadata struct {
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
 	Resolutions []int64
+	// ExemplarsList is a list of exemplars per datapoint per series obtained
+	// by this query.
+	ExemplarsList ts.SeriesExemplarList
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -112,13 +116,33 @@ func combineWarnings(a, b Warnings) Warnings {
 	return nil
 }
 
+func combineExemplarsList(a, b ts.SeriesExemplarList) ts.SeriesExemplarList {
+	if len(a) == 0 {
+		if len(b) != 0 {
+			return b
+		}
+	} else {
+		if len(b) == 0 {
+			return a
+		} else {
+			combined := make(ts.SeriesExemplarList, 0, len(a)+len(b))
+			combined = append(combined, a...)
+			combined = append(combined, b...)
+			return combined
+		}
+	}
+
+	return nil
+}
+
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	meta := ResultMetadata{
-		LocalOnly:   m.LocalOnly && other.LocalOnly,
-		Exhaustive:  m.Exhaustive && other.Exhaustive,
-		Warnings:    combineWarnings(m.Warnings, other.Warnings),
-		Resolutions: combineResolutions(m.Resolutions, other.Resolutions),
+		LocalOnly:     m.LocalOnly && other.LocalOnly,
+		Exhaustive:    m.Exhaustive && other.Exhaustive,
+		Warnings:      combineWarnings(m.Warnings, other.Warnings),
+		Resolutions:   combineResolutions(m.Resolutions, other.Resolutions),
+		ExemplarsList: combineExemplarsList(m.ExemplarsList, other.ExemplarsList),
 	}
 
 	return meta

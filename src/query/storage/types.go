@@ -136,6 +136,8 @@ type FetchOptions struct {
 	// IncludeResolution if set, appends resolution information to fetch results.
 	// Currently only used for graphite queries.
 	IncludeResolution bool
+	// IncludeExemplars if set, appends exemplar information to fetch results.
+	IncludeExemplars bool
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for

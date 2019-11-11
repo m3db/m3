@@ -127,7 +127,7 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			SetMetricsScope(h.instrumentOpts.MetricsScope().SubScope("debug_engine")))
 
 	engine := executor.NewEngine(engineOpts)
-	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine,
+	result, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine,
 		&executor.QueryOptions{}, fetchOpts)
 	if respErr != nil {
 		logger.Error("unable to read data", zap.Error(respErr.Err))
@@ -142,7 +142,7 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mismatches, err := validate(tsListToMap(promResults), tsListToMap(results))
+	mismatches, err := validate(tsListToMap(promResults), tsListToMap(result.SeriesList))
 	if err != nil && len(mismatches) == 0 {
 		logger.Error("error validating results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)

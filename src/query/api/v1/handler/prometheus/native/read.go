@@ -57,8 +57,9 @@ const (
 )
 
 var (
-	emptySeriesList = []*ts.Series{}
-	emptyReqParams  = models.RequestParams{}
+	emptySeriesList  = []*ts.Series{}
+	emptyReqParams   = models.RequestParams{}
+	emptyServeResult = ServeResult{}
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -107,6 +108,13 @@ type RespError struct {
 	Code int
 }
 
+// ServeResult returns the results from a query call.
+type ServeResult struct {
+	SeriesList    []*ts.Series
+	ExemplarsList ts.SeriesExemplarList
+	RequestParams models.RequestParams
+}
+
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
 	engine executor.Engine,
@@ -137,6 +145,7 @@ func NewPromReadHandler(
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	fetchOpts.IncludeExemplars = true
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -154,15 +163,15 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts, fetchOpts)
+	result, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts, fetchOpts)
 	if respErr != nil {
 		xhttp.Error(w, respErr.Err, respErr.Code)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if params.FormatType == models.FormatM3QL {
-		renderM3QLResultsJSON(w, result, params)
+	if result.RequestParams.FormatType == models.FormatM3QL {
+		renderM3QLResultsJSON(w, result.SeriesList, result.RequestParams)
 		h.promReadMetrics.fetchSuccess.Inc(1)
 		timer.Stop()
 		return
@@ -171,7 +180,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	timer.Stop()
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, params, h.keepNans)
+	renderResultsJSON(w, result, h.keepNans, fetchOpts.IncludeExemplars)
 }
 
 // ServeHTTPWithEngine returns query results from the storage
@@ -181,7 +190,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	engine executor.Engine,
 	opts *executor.QueryOptions,
 	fetchOpts *storage.FetchOptions,
-) ([]*ts.Series, models.RequestParams, *RespError) {
+) (ServeResult, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
@@ -189,7 +198,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		h.timeoutOps, fetchOpts, h.instrumentOpts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
+		return emptyServeResult, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
 	}
 
 	if params.Debug {
@@ -198,7 +207,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	if err := h.validateRequest(&params); err != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
+		return emptyServeResult, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
 	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts,
@@ -209,7 +218,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		opentracingext.Error.Set(sp, true)
 		logger.Error("unable to fetch data", zap.Error(err))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		return nil, emptyReqParams, &RespError{
+		return emptyServeResult, &RespError{
 			Err:  err,
 			Code: http.StatusInternalServerError,
 		}
@@ -218,7 +227,11 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
 	handler.AddWarningHeaders(w, result.meta)
-	return result.series, params, nil
+	return ServeResult{
+		result.series,
+		result.meta.ExemplarsList,
+		params,
+	}, nil
 }
 
 func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {

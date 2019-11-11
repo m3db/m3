@@ -122,7 +122,8 @@ func (c *grpcClient) Fetch(
 	}
 
 	return storage.SeriesIteratorsToFetchResult(result.SeriesIterators,
-		c.readWorkerPool, true, result.Metadata, enforcer, c.tagOptions)
+		c.readWorkerPool, true, result.Metadata, enforcer, c.tagOptions,
+		options)
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
