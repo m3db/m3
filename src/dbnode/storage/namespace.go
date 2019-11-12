@@ -669,10 +669,13 @@ func (n *dbNamespace) WriteTagged(
 }
 
 func (n *dbNamespace) SeriesReadWriteRef(
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (SeriesReadWriteRef, error) {
-	shard, _, err := n.shardFor(id)
+	n.RLock()
+	shard, err := n.shardAtWithRLock(shardID)
+	n.RUnlock()
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}

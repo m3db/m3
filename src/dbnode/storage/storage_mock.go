@@ -1445,18 +1445,18 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart inte
 }
 
 // SeriesReadWriteRef mocks base method
-func (m *MockdatabaseNamespace) SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
+func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeriesReadWriteRef", id, tags)
+	ret := m.ctrl.Call(m, "SeriesReadWriteRef", shardID, id, tags)
 	ret0, _ := ret[0].(SeriesReadWriteRef)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
-func (mr *MockdatabaseNamespaceMockRecorder) SeriesReadWriteRef(id, tags interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) SeriesReadWriteRef(shardID, id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesReadWriteRef), id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseNamespace)(nil).SeriesReadWriteRef), shardID, id, tags)
 }
 
 // MockShard is a mock of Shard interface

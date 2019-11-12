@@ -41,9 +41,9 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -565,7 +565,7 @@ func testReadValidateErrorWithIndexEnabled(
 	enabled bool,
 	expectedIndexUnfulfilled result.ShardTimeRanges,
 ) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dir := createTempDir(t)
@@ -634,7 +634,7 @@ func testReadOpenError(
 	enabled bool,
 	expectedIndexUnfulfilled result.ShardTimeRanges,
 ) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dir := createTempDir(t)
@@ -679,8 +679,8 @@ func testReadOpenError(
 	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
 }
 
-func testReadDeleteOnError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestReadDeleteOnError(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dir := createTempDir(t)
@@ -707,8 +707,13 @@ func testReadDeleteOnError(t *testing.T) {
 			BlockStart: testStart,
 		},
 	}
-	// gomock.InOrder(
+
 	reader.EXPECT().Open(rOpts).Return(nil).AnyTimes()
+	reader.EXPECT().ReadMetadata().Return(ident.StringID("foo"),
+		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), nil)
+	reader.EXPECT().ReadMetadata().Return(ident.StringID("bar"),
+		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), errors.New("foo"))
+
 	reader.EXPECT().
 		Range().
 		Return(xtime.Range{
@@ -716,23 +721,16 @@ func testReadDeleteOnError(t *testing.T) {
 			End:   testStart.Add(2 * time.Hour),
 		}).AnyTimes()
 	reader.EXPECT().Entries().Return(2).AnyTimes()
-
 	reader.EXPECT().
 		Read().
 		Return(ident.StringID("foo"), ident.EmptyTagIterator,
 			nil, digest.Checksum(nil), nil)
+
 	reader.EXPECT().
 		Read().
 		Return(ident.StringID("bar"), ident.EmptyTagIterator,
 			nil, uint32(0), errors.New("foo"))
-
-	reader.EXPECT().
-		Read().Do(func() { panic("A") })
-	// Return(ident.StringID("bar"), ident.EmptyTagIterator,
-	// 	nil, uint32(0), errors.New("foo"))
-
 	reader.EXPECT().Close().Return(nil).AnyTimes()
-	// )
 
 	nsMD := testNsMetadata(t)
 	ranges := testShardTimeRanges()

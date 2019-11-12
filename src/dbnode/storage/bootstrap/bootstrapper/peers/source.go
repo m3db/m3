@@ -346,7 +346,6 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
 				nsMetadata, shard, blockStart, blockEnd, bopts)
-
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 			if err != nil {
@@ -369,9 +368,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			// If not waiting to flush, add straight away to bootstrap result.
 			for _, elem := range shardResult.AllSeries().Iter() {
 				entry := elem.Value()
-
 				tagsIter.Reset(entry.Tags)
-				ref, err := accumulator.CheckoutSeriesWithLock(entry.ID, tagsIter)
+				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
 				if err != nil {
 					unfulfill(currRange)
 					s.log.Error("could not checkout series", zap.Error(err))

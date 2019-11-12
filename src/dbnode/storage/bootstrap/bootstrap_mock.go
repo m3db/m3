@@ -162,33 +162,33 @@ func (m *MockNamespaceDataAccumulator) EXPECT() *MockNamespaceDataAccumulatorMoc
 }
 
 // CheckoutSeriesWithoutLock mocks base method
-func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithoutLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
+func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithoutLock(shardID uint32, id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckoutSeriesWithoutLock", id, tags)
+	ret := m.ctrl.Call(m, "CheckoutSeriesWithoutLock", shardID, id, tags)
 	ret0, _ := ret[0].(CheckoutSeriesResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CheckoutSeriesWithoutLock indicates an expected call of CheckoutSeriesWithoutLock
-func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithoutLock(id, tags interface{}) *gomock.Call {
+func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithoutLock(shardID, id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithoutLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithoutLock), id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithoutLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithoutLock), shardID, id, tags)
 }
 
 // CheckoutSeriesWithLock mocks base method
-func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
+func (m *MockNamespaceDataAccumulator) CheckoutSeriesWithLock(shardID uint32, id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckoutSeriesWithLock", id, tags)
+	ret := m.ctrl.Call(m, "CheckoutSeriesWithLock", shardID, id, tags)
 	ret0, _ := ret[0].(CheckoutSeriesResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CheckoutSeriesWithLock indicates an expected call of CheckoutSeriesWithLock
-func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithLock(id, tags interface{}) *gomock.Call {
+func (mr *MockNamespaceDataAccumulatorMockRecorder) CheckoutSeriesWithLock(shardID, id, tags interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithLock), id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckoutSeriesWithLock", reflect.TypeOf((*MockNamespaceDataAccumulator)(nil).CheckoutSeriesWithLock), shardID, id, tags)
 }
 
 // Close mocks base method

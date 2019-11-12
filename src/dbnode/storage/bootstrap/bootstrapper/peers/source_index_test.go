@@ -151,14 +151,23 @@ func TestBootstrapIndex(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSessionCalls := []*gomock.Call{}
 
-	goodResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
-	goodID := ident.StringID("foo")
-	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(goodResult, nil).AnyTimes()
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(
+			_ namespace.Metadata,
+			_ uint32,
+			_ time.Time,
+			_ time.Time,
+			_ result.Options,
+		) (result.ShardResult, error) {
+			goodID := ident.StringID("foo")
+			goodResult := result.NewShardResult(0, opts.ResultOptions())
+			fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
+				ts.Segment{}, testBlockOpts, namespace.Context{})
+			goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+			return goodResult, nil
+		}).AnyTimes()
 
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
 		// Find and expect calls for blocks
@@ -330,7 +339,7 @@ func TestBootstrapIndex(t *testing.T) {
 	}
 }
 
-func TestBootstrapIndeexErr(t *testing.T) {
+func TestBootstrapIndexErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -399,14 +408,23 @@ func TestBootstrapIndeexErr(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSessionCalls := []*gomock.Call{}
 
-	goodResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
-	goodID := ident.StringID("foo")
-	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(goodResult, nil).AnyTimes()
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(
+			_ namespace.Metadata,
+			_ uint32,
+			_ time.Time,
+			_ time.Time,
+			_ result.Options,
+		) (result.ShardResult, error) {
+			goodID := ident.StringID("foo")
+			goodResult := result.NewShardResult(0, opts.ResultOptions())
+			fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
+				ts.Segment{}, testBlockOpts, namespace.Context{})
+			goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+			return goodResult, nil
+		}).AnyTimes()
 
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
 		// Find and expect calls for blocks

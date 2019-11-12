@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -181,25 +182,28 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 // and when the accumulator is closed it will ensure that the
 // series is released (with lock).
 func (a *TestDataAccumulator) CheckoutSeriesWithLock(
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (CheckoutSeriesResult, error) {
 	a.Lock()
 	defer a.Unlock()
-	return a.checkoutSeriesWithLock(id, tags)
+	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
 // CheckoutSeriesWithoutLock will retrieve a series for writing to
 // and when the accumulator is closed it will ensure that the
 // series is released (without lock).
 func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (CheckoutSeriesResult, error) {
-	return a.checkoutSeriesWithLock(id, tags)
+	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
 func (a *TestDataAccumulator) checkoutSeriesWithLock(
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (CheckoutSeriesResult, error) {
@@ -268,15 +272,13 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				return true, nil
 			}).AnyTimes()
 
-	a.Lock()
 	result := CheckoutSeriesResult{
+		Shard:       shardID,
 		Series:      mockSeries,
 		UniqueIndex: uint64(len(a.results) + 1),
 	}
 
 	a.results[stringID] = result
-	a.Unlock()
-
 	return result, streamErr
 }
 
@@ -350,7 +352,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 		iterPool = buildDefaultIterPool()
 	}
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	namespacesMap := NewNamespacesMap(NamespacesMapOptions{})
 	accumulators := make([]*TestDataAccumulator, 0, len(mds))
 	for _, md := range mds {

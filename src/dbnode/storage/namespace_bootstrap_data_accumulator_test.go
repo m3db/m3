@@ -24,10 +24,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,23 +46,25 @@ func (r *releaser) OnReleaseReadWriteRef() {
 	r.calls++
 }
 
-type checkoutFn func(bootstrap.NamespaceDataAccumulator,
+type checkoutFn func(bootstrap.NamespaceDataAccumulator, uint32,
 	ident.ID, ident.TagIterator) (bootstrap.CheckoutSeriesResult, error)
 
 func checkoutWithLock(
 	acc bootstrap.NamespaceDataAccumulator,
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	return acc.CheckoutSeriesWithLock(id, tags)
+	return acc.CheckoutSeriesWithLock(shardID, id, tags)
 }
 
 func checkoutWithoutLock(
 	acc bootstrap.NamespaceDataAccumulator,
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	return acc.CheckoutSeriesWithoutLock(id, tags)
+	return acc.CheckoutSeriesWithoutLock(shardID, id, tags)
 }
 
 func TestCheckoutSeries(t *testing.T) {
@@ -74,32 +76,35 @@ func TestCheckoutSeriesWithLock(t *testing.T) {
 }
 
 func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	var (
-		ns     = NewMockdatabaseNamespace(ctrl)
-		series = series.NewMockDatabaseSeries(ctrl)
-		acc    = NewDatabaseNamespaceDataAccumulator(ns)
+		ns      = NewMockdatabaseNamespace(ctrl)
+		series  = series.NewMockDatabaseSeries(ctrl)
+		acc     = NewDatabaseNamespaceDataAccumulator(ns)
+		shardID = uint32(7)
 
 		release = &releaser{}
 		ref     = SeriesReadWriteRef{
 			UniqueIndex:         uniqueIdx,
 			Series:              series,
 			ReleaseReadWriteRef: release,
+			Shard:               shardID,
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
-	ns.EXPECT().SeriesReadWriteRef(idErr, tagIter).
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, nil)
+	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter).
 		Return(SeriesReadWriteRef{}, errors.New("err"))
 
-	_, err := checkoutFn(acc, idErr, tagIter)
+	_, err := checkoutFn(acc, shardID, idErr, tagIter)
 	require.Error(t, err)
 
-	seriesResult, err := checkoutFn(acc, id, tagIter)
+	seriesResult, err := checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
 	require.Equal(t, series, seriesResult.Series)
 	require.Equal(t, uniqueIdx, seriesResult.UniqueIndex)
+	require.Equal(t, shardID, seriesResult.Shard)
 
 	cast, ok := acc.(*namespaceDataAccumulator)
 	require.True(t, ok)
@@ -118,13 +123,14 @@ func TestAccumulatorReleaseWithLock(t *testing.T) {
 }
 
 func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		err error
-		ns  = NewMockdatabaseNamespace(ctrl)
-		acc = NewDatabaseNamespaceDataAccumulator(ns)
+		err     error
+		ns      = NewMockdatabaseNamespace(ctrl)
+		acc     = NewDatabaseNamespaceDataAccumulator(ns)
+		shardID = uint32(1337)
 
 		release = &releaser{}
 		ref     = SeriesReadWriteRef{
@@ -134,8 +140,8 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
-	_, err = checkoutFn(acc, id, tagIter)
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, nil)
+	_, err = checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
 
 	cast, ok := acc.(*namespaceDataAccumulator)

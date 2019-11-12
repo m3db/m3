@@ -543,7 +543,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			for i := 0; err == nil && i < numEntries; i++ {
 				switch run {
 				case bootstrapDataRunType:
-					err = s.readNextEntryAndRecordBlock(nsCtx, accumulator, r,
+					err = s.readNextEntryAndRecordBlock(nsCtx, accumulator, shard, r,
 						runResult, start, blockSize, shardRetriever,
 						blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
@@ -630,6 +630,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	nsCtx namespace.Context,
 	accumulator bootstrap.NamespaceDataAccumulator,
+	shardID uint32,
 	r fs.DataFileSetReader,
 	runResult *runResult,
 	blockStart time.Time,
@@ -666,7 +667,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("error reading data file: %v", err)
 	}
 
-	ref, err := accumulator.CheckoutSeriesWithLock(id, tagsIter)
+	ref, err := accumulator.CheckoutSeriesWithLock(shardID, id, tagsIter)
 	if err != nil {
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}

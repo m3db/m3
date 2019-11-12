@@ -108,7 +108,11 @@ type NamespaceDataAccumulator interface {
 	// must ensure non-parallel access themselves, this helps avoid
 	// overhead of the lock for the commit log bootstrapper which reads
 	// in a single threaded manner.
-	CheckoutSeriesWithoutLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
+	CheckoutSeriesWithoutLock(
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (CheckoutSeriesResult, error)
 
 	// CheckoutSeriesWithLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
@@ -117,7 +121,11 @@ type NamespaceDataAccumulator interface {
 	// ident.EmptyTagIterator.
 	// Note: With lock variant perform locking and callers do not need
 	// to be concerned about parallel access.
-	CheckoutSeriesWithLock(id ident.ID, tags ident.TagIterator) (CheckoutSeriesResult, error)
+	CheckoutSeriesWithLock(
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (CheckoutSeriesResult, error)
 
 	// Close will close the data accumulator and will release
 	// all series read/write refs.

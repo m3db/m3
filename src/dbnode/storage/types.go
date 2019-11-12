@@ -378,7 +378,11 @@ type databaseNamespace interface {
 	// SeriesReadWriteRef returns a read/write ref to a series, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error)
+	SeriesReadWriteRef(
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (SeriesReadWriteRef, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
