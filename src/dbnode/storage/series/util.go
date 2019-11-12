@@ -41,7 +41,13 @@ func (v ValuesByTime) Len() int {
 // Less reports whether the element with
 // index i should sort before the element with index j.
 func (v ValuesByTime) Less(lhs, rhs int) bool {
-	return v[lhs].Timestamp.Before(v[rhs].Timestamp)
+	l := v[lhs].Timestamp
+	r := v[rhs].Timestamp
+	if l.Equal(r) {
+		return v[lhs].Value-v[rhs].Value < 0
+	}
+
+	return l.Before(r)
 }
 
 // Swap swaps the elements with indexes i and j.

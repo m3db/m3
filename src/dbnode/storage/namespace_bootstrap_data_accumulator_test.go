@@ -24,70 +24,129 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
-
-	"github.com/m3db/m3/src/dbnode/storage/series"
-
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckoutSeries(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+var (
+	id        = ident.StringID("foo")
+	idErr     = ident.StringID("bar")
+	tagIter   ident.TagIterator
+	uniqueIdx = uint64(10)
+)
 
-	ns := NewMockdatabaseNamespace(ctrl)
-	acc := NewDatabaseNamespaceDataAccumulator(ns)
-	s := series.NewMockDatabaseSeries(ctrl)
-
-	releases := 0
-	releaseReadWriteRef := lookup.NewMockOnReleaseReadWriteRef(ctrl)
-	releaseReadWriteRef.EXPECT().OnReleaseReadWriteRef().Do(func() {
-		releases++
-	})
-
-	result := SeriesReadWriteRef{
-		Series:              s,
-		Shard:               42,
-		UniqueIndex:         4242,
-		ReleaseReadWriteRef: releaseReadWriteRef,
-	}
-
-	ns.EXPECT().
-		SeriesReadWriteRef(ident.NewIDMatcher("foo"),
-			ident.NewTagIterMatcher(ident.EmptyTagIterator)).
-		Return(result, nil)
-
-	_, err := acc.CheckoutSeriesWithLock(ident.StringID("foo"),
-		ident.EmptyTagIterator)
-	require.NoError(t, err)
-
-	// Ensure not released yet.
-	require.Equal(t, 0, releases)
-
-	err = acc.Close()
-	require.NoError(t, err)
-
-	// Now ensure released after close.
-	require.Equal(t, 1, releases)
+type releaser struct {
+	calls int
 }
 
-func TestCheckoutSeriesError(t *testing.T) {
+func (r *releaser) OnReleaseReadWriteRef() {
+	r.calls++
+}
+
+type checkoutFn func(bootstrap.NamespaceDataAccumulator,
+	ident.ID, ident.TagIterator) (bootstrap.CheckoutSeriesResult, error)
+
+func checkoutWithLock(
+	acc bootstrap.NamespaceDataAccumulator,
+	id ident.ID,
+	tags ident.TagIterator,
+) (bootstrap.CheckoutSeriesResult, error) {
+	return acc.CheckoutSeriesWithLock(id, tags)
+}
+
+func checkoutWithoutLock(
+	acc bootstrap.NamespaceDataAccumulator,
+	id ident.ID,
+	tags ident.TagIterator,
+) (bootstrap.CheckoutSeriesResult, error) {
+	return acc.CheckoutSeriesWithoutLock(id, tags)
+}
+
+func TestCheckoutSeries(t *testing.T) {
+	testCheckoutSeries(t, checkoutWithoutLock)
+}
+
+func TestCheckoutSeriesWithLock(t *testing.T) {
+	testCheckoutSeries(t, checkoutWithLock)
+}
+
+func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	var (
+		ns     = NewMockdatabaseNamespace(ctrl)
+		series = series.NewMockDatabaseSeries(ctrl)
+		acc    = NewDatabaseNamespaceDataAccumulator(ns)
+
+		release = &releaser{}
+		ref     = SeriesReadWriteRef{
+			UniqueIndex:         uniqueIdx,
+			Series:              series,
+			ReleaseReadWriteRef: release,
+		}
+	)
+
+	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
+	ns.EXPECT().SeriesReadWriteRef(idErr, tagIter).
+		Return(SeriesReadWriteRef{}, errors.New("err"))
+
+	_, err := checkoutFn(acc, idErr, tagIter)
+	require.Error(t, err)
+
+	seriesResult, err := checkoutFn(acc, id, tagIter)
+	require.NoError(t, err)
+	require.Equal(t, series, seriesResult.Series)
+	require.Equal(t, uniqueIdx, seriesResult.UniqueIndex)
+
+	cast, ok := acc.(*namespaceDataAccumulator)
+	require.True(t, ok)
+	require.Equal(t, 1, len(cast.needsRelease))
+	require.Equal(t, release, cast.needsRelease[0])
+	// Ensure it hasn't been released.
+	require.Equal(t, 0, release.calls)
+}
+
+func TestAccumulatorRelease(t *testing.T) {
+	testAccumulatorRelease(t, checkoutWithoutLock)
+}
+
+func TestAccumulatorReleaseWithLock(t *testing.T) {
+	testAccumulatorRelease(t, checkoutWithLock)
+}
+
+func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ns := NewMockdatabaseNamespace(ctrl)
-	acc := NewDatabaseNamespaceDataAccumulator(ns)
+	var (
+		err error
+		ns  = NewMockdatabaseNamespace(ctrl)
+		acc = NewDatabaseNamespaceDataAccumulator(ns)
 
-	ns.EXPECT().
-		SeriesReadWriteRef(ident.NewIDMatcher("foo"),
-			ident.NewTagIterMatcher(ident.EmptyTagIterator)).
-		Return(SeriesReadWriteRef{}, errors.New("an error"))
-	_, err := acc.CheckoutSeriesWithLock(ident.StringID("foo"),
-		ident.EmptyTagIterator)
-	require.Error(t, err)
+		release = &releaser{}
+		ref     = SeriesReadWriteRef{
+			UniqueIndex:         uniqueIdx,
+			Series:              series.NewMockDatabaseSeries(ctrl),
+			ReleaseReadWriteRef: release,
+		}
+	)
 
-	err = acc.Close()
+	ns.EXPECT().SeriesReadWriteRef(id, tagIter).Return(ref, nil)
+	_, err = checkoutFn(acc, id, tagIter)
 	require.NoError(t, err)
+
+	cast, ok := acc.(*namespaceDataAccumulator)
+	require.True(t, ok)
+	require.Equal(t, 1, len(cast.needsRelease))
+	require.Equal(t, release, cast.needsRelease[0])
+
+	require.NoError(t, acc.Close())
+	require.Equal(t, 0, len(cast.needsRelease))
+	// ensure release has been called.
+	require.Equal(t, 1, release.calls)
+	// ensure double-close errors.
+	require.Error(t, acc.Close())
 }

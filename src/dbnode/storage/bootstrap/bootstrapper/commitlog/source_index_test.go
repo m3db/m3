@@ -125,7 +125,7 @@ func TestBootstrapIndex(t *testing.T) {
 	someOtherNamespace := ts.Series{UniqueIndex: 7, Namespace: testNamespaceID2,
 		Shard: shardn(0), ID: ident.StringID("series_OtherNamespace"), Tags: ident.Tags{}}
 
-	valuesNs := []testValue{
+	valuesNs := testValues{
 		{foo, start, 1.0, xtime.Second, nil},
 		{foo, start, 2.0, xtime.Second, nil},
 		{foo, start.Add(dataBlockSize), 3.0, xtime.Second, nil},
@@ -136,13 +136,13 @@ func TestBootstrapIndex(t *testing.T) {
 		{untagged, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
 	}
 
-	invalidNs := []testValue{
+	invalidNs := testValues{
 		{outOfRange, start.Add(-dataBlockSize), 1.0, xtime.Second, nil},
 		{shardTooHigh, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 		{noShardBootstrapRange, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 	}
 
-	valuesOtherNs := []testValue{
+	valuesOtherNs := testValues{
 		{someOtherNamespace, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 	}
 
@@ -212,7 +212,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
 	require.NoError(t, err)
 
-	values := []testValue{}
+	values := testValues{}
 	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
@@ -226,7 +226,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 }
 
 func verifyIndexResultsAreCorrect(
-	values []testValue,
+	values testValues,
 	seriesNotToExpect map[string]struct{},
 	indexResults result.IndexResults,
 	indexBlockSize time.Duration,
@@ -367,7 +367,7 @@ func TestBootstrapIndexFailsForDecodedTags(t *testing.T) {
 	foo := ts.Series{UniqueIndex: 0, Namespace: testNamespaceID, Shard: shardn(0),
 		ID: ident.StringID("foo"), Tags: fooTags}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start, 1.0, xtime.Second, nil},
 	}
 

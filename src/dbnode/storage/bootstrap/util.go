@@ -21,8 +21,10 @@
 package bootstrap
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"sync"
 	"testing"
@@ -75,6 +77,62 @@ type DecodedValues []series.DecodedTestValue
 
 // DecodedBlockMap is a map of decoded datapoints per series ID.
 type DecodedBlockMap map[string]DecodedValues
+
+func testValuesEqual(
+	a series.DecodedTestValue,
+	b series.DecodedTestValue,
+) bool {
+	return a.Timestamp.Equal(b.Timestamp) &&
+		math.Abs(a.Value-b.Value) < 0.000001 &&
+		a.Unit == b.Unit &&
+		bytes.Equal(a.Annotation, b.Annotation)
+}
+
+// VerifyEquals verifies that two DecodedBlockMap are equal; errors otherwise.
+func (m DecodedBlockMap) VerifyEquals(other DecodedBlockMap) error {
+	if len(m) != len(other) {
+		return fmt.Errorf("block maps of length %d and %d do not match",
+			len(m), len(other))
+	}
+
+	seen := make(map[string]struct{})
+	for k, v := range m {
+		otherSeries, found := other[k]
+		if !found {
+			return fmt.Errorf("series %s: values not found", k)
+		}
+
+		if len(otherSeries) != len(v) {
+			return fmt.Errorf("series %s: length of series %d does not match other %d",
+				k, len(v), len(otherSeries))
+		}
+
+		// NB: make a clone here to avoid mutating base data
+		// just in case any tests care about order.
+		thisVal := append([]series.DecodedTestValue(nil), v...)
+		otherVal := append([]series.DecodedTestValue(nil), otherSeries...)
+
+		sort.Sort(series.ValuesByTime(thisVal))
+		sort.Sort(series.ValuesByTime(otherVal))
+		for i, t := range thisVal {
+			o := otherVal[i]
+			if !testValuesEqual(t, o) {
+				return fmt.Errorf("series %s: value %+v does not match other value %+v",
+					k, t, o)
+			}
+		}
+
+		seen[k] = struct{}{}
+	}
+
+	for k := range other {
+		if _, beenFound := seen[k]; !beenFound {
+			return fmt.Errorf("series %s not found in this map", k)
+		}
+	}
+
+	return nil
+}
 
 // ReaderAtTime indicates the block start for incoming readers.
 type ReaderAtTime struct {
@@ -467,44 +525,63 @@ func (nt *NamespacesTester) TestReadWith(s Source) {
 	nt.Results = res
 }
 
-func (nt *NamespacesTester) validateRanges(
-	name string,
-	ac xtime.Ranges,
-	ex xtime.Ranges,
-) {
-	// Make range eclipses expected
+func validateRanges(ac xtime.Ranges, ex xtime.Ranges) error {
+	// Make range eclipses expected.
 	removedRange := ex.RemoveRanges(ac)
-	require.True(nt.t, removedRange.IsEmpty(),
-		fmt.Sprintf("%s: actual range %v does not match expected range %v "+
-			"diff: %v", name, ac, ex, removedRange))
+	if !removedRange.IsEmpty() {
+		return fmt.Errorf("actual range %v does not match expected range %v "+
+			"diff: %v", ac, ex, removedRange)
+	}
 
-	// Now make sure no ranges outside of expected
+	// Now make sure no ranges outside of expected.
 	expectedWithAddedRanges := ex.AddRanges(ac)
 
-	require.Equal(nt.t, ex.Len(), expectedWithAddedRanges.Len())
+	if ex.Len() != expectedWithAddedRanges.Len() {
+		return fmt.Errorf("expected with re-added ranges not equal")
+	}
+
 	iter := ex.Iter()
 	withAddedRangesIter := expectedWithAddedRanges.Iter()
 	for iter.Next() && withAddedRangesIter.Next() {
-		require.True(nt.t, iter.Value().Equal(withAddedRangesIter.Value()),
-			fmt.Sprintf("%s: actual range %v does not match expected range %v",
-				name, ac, ex))
+		if !iter.Value().Equal(withAddedRangesIter.Value()) {
+			return fmt.Errorf("actual range %v does not match expected range %v",
+				ac, ex)
+		}
 	}
+
+	return nil
 }
 
-func (nt *NamespacesTester) validateShardTimeRanges(
-	name string,
+func validateShardTimeRanges(
 	r result.ShardTimeRanges,
 	ex result.ShardTimeRanges,
-) {
-	assert.Equal(nt.t, len(ex), len(r),
-		fmt.Sprintf("%s: expected %v and actual %v size mismatch", name, ex, r))
+) error {
+	if len(ex) != len(r) {
+		return fmt.Errorf("expected %v and actual %v size mismatch", ex, r)
+	}
+
+	seen := make(map[uint32]struct{}, len(r))
 	for k, val := range r {
 		expectedVal, found := ex[k]
-		require.True(nt.t, found,
-			fmt.Sprintf("%s: expected shard map %v does not have key %d; actual: %v",
-				name, ex, k, r))
-		nt.validateRanges(name, val, expectedVal)
+		if !found {
+			return fmt.Errorf("expected shard map %v does not have shard %d; "+
+				"actual: %v", ex, k, r)
+		}
+
+		if err := validateRanges(val, expectedVal); err != nil {
+			return err
+		}
+
+		seen[k] = struct{}{}
 	}
+
+	for k := range ex {
+		if _, beenFound := seen[k]; !beenFound {
+			return fmt.Errorf("shard %d in actual not found in expected %v", k, ex)
+		}
+	}
+
+	return nil
 }
 
 // TestUnfulfilledForNamespace ensures the given namespace has the expected
@@ -516,11 +593,11 @@ func (nt *NamespacesTester) TestUnfulfilledForNamespace(
 ) {
 	ns := nt.ResultForNamespace(md.ID())
 	actual := ns.DataResult.Unfulfilled()
-	nt.validateShardTimeRanges("data", actual, ex)
+	require.NoError(nt.t, validateShardTimeRanges(actual, ex), "data")
 
 	if md.Options().IndexOptions().Enabled() {
 		actual := ns.IndexResult.Unfulfilled()
-		nt.validateShardTimeRanges("index", actual, exIdx)
+		require.NoError(nt.t, validateShardTimeRanges(actual, exIdx), "index")
 	}
 }
 
@@ -570,6 +647,11 @@ func (m NamespaceMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
+	equalRange := func(a, b TargetRange) bool {
+		return a.Range.Start.Equal(b.Range.Start) &&
+			a.Range.End.Equal(b.Range.End)
+	}
+
 	for _, v := range ns.Namespaces.Iter() {
 		other, found := m.Namespaces.Namespaces.Get(v.Key())
 		if !found {
@@ -580,6 +662,14 @@ func (m NamespaceMatcher) Matches(x interface{}) bool {
 		if !other.Metadata.Equal(val.Metadata) {
 			return false
 		}
+
+		if !equalRange(val.DataTargetRange, other.DataTargetRange) {
+			return false
+		}
+
+		if !equalRange(val.IndexTargetRange, other.IndexTargetRange) {
+			return false
+		}
 	}
 
 	return true
@@ -587,3 +677,32 @@ func (m NamespaceMatcher) Matches(x interface{}) bool {
 
 // NB: assert NamespaceMatcher is a gomock.Matcher
 var _ gomock.Matcher = (*NamespaceMatcher)(nil)
+
+// ShardTimeRangesMatcher is a matcher for ShardTimeRanges.
+type ShardTimeRangesMatcher struct {
+	// Ranges are the expected ranges.
+	Ranges map[uint32]xtime.Ranges
+}
+
+// Matches returns whether x is a match.
+func (m ShardTimeRangesMatcher) Matches(x interface{}) bool {
+	actual, ok := x.(result.ShardTimeRanges)
+	if !ok {
+		return false
+	}
+
+	if err := validateShardTimeRanges(m.Ranges, actual); err != nil {
+		fmt.Println("shard time ranges do not match:", err.Error())
+		return false
+	}
+
+	return true
+}
+
+// String describes what the matcher matches.
+func (m ShardTimeRangesMatcher) String() string {
+	return "shardTimeRangesMatcher"
+}
+
+// NB: assert ShardTimeRangesMatcher is a gomock.Matcher
+var _ gomock.Matcher = (*ShardTimeRangesMatcher)(nil)

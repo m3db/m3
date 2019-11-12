@@ -461,7 +461,6 @@ func (s *commitLogSource) Read(
 				}
 			}
 
-			// Check out the series for writing.
 			commitLogSeries[seriesKey] = seriesEntry
 		}
 
