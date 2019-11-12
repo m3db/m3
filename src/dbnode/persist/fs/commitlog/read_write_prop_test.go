@@ -109,9 +109,13 @@ func TestCommitLogReadWrite(t *testing.T) {
 	}
 
 	for ; iter.Next(); i++ {
-		series, datapoint, _, _ := iter.Current()
-		require.NoError(t, iter.Err())
+		logEntry := iter.Current()
+		var (
+			series    = logEntry.Series
+			datapoint = logEntry.Datapoint
+		)
 
+		require.NoError(t, iter.Err())
 		seriesWrites := writesBySeries[series.ID.String()]
 		write := seriesWrites.writes[seriesWrites.readPosition]
 
@@ -500,8 +504,15 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 
 	count := 0
 	for iter.Next() {
-		series, datapoint, unit, annotation := iter.Current()
-		idString := series.ID.String()
+		logEntry := iter.Current()
+		var (
+			series     = logEntry.Series
+			datapoint  = logEntry.Datapoint
+			unit       = logEntry.Unit
+			annotation = logEntry.Annotation
+			idString   = series.ID.String()
+		)
+
 		seriesMap, ok := writesOnDisk[idString]
 		if !ok {
 			seriesMap = make(map[xtime.UnixNano]generatedWrite)

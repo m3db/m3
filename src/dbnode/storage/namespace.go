@@ -873,7 +873,9 @@ func (n *dbNamespace) Bootstrap(
 			// not already bootstrapped.
 			err := instrument.InvariantErrorf(
 				"bootstrapper already bootstrapped shard: %d", shardID)
+			mutex.Lock()
 			multiErr = multiErr.Add(err)
+			mutex.Unlock()
 			continue
 		}
 
