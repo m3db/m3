@@ -78,6 +78,8 @@ var (
 	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
 	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
 
+	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
+	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 )
 
@@ -977,6 +979,7 @@ func (s *dbShard) SeriesReadWriteRef(
 		// The read/write ref is already incremented.
 		return SeriesReadWriteRef{
 			Series:              entry.Series,
+			Shard:               s.shard,
 			UniqueIndex:         entry.Index,
 			ReleaseReadWriteRef: entry,
 		}, nil
@@ -1012,6 +1015,7 @@ func (s *dbShard) SeriesReadWriteRef(
 
 	return SeriesReadWriteRef{
 		Series:              entry.Series,
+		Shard:               s.shard,
 		UniqueIndex:         entry.Index,
 		ReleaseReadWriteRef: entry,
 	}, nil

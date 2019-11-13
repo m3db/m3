@@ -62,6 +62,12 @@ var (
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")
 )
 
+const (
+	bootstrapRetryInterval = 10 * time.Second
+)
+
+type bootstrapFn func() error
+
 type bootstrapManager struct {
 	sync.RWMutex
 
@@ -69,7 +75,9 @@ type bootstrapManager struct {
 	mediator                    databaseMediator
 	opts                        Options
 	log                         *zap.Logger
+	bootstrapFn                 bootstrapFn
 	nowFn                       clock.NowFn
+	sleepFn                     sleepFn
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
 	hasPending                  bool
@@ -83,15 +91,18 @@ func newBootstrapManager(
 	opts Options,
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
-	return &bootstrapManager{
+	m := &bootstrapManager{
 		database:        database,
 		mediator:        mediator,
 		opts:            opts,
 		log:             opts.InstrumentOptions().Logger(),
 		nowFn:           opts.ClockOptions().NowFn(),
+		sleepFn:         time.Sleep,
 		processProvider: opts.BootstrapProcessProvider(),
 		status:          scope.Gauge("bootstrapped"),
 	}
+	m.bootstrapFn = m.bootstrap
+	return m
 }
 
 func (m *bootstrapManager) IsBootstrapped() bool {
@@ -105,7 +116,7 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
 	return m.lastBootstrapCompletionTime, !m.lastBootstrapCompletionTime.IsZero()
 }
 
-func (m *bootstrapManager) Bootstrap() error {
+func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.Lock()
 	switch m.state {
 	case Bootstrapping:
@@ -117,7 +128,7 @@ func (m *bootstrapManager) Bootstrap() error {
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
 		m.Unlock()
-		return errBootstrapEnqueued
+		return BootstrapResult{AlreadyBootstrapping: true}, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
 	}
@@ -128,12 +139,13 @@ func (m *bootstrapManager) Bootstrap() error {
 	m.mediator.DisableFileOps()
 	defer m.mediator.EnableFileOps()
 
-	// Keep performing bootstraps until none pending
-	multiErr := xerrors.NewMultiError()
-	for {
-		bootstrapErr := m.bootstrap()
+	// Keep performing bootstraps until none pending and no error returned.
+	var result BootstrapResult
+	for i := 0; ; i++ {
+		// NB(r): Decouple implementation of bootstrap so can override in tests.
+		bootstrapErr := m.bootstrapFn()
 		if bootstrapErr != nil {
-			multiErr = multiErr.Add(bootstrapErr)
+			result.ErrorsBootstrap = append(result.ErrorsBootstrap, bootstrapErr)
 		}
 
 		m.Lock()
@@ -152,8 +164,13 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 
 		if bootstrapErr != nil {
-			// NB(r): Last bootstrap failed.
-			m.log.Info("retrying bootstrap due to bootstrap failure")
+			// NB(r): Last bootstrap failed, since this could be due to transient
+			// failure we retry the bootstrap again. This is to avoid operators
+			// needing to manually intervene for cases where failures are transient.
+			m.log.Warn("retrying bootstrap after backoff",
+				zap.Duration("backoff", bootstrapRetryInterval),
+				zap.Int("numRetries", i+1))
+			m.sleepFn(bootstrapRetryInterval)
 			continue
 		}
 
@@ -171,7 +188,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	// across the cluster.
 
 	m.lastBootstrapCompletionTime = m.nowFn()
-	return multiErr.FinalError()
+	return result, nil
 }
 
 func (m *bootstrapManager) Report() {
@@ -195,7 +212,7 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	uniqueShards := make(map[uint32]struct{}, m.database.ShardSet().Max())
+	uniqueShards := make(map[uint32]struct{})
 	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
 	accmulators := make([]bootstrap.NamespaceDataAccumulator, 0, len(namespaces))
 	defer func() {
@@ -225,7 +242,7 @@ func (m *bootstrapManager) bootstrap() error {
 			bootstrapShards = append(bootstrapShards, shard.ID())
 		}
 
-		accumulator := newDatabaseNamespaceDataAccumulator(namespace)
+		accumulator := NewDatabaseNamespaceDataAccumulator(namespace)
 		accmulators = append(accmulators, accumulator)
 
 		targets = append(targets, bootstrap.ProcessNamespace{

@@ -183,6 +183,7 @@ func (s *peersSource) readData(
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
+
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -301,7 +302,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		// Make unfulfilled.
 		lock.Lock()
 		unfulfilled := bootstrapResult.Unfulfilled().Copy()
-		unfulfilled.Subtract(result.ShardTimeRanges{
+		unfulfilled.AddRanges(result.ShardTimeRanges{
 			flush.shard: xtime.NewRanges(flush.timeRange),
 		})
 		bootstrapResult.SetUnfulfilled(unfulfilled)
@@ -345,7 +346,6 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
 				nsMetadata, shard, blockStart, blockEnd, bopts)
-
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 			if err != nil {
@@ -368,9 +368,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			// If not waiting to flush, add straight away to bootstrap result.
 			for _, elem := range shardResult.AllSeries().Iter() {
 				entry := elem.Value()
-
 				tagsIter.Reset(entry.Tags)
-				ref, err := accumulator.CheckoutSeriesWithLock(entry.ID, tagsIter)
+				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
 				if err != nil {
 					unfulfill(currRange)
 					s.log.Error("could not checkout series", zap.Error(err))
@@ -673,7 +672,6 @@ func (s *peersSource) readIndex(
 						markUnfulfilled(err)
 						continue
 					}
-
 					for metadata.Next() {
 						_, dataBlock := metadata.Current()
 

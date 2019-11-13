@@ -28,13 +28,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -324,52 +325,48 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	ns.bootstrapState = Bootstrapping
-	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(time.Now(), nil))
+	require.Equal(t,
+		errNamespaceIsBootstrapping, ns.Bootstrap(bootstrap.NamespaceResult{}))
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
-	require.NoError(t, ns.Bootstrap(time.Now(), nil))
+	require.NoError(t, ns.Bootstrap(bootstrap.NamespaceResult{}))
 	require.Equal(t, Bootstrapped, ns.bootstrapState)
 }
 
 func TestNamespaceBootstrapAllShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	start := time.Now()
-
 	errs := []error{nil, errors.New("foo")}
-	bs := bootstrap.NewMockProcess(ctrl)
-	bs.EXPECT().
-		Run(start, ns.metadata, sharding.IDs(testShardIDs)).
-		Return(bootstrap.ProcessResult{
-			DataResult:  result.NewDataBootstrapResult(),
-			IndexResult: result.NewIndexBootstrapResult(),
-		}, nil)
-
 	shardIDs := make([]uint32, 0, len(errs))
 	for i := range errs {
 		shardID := uint32(i)
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().IsBootstrapped().Return(false)
+		shard.EXPECT().IsBootstrapped().Return(false).AnyTimes()
 		shard.EXPECT().ID().Return(shardID).AnyTimes()
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
+		shard.EXPECT().Bootstrap().Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardIDs = append(shardIDs, shardID)
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
+	nsResult := bootstrap.NamespaceResult{
+		DataResult: result.NewDataBootstrapResult(),
+		Shards:     shardIDs,
+	}
+
+	require.Equal(t, "foo", ns.Bootstrap(nsResult).Error())
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
 func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -391,31 +388,31 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	start := time.Now()
-
-	bs := bootstrap.NewMockProcess(ctrl)
-	bs.EXPECT().
-		Run(start, ns.metadata, sharding.IDs(needsBootstrap)).
-		Return(bootstrap.ProcessResult{
-			DataResult:  result.NewDataBootstrapResult(),
-			IndexResult: result.NewIndexBootstrapResult(),
-		}, nil)
-
+	shardIDs := make([]uint32, 0, len(needsBootstrap))
 	for _, testShard := range needsBootstrap {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+		shard.EXPECT().Bootstrap().Return(nil)
 		ns.shards[testShard.ID()] = shard
+		shardIDs = append(shardIDs, testShard.ID())
 	}
+
 	for _, testShard := range alreadyBootstrapped {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(true)
 		ns.shards[testShard.ID()] = shard
+		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
+		shardIDs = append(shardIDs, testShard.ID())
 	}
 
-	require.NoError(t, ns.Bootstrap(start, bs))
-	require.Equal(t, Bootstrapped, ns.bootstrapState)
+	nsResult := bootstrap.NamespaceResult{
+		DataResult: result.NewDataBootstrapResult(),
+		Shards:     shardIDs,
+	}
+
+	require.Error(t, ns.Bootstrap(nsResult))
+	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
@@ -1187,7 +1184,7 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	defer closer()
 	for _, s := range ns.shards {
 		if s != nil {
-			s.Bootstrap(nil)
+			s.Bootstrap()
 		}
 	}
 

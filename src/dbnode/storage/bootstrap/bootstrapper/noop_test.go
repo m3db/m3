@@ -23,6 +23,9 @@ package bootstrapper
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,9 +34,16 @@ func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {
 	ranges := testShardTimeRanges()
 	bootstrapper, err := bs.Provide()
 	require.NoError(t, err)
-	res, err := bootstrapper.BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.Equal(t, ranges, res.Unfulfilled())
+	for _, indexEnabled := range []bool{true, false} {
+		mds := namespace.MustBuildMetadatas(indexEnabled, "foo", "bar")
+		opts := bootstrap.NewRunOptions()
+		ns := bootstrap.BuildNamespacesTester(t, opts, ranges, mds...)
+		defer ns.Finish()
+		ns.TestBootstrapWith(bootstrapper)
+		for _, md := range mds {
+			ns.TestUnfulfilledForNamespace(md, ranges, ranges)
+		}
+	}
 }
 
 func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
@@ -41,7 +51,14 @@ func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
 	ranges := testShardTimeRanges()
 	bootstrapper, err := bs.Provide()
 	require.NoError(t, err)
-	res, err := bootstrapper.BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.True(t, res.Unfulfilled().IsEmpty())
+	for _, indexEnabled := range []bool{true, false} {
+		mds := namespace.MustBuildMetadatas(indexEnabled, "foo", "bar")
+		opts := bootstrap.NewRunOptions()
+		ns := bootstrap.BuildNamespacesTester(t, opts, ranges, mds...)
+		defer ns.Finish()
+		ns.TestBootstrapWith(bootstrapper)
+		for _, md := range mds {
+			ns.TestUnfulfilledForNamespaceIsEmpty(md)
+		}
+	}
 }

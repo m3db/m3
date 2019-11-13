@@ -21,10 +21,10 @@
 package commitlog
 
 import (
-	"fmt"
+	"bytes"
+	"errors"
 	"io"
-	"reflect"
-	"sort"
+	"math"
 	"testing"
 	"time"
 
@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
@@ -76,20 +77,23 @@ func TestReadEmpty(t *testing.T) {
 	opts := testDefaultOpts
 
 	src := newCommitLogSource(opts, fs.Inspection{})
+	md := testNsMetadata(t)
+	target := result.ShardTimeRanges{}
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
+	defer tester.Finish()
 
-	res, err := src.ReadData(testNsMetadata(t), result.ShardTimeRanges{},
-		testDefaultRunOpts)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.True(t, res.Unfulfilled().IsEmpty())
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 }
 
 func TestReadErrorOnNewIteratorError(t *testing.T) {
 	opts := testDefaultOpts
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
-		return nil, nil, fmt.Errorf("an error")
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+		return nil, nil, errors.New("an error")
 	}
 
 	ranges := xtime.Ranges{}
@@ -97,10 +101,15 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.ReadData(testNsMetadata(t), result.ShardTimeRanges{0: ranges},
-		testDefaultRunOpts)
+
+	md := testNsMetadata(t)
+	target := result.ShardTimeRanges{0: ranges}
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
+	defer tester.Finish()
+
+	res, err := src.Read(tester.Namespaces)
 	require.Error(t, err)
-	require.Nil(t, res)
+	require.Nil(t, res.Results)
 }
 
 func TestReadOrderedValues(t *testing.T) {
@@ -132,7 +141,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	bar := ts.Series{Namespace: nsCtx.ID, Shard: 1, ID: ident.StringID("bar")}
 	baz := ts.Series{Namespace: nsCtx.ID, Shard: 2, ID: ident.StringID("baz")}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start, 1.0, xtime.Second, nil},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
 		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
@@ -144,18 +153,22 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 		values = setAnn(values)
 	}
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 2, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values[:4], blockSize, res.ShardResults(), opts))
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	read := tester.DumpWritesForNamespace(md)
+	require.Equal(t, 2, len(read))
+	enforceValuesAreCorrect(t, values[:4], read)
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -184,7 +197,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
 		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
 		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, nil},
@@ -195,32 +208,34 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 		values = setAnn(values)
 	}
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 1, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values, blockSize, res.ShardResults(), opts))
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	read := tester.DumpWritesForNamespace(md)
+	require.Equal(t, 1, len(read))
+	enforceValuesAreCorrect(t, values, read)
 }
 
+// TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a
+// regression test to make sure that the commit log bootstrapper does not make
+// any assumptions about series having a unique index because that only holds
+// for the duration that an M3DB node is on, but commit log files can span
+// multiple M3DB processes which means that unique indexes could be re-used
+// for multiple different series.
 func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
-	testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t, opts, md, nil)
-}
 
-// TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a regression test to make
-// sure that the commit log bootstrapper does not make any assumptions about series having a unique
-// unique index because that only holds for the duration that an M3DB node is on, but commit log
-// files can span multiple M3DB processes which means that unique indexes could be re-used for multiple
-// different series.
-func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
 	nsCtx := namespace.NewContextFrom(md)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -242,26 +257,27 @@ func testReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T, opts O
 	bar := ts.Series{
 		Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
 
-	values := []testValue{
+	values := testValues{
 		{foo, start, 1.0, xtime.Second, nil},
 		{bar, start, 2.0, xtime.Second, nil},
 	}
-	if setAnn != nil {
-		values = setAnn(values)
-	}
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 1, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values, blockSize, res.ShardResults(), opts))
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	read := tester.DumpWritesForNamespace(md)
+	require.Equal(t, 2, len(read))
+	enforceValuesAreCorrect(t, values, read)
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -289,29 +305,33 @@ func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, se
 	})
 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
-
-	values := []testValue{
+	values := testValues{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
 		{foo, start, 2.0, xtime.Nanosecond, nil},
 		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
 		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
 	}
+
 	if setAnn != nil {
 		values = setAnn(values)
 	}
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 1, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		values[1:3], blockSize, res.ShardResults(), opts))
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	read := tester.DumpWritesForNamespace(md)
+	require.Equal(t, 1, len(read))
+	enforceValuesAreCorrect(t, values[1:3], read)
 }
 
 func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
@@ -321,7 +341,8 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	testItMergesSnapshotsAndCommitLogs(t, opts, md, nil)
 }
 
-func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
+func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
+	md namespace.Metadata, setAnn setAnnotation) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -335,7 +356,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 		ranges    = xtime.Ranges{}
 
 		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
-		commitLogValues = []testValue{
+		commitLogValues = testValues{
 			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
 			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
@@ -357,10 +378,17 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 		End:   end,
 	})
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
+	src.newIteratorFn = func(
+		_ commitlog.IteratorOpts,
+	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(commitLogValues, nil), nil, nil
 	}
-	src.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+
+	src.snapshotFilesFn = func(
+		filePathPrefix string,
+		namespace ident.ID,
+		shard uint32,
+	) (fs.FileSetFilesSlice, error) {
 		return fs.FileSetFilesSlice{
 			fs.FileSetFile{
 				ID: fs.FileSetFileIdentifier{
@@ -390,14 +418,15 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	mockReader.EXPECT().Entries().Return(1).AnyTimes()
 	mockReader.EXPECT().Close().Return(nil).AnyTimes()
 
-	snapshotValues := []testValue{
+	snapshotValues := testValues{
 		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
 	}
 	if setAnn != nil {
 		snapshotValues = setAnn(snapshotValues)
 	}
 
-	encoder := opts.ResultOptions().DatabaseBlockOptions().EncoderPool().Get()
+	encoderPool := opts.ResultOptions().DatabaseBlockOptions().EncoderPool()
+	encoder := encoderPool.Get()
 	encoder.Reset(snapshotValues[0].t, 10, nsCtx.Schema)
 	for _, value := range snapshotValues {
 		dp := ts.Datapoint{
@@ -429,24 +458,39 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options, md namespace
 	)
 	mockReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 
-	src.newReaderFn = func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error) {
+	src.newReaderFn = func(
+		bytesPool pool.CheckedBytesPool,
+		opts fs.Options,
+	) (fs.DataFileSetReader, error) {
 		return mockReader, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 1, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	expectedValues := append([]testValue{}, snapshotValues...)
-	expectedValues = append(expectedValues, commitLogValues[0:3]...)
+	tester := bootstrap.BuildNamespacesTesterWithReaderIteratorPool(
+		t,
+		testDefaultRunOpts,
+		targetRanges,
+		opts.ResultOptions().DatabaseBlockOptions().MultiReaderIteratorPool(),
+		md,
+	)
 
-	require.NoError(t, verifyShardResultsAreCorrect(nsCtx,
-		expectedValues, blockSize, res.ShardResults(), opts))
+	defer tester.Finish()
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	read := tester.DumpWritesForNamespace(md)
+	require.Equal(t, 1, len(read))
+	enforceValuesAreCorrect(t, commitLogValues[0:3], read)
+
+	// NB: this case is a little tricky in that it's combining writes that come
+	// through both the `.Write()` and `.LoadBlock()` methods, which get read
+	// separately in the bootstrap test utility. Thus it's necessary to combine
+	// the results from both paths here prior to comparison.
+	read = tester.DumpValuesForNamespace(md)
+	enforceValuesAreCorrect(t, snapshotValues, read)
 }
 
-type setAnnotation func([]testValue) []testValue
+type setAnnotation func(testValues) testValues
 type annotationEqual func([]byte, []byte) bool
 
 type testValue struct {
@@ -466,270 +510,60 @@ type seriesShardResult struct {
 	result block.DatabaseSeriesBlocks
 }
 
-func verifyShardResultsAreCorrect(
-	nsCtx namespace.Context,
-	values []testValue,
-	blockSize time.Duration,
-	actual result.ShardResults,
-	opts Options,
+func equals(ac series.DecodedTestValue, ex testValue) bool {
+	return ac.Timestamp.Equal(ex.t) &&
+		math.Abs(ac.Value-ex.v) < 0.000001 &&
+		ac.Unit == ex.u &&
+		bytes.Equal(ac.Annotation, ex.a)
+}
+
+type testValues []testValue
+
+func (v testValues) toDecodedBlockMap() bootstrap.DecodedBlockMap {
+	blockMap := make(bootstrap.DecodedBlockMap, len(v))
+	for _, bl := range v {
+		id := bl.s.ID.String()
+		val := series.DecodedTestValue{
+			Timestamp:  bl.t,
+			Value:      bl.v,
+			Unit:       bl.u,
+			Annotation: bl.a,
+		}
+
+		if values, found := blockMap[id]; found {
+			blockMap[id] = append(values, val)
+		} else {
+			blockMap[id] = bootstrap.DecodedValues{val}
+		}
+	}
+
+	return blockMap
+}
+
+func enforceValuesAreCorrect(
+	t *testing.T,
+	values testValues,
+	actual bootstrap.DecodedBlockMap,
+) {
+	require.NoError(t, verifyValuesAreCorrect(values, actual))
+}
+
+func verifyValuesAreCorrect(
+	values testValues,
+	actual bootstrap.DecodedBlockMap,
 ) error {
-	if actual == nil {
-		if len(values) == 0 {
-			return nil
-		}
-
-		return fmt.Errorf(
-			"shard result is nil, but expected: %d values", len(values))
-	}
-	// First create what result should be constructed for test values
-	expected, err := createExpectedShardResult(nsCtx, values, blockSize, opts)
-	if err != nil {
-		return err
-	}
-
-	// Assert the values
-	if len(expected) != len(actual) {
-		return fmt.Errorf(
-			"number of shards do not match, expected: %d, but got: %d",
-			len(expected), len(actual),
-		)
-	}
-
-	for shard, expectedResult := range expected {
-		actualResult, ok := actual[shard]
-		if !ok {
-			return fmt.Errorf("shard: %d present in expected, but not actual", shard)
-		}
-
-		err = verifyShardResultsAreEqual(nsCtx, opts, shard, actualResult, expectedResult)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func createExpectedShardResult(
-	nsCtx namespace.Context,
-	values []testValue,
-	blockSize time.Duration,
-	opts Options,
-) (result.ShardResults, error) {
-	bopts := opts.ResultOptions()
-	blopts := bopts.DatabaseBlockOptions()
-
-	expected := result.ShardResults{}
-
-	// Sort before iterating to ensure encoding to blocks is correct order
-	sort.Stable(testValuesByTime(values))
-
-	allResults := make(map[string]*seriesShardResult)
-	for _, v := range values {
-		shardResult, ok := expected[v.s.Shard]
-		if !ok {
-			shardResult = result.NewShardResult(0, bopts)
-			expected[v.s.Shard] = shardResult
-		}
-		_, exists := shardResult.AllSeries().Get(v.s.ID)
-		if !exists {
-			// Trigger blocks to be created for series
-			shardResult.AddSeries(v.s.ID, v.s.Tags, nil)
-		}
-
-		series, _ := shardResult.AllSeries().Get(v.s.ID)
-		blocks := series.Blocks
-		blockStart := v.t.Truncate(blockSize)
-
-		r, ok := allResults[v.s.ID.String()]
-		if !ok {
-			r = &seriesShardResult{
-				blocks: make(map[xtime.UnixNano]*seriesShardResultBlock),
-				result: blocks,
-			}
-			allResults[v.s.ID.String()] = r
-		}
-
-		b, ok := r.blocks[xtime.ToUnixNano(blockStart)]
-		if !ok {
-			encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
-			encoder.Reset(v.t, 0, nsCtx.Schema)
-			b = &seriesShardResultBlock{
-				encoder: encoder,
-			}
-			r.blocks[xtime.ToUnixNano(blockStart)] = b
-		}
-
-		err := b.encoder.Encode(ts.Datapoint{
-			Timestamp: v.t,
-			Value:     v.v,
-		}, v.u, v.a)
-		if err != nil {
-			return expected, err
-		}
-	}
-
-	for _, r := range allResults {
-		for start, blockResult := range r.blocks {
-			enc := blockResult.encoder
-			bl := block.NewDatabaseBlock(start.ToTime(), blockSize, enc.Discard(), blopts, nsCtx)
-			if r.result != nil {
-				r.result.AddBlock(bl)
-			}
-		}
-
-	}
-
-	return expected, nil
-}
-
-func verifyShardResultsAreEqual(nsCtx namespace.Context, opts Options, shard uint32, actualResult, expectedResult result.ShardResult) error {
-	expectedSeries := expectedResult.AllSeries()
-	actualSeries := actualResult.AllSeries()
-	if expectedSeries.Len() != actualSeries.Len() {
-		return fmt.Errorf(
-			"different number of series for shard: %v . expected: %d , actual: %d",
-			shard,
-			expectedSeries.Len(),
-			actualSeries.Len(),
-		)
-	}
-
-	for _, entry := range expectedSeries.Iter() {
-		expectedID, expectedBlocks := entry.Key(), entry.Value()
-		actualBlocks, ok := actualSeries.Get(expectedID)
-		if !ok {
-			return fmt.Errorf("series: %v present in expected but not actual", expectedID)
-		}
-
-		if !expectedBlocks.Tags.Equal(actualBlocks.Tags) {
-			return fmt.Errorf(
-				"series: %v present in expected and actual, but tags do not match", expectedID)
-		}
-
-		expectedAllBlocks := expectedBlocks.Blocks.AllBlocks()
-		actualAllBlocks := actualBlocks.Blocks.AllBlocks()
-		if len(expectedAllBlocks) != len(actualAllBlocks) {
-			return fmt.Errorf(
-				"number of expected blocks: %d does not match number of actual blocks: %d for series: %s",
-				len(expectedAllBlocks),
-				len(actualAllBlocks),
-				expectedID,
-			)
-		}
-
-		err := verifyBlocksAreEqual(nsCtx, opts, expectedAllBlocks, actualAllBlocks)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func verifyBlocksAreEqual(nsCtx namespace.Context, opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
-	blopts := opts.ResultOptions().DatabaseBlockOptions()
-	for start, expectedBlock := range expectedAllBlocks {
-		actualBlock, ok := actualAllBlocks[start]
-		if !ok {
-			return fmt.Errorf("Expected block for start time: %v", start)
-		}
-
-		ctx := blopts.ContextPool().Get()
-		defer ctx.Close()
-
-		expectedStream, expectedStreamErr := expectedBlock.Stream(ctx)
-		if expectedStreamErr != nil {
-			return fmt.Errorf("err creating expected stream: %s", expectedStreamErr.Error())
-		}
-
-		actualStream, actualStreamErr := actualBlock.Stream(ctx)
-		if actualStreamErr != nil {
-			return fmt.Errorf("err creating actual stream: %s", actualStreamErr.Error())
-		}
-
-		readerIteratorPool := blopts.ReaderIteratorPool()
-
-		expectedIter := readerIteratorPool.Get()
-		expectedIter.Reset(expectedStream, nsCtx.Schema)
-		defer expectedIter.Close()
-
-		actualIter := readerIteratorPool.Get()
-		actualIter.Reset(actualStream, nsCtx.Schema)
-		defer actualIter.Close()
-
-		for {
-			expectedNext := expectedIter.Next()
-			actualNext := actualIter.Next()
-			if !expectedNext && !actualNext {
-				break
-			}
-
-			if !(expectedNext && actualNext) {
-				return fmt.Errorf(
-					"err: expectedNext was: %v, but actualNext was: %v",
-					expectedNext,
-					actualNext,
-				)
-			}
-
-			expectedValue, expectedUnit, expectedAnnotation := expectedIter.Current()
-			actualValue, actualUnit, actualAnnotation := actualIter.Current()
-
-			if expectedValue.Timestamp != actualValue.Timestamp {
-				return fmt.Errorf(
-					"expectedValue.Timestamp was: %v, but actualValue.Timestamp was: %v",
-					expectedValue.Timestamp,
-					actualValue.Timestamp,
-				)
-			}
-
-			if expectedValue.Value != actualValue.Value {
-				return fmt.Errorf(
-					"expectedValue.Value was: %v, but actualValue.Value was: %v",
-					expectedValue.Value,
-					actualValue.Value,
-				)
-			}
-
-			if expectedUnit != actualUnit {
-				return fmt.Errorf(
-					"expectedUnit was: %v, but actualUnit was: %v",
-					expectedUnit,
-					actualUnit,
-				)
-			}
-
-			if nsCtx.Schema == nil {
-				if !reflect.DeepEqual(expectedAnnotation, actualAnnotation) {
-					return fmt.Errorf(
-						"expectedAnnotation was: %v, but actualAnnotation was: %v",
-						expectedAnnotation,
-						actualAnnotation,
-					)
-				}
-			} else {
-				if !testProtoEqual(expectedAnnotation, actualAnnotation) {
-					return fmt.Errorf(
-						"expectedAnnotation was: %v, but actualAnnotation was: %v",
-						expectedAnnotation,
-						actualAnnotation,
-					)
-				}
-			}
-		}
-	}
-
-	return nil
+	expected := values.toDecodedBlockMap()
+	return expected.VerifyEquals(actual)
 }
 
 type testCommitLogIterator struct {
-	values []testValue
+	values testValues
 	idx    int
 	err    error
 	closed bool
 }
 
-type testValuesByTime []testValue
+type testValuesByTime testValues
 
 func (v testValuesByTime) Len() int      { return len(v) }
 func (v testValuesByTime) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
@@ -737,7 +571,7 @@ func (v testValuesByTime) Less(i, j int) bool {
 	return v[i].t.Before(v[j].t)
 }
 
-func newTestCommitLogIterator(values []testValue, err error) *testCommitLogIterator {
+func newTestCommitLogIterator(values testValues, err error) *testCommitLogIterator {
 	return &testCommitLogIterator{values: values, idx: -1, err: err}
 }
 
@@ -746,13 +580,22 @@ func (i *testCommitLogIterator) Next() bool {
 	return i.idx < len(i.values)
 }
 
-func (i *testCommitLogIterator) Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *testCommitLogIterator) Current() commitlog.LogEntry {
 	idx := i.idx
 	if idx == -1 {
 		idx = 0
 	}
 	v := i.values[idx]
-	return v.s, ts.Datapoint{Timestamp: v.t, Value: v.v}, v.u, v.a
+	return commitlog.LogEntry{
+		Series:     v.s,
+		Datapoint:  ts.Datapoint{Timestamp: v.t, Value: v.v},
+		Unit:       v.u,
+		Annotation: v.a,
+		Metadata: commitlog.LogEntryMetadata{
+			FileReadID:        uint64(idx) + 1,
+			SeriesUniqueIndex: v.s.UniqueIndex,
+		},
+	}
 }
 
 func (i *testCommitLogIterator) Err() error {

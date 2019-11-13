@@ -378,7 +378,11 @@ type databaseNamespace interface {
 	// SeriesReadWriteRef returns a read/write ref to a series, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
-	SeriesReadWriteRef(id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error)
+	SeriesReadWriteRef(
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (SeriesReadWriteRef, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -386,8 +390,10 @@ type databaseNamespace interface {
 type SeriesReadWriteRef struct {
 	// Series reference for read/writing.
 	Series series.DatabaseSeries
-	// UniqueIndex is the unique index of the series.
+	// UniqueIndex is the unique index of the series (as applicable).
 	UniqueIndex uint64
+	// Shard is the shard of the series.
+	Shard uint32
 	// ReleaseReadWriteRef must be called after using the series ref
 	// to release the reference count to the series so it can
 	// be expired by the owning shard eventually.
@@ -647,10 +653,16 @@ type databaseBootstrapManager interface {
 	LastBootstrapCompletionTime() (time.Time, bool)
 
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
-	Bootstrap() error
+	Bootstrap() (BootstrapResult, error)
 
 	// Report reports runtime information.
 	Report()
+}
+
+// BootstrapResult is a bootstrap result.
+type BootstrapResult struct {
+	ErrorsBootstrap      []error
+	AlreadyBootstrapping bool
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
@@ -760,7 +772,7 @@ type databaseMediator interface {
 	LastBootstrapCompletionTime() (time.Time, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
-	Bootstrap() error
+	Bootstrap() (BootstrapResult, error)
 
 	// DisableFileOps disables file operations.
 	DisableFileOps()

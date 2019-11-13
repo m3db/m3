@@ -40,7 +40,9 @@ type namespaceDataAccumulator struct {
 	needsRelease []lookup.OnReleaseReadWriteRef
 }
 
-func newDatabaseNamespaceDataAccumulator(
+// NewDatabaseNamespaceDataAccumulator creates a data accumulator for
+// the namespace.
+func NewDatabaseNamespaceDataAccumulator(
 	namespace databaseNamespace,
 ) bootstrap.NamespaceDataAccumulator {
 	return &namespaceDataAccumulator{
@@ -49,10 +51,11 @@ func newDatabaseNamespaceDataAccumulator(
 }
 
 func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	ref, err := a.namespace.SeriesReadWriteRef(id, tags)
+	ref, err := a.namespace.SeriesReadWriteRef(shardID, id, tags)
 	if err != nil {
 		return bootstrap.CheckoutSeriesResult{}, err
 	}
@@ -60,16 +63,18 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 	a.needsRelease = append(a.needsRelease, ref.ReleaseReadWriteRef)
 	return bootstrap.CheckoutSeriesResult{
 		Series:      ref.Series,
+		Shard:       ref.Shard,
 		UniqueIndex: ref.UniqueIndex,
 	}, nil
 }
 
 func (a *namespaceDataAccumulator) CheckoutSeriesWithLock(
+	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
 	a.Lock()
-	result, err := a.CheckoutSeriesWithoutLock(id, tags)
+	result, err := a.CheckoutSeriesWithoutLock(shardID, id, tags)
 	a.Unlock()
 	return result, err
 }

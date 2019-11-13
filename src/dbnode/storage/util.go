@@ -27,8 +27,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -123,4 +125,42 @@ func filterTimes(times []time.Time, predicate func(t time.Time) bool) []time.Tim
 	}
 
 	return filtered
+}
+
+// NB: initialize pools once to avoid recreating per test run.
+var (
+	initSeriesOptions sync.Once
+	seriesOpts        series.Options
+)
+
+func seriesOptions() series.Options {
+	initSeriesOptions.Do(func() {
+		seriesOpts = series.NewOptions().SetBufferBucketPool(
+			series.NewBufferBucketPool(pool.NewObjectPoolOptions()),
+		).SetBufferBucketVersionsPool(
+			series.NewBufferBucketVersionsPool(pool.NewObjectPoolOptions()),
+		)
+	})
+
+	return seriesOpts
+}
+
+// MustCheckoutSeriesResult builds a bootstrap.CheckoutSeriesResult for testing.
+func MustCheckoutSeriesResult(
+	id ident.ID,
+) bootstrap.CheckoutSeriesResult {
+	var (
+		opts = seriesOptions()
+		// NB: unique indices and tags do not matter for most tests; default values
+		// are fine.
+		tags             = ident.NewTags()
+		seriesIdx uint64 = 1
+		fileIdx   uint64 = 1
+	)
+
+	series := series.NewDatabaseSeries(id, tags, seriesIdx, opts)
+	return bootstrap.CheckoutSeriesResult{
+		Series:      series,
+		UniqueIndex: fileIdx,
+	}
 }
