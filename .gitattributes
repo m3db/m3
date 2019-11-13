@@ -1,6 +1,6 @@
 # mocked files
-mock_*.go binary linguist-generated
-*_mock.go binary linguist-generated
+mock_*.go linguist-generated
+*_mock.go linguist-generated
 
 # generated manifests
 kube/bundle.yaml linguist-generated=true

@@ -56,6 +56,8 @@ func newContainerBlock(blocks []Block) (AccumulatorBlock, error) {
 			return nil, fmt.Errorf("mismatched metadata in container block: "+
 				"expected %s, got %s", meta.String(), m.String())
 		}
+
+		meta.ResultMetadata = meta.ResultMetadata.CombineMetadata(m.ResultMetadata)
 	}
 
 	return &containerBlock{
@@ -86,11 +88,13 @@ func (b *containerBlock) AddBlock(bl Block) error {
 			"expected %s, got %s", m.String(), blockMeta.String())
 	}
 
+	b.meta.ResultMetadata = b.meta.ResultMetadata.
+		CombineMetadata(blockMeta.ResultMetadata)
 	b.blocks = append(b.blocks, bl)
 	return nil
 }
 
-func (c *containerBlock) Info() BlockInfo {
+func (b *containerBlock) Info() BlockInfo {
 	return NewBlockInfo(BlockContainer)
 }
 
@@ -107,28 +111,6 @@ func (b *containerBlock) Close() error {
 	}
 
 	return nil
-}
-
-func (b *containerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (Block, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]Block, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return newContainerBlock(updatedBlockList)
 }
 
 func (b *containerBlock) StepIter() (StepIter, error) {
@@ -326,7 +308,7 @@ func (it *containerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 
@@ -389,31 +371,6 @@ func (b *ucContainerBlock) Close() error {
 
 func (b *ucContainerBlock) Meta() Metadata {
 	return b.meta
-}
-
-func (b *ucContainerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (UnconsolidatedBlock, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]UnconsolidatedBlock, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return &ucContainerBlock{
-		blocks: updatedBlockList,
-		meta:   meta,
-	}, nil
 }
 
 func (b *ucContainerBlock) Consolidate() (Block, error) {
@@ -635,7 +592,7 @@ func (it *ucContainerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 

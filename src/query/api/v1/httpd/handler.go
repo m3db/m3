@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
@@ -69,6 +70,9 @@ var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
 
+	v1APIGroup           = map[string]string{"api_group": "v1"}
+	experimentalAPIGroup = map[string]string{"api_group": "experimental"}
+
 	defaultTimeout = 30 * time.Second
 )
 
@@ -92,6 +96,7 @@ type Handler struct {
 	instrumentOpts        instrument.Options
 	cpuProfileDuration    time.Duration
 	placementServiceNames []string
+	serviceOptionDefaults []handler.ServiceOptionsDefault
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -114,6 +119,7 @@ func NewHandler(
 	instrumentOpts instrument.Options,
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
+	serviceOptionDefaults []handler.ServiceOptionsDefault,
 ) (*Handler, error) {
 	r := mux.NewRouter()
 
@@ -149,6 +155,7 @@ func NewHandler(
 		instrumentOpts:        instrumentOpts,
 		cpuProfileDuration:    cpuProfileDuration,
 		placementServiceNames: placementServiceNames,
+		serviceOptionDefaults: serviceOptionDefaults,
 	}, nil
 }
 
@@ -190,7 +197,10 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Prometheus remote read/write endpoints
 	remoteSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(remoteSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(remoteSource).
+			Tagged(v1APIGroup),
+		)
 
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.timeoutOpts, keepNans, remoteSourceInstrumentOpts)
@@ -201,7 +211,10 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	nativeSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(nativeSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(nativeSource).
+			Tagged(v1APIGroup),
+		)
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
 		h.timeoutOpts, keepNans, nativeSourceInstrumentOpts)
@@ -247,6 +260,14 @@ func (h *Handler) RegisterRoutes() error {
 		).Methods(method)
 	}
 
+	// Query parse endpoints
+	h.router.HandleFunc(native.PromParseURL,
+		wrapped(native.NewPromParseHandler(h.instrumentOpts)).ServeHTTP,
+	).Methods(native.PromParseHTTPMethod)
+	h.router.HandleFunc(native.PromThresholdURL,
+		wrapped(native.NewPromThresholdHandler(h.instrumentOpts)).ServeHTTP,
+	).Methods(native.PromThresholdHTTPMethod)
+
 	// Series match endpoints
 	for _, method := range remote.PromSeriesMatchHTTPMethods {
 		h.router.HandleFunc(remote.PromSeriesMatchURL,
@@ -278,13 +299,21 @@ func (h *Handler) RegisterRoutes() error {
 			return err
 		}
 
+		var placementServices []handler.ServiceNameAndDefaults
+		for _, serviceName := range h.placementServiceNames {
+			service := handler.ServiceNameAndDefaults{
+				ServiceName: serviceName,
+				Defaults:    h.serviceOptionDefaults,
+			}
+			placementServices = append(placementServices, service)
+		}
+
 		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 			h.cpuProfileDuration,
-			h.instrumentOpts,
 			h.clusterClient,
 			placementOpts,
-			h.placementServiceNames,
-		)
+			placementServices,
+			h.instrumentOpts)
 		if err != nil {
 			return fmt.Errorf("unable to create debug writer: %v", err)
 		}
@@ -294,14 +323,28 @@ func (h *Handler) RegisterRoutes() error {
 			wrapped(debugWriter.HTTPHandler()).ServeHTTP)
 
 		err = database.RegisterRoutes(h.router, h.clusterClient,
-			h.config, h.embeddedDbCfg, h.instrumentOpts)
+			h.config, h.embeddedDbCfg, h.serviceOptionDefaults, h.instrumentOpts)
 		if err != nil {
 			return err
 		}
 
-		placement.RegisterRoutes(h.router, placementOpts)
-		namespace.RegisterRoutes(h.router, h.clusterClient, h.instrumentOpts)
+		placement.RegisterRoutes(h.router, h.serviceOptionDefaults, placementOpts)
+		namespace.RegisterRoutes(h.router, h.clusterClient, h.serviceOptionDefaults, h.instrumentOpts)
 		topic.RegisterRoutes(h.router, h.clusterClient, h.config, h.instrumentOpts)
+
+		// Experimental endpoints.
+		if h.config.Experimental.Enabled {
+			experimentalAnnotatedWriteHandler := annotated.NewHandler(
+				h.downsamplerAndWriter,
+				h.tagOptions,
+				h.instrumentOpts.MetricsScope().
+					Tagged(remoteSource).
+					Tagged(experimentalAPIGroup),
+			)
+			h.router.HandleFunc(annotated.WriteURL,
+				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
+			).Methods(annotated.WriteHTTPMethod)
+		}
 	}
 
 	h.registerHealthEndpoints()

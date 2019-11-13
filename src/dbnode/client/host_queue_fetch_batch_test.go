@@ -48,6 +48,102 @@ func TestHostQueueFetchBatches(t *testing.T) {
 	})
 }
 
+func TestHostQueueFetchBatchesV2MultiNS(t *testing.T) {
+	ids := []string{"foo", "bar", "baz", "qux"}
+	result := &rpc.FetchBatchRawResult_{}
+	for range ids {
+		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
+	}
+	var expected []hostQueueResult
+	for i := range ids {
+		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
+	}
+	opts := newHostQueueTestOptions().SetUseV2BatchAPIs(true)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConnPool := NewMockconnectionPool(ctrl)
+
+	queue := newTestHostQueue(opts)
+	queue.connPool = mockConnPool
+
+	// Open.
+	mockConnPool.EXPECT().Open()
+	queue.Open()
+	assert.Equal(t, statusOpen, queue.status)
+
+	// Prepare callback for fetches.
+	var (
+		results []hostQueueResult
+		wg      sync.WaitGroup
+	)
+	callback := func(r interface{}, err error) {
+		results = append(results, hostQueueResult{r, err})
+		wg.Done()
+	}
+
+	fetchBatches := []*fetchBatchOp{}
+	for i, id := range ids {
+		fetchBatch := &fetchBatchOp{
+			request: rpc.FetchBatchRawRequest{
+				NameSpace: []byte(fmt.Sprintf("ns-%d", i)),
+			},
+			requestV2Elements: []rpc.FetchBatchRawV2RequestElement{
+				{
+					ID:         []byte(id),
+					RangeStart: int64(i),
+					RangeEnd:   int64(i + 1),
+				},
+			},
+		}
+		fetchBatches = append(fetchBatches, fetchBatch)
+		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
+	}
+	wg.Add(len(ids))
+
+	// Prepare mocks for flush
+	mockClient := rpc.NewMockTChanNode(ctrl)
+
+	verifyFetchBatchRawV2 := func(ctx thrift.Context, req *rpc.FetchBatchRawV2Request) {
+		assert.Equal(t, len(ids), len(req.NameSpaces))
+		for i, ns := range req.NameSpaces {
+			assert.Equal(t, []byte(fmt.Sprintf("ns-%d", i)), ns)
+		}
+		assert.Equal(t, len(ids), len(req.Elements))
+		for i, elem := range req.Elements {
+			assert.Equal(t, int64(i), elem.NameSpace)
+			assert.Equal(t, int64(i), elem.RangeStart)
+			assert.Equal(t, int64(i+1), elem.RangeEnd)
+			assert.Equal(t, []byte(ids[i]), elem.ID)
+		}
+	}
+
+	mockClient.EXPECT().
+		FetchBatchRawV2(gomock.Any(), gomock.Any()).
+		Do(verifyFetchBatchRawV2).
+		Return(result, nil)
+
+	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+
+	for _, fetchBatch := range fetchBatches {
+		assert.NoError(t, queue.Enqueue(fetchBatch))
+	}
+
+	// Wait for fetch to complete.
+	wg.Wait()
+
+	assert.Equal(t, len(ids), len(results))
+
+	// Close.
+	var closeWg sync.WaitGroup
+	closeWg.Add(1)
+	mockConnPool.EXPECT().Close().Do(func() {
+		closeWg.Done()
+	})
+	queue.Close()
+	closeWg.Wait()
+}
+
 func TestHostQueueFetchBatchesErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	ids := []string{"foo", "bar", "baz", "qux"}
@@ -136,91 +232,137 @@ func testHostQueueFetchBatches(
 	testOpts *testHostQueueFetchBatchesOptions,
 	assertion func(results []hostQueueResult),
 ) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	for _, opts := range []Options{
+		newHostQueueTestOptions().SetUseV2BatchAPIs(false),
+		newHostQueueTestOptions().SetUseV2BatchAPIs(true),
+	} {
+		t.Run(fmt.Sprintf("useV2: %v", opts.UseV2BatchAPIs()), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	mockConnPool := NewMockconnectionPool(ctrl)
+			mockConnPool := NewMockconnectionPool(ctrl)
 
-	opts := newHostQueueTestOptions()
-	queue := newTestHostQueue(opts)
-	queue.connPool = mockConnPool
+			queue := newTestHostQueue(opts)
+			queue.connPool = mockConnPool
 
-	// Open
-	mockConnPool.EXPECT().Open()
-	queue.Open()
-	assert.Equal(t, statusOpen, queue.status)
+			// Open
+			mockConnPool.EXPECT().Open()
+			queue.Open()
+			assert.Equal(t, statusOpen, queue.status)
 
-	// Prepare callback for fetches
-	var (
-		results []hostQueueResult
-		wg      sync.WaitGroup
-	)
-	callback := func(r interface{}, err error) {
-		results = append(results, hostQueueResult{r, err})
-		wg.Done()
+			// Prepare callback for fetches
+			var (
+				results []hostQueueResult
+				wg      sync.WaitGroup
+			)
+			callback := func(r interface{}, err error) {
+				results = append(results, hostQueueResult{r, err})
+				wg.Done()
+			}
+
+			rawIDs := make([][]byte, len(ids))
+
+			for i, id := range ids {
+				rawIDs[i] = []byte(id)
+			}
+
+			var fetchBatch *fetchBatchOp
+			if opts.UseV2BatchAPIs() {
+				fetchBatch = &fetchBatchOp{
+					request: rpc.FetchBatchRawRequest{
+						NameSpace: []byte(namespace),
+					},
+				}
+			} else {
+				fetchBatch = &fetchBatchOp{
+					request: rpc.FetchBatchRawRequest{
+						RangeStart: 0,
+						RangeEnd:   1,
+						NameSpace:  []byte(namespace),
+						Ids:        rawIDs,
+					},
+				}
+			}
+
+			for _, id := range ids {
+				if opts.UseV2BatchAPIs() {
+					fetchBatch.requestV2Elements = append(fetchBatch.requestV2Elements, rpc.FetchBatchRawV2RequestElement{
+						ID:         []byte(id),
+						RangeStart: 0,
+						RangeEnd:   1,
+					})
+				}
+				fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
+			}
+			wg.Add(len(ids))
+
+			// Prepare mocks for flush
+			mockClient := rpc.NewMockTChanNode(ctrl)
+
+			verifyFetchBatchRawV2 := func(ctx thrift.Context, req *rpc.FetchBatchRawV2Request) {
+				assert.Equal(t, 1, len(req.NameSpaces))
+				assert.Equal(t, len(ids), len(req.Elements))
+				for i, elem := range req.Elements {
+					assert.Equal(t, int64(0), elem.NameSpace)
+					assert.Equal(t, int64(0), elem.RangeStart)
+					assert.Equal(t, int64(1), elem.RangeEnd)
+					assert.Equal(t, []byte(ids[i]), elem.ID)
+				}
+			}
+			if testOpts != nil && testOpts.nextClientErr != nil {
+				mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
+			} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
+				if opts.UseV2BatchAPIs() {
+					mockClient.EXPECT().
+						FetchBatchRawV2(gomock.Any(), gomock.Any()).
+						Do(verifyFetchBatchRawV2).
+						Return(nil, testOpts.fetchRawBatchErr)
+				} else {
+					fetchBatchRaw := func(ctx thrift.Context, req *rpc.FetchBatchRawRequest) {
+						assert.Equal(t, &fetchBatch.request, req)
+					}
+					mockClient.EXPECT().
+						FetchBatchRaw(gomock.Any(), gomock.Any()).
+						Do(fetchBatchRaw).
+						Return(nil, testOpts.fetchRawBatchErr)
+				}
+				mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+			} else {
+				if opts.UseV2BatchAPIs() {
+					mockClient.EXPECT().
+						FetchBatchRawV2(gomock.Any(), gomock.Any()).
+						Do(verifyFetchBatchRawV2).
+						Return(result, nil)
+				} else {
+					fetchBatchRaw := func(ctx thrift.Context, req *rpc.FetchBatchRawRequest) {
+						assert.Equal(t, &fetchBatch.request, req)
+					}
+					mockClient.EXPECT().
+						FetchBatchRaw(gomock.Any(), gomock.Any()).
+						Do(fetchBatchRaw).
+						Return(result, nil)
+				}
+
+				mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+			}
+
+			// Fetch
+			assert.NoError(t, queue.Enqueue(fetchBatch))
+
+			// Wait for fetch to complete
+			wg.Wait()
+
+			// Assert results match expected
+			assertion(results)
+
+			// Close
+			var closeWg sync.WaitGroup
+			closeWg.Add(1)
+			mockConnPool.EXPECT().Close().Do(func() {
+				closeWg.Done()
+			})
+			queue.Close()
+			closeWg.Wait()
+		})
 	}
-
-	rawIDs := make([][]byte, len(ids))
-
-	for i, id := range ids {
-		rawIDs[i] = []byte(id)
-	}
-
-	// Prepare fetch batch op
-	fetchBatch := &fetchBatchOp{
-		request: rpc.FetchBatchRawRequest{
-			RangeStart: 0,
-			RangeEnd:   1,
-			NameSpace:  []byte(namespace),
-			Ids:        rawIDs,
-		},
-	}
-	for range fetchBatch.request.Ids {
-		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
-	}
-	wg.Add(len(fetchBatch.request.Ids))
-
-	// Prepare mocks for flush
-	mockClient := rpc.NewMockTChanNode(ctrl)
-	if testOpts != nil && testOpts.nextClientErr != nil {
-		mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
-	} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
-		fetchBatchRaw := func(ctx thrift.Context, req *rpc.FetchBatchRawRequest) {
-			assert.Equal(t, &fetchBatch.request, req)
-		}
-		mockClient.EXPECT().
-			FetchBatchRaw(gomock.Any(), gomock.Any()).
-			Do(fetchBatchRaw).
-			Return(nil, testOpts.fetchRawBatchErr)
-
-		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
-	} else {
-		fetchBatchRaw := func(ctx thrift.Context, req *rpc.FetchBatchRawRequest) {
-			assert.Equal(t, &fetchBatch.request, req)
-		}
-		mockClient.EXPECT().
-			FetchBatchRaw(gomock.Any(), gomock.Any()).
-			Do(fetchBatchRaw).
-			Return(result, nil)
-
-		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
-	}
-
-	// Fetch
-	assert.NoError(t, queue.Enqueue(fetchBatch))
-
-	// Wait for fetch to complete
-	wg.Wait()
-
-	// Assert results match expected
-	assertion(results)
-
-	// Close
-	var closeWg sync.WaitGroup
-	closeWg.Add(1)
-	mockConnPool.EXPECT().Close().Do(func() {
-		closeWg.Done()
-	})
-	queue.Close()
-	closeWg.Wait()
 }

@@ -63,23 +63,8 @@ genny-map-storage-bootstrap-result:
 # when generating map source files in parallel, run these sequentially)
 .PHONY: genny-map-storage
 genny-map-storage:                      \
-	genny-map-storage-database-namespaces \
-	genny-map-storage-shard               \
-	genny-map-storage-dirty-series
-
-# Map generation rule for storage/databaseNamespacesMap
-.PHONY: genny-map-storage-database-namespaces
-genny-map-storage-database-namespaces:
-	cd $(m3x_package_path) && make idhashmap-gen              \
-		pkg=storage                                             \
-		value_type=databaseNamespace                            \
-		target_package=$(m3db_package)/src/dbnode/storage       \
-		rename_type_prefix=databaseNamespaces                   \
-		rename_constructor=newDatabaseNamespacesMap             \
-		rename_constructor_options=databaseNamespacesMapOptions
-	# Rename both generated map and constructor files
-	mv -f $(m3db_package_path)/src/dbnode/storage/map_gen.go $(m3db_package_path)/src/dbnode/namespace_map_gen.go
-	mv -f $(m3db_package_path)/src/dbnode/storage/new_map_gen.go $(m3db_package_path)/src/dbnode/namespace_new_map_gen.go
+	genny-map-storage-shard             \
+	genny-map-storage-dirty-series      \
 
 # Map generation rule for storage/shardMap
 .PHONY: genny-map-storage-shard
@@ -151,7 +136,7 @@ genny-map-storage-index-results:
 	cd $(m3x_package_path) && make hashmap-gen                \
 		pkg=index                                               \
 		key_type=ident.ID                                       \
-		value_type=ident.Tags                                   \
+		value_type=ident.TagIterator                            \
 		target_package=$(m3db_package)/src/dbnode/storage/index \
 		rename_nogen_key=true                                   \
 		rename_nogen_value=true                                 \

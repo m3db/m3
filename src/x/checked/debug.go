@@ -26,8 +26,6 @@ import (
 	"runtime"
 	"sync"
 	"time"
-
-	"github.com/m3db/m3/src/x/resource"
 )
 
 const (
@@ -233,12 +231,12 @@ func (d *debugger) String() string {
 
 type debuggerRef struct {
 	debugger
-	finalizer resource.Finalizer
+	onFinalize OnFinalize
 }
 
-func (d *debuggerRef) Finalize() {
-	if d.finalizer != nil {
-		d.finalizer.Finalize()
+func (d *debuggerRef) OnFinalize() {
+	if d.onFinalize != nil {
+		d.onFinalize.OnFinalize()
 	}
 }
 
@@ -277,18 +275,18 @@ func getDebuggerRef(c *RefCount) *debuggerRef {
 	// it is safe due to using atomic load and stores.
 	// This is used primarily for debugging and the races will
 	// show up when inspecting the tracebacks.
-	finalizer := c.Finalizer()
-	if finalizer == nil {
+	onFinalize := c.OnFinalize()
+	if onFinalize == nil {
 		debugger := &debuggerRef{}
-		c.SetFinalizer(debugger)
+		c.SetOnFinalize(debugger)
 		return debugger
 	}
 
-	debugger, ok := finalizer.(*debuggerRef)
+	debugger, ok := onFinalize.(*debuggerRef)
 	if !ok {
 		// Wrap the existing finalizer in a debuggerRef
-		debugger := &debuggerRef{finalizer: finalizer}
-		c.SetFinalizer(debugger)
+		debugger := &debuggerRef{onFinalize: onFinalize}
+		c.SetOnFinalize(debugger)
 		return debugger
 	}
 

@@ -22,6 +22,7 @@ package debug
 
 import (
 	"io"
+	"net/http"
 	"runtime/pprof"
 	"time"
 )
@@ -36,7 +37,7 @@ func NewCPUProfileSource(h time.Duration) Source {
 	return &cpuProfileSource{duration: h}
 }
 
-func (c *cpuProfileSource) Write(w io.Writer) error {
+func (c *cpuProfileSource) Write(w io.Writer, _ *http.Request) error {
 	if err := pprof.StartCPUProfile(w); err != nil {
 		return err
 	}

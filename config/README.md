@@ -37,3 +37,26 @@ std.manifestYamlDoc(lib(cluster, coordinator))
 ```
 	make config-gen
 ```
+
+## Configuration Schemas
+
+At this time, each service's configuration is defined as a Go struct in a corresponding `config` package. For instance, `m3aggregator`'s config is in [src/cmd/services/m3aggregator/config/config.go](https://github.com/m3db/m3/blob/master/src/cmd/services/m3aggregator/config/config.go).
+
+Validation is done using [https://godoc.org/gopkg.in/go-playground/validator.v2](https://godoc.org/gopkg.in/go-playground/validator.v2), look for `validate` tags in the structs.
+
+## Advanced: Environment Variable Interpolation
+M3 uses [go.uber.org/config](https://godoc.org/go.uber.org/config) to load its configuration. This means that we support environment variable interpolation of configs. For example:
+
+Given the following config: 
+
+```
+foo: ${MY_ENV_VAR}
+```
+
+and an environment of `MY_ENV_VAR=bar`, the interpolated YAML will be:
+
+```
+foo: bar
+```
+
+This can be useful for further tweaking your configuration without generating different files for every config permutation.

@@ -28,14 +28,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -827,25 +825,12 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	now := time.Now()
-	start := now.Add(-time.Hour)
-	end := now.Add(time.Hour)
-	starts := []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
-
-	blocks := map[xtime.UnixNano]block.DatabaseBlock{}
-	b := block.NewMockDatabaseBlock(ctrl)
-	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
-	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
-	expectedSegment := ts.NewSegment(head, tail, ts.FinalizeNone)
-	b.EXPECT().Len().Return(expectedSegment.Len())
-	expectedChecksum := digest.SegmentChecksum(expectedSegment)
-	b.EXPECT().Checksum().Return(expectedChecksum, nil)
-	expectedLastRead := time.Now()
-	b.EXPECT().LastReadTime().Return(expectedLastRead)
-	b.EXPECT().WasRetrievedFromDisk().Return(false)
-	blocks[xtime.ToUnixNano(starts[0])] = b
-	blocks[xtime.ToUnixNano(starts[3])] = nil
-
+	var (
+		now    = time.Now()
+		start  = now.Add(-time.Hour)
+		end    = now.Add(time.Hour)
+		starts = []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
+	)
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	expectedResults := block.NewFetchBlockMetadataResults()
@@ -866,9 +851,6 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
 	_, err := series.Load(LoadOptions{Bootstrap: true}, nil, BootstrappedBlockStateSnapshot{})
 	assert.NoError(t, err)
-	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	mockBlocks.EXPECT().AllBlocks().Return(blocks)
-	series.cachedBlocks = mockBlocks
 	series.buffer = buffer
 
 	res, err := series.FetchBlocksMetadata(ctx, start, end, fetchOpts)
@@ -876,7 +858,6 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	require.Equal(t, "bar", res.ID.String())
 
 	metadata := res.Blocks.Results()
-	expectedSize := int64(4)
 	expected := []struct {
 		start    time.Time
 		size     int64
@@ -884,7 +865,6 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		lastRead time.Time
 		hasError bool
 	}{
-		{starts[0], expectedSize, &expectedChecksum, expectedLastRead, false},
 		{starts[2], 0, nil, time.Time{}, false},
 	}
 	require.Equal(t, len(expected), len(metadata))

@@ -128,12 +128,13 @@ type linearRegressionNode struct {
 
 func (l linearRegressionNode) process(
 	dps ts.Datapoints,
-	evaluationTime time.Time,
+	iterBounds iterationBounds,
 ) float64 {
 	if dps.Len() < 2 {
 		return math.NaN()
 	}
 
+	evaluationTime := iterBounds.end
 	slope, intercept := linearRegression(dps, evaluationTime, l.isDeriv)
 	return l.fn(slope, intercept)
 }

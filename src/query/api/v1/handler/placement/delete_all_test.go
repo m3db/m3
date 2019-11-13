@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -46,12 +47,16 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		require.NoError(t, err)
 		handler := NewDeleteAllHandler(handlerOpts)
 
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
 		// Test delete success
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().Delete()
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -61,7 +66,7 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().Delete().Return(errors.New("error"))
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
@@ -71,7 +76,7 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().Delete().Return(kv.ErrNotFound)
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)

@@ -26,8 +26,11 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/suite"
 )
@@ -55,6 +58,11 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 	}
 	options := NewAdminOptions().
 		SetAsyncTopologyInitializers(topoInits)
+	if asyncCount > 0 {
+		workerPool := xsync.NewWorkerPool(10)
+		workerPool.Init()
+		options = options.SetAsyncWriteWorkerPool(workerPool)
+	}
 
 	if hasSync {
 		options = options.SetTopologyInitializer(newTopologyInitializer())
@@ -63,8 +71,11 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 }
 
 func (s *replicatedSessionTestSuite) initReplicatedSession(opts Options, newSessionFunc newSessionFn) {
+	topoInits := opts.AsyncTopologyInitializers()
+	overrides := make([]environment.ClientOverrides, len(topoInits))
 	session, err := newReplicatedSession(
 		opts,
+		NewOptionsForAsyncClusters(opts, topoInits, overrides),
 		withNewSessionFn(newSessionFunc),
 	)
 	s.replicatedSession = session.(*replicatedSession)
@@ -138,11 +149,14 @@ func (s *replicatedSessionTestSuite) TestSetAsyncSessions() {
 	opts := optionsWithAsyncSessions(false, 0)
 	session := NewMockclientSession(s.mockCtrl)
 	newSessionFunc := newSessionFnWithSession(session)
+
 	s.initReplicatedSession(opts, newSessionFunc)
 
 	sessionOpts := []Options{}
 	for i := 0; i < 3; i++ {
 		o := NewMockAdminOptions(s.mockCtrl)
+		o.EXPECT().InstrumentOptions().AnyTimes().Return(instrument.NewOptions())
+		o.EXPECT().SetInstrumentOptions(gomock.Any()).Return(o)
 		sessionOpts = append(sessionOpts, o)
 	}
 

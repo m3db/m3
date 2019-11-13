@@ -53,11 +53,14 @@ service Node {
 
 	// Performant read/write endpoints
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
+	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
@@ -115,6 +118,20 @@ struct FetchBatchRawRequest {
 	2: required i64 rangeEnd
 	3: required binary nameSpace
 	4: required list<binary> ids
+	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+}
+
+
+struct FetchBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<FetchBatchRawV2RequestElement> elements
+}
+
+struct FetchBatchRawV2RequestElement {
+	1: required i64 nameSpace
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
+	4: required binary id
 	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 
@@ -227,9 +244,20 @@ struct WriteBatchRawRequest {
 	2: required list<WriteBatchRawRequestElement> elements
 }
 
+struct WriteBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<WriteBatchRawV2RequestElement> elements
+}
+
 struct WriteBatchRawRequestElement {
 	1: required binary id
 	2: required Datapoint datapoint
+}
+
+struct WriteBatchRawV2RequestElement {
+	1: required binary id
+	2: required Datapoint datapoint
+	3: required i64 nameSpace
 }
 
 struct WriteTaggedBatchRawRequest {
@@ -237,10 +265,22 @@ struct WriteTaggedBatchRawRequest {
 	2: required list<WriteTaggedBatchRawRequestElement> elements
 }
 
+struct WriteTaggedBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<WriteTaggedBatchRawV2RequestElement> elements
+}
+
 struct WriteTaggedBatchRawRequestElement {
 	1: required binary id
 	2: required binary encodedTags
 	3: required Datapoint datapoint
+}
+
+struct WriteTaggedBatchRawV2RequestElement {
+	1: required binary id
+	2: required binary encodedTags
+	3: required Datapoint datapoint
+	4: required i64 nameSpace
 }
 
 struct WriteBatchRawError {

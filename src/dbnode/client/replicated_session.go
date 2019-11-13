@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -36,23 +37,20 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	maxReplicationConcurrency = 128
-)
-
 type newSessionFn func(Options) (clientSession, error)
 
 // replicatedSession is an implementation of clientSession which replicates
 // session read/writes to a set of clusters asynchronously.
 type replicatedSession struct {
-	session       clientSession
-	asyncSessions []clientSession
-	newSessionFn  newSessionFn
-	workerPool    m3sync.WorkerPool
-	scope         tally.Scope
-	log           *zap.Logger
-	metrics       replicatedSessionMetrics
-	outCh         chan error
+	session              clientSession
+	asyncSessions        []clientSession
+	newSessionFn         newSessionFn
+	workerPool           m3sync.PooledWorkerPool
+	replicationSemaphore chan struct{}
+	scope                tally.Scope
+	log                  *zap.Logger
+	metrics              replicatedSessionMetrics
+	outCh                chan error
 }
 
 type replicatedSessionMetrics struct {
@@ -80,19 +78,18 @@ func withNewSessionFn(fn newSessionFn) replicatedSessionOption {
 	}
 }
 
-func newReplicatedSession(opts Options, options ...replicatedSessionOption) (clientSession, error) {
-	// TODO(srobb): Replace with PooledWorkerPool once it has a GoIfAvailable method
-	workerPool := m3sync.NewWorkerPool(maxReplicationConcurrency)
-	workerPool.Init()
+func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicatedSessionOption) (clientSession, error) {
+	workerPool := opts.AsyncWriteWorkerPool()
 
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	session := replicatedSession{
-		newSessionFn: newSession,
-		workerPool:   workerPool,
-		scope:        scope,
-		log:          opts.InstrumentOptions().Logger(),
-		metrics:      newReplicatedSessionMetrics(scope),
+		newSessionFn:         newSession,
+		workerPool:           workerPool,
+		replicationSemaphore: make(chan struct{}, opts.AsyncWriteMaxConcurrency()),
+		scope:                scope,
+		log:                  opts.InstrumentOptions().Logger(),
+		metrics:              newReplicatedSessionMetrics(scope),
 	}
 
 	// Apply options
@@ -103,7 +100,7 @@ func newReplicatedSession(opts Options, options ...replicatedSessionOption) (cli
 	if err := session.setSession(opts); err != nil {
 		return nil, err
 	}
-	if err := session.setAsyncSessions(NewOptionsForAsyncClusters(opts)); err != nil {
+	if err := session.setAsyncSessions(asyncOpts); err != nil {
 		return nil, err
 	}
 
@@ -127,7 +124,10 @@ func (s *replicatedSession) setSession(opts Options) error {
 
 func (s *replicatedSession) setAsyncSessions(opts []Options) error {
 	sessions := make([]clientSession, 0, len(opts))
-	for _, oo := range opts {
+	for i, oo := range opts {
+		subscope := oo.InstrumentOptions().MetricsScope().SubScope(fmt.Sprintf("async-%d", i))
+		oo = oo.SetInstrumentOptions(oo.InstrumentOptions().SetMetricsScope(subscope))
+
 		session, err := s.newSessionFn(oo)
 		if err != nil {
 			return err
@@ -154,23 +154,26 @@ type replicatedParams struct {
 func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
-		if s.workerPool.GoIfAvailable(func() {
-			var err error
-			if params.useTags {
-				err = asyncSession.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
-			} else {
-				err = asyncSession.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
-			}
-			if err != nil {
-				s.metrics.replicateError.Inc(1)
-				s.log.Error("could not replicate write: %v", zap.Error(err))
-			}
-			if s.outCh != nil {
-				s.outCh <- err
-			}
-		}) {
+		select {
+		case s.replicationSemaphore <- struct{}{}:
+			s.workerPool.Go(func() {
+				var err error
+				if params.useTags {
+					err = asyncSession.WriteTagged(params.namespace, params.id, params.tags, params.t, params.value, params.unit, params.annotation)
+				} else {
+					err = asyncSession.Write(params.namespace, params.id, params.t, params.value, params.unit, params.annotation)
+				}
+				if err != nil {
+					s.metrics.replicateError.Inc(1)
+					s.log.Error("could not replicate write", zap.Error(err))
+				}
+				if s.outCh != nil {
+					s.outCh <- err
+				}
+				<-s.replicationSemaphore
+			})
 			s.metrics.replicateExecuted.Inc(1)
-		} else {
+		default:
 			s.metrics.replicateNotExecuted.Inc(1)
 		}
 	}

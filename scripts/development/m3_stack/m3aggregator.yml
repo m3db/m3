@@ -94,6 +94,8 @@ aggregator:
   hostID:
     resolver: environment
     envVarName: M3AGGREGATOR_HOST_ID
+  instanceID:
+    type: host_id
   metricPrefix: ""
   counterPrefix: ""
   timerPrefix: ""

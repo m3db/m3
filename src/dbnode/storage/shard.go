@@ -1521,7 +1521,7 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	var (
 		res             = s.opts.FetchBlocksMetadataResultsPool().Get()
-		tmpCtx          = context.NewContext()
+		fetchCtx        = s.contextPool.Get()
 		nextIndexCursor *int64
 	)
 
@@ -1539,11 +1539,14 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 			return true
 		}
 
-		// Use a temporary context here so the stream readers can be returned to
-		// pool after we finish fetching the metadata for this series.
-		tmpCtx.Reset()
-		metadata, err := entry.Series.FetchBlocksMetadata(tmpCtx, start, end, opts)
-		tmpCtx.BlockingClose()
+		// Use a context here that we finalize immediately so the stream
+		// readers can be returned to pool after we finish fetching the
+		// metadata for this series.
+		// NB(r): Use a pooled context for pooled finalizers/closers but
+		// reuse so don't need to put and get from the pool each iteration.
+		fetchCtx.Reset()
+		metadata, err := entry.Series.FetchBlocksMetadata(ctx, start, end, opts)
+		fetchCtx.BlockingCloseReset()
 		if err != nil {
 			loopErr = err
 			return false
@@ -1579,46 +1582,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 	}
 
-	activePhase := token.ActiveSeriesPhase
-	flushedPhase := token.FlushedSeriesPhase
-
-	cachePolicy := s.opts.SeriesCachePolicy()
-	if cachePolicy == series.CacheAll {
-		// If we are using a series cache policy that caches all block metadata
-		// in memory then we only ever perform the active phase as all metadata
-		// is actively held in memory.
-		indexCursor := int64(0)
-		if activePhase != nil {
-			indexCursor = activePhase.IndexCursor
-		}
-		// We always include cached blocks.
-		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
-			FetchBlocksMetadataOptions: opts,
-			IncludeCachedBlocks:        true,
-		}
-		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
-			limit, indexCursor, seriesFetchBlocksMetadataOpts)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if nextIndexCursor == nil {
-			// No more results and only enacting active phase since we are using
-			// series policy that caches all block metadata in memory.
-			return result, nil, nil
-		}
-		token = &pagetoken.PageToken{
-			ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
-				IndexCursor: *nextIndexCursor,
-			},
-		}
-		data, err := proto.Marshal(token)
-		if err != nil {
-			return nil, nil, err
-		}
-		return result, PageToken(data), nil
-	}
-
 	// NB(r): If returning mixed in memory and disk results, then we return anything
 	// that's mutable in memory first then all disk results.
 	// We work backwards so we don't hit race conditions with blocks
@@ -1636,6 +1599,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// and we'll finish our read cleanly. If there's a race between us thinking
 	// the file is accessible and us opening a reader to it then this will bubble
 	// an error to the client which will be retried.
+	var (
+		activePhase  = token.ActiveSeriesPhase
+		flushedPhase = token.FlushedSeriesPhase
+	)
 	if flushedPhase == nil {
 		// If first phase started or no phases started then return active
 		// series metadata until we find a block start time that we have fileset
@@ -1648,7 +1615,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		// those blocks when we send metadata directly from the flushed files.
 		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
 			FetchBlocksMetadataOptions: opts,
-			IncludeCachedBlocks:        false,
 		}
 		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
@@ -2082,16 +2048,17 @@ func (s *dbShard) WarmFlush(
 	}
 
 	var multiErr xerrors.MultiError
-	tmpCtx := context.NewContext()
+	flushCtx := s.contextPool.Get() // From pool so finalizers are from pool.
 
 	flushResult := dbShardFlushResult{}
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
-		tmpCtx.Reset()
-		flushOutcome, err := curr.WarmFlush(tmpCtx, blockStart, prepared.Persist, nsCtx)
-		tmpCtx.BlockingClose()
+		flushCtx.Reset()
+		flushOutcome, err := curr.WarmFlush(flushCtx, blockStart, prepared.Persist, nsCtx)
+		// Use BlockingCloseReset so context doesn't get returned to the pool.
+		flushCtx.BlockingCloseReset()
 
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -2193,7 +2160,7 @@ func (s *dbShard) ColdFlush(
 
 	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
 		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),
-		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.namespace.Options())
+		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.opts.ContextPool(), s.namespace.Options())
 	mergeWithMem := s.newFSMergeWithMemFn(s, s, dirtySeries, dirtySeriesToWrite)
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
@@ -2301,14 +2268,14 @@ func (s *dbShard) Snapshot(
 		return err
 	}
 
-	tmpCtx := context.NewContext()
+	snapshotCtx := s.contextPool.Get()
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
-		tmpCtx.Reset()
-		err := series.Snapshot(tmpCtx, blockStart, prepared.Persist, nsCtx)
-		tmpCtx.BlockingClose()
+		snapshotCtx.Reset()
+		err := series.Snapshot(snapshotCtx, blockStart, prepared.Persist, nsCtx)
+		snapshotCtx.BlockingCloseReset()
 
 		if err != nil {
 			multiErr = multiErr.Add(err)

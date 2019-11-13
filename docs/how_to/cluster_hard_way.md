@@ -98,7 +98,7 @@ Note, remember to daemon-ize this using your favourite utility: systemd/init.d/s
 
 ## Create Namespace and Initialize Topology
 
-The recommended way to create a namespace and initialize a topology is to use the `/database/create` api. Below is an example.
+The recommended way to create a namespace and initialize a topology is to use the `/api/v1/database/create` api. Below is an example.
 
 **Note:** In order to create a more custom setup, please refer to the [namespace configuration](../operational_guide/namespace_configuration.md) and 
 [placement configuration](../operational_guide/placement_configuration.md) guides, though this is discouraged.
@@ -155,6 +155,8 @@ Shortly after, you should see your node complete bootstrapping:
 20:10:13.758001[I] bootstrapped
 20:10:14.764771[I] successfully updated topology to 3 hosts
 ```
+
+If you need to setup multiple namespaces, you can run the above `/api/v1/database/create` command multiple times with different namespace configurations.
 
 ### Replication factor (RF)
 

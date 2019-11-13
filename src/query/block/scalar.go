@@ -42,6 +42,8 @@ func NewScalar(
 	val float64,
 	meta Metadata,
 ) Block {
+	// NB: sanity check to ensure scalar values always have clean metadata.
+	meta.ResultMetadata = NewResultMetadata()
 	return &Scalar{
 		val:  val,
 		meta: meta,
@@ -60,16 +62,6 @@ func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 
 func (b *Scalar) Meta() Metadata {
 	return b.meta
-}
-
-func (b *Scalar) WithMetadata(
-	meta Metadata,
-	_ []SeriesMeta,
-) (Block, error) {
-	return &Scalar{
-		meta: meta,
-		val:  b.val,
-	}, nil
 }
 
 func (b *Scalar) StepIter() (StepIter, error) {

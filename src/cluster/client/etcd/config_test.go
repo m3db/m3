@@ -37,7 +37,7 @@ jitter: 5s
 timeout: 1s
 `
 
-	var cfg keepAliveConfig
+	var cfg KeepAliveConfig
 	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
 
 	opts := cfg.NewOptions()
@@ -96,7 +96,7 @@ m3sd:
 		ClusterConfig{
 			Zone:      "z1",
 			Endpoints: []string{"etcd1:2379", "etcd2:2379"},
-			KeepAlive: &keepAliveConfig{
+			KeepAlive: &KeepAliveConfig{
 				Enabled: true,
 				Period:  10 * time.Second,
 				Jitter:  5 * time.Second,

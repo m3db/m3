@@ -147,6 +147,10 @@ db:
           size: 25165824
           lowWatermark: 0.01
           highWatermark: 0.02
+      checkedBytesWrapperPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       closersPool:
           size: 104857
           lowWatermark: 0.01
@@ -155,7 +159,6 @@ db:
           size: 524288
           lowWatermark: 0.01
           highWatermark: 0.02
-          maxFinalizerCapacity: 8
       segmentReaderPool:
           size: 16384
           lowWatermark: 0.01
@@ -236,6 +239,10 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
       bufferBucketVersionsPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      retrieveRequestPool:
           size: 65536
           lowWatermark: 0.01
           highWatermark: 0.02
@@ -395,6 +402,9 @@ func TestConfiguration(t *testing.T) {
     hashing:
       seed: 42
     proto: null
+    asyncWriteWorkerPoolSize: null
+    asyncWriteMaxConcurrency: null
+    useV2BatchAPIs: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -429,6 +439,7 @@ func TestConfiguration(t *testing.T) {
     mmap: null
     force_index_summaries_mmap_memory: true
     force_bloom_filter_mmap_memory: true
+    bloomFilterFalsePositivePercent: null
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
@@ -482,6 +493,10 @@ func TestConfiguration(t *testing.T) {
         lowWatermark: 0.01
         highWatermark: 0.02
         capacity: 8192
+    checkedBytesWrapperPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -490,7 +505,6 @@ func TestConfiguration(t *testing.T) {
       size: 524288
       lowWatermark: 0.01
       highWatermark: 0.02
-      maxFinalizerCapacity: 8
     seriesPool:
       size: 5242880
       lowWatermark: 0.01
@@ -582,6 +596,10 @@ func TestConfiguration(t *testing.T) {
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
+    retrieveRequestPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0
@@ -589,6 +607,9 @@ func TestConfiguration(t *testing.T) {
   config:
     services:
     - async: false
+      clientOverrides:
+        hostQueueFlushInterval: null
+        targetHostQueueFlushSize: null
       service:
         zone: embedded
         env: production

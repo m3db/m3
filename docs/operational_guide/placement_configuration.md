@@ -10,10 +10,10 @@ Before reading the rest of this document, we recommend familiarizing yourself wi
 
 The number of shards that M3DB uses is configurable and there are a couple of key points to note when deciding the number to use. The
 more nodes you have, the more shards you want because you want the shards to be evenly distributed amongst your nodes. However,
-because each shard requires more files to be created, you also don’t want to have too many shards per node. This is due to the fact each 
-bit of data needs to be repartitioned and moved around the cluster (i.e. every bit of data needs to be moved all at once). Below are 
+because each shard requires more files to be created, you also don’t want to have too many shards per node. This is due to the fact each
+bit of data needs to be repartitioned and moved around the cluster (i.e. every bit of data needs to be moved all at once). Below are
 some guidelines depending on how many nodes you will have in your cluster eventually - you will need to decide the number of shards up front, you
-cannot change this once the cluster is created. 
+cannot change this once the cluster is created.
 
 | Number of Nodes | Number of Shards |
 |-----------------|------------------|
@@ -75,7 +75,13 @@ The instructions below all contain sample curl commands, but you can always revi
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
-**Note**: The [peers bootstrapper](bootstrapping.md) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
+**Note**: The [peers bootstrapper](bootstrapping_crash_recovery.md) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
+
+Additionally, the following headers can be used in the placement operations: 
+
+--8<--
+docs/common/headers_placement_namespace.md
+--8<--
 
 #### Placement Initialization
 

@@ -40,7 +40,7 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.117.2
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
@@ -63,6 +63,7 @@ SERVICES :=     \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
+	m3comparator  \
 
 SUBDIRS :=    \
 	x           \
@@ -111,6 +112,22 @@ endif
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
+
+.PHONY: $(SERVICE)-docker-dev
+$(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
+	mkdir -p ./bin/config
+	
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+
+	# Build development docker image
+	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+
+.PHONY: $(SERVICE)-docker-dev-push
+$(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
+	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
+	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
 
 endef
 
@@ -232,6 +249,12 @@ docs-test:
 docker-integration-test:
 	@echo "--- Running Docker integration test"
 	./scripts/docker-integration-tests/run.sh
+
+
+.PHONY: docker-compatibility-test
+docker-compatibility-test:
+	@echo "--- Running Prometheus compatibility test"
+	./scripts/comparator/run.sh
 
 .PHONY: site-build
 site-build:
@@ -421,7 +444,7 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(retool_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
@@ -457,17 +480,20 @@ test-all-gen: all-gen
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi --option allow-nested-vendor:true --option allow-deep-vendor:true
+	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
 	PATH=$(combined_bin_paths):$(PATH) fossa test
 
-.PHONY: clean
-clean:
-	@rm -f *.html *.xml *.out *.test
+.PHONY: clean-build
+clean-build:
 	@rm -rf $(BUILD)
+
+.PHONY: clean
+clean: clean-build
+	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(VENDOR)
 	@rm -rf ./src/ctl/ui/build
 

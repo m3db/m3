@@ -1,0 +1,48 @@
+version: "3.5"
+services:
+  dbnode01:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9000-9004:9000-9004"
+      - "0.0.0.0:2379-2380:2379-2380"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+  coordinator01:
+    expose:
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator01.yml:/etc/m3coordinator/m3coordinator.yml"
+  dbnode02:
+    expose:
+      - "19000-19004"
+      - "12379-12380"
+    ports:
+      - "0.0.0.0:19000-19004:9000-9004"
+      - "0.0.0.0:12379-12380:2379-2380"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+  coordinator02:
+    expose:
+      - "17201"
+      - "17203"
+    ports:
+      - "0.0.0.0:17201:7201"
+      - "0.0.0.0:17203:7203"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator02.yml:/etc/m3coordinator/m3coordinator.yml"
+networks:
+  backend:

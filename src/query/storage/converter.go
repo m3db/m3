@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -67,7 +68,7 @@ var (
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
 func PromLabelsToM3Tags(
-	labels []*prompb.Label,
+	labels []prompb.Label,
 	tagOptions models.TagOptions,
 ) models.Tags {
 	tags := models.NewTags(len(labels), tagOptions)
@@ -92,7 +93,7 @@ func PromLabelsToM3Tags(
 }
 
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
-func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
+func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
 		timestamp := PromTimestampToTime(sample.Timestamp)
@@ -169,9 +170,6 @@ func TimeToPromTimestamp(timestamp time.Time) int64 {
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
-// TODO(rartoul): We should pool all of these intermediary datastructures, or
-// at least the []*prompb.Sample (as thats the most heavily allocated object)
-// since we have full control over the lifecycle.
 func FetchResultToPromResult(
 	result *FetchResult,
 	keepEmpty bool,
@@ -215,10 +213,7 @@ func (t sortableLabels) Less(i, j int) bool {
 }
 
 // TagsToPromLabels converts tags to prometheus labels.
-func TagsToPromLabels(tags models.Tags) []*prompb.Label {
-	// Perform bulk allocation upfront then convert to pointers afterwards
-	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-	// if modifying.
+func TagsToPromLabels(tags models.Tags) []prompb.Label {
 	l := tags.Len()
 	labels := make([]prompb.Label, 0, l)
 
@@ -239,24 +234,17 @@ func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// Sort here since name and label may be added in a different order in tags
 	// if default metric name or bucket names are overridden.
 	sort.Sort(sortableLabels(labels))
-	labelsPointers := make([]*prompb.Label, 0, l)
-	for i := range labels {
-		labelsPointers = append(labelsPointers, &labels[i])
-	}
 
-	return labelsPointers
+	return labels
 }
 
 // SeriesToPromSamples series datapoints to prometheus samples.SeriesToPromSamples.
-func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
+func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	var (
 		seriesLen  = series.Len()
 		values     = series.Values()
 		datapoints = values.Datapoints()
-		// Perform bulk allocation upfront then convert to pointers afterwards
-		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-		// if modifying.
-		samples = make([]prompb.Sample, 0, seriesLen)
+		samples    = make([]prompb.Sample, 0, seriesLen)
 	)
 	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
@@ -265,12 +253,7 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 		})
 	}
 
-	samplesPointers := make([]*prompb.Sample, 0, len(samples))
-	for i := range samples {
-		samplesPointers = append(samplesPointers, &samples[i])
-	}
-
-	return samplesPointers
+	return samples
 }
 
 func iteratorToTsSeries(
@@ -305,6 +288,7 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
+	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
@@ -318,6 +302,7 @@ func decompressSequentially(
 
 	return &FetchResult{
 		SeriesList: seriesList,
+		Metadata:   metadata,
 	}, nil
 }
 
@@ -325,6 +310,7 @@ func decompressConcurrently(
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
+	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, len(iters))
@@ -371,6 +357,7 @@ func decompressConcurrently(
 
 	return &FetchResult{
 		SeriesList: seriesList,
+		Metadata:   metadata,
 	}, nil
 }
 
@@ -379,6 +366,7 @@ func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
+	metadata block.ResultMetadata,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
@@ -388,9 +376,9 @@ func SeriesIteratorsToFetchResult(
 
 	iters := seriesIterators.Iters()
 	if readWorkerPool == nil {
-		return decompressSequentially(iters, enforcer, tagOptions)
+		return decompressSequentially(iters, enforcer, metadata, tagOptions)
 	}
 
 	return decompressConcurrently(iters, readWorkerPool,
-		enforcer, tagOptions)
+		enforcer, metadata, tagOptions)
 }

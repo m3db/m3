@@ -100,7 +100,7 @@ func (t *ExtendedMetricsType) UnmarshalYAML(unmarshal func(interface{}) error) e
 		*t = DefaultExtendedMetricsType
 		return nil
 	}
-	strs := make([]string, len(validExtendedMetricsTypes))
+	strs := make([]string, 0, len(validExtendedMetricsTypes))
 	for _, valid := range validExtendedMetricsTypes {
 		if str == valid.String() {
 			*t = valid

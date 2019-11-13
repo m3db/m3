@@ -1,4 +1,4 @@
-# Bootstrapping
+# Bootstrapping & Crash Recovery
 
 ## Introduction
 
@@ -120,3 +120,55 @@ Every time a node is restarted it will utilize the immutable Fileset files its a
 ### commitlog,uninitialized_topology
 
 Every time a node is restarted it will read all the commit log and snapshot files it has on disk, but it will ignore all the data in the immutable Fileset files that it has already written.
+
+## Crash Recovery
+
+**NOTE:** These steps should not be necessary in most cases, especially if using the default bootstrappers configuration
+of `filesystem,commitlog,peers,uninitialized_topology`. However in the case the configuration is non-default or the
+cluster has been down for a prolonged period of time these steps may be necessary. A good indicator would be log
+messages related to failing to bootstrap from peers due to consistency issues.
+
+M3DB may require manual intervention to recover in the event of a prolonged loss of quorum. This is because the [Peers
+Boostrapper](#peers-bootstrapper) must read from a majority of nodes owning a shard to bootstrap.
+
+To relax this bootstrapping constraint, a value stored in etcd must be modified that corresponds to the
+`m3db.client.bootstrap-consistency-level` runtime flag. Until the coordinator
+[supports](https://github.com/m3db/m3/issues/1959) an API for this, this must be done manually. The M3 contributors are
+aware of how cumbersome this is and are working on this API.
+
+To update this value in etcd, first determine the environment the M3DB node is using. For example in [this][cfg-env]
+configuration, it is `default_env`. If using the M3DB Operator, the value will be `$KUBE_NAMESPACE/$CLUSTER_NAME`, where
+`$KUBE_NAMESPACE` is the name of the Kubernetes namespace the cluster is located in and `$CLUSTER_NAME` is the name you
+have assigned the cluster (such as `default/my-test-cluster`).
+
+The following base64-encoded string represents a Protobuf-serialized [message][string-proto] containing the string
+`unstrict_majority`: `ChF1bnN0cmljdF9tYWpvcml0eQ==`. Decode this string and place it in the following etcd key, where
+`$ENV` is the value determined above:
+
+```
+_kv/$ENV/m3db.client.bootstrap-consistency-level
+```
+
+Note that on MacOS, `base64` requires the `-D` flag to decode, whereas elsewhere it is likely `-d`. Also note the use of
+`echo -n` to ensure removal of newlines if your shell does not support the `<<<STRING` pattern.
+
+Once the cluster is recovered, the value should be deleted from etcd to revert to normal behavior using `etcdctl del`.
+
+Examples:
+
+```bash
+# On Linux, using a recent bash, update the value for env=default_env
+<<<ChF1bnN0cmljdF9tYWpvcml0eQ== base64 -d | env ETCDCTL_API=3 etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
+
+# On Linux, using a limited shell, update the value for env=default_env
+echo -n "ChF1bnN0cmljdF9tYWpvcml0eQ==" | base64 -d | env ETCDCTL_API=3 etcdctl put _kv/default_env/m3db.client.bootstrap-consistency-level
+
+# On MacOS, update the value for a cluster "test_cluster" in Kubernetes namespace "m3db"
+echo -n "ChF1bnN0cmljdF9tYWpvcml0eQ==" | base64 -D | kubectl exec -i $ETCD_POD -- env ETCDCTL_API=3 etcdctl put _kv/m3db/test_cluster/m3db.client.bootstrap-consistency-level
+
+# Delete the key to restore normal behavior
+env ETCDCTL_API=3 etcdctl del _kv/default_env/m3db.client.bootstrap-consistency-level
+```
+
+[string-proto]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/cluster/generated/proto/commonpb/common.proto#L40-L42
+[cfg-env]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/dbnode/config/m3dbnode-all-config.yml#L266

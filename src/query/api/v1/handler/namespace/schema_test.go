@@ -34,6 +34,7 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -94,6 +95,12 @@ message ImportedMessage {
 `
 )
 
+var (
+	svcDefaults = apihandler.ServiceNameAndDefaults{
+		ServiceName: "m3db",
+	}
+)
+
 func genTestJSON(t *testing.T) string {
 	tempDir, err := ioutil.TempDir("", "schema_deploy_test")
 	require.NoError(t, err)
@@ -144,7 +151,7 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -186,7 +193,7 @@ func TestSchemaDeploy(t *testing.T) {
 	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJSON))
 	require.NotNil(t, req)
 
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -239,7 +246,7 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 
 	w := httptest.NewRecorder()
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -270,7 +277,7 @@ func TestSchemaReset(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -281,7 +288,7 @@ func TestSchemaReset(t *testing.T) {
 	require.NotNil(t, req)
 	req.Header.Add("Force", "true")
 
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)

@@ -50,13 +50,17 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 			config.Configuration{}, nil, instrument.NewOptions())
 		handler := NewDeleteHandler(handlerOpts)
 
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
 		// Test remove success
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(DeleteHTTPMethod, "/placement/host1?force=true", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().RemoveInstances([]string{"host1"}).Return(placement.NewPlacement(), nil)
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		body, err := ioutil.ReadAll(resp.Body)
@@ -70,7 +74,7 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 		req = mux.SetURLVars(req, map[string]string{"id": "nope"})
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().RemoveInstances([]string{"nope"}).Return(placement.NewPlacement(), errors.New("ID does not exist"))
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
@@ -128,12 +132,16 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 			SetIsMirrored(true)
 	}
 
+	svcDefaults := apihandler.ServiceNameAndDefaults{
+		ServiceName: serviceName,
+	}
+
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
 	if !isStateless(serviceName) {
 		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 	}
-	handler.ServeHTTP(serviceName, w, req)
+	handler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -165,7 +173,7 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
@@ -259,7 +267,7 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(returnPlacement, nil)
 	}
 
-	handler.ServeHTTP(serviceName, w, req)
+	handler.ServeHTTP(svcDefaults, w, req)
 
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)

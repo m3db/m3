@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -120,7 +121,9 @@ func NewPromWriteHandler(
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope())
+	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope().
+		Tagged(map[string]string{"handler": "remote-write"}),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -422,9 +425,8 @@ func (h *PromWriteHandler) forward(
 	if method == "" {
 		method = http.MethodPost
 	}
-
-	req, err := http.NewRequest(target.Method, target.URL,
-		bytes.NewReader(request.CompressedBody))
+	url := target.URL
+	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
 	}
@@ -433,13 +435,21 @@ func (h *PromWriteHandler) forward(
 	if err != nil {
 		return err
 	}
+
+	defer resp.Body.Close()
+
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("expected status code 2XX: actual=%v", resp.StatusCode)
+		response, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			response = []byte(fmt.Sprintf("error reading body: %v", err))
+		}
+		return fmt.Errorf("expected status code 2XX: actual=%v, method=%v, url=%v, resp=%s",
+			resp.StatusCode, method, url, response)
 	}
 	return nil
 }
 
-func newPromTSIter(timeseries []*prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
+func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
@@ -469,12 +479,12 @@ func (i *promTSIter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit) {
+func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0
+		return models.EmptyTags(), nil, 0, nil
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond
+	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond, nil
 }
 
 func (i *promTSIter) Reset() error {

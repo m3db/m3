@@ -147,10 +147,6 @@ type DatabaseSeries interface {
 // and specifies a few series specific options too.
 type FetchBlocksMetadataOptions struct {
 	block.FetchBlocksMetadataOptions
-
-	// IncludeCachedBlocks specifies whether to also include cached blocks
-	// when returning series metadata.
-	IncludeCachedBlocks bool
 }
 
 // QueryableBlockRetriever is a block retriever that can tell if a block

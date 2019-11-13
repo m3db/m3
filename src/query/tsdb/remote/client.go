@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -110,7 +111,7 @@ func (c *grpcClient) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	iters, err := c.fetchRaw(ctx, query, options)
+	result, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +121,8 @@ func (c *grpcClient) Fetch(
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool,
-		true, enforcer, c.tagOptions)
+	return storage.SeriesIteratorsToFetchResult(result.SeriesIterators,
+		c.readWorkerPool, true, result.Metadata, enforcer, c.tagOptions)
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -136,15 +137,19 @@ func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
+) (m3.SeriesFetchResult, error) {
+	fetchResult := m3.SeriesFetchResult{
+		Metadata: block.NewResultMetadata(),
+	}
+
 	pools, err := c.waitForPools()
 	if err != nil {
-		return nil, err
+		return fetchResult, err
 	}
 
 	request, err := encodeFetchRequest(query, options)
 	if err != nil {
-		return nil, err
+		return fetchResult, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
@@ -153,16 +158,17 @@ func (c *grpcClient) fetchRaw(
 	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
 	if err != nil {
-		return nil, err
+		return fetchResult, err
 	}
 
 	defer fetchClient.CloseSend()
+	meta := block.NewResultMetadata()
 	seriesIterators := make([]encoding.SeriesIterator, 0, initResultSize)
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return fetchResult, ctx.Err()
 		default:
 		}
 
@@ -172,21 +178,26 @@ func (c *grpcClient) fetchRaw(
 		}
 
 		if err != nil {
-			return nil, err
+			return fetchResult, err
 		}
 
+		receivedMeta := decodeResultMetadata(result.GetMeta())
+		meta = meta.CombineMetadata(receivedMeta)
 		iters, err := decodeCompressedFetchResponse(result, pools)
 		if err != nil {
-			return nil, err
+			return fetchResult, err
 		}
 
 		seriesIterators = append(seriesIterators, iters.Iters()...)
 	}
 
-	return encoding.NewSeriesIterators(
+	fetchResult.Metadata = meta
+	fetchResult.SeriesIterators = encoding.NewSeriesIterators(
 		seriesIterators,
 		nil,
-	), nil
+	)
+
+	return fetchResult, nil
 }
 
 func (c *grpcClient) FetchBlocks(
@@ -202,48 +213,23 @@ func (c *grpcClient) FetchBlocks(
 	if options.BlockType == models.TypeDecodedBlock {
 		fetchResult, err := c.Fetch(ctx, query, options)
 		if err != nil {
-			return block.Result{}, err
+			return block.Result{
+				Metadata: block.NewResultMetadata(),
+			}, err
 		}
 
 		return storage.FetchResultToBlockResult(fetchResult, query,
 			opts.LookbackDuration(), options.Enforcer)
 	}
 
-	raw, err := c.fetchRaw(ctx, query, options)
+	fetchResult, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
-	// If using multiblock, update options to reflect this.
-	if options.BlockType == models.TypeMultiBlock {
-		opts = opts.
-			SetSplitSeriesByBlock(true)
-	}
-
-	bounds := models.Bounds{
-		Start:    query.Start,
-		Duration: query.End.Sub(query.Start),
-		StepSize: query.Interval,
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		raw,
-		bounds,
-		opts,
-	)
-
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return block.Result{
-		Blocks: blocks,
-	}, nil
+	return m3.FetchResultToBlockResult(fetchResult, query, options, opts)
 }
 
 func (c *grpcClient) SearchSeries(
@@ -256,7 +242,7 @@ func (c *grpcClient) SearchSeries(
 		return nil, err
 	}
 
-	request, err := encodeSearchRequest(query)
+	request, err := encodeSearchRequest(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +257,9 @@ func (c *grpcClient) SearchSeries(
 		return nil, err
 	}
 
-	defer searchClient.CloseSend()
 	metrics := make(models.Metrics, 0, initResultSize)
+	meta := block.NewResultMetadata()
+	defer searchClient.CloseSend()
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
@@ -290,6 +277,8 @@ func (c *grpcClient) SearchSeries(
 			return nil, err
 		}
 
+		receivedMeta := decodeResultMetadata(received.GetMeta())
+		meta = meta.CombineMetadata(receivedMeta)
 		m, err := decodeSearchResponse(received, pools, c.tagOptions)
 		if err != nil {
 			return nil, err
@@ -299,7 +288,8 @@ func (c *grpcClient) SearchSeries(
 	}
 
 	return &storage.SearchResults{
-		Metrics: metrics,
+		Metrics:  metrics,
+		Metadata: meta,
 	}, nil
 }
 
@@ -308,7 +298,7 @@ func (c *grpcClient) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	request, err := encodeCompleteTagsRequest(query)
+	request, err := encodeCompleteTagsRequest(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +314,7 @@ func (c *grpcClient) CompleteTags(
 	}
 
 	tags := make([]storage.CompletedTag, 0, initResultSize)
+	meta := block.NewResultMetadata()
 	defer completeTagsClient.CloseSend()
 	for {
 		select {
@@ -340,6 +331,8 @@ func (c *grpcClient) CompleteTags(
 			return nil, err
 		}
 
+		receivedMeta := decodeResultMetadata(received.GetMeta())
+		meta = meta.CombineMetadata(receivedMeta)
 		result, err := decodeCompleteTagsResponse(received, query.CompleteNameOnly)
 		if err != nil {
 			return nil, err
@@ -351,6 +344,7 @@ func (c *grpcClient) CompleteTags(
 	return &storage.CompleteTagsResult{
 		CompleteNameOnly: query.CompleteNameOnly,
 		CompletedTags:    tags,
+		Metadata:         meta,
 	}, nil
 }
 

@@ -92,8 +92,12 @@ func TestPlacementInitHandler(t *testing.T) {
 		newPlacement, err := placement.NewPlacementFromProto(initTestPlacementProto)
 		require.NoError(t, err)
 
+		svcDefaults := apihandler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
 		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 16, 1).Return(newPlacement, nil)
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 		resp := w.Result()
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
@@ -119,7 +123,7 @@ func TestPlacementInitHandler(t *testing.T) {
 				BuildInitialPlacement(gomock.Not(nil), 64, 2).
 				Return(nil, errors.New("unable to build initial placement"))
 		}
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
@@ -146,7 +150,7 @@ func TestPlacementInitHandler(t *testing.T) {
 				Return(nil, kv.ErrAlreadyExists)
 		}
 
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 		resp = w.Result()
 		_, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)

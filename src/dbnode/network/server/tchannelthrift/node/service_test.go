@@ -22,7 +22,7 @@ package node
 
 import (
 	"bytes"
-	"context"
+	gocontext "context"
 	"errors"
 	"fmt"
 	"sort"
@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
@@ -68,7 +67,6 @@ var (
 
 func init() {
 	// Set all pool sizes to 1 for tests
-	checkedBytesPoolSize = 1
 	segmentArrayPoolSize = 1
 	writeBatchPooledReqPoolSize = 1
 }
@@ -271,7 +269,7 @@ func TestServiceQuery(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -288,14 +286,14 @@ func TestServiceQuery(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
 		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+	)))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
 		ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
-	))
+	)))
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -520,7 +518,7 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
-	stream, _ := enc.Stream(encoding.StreamOptions{})
+	stream, _ := enc.Stream(ctx)
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
 		Return([][]xio.BlockReader{
@@ -691,7 +689,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -711,6 +709,121 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		RangeTimeType: rpc.TimeType_UNIX_SECONDS,
 		NameSpace:     []byte(nsID),
 		Ids:           ids,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, len(ids), len(r.Elements))
+	for i, id := range ids {
+		elem := r.Elements[i]
+		require.NotNil(t, elem)
+
+		assert.Nil(t, elem.Err)
+		require.Equal(t, 1, len(elem.Segments))
+
+		seg := elem.Segments[0]
+		require.NotNil(t, seg)
+		require.NotNil(t, seg.Merged)
+
+		var expectHead, expectTail []byte
+		expectSegment, err := streams[string(id)].Segment()
+		require.NoError(t, err)
+
+		if expectSegment.Head != nil {
+			expectHead = expectSegment.Head.Bytes()
+		}
+		if expectSegment.Tail != nil {
+			expectTail = expectSegment.Tail.Bytes()
+		}
+
+		assert.Equal(t, expectHead, seg.Merged.Head)
+		assert.Equal(t, expectTail, seg.Merged.Tail)
+	}
+}
+
+func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	nsID1 := "metrics1"
+	nsID2 := "metrics2"
+
+	streams := map[string]xio.SegmentReader{}
+	series := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"foo": {
+			{start.Add(10 * time.Second), 1.0},
+			{start.Add(20 * time.Second), 2.0},
+		},
+		"bar": {
+			{start.Add(20 * time.Second), 3.0},
+			{start.Add(30 * time.Second), 4.0},
+		},
+	}
+	for id, s := range series {
+		enc := testStorageOpts.EncoderPool().Get()
+		enc.Reset(start, 0, nil)
+		for _, v := range s {
+			dp := ts.Datapoint{
+				Timestamp: v.t,
+				Value:     v.v,
+			}
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
+
+		stream, _ := enc.Stream(ctx)
+		streams[id] = stream
+		nsID := nsID1
+		if id == "bar" {
+			nsID = nsID2
+		}
+		mockDB.EXPECT().
+			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			Return([][]xio.BlockReader{
+				[]xio.BlockReader{
+					xio.BlockReader{
+						SegmentReader: stream,
+					},
+				},
+			}, nil)
+	}
+
+	ids := [][]byte{[]byte("foo"), []byte("bar")}
+	elements := []*rpc.FetchBatchRawV2RequestElement{
+		&rpc.FetchBatchRawV2RequestElement{
+			NameSpace:     0,
+			RangeStart:    start.Unix(),
+			RangeEnd:      end.Unix(),
+			ID:            []byte("foo"),
+			RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		},
+		&rpc.FetchBatchRawV2RequestElement{
+			NameSpace:     1,
+			RangeStart:    start.Unix(),
+			RangeEnd:      end.Unix(),
+			ID:            []byte("bar"),
+			RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		},
+	}
+	r, err := service.FetchBatchRawV2(tctx, &rpc.FetchBatchRawV2Request{
+		NameSpaces: [][]byte{[]byte(nsID1), []byte(nsID2)},
+		Elements:   elements,
 	})
 	require.NoError(t, err)
 
@@ -792,7 +905,7 @@ func TestServiceFetchBatchRawOverMaxOutstandingRequests(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -997,7 +1110,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 
 		seg, err := streams[id].Segment()
@@ -1380,7 +1493,7 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(context.Background(), sp))
+	ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
 
 	start := time.Now().Add(-2 * time.Hour)
 	end := start.Add(2 * time.Hour)
@@ -1414,7 +1527,7 @@ func TestServiceFetchTagged(t *testing.T) {
 			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 		}
 
-		stream, _ := enc.Stream(encoding.StreamOptions{})
+		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
 		mockDB.EXPECT().
 			ReadEncoded(gomock.Any(), ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
@@ -1431,14 +1544,14 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+	)))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("dzk", "baz"),
-	))
+	)))
 
 	mockDB.EXPECT().QueryIDs(
 		gomock.Any(),
@@ -1534,14 +1647,14 @@ func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
-	))
-	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+	)))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("dzk", "baz"),
-	))
+	)))
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
@@ -1628,8 +1741,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 
 	resMap := index.NewQueryResults(ident.StringID(nsID),
 		index.QueryResultsOptions{}, testIndexOptions)
-	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
-	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTagsIterator(ident.Tags{}))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTagsIterator(ident.Tags{}))
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),
@@ -2049,6 +2162,129 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServiceWriteBatchRawV2SingleNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	values := []struct {
+		id string
+		t  time.Time
+		v  float64
+	}{
+		{"foo", time.Now().Truncate(time.Second), 12.34},
+		{"bar", time.Now().Truncate(time.Second), 42.42},
+	}
+
+	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
+		Return(writeBatch, nil)
+
+	mockDB.EXPECT().
+		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		Return(nil)
+
+	var elements []*rpc.WriteBatchRawV2RequestElement
+	for _, w := range values {
+		elem := &rpc.WriteBatchRawV2RequestElement{
+			NameSpace: 0,
+			ID:        []byte(w.id),
+			Datapoint: &rpc.Datapoint{
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	err := service.WriteBatchRawV2(tctx, &rpc.WriteBatchRawV2Request{
+		NameSpaces: [][]byte{[]byte(nsID)},
+		Elements:   elements,
+	})
+	require.NoError(t, err)
+}
+
+func TestServiceWriteBatchRawV2MultiNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	var (
+		nsID1 = "metrics"
+		nsID2 = "more-metrics"
+
+		values = []struct {
+			id string
+			t  time.Time
+			v  float64
+		}{
+			{"foo", time.Now().Truncate(time.Second), 12.34},
+			{"bar", time.Now().Truncate(time.Second), 42.42},
+		}
+
+		writeBatch1 = ts.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
+		writeBatch2 = ts.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
+	)
+
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID1), len(values)*2).
+		Return(writeBatch1, nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID2), len(values)*2).
+		Return(writeBatch2, nil)
+
+	mockDB.EXPECT().
+		WriteBatch(ctx, ident.NewIDMatcher(nsID1), writeBatch1, gomock.Any()).
+		Return(nil)
+	mockDB.EXPECT().
+		WriteBatch(ctx, ident.NewIDMatcher(nsID2), writeBatch2, gomock.Any()).
+		Return(nil)
+
+	var elements []*rpc.WriteBatchRawV2RequestElement
+	for nsIdx := range []string{nsID1, nsID2} {
+		for _, w := range values {
+			elem := &rpc.WriteBatchRawV2RequestElement{
+				NameSpace: int64(nsIdx),
+				ID:        []byte(w.id),
+				Datapoint: &rpc.Datapoint{
+					Timestamp:         w.t.Unix(),
+					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+					Value:             w.v,
+				},
+			}
+			elements = append(elements, elem)
+		}
+	}
+
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	err := service.WriteBatchRawV2(tctx, &rpc.WriteBatchRawV2Request{
+		NameSpaces: [][]byte{[]byte(nsID1), []byte(nsID2)},
+		Elements:   elements,
+	})
+	require.NoError(t, err)
+}
+
 func TestServiceWriteBatchRawOverloaded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2236,6 +2472,151 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
 		NameSpace: []byte(nsID),
 		Elements:  elements,
+	})
+	require.NoError(t, err)
+}
+
+func TestServiceWriteTaggedBatchRawV2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	mockDecoder := serialize.NewMockTagDecoder(ctrl)
+	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
+	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
+	mockDecoder.EXPECT().Close().AnyTimes()
+	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
+	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
+
+	opts := tchannelthrift.NewOptions().
+		SetTagDecoderPool(mockDecoderPool)
+
+	service := NewService(mockDB, opts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	values := []struct {
+		id        string
+		tagEncode string
+		t         time.Time
+		v         float64
+	}{
+		{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
+		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
+	}
+
+	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
+		Return(writeBatch, nil)
+
+	mockDB.EXPECT().
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		Return(nil)
+
+	var elements []*rpc.WriteTaggedBatchRawV2RequestElement
+	for _, w := range values {
+		elem := &rpc.WriteTaggedBatchRawV2RequestElement{
+			NameSpace:   0,
+			ID:          []byte(w.id),
+			EncodedTags: []byte(w.tagEncode),
+			Datapoint: &rpc.Datapoint{
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	err := service.WriteTaggedBatchRawV2(tctx, &rpc.WriteTaggedBatchRawV2Request{
+		NameSpaces: [][]byte{[]byte(nsID)},
+		Elements:   elements,
+	})
+	require.NoError(t, err)
+}
+
+func TestServiceWriteTaggedBatchRawV2MultiNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	mockDecoder := serialize.NewMockTagDecoder(ctrl)
+	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
+	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
+	mockDecoder.EXPECT().Close().AnyTimes()
+	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
+	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
+
+	opts := tchannelthrift.NewOptions().
+		SetTagDecoderPool(mockDecoderPool)
+
+	service := NewService(mockDB, opts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	var (
+		nsID1  = "metrics"
+		nsID2  = "more-metrics"
+		values = []struct {
+			id        string
+			tagEncode string
+			t         time.Time
+			v         float64
+		}{
+			{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
+			{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
+		}
+		writeBatch1 = ts.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
+		writeBatch2 = ts.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
+	)
+
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID1), len(values)*2).
+		Return(writeBatch1, nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID2), len(values)*2).
+		Return(writeBatch2, nil)
+
+	mockDB.EXPECT().
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID1), writeBatch1, gomock.Any()).
+		Return(nil)
+	mockDB.EXPECT().
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID2), writeBatch2, gomock.Any()).
+		Return(nil)
+
+	var elements []*rpc.WriteTaggedBatchRawV2RequestElement
+	for nsIdx := range []string{nsID1, nsID2} {
+		for _, w := range values {
+			elem := &rpc.WriteTaggedBatchRawV2RequestElement{
+				NameSpace:   int64(nsIdx),
+				ID:          []byte(w.id),
+				EncodedTags: []byte(w.tagEncode),
+				Datapoint: &rpc.Datapoint{
+					Timestamp:         w.t.Unix(),
+					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+					Value:             w.v,
+				},
+			}
+			elements = append(elements, elem)
+		}
+	}
+
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	err := service.WriteTaggedBatchRawV2(tctx, &rpc.WriteTaggedBatchRawV2Request{
+		NameSpaces: [][]byte{[]byte(nsID1), []byte(nsID2)},
+		Elements:   elements,
 	})
 	require.NoError(t, err)
 }

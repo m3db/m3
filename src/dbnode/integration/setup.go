@@ -752,7 +752,8 @@ func newClients(
 		clientOpts = defaultClientOptions(topoInit).
 				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
 				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit)
+				SetTopologyInitializer(topoInit).
+				SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)

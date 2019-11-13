@@ -31,15 +31,16 @@ const (
 	// DefaultNewDirectoryMode is the default new directory mode.
 	DefaultNewDirectoryMode = os.FileMode(0755)
 
-	defaultFilePathPrefix                = "/var/lib/m3db"
-	defaultWriteBufferSize               = 65536
-	defaultDataReadBufferSize            = 65536
-	defaultInfoReadBufferSize            = 128
-	defaultSeekReadBufferSize            = 4096
-	defaultThroughputLimitMbps           = 100.0
-	defaultThroughputCheckEvery          = 128
-	defaultForceIndexSummariesMmapMemory = false
-	defaultForceBloomFilterMmapMemory    = false
+	defaultFilePathPrefix                  = "/var/lib/m3db"
+	defaultWriteBufferSize                 = 65536
+	defaultDataReadBufferSize              = 65536
+	defaultInfoReadBufferSize              = 128
+	defaultSeekReadBufferSize              = 4096
+	defaultThroughputLimitMbps             = 100.0
+	defaultThroughputCheckEvery            = 128
+	defaultForceIndexSummariesMmapMemory   = false
+	defaultForceBloomFilterMmapMemory      = false
+	defaultBloomFilterFalsePositivePercent = 0.02
 )
 
 // DefaultMmapConfiguration is the default mmap configuration.
@@ -93,6 +94,10 @@ type FilesystemConfiguration struct {
 	// ForceBloomFilterMmapMemory forces the mmap that stores the index lookup bytes
 	// to be an anonymous region in memory as opposed to a file-based mmap.
 	ForceBloomFilterMmapMemory *bool `yaml:"force_bloom_filter_mmap_memory"`
+
+	// BloomFilterFalsePositivePercent controls the target false positive percentage
+	// for the bloom filters for the fileset files.
+	BloomFilterFalsePositivePercent *float64 `yaml:"bloomFilterFalsePositivePercent"`
 }
 
 // Validate validates the Filesystem configuration. We use this method to validate
@@ -132,6 +137,12 @@ func (f FilesystemConfiguration) Validate() error {
 		return fmt.Errorf(
 			"fs throughputCheckEvery is set to: %d, but must be at least 1",
 			*f.ThroughputCheckEvery)
+	}
+	if f.BloomFilterFalsePositivePercent != nil &&
+		(*f.BloomFilterFalsePositivePercent < 0 || *f.BloomFilterFalsePositivePercent > 1) {
+		return fmt.Errorf(
+			"fs bloomFilterFalsePositivePercent is set to: %f, but must be between 0.0 and 1.0",
+			*f.BloomFilterFalsePositivePercent)
 	}
 
 	return nil
@@ -234,6 +245,16 @@ func (f FilesystemConfiguration) ForceBloomFilterMmapMemoryOrDefault() bool {
 	}
 
 	return defaultForceBloomFilterMmapMemory
+}
+
+// BloomFilterFalsePositivePercentOrDefault returns the configured value for the target
+// false positive percent for the bloom filter for the fileset files if configured, or a default
+// value otherwise
+func (f FilesystemConfiguration) BloomFilterFalsePositivePercentOrDefault() float64 {
+	if f.BloomFilterFalsePositivePercent != nil {
+		return *f.BloomFilterFalsePositivePercent
+	}
+	return defaultBloomFilterFalsePositivePercent
 }
 
 // MmapConfiguration is the mmap configuration.
