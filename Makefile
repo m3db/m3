@@ -33,6 +33,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
@@ -327,8 +328,6 @@ asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
-
-genny-target ?= genny-all
 
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
