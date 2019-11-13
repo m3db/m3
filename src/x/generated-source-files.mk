@@ -8,7 +8,7 @@ gorename_package_version := 52c7307cddd221bb98f0a3215216789f3c821b10
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
 test-genny-all: genny-all
-	@test "$(shell git --no-pager diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager diff --shortstat 2>/dev/null)" = "" || (git --no-pager diff --no-color && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git --no-pager status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: genny-all
