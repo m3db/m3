@@ -209,11 +209,11 @@ type Configuration struct {
 
 // RulesConfiguration is a set of rules configuration to use for downsampling.
 type RulesConfiguration struct {
-	// MappingRules are the mapping rules that sets retention and resolution
+	// MappingRules are mapping rules that set retention and resolution
 	// for metrics given a filter to match metrics against.
 	MappingRules []MappingRuleConfiguration `yaml:"mappingRules"`
 
-	// RollupRules are the rollup rules that sets specific aggregations for sets
+	// RollupRules are rollup rules that sets specific aggregations for sets
 	// of metrics given a filter to match metrics against.
 	RollupRules []RollupRuleConfiguration `yaml:"rollupRules"`
 }
@@ -251,15 +251,15 @@ type MappingRuleConfiguration struct {
 	// - "P9999"
 	Aggregations []aggregation.Type `yaml:"aggregations"`
 
-	// StoragePolicies is the retention/resolution storage policies to keep the
-	// matched metrics at.
+	// StoragePolicies are retention/resolution storage policies at which to
+	// keep matched metrics.
 	StoragePolicies []StoragePolicyConfiguration `yaml:"storagePolicies"`
 
 	// Drop specifies to drop any metrics that match the filter rather than
 	// keeping them with a storage policy.
 	Drop bool `yaml:"drop"`
 
-	// Optional fields follows.
+	// Optional fields follow.
 
 	// Name is optional.
 	Name string `yaml:"name"`
@@ -307,7 +307,8 @@ type StoragePolicyConfiguration struct {
 
 // StoragePolicy returns the corresponding storage policy.
 func (p StoragePolicyConfiguration) StoragePolicy() (policy.StoragePolicy, error) {
-	return policy.ParseStoragePolicy(p.Resolution.String() + ":" + p.Retention.String())
+	return policy.ParseStoragePolicy(
+		fmt.Sprintf("%s:%s", p.Resolution.String(), p.Retention.String()))
 }
 
 // StoragePolicyConfigurations are a set of storage policy configurations.
@@ -315,7 +316,7 @@ type StoragePolicyConfigurations []StoragePolicyConfiguration
 
 // StoragePolicies returns storage policies.
 func (p StoragePolicyConfigurations) StoragePolicies() (policy.StoragePolicies, error) {
-	var storagePolicies policy.StoragePolicies
+	storagePolicies := make(policy.StoragePolicies, 0, len(p))
 	for _, policy := range p {
 		value, err := policy.StoragePolicy()
 		if err != nil {
@@ -328,19 +329,19 @@ func (p StoragePolicyConfigurations) StoragePolicies() (policy.StoragePolicies, 
 
 // RollupRuleConfiguration is a rollup rule configuration.
 type RollupRuleConfiguration struct {
-	// Filter is a string separated filter of labe name to label value
-	// glob patterns to filter the mapping rule to.
+	// Filter is a space separated filter of label name to label value glob
+	// patterns to which to filter the mapping rule.
 	// e.g. "app:*nginx* foo:bar baz:qux*qaz*"
 	Filter string `yaml:"filter"`
 
 	// Transforms are a set of of rollup rule transforms.
 	Transforms []TransformConfiguration `yaml:"transforms"`
 
-	// StoragePolicies is the retention/resolution storage policies to keep the
-	// matched metrics at.
+	// StoragePolicies are retention/resolution storage policies at which to keep
+	// the matched metrics.
 	StoragePolicies []StoragePolicyConfiguration `yaml:"storagePolicies"`
 
-	// Optional fields follows.
+	// Optional fields follow.
 
 	// Name is optional.
 	Name string `yaml:"name"`
@@ -360,7 +361,7 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		return view.RollupRule{}, err
 	}
 
-	var ops []pipeline.OpUnion
+	ops := make([]pipeline.OpUnion, 0, len(r.Transforms))
 	for _, elem := range r.Transforms {
 		switch {
 		case elem.Rollup != nil:
@@ -449,7 +450,7 @@ type TransformConfiguration struct {
 // RollupOperationConfiguration is a rollup operation.
 type RollupOperationConfiguration struct {
 	// MetricName is the name of the new metric that is emitted after
-	// the rollup is applied with it's aggregations and group by's.
+	// the rollup is applied with its aggregations and group by's.
 	MetricName string `yaml:"metricName"`
 
 	// GroupBy is a set of labels to group by, only these remain on the
@@ -593,18 +594,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		updateMetadata := rules.NewRuleSetUpdateHelper(0).
 			NewUpdateMetadata(time.Now().UnixNano(), "config")
 		rs := rules.NewEmptyRuleSet("default", updateMetadata)
-		for _, mappingRule := range cfg.Rules.MappingRules {
-			rule, err := mappingRule.Rule()
-			if err != nil {
-				return agg{}, err
-			}
-
-			_, err = rs.AddMappingRule(rule, updateMetadata)
-			if err != nil {
-				return agg{}, err
-			}
-		}
-
 		for _, mappingRule := range cfg.Rules.MappingRules {
 			rule, err := mappingRule.Rule()
 			if err != nil {
