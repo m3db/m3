@@ -69,6 +69,17 @@ const (
 	AggregateTagNames
 )
 
+// FlushType specifies what type of data we are flushing.
+type FlushType int
+
+const (
+	// WarmFlush flushes all warm writes to disk.
+	WarmFlush FlushType = iota
+
+	// ColdFlush flushes all cold writes to disk.
+	ColdFlush
+)
+
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
 	idx.Query

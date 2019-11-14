@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -750,20 +749,20 @@ func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
 ) error {
-	return i.flush(flush, shards, series.WarmWrite)
+	return i.flush(flush, shards, index.WarmFlush)
 }
 
 func (i *nsIndex) ColdFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
 ) error {
-	return i.flush(flush, shards, series.ColdWrite)
+	return i.flush(flush, shards, index.ColdFlush)
 }
 
 func (i *nsIndex) flush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-	flushType series.WriteType,
+	flushType index.FlushType,
 ) error {
 	flushable, err := i.flushableBlocks(shards, flushType)
 	if err != nil {
@@ -812,7 +811,7 @@ func (i *nsIndex) flush(
 
 func (i *nsIndex) flushableBlocks(
 	shards []databaseShard,
-	flushType series.WriteType,
+	flushType index.FlushType,
 ) ([]index.Block, error) {
 	i.state.RLock()
 	defer i.state.RUnlock()
@@ -836,16 +835,16 @@ func (i *nsIndex) flushableBlocks(
 func (i *nsIndex) canFlushBlock(
 	block index.Block,
 	shards []databaseShard,
-	flushType series.WriteType,
+	flushType index.FlushType,
 ) (bool, error) {
 	// Check the block needs flushing because it is sealed and has
 	// any mutable segments that need to be evicted from memory
 	switch flushType {
-	case series.WarmWrite:
+	case index.WarmFlush:
 		if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
 			return false, nil
 		}
-	case series.ColdWrite:
+	case index.ColdFlush:
 		if !block.IsSealed() || !block.NeedsColdFlushMutableSegmentsEvicted() {
 			return false, nil
 		}
