@@ -41,10 +41,13 @@ import (
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
-	// ErrSeriesMatchUniqueIndexFailed is returned when MatchUniqueIndex
+	// errSeriesMatchUniqueIndexFailed is returned when MatchUniqueIndex is
 	// specified for a write but the value does not match the current series
 	// unique index.
-	ErrSeriesMatchUniqueIndexFailed = errors.New("series write failed due to unique index not matched")
+	errSeriesMatchUniqueIndexFailed = errors.New("series write failed due to unique index not matched")
+	// errSeriesMatchUniqueIndexInvalid is returned when MatchUniqueIndex is
+	// specified for a write but the current series unique index is invalid.
+	errSeriesMatchUniqueIndexInvalid = errors.New("series write failed due to unique index being invalid")
 
 	errSeriesAlreadyBootstrapped         = errors.New("series is already bootstrapped")
 	errSeriesNotBootstrapped             = errors.New("series is not yet bootstrapped")
@@ -287,13 +290,18 @@ func (s *dbSeries) Write(
 ) (bool, error) {
 	s.Lock()
 	matchUniqueIndex := wOpts.MatchUniqueIndex
-	if matchUniqueIndex && wOpts.MatchUniqueIndexValue != s.uniqueIndex {
-		// NB(r): Match unique index allows for a caller to
-		// reliably take a reference to a series and call Write(...)
-		// later while keeping a direct reference to the series
-		// while the shard and namespace continues to own and manage
-		// the lifecycle of the series.
-		return false, ErrSeriesMatchUniqueIndexFailed
+	if matchUniqueIndex {
+		if s.uniqueIndex == 0 {
+			return false, errSeriesMatchUniqueIndexInvalid
+		}
+		if s.uniqueIndex != wOpts.MatchUniqueIndexValue {
+			// NB(r): Match unique index allows for a caller to
+			// reliably take a reference to a series and call Write(...)
+			// later while keeping a direct reference to the series
+			// while the shard and namespace continues to own and manage
+			// the lifecycle of the series.
+			return false, errSeriesMatchUniqueIndexFailed
+		}
 	}
 
 	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
@@ -384,8 +392,8 @@ func (s *dbSeries) LoadBlock(
 	writeType WriteType,
 ) error {
 	s.Lock()
-	defer s.Unlock()
 	s.buffer.Load(block, writeType)
+	s.Unlock()
 	return nil
 }
 

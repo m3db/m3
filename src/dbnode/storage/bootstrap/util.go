@@ -62,12 +62,12 @@ var _ NamespaceDataAccumulator = (*TestDataAccumulator)(nil)
 type TestDataAccumulator struct {
 	sync.Mutex
 
-	t         *testing.T
-	ctrl      *gomock.Controller
-	ns        string
-	pool      encoding.MultiReaderIteratorPool
-	readerMap ReaderMap
-	schema    namespace.SchemaDescr
+	t              *testing.T
+	ctrl           *gomock.Controller
+	ns             string
+	pool           encoding.MultiReaderIteratorPool
+	loadedBlockMap ReaderMap
+	schema         namespace.SchemaDescr
 	// writeMap is a map to which values are written directly.
 	writeMap DecodedBlockMap
 	results  map[string]CheckoutSeriesResult
@@ -135,26 +135,28 @@ func (m DecodedBlockMap) VerifyEquals(other DecodedBlockMap) error {
 	return nil
 }
 
-// ReaderAtTime indicates the block start for incoming readers.
+// ReaderAtTime captures incoming block loads, including
+// their start times and tags.
 type ReaderAtTime struct {
 	// Start is the block start time.
 	Start time.Time
 	// Reader is the block segment reader.
 	Reader xio.SegmentReader
-	// Tags is the list of tags in map format.
+	// Tags is the list of tags in a basic string map format.
 	Tags map[string]string
 }
 
-// DumpValues decodes any accumulated values and returns them as values.
-func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
-	if len(a.readerMap) == 0 {
+// dumpLoadedBlocks decodes any accumulated values gathered from calls to
+// series.LoadBlock() and returns them as raw values.
+func (a *TestDataAccumulator) dumpLoadedBlocks() DecodedBlockMap {
+	if len(a.loadedBlockMap) == 0 {
 		return nil
 	}
 
-	decodedMap := make(DecodedBlockMap, len(a.readerMap))
+	decodedMap := make(DecodedBlockMap, len(a.loadedBlockMap))
 	iter := a.pool.Get()
 	defer iter.Close()
-	for k, v := range a.readerMap {
+	for k, v := range a.loadedBlockMap {
 		readers := make([]xio.SegmentReader, 0, len(v))
 		for _, r := range v {
 			readers = append(readers, r.Reader)
@@ -163,11 +165,11 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 		value, err := series.DecodeSegmentValues(readers, iter, a.schema)
 		if err != nil {
 			if err != io.EOF {
-				// fail test.
 				require.NoError(a.t, err)
 			}
 
-			// NB: print out that we encountered EOF here to assist debugging tests.
+			// NB: print out that we encountered EOF here to assist debugging tests,
+			// but this is not necessarily a failure.
 			fmt.Println("EOF: segment had no values.")
 		}
 
@@ -178,8 +180,8 @@ func (a *TestDataAccumulator) DumpValues() DecodedBlockMap {
 	return decodedMap
 }
 
-// CheckoutSeriesWithLock will retrieve a series for writing to
-// and when the accumulator is closed it will ensure that the
+// CheckoutSeriesWithLock will retrieve a series for writing to,
+// and when the accumulator is closed, it will ensure that the
 // series is released (with lock).
 func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
@@ -191,8 +193,8 @@ func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
-// CheckoutSeriesWithoutLock will retrieve a series for writing to
-// and when the accumulator is closed it will ensure that the
+// CheckoutSeriesWithoutLock will retrieve a series for writing to,
+// and when the accumulator is closed, it will ensure that the
 // series is released (without lock).
 func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
@@ -219,7 +221,12 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 			}
 		}
 
-		require.NoError(a.t, tags.Err())
+		if err := tags.Err(); err != nil {
+			return CheckoutSeriesResult{}, err
+		}
+	} else {
+		// Ensure the decoded tags aren't nil.
+		decodedTags = make(map[string]string)
 	}
 
 	stringID := id.String()
@@ -239,11 +246,12 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				return err
 			}
 
-			a.readerMap[stringID] = append(a.readerMap[stringID], ReaderAtTime{
-				Start:  bl.StartTime(),
-				Reader: reader,
-				Tags:   decodedTags,
-			})
+			a.loadedBlockMap[stringID] = append(a.loadedBlockMap[stringID],
+				ReaderAtTime{
+					Start:  bl.StartTime(),
+					Reader: reader,
+					Tags:   decodedTags,
+				})
 
 			return nil
 		}).AnyTimes()
@@ -282,13 +290,10 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	return result, streamErr
 }
 
-// Release will reset and release all checked out series from
-// the accumulator so owners can return them and reset the
-// keys lookup.
+// Release is a no-op on the test accumulator.
 func (a *TestDataAccumulator) Release() {}
 
-// Close will close the data accumulator and will return an error
-// if any checked out series have not been released yet with reset.
+// Close is a no-op on the test accumulator.
 func (a *TestDataAccumulator) Close() error { return nil }
 
 // NamespacesTester is a utility to assist testing bootstrapping.
@@ -301,7 +306,7 @@ type NamespacesTester struct {
 	// One per namespace.
 	Accumulators []*TestDataAccumulator
 
-	// Namespaces is the namespaces for this tester.
+	// Namespaces are the namespaces for this tester.
 	Namespaces Namespaces
 	// Results are the namespace results after bootstrapping.
 	Results NamespaceResults
@@ -325,7 +330,6 @@ func BuildNamespacesTester(
 	ranges result.ShardTimeRanges,
 	mds ...namespace.Metadata,
 ) NamespacesTester {
-
 	return BuildNamespacesTesterWithReaderIteratorPool(
 		t,
 		runOpts,
@@ -335,7 +339,8 @@ func BuildNamespacesTester(
 	)
 }
 
-// BuildNamespacesTesterWithReaderIteratorPool builds a NamespacesTester.
+// BuildNamespacesTesterWithReaderIteratorPool builds a NamespacesTester with a
+// given MultiReaderIteratorPool.
 func BuildNamespacesTesterWithReaderIteratorPool(
 	t *testing.T,
 	runOpts RunOptions,
@@ -358,14 +363,14 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	for _, md := range mds {
 		nsCtx := namespace.NewContextFrom(md)
 		acc := &TestDataAccumulator{
-			t:         t,
-			ctrl:      ctrl,
-			pool:      iterPool,
-			ns:        md.ID().String(),
-			results:   make(map[string]CheckoutSeriesResult),
-			readerMap: make(ReaderMap),
-			writeMap:  make(DecodedBlockMap),
-			schema:    nsCtx.Schema,
+			t:              t,
+			ctrl:           ctrl,
+			pool:           iterPool,
+			ns:             md.ID().String(),
+			results:        make(map[string]CheckoutSeriesResult),
+			loadedBlockMap: make(ReaderMap),
+			writeMap:       make(DecodedBlockMap),
+			schema:         nsCtx.Schema,
 		}
 
 		accumulators = append(accumulators, acc)
@@ -398,11 +403,11 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 // DecodedNamespaceMap is a map of decoded blocks per namespace ID.
 type DecodedNamespaceMap map[string]DecodedBlockMap
 
-// DumpValues dumps any accumulated blocks as decoded series per namespace.
-func (nt *NamespacesTester) DumpValues() DecodedNamespaceMap {
+// DumpLoadedBlocks dumps any loaded blocks as decoded series per namespace.
+func (nt *NamespacesTester) DumpLoadedBlocks() DecodedNamespaceMap {
 	nsMap := make(DecodedNamespaceMap, len(nt.Accumulators))
 	for _, acc := range nt.Accumulators {
-		block := acc.DumpValues()
+		block := acc.dumpLoadedBlocks()
 
 		if block != nil {
 			nsMap[acc.ns] = block
@@ -412,14 +417,15 @@ func (nt *NamespacesTester) DumpValues() DecodedNamespaceMap {
 	return nsMap
 }
 
-// DumpValuesForNamespace dumps any accumulated blocks as decoded series.
-func (nt *NamespacesTester) DumpValuesForNamespace(
+// EnsureDumpLoadedBlocksForNamespace dumps all loaded blocks as decoded series,
+// and fails if the namespace is not found.
+func (nt *NamespacesTester) EnsureDumpLoadedBlocksForNamespace(
 	md namespace.Metadata,
 ) DecodedBlockMap {
 	id := md.ID().String()
 	for _, acc := range nt.Accumulators {
 		if acc.ns == id {
-			return acc.DumpValues()
+			return acc.dumpLoadedBlocks()
 		}
 	}
 
@@ -428,18 +434,27 @@ func (nt *NamespacesTester) DumpValuesForNamespace(
 	return nil
 }
 
+// EnsureNoLoadedBlocks ensures that no blocks have been loaded into any of this
+// testers accumulators.
+func (nt *NamespacesTester) EnsureNoLoadedBlocks() {
+	require.Equal(nt.t, 0, len(nt.DumpLoadedBlocks()))
+}
+
 // DumpWrites dumps the writes encountered for all namespaces.
 func (nt *NamespacesTester) DumpWrites() DecodedNamespaceMap {
 	nsMap := make(DecodedNamespaceMap, len(nt.Accumulators))
 	for _, acc := range nt.Accumulators {
-		nsMap[acc.ns] = acc.writeMap
+		if len(acc.writeMap) > 0 {
+			nsMap[acc.ns] = acc.writeMap
+		}
 	}
 
 	return nsMap
 }
 
-// DumpWritesForNamespace dumps the writes encountered for the given namespace.
-func (nt *NamespacesTester) DumpWritesForNamespace(
+// EnsureDumpWritesForNamespace dumps the writes encountered for the
+// given namespace, and fails if the namespace is not found.
+func (nt *NamespacesTester) EnsureDumpWritesForNamespace(
 	md namespace.Metadata,
 ) DecodedBlockMap {
 	id := md.ID().String()
@@ -454,9 +469,16 @@ func (nt *NamespacesTester) DumpWritesForNamespace(
 	return nil
 }
 
-// DumpAllForNamespace dumps all results for a single namespace. The results are
-// unsorted, so if that's important, they should be sorted prior to comparison.
-func (nt *NamespacesTester) DumpAllForNamespace(
+// EnsureNoWrites ensures that no writes have been written into any of this
+// testers accumulators.
+func (nt *NamespacesTester) EnsureNoWrites() {
+	require.Equal(nt.t, 0, len(nt.DumpWrites()))
+}
+
+// EnsureDumpAllForNamespace dumps all results for a single namespace, and
+// fails if the namespace is not found. The results are unsorted; if sorted
+// order is important for verification, they should be sorted afterwards.
+func (nt *NamespacesTester) EnsureDumpAllForNamespace(
 	md namespace.Metadata,
 ) (DecodedBlockMap, error) {
 	id := md.ID().String()
@@ -466,13 +488,13 @@ func (nt *NamespacesTester) DumpAllForNamespace(
 		}
 
 		writeMap := acc.writeMap
-		dumpMap := acc.DumpValues()
-		merged := make(DecodedBlockMap, len(writeMap)+len(dumpMap))
+		loadedBlockMap := acc.dumpLoadedBlocks()
+		merged := make(DecodedBlockMap, len(writeMap)+len(loadedBlockMap))
 		for k, v := range writeMap {
 			merged[k] = v
 		}
 
-		for k, v := range dumpMap {
+		for k, v := range loadedBlockMap {
 			if vals, found := merged[k]; found {
 				merged[k] = append(vals, v...)
 			} else {
@@ -487,15 +509,15 @@ func (nt *NamespacesTester) DumpAllForNamespace(
 		"valid namespaces are %v", id, nt.Namespaces)
 }
 
-// DumpReadersForNamespace dumps the readers and their start times for a given
-// namespace.
-func (nt *NamespacesTester) DumpReadersForNamespace(
+// EnsureDumpReadersForNamespace dumps the readers and their start times for a
+// given namespace, and fails if the namespace is not found.
+func (nt *NamespacesTester) EnsureDumpReadersForNamespace(
 	md namespace.Metadata,
 ) ReaderMap {
 	id := md.ID().String()
 	for _, acc := range nt.Accumulators {
 		if acc.ns == id {
-			return acc.readerMap
+			return acc.loadedBlockMap
 		}
 	}
 
@@ -504,7 +526,8 @@ func (nt *NamespacesTester) DumpReadersForNamespace(
 	return nil
 }
 
-// ResultForNamespace gives the result for the given namespace.
+// ResultForNamespace gives the result for the given namespace, and fails if
+// the namespace is not found.
 func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
 	result, found := nt.Results.Results.Get(id)
 	require.True(nt.t, found)
@@ -537,7 +560,6 @@ func validateRanges(ac xtime.Ranges, ex xtime.Ranges) error {
 
 	// Now make sure no ranges outside of expected.
 	expectedWithAddedRanges := ex.AddRanges(ac)
-
 	if ex.Len() != expectedWithAddedRanges.Len() {
 		return fmt.Errorf("expected with re-added ranges not equal")
 	}

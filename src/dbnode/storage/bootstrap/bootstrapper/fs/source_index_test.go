@@ -318,6 +318,7 @@ func TestBootstrapIndex(t *testing.T) {
 	tester.TestReadWith(src)
 	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexWithPersist(t *testing.T) {
@@ -441,6 +442,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
@@ -500,6 +502,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
@@ -591,4 +594,5 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(2), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	tester.EnsureNoWrites()
 }

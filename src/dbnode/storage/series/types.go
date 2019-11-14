@@ -50,7 +50,7 @@ type DatabaseSeries interface {
 	Tags() ident.Tags
 
 	// UniqueIndex is the unique index for the series (for this current
-	// process, unless the time series becomes expired).
+	// process, unless the time series expires).
 	UniqueIndex() uint64
 
 	// Tick executes async updates
@@ -103,7 +103,7 @@ type DatabaseSeries interface {
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
-	/// Load loads a single block into the series.
+	/// LoadBlock loads a single block into the series.
 	LoadBlock(
 		block block.DatabaseBlock,
 		writeType WriteType,
@@ -405,16 +405,16 @@ type WriteOptions struct {
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
 	// MatchUniqueIndex specifies whether the series unique index
-	// must match the unique index value specified (to ensure series
-	// still is the same series as previously referenced).
+	// must match the unique index value specified (to ensure the series
+	// being written is the same series as previously referenced).
 	MatchUniqueIndex bool
 	// MatchUniqueIndexValue is the series unique index value that
 	// must match the current series unique index value (to ensure series
-	// still is the same series as previously referenced).
+	// being written is the same series as previously referenced).
 	MatchUniqueIndexValue uint64
 	// BootstrapWrite allows a warm write outside the time window as long as the
-	// block hasn't been already flushed on disk, this is useful for
-	// bootstrappers filling data they know have not already been flushed to
+	// block hasn't already been flushed to disk. This is useful for
+	// bootstrappers filling data that they know has not yet been flushed to
 	// disk.
 	BootstrapWrite bool
 }

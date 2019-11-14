@@ -210,6 +210,9 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 					expectedDataUnfulfilled,
 					expectedIndexUnfulfilled,
 				)
+
+				tester.EnsureNoLoadedBlocks()
+				tester.EnsureNoWrites()
 			}
 		})
 	}

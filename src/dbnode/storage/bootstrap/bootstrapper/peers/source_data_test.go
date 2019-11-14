@@ -131,6 +131,8 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	defer tester.Finish()
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
@@ -162,6 +164,8 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	_, err = src.Read(tester.Namespaces)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
@@ -210,7 +214,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	defer tester.Finish()
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
-	vals := tester.DumpValues()
+	vals := tester.DumpLoadedBlocks()
 	assert.Equal(t, 1, len(vals))
 	series, found := vals[nsMetadata.ID().String()]
 	require.True(t, found)
@@ -219,6 +223,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	points, found := series[goodID.String()]
 	require.True(t, found)
 	assert.Equal(t, 0, len(points))
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
@@ -407,6 +412,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1, "empty": 1,
 		}, closes)
+
+		tester.EnsureNoLoadedBlocks()
+		tester.EnsureNoWrites()
 	}
 }
 
@@ -442,13 +450,14 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		results[resultsKey{shard, start.UnixNano(), end.UnixNano(), expectedErr}] = r
 	}
 
-	segmentError := fmt.Errorf("segment err")
+	segmentError := errors.New("segment err")
 
 	// foo results
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, segmentError)
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().
+		Stream(gomock.Any()).Return(xio.EmptyBlockReader, errors.New("stream err"))
 	addResult(0, "foo", fooBlocks[0], true)
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
@@ -740,6 +749,9 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"foo": 2, "bar": 2, "baz": 2, "qux": 2,
 	}, closes)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func assertBlockChecksum(t *testing.T, expectedChecksum uint32, block block.DatabaseBlock) {

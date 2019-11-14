@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"sort"
 	"testing"
@@ -294,9 +293,8 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 					{curr.Add(blockSize), 5, xtime.Second, nil},
 					{curr.Add(2 * blockSize), 6, xtime.Second, nil},
 				}
-				nsCtx     = namespace.Context{}
-				blockOpts = opts.DatabaseBlockOptions()
-				// blocks    = block.NewDatabaseSeriesBlocks(len(loadWrites))
+				nsCtx                        = namespace.Context{}
+				blockOpts                    = opts.DatabaseBlockOptions()
 				alreadyWarmFlushedBlockStart = curr.Add(blockSize).Truncate(blockSize)
 				notYetWarmFlushedBlockStart  = curr.Add(2 * blockSize).Truncate(blockSize)
 				blockStates                  = BootstrappedBlockStateSnapshot{
@@ -354,7 +352,6 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
 				})
 
-				fmt.Println(tc)
 				if tc.bootstrapping {
 					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
 					// correctly based on the flush state.

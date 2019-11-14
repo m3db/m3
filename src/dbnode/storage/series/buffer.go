@@ -438,8 +438,8 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 
 func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
 	// TODO(r): If warm write then validate that the block doesn't reside on
-	// disk by asking the shard for it's bootstrap flush states and verifying
-	// the block does not exist yet.
+	// disk by asking the shard for its bootstrap flush states and verifying
+	// that the block does not exist yet.
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)

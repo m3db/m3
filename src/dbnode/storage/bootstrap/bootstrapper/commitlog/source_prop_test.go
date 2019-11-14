@@ -1,4 +1,4 @@
-//  big
+// +build big
 //
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
@@ -77,7 +77,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			namespace.NewOptions().IndexOptions().SetEnabled(true),
 		)
 	)
-	// seed = 1573050912294562000
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
@@ -427,7 +426,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			}
 
-			written, err := tester.DumpAllForNamespace(nsMeta)
+			written, err := tester.EnsureDumpAllForNamespace(nsMeta)
 			if err != nil {
 				return false, err
 			}

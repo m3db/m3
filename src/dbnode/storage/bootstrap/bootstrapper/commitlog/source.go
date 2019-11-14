@@ -188,12 +188,13 @@ func (s *commitLogSource) Read(
 	}
 
 	var (
-		// Emit bootstrapping gauge for duration of ReadData
+		// Emit bootstrapping gauge for duration of ReadData.
 		doneReadingData         = s.metrics.emitBootstrapping()
 		encounteredCorruptData  = false
 		fsOpts                  = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix          = fsOpts.FilePathPrefix()
-		namespaceResults        = make(map[string]*readNamespaceResult)
+		namespaceIter           = namespaces.Namespaces.Iter()
+		namespaceResults        = make(map[string]*readNamespaceResult, len(namespaceIter))
 		setInitialTopologyState bool
 		initialTopologyState    *topology.StateSnapshot
 	)
@@ -201,7 +202,7 @@ func (s *commitLogSource) Read(
 
 	startSnapshotsRead := s.nowFn()
 	s.log.Info("read snapshots start")
-	for _, elem := range namespaces.Namespaces.Iter() {
+	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
 
@@ -242,7 +243,6 @@ func (s *commitLogSource) Read(
 		for shard, tr := range shardTimeRanges {
 			err := s.bootstrapShardSnapshots(
 				ns.Metadata, accumulator, shard, tr, blockSize,
-				snapshotFilesByShard[shard],
 				mostRecentCompleteSnapshotByBlockShard)
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
@@ -424,14 +424,16 @@ func (s *commitLogSource) Read(
 				// Resolve the series in the accumulator.
 				accumulator := ns.accumulator
 
-				// NB(r): Make only encoded tags is used and not series.Tags (we
-				// explicitly ask for references to be returned and to avoid
-				// decoding the tags if we don't have to).
+				// NB(r): Make sure that only series.EncodedTags are used and not
+				// series.Tags (we explicitly ask for references to be returned and to
+				// avoid decoding the tags if we don't have to).
 				if decodedTags := len(entry.Series.Tags.Values()); decodedTags > 0 {
 					msg := "commit log reader expects encoded tags"
 					instrumentOpts := s.opts.ResultOptions().InstrumentOptions()
 					instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
-						l.Error(msg, zap.Int("decodedTags", decodedTags))
+						l.Error(msg,
+							zap.Int("decodedTags", decodedTags),
+							zap.Int("encodedTags", len(entry.Series.EncodedTags)))
 					})
 					err := instrument.InvariantErrorf(fmt.Sprintf("%s: decoded=%d", msg, decodedTags))
 					return bootstrap.NamespaceResults{}, err
@@ -654,7 +656,6 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	shard uint32,
 	shardTimeRanges xtime.Ranges,
 	blockSize time.Duration,
-	snapshotFiles fs.FileSetFilesSlice,
 	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 ) error {
 	rangeIter := shardTimeRanges.Iter()
@@ -689,10 +690,9 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				continue
 			}
 
-			err := s.bootstrapShardBlockSnapshot(
+			if err := s.bootstrapShardBlockSnapshot(
 				ns, accumulator, shard, blockStart, blockSize,
-				snapshotFiles, mostRecentCompleteSnapshotForShardBlock)
-			if err != nil {
+				mostRecentCompleteSnapshotForShardBlock); err != nil {
 				return err
 			}
 		}
@@ -707,7 +707,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	shard uint32,
 	blockStart time.Time,
 	blockSize time.Duration,
-	snapshotFiles fs.FileSetFilesSlice,
 	mostRecentCompleteSnapshot fs.FileSetFile,
 ) error {
 	var (

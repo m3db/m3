@@ -30,35 +30,47 @@ import (
 )
 
 func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {
+	testNoOpNoneBootstrapperBootstrapProvider(t, false)
+}
+
+func TestNoOpNoneBootstrapperBootstrapProviderWithIndex(t *testing.T) {
+	testNoOpNoneBootstrapperBootstrapProvider(t, true)
+}
+
+func testNoOpNoneBootstrapperBootstrapProvider(t *testing.T, indexEnabled bool) {
 	bs := NewNoOpNoneBootstrapperProvider()
 	ranges := testShardTimeRanges()
 	bootstrapper, err := bs.Provide()
 	require.NoError(t, err)
-	for _, indexEnabled := range []bool{true, false} {
-		mds := namespace.MustBuildMetadatas(indexEnabled, "foo", "bar")
-		opts := bootstrap.NewRunOptions()
-		ns := bootstrap.BuildNamespacesTester(t, opts, ranges, mds...)
-		defer ns.Finish()
-		ns.TestBootstrapWith(bootstrapper)
-		for _, md := range mds {
-			ns.TestUnfulfilledForNamespace(md, ranges, ranges)
-		}
+	mds := namespace.MustBuildMetadatas(indexEnabled, "foo", "bar")
+	opts := bootstrap.NewRunOptions()
+	ns := bootstrap.BuildNamespacesTester(t, opts, ranges, mds...)
+	defer ns.Finish()
+	ns.TestBootstrapWith(bootstrapper)
+	for _, md := range mds {
+		ns.TestUnfulfilledForNamespace(md, ranges, ranges)
 	}
 }
 
 func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
+	testNoOpAllBootstrapperBootstrapProvider(t, false)
+}
+
+func TestNoOpAllBootstrapperBootstrapProviderWithIndex(t *testing.T) {
+	testNoOpAllBootstrapperBootstrapProvider(t, true)
+}
+
+func testNoOpAllBootstrapperBootstrapProvider(t *testing.T, indexEnabled bool) {
 	bs := NewNoOpAllBootstrapperProvider()
 	ranges := testShardTimeRanges()
 	bootstrapper, err := bs.Provide()
 	require.NoError(t, err)
-	for _, indexEnabled := range []bool{true, false} {
-		mds := namespace.MustBuildMetadatas(indexEnabled, "foo", "bar")
-		opts := bootstrap.NewRunOptions()
-		ns := bootstrap.BuildNamespacesTester(t, opts, ranges, mds...)
-		defer ns.Finish()
-		ns.TestBootstrapWith(bootstrapper)
-		for _, md := range mds {
-			ns.TestUnfulfilledForNamespaceIsEmpty(md)
-		}
+	mds := namespace.MustBuildMetadatas(indexEnabled, "foo", "bar")
+	opts := bootstrap.NewRunOptions()
+	ns := bootstrap.BuildNamespacesTester(t, opts, ranges, mds...)
+	defer ns.Finish()
+	ns.TestBootstrapWith(bootstrapper)
+	for _, md := range mds {
+		ns.TestUnfulfilledForNamespaceIsEmpty(md)
 	}
 }

@@ -107,7 +107,7 @@ func (i *ReuseableBytesID) Finalize() {
 	// Noop as it will be re-used.
 }
 
-// String reutnrs the bytes ID as a string.
+// String returns the bytes ID as a string.
 func (i *ReuseableBytesID) String() string {
 	return string(i.bytes)
 }

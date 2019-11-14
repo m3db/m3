@@ -398,8 +398,8 @@ func unfulfilledAndEmpty(t *testing.T, src bootstrap.Source,
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
-	vals := tester.DumpValues()
-	assert.Equal(t, 0, len(vals))
+	tester.EnsureNoWrites()
+	tester.EnsureNoLoadedBlocks()
 }
 
 func TestReadEmptyRangeErr(t *testing.T) {
@@ -431,7 +431,7 @@ func validateReadResults(
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
-	readers := tester.DumpReadersForNamespace(nsMD)
+	readers := tester.EnsureDumpReadersForNamespace(nsMD)
 	require.Equal(t, 2, len(readers))
 	ids := []string{"foo", "bar"}
 	data := [][]byte{
@@ -453,6 +453,8 @@ func validateReadResults(
 		require.NoError(t, err)
 		require.Equal(t, data[i], b[:n])
 	}
+
+	tester.EnsureNoWrites()
 }
 
 func TestReadNilTimeRanges(t *testing.T) {
@@ -492,6 +494,9 @@ func TestReadOpenFileError(t *testing.T) {
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestReadDataCorruptionErrorNoIndex(t *testing.T) {
@@ -505,7 +510,7 @@ func TestReadDataCorruptionErrorWithIndex(t *testing.T) {
 
 func testReadDataCorruptionErrorWithIndexEnabled(
 	t *testing.T,
-	enabled bool,
+	withIndex bool,
 	expectedIndexUnfulfilled result.ShardTimeRanges,
 ) {
 	dir := createTempDir(t)
@@ -521,12 +526,13 @@ func testReadDataCorruptionErrorWithIndexEnabled(
 	src := newFileSystemSource(newTestOptions(dir))
 	strs := testShardTimeRanges()
 
-	nsMD := testNsMetadataWithIndex(t, enabled)
+	nsMD := testNsMetadataWithIndex(t, withIndex)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, strs, nsMD)
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespace(nsMD, strs, expectedIndexUnfulfilled)
+	tester.EnsureNoWrites()
 }
 
 func TestReadTimeFilter(t *testing.T) {
@@ -618,6 +624,8 @@ func testReadValidateErrorWithIndexEnabled(
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestReadOpenErrorNoIndex(t *testing.T) {
@@ -677,6 +685,8 @@ func testReadOpenError(
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestReadDeleteOnError(t *testing.T) {
@@ -740,6 +750,7 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
+	tester.EnsureNoWrites()
 }
 
 func TestReadTags(t *testing.T) {
@@ -765,11 +776,12 @@ func TestReadTags(t *testing.T) {
 	defer tester.Finish()
 
 	tester.TestReadWith(src)
-	readers := tester.DumpReadersForNamespace(nsMD)
+	readers := tester.EnsureDumpReadersForNamespace(nsMD)
 	require.Equal(t, 1, len(readers))
 	readersForTime, found := readers[id]
 	require.True(t, found)
 	require.Equal(t, 1, len(readersForTime))
 	reader := readersForTime[0]
 	require.Equal(t, tags, reader.Tags)
+	tester.EnsureNoWrites()
 }

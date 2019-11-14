@@ -337,6 +337,8 @@ func TestBootstrapIndex(t *testing.T) {
 		end := start.Add(indexBlockSize)
 		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
 	}
+
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexErr(t *testing.T) {
@@ -524,6 +526,8 @@ func TestBootstrapIndexErr(t *testing.T) {
 		end := start.Add(indexBlockSize)
 		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
 	}
+
+	tester.EnsureNoWrites()
 }
 
 func assertShardRangesEqual(t *testing.T, a, b result.ShardTimeRanges) {

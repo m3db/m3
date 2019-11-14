@@ -28,14 +28,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -349,8 +348,8 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	for i := range errs {
 		shardID := uint32(i)
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().IsBootstrapped().Return(false).AnyTimes()
-		shard.EXPECT().ID().Return(shardID).AnyTimes()
+		shard.EXPECT().IsBootstrapped().Return(false)
+		shard.EXPECT().ID().Return(shardID)
 		shard.EXPECT().Bootstrap().Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardIDs = append(shardIDs, shardID)
@@ -392,7 +391,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	for _, testShard := range needsBootstrap {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
-		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
+		shard.EXPECT().ID().Return(testShard.ID())
 		shard.EXPECT().Bootstrap().Return(nil)
 		ns.shards[testShard.ID()] = shard
 		shardIDs = append(shardIDs, testShard.ID())
@@ -401,8 +400,8 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	for _, testShard := range alreadyBootstrapped {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(true)
+		shard.EXPECT().ID().Return(testShard.ID())
 		ns.shards[testShard.ID()] = shard
-		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
 		shardIDs = append(shardIDs, testShard.ID())
 	}
 

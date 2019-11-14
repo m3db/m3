@@ -200,4 +200,6 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	_, err = src.Read(tester.Namespaces)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }

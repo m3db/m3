@@ -67,6 +67,7 @@ type ProcessNamespace struct {
 
 // Namespaces are a set of namespaces being bootstrapped.
 type Namespaces struct {
+	// Namespaces are the namespaces being bootstrapped.
 	Namespaces *NamespacesMap
 }
 
@@ -82,7 +83,7 @@ type Namespace struct {
 	DataTargetRange TargetRange
 	// IndexTargetRange is the index target bootstrap range.
 	IndexTargetRange TargetRange
-	// DataRunOptions are the options for data bootstrap for this
+	// DataRunOptions are the options for the data bootstrap for this
 	// namespace.
 	DataRunOptions NamespaceRunOptions
 	// IndexRunOptions are the options for the index bootstrap for this
@@ -92,8 +93,11 @@ type Namespace struct {
 
 // NamespaceRunOptions are the run options for a bootstrap process run.
 type NamespaceRunOptions struct {
+	// ShardTimeRanges are the time ranges for the shards that should be fulfilled
+	// by the bootstrapper.
 	ShardTimeRanges result.ShardTimeRanges
-	RunOptions      RunOptions
+	// RunOptions are the run options for the bootstrap run.
+	RunOptions RunOptions
 }
 
 // NamespaceDataAccumulator is the namespace data accumulator.
@@ -134,13 +138,17 @@ type NamespaceDataAccumulator interface {
 
 // CheckoutSeriesResult is the result of a checkout series operation.
 type CheckoutSeriesResult struct {
-	Series      series.DatabaseSeries
-	Shard       uint32
+	// Series is the series for the checkout operation.
+	Series series.DatabaseSeries
+	// Shard is the shard for the series.
+	Shard uint32
+	// UniqueIndex is the unique index for the series.
 	UniqueIndex uint64
 }
 
 // NamespaceResults is the result of a bootstrap process.
 type NamespaceResults struct {
+	// Results is the result of a bootstrap process.
 	Results *NamespaceResultsMap
 }
 

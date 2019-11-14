@@ -133,6 +133,9 @@ func (s *peersSource) Read(
 		namespace := elem.Value()
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
+			s.log.Info("skipping bootstrap for namespace based on options",
+				zap.Stringer("namespace", md.ID()))
+
 			// Not bootstrapping for index.
 			continue
 		}

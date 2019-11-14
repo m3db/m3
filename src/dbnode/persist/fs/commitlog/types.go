@@ -103,7 +103,7 @@ type LogEntryMetadata struct {
 	SeriesUniqueIndex uint64
 }
 
-// Iterator provides an iterator for commit logs
+// Iterator provides an iterator for commit logs.
 type Iterator interface {
 	// Next returns whether the iterator has the next value.
 	Next() bool
@@ -118,7 +118,7 @@ type Iterator interface {
 	Close()
 }
 
-// IteratorOpts is a struct that contains coptions for the Iterator
+// IteratorOpts is a struct that contains coptions for the Iterator.
 type IteratorOpts struct {
 	CommitLogOptions    Options
 	FileFilterPredicate FileFilterPredicate

@@ -217,7 +217,6 @@ func (b bootstrapProcess) Run(
 		begin := b.nowFn()
 		res, err := b.bootstrapper.Bootstrap(namespaces)
 		took := b.nowFn().Sub(begin)
-
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
 			nsID := namespace.Metadata.ID()

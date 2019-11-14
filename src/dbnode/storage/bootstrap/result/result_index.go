@@ -69,13 +69,13 @@ func (r *indexBootstrapResult) Add(block IndexBlock, unfulfilled ShardTimeRanges
 }
 
 func (r *indexBootstrapResult) NumSeries() int {
-	size := 0
+	var size int64
 	for _, b := range r.results {
 		for _, s := range b.segments {
-			size += int(s.Size())
+			size += s.Size()
 		}
 	}
-	return size
+	return int(size)
 }
 
 // Add will add an index block to the collection, merging if one already

@@ -41,22 +41,17 @@ import (
 
 var namespaceOptions = namespace.NewOptions()
 
-func toEncodedBytes(tags ...ident.Tag) []byte {
-	testTagEncodingPool := serialize.
-		NewTagEncoderPool(serialize.NewTagEncoderOptions(),
-			pool.NewObjectPoolOptions().SetSize(1))
-	testTagEncodingPool.Init()
-	encoder := testTagEncodingPool.Get()
-
+func toEncodedBytes(
+	t *testing.T,
+	pool serialize.TagEncoderPool,
+	tags ...ident.Tag,
+) []byte {
+	encoder := pool.Get()
 	seriesTags := ident.NewTags(tags...)
-	if err := encoder.Encode(ident.NewTagsIterator(seriesTags)); err != nil {
-		panic(err)
-	}
+	err := encoder.Encode(ident.NewTagsIterator(seriesTags))
+	require.NoError(t, err)
 	data, ok := encoder.Data()
-	if !ok {
-		panic("could not encode tags")
-	}
-
+	require.True(t, ok)
 	return data.Bytes()
 }
 
@@ -93,13 +88,20 @@ func TestBootstrapIndex(t *testing.T) {
 	now := time.Now()
 	start := now.Truncate(indexBlockSize)
 
-	fooTags := toEncodedBytes(
+	testTagEncodingPool := serialize.
+		NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+			pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool.Init()
+
+	fooTags := toEncodedBytes(t, testTagEncodingPool,
 		ident.StringTag("city", "ny"),
 		ident.StringTag("conference", "monitoroma"),
 	)
 
-	barTags := toEncodedBytes(ident.StringTag("city", "sf"))
-	bazTags := toEncodedBytes(ident.StringTag("city", "oakland"))
+	barTags := toEncodedBytes(t, testTagEncodingPool,
+		ident.StringTag("city", "sf"))
+	bazTags := toEncodedBytes(t, testTagEncodingPool,
+		ident.StringTag("city", "oakland"))
 
 	shardn := func(n int) uint32 { return uint32(n) }
 	foo := ts.Series{UniqueIndex: 0, Namespace: testNamespaceID, Shard: shardn(0),
@@ -180,14 +182,15 @@ func TestBootstrapIndex(t *testing.T) {
 	tester.TestUnfulfilledForNamespaceIsEmpty(md2)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md3)
 
-	nsWrites := tester.DumpWritesForNamespace(md1)
+	nsWrites := tester.EnsureDumpWritesForNamespace(md1)
 	enforceValuesAreCorrect(t, valuesNs, nsWrites)
 
-	otherNamespaceWrites := tester.DumpWritesForNamespace(md2)
+	otherNamespaceWrites := tester.EnsureDumpWritesForNamespace(md2)
 	enforceValuesAreCorrect(t, valuesOtherNs, otherNamespaceWrites)
 
-	noWrites := tester.DumpWritesForNamespace(md3)
+	noWrites := tester.EnsureDumpWritesForNamespace(md3)
 	require.Equal(t, 0, len(noWrites))
+	tester.EnsureNoLoadedBlocks()
 }
 
 func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
@@ -223,6 +226,8 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func verifyIndexResultsAreCorrect(
@@ -400,4 +405,7 @@ func TestBootstrapIndexFailsForDecodedTags(t *testing.T) {
 
 	_, err = src.Read(tester.Namespaces)
 	require.Error(t, err)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }

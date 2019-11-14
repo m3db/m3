@@ -21,20 +21,16 @@
 package commitlog
 
 import (
-	"bytes"
 	"errors"
 	"io"
-	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -84,6 +80,12 @@ func TestReadEmpty(t *testing.T) {
 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	values, err := tester.EnsureDumpAllForNamespace(md)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(values))
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestReadErrorOnNewIteratorError(t *testing.T) {
@@ -110,6 +112,8 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	res, err := src.Read(tester.Namespaces)
 	require.Error(t, err)
 	require.Nil(t, res.Results)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestReadOrderedValues(t *testing.T) {
@@ -166,9 +170,10 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
-	read := tester.DumpWritesForNamespace(md)
+	read := tester.EnsureDumpWritesForNamespace(md)
 	require.Equal(t, 2, len(read))
 	enforceValuesAreCorrect(t, values[:4], read)
+	tester.EnsureNoLoadedBlocks()
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -221,9 +226,10 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
-	read := tester.DumpWritesForNamespace(md)
+	read := tester.EnsureDumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
 	enforceValuesAreCorrect(t, values, read)
+	tester.EnsureNoLoadedBlocks()
 }
 
 // TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a
@@ -275,9 +281,10 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
-	read := tester.DumpWritesForNamespace(md)
+	read := tester.EnsureDumpWritesForNamespace(md)
 	require.Equal(t, 2, len(read))
 	enforceValuesAreCorrect(t, values, read)
+	tester.EnsureNoLoadedBlocks()
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -329,9 +336,10 @@ func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, se
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
-	read := tester.DumpWritesForNamespace(md)
+	read := tester.EnsureDumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
 	enforceValuesAreCorrect(t, values[1:3], read)
+	tester.EnsureNoLoadedBlocks()
 }
 
 func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
@@ -478,15 +486,16 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	tester.TestReadWith(src)
 	tester.TestUnfulfilledForNamespaceIsEmpty(md)
 
-	read := tester.DumpWritesForNamespace(md)
+	// NB: this case is a little tricky in that this test is combining writes
+	// that come through both the `LoadBlock()` methods (for snapshotted data),
+	// and the `Write()` method  (for data that is not snapshotted) into the
+	// namespace data accumulator. Thus writes into the accumulated series should
+	// be verified against both of these methods.
+	read := tester.EnsureDumpWritesForNamespace(md)
 	require.Equal(t, 1, len(read))
 	enforceValuesAreCorrect(t, commitLogValues[0:3], read)
 
-	// NB: this case is a little tricky in that it's combining writes that come
-	// through both the `.Write()` and `.LoadBlock()` methods, which get read
-	// separately in the bootstrap test utility. Thus it's necessary to combine
-	// the results from both paths here prior to comparison.
-	read = tester.DumpValuesForNamespace(md)
+	read = tester.EnsureDumpLoadedBlocksForNamespace(md)
 	enforceValuesAreCorrect(t, snapshotValues, read)
 }
 
@@ -499,22 +508,6 @@ type testValue struct {
 	v float64
 	u xtime.Unit
 	a ts.Annotation
-}
-
-type seriesShardResultBlock struct {
-	encoder encoding.Encoder
-}
-
-type seriesShardResult struct {
-	blocks map[xtime.UnixNano]*seriesShardResultBlock
-	result block.DatabaseSeriesBlocks
-}
-
-func equals(ac series.DecodedTestValue, ex testValue) bool {
-	return ac.Timestamp.Equal(ex.t) &&
-		math.Abs(ac.Value-ex.v) < 0.000001 &&
-		ac.Unit == ex.u &&
-		bytes.Equal(ac.Annotation, ex.a)
 }
 
 type testValues []testValue
@@ -561,14 +554,6 @@ type testCommitLogIterator struct {
 	idx    int
 	err    error
 	closed bool
-}
-
-type testValuesByTime testValues
-
-func (v testValuesByTime) Len() int      { return len(v) }
-func (v testValuesByTime) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
-func (v testValuesByTime) Less(i, j int) bool {
-	return v[i].t.Before(v[j].t)
 }
 
 func newTestCommitLogIterator(values testValues, err error) *testCommitLogIterator {

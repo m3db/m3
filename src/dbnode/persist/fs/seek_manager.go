@@ -41,6 +41,7 @@ import (
 const (
 	seekManagerCloseInterval        = time.Second
 	reusableSeekerResourcesPoolSize = 10
+	concurrentCacheShardIndices     = 16
 )
 
 var (
@@ -54,10 +55,6 @@ var (
 	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
 	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
 	errOutOfOrderUpdateOpenLease                     = errors.New("received update open lease volumes out of order")
-
-	// NB(r): Since this is mainly IO bound work, perfectly
-	// find to do this in parallel.
-	concurrentCacheShardIndices = 16
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -172,7 +169,7 @@ func NewSeekerManager(
 	})
 
 	// NB(r): Since this is mainly IO bound work, perfectly
-	// find to do this in parallel.
+	// fine to do this in parallel.
 	cacheShardIndicesWorkers := xsync.NewWorkerPool(concurrentCacheShardIndices)
 	cacheShardIndicesWorkers.Init()
 

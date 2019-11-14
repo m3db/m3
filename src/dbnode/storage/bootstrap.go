@@ -141,7 +141,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 
 	// Keep performing bootstraps until none pending and no error returned.
 	var result BootstrapResult
-	for i := 0; ; i++ {
+	for i := 0; true; i++ {
 		// NB(r): Decouple implementation of bootstrap so can override in tests.
 		bootstrapErr := m.bootstrapFn()
 		if bootstrapErr != nil {
@@ -212,8 +212,6 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	uniqueShards := make(map[uint32]struct{})
-	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
 	accmulators := make([]bootstrap.NamespaceDataAccumulator, 0, len(namespaces))
 	defer func() {
 		// Close all accumulators at bootstrap completion, only error
@@ -230,9 +228,15 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 	}()
 
+	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	var uniqueShards map[uint32]struct{}
 	for _, namespace := range namespaces {
 		namespaceShards := namespace.GetOwnedShards()
 		bootstrapShards := make([]uint32, 0, len(namespaceShards))
+		if uniqueShards == nil {
+			uniqueShards = make(map[uint32]struct{}, len(namespaceShards))
+		}
+
 		for _, shard := range namespaceShards {
 			if shard.IsBootstrapped() {
 				continue
@@ -270,6 +274,7 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
+	m.log.Info("bootstrap succeeded, marking namespaces complete", logFields...)
 	// Use a multi-error here because we want to at least bootstrap
 	// as many of the namespaces as possible.
 	multiErr := xerrors.NewMultiError()
@@ -288,6 +293,13 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 
 		if err := namespace.Bootstrap(result); err != nil {
+			m.log.Info("bootstrap error", append(logFields,
+				[]zapcore.Field{
+					zap.String("namespace", id.String()),
+					zap.Error(err),
+				}...,
+			)...,
+			)
 			multiErr = multiErr.Add(err)
 		}
 	}

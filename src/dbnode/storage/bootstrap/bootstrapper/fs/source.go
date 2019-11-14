@@ -170,11 +170,7 @@ func (s *fileSystemSource) Read(
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
 			// Not bootstrapping for index.
-			continue
-		}
-
-		if !md.Options().IndexOptions().Enabled() {
-			s.log.Info("options disabled for namespace",
+			s.log.Info("bootstrapping for namespace disabled by options",
 				zap.String("ns", md.ID().String()))
 			continue
 		}
@@ -207,7 +203,7 @@ func (s *fileSystemSource) availability(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) (result.ShardTimeRanges, error) {
-	result := make(map[uint32]xtime.Ranges)
+	result := make(map[uint32]xtime.Ranges, len(shardsTimeRanges))
 	for shard, ranges := range shardsTimeRanges {
 		result[shard] = s.shardAvailability(md.ID(), shard, ranges)
 	}
@@ -412,19 +408,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	runOpts bootstrap.RunOptions,
 	readerPool *readerPool,
-	retriever block.DatabaseBlockRetriever,
 	readersCh <-chan timeWindowReaders,
 ) *runResult {
 	var (
-		runResult         = newRunResult()
-		resultOpts        = s.opts.ResultOptions()
-		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-		wg                sync.WaitGroup
-		processors        xsync.WorkerPool
+		runResult  = newRunResult()
+		resultOpts = s.opts.ResultOptions()
+		wg         sync.WaitGroup
+		processors xsync.WorkerPool
 	)
-	if retriever != nil {
-		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
-	}
 
 	switch run {
 	case bootstrapDataRunType:
@@ -440,8 +431,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		wg.Add(1)
 		processors.Go(func() {
 			s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
-				runOpts, runResult, resultOpts, shardRetrieverMgr,
-				timeWindowReaders, readerPool)
+				runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
 			wg.Done()
 		})
 	}
@@ -495,7 +485,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	runOpts bootstrap.RunOptions,
 	runResult *runResult,
 	ropts result.Options,
-	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	timeWindowReaders timeWindowReaders,
 	readerPool *readerPool,
 ) {
@@ -504,7 +493,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		seriesCachePolicy = ropts.SeriesCachePolicy()
 		indexBlockSegment segment.MutableSegment
 		timesWithErrors   []time.Time
-		shardRetriever    block.DatabaseShardBlockRetriever
 		nsCtx             = namespace.NewContextFrom(ns)
 	)
 
@@ -514,13 +502,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
 		readers := shardReaders.readers
-
-		if run == bootstrapDataRunType {
-			// For the bootstrap data case we need the shard retriever.
-			if shardRetrieverMgr != nil {
-				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
-			}
-		}
 
 		for _, r := range readers {
 			var (
@@ -544,8 +525,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				switch run {
 				case bootstrapDataRunType:
 					err = s.readNextEntryAndRecordBlock(nsCtx, accumulator, shard, r,
-						runResult, start, blockSize, shardRetriever,
-						blockPool, seriesCachePolicy)
+						runResult, start, blockSize, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
 					err = s.readNextEntryAndIndex(r, runResult, indexBlockSegment)
@@ -560,10 +540,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				var validateErr error
 				switch run {
 				case bootstrapDataRunType:
-					switch seriesCachePolicy {
-					case series.CacheAll:
+					if seriesCachePolicy == series.CacheAll {
 						validateErr = r.Validate()
-					default:
+					} else {
 						err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 					}
 				case bootstrapIndexRunType:
@@ -635,7 +614,6 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	runResult *runResult,
 	blockStart time.Time,
 	blockSize time.Duration,
-	shardRetriever block.DatabaseShardBlockRetriever,
 	blockPool block.DatabaseBlockPool,
 	seriesCachePolicy series.CachePolicy,
 ) error {
@@ -672,14 +650,8 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}
 
-	switch seriesCachePolicy {
-	case series.CacheAll:
-		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-		seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
-	default:
-		return fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
-	}
-
+	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
 	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)
 	}
@@ -929,7 +901,6 @@ func (s *fileSystemSource) read(
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		blockRetriever    block.DatabaseBlockRetriever
 		res               *runResult
 	)
 	if shardsTimeRanges.IsEmpty() {
@@ -948,33 +919,10 @@ func (s *fileSystemSource) read(
 	}
 
 	if run == bootstrapDataRunType {
-		// NB(r): We only need to marks blocks as fulfilled when bootstrapping data,
-		// because the data can be retrieved lazily from disk during reads.
-		// On the other hand, if we're bootstrapping the index then currently we
-		// need to rebuild it from scratch by reading all the IDs/tags until
-		// we can natively bootstrap persisted segments from disk and compact them
-		// with series metadata from other shards if topology has changed.
-		if mgr := s.opts.DatabaseBlockRetrieverManager(); mgr != nil {
-			shards := make([]uint32, 0, len(shardsTimeRanges))
-			for shard := range shardsTimeRanges {
-				shards = append(shards, shard)
-			}
-			var err error
-			blockRetriever, err = s.resolveBlockRetriever(md,
-				mgr, shards)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		switch seriesCachePolicy {
-		case series.CacheAll:
-			// No checks necessary.
-		default:
+		if seriesCachePolicy != series.CacheAll {
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have.
-			return s.bootstrapDataRunResultFromAvailability(md,
-				shardsTimeRanges), nil
+			return s.bootstrapDataRunResultFromAvailability(md, shardsTimeRanges), nil
 		}
 	}
 
@@ -1003,7 +951,7 @@ func (s *fileSystemSource) read(
 	go s.enqueueReaders(run, md, runOpts, shardsTimeRanges,
 		readerPool, readersCh)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
-		accumulator, runOpts, readerPool, blockRetriever, readersCh)
+		accumulator, runOpts, readerPool, readersCh)
 
 	// Merge any existing results if necessary.
 	setOrMergeResult(bootstrapFromDataReadersResult)
@@ -1014,28 +962,6 @@ func (s *fileSystemSource) read(
 func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 	bytesPool := s.opts.ResultOptions().DatabaseBlockOptions().BytesPool()
 	return s.newReaderFn(bytesPool, s.fsopts)
-}
-
-func (s *fileSystemSource) resolveBlockRetriever(
-	md namespace.Metadata,
-	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
-	shards []uint32,
-) (
-	block.DatabaseBlockRetriever,
-	error,
-) {
-	var blockRetriever block.DatabaseBlockRetriever
-
-	s.log.Info("filesystem bootstrapper resolving block retriever",
-		zap.Stringer("namespace", md.ID()))
-
-	var err error
-	blockRetriever, err = blockRetrieverMgr.Retriever(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return blockRetriever, nil
 }
 
 func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(

@@ -107,12 +107,10 @@ func testEmptyResult(
 ) bootstrap.NamespaceResults {
 	opts := bootstrap.NamespaceResultsMapOptions{}
 	results := bootstrap.NewNamespaceResultsMap(opts)
-	dataResult := result.NewDataBootstrapResult()
-	indexResult := result.NewIndexBootstrapResult()
 	results.Set(ns.ID(), bootstrap.NamespaceResult{
 		Metadata:    ns,
-		DataResult:  dataResult,
-		IndexResult: indexResult,
+		DataResult:  result.NewDataBootstrapResult(),
+		IndexResult: result.NewIndexBootstrapResult(),
 	})
 
 	return bootstrap.NamespaceResults{Results: results}
@@ -156,6 +154,9 @@ func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 	tester.TestBootstrapWith(base)
 	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
 	assert.Equal(t, nsResults, tester.Results)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
@@ -196,6 +197,9 @@ func testBaseBootstrapperCurrentNoUnfulfilled(t *testing.T, withIndex bool) {
 	tester.TestBootstrapWith(base)
 	assert.Equal(t, nsResults, tester.Results)
 	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {

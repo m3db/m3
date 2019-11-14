@@ -1179,7 +1179,6 @@ func (s *dbShard) newShardEntry(
 	seriesTags.NoFinalize()
 
 	uniqueIndex := s.increasingIndex.nextIndex()
-
 	series := s.seriesPool.Get()
 	series.Reset(seriesID, seriesTags, uniqueIndex, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
@@ -1389,7 +1388,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
-
 		s.insertNewShardEntryWithLock(entry)
 	}
 	s.Unlock()
