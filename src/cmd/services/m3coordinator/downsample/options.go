@@ -573,7 +573,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// going to use an in memory KV store for rules and explicitly set them up.
 	if cfg.Rules != nil {
 		kvStore := mem.NewStore()
-		matcherOpts = matcherOpts.SetKVStore(kvStore)
+		// Make sure that other components using rules KV store points to the
+		// in mem store if using config.
+		rulesKVStore = kvStore
+
+		matcherOpts = matcherOpts.SetKVStore(rulesKVStore)
 
 		// Initialize the namespaces
 		_, err := rulesKVStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
