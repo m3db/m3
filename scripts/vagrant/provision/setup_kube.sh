@@ -31,7 +31,7 @@ kubectl apply -f ./manifests/operator.yaml
 set +x
 echo "Creating test cluster "
 while true; do
-    if kubectl apply -f ./manifests/m3db-single.yaml; then
+    if kubectl apply -f ./manifests/m3db-$MACHINE.yaml; then
         printf "\n"
         break
     fi

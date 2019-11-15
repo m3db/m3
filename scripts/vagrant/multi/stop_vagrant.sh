@@ -26,19 +26,6 @@ if [[ "$PROVIDER" == "google" ]]; then
     fi
 fi
 
-# Bring up box
-echo "Provision box"
-vagrant up --provider $PROVIDER
-
-# Provision cluster
-echo "Provision k8s cluster"
-vagrant ssh -c 'cd provision && ./setup_kube.sh'
-
-# Run tunnels
-echo "Tunnelling"
-echo "Grafana available at http://localhost:3333"
-vagrant ssh -c "cd provision && ./run_tunnels.sh" --\
-    -L 3333:localhost:3000 \
-    -L 7201:localhost:7201 \
-    -L 9003:localhost:9003 \
-    -L 9004:localhost:9004 \
+# Destroy boxes
+echo "Terminate boxes"
+vagrant destroy --parallel primary secondary benchmarker
