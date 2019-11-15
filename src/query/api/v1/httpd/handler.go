@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
@@ -68,6 +69,9 @@ const (
 var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
+
+	v1APIGroup           = map[string]string{"api_group": "v1"}
+	experimentalAPIGroup = map[string]string{"api_group": "experimental"}
 
 	defaultTimeout = 30 * time.Second
 )
@@ -193,7 +197,10 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Prometheus remote read/write endpoints
 	remoteSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(remoteSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(remoteSource).
+			Tagged(v1APIGroup),
+		)
 
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.timeoutOpts, keepNans, remoteSourceInstrumentOpts)
@@ -204,7 +211,10 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	nativeSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(nativeSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(nativeSource).
+			Tagged(v1APIGroup),
+		)
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
 		h.timeoutOpts, keepNans, nativeSourceInstrumentOpts)
@@ -321,6 +331,20 @@ func (h *Handler) RegisterRoutes() error {
 		placement.RegisterRoutes(h.router, h.serviceOptionDefaults, placementOpts)
 		namespace.RegisterRoutes(h.router, h.clusterClient, h.serviceOptionDefaults, h.instrumentOpts)
 		topic.RegisterRoutes(h.router, h.clusterClient, h.config, h.instrumentOpts)
+
+		// Experimental endpoints.
+		if h.config.Experimental.Enabled {
+			experimentalAnnotatedWriteHandler := annotated.NewHandler(
+				h.downsamplerAndWriter,
+				h.tagOptions,
+				h.instrumentOpts.MetricsScope().
+					Tagged(remoteSource).
+					Tagged(experimentalAPIGroup),
+			)
+			h.router.HandleFunc(annotated.WriteURL,
+				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
+			).Methods(annotated.WriteHTTPMethod)
+		}
 	}
 
 	h.registerHealthEndpoints()

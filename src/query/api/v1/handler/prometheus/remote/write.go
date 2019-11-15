@@ -121,7 +121,9 @@ func NewPromWriteHandler(
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope())
+	metrics, err := newPromWriteMetrics(instrumentOpts.MetricsScope().
+		Tagged(map[string]string{"handler": "remote-write"}),
+	)
 	if err != nil {
 		return nil, err
 	}

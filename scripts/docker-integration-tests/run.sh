@@ -3,17 +3,18 @@
 set -ex
 
 TESTS=(
-	scripts/docker-integration-tests/simple/test.sh
-	scripts/docker-integration-tests/cold_writes_simple/test.sh
-	scripts/docker-integration-tests/prometheus/test.sh
-	scripts/docker-integration-tests/prometheus_replication/test.sh
-	scripts/docker-integration-tests/carbon/test.sh
-	scripts/docker-integration-tests/aggregator/test.sh
-	scripts/docker-integration-tests/query_fanout/test.sh
-	scripts/docker-integration-tests/repair/test.sh
-	scripts/docker-integration-tests/replication/test.sh
-	scripts/docker-integration-tests/repair_and_replication/test.sh
-	scripts/docker-integration-tests/multi_cluster_write/test.sh
+	# scripts/docker-integration-tests/simple/test.sh
+	# scripts/docker-integration-tests/cold_writes_simple/test.sh
+	# scripts/docker-integration-tests/prometheus/test.sh
+	# scripts/docker-integration-tests/prometheus_replication/test.sh
+	# scripts/docker-integration-tests/carbon/test.sh
+	# scripts/docker-integration-tests/aggregator/test.sh
+	# scripts/docker-integration-tests/query_fanout/test.sh
+	# scripts/docker-integration-tests/repair/test.sh
+	# scripts/docker-integration-tests/replication/test.sh
+	# scripts/docker-integration-tests/repair_and_replication/test.sh
+	# scripts/docker-integration-tests/multi_cluster_write/test.sh
+	scripts/docker-integration-tests/coordinator_config_rules/test.sh
 )
 
 scripts/docker-integration-tests/setup.sh

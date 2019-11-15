@@ -143,7 +143,7 @@ func TestWriteErrorMetricCount(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	foundMetric := xclock.WaitUntil(func() bool {
-		found, ok := scope.Snapshot().Counters()["write.errors+code=4XX,test=error-metric-test"]
+		found, ok := scope.Snapshot().Counters()["write.errors+code=4XX,handler=remote-write,test=error-metric-test"]
 		return ok && found.Value() == 1
 	}, 5*time.Second)
 	require.True(t, foundMetric)
@@ -193,7 +193,7 @@ func TestWriteDatapointDelayMetric(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	foundMetric := xclock.WaitUntil(func() bool {
-		values, found := scope.Snapshot().Histograms()["ingest.latency+test=delay-metric-test"]
+		values, found := scope.Snapshot().Histograms()["ingest.latency+handler=remote-write,test=delay-metric-test"]
 		if !found {
 			return false
 		}
