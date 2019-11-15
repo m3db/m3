@@ -53,16 +53,16 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodDuration": "2d",
-      "blockSizeDuration": "2h",
-      "bufferFutureDuration": "10m",
-      "bufferPastDuration": "10m",
+      "retentionPeriod": "2d",
+      "blockSize": "2h",
+      "bufferFuture": "10m",
+      "bufferPast": "10m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+      "blockDataExpiryAfterNotAccessPeriod": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeDuration": "2h"
+      "blockSize": "2h"
     }
   }
 }'
@@ -178,7 +178,7 @@ Whether to use the built-in indexing. Must be `true`.
 
 Can be modified without creating a new namespace: `no`
 
-#### blockSizeDuration
+#### blockSize
 
 The size of blocks (in duration) that the index uses.
 Should match the databases [blocksize](#blocksize) for optimal memory usage.
