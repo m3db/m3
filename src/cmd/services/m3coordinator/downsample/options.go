@@ -68,6 +68,7 @@ import (
 const (
 	instanceID                     = "downsampler_local"
 	placementKVKey                 = "/placement"
+	defaultConfigInMemoryNamespace = "default"
 	replicationFactor              = 1
 	defaultStorageFlushConcurrency = 20000
 	defaultOpenTimeout             = 10 * time.Second
@@ -363,6 +364,7 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 
 	ops := make([]pipeline.OpUnion, 0, len(r.Transforms))
 	for _, elem := range r.Transforms {
+		// TODO: make sure only one of "Rollup" or "Aggregate" or "Transform" is not nil
 		switch {
 		case elem.Rollup != nil:
 			cfg := elem.Rollup
@@ -572,11 +574,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// NB(r): If rules are being explicitlly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
 	if cfg.Rules != nil {
-		kvStore := mem.NewStore()
+		kvTxnMemStore := mem.NewStore()
+
 		// Make sure that other components using rules KV store points to the
 		// in mem store if using config.
-		rulesKVStore = kvStore
-
+		rulesKVStore = kvTxnMemStore
 		matcherOpts = matcherOpts.SetKVStore(rulesKVStore)
 
 		// Initialize the namespaces
@@ -588,7 +590,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		rulesetKeyFmt := matcherOpts.RuleSetKeyFn()([]byte("%s"))
 		rulesStoreOpts := ruleskv.NewStoreOptions(matcherOpts.NamespacesKey(),
 			rulesetKeyFmt, nil)
-		rulesStore := ruleskv.NewStore(kvStore, rulesStoreOpts)
+		rulesStore := ruleskv.NewStore(kvTxnMemStore, rulesStoreOpts)
 
 		ruleNamespaces, err := rulesStore.ReadNamespaces()
 		if err != nil {
@@ -597,7 +599,17 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 		updateMetadata := rules.NewRuleSetUpdateHelper(0).
 			NewUpdateMetadata(time.Now().UnixNano(), "config")
-		rs := rules.NewEmptyRuleSet("default", updateMetadata)
+
+		// Create the default namespace, always not present since in-memory.
+		_, err = ruleNamespaces.AddNamespace(defaultConfigInMemoryNamespace,
+			updateMetadata)
+		if err != nil {
+			return agg{}, err
+		}
+
+		// Create the ruleset in the default namespace.
+		rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
+			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
 			rule, err := mappingRule.Rule()
 			if err != nil {
