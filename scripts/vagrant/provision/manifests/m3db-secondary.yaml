@@ -5,7 +5,7 @@ metadata:
 spec:
   labels:
     app: m3dbnode
-  image: quay.io/m3db/m3dbnode:latest
+  image: FEATURE_DOCKER_IMAGE
   replicationFactor: 3
   numberOfShards: 64
   etcdEndpoints:

@@ -26,6 +26,11 @@ if [[ "$PROVIDER" == "google" ]]; then
     fi
 fi
 
+if [[ "$FEATURE_DOCKER_IMAGE" == "" ]]; then 
+    echo "FEATURE_DOCKER_IMAGE env var not set"
+    exit 1
+fi
+
 # Bring up boxes
 echo "Provision boxes"
 vagrant up --provider $PROVIDER
@@ -47,7 +52,7 @@ M3COORDINATOR_SECONDARY_IP=$(gcloud --project=studious-saga-237001 compute insta
 # Provision clusters
 echo "Provision k8s clusters"
 vagrant ssh benchmarker -c "cd provision && M3COORDINATOR_PRIMARY_IP=$M3COORDINATOR_PRIMARY_IP M3COORDINATOR_SECONDARY_IP=$M3COORDINATOR_SECONDARY_IP ./setup_kube_bench.sh" &
-vagrant ssh secondary -c "cd provision && MACHINE=secondary ./setup_kube.sh" &
+vagrant ssh secondary -c "cd provision && MACHINE=secondary FEATURE_DOCKER_IMAGE=$FEATURE_DOCKER_IMAGE ./setup_kube.sh" &
 vagrant ssh primary -c "cd provision && MACHINE=primary ./setup_kube.sh"
 
 # Run tunnels forever

@@ -1,6 +1,7 @@
 # Vagrant
 
 This allows you to run a Kubernetes environment on multiple boxes using vagrant to provision VMs either locally or in a cloud environment.
+Let's us compare a feature branch to release by specifying a `FEATURE_DOCKER_IMAGE` env variable.
 
 It includes:
 - kubernetes (using kind)
@@ -41,7 +42,7 @@ If you authorized with `gcloud` you can use `~/.ssh/google_compute_engine` as yo
 
 Start:
 ```bash
-PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./start_vagrant.sh
+FEATURE_DOCKER_IMAGE=quay.io/m3dbtest/m3dbnode:feature PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./start_vagrant.sh
 ```
 
 Stop:
@@ -61,7 +62,7 @@ MACHINE=primary PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOO
 
 # Running
 
-Once setup you can SSH in and turn on write load (scaling to a single replica is roughly equivalent to applying 10,000 writes/sec):
+Once setup you can SSH into the benchmarker vm and turn on write load (scaling to a single replica is roughly equivalent to applying 10,000 writes/sec):
 ```bash
 kubectl scale --replicas=1 deployment/promremotebench
 ```

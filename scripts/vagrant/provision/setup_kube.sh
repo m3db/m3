@@ -27,6 +27,9 @@ kubectl apply -f ./manifests/etcd-single.yaml
 # Deploy operator
 kubectl apply -f ./manifests/operator.yaml
 
+# Populate the feature branch docker image
+perl -pi -e "s/FEATURE_DOCKER_IMAGE/$FEATURE_DOCKER_IMAGE/" ./manifests/m3db-secondary.yaml
+
 # Create test cluster (sometimes the CRD not recognized, repeat attempts)
 set +x
 echo "Creating test cluster "
