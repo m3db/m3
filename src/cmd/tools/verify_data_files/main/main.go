@@ -41,6 +41,7 @@ import (
 
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const snapshotType = "snapshot"
@@ -50,13 +51,21 @@ func main() {
 	var (
 		optPathPrefix     = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
 		optFailFast       = getopt.BoolLong("fail-fast", 'f', "Fail fast will bail on first failure")
-		optFixDir         = getopt.StringLong("fix-path-prefix", 'o', "/tmp/m3db", "Fix output path file prefix for fixed files")
+		optFixDir         = getopt.StringLong("fix-path-prefix", 'o', "/tmp/m3db", "Fix output path file prefix for fixed files [e.g. /tmp/m3db]")
 		optFixInvalidIDs  = getopt.BoolLong("fix-invalid-ids", 'i', "Fix invalid IDs will remove entries with IDs that have non-UTF8 chars")
 		optFixInvalidTags = getopt.BoolLong("fix-invalid-tags", 't', "Fix invalid tags will remove tags with name/values non-UTF8 chars")
+		optDebugLog       = getopt.BoolLong("debug", 'd', "Enable debug log level")
 	)
 	getopt.Parse()
 
-	log, err := zap.NewProduction()
+	logLevel := zapcore.InfoLevel
+	if *optDebugLog {
+		logLevel = zapcore.DebugLevel
+	}
+
+	logConfig := zap.NewDevelopmentConfig()
+	logConfig.Level = zap.NewAtomicLevelAt(logLevel)
+	log, err := logConfig.Build()
 	if err != nil {
 		golog.Fatalf("unable to create logger: %+v", err)
 	}
@@ -68,6 +77,7 @@ func main() {
 
 	filePathPrefix := *optPathPrefix
 
+	log.Info("creating bytes pool")
 	bytesPool := tools.NewCheckedBytesPool()
 	bytesPool.Init()
 
@@ -79,6 +89,8 @@ func main() {
 	}
 
 	// Get all fileset files.
+	log.Info("discovering file sets",
+		zap.Strings("namespaces", namespaces))
 	var fileSetFiles []fs.FileSetFile
 	for _, namespace := range namespaces {
 		namespacePath := path.Join(dataDirPath, namespace)
@@ -89,6 +101,10 @@ func main() {
 				zap.Error(err))
 		}
 
+		log.Debug("discovered shards",
+			zap.String("namespace", namespace),
+			zap.String("namespacePath", namespacePath),
+			zap.Strings("shards", shards))
 		for _, shard := range shards {
 			shardPath := path.Join(namespacePath, shard)
 			shardID, err := strconv.Atoi(shard)
@@ -98,22 +114,29 @@ func main() {
 			}
 
 			shardFileSets, err := fs.DataFiles(filePathPrefix,
-				ident.StringID(namespacePath), uint32(shardID))
+				ident.StringID(namespace), uint32(shardID))
 			if err != nil {
 				log.Fatal("could not list shard dir file setes",
 					zap.String("shardPath", shardPath), zap.Error(err))
 			}
 
+			log.Debug("discovered shard file sets",
+				zap.String("namespace", namespace),
+				zap.String("namespacePath", namespacePath),
+				zap.Int("shardID", shardID),
+				zap.Any("fileSets", shardFileSets))
 			fileSetFiles = append(fileSetFiles, shardFileSets...)
 		}
 	}
 
 	// Sort by time in reverse (usually want to fix latest files first and
 	// can stop once done with fail-fast).
+	log.Info("sorting file sets", zap.Int("numFileSets", len(fileSetFiles)))
 	sort.Slice(fileSetFiles, func(i, j int) bool {
 		return fileSetFiles[i].ID.BlockStart.After(fileSetFiles[j].ID.BlockStart)
 	})
 
+	log.Info("verifying file sets", zap.Int("numFileSets", len(fileSetFiles)))
 	for _, fileSet := range fileSetFiles {
 		log.Info("verifying file set file", zap.Any("fileSet", fileSet))
 		if err := verifyFileSet(verifyFileSetOptions{

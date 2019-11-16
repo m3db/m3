@@ -89,6 +89,7 @@ TOOLS :=               \
 	clone_fileset        \
 	dtest                \
 	verify_commitlogs    \
+	verify_data_files   \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
