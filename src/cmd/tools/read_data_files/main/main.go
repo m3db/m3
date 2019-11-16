@@ -125,7 +125,7 @@ func main() {
 		for iter.Next() {
 			dp, _, _ := iter.Current()
 			// Use fmt package so it goes to stdout instead of stderr
-			fmt.Printf("{\"id\": \"%s\", dp: %+v}\n", id.String(), dp)
+			fmt.Printf("{id: %s, dp: %+v}\n", id.String(), dp)
 		}
 		if err := iter.Err(); err != nil {
 			log.Fatalf("unable to iterate original data: %v", err)
