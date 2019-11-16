@@ -20,9 +20,7 @@ spec:
         image: quay.io/m3db/promremotebench:latest
         env:
         - name: PROMREMOTEBENCH_TARGET
-          value: "http://M3COORDINATOR_PRIMARY_IP:7201/api/v1/prom/remote/write"
-        - name: PROMREMOTEBENCH_SECONDARY_TARGET
-          value: "http://M3COORDINATOR_SECONDARY_IP:7201/api/v1/prom/remote/write"
+          value: "M3COORDINATOR_WRITE_TARGETS"
         - name: PROMREMOTEBENCH_NUM_HOSTS
           value: "1000"
         - name: PROMREMOTEBENCH_INTERVAL
@@ -38,9 +36,7 @@ spec:
         - name: PROMREMOTEBENCH_QUERY
           value: "false"
         - name: PROMREMOTEBENCH_QUERY_TARGET
-          value: "http://M3COORDINATOR_PRIMARY_IP:7201/api/v1/query_range"
-        - name: PROMREMOTEBENCH_SECONDARY_QUERY_TARGET
-          value: "http://M3COORDINATOR_SECONDARY_IP:7201/api/v1/query_range"
+          value: "M3COORDINATOR_QUERY_TARGETS"
         - name: PROMREMOTEBENCH_QUERY_CONCURRENCY
           value: "15"
         - name: PROMREMOTEBENCH_QUERY_NUM_SERIES
