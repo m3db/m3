@@ -259,6 +259,7 @@ func (r *reader) Status() DataFileSetReaderStatus {
 		Shard:      r.shard,
 		Volume:     r.volume,
 		BlockStart: r.start,
+		BlockSize:  time.Duration(r.blockSize),
 	}
 }
 

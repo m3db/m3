@@ -181,4 +181,8 @@ func TestToMetricInvalidTag(t *testing.T) {
 	assert.Error(t, tags.Err())
 }
 
+func TestValidateMetricValidatesUTF8NameValue(t *testing.T) {
+	// TODO .... add test
+}
+
 // TODO(prateek): add a test to ensure we're interacting with the Pools as expected

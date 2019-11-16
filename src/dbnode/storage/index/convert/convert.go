@@ -23,6 +23,8 @@ package convert
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"unicode/utf8"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
@@ -44,14 +46,30 @@ var (
 		"corrupt data, unable to extract id")
 )
 
-// ValidateMetric will validate a metric for use in the m3ninx subsytem
+// ValidateMetric will validate a metric for use with m3ninx.
 // FOLLOWUP(r): Rename ValidateMetric to ValidateSeries (metric terminiology
 // is not common in the codebase)
 func ValidateMetric(id ident.ID, tags ident.Tags) error {
 	for _, tag := range tags.Values() {
-		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return ErrUsingReservedFieldName
+		if err := ValidateMetricTag(tag); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// ValidateMetricTag validates a metric tag for use with m3ninx.
+func ValidateMetricTag(tag ident.Tag) error {
+	tagName := tag.Name.Bytes()
+	tagValue := tag.Value.Bytes()
+	if !utf8.Valid(tagName) {
+		return fmt.Errorf("document contains invalid field name: %v", tagName)
+	}
+	if bytes.Equal(ReservedFieldNameID, tagName) {
+		return ErrUsingReservedFieldName
+	}
+	if !utf8.Valid(tagValue) {
+		return fmt.Errorf("document contains invalid field value: %v", tagValue)
 	}
 	return nil
 }
