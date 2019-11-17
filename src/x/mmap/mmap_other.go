@@ -83,12 +83,20 @@ func Munmap(b []byte) error {
 	return nil
 }
 
-// Free mmapped memory.
-func Free(b []byte) error {
+// MadviseDontNeed frees mmapped memory.
+// `MADV_DONTNEED` informs the kernel to free the mmapped pages right away instead of waiting for memory pressure.
+// NB(bodu): DO NOT FREE anonymously mapped memory or else it will null all of the underlying bytes as the
+// memory is not file backed.
+func MadviseDontNeed(b []byte) error {
+	// Do nothing if there's no data.
+	if len(b) == 0 {
+		return nil
+	}
 	return madvise(b, syscall.MADV_DONTNEED)
 }
 
-// This is required because the unix package does not support the madvise system call on OS X.
+// This is required because the unix package does not support the madvise system call.
+// This works generically for other non linux platforms.
 func madvise(b []byte, advice int) (err error) {
 	_, _, e1 := syscall.Syscall(syscall.SYS_MADVISE, uintptr(unsafe.Pointer(&b[0])),
 		uintptr(len(b)), uintptr(advice))
