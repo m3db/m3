@@ -75,7 +75,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	filePathPrefix := *optPathPrefix
+	run(runOptions{
+		filePathPrefix: *optPathPrefix,
+		failFast:       *optFailFast,
+		fixDir:         *optFixDir,
+		fixInvalidIDs:  *optFixInvalidIDs,
+		fixInvalidTags: *optFixInvalidTags,
+		log:            log,
+	})
+}
+
+type runOptions struct {
+	filePathPrefix string
+	failFast       bool
+	fixDir         string
+	fixInvalidIDs  bool
+	fixInvalidTags bool
+	log            *zap.Logger
+}
+
+func run(opts runOptions) {
+	filePathPrefix := opts.filePathPrefix
+	log := opts.log
 
 	log.Info("creating bytes pool")
 	bytesPool := tools.NewCheckedBytesPool()
@@ -143,15 +164,15 @@ func main() {
 			filePathPrefix: filePathPrefix,
 			bytesPool:      bytesPool,
 			fileSet:        fileSet,
-			fixDir:         *optFixDir,
-			fixInvalidIDs:  *optFixInvalidIDs,
-			fixInvalidTags: *optFixInvalidTags,
+			fixDir:         opts.fixDir,
+			fixInvalidIDs:  opts.fixInvalidIDs,
+			fixInvalidTags: opts.fixInvalidTags,
 		}, log); err != nil {
 			log.Error("file set file failed verification",
 				zap.Error(err),
 				zap.Any("fileSet", fileSet))
 
-			if *optFailFast {
+			if opts.failFast {
 				log.Fatal("aborting due to fail fast set")
 			}
 		}
@@ -246,7 +267,7 @@ func verifyFileSet(
 				}
 
 				log.Error("could not fix file set",
-					zap.Any("fileSet", fileSet), zap.Error(err))
+					zap.Any("fileSet", fileSet), zap.Error(fixErr))
 			}
 			return err
 		}
@@ -345,6 +366,7 @@ func fixFileSet(
 		tagsBuffer   []ident.Tag
 		removedIDs   int
 		removedTags  int
+		copies       []checked.Bytes
 	)
 	for {
 		id, tags, data, checksum, err := reader.Read()
@@ -361,7 +383,23 @@ func fixFileSet(
 		currTags = currTags[:0]
 		for tags.Next() {
 			tag := tags.Current()
-			currTags = append(currTags, tag)
+			name := tag.Name.Bytes()
+			value := tag.Value.Bytes()
+
+			// Need to take copy as only valid during iteration.
+			nameCopy := opts.bytesPool.Get(len(name))
+			nameCopy.IncRef()
+			nameCopy.AppendAll(name)
+			valueCopy := opts.bytesPool.Get(len(value))
+			valueCopy.IncRef()
+			valueCopy.AppendAll(value)
+			copies = append(copies, nameCopy)
+			copies = append(copies, valueCopy)
+
+			currTags = append(currTags, ident.Tag{
+				Name:  ident.BytesID(nameCopy.Bytes()),
+				Value: ident.BytesID(valueCopy.Bytes()),
+			})
 		}
 
 		// Choose to write out the current tags if do not need modifying.
@@ -392,9 +430,12 @@ func fixFileSet(
 					tagsBuffer = append(tagsBuffer, tag)
 				}
 
-				// Make sure we write out the modified.
+				// Make sure we write out the modified tags.
 				writeTags = tagsBuffer
 			}
+			log.Info("read entry for fix",
+				zap.Bool("shouldFixInvalidID", shouldFixInvalidID),
+				zap.Bool("shouldFixInvalidTags", shouldFixInvalidTags))
 
 			if check.invalidChecksum {
 				// Can't fix an invalid checksum.
@@ -404,12 +445,23 @@ func fixFileSet(
 
 		var writeIdentTags ident.Tags
 		writeIdentTags.Reset(writeTags)
-		if err := writer.Write(id, writeIdentTags, data, checksum); err != nil {
+
+		data.IncRef()
+		err = writer.Write(id, writeIdentTags, data, checksum)
+		data.DecRef()
+		if err != nil {
 			return fmt.Errorf("could not write fixed file set entry: %v", err)
 		}
 
 		// Finalize data to release back to pool.
 		data.Finalize()
+
+		// Release our copies back to pool.
+		for _, copy := range copies {
+			copy.DecRef()
+			copy.Finalize()
+		}
+		copies = copies[:0]
 	}
 
 	log.Info("finished fixing file set",
