@@ -37,6 +37,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/mmap"
+
 	pilosaroaring "github.com/m3db/pilosa/roaring"
 	"github.com/m3db/vellum"
 )
@@ -290,6 +293,35 @@ func (r *fsSegment) TermsIterable() sgmt.TermsIterable {
 		fieldsIter:   newFSTTermsIter(),
 		postingsIter: newFSTTermsPostingsIter(),
 	}
+}
+
+func (r *fsSegment) FreeMmap() error {
+	multiErr := xerrors.NewMultiError()
+
+	// NB(bodu): PostingsData, FSTTermsData and FSTFieldsData always present.
+	if err := mmap.MadviseDontNeed(r.data.PostingsData); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := mmap.MadviseDontNeed(r.data.FSTTermsData); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := mmap.MadviseDontNeed(r.data.FSTFieldsData); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	// DocsData and DocsIdxData are not always present.
+	if r.data.DocsData != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsData); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	if r.data.DocsIdxData != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsIdxData); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
 // termsIterable allows multiple term lookups to share the same roaring
