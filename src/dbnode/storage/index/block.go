@@ -1235,8 +1235,8 @@ func (b *block) AddResults(
 }
 
 func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
-	b.RLock()
-	defer b.RUnlock()
+	b.Lock()
+	defer b.Unlock()
 	result := BlockTickResult{}
 	if b.state == blockStateClosed {
 		return result, errUnableToTickBlockClosed
@@ -1252,15 +1252,23 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		result.NumDocs += seg.Segment().Size()
 	}
 
+	multiErr := xerrors.NewMultiError()
+
 	// Any segments covering persisted shard ranges.
 	for _, group := range b.shardRangesSegments {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+				if err := immSeg.FreeMmap(); err != nil {
+					multiErr = multiErr.Add(err)
+				}
+			}
 		}
 	}
 
-	return result, nil
+	return result, multiErr.FinalError()
 }
 
 func (b *block) Seal() error {

@@ -70,6 +70,9 @@ var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
 
+	v1APIGroup           = map[string]string{"api_group": "v1"}
+	experimentalAPIGroup = map[string]string{"api_group": "experimental"}
+
 	defaultTimeout = 30 * time.Second
 )
 
@@ -194,7 +197,10 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Prometheus remote read/write endpoints
 	remoteSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(remoteSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(remoteSource).
+			Tagged(v1APIGroup),
+		)
 
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.timeoutOpts, keepNans, remoteSourceInstrumentOpts)
@@ -205,7 +211,10 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	nativeSourceInstrumentOpts := h.instrumentOpts.
-		SetMetricsScope(h.instrumentOpts.MetricsScope().Tagged(nativeSource))
+		SetMetricsScope(h.instrumentOpts.MetricsScope().
+			Tagged(nativeSource).
+			Tagged(v1APIGroup),
+		)
 	nativePromReadHandler := native.NewPromReadHandler(h.engine,
 		h.fetchOptionsBuilder, h.tagOptions, &h.config.Limits,
 		h.timeoutOpts, keepNans, nativeSourceInstrumentOpts)
@@ -328,7 +337,9 @@ func (h *Handler) RegisterRoutes() error {
 			experimentalAnnotatedWriteHandler := annotated.NewHandler(
 				h.downsamplerAndWriter,
 				h.tagOptions,
-				h.instrumentOpts.MetricsScope().Tagged(map[string]string{"api_group": "experimental"}),
+				h.instrumentOpts.MetricsScope().
+					Tagged(remoteSource).
+					Tagged(experimentalAPIGroup),
 			)
 			h.router.HandleFunc(annotated.WriteURL,
 				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,

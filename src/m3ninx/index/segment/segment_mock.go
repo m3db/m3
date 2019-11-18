@@ -738,6 +738,144 @@ func (mr *MockMutableSegmentMockRecorder) IsSealed() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockMutableSegment)(nil).IsSealed))
 }
 
+// MockImmutableSegment is a mock of ImmutableSegment interface
+type MockImmutableSegment struct {
+	ctrl     *gomock.Controller
+	recorder *MockImmutableSegmentMockRecorder
+}
+
+// MockImmutableSegmentMockRecorder is the mock recorder for MockImmutableSegment
+type MockImmutableSegmentMockRecorder struct {
+	mock *MockImmutableSegment
+}
+
+// NewMockImmutableSegment creates a new mock instance
+func NewMockImmutableSegment(ctrl *gomock.Controller) *MockImmutableSegment {
+	mock := &MockImmutableSegment{ctrl: ctrl}
+	mock.recorder = &MockImmutableSegmentMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockImmutableSegment) EXPECT() *MockImmutableSegmentMockRecorder {
+	return m.recorder
+}
+
+// FieldsIterable mocks base method
+func (m *MockImmutableSegment) FieldsIterable() FieldsIterable {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FieldsIterable")
+	ret0, _ := ret[0].(FieldsIterable)
+	return ret0
+}
+
+// FieldsIterable indicates an expected call of FieldsIterable
+func (mr *MockImmutableSegmentMockRecorder) FieldsIterable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsIterable", reflect.TypeOf((*MockImmutableSegment)(nil).FieldsIterable))
+}
+
+// TermsIterable mocks base method
+func (m *MockImmutableSegment) TermsIterable() TermsIterable {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TermsIterable")
+	ret0, _ := ret[0].(TermsIterable)
+	return ret0
+}
+
+// TermsIterable indicates an expected call of TermsIterable
+func (mr *MockImmutableSegmentMockRecorder) TermsIterable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TermsIterable", reflect.TypeOf((*MockImmutableSegment)(nil).TermsIterable))
+}
+
+// Size mocks base method
+func (m *MockImmutableSegment) Size() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// Size indicates an expected call of Size
+func (mr *MockImmutableSegmentMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockImmutableSegment)(nil).Size))
+}
+
+// ContainsID mocks base method
+func (m *MockImmutableSegment) ContainsID(docID []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsID", docID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsID indicates an expected call of ContainsID
+func (mr *MockImmutableSegmentMockRecorder) ContainsID(docID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockImmutableSegment)(nil).ContainsID), docID)
+}
+
+// ContainsField mocks base method
+func (m *MockImmutableSegment) ContainsField(field []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsField", field)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsField indicates an expected call of ContainsField
+func (mr *MockImmutableSegmentMockRecorder) ContainsField(field interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsField", reflect.TypeOf((*MockImmutableSegment)(nil).ContainsField), field)
+}
+
+// Reader mocks base method
+func (m *MockImmutableSegment) Reader() (index.Reader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Reader")
+	ret0, _ := ret[0].(index.Reader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Reader indicates an expected call of Reader
+func (mr *MockImmutableSegmentMockRecorder) Reader() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockImmutableSegment)(nil).Reader))
+}
+
+// Close mocks base method
+func (m *MockImmutableSegment) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockImmutableSegmentMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockImmutableSegment)(nil).Close))
+}
+
+// FreeMmap mocks base method
+func (m *MockImmutableSegment) FreeMmap() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FreeMmap")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FreeMmap indicates an expected call of FreeMmap
+func (mr *MockImmutableSegmentMockRecorder) FreeMmap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FreeMmap", reflect.TypeOf((*MockImmutableSegment)(nil).FreeMmap))
+}
+
 // MockBuilder is a mock of Builder interface
 type MockBuilder struct {
 	ctrl     *gomock.Controller
