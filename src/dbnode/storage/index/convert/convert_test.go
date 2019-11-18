@@ -20,10 +20,13 @@
 package convert_test
 
 import (
+	"encoding/hex"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 
@@ -181,8 +184,56 @@ func TestToMetricInvalidTag(t *testing.T) {
 	assert.Error(t, tags.Err())
 }
 
-func TestValidateMetricValidatesUTF8NameValue(t *testing.T) {
-	// TODO .... add test
+func invalidUTF8Bytes(t *testing.T) []byte {
+	bytes, err := hex.DecodeString("bf")
+	require.NoError(t, err)
+	require.False(t, utf8.Valid(bytes))
+	return bytes
+}
+
+func TestValidateSeries(t *testing.T) {
+	invalidBytes := checked.NewBytes(invalidUTF8Bytes(t), nil)
+
+	t.Run("id non-utf8", func(t *testing.T) {
+		err := convert.ValidateSeries(ident.BinaryID(invalidBytes),
+			ident.NewTags(ident.Tag{
+				Name:  ident.StringID("bar"),
+				Value: ident.StringID("baz"),
+			}))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("tag name reserved", func(t *testing.T) {
+		reservedName := checked.NewBytes(convert.ReservedFieldNameID, nil)
+		err := convert.ValidateSeries(ident.StringID("foo"),
+			ident.NewTags(ident.Tag{
+				Name:  ident.BinaryID(reservedName),
+				Value: ident.StringID("bar"),
+			}))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "reserved field name")
+	})
+
+	t.Run("tag name non-utf8", func(t *testing.T) {
+		err := convert.ValidateSeries(ident.StringID("foo"),
+			ident.NewTags(ident.Tag{
+				Name:  ident.BinaryID(invalidBytes),
+				Value: ident.StringID("bar"),
+			}))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid field name")
+	})
+
+	t.Run("tag value non-utf8", func(t *testing.T) {
+		err := convert.ValidateSeries(ident.StringID("foo"),
+			ident.NewTags(ident.Tag{
+				Name:  ident.StringID("bar"),
+				Value: ident.BinaryID(invalidBytes),
+			}))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid field value")
+	})
 }
 
 // TODO(prateek): add a test to ensure we're interacting with the Pools as expected

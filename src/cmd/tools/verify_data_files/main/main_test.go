@@ -28,22 +28,19 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/digest"
-
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func newInvalidUTF8Bytes(t *testing.T) []byte {
 	bytes, err := hex.DecodeString("bf")
 	require.NoError(t, err)
-	require.Equal(t, 1, len(bytes))
 	require.False(t, utf8.Valid(bytes))
 	return bytes
 }

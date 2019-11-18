@@ -46,30 +46,31 @@ var (
 		"corrupt data, unable to extract id")
 )
 
-// ValidateMetric will validate a metric for use with m3ninx.
-// FOLLOWUP(r): Rename ValidateMetric to ValidateSeries (metric terminiology
-// is not common in the codebase)
-func ValidateMetric(id ident.ID, tags ident.Tags) error {
+// ValidateSeries will validate a metric for use with m3ninx.
+func ValidateSeries(id ident.ID, tags ident.Tags) error {
+	if idBytes := id.Bytes(); !utf8.Valid(idBytes) {
+		return fmt.Errorf("series has invalid ID: %v", idBytes)
+	}
 	for _, tag := range tags.Values() {
-		if err := ValidateMetricTag(tag); err != nil {
+		if err := ValidateSeriesTag(tag); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// ValidateMetricTag validates a metric tag for use with m3ninx.
-func ValidateMetricTag(tag ident.Tag) error {
+// ValidateSeriesTag validates a series tag for use with m3ninx.
+func ValidateSeriesTag(tag ident.Tag) error {
 	tagName := tag.Name.Bytes()
 	tagValue := tag.Value.Bytes()
-	if !utf8.Valid(tagName) {
-		return fmt.Errorf("document contains invalid field name: %v", tagName)
-	}
 	if bytes.Equal(ReservedFieldNameID, tagName) {
 		return ErrUsingReservedFieldName
 	}
+	if !utf8.Valid(tagName) {
+		return fmt.Errorf("series contains invalid field name: %v", tagName)
+	}
 	if !utf8.Valid(tagValue) {
-		return fmt.Errorf("document contains invalid field value: %v", tagValue)
+		return fmt.Errorf("series contains invalid field value: %v", tagValue)
 	}
 	return nil
 }
