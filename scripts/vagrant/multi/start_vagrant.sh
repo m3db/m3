@@ -45,13 +45,8 @@ if  [ "$MAYBE_M3COORDINATOR_INGRESS" != "default-allow-m3coordinator" ]; then
         --target-tags=network-m3coordinator
 fi
 
-# Get primary/secondary external IP addresses
-M3COORDINATOR_PRIMARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep primary | awk '{ print $5 }')
-M3COORDINATOR_SECONDARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep secondary | awk '{ print $5 }')
-
 # Provision clusters
 echo "Provision k8s clusters"
-vagrant ssh benchmarker -c "cd provision && M3COORDINATOR_PRIMARY_IP=$M3COORDINATOR_PRIMARY_IP M3COORDINATOR_SECONDARY_IP=$M3COORDINATOR_SECONDARY_IP ./setup_kube_bench.sh" &
 vagrant ssh secondary -c "cd provision && MACHINE=secondary FEATURE_DOCKER_IMAGE=$FEATURE_DOCKER_IMAGE ./setup_kube.sh" &
 vagrant ssh primary -c "cd provision && MACHINE=primary ./setup_kube.sh"
 
@@ -62,3 +57,9 @@ vagrant ssh primary -c "cd provision && nohup ./run_tunnels.sh &"
 # Run rolling restart forever
 vagrant ssh secondary -c "cd provision && nohup ./rolling_restart_dbnodes.sh &"
 vagrant ssh primary -c "cd provision && nohup ./rolling_restart_dbnodes.sh &"
+
+# Setup benchmarker
+# Get primary/secondary external IP addresses
+M3COORDINATOR_PRIMARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep primary | awk '{ print $5 }')
+M3COORDINATOR_SECONDARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep secondary | awk '{ print $5 }')
+vagrant ssh benchmarker -c "cd provision && M3COORDINATOR_PRIMARY_IP=$M3COORDINATOR_PRIMARY_IP M3COORDINATOR_SECONDARY_IP=$M3COORDINATOR_SECONDARY_IP ./setup_kube_bench.sh"

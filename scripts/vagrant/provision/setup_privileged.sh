@@ -14,8 +14,7 @@ apt-get install -y git
 apt-get install -y tmux curl jq htop
 
 # Install docker
-snap install docker
-groupadd docker
+apt-get install -y containerd docker.io
 usermod -aG docker $DOCKER_USER
 
 # Install kubectl
