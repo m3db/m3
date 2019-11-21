@@ -144,6 +144,13 @@ type MutableSegment interface {
 	IsSealed() bool
 }
 
+// ImmutableSegment is segment that has been written to disk.
+type ImmutableSegment interface {
+	Segment
+
+	FreeMmap() error
+}
+
 // Builder is a builder that can be used to construct segments.
 type Builder interface {
 	FieldsIterable
