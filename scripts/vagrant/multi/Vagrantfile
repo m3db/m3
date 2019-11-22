@@ -8,12 +8,52 @@ require 'etc'
 
 # Boxes available at: https://vagrantcloud.com/search
 $BOX=ENV['BOX']
-$GOOGLE_PROJECT_ID = ENV['GOOGLE_PROJECT_ID']
-$GOOGLE_JSON_KEY_LOCATION = ENV['GOOGLE_JSON_KEY_LOCATION']
 $USER = ENV['USER']
 $SSH_KEY = ENV['SSH_KEY']
+# Google GCE env vars
+$GOOGLE_PROJECT_ID = ENV['GOOGLE_PROJECT_ID']
+$GOOGLE_JSON_KEY_LOCATION = ENV['GOOGLE_JSON_KEY_LOCATION']
+# Microsoft Azure env vars
+$AZURE_TENANT_ID = ENV['AZURE_TENANT_ID']
+$AZURE_CLIENT_ID = ENV['AZURE_CLIENT_ID']
+$AZURE_CLIENT_SECRET = ENV['AZURE_CLIENT_SECRET']
+$AZURE_SUBSCRIPTION_ID = ENV['AZURE_SUBSCRIPTION_ID']
+$AZURE_GROUP0 = ENV['GROUP0'] || "0"
+$AZURE_GROUP1 = ENV['GROUP1'] || "1"
+$AZURE_GROUP2 = ENV['GROUP2'] || "2"
 
 Vagrant.configure("2") do |config|
+
+  do_common_google = Proc.new do |google, override|
+    google.google_project_id = $GOOGLE_PROJECT_ID
+    google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION
+
+    google.image_family = "ubuntu-1604-lts"
+    google.zone = "us-central1-f"
+    google.metadata = {}
+    google.tags = ['vagrantbox', 'dev', 'network-m3coordinator']
+    google.disk_size = '50' # 50gb
+    google.disk_type = 'pd-ssd'
+    google.autodelete_disk = true
+
+    override.ssh.username = $USER
+    override.ssh.private_key_path = $SSH_KEY
+  end
+
+  do_common_azure = Proc.new do |azure, override|
+    # each of the below values will default to use the env vars named as below if not specified explicitly
+    azure.tenant_id = $AZURE_TENANT_ID
+    azure.client_id = $AZURE_CLIENT_ID
+    azure.client_secret = $AZURE_CLIENT_SECRET
+    azure.subscription_id = $AZURE_SUBSCRIPTION_ID
+
+    azure.location = "eastus"
+    azure.nsg_name = "network-m3coordinator"
+    # azure.vm_image_urn defaults to `canonical:ubuntuserver:16.04-LTS:latest`
+
+    override.ssh.username = $USER
+    override.ssh.private_key_path = $SSH_KEY
+  end
 
   config.vm.define "primary", primary: true do |machine|
       machine.vm.box = $BOX
@@ -31,31 +71,29 @@ Vagrant.configure("2") do |config|
         vb.memory = 3072
       end
 
+      machine.vm.provider :azure do |azure, override|
+        do_common_azure.call azure, override
+
+        azure.vm_name = "m3-dev-primary-" + $USER
+        azure.vm_size = "Standard_D32s_v3"
+        #azure.vm_size = "Standard_D64s_v3"
+        azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP0 + "-primary"
+      end
+
       machine.vm.provider :google do |google, override|
+        do_common_google.call google, override
+
         # Normal benchmarks:
         google.machine_type = "n1-standard-16"
         google.preemptible = false
 
         # For heavy benchmarks, use pre-emptible n1-standard-64:
-        # google.machine_type = "n1-standard-64"
-        # google.preemptible = true
-        # google.auto_restart = false
-        # google.on_host_maintenance = "TERMINATE"
-
-        google.google_project_id = $GOOGLE_PROJECT_ID
-        google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION
+        #google.machine_type = "n1-standard-64"
+        #google.preemptible = true
+        #google.auto_restart = false
+        #google.on_host_maintenance = "TERMINATE"
 
         google.name = "m3-dev-primary-" + $USER
-        google.image_family = "ubuntu-1604-lts"
-        google.zone = "us-central1-f"
-        google.metadata = {}
-        google.tags = ['vagrantbox', 'dev', 'network-m3coordinator']
-        google.disk_size = '50' # 50gb
-        google.disk_type = 'pd-ssd'
-        google.autodelete_disk = true
-
-        override.ssh.username = $USER
-        override.ssh.private_key_path = $SSH_KEY
       end
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
@@ -86,31 +124,29 @@ Vagrant.configure("2") do |config|
         vb.memory = 3072
       end
 
+      machine.vm.provider :azure do |azure, override|
+        do_common_azure.call azure, override
+
+        azure.vm_name = "m3-dev-secondary-" + $USER
+        azure.vm_size = "Standard_D32s_v3"
+        #azure.vm_size = "Standard_D64s_v3"
+        azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP1 + "-secondary"
+      end
+
       machine.vm.provider :google do |google, override|
+        do_common_google.call google, override
+
         # Normal benchmarks:
         google.machine_type = "n1-standard-16"
         google.preemptible = false
 
         # For heavy benchmarks, use pre-emptible n1-standard-64:
-        # google.machine_type = "n1-standard-64"
-        # google.preemptible = true
-        # google.auto_restart = false
-        # google.on_host_maintenance = "TERMINATE"
-
-        google.google_project_id = $GOOGLE_PROJECT_ID
-        google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION
+        #google.machine_type = "n1-standard-64"
+        #google.preemptible = true
+        #google.auto_restart = false
+        #google.on_host_maintenance = "TERMINATE"
 
         google.name = "m3-dev-secondary-" + $USER
-        google.image_family = "ubuntu-1604-lts"
-        google.zone = "us-central1-f"
-        google.metadata = {}
-        google.tags = ['vagrantbox', 'dev', 'network-m3coordinator']
-        google.disk_size = '50' # 50gb
-        google.disk_type = 'pd-ssd'
-        google.autodelete_disk = true
-
-        override.ssh.username = $USER
-        override.ssh.private_key_path = $SSH_KEY
       end
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
@@ -141,25 +177,22 @@ Vagrant.configure("2") do |config|
         vb.memory = 3072
       end
 
+      machine.vm.provider :azure do |azure, override|
+        do_common_azure.call azure, override
+
+        azure.vm_name = "m3-dev-benchmarker-" + $USER
+        azure.vm_size = "Standard_D2s_v3"
+        azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP2 + "-benchmarker"
+      end
+
       machine.vm.provider :google do |google, override|
+        do_common_google.call google, override
+
         # This machine is used for running the benchmarker:
         google.machine_type = "n1-standard-2"
         google.preemptible = false
 
-        google.google_project_id = $GOOGLE_PROJECT_ID
-        google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION
-
         google.name = "m3-dev-benchmarker-" + $USER
-        google.image_family = "ubuntu-1604-lts"
-        google.zone = "us-central1-f"
-        google.metadata = {}
-        google.tags = ['vagrantbox', 'dev']
-        google.disk_size = '50' # 50gb
-        google.disk_type = 'pd-ssd'
-        google.autodelete_disk = true
-
-        override.ssh.username = $USER
-        override.ssh.private_key_path = $SSH_KEY
       end
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"

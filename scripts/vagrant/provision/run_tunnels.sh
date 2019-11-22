@@ -24,7 +24,7 @@ port_forward() {
     pod=$(kubectl get pod -A -o jsonpath="{.items[?(@.metadata.labels.app == \"${app}\")].metadata.name}" | tr " " "\n" | head -n 1)
     namespace=$(kubectl get pod -A -o jsonpath="{.items[?(@.metadata.labels.app == \"${app}\")].metadata.namespace}" | tr " " "\n" | head -n 1)
     echo "port forwarding app $app port $port pod $pod namespace $namespace"
-    kubectl port-forward -n $namespace $pod $port:$port
+    kubectl port-forward --address 0.0.0.0 -n $namespace $pod $port:$port
 }
 
 export -f port_forward

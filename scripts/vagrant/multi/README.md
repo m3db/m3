@@ -14,6 +14,10 @@ It includes:
 
 This is useful for benchmarking and similar needs.
 
+# Requirements
+Setup vagrant azure provider via [docs](https://github.com/Azure/vagrant-azure).
+Or altertnatively set up google provider via [docs](https://github.com/mitchellh/vagrant-google).
+
 # Local setup
 
 Start:
