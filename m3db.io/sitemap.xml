@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -13,25 +13,25 @@
         
     <url>
      <loc>/getting_started/requirements/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/installation/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/create_cluster/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/getting_started/monitoring/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -41,25 +41,25 @@
         
     <url>
      <loc>/configuration/configuring_m3db/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/pod_identity/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/namespaces/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/configuration/node_affinity/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -68,7 +68,7 @@
     
     <url>
      <loc>/api/</loc>
-     <lastmod>2019-11-21</lastmod>
+     <lastmod>2019-11-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
