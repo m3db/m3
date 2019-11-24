@@ -33,6 +33,7 @@ type encodedSeriesIterUnconsolidated struct {
 	lookbackDuration time.Duration
 	err              error
 	meta             block.Metadata
+	datapoints       xts.Datapoints
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator
@@ -71,10 +72,15 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 	}
 
 	iter := it.seriesIters[it.idx]
-	values := make(xts.Datapoints, 0, initBlockReplicaLength)
+	if it.datapoints == nil {
+		it.datapoints = make(xts.Datapoints, 0, initBlockReplicaLength)
+	} else {
+		it.datapoints = it.datapoints[:0]
+	}
+
 	for iter.Next() {
 		dp, _, _ := iter.Current()
-		values = append(values,
+		it.datapoints = append(it.datapoints,
 			xts.Datapoint{
 				Timestamp: dp.Timestamp,
 				Value:     dp.Value,
@@ -85,7 +91,7 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		return false
 	}
 
-	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
+	alignedValues := it.datapoints.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
 	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
 
 	return next

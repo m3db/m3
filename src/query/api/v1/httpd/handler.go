@@ -293,35 +293,35 @@ func (h *Handler) RegisterRoutes() error {
 			h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 	).Methods(graphite.FindHTTPMethods...)
 
+	placementOpts, err := h.placementOpts()
+	if err != nil {
+		return err
+	}
+
+	var placementServices []handler.ServiceNameAndDefaults
+	for _, serviceName := range h.placementServiceNames {
+		service := handler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+			Defaults:    h.serviceOptionDefaults,
+		}
+		placementServices = append(placementServices, service)
+	}
+
+	debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+		h.cpuProfileDuration,
+		h.clusterClient,
+		placementOpts,
+		placementServices,
+		h.instrumentOpts)
+	if err != nil {
+		return fmt.Errorf("unable to create debug writer: %v", err)
+	}
+
+	// Register debug dump handler.
+	h.router.HandleFunc(xdebug.DebugURL,
+		wrapped(debugWriter.HTTPHandler()).ServeHTTP)
+
 	if h.clusterClient != nil {
-		placementOpts, err := h.placementOpts()
-		if err != nil {
-			return err
-		}
-
-		var placementServices []handler.ServiceNameAndDefaults
-		for _, serviceName := range h.placementServiceNames {
-			service := handler.ServiceNameAndDefaults{
-				ServiceName: serviceName,
-				Defaults:    h.serviceOptionDefaults,
-			}
-			placementServices = append(placementServices, service)
-		}
-
-		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
-			h.cpuProfileDuration,
-			h.clusterClient,
-			placementOpts,
-			placementServices,
-			h.instrumentOpts)
-		if err != nil {
-			return fmt.Errorf("unable to create debug writer: %v", err)
-		}
-
-		// Register debug dump handler.
-		h.router.HandleFunc(xdebug.DebugURL,
-			wrapped(debugWriter.HTTPHandler()).ServeHTTP)
-
 		err = database.RegisterRoutes(h.router, h.clusterClient,
 			h.config, h.embeddedDbCfg, h.serviceOptionDefaults, h.instrumentOpts)
 		if err != nil {
