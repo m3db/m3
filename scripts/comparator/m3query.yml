@@ -21,12 +21,4 @@ metrics:
 
 tagOptions:
   idScheme: quoted
-
-tracing:
-  backend: jaeger
-  jaeger:
-    reporter:
-      localAgentHostPort: jaeger:6831
-    sampler:
-      type: const
-      param: 1
+ 

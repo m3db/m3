@@ -41,20 +41,5 @@ services:
     networks:
       - backend
     image: m3grafana:latest
-  jaeger:
-    networks:
-      - backend
-    image: jaegertracing/all-in-one:1.9
-    environment:
-      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
-    ports:
-      - "0.0.0.0:5775:5775/udp"
-      - "0.0.0.0:6831:6831/udp"
-      - "0.0.0.0:6832:6832/udp"
-      - "0.0.0.0:5778:5778"
-      - "0.0.0.0:16686:16686"
-      - "0.0.0.0:14268:14268"
-      - "0.0.0.0:14269:14269"
-      - "0.0.0.0:9411:9411"
 networks:
   backend:
