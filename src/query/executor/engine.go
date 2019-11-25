@@ -118,6 +118,15 @@ func (e *engine) Execute(
 	return e.opts.Store().Fetch(ctx, query, fetchOpts)
 }
 
+func (e *engine) ExecuteProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return e.opts.Store().FetchProm(ctx, query, fetchOpts)
+}
+
 func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,

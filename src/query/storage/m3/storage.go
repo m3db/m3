@@ -116,6 +116,36 @@ func (s *m3storage) Name() string {
 	return "local_store"
 }
 
+func (s *m3storage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	accumulator, err := s.fetchCompressed(ctx, query, options)
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
+	result, _, err := accumulator.FinalResultWithAttrs()
+	defer accumulator.Close()
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	return storage.SeriesIteratorsToPromResult(
+		result.SeriesIterators,
+		s.readWorkerPool,
+		result.Metadata,
+		enforcer,
+		s.opts.TagOptions(),
+	)
+}
+
 func (s *m3storage) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -140,7 +170,7 @@ func (s *m3storage) Fetch(
 	fetchResult, err := storage.SeriesIteratorsToFetchResult(
 		result.SeriesIterators,
 		s.readWorkerPool,
-		false,
+		true,
 		result.Metadata,
 		enforcer,
 		s.opts.TagOptions(),

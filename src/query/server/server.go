@@ -785,7 +785,7 @@ func remoteZoneStorage(
 		return nil, err
 	}
 
-	remoteOpts := remote.RemoteOptions{
+	remoteOpts := remote.Options{
 		Name:          zone.Name,
 		ErrorBehavior: zone.ErrorBehavior,
 	}

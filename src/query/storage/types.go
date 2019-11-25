@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -331,6 +332,14 @@ type Querier interface {
 		options *FetchOptions,
 	) (*FetchResult, error)
 
+	// FetchProm fetches decompressed timeseries data based on a query in a
+	// Prometheus-compatible format.
+	FetchProm(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (PromResult, error)
+
 	// FetchBlocks fetches timeseries as blocks based on a query.
 	FetchBlocks(
 		ctx context.Context,
@@ -454,6 +463,14 @@ type FetchResult struct {
 	// query execution.
 	SeriesList ts.SeriesList
 	// Metadata describes any metadata for the operation.
+	Metadata block.ResultMetadata
+}
+
+// PromResult is a Prometheus-compatible result type.
+type PromResult struct {
+	// PromResult is the result, in Prometheus protobuf format.
+	PromResult *prompb.QueryResult
+	// ResultMetadata is the metadtat for the result.
 	Metadata block.ResultMetadata
 }
 

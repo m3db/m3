@@ -178,8 +178,8 @@ func (h *PromReadHandler) parseRequest(
 }
 
 type readResult struct {
-	result []*prompb.QueryResult
 	meta   block.ResultMetadata
+	result []*prompb.QueryResult
 }
 
 func (h *PromReadHandler) read(
@@ -190,10 +190,11 @@ func (h *PromReadHandler) read(
 	fetchOpts *storage.FetchOptions,
 ) (readResult, error) {
 	var (
-		queryCount  = len(r.Queries)
-		promResults = make([]*prompb.QueryResult, queryCount)
-		cancelFuncs = make([]context.CancelFunc, queryCount)
-		queryOpts   = &executor.QueryOptions{
+		queryCount   = len(r.Queries)
+		cancelFuncs  = make([]context.CancelFunc, queryCount)
+		queryResults = make([]*prompb.QueryResult, queryCount)
+		meta         = block.NewResultMetadata()
+		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
@@ -201,7 +202,6 @@ func (h *PromReadHandler) read(
 		wg       sync.WaitGroup
 		mu       sync.Mutex
 		multiErr xerrors.MultiError
-		meta     = block.NewResultMetadata()
 	)
 
 	wg.Add(queryCount)
@@ -221,7 +221,7 @@ func (h *PromReadHandler) read(
 
 			// Detect clients closing connections
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			result, err := h.engine.Execute(ctx, query, queryOpts, fetchOpts)
+			result, err := h.engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -230,10 +230,9 @@ func (h *PromReadHandler) read(
 			}
 
 			mu.Lock()
+			queryResults[i] = result.PromResult
 			meta = meta.CombineMetadata(result.Metadata)
 			mu.Unlock()
-			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
-			promResults[i] = promRes
 		}()
 	}
 
@@ -243,8 +242,8 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return readResult{nil, meta}, err
+		return readResult{result: nil, meta: meta}, err
 	}
 
-	return readResult{promResults, meta}, nil
+	return readResult{result: queryResults, meta: meta}, nil
 }

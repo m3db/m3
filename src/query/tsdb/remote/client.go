@@ -133,6 +133,25 @@ func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
 	return c.pools, c.poolErr
 }
 
+func (c *grpcClient) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	result, err := c.fetchRaw(ctx, query, options)
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	return storage.SeriesIteratorsToPromResult(result.SeriesIterators,
+		c.readWorkerPool, result.Metadata, enforcer, c.tagOptions)
+}
+
 func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -194,7 +213,7 @@ func (c *grpcClient) fetchRaw(
 	fetchResult.Metadata = meta
 	fetchResult.SeriesIterators = encoding.NewSeriesIterators(
 		seriesIterators,
-		nil,
+		pools.MutableSeriesIterators(),
 	)
 
 	return fetchResult, nil
