@@ -39,7 +39,7 @@ import (
 )
 
 const poolTimeout = time.Second * 10
-const defaultBatch = 128
+const defaultBatch = 1
 
 // TODO: add metrics
 type grpcServer struct {

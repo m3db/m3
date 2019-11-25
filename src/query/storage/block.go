@@ -206,10 +206,10 @@ func newMultiSeriesBlockStepIter(
 	bounds := b.meta.Bounds
 	for i, s := range b.seriesList {
 		if b.consolidated {
-			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration)
+			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration, nil)
 		} else {
 			values[i] = s.Values().AlignToBoundsNoWriteForward(bounds,
-				b.lookbackDuration)
+				b.lookbackDuration, nil)
 		}
 	}
 
@@ -292,10 +292,10 @@ func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
 	lookback := m.block.lookbackDuration
 	var seriesValues []ts.Datapoints
 	if m.consolidated {
-		seriesValues = s.Values().AlignToBounds(m.block.meta.Bounds, lookback)
+		seriesValues = s.Values().AlignToBounds(m.block.meta.Bounds, lookback, nil)
 	} else {
 		seriesValues = s.Values().AlignToBoundsNoWriteForward(m.block.meta.Bounds,
-			lookback)
+			lookback, nil)
 	}
 
 	seriesLen := len(seriesValues)

@@ -315,8 +315,8 @@ func (c *baseNode) processCompletedBlocks(
 // the datapoint list.
 func getIndices(
 	dps []ts.Datapoint,
-	lBound time.Time,
-	rBound time.Time,
+	lBound int64,
+	rBound int64,
 	init int,
 ) (int, int, bool) {
 	if init >= len(dps) || init < 0 {
@@ -329,10 +329,10 @@ func getIndices(
 	)
 
 	for i, dp := range dps[init:] {
-		ts := dp.Timestamp
+		ts := dp.Timestamp.UnixNano()
 		if !leftBound {
 			// Trying to set left bound.
-			if ts.Before(lBound) {
+			if ts < lBound {
 				// data point before 0.
 				continue
 			}
@@ -341,7 +341,8 @@ func getIndices(
 			l = i
 		}
 
-		if !ts.After(rBound) {
+		if ts <= rBound {
+			// if !ts.After(rBound) {
 			continue
 		}
 
@@ -390,8 +391,8 @@ func buildValueBuffer(
 }
 
 type iterationBounds struct {
-	start time.Time
-	end   time.Time
+	start int64
+	end   int64
 }
 
 func (c *baseNode) processSingleRequest(
@@ -468,8 +469,11 @@ func (c *baseNode) processSingleRequest(
 		var (
 			newVal float64
 			init   = 0
-			end    = bounds.Start
-			start  = end.Add(-1 * aggDuration)
+			e      = bounds.Start
+			s      = e.Add(-1 * aggDuration)
+			end    = bounds.Start.UnixNano()
+			start  = end - int64(aggDuration) // end.Add(-1 * aggDuration)
+			step   = int64(bounds.StepSize)
 		)
 
 		for i := 0; i < series.Len(); i++ {
@@ -495,8 +499,10 @@ func (c *baseNode) processSingleRequest(
 				return nil, err
 			}
 
-			start = start.Add(bounds.StepSize)
-			end = end.Add(bounds.StepSize)
+			start = start + step // .Add(bounds.StepSize)
+			end = end + step     //.Add(bounds.StepSize)
+			e = e.Add(bounds.StepSize)
+			s = s.Add(bounds.StepSize)
 		}
 	}
 

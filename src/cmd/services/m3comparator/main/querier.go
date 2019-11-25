@@ -162,6 +162,14 @@ func (q *querier) FetchCompressed(
 		actualGens = gens
 	}
 
+	actualGens = make([]seriesGen, 20)
+	for i := 0; i < 20; i++ {
+		actualGens[i] = seriesGen{
+			res:  time.Second,
+			name: fmt.Sprintf("foo_%d", i),
+		}
+	}
+
 	seriesList := make([]series, 0, len(actualGens))
 	for _, gen := range actualGens {
 		tagMap := map[string]string{

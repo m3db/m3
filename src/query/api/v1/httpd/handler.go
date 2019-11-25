@@ -59,6 +59,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/prometheus/util/httputil"
 )
 
 const (
@@ -181,7 +182,9 @@ func (h *Handler) RegisterRoutes() error {
 	// Wrap requests with response time logging as well as panic recovery.
 	var (
 		wrapped = func(n http.Handler) http.Handler {
-			return logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts)
+			return httputil.CompressionHandler{
+				Handler: logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts),
+			}
 		}
 		panicOnly = func(n http.Handler) http.Handler {
 			return logging.WithPanicErrorResponder(n, h.instrumentOpts)

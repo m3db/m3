@@ -139,13 +139,17 @@ func (l linearRegressionNode) process(
 	return l.fn(slope, intercept)
 }
 
+func subSeconds(from int64, sub int64) float64 {
+	return float64(from-sub) / float64(time.Second)
+}
+
 // linearRegression performs a least-square linear regression analysis on the
 // provided datapoints. It returns the slope, and the intercept value at the
 // provided time.
 // Uses this algorithm: https://en.wikipedia.org/wiki/Simple_linear_regression.
 func linearRegression(
 	dps ts.Datapoints,
-	interceptTime time.Time,
+	interceptTime int64,
 	isDeriv bool,
 ) (float64, float64) {
 	var (
@@ -162,11 +166,12 @@ func linearRegression(
 
 		if valueCount == 0 && isDeriv {
 			// set interceptTime as timestamp of first non-NaN dp
-			interceptTime = dp.Timestamp
+			interceptTime = dp.Timestamp.UnixNano()
 		}
 
 		valueCount++
-		timeDiff := dp.Timestamp.Sub(interceptTime).Seconds()
+		timeDiff := subSeconds(dp.Timestamp.UnixNano(), interceptTime) // float64(dp.Timestamp.UnixNano() - interceptTime)
+		// timeDiff = timeDiff / float64(time.Second) // .Timestamp.Sub(interceptTime).Seconds()
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff

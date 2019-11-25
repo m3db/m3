@@ -121,13 +121,13 @@ var samples = []struct {
 
 func TestDPAlign(t *testing.T) {
 	for _, sample := range samples {
-		dpSlice := sample.input.AlignToBounds(sample.bounds, time.Minute)
+		dpSlice := sample.input.AlignToBounds(sample.bounds, time.Minute, nil)
 		require.Len(t, dpSlice, len(sample.expected), sample.description)
 		for i, dps := range dpSlice {
 			assert.Equal(t, sample.expected[i], dps.Values())
 		}
 
-		dpSlice = sample.input.AlignToBoundsNoWriteForward(sample.bounds, time.Minute)
+		dpSlice = sample.input.AlignToBoundsNoWriteForward(sample.bounds, time.Minute, nil)
 		require.Len(t, dpSlice, len(sample.expected), sample.description)
 		for i, dps := range dpSlice {
 			require.Equal(t, sample.expectedNoWriteForward[i], dps.Values())

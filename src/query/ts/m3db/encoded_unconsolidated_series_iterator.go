@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	xts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 type encodedSeriesIterUnconsolidated struct {
@@ -33,7 +33,8 @@ type encodedSeriesIterUnconsolidated struct {
 	lookbackDuration time.Duration
 	err              error
 	meta             block.Metadata
-	datapoints       xts.Datapoints
+	datapoints       ts.Datapoints
+	alignedValues    []ts.Datapoints
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator
@@ -73,7 +74,7 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 
 	iter := it.seriesIters[it.idx]
 	if it.datapoints == nil {
-		it.datapoints = make(xts.Datapoints, 0, initBlockReplicaLength)
+		it.datapoints = make(ts.Datapoints, 0, initBlockReplicaLength)
 	} else {
 		it.datapoints = it.datapoints[:0]
 	}
@@ -81,7 +82,7 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		it.datapoints = append(it.datapoints,
-			xts.Datapoint{
+			ts.Datapoint{
 				Timestamp: dp.Timestamp,
 				Value:     dp.Value,
 			})
@@ -91,8 +92,16 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		return false
 	}
 
-	alignedValues := it.datapoints.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
-	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
+	it.alignedValues = it.datapoints.AlignToBoundsNoWriteForward(
+		it.meta.Bounds,
+		it.lookbackDuration,
+		it.alignedValues,
+	)
+
+	it.series = block.NewUnconsolidatedSeries(
+		it.alignedValues,
+		it.seriesMeta[it.idx],
+	)
 
 	return next
 }
