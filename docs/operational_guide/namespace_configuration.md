@@ -58,7 +58,7 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
       "bufferFuture": "10m",
       "bufferPast": "10m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriod": "5m"
+      "blockDataExpiryAfterNotAccessedPeriod": "5m"
     },
     "indexOptions": {
       "enabled": true,
