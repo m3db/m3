@@ -75,9 +75,11 @@ Vagrant.configure("2") do |config|
         do_common_azure.call azure, override
 
         azure.vm_name = "m3-dev-primary-" + $USER + $AZURE_GROUP0
-        azure.vm_size = "Standard_D32s_v3"
-        #azure.vm_size = "Standard_D64s_v3"
+        azure.vm_size = "Standard_L32s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP0
+
+        # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
+        machine.vm.provision "file", source: "../docker", destination: "/etc/docker"
       end
 
       machine.vm.provider :google do |google, override|
@@ -128,9 +130,11 @@ Vagrant.configure("2") do |config|
         do_common_azure.call azure, override
 
         azure.vm_name = "m3-dev-secondary-" + $USER + $AZURE_GROUP1
-        azure.vm_size = "Standard_D32s_v3"
-        #azure.vm_size = "Standard_D64s_v3"
+        azure.vm_size = "Standard_L32s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP1
+
+        # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
+        machine.vm.provision "file", source: "../docker", destination: "/etc/docker"
       end
 
       machine.vm.provider :google do |google, override|
