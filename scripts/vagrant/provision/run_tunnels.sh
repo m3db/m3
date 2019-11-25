@@ -18,7 +18,7 @@ port_forward() {
         done;
         return 0
     fi
-    
+
     app=$(echo $forward | cut -f 1 -d ":")
     port=$(echo $forward | cut -f 2 -d ":")
     pod=$(kubectl get pod -A -o jsonpath="{.items[?(@.metadata.labels.app == \"${app}\")].metadata.name}" | tr " " "\n" | head -n 1)

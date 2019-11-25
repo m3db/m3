@@ -2,6 +2,8 @@
 
 set -xe
 
+export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
+
 # Perform rollign restarts of db nodes forever.
 NODE_NUM=0
 while true

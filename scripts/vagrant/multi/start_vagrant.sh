@@ -71,12 +71,16 @@ if [[ "$PROVIDER" == "azure" ]]; then
     fi
 
     # Create resource groups if not already exists. There should be three (primary/secondary/benchmarker).
-    MAYBE_RESOURCE_GROUPS=$(az group list -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep vagrant-dev | wc -l) || true
-    if  [[ $MAYBE_RESOURCE_GROUPS -ne 3 ]]; then
-        az group create -n vagrant-dev$GROUP0-primary -l eastus
-        az group create -n vagrant-dev$GROUP1-secondary -l eastus
-        az group create -n vagrant-dev$GROUP2-benchmarker -l eastus
-    fi
+    function create_resource_group_if_not_exists() {
+        RESOURCE_GROUP=$1
+        MAYBE_RESOURCE_GROUP=$(az group list -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep $RESOURCE_GROUP) || true
+        if  [[ "$MAYBE_RESOURCE_GROUP" != "$RESOURCE_GROUP" ]]; then
+            az group create -n $RESOURCE_GROUP -l eastus
+        fi
+    }
+    create_resource_group_if_not_exists vagrant-dev$GROUP0
+    create_resource_group_if_not_exists vagrant-dev$GROUP1
+    create_resource_group_if_not_exists vagrant-dev$GROUP2
 fi
 
 if [[ "$FEATURE_DOCKER_IMAGE" == "" ]]; then
@@ -91,7 +95,7 @@ vagrant up --provider $PROVIDER
 # NB(bodu): We do this later because the network nsg gets automatically created by the vagrant plugin in the
 # form of `${azure.nsg_name}-vagrantNSG`.
 if [[ "$PROVIDER" == "azure" ]]; then
-    function azure_create_ingress_if_not_exists() {
+    function create_ingress_if_not_exists() {
         RESOURCE_GROUP=$1
         MAYBE_GROUP0_M3COORDINATOR_INGRESS=$(az network nsg rule list -g $RESOURCE_GROUP --nsg-name network-m3coordinator-vagrantNSG -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep m3coordinator) || true
         if  [ "$MAYBE_GROUP0_M3COORDINATOR_INGRESS" != "default-allow-m3coordinator" ]; then
@@ -105,8 +109,8 @@ if [[ "$PROVIDER" == "azure" ]]; then
         fi
     }
     # Create m3coordinator ingress rules if not already exists.
-    azure_create_ingress_if_not_exists vagrant-dev$GROUP0-primary
-    azure_create_ingress_if_not_exists vagrant-dev$GROUP1-secondary
+    create_ingress_if_not_exists vagrant-dev$GROUP0
+    create_ingress_if_not_exists vagrant-dev$GROUP1
 fi
 
 # Get primary/secondary external IP addresses
@@ -124,12 +128,6 @@ echo "Provision k8s clusters"
 vagrant ssh benchmarker -c "cd provision && M3COORDINATOR_PRIMARY_IP=$M3COORDINATOR_PRIMARY_IP M3COORDINATOR_SECONDARY_IP=$M3COORDINATOR_SECONDARY_IP ./setup_kube_bench.sh" &
 vagrant ssh secondary -c "cd provision && MACHINE=secondary FEATURE_DOCKER_IMAGE=$FEATURE_DOCKER_IMAGE ./setup_kube.sh" &
 vagrant ssh primary -c "cd provision && MACHINE=primary ./setup_kube.sh"
-
-# Run tunnels forever
-# NB(bodu): the `sleep 1` is actually necessary, otherewise the remote commands get terminated for some reason.
-# Works fine w/o sleep for regular ssh but not vagrant ssh...
-vagrant ssh secondary -c "cd provision && nohup ./run_tunnels.sh & sleep 1"
-vagrant ssh primary -c "cd provision && nohup ./run_tunnels.sh & sleep 1"
 
 # Run rolling restart forever
 vagrant ssh secondary -c "cd provision && nohup ./rolling_restart_dbnodes.sh & sleep 1"
