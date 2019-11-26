@@ -1100,8 +1100,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#blocksizeduration" title="blockSizeDuration" class="md-nav__link">
-    blockSizeDuration
+  <a href="#blocksize_1" title="blockSize" class="md-nav__link">
+    blockSize
   </a>
   
 </li>
@@ -1553,8 +1553,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#blocksizeduration" title="blockSizeDuration" class="md-nav__link">
-    blockSizeDuration
+  <a href="#blocksize_1" title="blockSize" class="md-nav__link">
+    blockSize
   </a>
   
 </li>
@@ -1628,16 +1628,16 @@ Adding a namespace is a simple as using the <code>POST</code> <code>api/v1/names
     &quot;snapshotEnabled&quot;: true,
     &quot;repairEnabled&quot;: false,
     &quot;retentionOptions&quot;: {
-      &quot;retentionPeriodDuration&quot;: &quot;2d&quot;,
-      &quot;blockSizeDuration&quot;: &quot;2h&quot;,
-      &quot;bufferFutureDuration&quot;: &quot;10m&quot;,
-      &quot;bufferPastDuration&quot;: &quot;10m&quot;,
+      &quot;retentionPeriod&quot;: &quot;2d&quot;,
+      &quot;blockSize&quot;: &quot;2h&quot;,
+      &quot;bufferFuture&quot;: &quot;10m&quot;,
+      &quot;bufferPast&quot;: &quot;10m&quot;,
       &quot;blockDataExpiry&quot;: true,
-      &quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;: &quot;5m&quot;
+      &quot;blockDataExpiryAfterNotAccessedPeriod&quot;: &quot;5m&quot;
     },
     &quot;indexOptions&quot;: {
       &quot;enabled&quot;: true,
-      &quot;blockSizeDuration&quot;: &quot;2h&quot;
+      &quot;blockSize&quot;: &quot;2h&quot;
     }
   }
 }&#39;
@@ -1731,7 +1731,7 @@ currentSystemTime: 2:35:00PM
 <h4 id="enabled">enabled</h4>
 <p>Whether to use the built-in indexing. Must be <code>true</code>.</p>
 <p>Can be modified without creating a new namespace: <code>no</code></p>
-<h4 id="blocksizeduration">blockSizeDuration</h4>
+<h4 id="blocksize_1">blockSize</h4>
 <p>The size of blocks (in duration) that the index uses.
 Should match the databases <a href="#blocksize">blocksize</a> for optimal memory usage.</p>
 <p>Can be modified without creating a new namespace: <code>no</code></p>
