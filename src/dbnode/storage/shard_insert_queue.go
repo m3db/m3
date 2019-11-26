@@ -300,7 +300,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 	}
 	if limit := q.insertPerSecondLimit; limit > 0 {
 		if q.insertPerSecondLimitWindowNanos != windowNanos {
-			// Rolled into to a new window
+			// Rolled into a new window
 			q.insertPerSecondLimitWindowNanos = windowNanos
 			q.insertPerSecondLimitWindowValues = 0
 		}

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
+package namespace
 
 import (
-	"time"
+	"fmt"
+
+	"github.com/m3db/m3/src/x/ident"
 )
 
-type noOpBootstrapProcessProvider struct{}
+// MustBuildMetadatas builds a list of metadatas for testing with given
+// index enabled option and ids.
+func MustBuildMetadatas(indexEnabled bool, ids ...string) []Metadata {
+	idxOpts := NewIndexOptions().SetEnabled(indexEnabled)
+	opts := NewOptions().SetIndexOptions(idxOpts)
+	mds := make([]Metadata, 0, len(ids))
+	for _, id := range ids {
+		md, err := NewMetadata(ident.StringID(id), opts)
+		if err != nil {
+			panic(fmt.Sprintf("error during MustBuildMetadatas: %v", err))
+		}
 
-// NewNoOpProcessProvider creates a no-op bootstrap process proivder.
-func NewNoOpProcessProvider() ProcessProvider {
-	return noOpBootstrapProcessProvider{}
-}
+		mds = append(mds, md)
+	}
 
-func (b noOpBootstrapProcessProvider) SetBootstrapperProvider(provider BootstrapperProvider) {
-}
-
-func (b noOpBootstrapProcessProvider) BootstrapperProvider() BootstrapperProvider {
-	return nil
-}
-
-func (b noOpBootstrapProcessProvider) Provide() (Process, error) {
-	return noOpBootstrapProcess{}, nil
-}
-
-type noOpBootstrapProcess struct{}
-
-func (b noOpBootstrapProcess) Run(
-	start time.Time,
-	namespaces []ProcessNamespace,
-) (NamespaceResults, error) {
-	return NewNamespaceResults(NewNamespaces(namespaces)), nil
+	return mds
 }

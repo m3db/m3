@@ -450,7 +450,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().Bootstrap().Return(nil)
+	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil)
 	d.mediator = mediator
 
 	assert.NoError(t, d.Bootstrap())
@@ -464,7 +464,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().Bootstrap().Return(nil).Do(func() {
+	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil).Do(func() {
 		wg.Done()
 	})
 
