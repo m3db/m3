@@ -53,6 +53,8 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
+	tsdb "github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
@@ -230,13 +232,21 @@ func Run(runOpts RunOptions) {
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
+
+	tsdbOpts := tsdb.NewOptions().
+		SetTagOptions(tagOptions).
+		SetLookbackDuration(lookbackDuration).
+		SetConsolidationFunc(consolidators.TakeLast).
+		SetReadWorkerPool(readWorkerPool).
+		SetWriteWorkerPool(writeWorkerPool)
+
 	if cfg.Backend == config.GRPCStorageType {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
-		opts := config.RemoteOptionsFromConfig(cfg.RPC)
-		remotes, enabled, err := remoteClient(lookbackDuration, opts, tagOptions,
-			poolWrapper, readWorkerPool, instrumentOptions)
+		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
+		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
+			tsdbOpts, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -264,8 +274,9 @@ func Run(runOpts RunOptions) {
 
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
-			runOpts, cfg, tagOptions, m3dbClusters, m3dbPoolWrapper,
-			readWorkerPool, writeWorkerPool, queryCtxOpts, instrumentOptions)
+			cfg, m3dbClusters, m3dbPoolWrapper,
+			runOpts, queryCtxOpts, tsdbOpts, instrumentOptions)
+
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
@@ -390,14 +401,12 @@ func Run(runOpts RunOptions) {
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(
-	runOpts RunOptions,
 	cfg config.Configuration,
-	tagOptions models.TagOptions,
 	clusters m3.Clusters,
 	poolWrapper *pools.PoolWrapper,
-	readWorkerPool xsync.PooledWorkerPool,
-	writeWorkerPool xsync.PooledWorkerPool,
+	runOpts RunOptions,
 	queryContextOptions models.QueryContextOptions,
+	tsdbOpts tsdb.Options,
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
@@ -440,9 +449,8 @@ func newM3DBStorage(
 		}
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg, tagOptions,
-		poolWrapper, readWorkerPool, writeWorkerPool, queryContextOptions,
-		instrumentOptions)
+	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg,
+		poolWrapper, queryContextOptions, tsdbOpts, instrumentOptions)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -461,7 +469,7 @@ func newM3DBStorage(
 
 		newDownsamplerFn := func() (downsample.Downsampler, error) {
 			return newDownsampler(cfg.Downsample, clusterClient,
-				fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
+				fanoutStorage, autoMappingRules, tsdbOpts.TagOptions(), instrumentOptions)
 		}
 
 		if clusterClientWaitCh != nil {
@@ -653,11 +661,9 @@ func initClusters(
 func newStorages(
 	clusters m3.Clusters,
 	cfg config.Configuration,
-	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
-	readWorkerPool xsync.PooledWorkerPool,
-	writeWorkerPool xsync.PooledWorkerPool,
 	queryContextOptions models.QueryContextOptions,
+	opts tsdb.Options,
 	instrumentOpts instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	var (
@@ -665,24 +671,18 @@ func newStorages(
 		cleanup = func() error { return nil }
 	)
 
-	lookback, err := cfg.LookbackDurationOrDefault()
-	if err != nil {
-		return nil, cleanup, err
-	}
-
-	localStorage, err := m3.NewStorage(clusters, readWorkerPool,
-		writeWorkerPool, tagOptions, lookback, instrumentOpts)
+	localStorage, err := m3.NewStorage(clusters, opts, instrumentOpts)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
-	rpcOpts := config.RemoteOptionsFromConfig(cfg.RPC)
-	if rpcOpts.ServeEnabled() {
+	remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
+	if remoteOpts.ServeEnabled() {
 		logger.Info("rpc serve enabled")
 		server, err := startGRPCServer(localStorage, queryContextOptions,
-			poolWrapper, rpcOpts, instrumentOpts)
+			poolWrapper, remoteOpts, instrumentOpts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -693,15 +693,10 @@ func newStorages(
 		}
 	}
 
-	if rpcOpts.ListenEnabled() {
-		remoteStorages, enabled, err := remoteClient(
-			lookback,
-			rpcOpts,
-			tagOptions,
-			poolWrapper,
-			readWorkerPool,
-			instrumentOpts,
-		)
+	if remoteOpts.ListenEnabled() {
+		remoteStorages, enabled, err := remoteClient(poolWrapper, remoteOpts,
+			opts, instrumentOpts)
+
 		if err != nil {
 			return nil, nil, err
 		}
@@ -762,11 +757,8 @@ func newStorages(
 
 func remoteZoneStorage(
 	zone config.Remote,
-	lookbackDuration time.Duration,
-	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
-	readWorkerPool xsync.PooledWorkerPool,
-	instrumentOpts instrument.Options,
+	opts tsdb.Options,
 ) (storage.Storage, error) {
 	if len(zone.Addresses) == 0 {
 		// No addresses; skip.
@@ -776,9 +768,7 @@ func remoteZoneStorage(
 	client, err := tsdbRemote.NewGRPCClient(
 		zone.Addresses,
 		poolWrapper,
-		readWorkerPool,
-		tagOptions,
-		lookbackDuration,
+		opts,
 	)
 
 	if err != nil {
@@ -795,11 +785,9 @@ func remoteZoneStorage(
 }
 
 func remoteClient(
-	lookback time.Duration,
-	remoteOpts config.RemoteOptions,
-	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
-	readWorkerPool xsync.PooledWorkerPool,
+	remoteOpts config.RemoteOptions,
+	opts tsdb.Options,
 	instrumentOpts instrument.Options,
 ) ([]storage.Storage, bool, error) {
 	logger := instrumentOpts.Logger()
@@ -812,8 +800,7 @@ func remoteClient(
 			zap.Strings("addresses", zone.Addresses),
 		)
 
-		remote, err := remoteZoneStorage(zone, lookback, tagOptions, poolWrapper,
-			readWorkerPool, instrumentOpts)
+		remote, err := remoteZoneStorage(zone, poolWrapper, opts)
 		if err != nil {
 			return nil, false, err
 		}

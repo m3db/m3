@@ -71,6 +71,9 @@ type Datapoint struct {
 	Value     float64
 }
 
+// AlignedDatapoints is a list of aligned datapoints.
+type AlignedDatapoints []Datapoints
+
 // Datapoints is a list of datapoints.
 type Datapoints []Datapoint
 

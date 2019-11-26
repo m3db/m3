@@ -24,7 +24,6 @@ import (
 	"context"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -36,9 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
-	xsync "github.com/m3db/m3/src/x/sync"
 
 	"google.golang.org/grpc"
 )
@@ -50,16 +47,13 @@ type Client interface {
 }
 
 type grpcClient struct {
-	tagOptions       models.TagOptions
-	client           rpc.QueryClient
-	connection       *grpc.ClientConn
-	poolWrapper      *pools.PoolWrapper
-	readWorkerPool   xsync.PooledWorkerPool
-	once             sync.Once
-	pools            encoding.IteratorPools
-	poolErr          error
-	lookbackDuration time.Duration
-	opts             m3db.Options
+	client      rpc.QueryClient
+	connection  *grpc.ClientConn
+	poolWrapper *pools.PoolWrapper
+	once        sync.Once
+	pools       encoding.IteratorPools
+	poolErr     error
+	opts        m3db.Options
 }
 
 const initResultSize = 10
@@ -68,9 +62,7 @@ const initResultSize = 10
 func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
-	readWorkerPool xsync.PooledWorkerPool,
-	tagOptions models.TagOptions,
-	lookbackDuration time.Duration,
+	opts m3db.Options,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
 	if len(addresses) == 0 {
@@ -89,20 +81,12 @@ func NewGRPCClient(
 		return nil, err
 	}
 
-	opts := m3db.NewOptions().
-		SetTagOptions(tagOptions).
-		SetLookbackDuration(lookbackDuration).
-		SetConsolidationFunc(consolidators.TakeLast)
-
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
-		tagOptions:       tagOptions,
-		client:           client,
-		connection:       cc,
-		poolWrapper:      poolWrapper,
-		readWorkerPool:   readWorkerPool,
-		lookbackDuration: lookbackDuration,
-		opts:             opts,
+		client:      client,
+		connection:  cc,
+		poolWrapper: poolWrapper,
+		opts:        opts,
 	}, nil
 }
 
@@ -122,7 +106,7 @@ func (c *grpcClient) Fetch(
 	}
 
 	return storage.SeriesIteratorsToFetchResult(result.SeriesIterators,
-		c.readWorkerPool, true, result.Metadata, enforcer, c.tagOptions)
+		c.opts.ReadWorkerPool(), true, result.Metadata, enforcer, c.opts.TagOptions())
 }
 
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
@@ -149,7 +133,7 @@ func (c *grpcClient) FetchProm(
 	}
 
 	return storage.SeriesIteratorsToPromResult(result.SeriesIterators,
-		c.readWorkerPool, result.Metadata, enforcer, c.tagOptions)
+		c.opts.ReadWorkerPool(), result.Metadata, enforcer, c.opts.TagOptions())
 }
 
 func (c *grpcClient) fetchRaw(
@@ -298,7 +282,7 @@ func (c *grpcClient) SearchSeries(
 
 		receivedMeta := decodeResultMetadata(received.GetMeta())
 		meta = meta.CombineMetadata(receivedMeta)
-		m, err := decodeSearchResponse(received, pools, c.tagOptions)
+		m, err := decodeSearchResponse(received, pools, c.opts.TagOptions())
 		if err != nil {
 			return nil, err
 		}
