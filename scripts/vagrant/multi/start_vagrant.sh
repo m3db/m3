@@ -73,7 +73,7 @@ if [[ "$PROVIDER" == "azure" ]]; then
     # Create resource groups if not already exists. There should be three (primary/secondary/benchmarker).
     function create_resource_group_if_not_exists() {
         RESOURCE_GROUP=$1
-        MAYBE_RESOURCE_GROUP=$(az group list -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep $RESOURCE_GROUP) || true
+        MAYBE_RESOURCE_GROUP=$(az group list -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep "\<$RESOURCE_GROUP\>") || true
         if  [[ "$MAYBE_RESOURCE_GROUP" != "$RESOURCE_GROUP" ]]; then
             az group create -n $RESOURCE_GROUP -l eastus
         fi
@@ -115,8 +115,8 @@ fi
 
 # Get primary/secondary external IP addresses
 if [[ "$PROVIDER" == "google" ]]; then
-    M3COORDINATOR_PRIMARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep primary-$USER | awk '{ print $5 }')
-    M3COORDINATOR_SECONDARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep secondary-$USER | awk '{ print $5 }')
+    M3COORDINATOR_PRIMARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep "\<primary-$USER$GROUP0\>" | awk '{ print $5 }')
+    M3COORDINATOR_SECONDARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep "\<secondary-$USER$GROUP1\>" | awk '{ print $5 }')
 fi
 if [[ "$PROVIDER" == "azure" ]]; then
     M3COORDINATOR_PRIMARY_IP=$(az vm list-ip-addresses -o table | grep primary-$USER | awk '{ print $2 }')

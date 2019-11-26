@@ -77,9 +77,6 @@ Vagrant.configure("2") do |config|
         azure.vm_name = "m3-dev-primary-" + $USER + $AZURE_GROUP0
         azure.vm_size = "Standard_L32s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP0
-
-        # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
-        machine.vm.provision "file", source: "../docker", destination: "/etc/docker"
       end
 
       machine.vm.provider :google do |google, override|
@@ -100,9 +97,11 @@ Vagrant.configure("2") do |config|
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
       machine.vm.provision "file", source: "../../../kube", destination: "$HOME/provision/kube"
+      # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
+      machine.vm.provision "file", source: "../docker", destination: "/$HOME/docker"
 
       machine.vm.provision "shell", privileged: true, inline: <<-SHELL
-        cd provision && DOCKER_USER=#{$USER} ./setup_privileged.sh
+        cd provision && DOCKER_USER=#{$USER} AZURE_TENANT_ID=#{$AZURE_TENANT_ID} ./setup_privileged.sh
       SHELL
 
       machine.vm.provision "shell", privileged: false, inline: <<-SHELL
@@ -132,9 +131,6 @@ Vagrant.configure("2") do |config|
         azure.vm_name = "m3-dev-secondary-" + $USER + $AZURE_GROUP1
         azure.vm_size = "Standard_L32s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP1
-
-        # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
-        machine.vm.provision "file", source: "../docker", destination: "/etc/docker"
       end
 
       machine.vm.provider :google do |google, override|
@@ -155,9 +151,11 @@ Vagrant.configure("2") do |config|
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
       machine.vm.provision "file", source: "../../../kube", destination: "$HOME/provision/kube"
+      # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
+      machine.vm.provision "file", source: "../docker", destination: "/$HOME/docker"
 
       machine.vm.provision "shell", privileged: true, inline: <<-SHELL
-        cd provision && DOCKER_USER=#{$USER} ./setup_privileged.sh
+        cd provision && DOCKER_USER=#{$USER} AZURE_TENANT_ID=#{$AZURE_TENANT_ID} ./setup_privileged.sh
       SHELL
 
       machine.vm.provision "shell", privileged: false, inline: <<-SHELL

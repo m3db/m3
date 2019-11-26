@@ -1,9 +1,14 @@
-#!/bin/bash 
+#!/bin/bash
 
 # Use with Ubuntu 16.x+
 set -xe
 
 DOCKER_USER=${DOCKER_USER:-$USER}
+
+# Copy over docker daemon config for azure deployments.
+if [[ "$AZURE_TENANT_ID" != "" ]]; then
+    cp -r /home/$DOCKER_USER/docker /etc/docker
+fi
 
 apt-get update
 
