@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -43,9 +45,11 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 		return now
 	}))
 
+	id := ident.StringID("a")
+	meta, err := namespace.NewMetadata(id, namespace.NewOptions())
+	require.NoError(t, err)
+
 	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Bootstrap(now, gomock.Any()).Return(fmt.Errorf("an error"))
-	ns.EXPECT().ID().Return(ident.StringID("test"))
 	namespaces := []databaseNamespace{ns}
 
 	db := NewMockdatabase(ctrl)
@@ -54,12 +58,31 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
-	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
-	err := bsm.Bootstrap()
 
-	require.NotNil(t, err)
-	require.Equal(t, "an error", err.Error())
-	require.Equal(t, Bootstrapped, bsm.state)
+	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
+	// Don't sleep.
+	bsm.sleepFn = func(time.Duration) {}
+
+	gomock.InOrder(
+		ns.EXPECT().GetOwnedShards().Return([]databaseShard{}),
+		ns.EXPECT().Metadata().Return(meta),
+		ns.EXPECT().ID().Return(id),
+		ns.EXPECT().
+			Bootstrap(gomock.Any()).
+			Return(fmt.Errorf("an error")).
+			Do(func(bootstrapResult bootstrap.NamespaceResult) {
+				// After returning an error, make sure we don't re-enqueue.
+				bsm.bootstrapFn = func() error {
+					return nil
+				}
+			}),
+	)
+
+	result, err := bsm.Bootstrap()
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(result.ErrorsBootstrap))
+	require.Equal(t, "an error", result.ErrorsBootstrap[0].Error())
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
@@ -77,21 +100,26 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	m.EXPECT().EnableFileOps().AnyTimes()
 
 	db := NewMockdatabase(ctrl)
-
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
-
 	ns := NewMockdatabaseNamespace(ctrl)
+	id := ident.StringID("testBootstrap")
+	meta, err := namespace.NewMetadata(id, namespace.NewOptions())
+	require.NoError(t, err)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Metadata().Return(meta).AnyTimes()
+
 	ns.EXPECT().
-		Bootstrap(now, gomock.Any()).
+		Bootstrap(gomock.Any()).
 		Return(nil).
-		Do(func(arg0, arg1 interface{}) {
+		Do(func(arg0 interface{}) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
-			err := bsm.Bootstrap()
+			_, err := bsm.Bootstrap()
 			assert.Error(t, err)
 			assert.Equal(t, errBootstrapEnqueued, err)
 			assert.False(t, bsm.IsBootstrapped())
@@ -100,17 +128,17 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			bsm.RUnlock()
 
 			// Expect the second bootstrap call
-			ns.EXPECT().Bootstrap(now, gomock.Any()).Return(nil)
+			ns.EXPECT().Bootstrap(gomock.Any()).Return(nil)
 		})
 	ns.EXPECT().
 		ID().
-		Return(ident.StringID("test")).
+		Return(id).
 		Times(2)
 	db.EXPECT().
 		GetOwnedNamespaces().
 		Return([]databaseNamespace{ns}, nil).
 		Times(2)
 
-	err := bsm.Bootstrap()
+	_, err = bsm.Bootstrap()
 	require.Nil(t, err)
 }

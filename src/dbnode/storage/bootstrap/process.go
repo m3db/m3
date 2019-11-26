@@ -21,14 +21,15 @@
 package bootstrap
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -150,105 +151,118 @@ type bootstrapProcess struct {
 }
 
 func (b bootstrapProcess) Run(
-	start time.Time,
-	namespace namespace.Metadata,
-	shards []uint32,
-) (ProcessResult, error) {
-	dataResult, err := b.bootstrapData(start, namespace, shards)
-	if err != nil {
-		return ProcessResult{}, err
-	}
-
-	indexResult, err := b.bootstrapIndex(start, namespace, shards)
-	if err != nil {
-		return ProcessResult{}, err
-	}
-
-	return ProcessResult{
-		DataResult:  dataResult,
-		IndexResult: indexResult,
-	}, nil
-}
-
-func (b bootstrapProcess) bootstrapData(
 	at time.Time,
-	namespace namespace.Metadata,
-	shards []uint32,
-) (result.DataBootstrapResult, error) {
-	bootstrapResult := result.NewDataBootstrapResult()
-	ropts := namespace.Options().RetentionOptions()
-	targetRanges := b.targetRangesForData(at, ropts)
-	for _, target := range targetRanges {
-		logFields := b.logFields(bootstrapDataRunType, namespace,
-			shards, target.Range)
-		b.logBootstrapRun(logFields)
+	namespaces []ProcessNamespace,
+) (NamespaceResults, error) {
+	namespacesRunFirst := Namespaces{
+		Namespaces: NewNamespacesMap(NamespacesMapOptions{}),
+	}
+	namespacesRunSecond := Namespaces{
+		Namespaces: NewNamespacesMap(NamespacesMapOptions{}),
+	}
+	for _, namespace := range namespaces {
+		ropts := namespace.Metadata.Options().RetentionOptions()
+		idxopts := namespace.Metadata.Options().IndexOptions()
+		dataRanges := b.targetRangesForData(at, ropts)
+		indexRanges := b.targetRangesForIndex(at, ropts, idxopts)
 
-		begin := b.nowFn()
-		shardsTimeRanges := b.newShardTimeRanges(target.Range, shards)
-		res, err := b.bootstrapper.BootstrapData(namespace,
-			shardsTimeRanges, target.RunOptions)
+		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
+			Metadata:         namespace.Metadata,
+			Shards:           namespace.Shards,
+			DataAccumulator:  namespace.DataAccumulator,
+			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
+			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
+			DataRunOptions: NamespaceRunOptions{
+				ShardTimeRanges: b.newShardTimeRanges(
+					dataRanges.firstRangeWithPersistTrue.Range, namespace.Shards),
+				RunOptions: dataRanges.firstRangeWithPersistTrue.RunOptions,
+			},
+			IndexRunOptions: NamespaceRunOptions{
+				ShardTimeRanges: b.newShardTimeRanges(
+					indexRanges.firstRangeWithPersistTrue.Range, namespace.Shards),
+				RunOptions: indexRanges.firstRangeWithPersistTrue.RunOptions,
+			},
+		})
+		namespacesRunSecond.Namespaces.Set(namespace.Metadata.ID(), Namespace{
+			Metadata:         namespace.Metadata,
+			Shards:           namespace.Shards,
+			DataAccumulator:  namespace.DataAccumulator,
+			DataTargetRange:  dataRanges.secondRangeWithPersistFalse,
+			IndexTargetRange: indexRanges.secondRangeWithPersistFalse,
+			DataRunOptions: NamespaceRunOptions{
+				ShardTimeRanges: b.newShardTimeRanges(
+					dataRanges.secondRangeWithPersistFalse.Range, namespace.Shards),
+				RunOptions: dataRanges.secondRangeWithPersistFalse.RunOptions,
+			},
+			IndexRunOptions: NamespaceRunOptions{
+				ShardTimeRanges: b.newShardTimeRanges(
+					indexRanges.secondRangeWithPersistFalse.Range, namespace.Shards),
+				RunOptions: indexRanges.secondRangeWithPersistFalse.RunOptions,
+			},
+		})
+	}
 
-		b.logBootstrapResult(logFields, err, begin)
-		if err != nil {
-			return nil, err
+	bootstrapResult := NewNamespaceResults(namespacesRunFirst)
+	for _, namespaces := range []Namespaces{
+		namespacesRunFirst,
+		namespacesRunSecond,
+	} {
+		for _, entry := range namespaces.Namespaces.Iter() {
+			namespace := entry.Value()
+			logFields := b.logFields(namespace.Metadata, namespace.Shards,
+				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
+			b.logBootstrapRun(logFields)
 		}
 
-		bootstrapResult = result.MergedDataBootstrapResult(bootstrapResult, res)
-	}
-
-	return bootstrapResult, nil
-}
-
-func (b bootstrapProcess) bootstrapIndex(
-	at time.Time,
-	namespace namespace.Metadata,
-	shards []uint32,
-) (result.IndexBootstrapResult, error) {
-	bootstrapResult := result.NewIndexBootstrapResult()
-	ropts := namespace.Options().RetentionOptions()
-	idxopts := namespace.Options().IndexOptions()
-	if !idxopts.Enabled() {
-		// NB(r): If indexing not enable we just return an empty result
-		return result.NewIndexBootstrapResult(), nil
-	}
-
-	targetRanges := b.targetRangesForIndex(at, ropts, idxopts)
-	for _, target := range targetRanges {
-		logFields := b.logFields(bootstrapIndexRunType, namespace,
-			shards, target.Range)
-		b.logBootstrapRun(logFields)
-
 		begin := b.nowFn()
-		shardsTimeRanges := b.newShardTimeRanges(target.Range, shards)
-		res, err := b.bootstrapper.BootstrapIndex(namespace,
-			shardsTimeRanges, target.RunOptions)
+		res, err := b.bootstrapper.Bootstrap(namespaces)
+		took := b.nowFn().Sub(begin)
+		for _, entry := range namespaces.Namespaces.Iter() {
+			namespace := entry.Value()
+			nsID := namespace.Metadata.ID()
+			result, ok := res.Results.Get(nsID)
+			if !ok {
+				return NamespaceResults{},
+					fmt.Errorf("result missing for namespace: %v", nsID.String())
+			}
 
-		b.logBootstrapResult(logFields, err, begin)
-		if err != nil {
-			return nil, err
+			logFields := b.logFields(namespace.Metadata, namespace.Shards,
+				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
+			b.logBootstrapResult(result, logFields, err, took)
 		}
 
-		bootstrapResult = result.MergedIndexBootstrapResult(bootstrapResult, res)
+		if err != nil {
+			return NamespaceResults{}, err
+		}
+
+		bootstrapResult = MergeNamespaceResults(bootstrapResult, res)
 	}
 
 	return bootstrapResult, nil
 }
 
 func (b bootstrapProcess) logFields(
-	runType bootstrapRunType,
 	namespace namespace.Metadata,
 	shards []uint32,
-	window xtime.Range,
+	dataTimeWindow xtime.Range,
+	indexTimeWindow xtime.Range,
 ) []zapcore.Field {
-	return []zapcore.Field{
-		zap.String("run", string(runType)),
+	fields := []zapcore.Field{
 		zap.String("bootstrapper", b.bootstrapper.String()),
-		zap.String("namespace", namespace.ID().String()),
+		zap.Stringer("namespace", namespace.ID()),
 		zap.Int("numShards", len(shards)),
-		zap.Time("from", window.Start),
-		zap.Time("to", window.End),
-		zap.Duration("range", window.End.Sub(window.Start)),
+		zap.Time("dataFrom", dataTimeWindow.Start),
+		zap.Time("dataTo", dataTimeWindow.End),
+		zap.Duration("dataRange", dataTimeWindow.End.Sub(dataTimeWindow.Start)),
 	}
+	if namespace.Options().IndexOptions().Enabled() {
+		fields = append(fields, []zapcore.Field{
+			zap.Time("indexFrom", indexTimeWindow.Start),
+			zap.Time("indexTo", indexTimeWindow.End),
+			zap.Duration("indexRange", indexTimeWindow.End.Sub(indexTimeWindow.Start)),
+		}...)
+	}
+	return fields
 }
 
 func (b bootstrapProcess) newShardTimeRanges(
@@ -266,28 +280,34 @@ func (b bootstrapProcess) newShardTimeRanges(
 func (b bootstrapProcess) logBootstrapRun(
 	logFields []zapcore.Field,
 ) {
-	b.log.Info("bootstrapping shards for range starting", logFields...)
+	b.log.Info("bootstrap range starting", logFields...)
 }
 
 func (b bootstrapProcess) logBootstrapResult(
+	result NamespaceResult,
 	logFields []zapcore.Field,
 	err error,
-	begin time.Time,
+	took time.Duration,
 ) {
-	logFields = append(logFields, zap.Duration("took", b.nowFn().Sub(begin)))
+	logFields = append(logFields,
+		zap.Duration("took", took))
+	if result.IndexResult != nil {
+		logFields = append(logFields,
+			zap.Int("numIndexBlocks", len(result.IndexResult.IndexResults())))
+	}
 	if err != nil {
 		logFields = append(logFields, zap.Error(err))
-		b.log.Info("bootstrapping shards for range completed with error", logFields...)
+		b.log.Info("bootstrap range completed with error", logFields...)
 		return
 	}
 
-	b.log.Info("bootstrapping shards for range completed successfully", logFields...)
+	b.log.Info("bootstrap range completed successfully", logFields...)
 }
 
 func (b bootstrapProcess) targetRangesForData(
 	at time.Time,
 	ropts retention.Options,
-) []TargetRange {
+) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
@@ -301,7 +321,7 @@ func (b bootstrapProcess) targetRangesForIndex(
 	at time.Time,
 	ropts retention.Options,
 	idxopts namespace.IndexOptions,
-) []TargetRange {
+) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
@@ -319,10 +339,15 @@ type targetRangesOptions struct {
 	bufferFuture          time.Duration
 }
 
+type targetRangesResult struct {
+	firstRangeWithPersistTrue   TargetRange
+	secondRangeWithPersistFalse TargetRange
+}
+
 func (b bootstrapProcess) targetRanges(
 	at time.Time,
 	opts targetRangesOptions,
-) []TargetRange {
+) targetRangesResult {
 	start := at.Add(-opts.retentionPeriod).
 		Truncate(opts.blockSize)
 	midPoint := at.
@@ -340,8 +365,8 @@ func (b bootstrapProcess) targetRanges(
 	// bootstrap with persistence so we don't keep the full raw
 	// data in process until we finish bootstrapping which could
 	// cause the process to OOM.
-	return []TargetRange{
-		{
+	return targetRangesResult{
+		firstRangeWithPersistTrue: TargetRange{
 			Range: xtime.Range{Start: start, End: midPoint},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled: true,
@@ -351,7 +376,7 @@ func (b bootstrapProcess) targetRanges(
 				FileSetType: persist.FileSetFlushType,
 			}),
 		},
-		{
+		secondRangeWithPersistFalse: TargetRange{
 			Range: xtime.Range{Start: midPoint, End: cutover},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled: true,
@@ -371,4 +396,71 @@ func (b bootstrapProcess) newRunOptions() RunOptions {
 			b.processOpts.CacheSeriesMetadata(),
 		).
 		SetInitialTopologyState(b.initialTopologyState)
+}
+
+// NewNamespaces returns a new set of bootstrappable namespaces.
+func NewNamespaces(
+	namespaces []ProcessNamespace,
+) Namespaces {
+	namespacesMap := NewNamespacesMap(NamespacesMapOptions{})
+	for _, ns := range namespaces {
+		namespacesMap.Set(ns.Metadata.ID(), Namespace{
+			Metadata:        ns.Metadata,
+			Shards:          ns.Shards,
+			DataAccumulator: ns.DataAccumulator,
+		})
+	}
+	return Namespaces{
+		Namespaces: namespacesMap,
+	}
+}
+
+// NewNamespaceResults creates a
+// namespace results map with an entry for each
+// namespace spoecified by a namespaces map.
+func NewNamespaceResults(
+	namespaces Namespaces,
+) NamespaceResults {
+	resultsMap := NewNamespaceResultsMap(NamespaceResultsMapOptions{})
+	for _, entry := range namespaces.Namespaces.Iter() {
+		key := entry.Key()
+		value := entry.Value()
+		resultsMap.Set(key, NamespaceResult{
+			Metadata:    value.Metadata,
+			Shards:      value.Shards,
+			DataResult:  result.NewDataBootstrapResult(),
+			IndexResult: result.NewIndexBootstrapResult(),
+		})
+	}
+	return NamespaceResults{
+		Results: resultsMap,
+	}
+}
+
+// MergeNamespaceResults merges two namespace results, this will mutate
+// both a and b and return a merged copy of them reusing one of the results.
+func MergeNamespaceResults(a, b NamespaceResults) NamespaceResults {
+	for _, entry := range a.Results.Iter() {
+		id := entry.Key()
+		elem := entry.Value()
+		other, ok := b.Results.Get(id)
+		if !ok {
+			continue
+		}
+		elem.DataResult = result.MergedDataBootstrapResult(elem.DataResult,
+			other.DataResult)
+		elem.IndexResult = result.MergedIndexBootstrapResult(elem.IndexResult,
+			other.IndexResult)
+
+		// Save back the merged results.
+		a.Results.Set(id, elem)
+
+		// Remove from b, then can directly add to a all non-merged results.
+		b.Results.Delete(id)
+	}
+	// All overlapping between a and b have been merged, add rest to a.
+	for _, entry := range b.Results.Iter() {
+		a.Results.Set(entry.Key(), entry.Value())
+	}
+	return a
 }

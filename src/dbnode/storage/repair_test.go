@@ -167,8 +167,8 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 	if withLimit {
 		numIters = 2
-		shard.EXPECT().Load(gomock.Any()).Return(nil)
-		shard.EXPECT().Load(gomock.Any()).DoAndReturn(func(*result.Map) error {
+		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
+		shard.EXPECT().LoadBlocks(gomock.Any()).DoAndReturn(func(*result.Map) error {
 			// Return an error that we've hit the limit, but also start a delayed
 			// goroutine to release the throttle repair process.
 			go func() {
@@ -177,10 +177,11 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 			}()
 			return ErrDatabaseLoadLimitHit
 		})
-		shard.EXPECT().Load(gomock.Any()).Return(nil)
+		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
 	} else {
-		shard.EXPECT().Load(gomock.Any())
+		shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
 	}
+
 	for i := 0; i < numIters; i++ {
 		expectedResults := block.NewFetchBlocksMetadataResults()
 		results := block.NewFetchBlockMetadataResults()
@@ -417,7 +418,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		FetchBlocksMetadataV2(any, start, end, any, nonNilPageToken, fetchOpts).
 		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
-	shard.EXPECT().Load(gomock.Any())
+	shard.EXPECT().LoadBlocks(gomock.Any()).Return(nil)
 
 	inputBlocks := []block.ReplicaMetadata{
 		{

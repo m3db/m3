@@ -25,33 +25,33 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-// HashGen generates HashFn based on the length of shards
+// HashGen generates HashFn based on the length of shards.
 type HashGen func(length int) HashFn
 
-// HashFn is a sharding hash function
+// HashFn is a sharding hash function.
 type HashFn func(id ident.ID) uint32
 
 // ShardSet contains a sharding function and a set of shards, this interface
-// allows for potentially out of order shard sets
+// allows for potentially out of order shard sets.
 type ShardSet interface {
-	// All returns a slice to the shards in this set
+	// All returns a slice to the shards in this set.
 	All() []shard.Shard
 
-	// AllIDs returns a slice to the shard IDs in this set
+	// AllIDs returns a slice to the shard IDs in this set.
 	AllIDs() []uint32
 
-	// Lookup will return a shard for a given identifier
+	// Lookup will return a shard for a given identifier.
 	Lookup(id ident.ID) uint32
 
-	// LookupStateByID returns the state of the shard with a given ID
+	// LookupStateByID returns the state of the shard with a given ID.
 	LookupStateByID(shardID uint32) (shard.State, error)
 
-	// Min returns the smallest shard owned by this shard set
+	// Min returns the smallest shard owned by this shard set.
 	Min() uint32
 
-	// Max returns the largest shard owned by this shard set
+	// Max returns the largest shard owned by this shard set.
 	Max() uint32
 
-	// HashFn returns the sharding hash function
+	// HashFn returns the sharding hash function.
 	HashFn() HashFn
 }

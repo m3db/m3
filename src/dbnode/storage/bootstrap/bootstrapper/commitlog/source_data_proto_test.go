@@ -22,9 +22,10 @@ package commitlog
 
 import (
 	"testing"
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +57,7 @@ func testProtoNsMetadata(t *testing.T) namespace.Metadata {
 	return md
 }
 
-func setProtoAnnotation(value []testValue) []testValue {
+func setProtoAnnotation(value testValues) testValues {
 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
 	for i := 0; i < len(value); i++ {
 		value[i].v = 0
@@ -82,4 +83,3 @@ func TestProtoItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	md := testProtoNsMetadata(t)
 	testItMergesSnapshotsAndCommitLogs(t, opts, md, setProtoAnnotation)
 }
-
