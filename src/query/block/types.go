@@ -196,7 +196,7 @@ type UnconsolidatedStep interface {
 	Values() []ts.Datapoints
 }
 
-// Builder buids Blocks.
+// Builder builds Blocks.
 type Builder interface {
 	// AddCols adds the given number of columns to the block.
 	AddCols(num int) error

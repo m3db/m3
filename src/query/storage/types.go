@@ -470,7 +470,7 @@ type FetchResult struct {
 type PromResult struct {
 	// PromResult is the result, in Prometheus protobuf format.
 	PromResult *prompb.QueryResult
-	// ResultMetadata is the metadtat for the result.
+	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
 }
 

@@ -39,7 +39,10 @@ import (
 )
 
 const poolTimeout = time.Second * 10
-const defaultBatch = 4
+
+// TODO: adjust default batch based on message size; huge series can
+// unfortunately overwhelm this number.
+const defaultBatch = 128
 
 // TODO: add metrics
 type grpcServer struct {

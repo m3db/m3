@@ -170,8 +170,7 @@ func linearRegression(
 		}
 
 		valueCount++
-		timeDiff := subSeconds(dp.Timestamp.UnixNano(), interceptTime) // float64(dp.Timestamp.UnixNano() - interceptTime)
-		// timeDiff = timeDiff / float64(time.Second) // .Timestamp.Sub(interceptTime).Seconds()
+		timeDiff := subSeconds(dp.Timestamp.UnixNano(), interceptTime)
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff

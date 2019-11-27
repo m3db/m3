@@ -143,12 +143,10 @@ func standardRateFunc(
 		counterCorrection   float64
 		firstVal, lastValue float64
 		firstIdx, lastIdx   int
-		firstTS, lastTS     int64 //time.Time
+		firstTS, lastTS     int64
 		foundFirst          bool
 	)
 
-	// rangeStart := timeSpec.Start
-	// rangeEnd := timeSpec.End
 	for i, dp := range datapoints {
 		if math.IsNaN(dp.Value) {
 			continue
@@ -174,9 +172,9 @@ func standardRateFunc(
 		return math.NaN()
 	}
 
-	durationToStart := subSeconds(firstTS, rangeStart) // firstTS.Sub(rangeStart).Seconds()
-	durationToEnd := subSeconds(rangeEnd, lastTS)      //rangeEnd.Sub(lastTS).Seconds()
-	sampledInterval := subSeconds(lastTS, firstTS)     // lastTS.Sub(firstTS).Seconds()
+	durationToStart := subSeconds(firstTS, rangeStart)
+	durationToEnd := subSeconds(rangeEnd, lastTS)
+	sampledInterval := subSeconds(lastTS, firstTS)
 	averageDurationBetweenSamples := sampledInterval / float64(lastIdx-firstIdx)
 
 	resultValue := lastValue - firstVal + counterCorrection

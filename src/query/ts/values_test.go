@@ -127,7 +127,8 @@ func TestDPAlign(t *testing.T) {
 			assert.Equal(t, sample.expected[i], dps.Values())
 		}
 
-		dpSlice = sample.input.AlignToBoundsNoWriteForward(sample.bounds, time.Minute, nil)
+		dpSlice = sample.input.AlignToBoundsNoWriteForward(
+			sample.bounds, time.Minute, dpSlice)
 		require.Len(t, dpSlice, len(sample.expected), sample.description)
 		for i, dps := range dpSlice {
 			require.Equal(t, sample.expectedNoWriteForward[i], dps.Values())

@@ -21,12 +21,15 @@
 package m3db
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,5 +139,72 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 
 		require.Equal(t, len(expected), j)
 		require.NoError(t, iters.Err())
+	}
+}
+
+func verifySingleMeta(
+	t *testing.T,
+	i int,
+	meta block.Metadata,
+	metas []block.SeriesMeta,
+) {
+	require.Equal(t, 0, meta.Tags.Len())
+	require.Equal(t, 1, len(metas))
+
+	m := metas[0]
+	assert.Equal(t, fmt.Sprintf("abc%d", i), string(m.Name))
+	require.Equal(t, 2, m.Tags.Len())
+
+	val, found := m.Tags.Get([]byte("a"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("b"), val)
+
+	val, found = m.Tags.Get([]byte("c"))
+	assert.True(t, found)
+	assert.Equal(t, []byte(fmt.Sprint(i)), val)
+}
+
+func TestUnconsolidatedSeriesIteratorBatch(t *testing.T) {
+	expected := [][]float64{
+		{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		{10, 20, 30, 40},
+		{100, 200, 300, 400, 500},
+	}
+
+	count := 0
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(false)
+	require.NoError(t, opts.Validate())
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
+	for _, bl := range blocks {
+		require.True(t, bounds.Equals(bl.Meta().Bounds))
+		unconsolidated, err := bl.Unconsolidated()
+		require.NoError(t, err)
+
+		batch, ok := unconsolidated.(block.MultiUnconsolidatedBlock)
+		require.True(t, ok)
+		iters := batch.MultiSeriesIter(3)
+		require.Equal(t, 3, len(iters))
+
+		for i, itBatch := range iters {
+			iter := itBatch.Iter
+			require.Equal(t, 1, itBatch.Size)
+			verifySingleMeta(t, i, bl.Meta(), iter.SeriesMeta())
+			for iter.Next() {
+				series := iter.Current()
+				actual := make([]float64, 0, len(series.Datapoints()))
+				for _, v := range series.Datapoints() {
+					actual = append(actual, v.Value)
+				}
+
+				test.EqualsWithNans(t, expected[i], actual)
+				count++
+			}
+
+			require.NoError(t, iter.Err())
+		}
+
+		assert.Equal(t, 3, count)
 	}
 }

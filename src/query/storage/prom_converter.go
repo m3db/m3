@@ -86,7 +86,7 @@ func iteratorToPromResult(
 	}, nil
 }
 
-// Fall back to sequential decompression if unable to decompress concurrently
+// Fall back to sequential decompression if unable to decompress concurrently.
 func toPromSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
