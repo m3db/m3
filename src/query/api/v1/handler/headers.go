@@ -56,6 +56,12 @@ const (
 	// metrics type.
 	MetricsStoragePolicyHeader = "M3-Storage-Policy"
 
+	// FetchRestrictLabels restricts all fetches to match certain labels.
+	FetchRestrictLabels = "M3-Fetch-Restrict-Labels"
+
+	// FetchStripLabels strips certain labels from the result.
+	FetchStripLabels = "M3-Fetch-Strip-Labels"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 

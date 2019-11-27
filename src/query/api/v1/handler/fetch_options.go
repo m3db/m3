@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/prometheus/prometheus/promql"
 )
 
 const (
@@ -123,6 +125,14 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		}
 		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
 		fetchOpts.RestrictFetchOptions.StoragePolicy = sp
+	}
+	if str := req.Header.Get(FetchRestrictLabels); str != "" {
+		promMatchers, err := promql.ParseMetricSelector(str)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
+		fetchOpts.RestrictFetchOptions.MustApplyMatchers = promMatchers
 	}
 	if restrict := fetchOpts.RestrictFetchOptions; restrict != nil {
 		if err := restrict.Validate(); err != nil {

@@ -123,6 +123,7 @@ func FetchOptionsToAggregateOptions(
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query.
 func FetchQueryToM3Query(
 	fetchQuery *FetchQuery,
+	options *FetchOptions,
 ) (index.Query, error) {
 	matchers := fetchQuery.TagMatchers
 	// If no matchers provided, explicitly set this to an AllQuery

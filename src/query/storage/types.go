@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/uber-go/tally"
 )
@@ -105,6 +107,46 @@ type FetchQuery struct {
 	Start       time.Time       `json:"start"`
 	End         time.Time       `json:"end"`
 	Interval    time.Duration   `json:"interval"`
+}
+
+// WithAppliedOptions returns a copy of the fetch query applied options
+// that restricts the fetch with respect to labels that must be applied.
+func (q *FetchQuery) WithAppliedOptions(
+	opts *FetchOptions,
+) *FetchQuery {
+	result := *q
+	if opts == nil {
+		return &result
+	}
+
+	if restrictOpts := opts.RestrictFetchOptions; restrictOpts != nil {
+		mustApplyMatchers := restrictOpts.MustApplyMatchers
+		if n := len(mustApplyMatchers); n > 0 {
+			existing := result.TagMatchers
+			result.TagMatchers = make(models.Matchers, 0, len(existing)+n)
+			// Since must apply matchers will always be small (usually 1)
+			// it's better to not allocate intermediate datastructure and just
+			// perform n^2 matching.
+			for _, existingMatcher := range existing {
+				willBeOverridden := false
+				for _, mustApplyMatcher := range mustApplyMatchers {
+					if bytes.Equal(existingMatcher.Name, mustApplyMatcher.Name) {
+						willBeOverridden = true
+						break
+					}
+				}
+				if willBeOverridden {
+					// We'll override this when we append the must apply matchers.
+					continue
+				}
+				result.TagMatchers = append(result.TagMatchers, existingMatcher)
+			}
+			// Now append the must apply matchers.
+			result.TagMatchers = append(result.TagMatchers, mustApplyMatchers...)
+		}
+	}
+
+	return &result
 }
 
 func (q *FetchQuery) String() string {
@@ -227,6 +269,10 @@ type RestrictFetchOptions struct {
 	// StoragePolicy is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
 	StoragePolicy policy.StoragePolicy
+	// MustApplyMatchers is a set of override matchers to apply to a fetch
+	// regardless of the existing fetch matchers, they should replace any
+	// existing matchers part of a fetch if they collide.
+	MustApplyMatchers []*labels.Matcher
 }
 
 // NewRestrictFetchOptionsFromProto returns a restrict fetch options from
@@ -257,6 +303,8 @@ func NewRestrictFetchOptionsFromProto(
 
 		result.StoragePolicy = storagePolicy
 	}
+
+	// TODO: deserialize must apply matchers
 
 	// Validate the resulting options.
 	if err := result.Validate(); err != nil {
@@ -315,6 +363,8 @@ func (o RestrictFetchOptions) Proto() (*rpcpb.RestrictFetchOptions, error) {
 		}
 
 		result.MetricsStoragePolicy = storagePolicyProto
+
+		// TODO: serialize must apply matchers
 	}
 
 	return result, nil
