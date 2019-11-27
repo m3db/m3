@@ -75,7 +75,7 @@ if [[ "$PROVIDER" == "azure" ]]; then
         RESOURCE_GROUP=$1
         MAYBE_RESOURCE_GROUP=$(az group list -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep "\<$RESOURCE_GROUP\>") || true
         if  [[ "$MAYBE_RESOURCE_GROUP" != "$RESOURCE_GROUP" ]]; then
-            az group create -n $RESOURCE_GROUP -l eastus
+            az group create -n $RESOURCE_GROUP -l eastus2
         fi
     }
     create_resource_group_if_not_exists vagrant-dev$GROUP0
