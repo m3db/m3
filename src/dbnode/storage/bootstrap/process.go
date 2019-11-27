@@ -220,10 +220,16 @@ func (b bootstrapProcess) Run(
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
 			nsID := namespace.Metadata.ID()
-			result, ok := res.Results.Get(nsID)
-			if !ok {
-				return NamespaceResults{},
-					fmt.Errorf("result missing for namespace: %v", nsID.String())
+
+			var result NamespaceResult
+			if err == nil {
+				// Only can access the result if we didn't receive an error.
+				var ok bool
+				result, ok = res.Results.Get(nsID)
+				if !ok {
+					return NamespaceResults{},
+						fmt.Errorf("result missing for namespace: %v", nsID.String())
+				}
 			}
 
 			logFields := b.logFields(namespace.Metadata, namespace.Shards,

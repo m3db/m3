@@ -289,6 +289,7 @@ func (s *commitLogSource) Read(
 			ReturnMetadataAsRef: true,
 		}
 		datapointsSkippedNotBootstrappingNamespace = 0
+		datapointsSkippedNotBootstrappingShard     = 0
 		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
@@ -303,7 +304,8 @@ func (s *commitLogSource) Read(
 			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotInRange", datapointsSkippedNotInRange),
-			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace))
+			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
+			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard))
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -474,6 +476,13 @@ func (s *commitLogSource) Read(
 		// If not bootstrapping this namespace then skip this result.
 		if !seriesEntry.namespace.bootstrapping {
 			datapointsSkippedNotBootstrappingNamespace++
+			continue
+		}
+		// If not bootstrapping shard for this series then also skip.
+		shard := seriesEntry.series.Shard
+		_, bootstrapping := seriesEntry.namespace.dataAndIndexShardRanges[shard]
+		if !bootstrapping {
+			datapointsSkippedNotBootstrappingShard++
 			continue
 		}
 
