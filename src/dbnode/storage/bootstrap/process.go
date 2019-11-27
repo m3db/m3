@@ -217,9 +217,17 @@ func (b bootstrapProcess) Run(
 		begin := b.nowFn()
 		res, err := b.bootstrapper.Bootstrap(namespaces)
 		took := b.nowFn().Sub(begin)
+		if err != nil {
+			b.log.Error("bootstrap process error",
+				zap.Duration("took", took),
+				zap.Error(err))
+			return NamespaceResults{}, err
+		}
+
 		for _, entry := range namespaces.Namespaces.Iter() {
 			namespace := entry.Value()
 			nsID := namespace.Metadata.ID()
+
 			result, ok := res.Results.Get(nsID)
 			if !ok {
 				return NamespaceResults{},
@@ -228,11 +236,7 @@ func (b bootstrapProcess) Run(
 
 			logFields := b.logFields(namespace.Metadata, namespace.Shards,
 				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
-			b.logBootstrapResult(result, logFields, err, took)
-		}
-
-		if err != nil {
-			return NamespaceResults{}, err
+			b.logBootstrapResult(result, logFields, took)
 		}
 
 		bootstrapResult = MergeNamespaceResults(bootstrapResult, res)
@@ -286,7 +290,6 @@ func (b bootstrapProcess) logBootstrapRun(
 func (b bootstrapProcess) logBootstrapResult(
 	result NamespaceResult,
 	logFields []zapcore.Field,
-	err error,
 	took time.Duration,
 ) {
 	logFields = append(logFields,
@@ -295,13 +298,8 @@ func (b bootstrapProcess) logBootstrapResult(
 		logFields = append(logFields,
 			zap.Int("numIndexBlocks", len(result.IndexResult.IndexResults())))
 	}
-	if err != nil {
-		logFields = append(logFields, zap.Error(err))
-		b.log.Info("bootstrap range completed with error", logFields...)
-		return
-	}
 
-	b.log.Info("bootstrap range completed successfully", logFields...)
+	b.log.Info("bootstrap range completed", logFields...)
 }
 
 func (b bootstrapProcess) targetRangesForData(
