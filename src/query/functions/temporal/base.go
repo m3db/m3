@@ -22,6 +22,8 @@ package temporal
 
 import (
 	"fmt"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -29,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/opentracing"
 )
 
@@ -129,16 +132,6 @@ func (c *baseNode) Process(
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
 
-	// var bl block.Block
-	// defer bl.Close()
-	// return c.controller.Process(queryCtx, bl)
-	// }
-
-	// func (c *baseNode) processBlock(
-	// 	queryCtx
-	// 	b block.UnconsolidatedBlock,
-	// 	valueBuffer ts.Datapoints,
-	// ) (block.Block, error) {
 	seriesIter, err := unconsolidatedBlock.SeriesIter()
 	if err != nil {
 		return err
@@ -168,54 +161,105 @@ func (c *baseNode) Process(
 		return err
 	}
 
-	for seriesIter.Next() {
-		var (
-			newVal float64
-			init   = 0
-			end    = bounds.Start.UnixNano()
-			start  = end - int64(aggDuration)
-			step   = int64(bounds.StepSize)
-
-			series     = seriesIter.Current()
-			datapoints = series.Datapoints()
-		)
-
-		size := 0
-		for _, dps := range datapoints {
-			size += len(dps)
-		}
-
-		// TODO: remove the weird align to bounds bit from here.
-		flat := make(ts.Datapoints, 0, size)
-		for _, dps := range datapoints {
-			flat = append(flat, dps...)
-		}
-
-		for i := 0; i < series.Len(); i++ {
-			iterBounds := iterationBounds{
-				start: start,
-				end:   end,
-			}
-
-			l, r, b := getIndices(flat, start, end, init)
-			if !b {
-				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
-			} else {
-				init = l
-				newVal = c.processor.process(flat[l:r], iterBounds)
-			}
-
-			if err := builder.AppendValue(i, newVal); err != nil {
-				return err
-			}
-
-			start += step
-			end += step
-		}
+	m := blockMeta{
+		end:         bounds.Start.UnixNano(),
+		aggDuration: int64(c.op.duration),
+		stepSize:    int64(bounds.StepSize),
+		steps:       bounds.Steps(),
 	}
 
-	if err = seriesIter.Err(); err != nil {
-		return err
+	if batchBlock, ok := unconsolidatedBlock.(block.MultiUnconsolidatedBlock); ok {
+		builder.PopulateColumns(seriesIter.SeriesCount())
+
+		var (
+			concurrency = runtime.NumCPU()
+			iterBatches = batchBlock.MultiSeriesIter(concurrency)
+
+			mu       sync.Mutex
+			wg       sync.WaitGroup
+			multiErr xerrors.MultiError
+			idx      int
+		)
+
+		for _, batch := range iterBatches {
+			wg.Add(1)
+			// capture loop variables
+			loopIndex := idx
+			batch := batch
+			idx = idx + batch.Size
+			fmt.Println("Loop index", loopIndex, "batch size", batch.Size, "idx", idx)
+			go func() {
+				err := buildBlockBatch(
+					loopIndex,
+					batch.Iter,
+					m,
+					c.processor,
+					seriesMeta,
+					&mu,
+					builder,
+				)
+
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+		if err := multiErr.FinalError(); err != nil {
+			return err
+		}
+	} else {
+		for seriesIter.Next() {
+			var (
+				newVal float64
+				init   = 0
+				end    = bounds.Start.UnixNano()
+				start  = end - int64(aggDuration)
+				step   = int64(bounds.StepSize)
+
+				series     = seriesIter.Current()
+				datapoints = series.Datapoints()
+			)
+
+			size := 0
+			for _, dps := range datapoints {
+				size += len(dps)
+			}
+
+			// TODO: remove the weird align to bounds bit from here.
+			flat := make(ts.Datapoints, 0, size)
+			for _, dps := range datapoints {
+				flat = append(flat, dps...)
+			}
+
+			for i := 0; i < series.Len(); i++ {
+				iterBounds := iterationBounds{
+					start: start,
+					end:   end,
+				}
+
+				l, r, b := getIndices(flat, start, end, init)
+				if !b {
+					newVal = c.processor.process(ts.Datapoints{}, iterBounds)
+				} else {
+					init = l
+					newVal = c.processor.process(flat[l:r], iterBounds)
+				}
+
+				if err := builder.AppendValue(i, newVal); err != nil {
+					return err
+				}
+
+				start += step
+				end += step
+			}
+		}
+
+		if err = seriesIter.Err(); err != nil {
+			return err
+		}
 	}
 
 	// NB: safe to close the block here.
@@ -226,6 +270,88 @@ func (c *baseNode) Process(
 	bl := builder.Build()
 	defer bl.Close()
 	return c.controller.Process(queryCtx, bl)
+}
+
+type blockMeta struct {
+	end         int64
+	aggDuration int64
+	stepSize    int64
+	steps       int
+}
+
+func buildBlockBatch(
+	idx int,
+	iter block.UnconsolidatedSeriesIter,
+	blockMeta blockMeta,
+	processor processor,
+	metas []block.SeriesMeta,
+	mu *sync.Mutex,
+	builder block.Builder,
+) error {
+	values := make([]float64, 0, blockMeta.steps)
+	var flat ts.Datapoints
+	for iter.Next() {
+		var (
+			newVal float64
+			init   = 0
+			end    = blockMeta.end
+			start  = end - blockMeta.aggDuration
+			step   = blockMeta.stepSize
+
+			series     = iter.Current()
+			stepCount  = series.Len()
+			datapoints = series.Datapoints()
+		)
+
+		if stepCount != blockMeta.steps {
+			return fmt.Errorf("expected %d steps, got %d", blockMeta.steps, stepCount)
+		}
+
+		size := 0
+		for _, dps := range datapoints {
+			size += len(dps)
+		}
+
+		if flat == nil {
+			flat = make(ts.Datapoints, 0, size)
+		} else {
+			flat = flat[:0]
+		}
+
+		values = values[:0]
+		for _, dps := range datapoints {
+			flat = append(flat, dps...)
+		}
+
+		for i := 0; i < stepCount; i++ {
+			iterBounds := iterationBounds{
+				start: start,
+				end:   end,
+			}
+
+			l, r, b := getIndices(flat, start, end, init)
+			if !b {
+				newVal = processor.process(ts.Datapoints{}, iterBounds)
+			} else {
+				init = l
+				newVal = processor.process(flat[l:r], iterBounds)
+			}
+
+			values = append(values, newVal)
+			start += step
+			end += step
+		}
+
+		mu.Lock()
+		err := builder.SetRow(idx, values, metas[idx])
+		idx++
+		mu.Unlock()
+		if err != nil {
+			return err
+		}
+	}
+
+	return iter.Err()
 }
 
 // getIndices returns the index of the points on the left and the right of the

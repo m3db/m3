@@ -49,11 +49,10 @@ const (
 	BlockContainer
 	// BlockEmpty is a block with metadata but no series or values.
 	BlockEmpty
+	// BlockMultiSeries is a block containing series with common metadata.
 	//
 	// TODO: (arnikola) do some refactoring to remove the blocks and types below,
 	// as they can be better handled by the above block types.
-	//
-	// BlockMultiSeries is a block containing series with common metadata.
 	BlockMultiSeries
 	// BlockConsolidated is a consolidated block.
 	BlockConsolidated
@@ -76,13 +75,16 @@ type Block interface {
 	Info() BlockInfo
 }
 
+// AccumulatorBlock accumulates incoming blocks and presents them as a single
+// Block.
 type AccumulatorBlock interface {
 	Block
 	// AddBlock adds a block to this accumulator.
 	AddBlock(bl Block) error
 }
 
-// UnconsolidatedBlock represents a group of unconsolidated series across a time bound
+// UnconsolidatedBlock represents a group of unconsolidated series across
+// a time bound.
 type UnconsolidatedBlock interface {
 	io.Closer
 	// StepIter returns a step-wise block iterator, giving unconsolidated values
@@ -95,6 +97,15 @@ type UnconsolidatedBlock interface {
 	Consolidate() (Block, error)
 	// Meta returns the metadata for the block.
 	Meta() Metadata
+}
+
+// MultiUnconsolidatedBlock is a group of unconsolidated series accross a time
+// bound that allows for concurrent series iteration.
+type MultiUnconsolidatedBlock interface {
+	UnconsolidatedBlock
+	// MultiSeriesIter returns batched series iterators for the block based on
+	// given concurrency.
+	MultiSeriesIter(concurrency int) []UnconsolidatedSeriesIterBatch
 }
 
 // SeriesMeta is metadata data for the series.
@@ -131,6 +142,14 @@ type SeriesIter interface {
 	SeriesMetaIter
 	// Current returns the current series for the block.
 	Current() Series
+}
+
+// UnconsolidatedSeriesIterBatch is a batch of UnconsolidatedSeriesIterators.
+type UnconsolidatedSeriesIterBatch struct {
+	// Iter is the series iterator.
+	Iter UnconsolidatedSeriesIter
+	// Size is the batch size.
+	Size int
 }
 
 // UnconsolidatedSeriesIter iterates through a block horizontally.
@@ -177,9 +196,14 @@ type UnconsolidatedStep interface {
 	Values() []ts.Datapoints
 }
 
+// Builder buids Blocks.
 type Builder interface {
 	// AddCols adds the given number of columns to the block.
 	AddCols(num int) error
+	// SetRow sets a given block row to the given values and metadata.
+	SetRow(idx int, values []float64, meta SeriesMeta) error
+	// PopulateColumns sets all columns to the given size.
+	PopulateColumns(size int)
 	// AppendValue adds a single value to the column at the given index.
 	AppendValue(idx int, value float64) error
 	// AppendValues adds a slice of values to the column at the given index.

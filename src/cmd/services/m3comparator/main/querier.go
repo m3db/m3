@@ -162,10 +162,10 @@ func (q *querier) FetchCompressed(
 		actualGens = gens
 	}
 
-	actualGens = make([]seriesGen, 20)
-	for i := 0; i < 20; i++ {
+	actualGens = make([]seriesGen, 600)
+	for i := 0; i < 600; i++ {
 		actualGens[i] = seriesGen{
-			res:  time.Second,
+			res:  time.Second * 15,
 			name: fmt.Sprintf("foo_%d", i),
 		}
 	}

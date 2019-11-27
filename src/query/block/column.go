@@ -21,6 +21,7 @@
 package block
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// ColumnBlockBuilder builds a block optimized for column iteration
+// ColumnBlockBuilder builds a block optimized for column iteration.
 type ColumnBlockBuilder struct {
 	block           *columnBlock
 	enforcer        cost.ChainedEnforcer
@@ -66,12 +67,9 @@ func (c *columnBlock) StepIter() (StepIter, error) {
 	}, nil
 }
 
-// TODO: allow series iteration
 func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
 }
-
-// TODO: allow series iteration
 func (c *columnBlock) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
@@ -208,11 +206,11 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 	}
 
 	cb.blockDatapoints.Inc(int64(len(values)))
-
 	columns[idx].Values = append(columns[idx].Values, values...)
 	return nil
 }
 
+// AddCols adds the given number of columns to the block.
 func (cb ColumnBlockBuilder) AddCols(num int) error {
 	if num < 1 {
 		return fmt.Errorf("must add more than 0 columns, adding: %d", num)
@@ -223,10 +221,54 @@ func (cb ColumnBlockBuilder) AddCols(num int) error {
 	return nil
 }
 
+// PopulateColumns sets all columns to the given row size.
+func (cb ColumnBlockBuilder) PopulateColumns(size int) {
+	for i := range cb.block.columns {
+		cb.block.columns[i] = column{Values: make([]float64, size)}
+	}
+}
+
+// SetRow sets a given block row to the given values and metadata.
+func (cb ColumnBlockBuilder) SetRow(
+	idx int,
+	values []float64,
+	meta SeriesMeta,
+) error {
+	cols := cb.block.columns
+	if len(values) == 0 {
+		// Sanity check. Should never happen.
+		return errors.New("cannot insert empty values")
+	}
+
+	if len(values) != len(cols) {
+		return fmt.Errorf("inserting column size %d does not match column size: %d",
+			len(values), len(cols))
+	}
+
+	rows := len(cols[0].Values)
+	if idx < 0 || idx >= rows {
+		return fmt.Errorf("cannot insert into row %d, have %d rows", idx, rows)
+	}
+
+	for i, v := range values {
+		cb.block.columns[i].Values[idx] = v
+	}
+
+	r := cb.enforcer.Add(xcost.Cost(len(values)))
+	if r.Error != nil {
+		return r.Error
+	}
+
+	cb.block.seriesMeta[idx] = meta
+	return nil
+}
+
+// Build builds the block.
 func (cb ColumnBlockBuilder) Build() Block {
 	return NewAccountedBlock(cb.block, cb.enforcer)
 }
 
+// BuildAsType builds the block, forcing it to the given BlockType.
 func (cb ColumnBlockBuilder) BuildAsType(blockType BlockType) Block {
 	cb.block.blockType = blockType
 	return NewAccountedBlock(cb.block, cb.enforcer)
