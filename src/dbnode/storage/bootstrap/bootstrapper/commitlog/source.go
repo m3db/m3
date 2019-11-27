@@ -479,6 +479,8 @@ func (s *commitLogSource) Read(
 			continue
 		}
 		// If not bootstrapping shard for this series then also skip.
+		// NB(r): This can occur when a topology change happens then we
+		// bootstrap from the commit log data that the node no longer owns.
 		shard := seriesEntry.series.Shard
 		_, bootstrapping := seriesEntry.namespace.dataAndIndexShardRanges[shard]
 		if !bootstrapping {
