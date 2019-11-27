@@ -288,26 +288,7 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 
 func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
 	s := m.block.seriesList[m.index]
-	values := make([]ts.Datapoints, m.block.StepCount())
-	lookback := m.block.lookbackDuration
-	var seriesValues []ts.Datapoints
-	if m.consolidated {
-		seriesValues = s.Values().AlignToBounds(m.block.meta.Bounds, lookback, nil)
-	} else {
-		seriesValues = s.Values().AlignToBoundsNoWriteForward(m.block.meta.Bounds,
-			lookback, nil)
-	}
-
-	seriesLen := len(seriesValues)
-	for i := 0; i < m.block.StepCount(); i++ {
-		if i < seriesLen {
-			values[i] = seriesValues[i]
-		} else {
-			values[i] = nil
-		}
-	}
-
-	return block.NewUnconsolidatedSeries(values, block.SeriesMeta{
+	return block.NewUnconsolidatedSeries(s.Values().Datapoints(), block.SeriesMeta{
 		Tags: s.Tags,
 		Name: s.Name(),
 	})

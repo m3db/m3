@@ -275,22 +275,13 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c      = it.it.Current()
 		values = c.datapoints
-		dpList = make([]ts.Datapoints, 0, len(values))
 		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
-	for _, val := range values {
-		dps := make([]ts.Datapoint, 0, len(val))
-		for _, dp := range val.Datapoints() {
-			dps = append(dps, ts.Datapoint{
-				Timestamp: tt(dp.Timestamp),
-				Value:     vt(dp.Value),
-			})
-		}
-
-		dpList = append(dpList, dps)
+	for i, v := range values {
+		c.datapoints[i].Timestamp = tt(v.Timestamp)
+		c.datapoints[i].Value = vt(v.Value)
 	}
 
-	c.datapoints = dpList
 	return c
 }

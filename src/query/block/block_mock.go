@@ -446,6 +446,32 @@ func (mr *MockBuilderMockRecorder) BuildAsType(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildAsType", reflect.TypeOf((*MockBuilder)(nil).BuildAsType), arg0)
 }
 
+// PopulateColumns mocks base method
+func (m *MockBuilder) PopulateColumns(arg0 int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "PopulateColumns", arg0)
+}
+
+// PopulateColumns indicates an expected call of PopulateColumns
+func (mr *MockBuilderMockRecorder) PopulateColumns(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopulateColumns", reflect.TypeOf((*MockBuilder)(nil).PopulateColumns), arg0)
+}
+
+// SetRow mocks base method
+func (m *MockBuilder) SetRow(arg0 int, arg1 []float64, arg2 SeriesMeta) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRow", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetRow indicates an expected call of SetRow
+func (mr *MockBuilderMockRecorder) SetRow(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRow", reflect.TypeOf((*MockBuilder)(nil).SetRow), arg0, arg1, arg2)
+}
+
 // MockStep is a mock of Step interface
 type MockStep struct {
 	ctrl     *gomock.Controller

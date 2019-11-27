@@ -102,19 +102,10 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 }
 
 func TestUnconsolidatedSeriesIterator(t *testing.T) {
-	expected := [][][]float64{
-		{
-			{}, {}, {}, {}, {}, {}, {1}, {}, {2, 3}, {4}, {5}, {6}, {7}, {},
-			{}, {}, {}, {8}, {}, {}, {}, {}, {9}, {}, {}, {}, {}, {}, {}, {},
-		},
-		{
-			{}, {}, {10}, {20}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {30},
-			{}, {}, {}, {}, {}, {40}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
-		},
-		{
-			{}, {}, {}, {100}, {}, {}, {}, {}, {}, {200}, {}, {}, {}, {}, {},
-			{300}, {}, {}, {}, {}, {}, {400}, {}, {}, {500}, {}, {}, {}, {}, {},
-		},
+	expected := [][]float64{
+		{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		{10, 20, 30, 40},
+		{100, 200, 300, 400, 500},
 	}
 
 	j := 0
@@ -134,8 +125,11 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 		verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			series := iters.Current()
-			vals := series.Datapoints()
-			actual := datapointsToFloatSlices(t, vals)
+			actual := make([]float64, 0, len(series.Datapoints()))
+			for _, v := range series.Datapoints() {
+				actual = append(actual, v.Value)
+			}
+
 			test.EqualsWithNans(t, expected[j], actual)
 			j++
 		}

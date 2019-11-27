@@ -357,13 +357,13 @@ func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	it.EXPECT().Err().Return(nil).AnyTimes()
 	it.EXPECT().Next().Return(true)
 	it.EXPECT().Next().Return(false)
-	vals := make([]ts.Datapoints, numSteps)
+	vals := make(ts.Datapoints, numSteps)
 	for i := range vals {
 		tt := now.Add(time.Duration(i) * step)
-		vals[i] = ts.Datapoints{
+		vals = append(vals,
 			ts.Datapoint{Timestamp: tt, Value: v},
 			ts.Datapoint{Timestamp: tt, Value: v},
-		}
+		)
 	}
 
 	it.EXPECT().Current().Return(UnconsolidatedSeries{
@@ -396,26 +396,25 @@ func TestUnconsolidatedContainerSeriesIter(t *testing.T) {
 	it, err := consolidated.SeriesIter()
 	require.NoError(t, err)
 
-	buildExpected := func(v float64) []ts.Datapoints {
-		expected := make([]ts.Datapoints, numSteps)
+	buildExpected := func(v float64) ts.Datapoints {
+		expected := make(ts.Datapoints, numSteps)
 		for i := range expected {
-			expected[i] = make(ts.Datapoints, 2)
-			for j := range expected[i] {
-				expected[i][j] = ts.Datapoint{
-					Timestamp: now.Add(time.Duration(i) * step),
-					Value:     float64(v),
-				}
-			}
+			expected = append(expected, ts.Datapoint{
+				Timestamp: now.Add(time.Duration(i) * step),
+				Value:     float64(v),
+			}, ts.Datapoint{
+				Timestamp: now.Add(time.Duration(i) * step),
+				Value:     float64(v),
+			})
 		}
 
 		return expected
 	}
 
-	expected := [][]ts.Datapoints{buildExpected(1), buildExpected(2)}
+	expected := []ts.Datapoints{buildExpected(1), buildExpected(2)}
 	ex := 0
 	for it.Next() {
 		current := it.Current()
-		assert.Equal(t, numSteps, current.Len())
 		assert.Equal(t, expected[ex], current.Datapoints())
 		ex++
 

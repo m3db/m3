@@ -399,12 +399,10 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
 
-	vals := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     12,
-			},
+	vals := ts.Datapoints{
+		ts.Datapoint{
+			Timestamp: now,
+			Value:     12,
 		},
 	}
 
@@ -414,12 +412,10 @@ func TestUnconsolidatedSeriesIter(t *testing.T) {
 
 	iter.EXPECT().Current().Return(unconsolidated)
 	actual := it.Current()
-	xts := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now.Add(offset),
-				Value:     12,
-			},
+	xts := ts.Datapoints{
+		ts.Datapoint{
+			Timestamp: now.Add(offset),
+			Value:     12,
 		},
 	}
 
@@ -620,12 +616,10 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 	iter.EXPECT().Next().Return(true)
 	assert.True(t, it.Next())
 
-	vals := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     12,
-			},
+	vals := ts.Datapoints{
+		ts.Datapoint{
+			Timestamp: now,
+			Value:     12,
 		},
 	}
 
@@ -635,12 +629,10 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 
 	iter.EXPECT().Current().Return(unconsolidated)
 	actual := it.Current()
-	expected := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     -12,
-			},
+	expected := ts.Datapoints{
+		ts.Datapoint{
+			Timestamp: now,
+			Value:     -12,
 		},
 	}
 

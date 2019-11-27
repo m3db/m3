@@ -125,14 +125,8 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		return false
 	}
 
-	it.alignedValues = it.datapoints.AlignToBoundsNoWriteForward(
-		it.meta.Bounds,
-		it.lookbackDuration,
-		it.alignedValues,
-	)
-
 	it.series = block.NewUnconsolidatedSeries(
-		it.alignedValues,
+		it.datapoints,
 		it.seriesMeta[it.idx],
 	)
 

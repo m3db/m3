@@ -157,7 +157,8 @@ func (c *baseNode) Process(
 		return err
 	}
 
-	if err := builder.AddCols(bounds.Steps()); err != nil {
+	steps := bounds.Steps()
+	if err := builder.AddCols(steps); err != nil {
 		return err
 	}
 
@@ -165,7 +166,7 @@ func (c *baseNode) Process(
 		end:         bounds.Start.UnixNano(),
 		aggDuration: int64(c.op.duration),
 		stepSize:    int64(bounds.StepSize),
-		steps:       bounds.Steps(),
+		steps:       steps,
 	}
 
 	if batchBlock, ok := unconsolidatedBlock.(block.MultiUnconsolidatedBlock); ok {
@@ -187,7 +188,6 @@ func (c *baseNode) Process(
 			loopIndex := idx
 			batch := batch
 			idx = idx + batch.Size
-			fmt.Println("Loop index", loopIndex, "batch size", batch.Size, "idx", idx)
 			go func() {
 				err := buildBlockBatch(
 					loopIndex,
@@ -223,29 +223,18 @@ func (c *baseNode) Process(
 				datapoints = series.Datapoints()
 			)
 
-			size := 0
-			for _, dps := range datapoints {
-				size += len(dps)
-			}
-
-			// TODO: remove the weird align to bounds bit from here.
-			flat := make(ts.Datapoints, 0, size)
-			for _, dps := range datapoints {
-				flat = append(flat, dps...)
-			}
-
 			for i := 0; i < series.Len(); i++ {
 				iterBounds := iterationBounds{
 					start: start,
 					end:   end,
 				}
 
-				l, r, b := getIndices(flat, start, end, init)
+				l, r, b := getIndices(datapoints, start, end, init)
 				if !b {
 					newVal = c.processor.process(ts.Datapoints{}, iterBounds)
 				} else {
 					init = l
-					newVal = c.processor.process(flat[l:r], iterBounds)
+					newVal = c.processor.process(datapoints[l:r], iterBounds)
 				}
 
 				if err := builder.AppendValue(i, newVal); err != nil {
@@ -289,7 +278,6 @@ func buildBlockBatch(
 	builder block.Builder,
 ) error {
 	values := make([]float64, 0, blockMeta.steps)
-	var flat ts.Datapoints
 	for iter.Next() {
 		var (
 			newVal float64
@@ -299,42 +287,22 @@ func buildBlockBatch(
 			step   = blockMeta.stepSize
 
 			series     = iter.Current()
-			stepCount  = series.Len()
 			datapoints = series.Datapoints()
 		)
 
-		if stepCount != blockMeta.steps {
-			return fmt.Errorf("expected %d steps, got %d", blockMeta.steps, stepCount)
-		}
-
-		size := 0
-		for _, dps := range datapoints {
-			size += len(dps)
-		}
-
-		if flat == nil {
-			flat = make(ts.Datapoints, 0, size)
-		} else {
-			flat = flat[:0]
-		}
-
 		values = values[:0]
-		for _, dps := range datapoints {
-			flat = append(flat, dps...)
-		}
-
-		for i := 0; i < stepCount; i++ {
+		for i := 0; i < blockMeta.steps; i++ {
 			iterBounds := iterationBounds{
 				start: start,
 				end:   end,
 			}
 
-			l, r, b := getIndices(flat, start, end, init)
+			l, r, b := getIndices(datapoints, start, end, init)
 			if !b {
 				newVal = processor.process(ts.Datapoints{}, iterBounds)
 			} else {
 				init = l
-				newVal = processor.process(flat[l:r], iterBounds)
+				newVal = processor.process(datapoints[l:r], iterBounds)
 			}
 
 			values = append(values, newVal)
@@ -343,9 +311,11 @@ func buildBlockBatch(
 		}
 
 		mu.Lock()
+		// NB: this sets the values internally, so no need to worry about keeping
+		// a reference to underlying `values`.
 		err := builder.SetRow(idx, values, metas[idx])
-		idx++
 		mu.Unlock()
+		idx++
 		if err != nil {
 			return err
 		}
