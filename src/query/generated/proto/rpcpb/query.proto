@@ -67,6 +67,7 @@ message FetchOptions {
 message RestrictFetchOptions {
 	MetricsType metricsType                     = 1;
 	policypb.StoragePolicy metricsStoragePolicy = 2;
+	TagMatchers mustApplyMatchers               = 3;
 }
 
 enum MetricsType {

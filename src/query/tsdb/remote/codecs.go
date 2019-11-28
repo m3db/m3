@@ -22,13 +22,16 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -121,6 +124,7 @@ func encodeFetchRequest(
 func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) {
 	matchers := make([]*rpc.TagMatcher, len(modelMatchers))
 	for i, matcher := range modelMatchers {
+		fmt.Println("matcher", matcher)
 		t, err := encodeMatcherTypeToProto(matcher.Type)
 		if err != nil {
 			return nil, err
@@ -148,7 +152,7 @@ func encodeFanoutOption(opt storage.FanoutOption) (rpc.FanoutOption, error) {
 		return rpc.FanoutOption_FORCE_ENABLED, nil
 	}
 
-	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v\n", opt)
+	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v", opt)
 }
 
 func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error) {
@@ -181,7 +185,7 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 
 	result.AggregatedOptimized = aggOpt
 	if v := options.RestrictFetchOptions; v != nil {
-		restrict, err := v.Proto()
+		restrict, err := encodeRestrictFetchOptions(v)
 		if err != nil {
 			return nil, err
 		}
@@ -191,6 +195,43 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 
 	if v := options.LookbackDuration; v != nil {
 		result.LookbackDuration = int64(*v)
+	}
+
+	return result, nil
+}
+
+func encodeRestrictFetchOptions(
+	o *storage.RestrictFetchOptions,
+) (*rpcpb.RestrictFetchOptions, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+
+	result := &rpcpb.RestrictFetchOptions{}
+
+	switch o.MetricsType {
+	case storage.UnaggregatedMetricsType:
+		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
+	case storage.AggregatedMetricsType:
+		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
+
+		storagePolicyProto, err := o.StoragePolicy.Proto()
+		if err != nil {
+			return nil, err
+		}
+
+		result.MetricsStoragePolicy = storagePolicyProto
+	}
+
+	if len(o.MustApplyMatchers) > 0 {
+		fmt.Println("Applhying matchers", o.MustApplyMatchers)
+		matchers, err := encodeTagMatchers(o.MustApplyMatchers)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(" matchers", matchers)
+
+		result.MustApplyMatchers = matchers
 	}
 
 	return result, nil
@@ -302,7 +343,51 @@ func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
 		return storage.FanoutForceEnable, nil
 	}
 
-	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v\n", opt)
+	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v", opt)
+}
+
+func decodeRestrictFetchOptions(
+	p *rpc.RestrictFetchOptions,
+) (storage.RestrictFetchOptions, error) {
+	var result storage.RestrictFetchOptions
+
+	if p == nil {
+		return result, errors.New("no restrict fetch options proto message")
+	}
+
+	switch p.GetMetricsType() {
+	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
+		result.MetricsType = storage.UnaggregatedMetricsType
+	case rpcpb.MetricsType_AGGREGATED_METRICS_TYPE:
+		result.MetricsType = storage.AggregatedMetricsType
+	}
+
+	if p.GetMetricsStoragePolicy() != nil {
+		storagePolicy, err := policy.NewStoragePolicyFromProto(
+			p.MetricsStoragePolicy)
+		if err != nil {
+			return result, err
+		}
+
+		result.StoragePolicy = storagePolicy
+	}
+
+	matchers := p.GetMustApplyMatchers()
+	if len(matchers.GetTagMatchers()) > 0 {
+		decodedMatchers, err := decodeTagMatchers(matchers)
+		if err != nil {
+			return result, err
+		}
+
+		result.MustApplyMatchers = decodedMatchers
+	}
+
+	// Validate the resulting options.
+	if err := result.Validate(); err != nil {
+		return result, err
+	}
+
+	return result, nil
 }
 
 func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOptions, error) {
@@ -336,10 +421,11 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 	}
 
 	if v := rpcFetchOptions.Restrict; v != nil {
-		restrict, err := storage.NewRestrictFetchOptionsFromProto(v)
+		restrict, err := decodeRestrictFetchOptions(v)
 		if err != nil {
 			return nil, err
 		}
+
 		result.RestrictFetchOptions = &restrict
 	}
 

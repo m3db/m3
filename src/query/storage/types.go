@@ -23,24 +23,17 @@ package storage
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
-	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/uber-go/tally"
-)
-
-var (
-	errNoRestrictFetchOptionsProtoMsg = errors.New("no restrict fetch options proto message")
 )
 
 // Type describes the type of storage.
@@ -135,12 +128,15 @@ func (q *FetchQuery) WithAppliedOptions(
 						break
 					}
 				}
+
 				if willBeOverridden {
 					// We'll override this when we append the must apply matchers.
 					continue
 				}
+
 				result.TagMatchers = append(result.TagMatchers, existingMatcher)
 			}
+
 			// Now append the must apply matchers.
 			result.TagMatchers = append(result.TagMatchers, mustApplyMatchers...)
 		}
@@ -272,46 +268,7 @@ type RestrictFetchOptions struct {
 	// MustApplyMatchers is a set of override matchers to apply to a fetch
 	// regardless of the existing fetch matchers, they should replace any
 	// existing matchers part of a fetch if they collide.
-	MustApplyMatchers []*labels.Matcher
-}
-
-// NewRestrictFetchOptionsFromProto returns a restrict fetch options from
-// protobuf message.
-// TODO: (arnikola) extract these out of types.go
-func NewRestrictFetchOptionsFromProto(
-	p *rpcpb.RestrictFetchOptions,
-) (RestrictFetchOptions, error) {
-	var result RestrictFetchOptions
-
-	if p == nil {
-		return result, errNoRestrictFetchOptionsProtoMsg
-	}
-
-	switch p.MetricsType {
-	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
-		result.MetricsType = UnaggregatedMetricsType
-	case rpcpb.MetricsType_AGGREGATED_METRICS_TYPE:
-		result.MetricsType = AggregatedMetricsType
-	}
-
-	if p.MetricsStoragePolicy != nil {
-		storagePolicy, err := policy.NewStoragePolicyFromProto(
-			p.MetricsStoragePolicy)
-		if err != nil {
-			return result, err
-		}
-
-		result.StoragePolicy = storagePolicy
-	}
-
-	// TODO: deserialize must apply matchers
-
-	// Validate the resulting options.
-	if err := result.Validate(); err != nil {
-		return result, err
-	}
-
-	return result, nil
+	MustApplyMatchers []models.Matcher
 }
 
 // Validate will validate the restrict fetch options.
@@ -341,33 +298,6 @@ func (o RestrictFetchOptions) Validate() error {
 			"unknown metrics type: %v", o.MetricsType)
 	}
 	return nil
-}
-
-// Proto returns the protobuf message that corresponds to RestrictFetchOptions.
-func (o RestrictFetchOptions) Proto() (*rpcpb.RestrictFetchOptions, error) {
-	if err := o.Validate(); err != nil {
-		return nil, err
-	}
-
-	result := &rpcpb.RestrictFetchOptions{}
-
-	switch o.MetricsType {
-	case UnaggregatedMetricsType:
-		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
-	case AggregatedMetricsType:
-		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
-
-		storagePolicyProto, err := o.StoragePolicy.Proto()
-		if err != nil {
-			return nil, err
-		}
-
-		result.MetricsStoragePolicy = storagePolicyProto
-
-		// TODO: serialize must apply matchers
-	}
-
-	return result, nil
 }
 
 // Querier handles queries against a storage.

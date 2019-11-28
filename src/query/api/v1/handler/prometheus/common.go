@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -631,4 +632,30 @@ func (v Value) matches(other Value) error {
 type PromDebug struct {
 	Input   Response `json:"input"`
 	Results Response `json:"results"`
+}
+
+// FilterSeriesByOptions removes series tags based on options.
+func FilterSeriesByOptions(
+	series []*ts.Series,
+	opts *storage.FetchOptions,
+) []*ts.Series {
+	if opts == nil || opts.RestrictFetchOptions == nil {
+		return series
+	}
+
+	matchers := opts.RestrictFetchOptions.MustApplyMatchers
+	if len(matchers) == 0 {
+		return series
+	}
+
+	keys := make([][]byte, 0, len(matchers))
+	for _, m := range matchers {
+		keys = append(keys, m.Name)
+	}
+
+	for i, s := range series {
+		series[i].Tags = s.Tags.TagsWithoutKeys(keys)
+	}
+
+	return series
 }

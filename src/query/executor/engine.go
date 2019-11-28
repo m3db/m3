@@ -115,14 +115,7 @@ func (e *engine) Execute(
 	opts *QueryOptions,
 	fetchOpts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-
-	// Here or elsewhere to apply the Restrict-Labels?
-	query = query.WithAppliedOptions(query)
-
 	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
-
-	// TODO: Here or elsewhere to remove Strip-Labels from results?
-
 	return result, err
 }
 
@@ -133,9 +126,6 @@ func (e *engine) ExecuteExpr(
 	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
 ) (Result, error) {
-
-	// Here or elsewhere to apply the Restrict-Labels? (how to hook into fetches cleanly?)
-
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
 	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
@@ -170,8 +160,6 @@ func (e *engine) ExecuteExpr(
 			result.done()
 		}
 	}()
-
-	// TODO: Here or elsewhere to remove Strip-Labels from results?
 
 	return result, nil
 }

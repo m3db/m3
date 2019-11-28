@@ -125,8 +125,9 @@ func FetchQueryToM3Query(
 	fetchQuery *FetchQuery,
 	options *FetchOptions,
 ) (index.Query, error) {
-	matchers := fetchQuery.TagMatchers
-	// If no matchers provided, explicitly set this to an AllQuery
+	withOpts := fetchQuery.WithAppliedOptions(options)
+	matchers := withOpts.TagMatchers
+	// If no matchers provided, explicitly set this to an AllQuery.
 	if len(matchers) == 0 {
 		return index.Query{
 			Query: idx.NewAllQuery(),
