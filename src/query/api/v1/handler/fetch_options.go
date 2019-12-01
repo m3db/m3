@@ -21,6 +21,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -30,12 +31,8 @@ import (
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
-	"github.com/m3db/m3/src/query/models"
-	parser "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/prometheus/prometheus/promql"
 )
 
 const (
@@ -118,7 +115,9 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		}
 
 		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.MetricsType = mt
+		fetchOpts.RestrictFetchOptions.RestrictByType =
+			newOrExistingRestrictFetchOptionsRestrictByType(fetchOpts)
+		fetchOpts.RestrictFetchOptions.RestrictByType.MetricsType = mt
 	}
 
 	if str := req.Header.Get(MetricsStoragePolicyHeader); str != "" {
@@ -130,23 +129,19 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		}
 
 		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.StoragePolicy = sp
+		fetchOpts.RestrictFetchOptions.RestrictByType =
+			newOrExistingRestrictFetchOptionsRestrictByType(fetchOpts)
+		fetchOpts.RestrictFetchOptions.RestrictByType.StoragePolicy = sp
 	}
 
 	if str := req.Header.Get(FetchRestrictLabels); str != "" {
-		promMatchers, err := promql.ParseMetricSelector(str)
-		if err != nil {
+		var opts *storage.RestrictFetchOptions
+		if err := json.Unmarshal([]byte(str), opts); err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
 		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		// TODO: filter through TagOptions
-		m3Matchers, err := parser.LabelMatchersToModelMatcher(promMatchers, models.NewTagOptions())
-		if err != nil {
-			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
-		}
-
-		fetchOpts.RestrictFetchOptions.MustApplyMatchers = m3Matchers
+		fetchOpts.RestrictFetchOptions.RestrictByTag = opts.RestrictByTag
 	}
 
 	if restrict := fetchOpts.RestrictFetchOptions; restrict != nil {
@@ -184,6 +179,15 @@ func newOrExistingRestrictFetchOptions(
 		return v
 	}
 	return &storage.RestrictFetchOptions{}
+}
+
+func newOrExistingRestrictFetchOptionsRestrictByType(
+	fetchOpts *storage.FetchOptions,
+) *storage.RestrictByType {
+	if v := fetchOpts.RestrictFetchOptions.RestrictByType; v != nil {
+		return v
+	}
+	return &storage.RestrictByType{}
 }
 
 // ParseStep parses the step duration for an HTTP request.

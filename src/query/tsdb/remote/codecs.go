@@ -122,9 +122,12 @@ func encodeFetchRequest(
 }
 
 func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) {
+	if modelMatchers == nil {
+		return nil, nil
+	}
+
 	matchers := make([]*rpc.TagMatcher, len(modelMatchers))
 	for i, matcher := range modelMatchers {
-		fmt.Println("matcher", matcher)
 		t, err := encodeMatcherTypeToProto(matcher.Type)
 		if err != nil {
 			return nil, err
@@ -200,15 +203,14 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 	return result, nil
 }
 
-func encodeRestrictFetchOptions(
-	o *storage.RestrictFetchOptions,
-) (*rpcpb.RestrictFetchOptions, error) {
+func encodeRestrictFetchOptionsByType(
+	o *storage.RestrictByType,
+) (*rpcpb.RestrictFetchType, error) {
 	if err := o.Validate(); err != nil {
 		return nil, err
 	}
 
-	result := &rpcpb.RestrictFetchOptions{}
-
+	result := &rpcpb.RestrictFetchType{}
 	switch o.MetricsType {
 	case storage.UnaggregatedMetricsType:
 		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
@@ -223,18 +225,44 @@ func encodeRestrictFetchOptions(
 		result.MetricsStoragePolicy = storagePolicyProto
 	}
 
-	if len(o.MustApplyMatchers) > 0 {
-		fmt.Println("Applhying matchers", o.MustApplyMatchers)
-		matchers, err := encodeTagMatchers(o.MustApplyMatchers)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Println(" matchers", matchers)
+	return result, nil
+}
 
-		result.MustApplyMatchers = matchers
+func encodeRestrictFetchOptionsByTag(
+	o *storage.RestrictByTag,
+) (*rpcpb.RestrictFetchTags, error) {
+	if o == nil {
+		return nil, nil
 	}
 
-	return result, nil
+	matchers, err := encodeTagMatchers(o.GetMatchers())
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpcpb.RestrictFetchTags{
+		Restrict: matchers,
+		Strip:    o.Strip,
+	}, nil
+}
+
+func encodeRestrictFetchOptions(
+	o *storage.RestrictFetchOptions,
+) (*rpcpb.RestrictFetchOptions, error) {
+	byType, err := encodeRestrictFetchOptionsByType(o.GetRestrictByType())
+	if err != nil {
+		return nil, err
+	}
+
+	byTags, err := encodeRestrictFetchOptionsByTag(o.GetRestrictByTag())
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpcpb.RestrictFetchOptions{
+		RestrictFetchType: byType,
+		RestrictFetchTags: byTags,
+	}, nil
 }
 
 func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
@@ -346,13 +374,12 @@ func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
 	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v", opt)
 }
 
-func decodeRestrictFetchOptions(
-	p *rpc.RestrictFetchOptions,
-) (storage.RestrictFetchOptions, error) {
-	var result storage.RestrictFetchOptions
-
+func decodeRestrictFetchOptionsByType(
+	p *rpc.RestrictFetchType,
+) (*storage.RestrictByType, error) {
+	result := &storage.RestrictByType{}
 	if p == nil {
-		return result, errors.New("no restrict fetch options proto message")
+		return result, errors.New("no restrict fetch options by type")
 	}
 
 	switch p.GetMetricsType() {
@@ -372,22 +399,44 @@ func decodeRestrictFetchOptions(
 		result.StoragePolicy = storagePolicy
 	}
 
-	matchers := p.GetMustApplyMatchers()
-	if len(matchers.GetTagMatchers()) > 0 {
-		decodedMatchers, err := decodeTagMatchers(matchers)
-		if err != nil {
-			return result, err
-		}
-
-		result.MustApplyMatchers = decodedMatchers
-	}
-
-	// Validate the resulting options.
-	if err := result.Validate(); err != nil {
-		return result, err
-	}
-
 	return result, nil
+}
+
+func decodeRestrictFetchOptionsByTag(
+	p *rpc.RestrictFetchTags,
+) (*storage.RestrictByTag, error) {
+	if p == nil {
+		return nil, nil
+	}
+
+	matchers, err := decodeTagMatchers(p.GetRestrict())
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage.RestrictByTag{
+		Restrict: matchers,
+		Strip:    p.Strip,
+	}, nil
+}
+
+func decodeRestrictFetchOptions(
+	p *rpc.RestrictFetchOptions,
+) (*storage.RestrictFetchOptions, error) {
+	byType, err := decodeRestrictFetchOptionsByType(p.GetRestrictFetchType())
+	if err != nil {
+		return nil, err
+	}
+
+	byTag, err := decodeRestrictFetchOptionsByTag(p.GetRestrictFetchTags())
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage.RestrictFetchOptions{
+		RestrictByType: byType,
+		RestrictByTag:  byTag,
+	}, nil
 }
 
 func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOptions, error) {
@@ -426,7 +475,7 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 			return nil, err
 		}
 
-		result.RestrictFetchOptions = &restrict
+		result.RestrictFetchOptions = restrict
 	}
 
 	if v := rpcFetchOptions.LookbackDuration; v > 0 {

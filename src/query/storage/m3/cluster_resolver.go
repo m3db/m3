@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -301,12 +302,22 @@ func aggregatedNamespaces(
 func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
 	now, start time.Time,
 	clusters Clusters,
-	restrict *storage.RestrictFetchOptions,
+	fetchOptions *storage.RestrictFetchOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
 		now:        now,
 		queryStart: start,
 	})
+
+	if fetchOptions == nil {
+		return 0, nil, errors.New("fetch options must not be nil")
+	}
+
+	restrict := fetchOptions.RestrictByType
+	if restrict == nil {
+		return 0, nil, errors.New("fetch options type restriction must not be nil")
+	}
+
 	result := func(
 		namespace ClusterNamespace,
 		err error,
@@ -314,10 +325,12 @@ func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
 		if err != nil {
 			return 0, nil, err
 		}
+
 		if coversRangeFilter(namespace) {
 			return namespaceCoversAllQueryRange,
 				ClusterNamespaces{namespace}, nil
 		}
+
 		return namespaceCoversPartialQueryRange,
 			ClusterNamespaces{namespace}, nil
 	}
@@ -335,6 +348,7 @@ func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
 				fmt.Errorf("could not find namespace for storage policy: %v",
 					restrict.StoragePolicy.String()))
 		}
+
 		return result(ns, nil)
 	default:
 		return result(nil,

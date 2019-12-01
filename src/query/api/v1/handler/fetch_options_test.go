@@ -79,7 +79,9 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				MetricsTypeHeader: storage.UnaggregatedMetricsType.String(),
 			},
 			expectedRestrict: &storage.RestrictFetchOptions{
-				MetricsType: storage.UnaggregatedMetricsType,
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+				},
 			},
 		},
 		{
@@ -89,8 +91,10 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				MetricsStoragePolicyHeader: "1m:14d",
 			},
 			expectedRestrict: &storage.RestrictFetchOptions{
-				MetricsType:   storage.AggregatedMetricsType,
-				StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+				RestrictByType: &storage.RestrictByType{
+					MetricsType:   storage.AggregatedMetricsType,
+					StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+				},
 			},
 		},
 		{

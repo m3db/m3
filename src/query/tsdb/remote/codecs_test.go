@@ -133,8 +133,10 @@ func TestEncodeFetchMessage(t *testing.T) {
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = 42
 	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
-		MetricsType:   storage.AggregatedMetricsType,
-		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		RestrictByType: &storage.RestrictByType{
+			MetricsType:   storage.AggregatedMetricsType,
+			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		},
 	}
 	lookback := time.Minute
 	fetchOpts.LookbackDuration = &lookback
@@ -155,11 +157,15 @@ func TestEncodeFetchMessage(t *testing.T) {
 	require.NotNil(t, grpcQ.Options)
 	assert.Equal(t, int64(42), grpcQ.Options.Limit)
 	require.NotNil(t, grpcQ.Options.Restrict)
-	assert.Equal(t, rpc.MetricsType_AGGREGATED_METRICS_TYPE, grpcQ.Options.Restrict.MetricsType)
-	require.NotNil(t, grpcQ.Options.Restrict.MetricsStoragePolicy)
-	expectedStoragePolicyProto, err := fetchOpts.RestrictFetchOptions.StoragePolicy.Proto()
+	require.NotNil(t, grpcQ.Options.Restrict.RestrictFetchType)
+	assert.Equal(t, rpc.MetricsType_AGGREGATED_METRICS_TYPE,
+		grpcQ.Options.Restrict.RestrictFetchType.MetricsType)
+	require.NotNil(t, grpcQ.Options.Restrict.RestrictFetchType.MetricsStoragePolicy)
+	expectedStoragePolicyProto, err := fetchOpts.RestrictFetchOptions.
+		RestrictByType.StoragePolicy.Proto()
 	require.NoError(t, err)
-	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.MetricsStoragePolicy)
+	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.
+		RestrictFetchType.MetricsStoragePolicy)
 	assert.Equal(t, lookback, time.Duration(grpcQ.Options.LookbackDuration))
 }
 
@@ -168,8 +174,10 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = 42
 	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
-		MetricsType:   storage.AggregatedMetricsType,
-		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		RestrictByType: &storage.RestrictByType{
+			MetricsType:   storage.AggregatedMetricsType,
+			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		},
 	}
 	lookback := time.Minute
 	fetchOpts.LookbackDuration = &lookback
@@ -183,10 +191,12 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, revertedOpts)
 	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
-	require.Equal(t, fetchOpts.RestrictFetchOptions.MetricsType,
-		revertedOpts.RestrictFetchOptions.MetricsType)
-	require.Equal(t, fetchOpts.RestrictFetchOptions.StoragePolicy.String(),
-		revertedOpts.RestrictFetchOptions.StoragePolicy.String())
+	require.Equal(t, fetchOpts.RestrictFetchOptions.
+		RestrictByType.MetricsType,
+		revertedOpts.RestrictFetchOptions.RestrictByType.MetricsType)
+	require.Equal(t, fetchOpts.RestrictFetchOptions.
+		RestrictByType.StoragePolicy.String(),
+		revertedOpts.RestrictFetchOptions.RestrictByType.StoragePolicy.String())
 	require.NotNil(t, revertedOpts.LookbackDuration)
 	require.Equal(t, lookback, *revertedOpts.LookbackDuration)
 
@@ -230,43 +240,61 @@ func TestRetrieveMetadata(t *testing.T) {
 func TestNewRestrictFetchOptionsFromProto(t *testing.T) {
 	tests := []struct {
 		value       *rpcpb.RestrictFetchOptions
-		expected    storage.RestrictFetchOptions
+		expected    *storage.RestrictFetchOptions
 		errContains string
 	}{
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+				},
 			},
-			expected: storage.RestrictFetchOptions{
-				MetricsType: storage.UnaggregatedMetricsType,
+			expected: &storage.RestrictFetchOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+				},
 			},
 		},
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
-				MetricsStoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
-						WindowSize: int64(time.Minute),
-						Precision:  int64(time.Second),
-					},
-					Retention: &policypb.Retention{
-						Period: int64(24 * time.Hour),
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(24 * time.Hour),
+						},
 					},
 				},
-				MustApplyMatchers: &rpc.TagMatchers{
-					TagMatchers: []*rpc.TagMatcher{
-						newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
-						newRPCMatcher(rpc.MatcherType_EQUAL, "baz", "qux"),
+				RestrictFetchTags: &rpc.RestrictFetchTags{
+					Restrict: &rpc.TagMatchers{
+						TagMatchers: []*rpc.TagMatcher{
+							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+							newRPCMatcher(rpc.MatcherType_EQUAL, "baz", "qux"),
+						},
+					},
+					Strip: [][]byte{
+						[]byte("foobar"),
 					},
 				},
 			},
-			expected: storage.RestrictFetchOptions{
-				MetricsType: storage.AggregatedMetricsType,
-				StoragePolicy: policy.NewStoragePolicy(time.Minute,
-					xtime.Second, 24*time.Hour),
-				MustApplyMatchers: []models.Matcher{
-					mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
-					mustNewMatcher(models.MatchEqual, "baz", "qux"),
+			expected: &storage.RestrictFetchOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.AggregatedMetricsType,
+					StoragePolicy: policy.NewStoragePolicy(time.Minute,
+						xtime.Second, 24*time.Hour),
+				},
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: []models.Matcher{
+						mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+						mustNewMatcher(models.MatchEqual, "baz", "qux"),
+					},
+					Strip: [][]byte{
+						[]byte("foobar"),
+					},
 				},
 			},
 		},
@@ -276,20 +304,24 @@ func TestNewRestrictFetchOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_UNKNOWN_METRICS_TYPE,
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_UNKNOWN_METRICS_TYPE,
+				},
 			},
 			errContains: "unknown metrics type:",
 		},
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
-				MetricsStoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
-						WindowSize: int64(time.Minute),
-						Precision:  int64(time.Second),
-					},
-					Retention: &policypb.Retention{
-						Period: int64(24 * time.Hour),
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(24 * time.Hour),
+						},
 					},
 				},
 			},
@@ -297,10 +329,12 @@ func TestNewRestrictFetchOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
-				MetricsStoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
-						WindowSize: -1,
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: -1,
+						},
 					},
 				},
 			},
@@ -308,11 +342,13 @@ func TestNewRestrictFetchOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
-				MetricsStoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
-						WindowSize: int64(time.Minute),
-						Precision:  int64(-1),
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(-1),
+						},
 					},
 				},
 			},
@@ -320,14 +356,16 @@ func TestNewRestrictFetchOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
-				MetricsStoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
-						WindowSize: int64(time.Minute),
-						Precision:  int64(time.Second),
-					},
-					Retention: &policypb.Retention{
-						Period: int64(-1),
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(-1),
+						},
 					},
 				},
 			},
@@ -335,19 +373,19 @@ func TestNewRestrictFetchOptionsFromProto(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s", test.value), func(t *testing.T) {
-			result, err := decodeRestrictFetchOptions(test.value)
-			if test.errContains == "" {
-				require.NoError(t, err)
-				assert.Equal(t, test.expected, result)
-				return
-			}
+		// t.Run(fmt.Sprintf("%s", test.value), func(t *testing.T) {
+		result, err := decodeRestrictFetchOptions(test.value)
+		if test.errContains == "" {
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, result)
+			return
+		}
 
-			require.Error(t, err)
-			assert.True(t,
-				strings.Contains(err.Error(), test.errContains),
-				fmt.Sprintf("err=%v, want_contains=%v", err.Error(), test.errContains))
-		})
+		require.Error(t, err)
+		assert.True(t,
+			strings.Contains(err.Error(), test.errContains),
+			fmt.Sprintf("err=%v, want_contains=%v", err.Error(), test.errContains))
+		// })
 	}
 }
 
@@ -372,66 +410,90 @@ func TestRestrictFetchOptionsProto(t *testing.T) {
 	}{
 		{
 			value: storage.RestrictFetchOptions{
-				MetricsType: storage.UnaggregatedMetricsType,
-				MustApplyMatchers: []models.Matcher{
-					mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+				},
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: []models.Matcher{
+						mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+					},
+					Strip: [][]byte{[]byte("foobar")},
 				},
 			},
 			expected: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
-				MustApplyMatchers: &rpc.TagMatchers{
-					TagMatchers: []*rpc.TagMatcher{
-						newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+				},
+				RestrictFetchTags: &rpcpb.RestrictFetchTags{
+					Restrict: &rpc.TagMatchers{
+						TagMatchers: []*rpc.TagMatcher{
+							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+						},
 					},
+					Strip: [][]byte{[]byte("foobar")},
 				},
 			},
 		},
 		{
 			value: storage.RestrictFetchOptions{
-				MetricsType: storage.AggregatedMetricsType,
-				StoragePolicy: policy.NewStoragePolicy(time.Minute,
-					xtime.Second, 24*time.Hour),
-				MustApplyMatchers: []models.Matcher{
-					mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
-					mustNewMatcher(models.MatchEqual, "baz", "qux"),
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.AggregatedMetricsType,
+					StoragePolicy: policy.NewStoragePolicy(time.Minute,
+						xtime.Second, 24*time.Hour),
+				},
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: models.Matchers{
+						mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+						mustNewMatcher(models.MatchEqual, "baz", "qux"),
+					},
+					Strip: [][]byte{[]byte("foobar")},
 				},
 			},
 			expected: &rpcpb.RestrictFetchOptions{
-				MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
-				MetricsStoragePolicy: &policypb.StoragePolicy{
-					Resolution: &policypb.Resolution{
-						WindowSize: int64(time.Minute),
-						Precision:  int64(time.Second),
-					},
-					Retention: &policypb.Retention{
-						Period: int64(24 * time.Hour),
+				RestrictFetchType: &rpcpb.RestrictFetchType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(24 * time.Hour),
+						},
 					},
 				},
-				MustApplyMatchers: &rpc.TagMatchers{
-					TagMatchers: []*rpc.TagMatcher{
-						newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
-						newRPCMatcher(rpc.MatcherType_EQUAL, "baz", "qux"),
+				RestrictFetchTags: &rpcpb.RestrictFetchTags{
+					Restrict: &rpc.TagMatchers{
+						TagMatchers: []*rpc.TagMatcher{
+							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+							newRPCMatcher(rpc.MatcherType_EQUAL, "baz", "qux"),
+						},
 					},
+					Strip: [][]byte{[]byte("foobar")},
 				},
 			},
 		},
 		{
 			value: storage.RestrictFetchOptions{
-				MetricsType: storage.MetricsType(uint(math.MaxUint16)),
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.MetricsType(uint(math.MaxUint16)),
+				},
 			},
 			errContains: "unknown metrics type:",
 		},
 		{
 			value: storage.RestrictFetchOptions{
-				MetricsType: storage.UnaggregatedMetricsType,
-				StoragePolicy: policy.NewStoragePolicy(time.Minute,
-					xtime.Second, 24*time.Hour),
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+					StoragePolicy: policy.NewStoragePolicy(time.Minute,
+						xtime.Second, 24*time.Hour),
+				},
 			},
 			errContains: "expected no storage policy for unaggregated metrics",
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s", test.value), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%+v", test.value), func(t *testing.T) {
 			result, err := encodeRestrictFetchOptions(&test.value)
 			if test.errContains == "" {
 				require.NoError(t, err)

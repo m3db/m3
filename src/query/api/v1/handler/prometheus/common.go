@@ -639,22 +639,15 @@ func FilterSeriesByOptions(
 	series []*ts.Series,
 	opts *storage.FetchOptions,
 ) []*ts.Series {
-	if opts == nil || opts.RestrictFetchOptions == nil {
+	if opts == nil {
 		return series
 	}
 
-	matchers := opts.RestrictFetchOptions.MustApplyMatchers
-	if len(matchers) == 0 {
-		return series
-	}
-
-	keys := make([][]byte, 0, len(matchers))
-	for _, m := range matchers {
-		keys = append(keys, m.Name)
-	}
-
-	for i, s := range series {
-		series[i].Tags = s.Tags.TagsWithoutKeys(keys)
+	keys := opts.RestrictFetchOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) > 0 {
+		for i, s := range series {
+			series[i].Tags = s.Tags.TagsWithoutKeys(keys)
+		}
 	}
 
 	return series

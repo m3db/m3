@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -100,53 +99,6 @@ type FetchQuery struct {
 	Start       time.Time       `json:"start"`
 	End         time.Time       `json:"end"`
 	Interval    time.Duration   `json:"interval"`
-}
-
-// WithAppliedOptions returns a copy of the fetch query applied options
-// that restricts the fetch with respect to labels that must be applied.
-func (q *FetchQuery) WithAppliedOptions(
-	opts *FetchOptions,
-) *FetchQuery {
-	result := *q
-	if opts == nil {
-		return &result
-	}
-
-	if restrictOpts := opts.RestrictFetchOptions; restrictOpts != nil {
-		mustApplyMatchers := restrictOpts.MustApplyMatchers
-		if n := len(mustApplyMatchers); n > 0 {
-			existing := result.TagMatchers
-			result.TagMatchers = make(models.Matchers, 0, len(existing)+n)
-			// Since must apply matchers will always be small (usually 1)
-			// it's better to not allocate intermediate datastructure and just
-			// perform n^2 matching.
-			for _, existingMatcher := range existing {
-				willBeOverridden := false
-				for _, mustApplyMatcher := range mustApplyMatchers {
-					if bytes.Equal(existingMatcher.Name, mustApplyMatcher.Name) {
-						willBeOverridden = true
-						break
-					}
-				}
-
-				if willBeOverridden {
-					// We'll override this when we append the must apply matchers.
-					continue
-				}
-
-				result.TagMatchers = append(result.TagMatchers, existingMatcher)
-			}
-
-			// Now append the must apply matchers.
-			result.TagMatchers = append(result.TagMatchers, mustApplyMatchers...)
-		}
-	}
-
-	return &result
-}
-
-func (q *FetchQuery) String() string {
-	return q.Raw
 }
 
 // FetchOptions represents the options for fetch query.
@@ -240,8 +192,10 @@ func (o *FetchOptions) QueryFetchOptions(
 	if r.RestrictFetchOptions == nil && queryCtx.Options.RestrictFetchType != nil {
 		v := queryCtx.Options.RestrictFetchType
 		restrict := RestrictFetchOptions{
-			MetricsType:   MetricsType(v.MetricsType),
-			StoragePolicy: v.StoragePolicy,
+			RestrictByType: &RestrictByType{
+				MetricsType:   MetricsType(v.MetricsType),
+				StoragePolicy: v.StoragePolicy,
+			},
 		}
 		if err := restrict.Validate(); err != nil {
 			return nil, err
@@ -258,46 +212,36 @@ func (o *FetchOptions) Clone() *FetchOptions {
 	return &result
 }
 
-// RestrictFetchOptions restricts the fetch to a specific set of conditions.
-type RestrictFetchOptions struct {
+// RestrictByType are specific restrictions to stick to a single data type.
+type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
 	MetricsType MetricsType
 	// StoragePolicy is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
 	StoragePolicy policy.StoragePolicy
-	// MustApplyMatchers is a set of override matchers to apply to a fetch
-	// regardless of the existing fetch matchers, they should replace any
-	// existing matchers part of a fetch if they collide.
-	MustApplyMatchers []models.Matcher
 }
 
-// Validate will validate the restrict fetch options.
-func (o RestrictFetchOptions) Validate() error {
-	switch o.MetricsType {
-	case UnaggregatedMetricsType:
-		if o.StoragePolicy != policy.EmptyStoragePolicy {
-			return fmt.Errorf(
-				"expected no storage policy for unaggregated metrics type, "+
-					"instead got: %v", o.StoragePolicy.String())
-		}
-	case AggregatedMetricsType:
-		if v := o.StoragePolicy.Resolution().Window; v <= 0 {
-			return fmt.Errorf(
-				"expected positive resolution window, instead got: %v", v)
-		}
-		if v := o.StoragePolicy.Resolution().Precision; v <= 0 {
-			return fmt.Errorf(
-				"expected positive resolution precision, instead got: %v", v)
-		}
-		if v := o.StoragePolicy.Retention().Duration(); v <= 0 {
-			return fmt.Errorf(
-				"expected positive retention, instead got: %v", v)
-		}
-	default:
-		return fmt.Errorf(
-			"unknown metrics type: %v", o.MetricsType)
-	}
-	return nil
+// RestrictByTag are specific restrictions to enforce behavior for given
+// tags.
+type RestrictByTag struct {
+	// Restrict is a set of override matchers to apply to a fetch
+	// regardless of the existing fetch matchers, they should replace any
+	// existing matchers part of a fetch if they collide.
+	Restrict models.Matchers `json:"restrict"`
+	// Strip is a set of tag names to strip from the response.
+	//
+	// NB: If this is unset, but Restrict is set, all tag names appearing in any
+	// of the Restrict matchers are removed.
+	Strip [][]byte `json:"strip"`
+}
+
+// RestrictFetchOptions restricts the fetch to a specific set of conditions.
+type RestrictFetchOptions struct {
+	// RestrictByType are specific restrictions to stick to a single data type.
+	RestrictByType *RestrictByType
+	// RestrictByTag are specific restrictions to enforce behavior for given
+	// tags.
+	RestrictByTag *RestrictByTag `json:"tags"`
 }
 
 // Querier handles queries against a storage.

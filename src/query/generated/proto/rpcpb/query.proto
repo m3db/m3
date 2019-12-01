@@ -65,9 +65,18 @@ message FetchOptions {
 }
 
 message RestrictFetchOptions {
+	RestrictFetchType RestrictFetchType = 1;
+	RestrictFetchTags RestrictFetchTags = 2;
+}
+
+message RestrictFetchType {
 	MetricsType metricsType                     = 1;
 	policypb.StoragePolicy metricsStoragePolicy = 2;
-	TagMatchers mustApplyMatchers               = 3;
+}
+
+message RestrictFetchTags {
+	TagMatchers restrict = 1;
+	repeated bytes strip = 2;
 }
 
 enum MetricsType {

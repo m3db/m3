@@ -146,7 +146,8 @@ func TestFetchWithRestrictFetch(t *testing.T) {
 	assert.Equal(t, expected, sink.Values)
 
 	fetchOpts := mockStorage.LastFetchOptions()
-	require.NotNil(t, fetchOpts.RestrictFetchOptions)
-	assert.Equal(t, storage.AggregatedMetricsType, storage.MetricsType(fetchOpts.RestrictFetchOptions.MetricsType))
-	assert.Equal(t, "10s:42d", fetchOpts.RestrictFetchOptions.StoragePolicy.String())
+	restrictByType := fetchOpts.RestrictFetchOptions.GetRestrictByType()
+	require.NotNil(t, restrictByType)
+	assert.Equal(t, storage.AggregatedMetricsType, storage.MetricsType(restrictByType.MetricsType))
+	assert.Equal(t, "10s:42d", restrictByType.StoragePolicy.String())
 }

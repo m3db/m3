@@ -345,14 +345,14 @@ func applyOptions(
 		return result
 	}
 
-	matchers := opts.RestrictFetchOptions.MustApplyMatchers
-	if len(matchers) > 0 {
+	filter := opts.RestrictFetchOptions.GetRestrictByTag().GetFilterByNames()
+	if len(filter) > 0 {
 		// Filter out unwanted tags inplace.
 		filteredList := result.CompletedTags[:0]
 		for _, s := range result.CompletedTags {
 			skip := false
-			for _, filter := range matchers {
-				if bytes.Equal(s.Name, filter.Name) {
+			for _, name := range filter {
+				if bytes.Equal(s.Name, name) {
 					skip = true
 					break
 				}
