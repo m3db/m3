@@ -187,8 +187,8 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 	}
 
 	result.AggregatedOptimized = aggOpt
-	if v := options.RestrictFetchOptions; v != nil {
-		restrict, err := encodeRestrictFetchOptions(v)
+	if v := options.RestrictQueryOptions; v != nil {
+		restrict, err := encodeRestrictQueryOptions(v)
 		if err != nil {
 			return nil, err
 		}
@@ -203,9 +203,13 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 	return result, nil
 }
 
-func encodeRestrictFetchOptionsByType(
+func encodeRestrictQueryOptionsByType(
 	o *storage.RestrictByType,
 ) (*rpcpb.RestrictFetchType, error) {
+	if o == nil {
+		return nil, nil
+	}
+
 	if err := o.Validate(); err != nil {
 		return nil, err
 	}
@@ -228,7 +232,7 @@ func encodeRestrictFetchOptionsByType(
 	return result, nil
 }
 
-func encodeRestrictFetchOptionsByTag(
+func encodeRestrictQueryOptionsByTag(
 	o *storage.RestrictByTag,
 ) (*rpcpb.RestrictFetchTags, error) {
 	if o == nil {
@@ -246,20 +250,20 @@ func encodeRestrictFetchOptionsByTag(
 	}, nil
 }
 
-func encodeRestrictFetchOptions(
-	o *storage.RestrictFetchOptions,
-) (*rpcpb.RestrictFetchOptions, error) {
-	byType, err := encodeRestrictFetchOptionsByType(o.GetRestrictByType())
+func encodeRestrictQueryOptions(
+	o *storage.RestrictQueryOptions,
+) (*rpcpb.RestrictQueryOptions, error) {
+	byType, err := encodeRestrictQueryOptionsByType(o.GetRestrictByType())
 	if err != nil {
 		return nil, err
 	}
 
-	byTags, err := encodeRestrictFetchOptionsByTag(o.GetRestrictByTag())
+	byTags, err := encodeRestrictQueryOptionsByTag(o.GetRestrictByTag())
 	if err != nil {
 		return nil, err
 	}
 
-	return &rpcpb.RestrictFetchOptions{
+	return &rpcpb.RestrictQueryOptions{
 		RestrictFetchType: byType,
 		RestrictFetchTags: byTags,
 	}, nil
@@ -374,7 +378,7 @@ func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
 	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v", opt)
 }
 
-func decodeRestrictFetchOptionsByType(
+func decodeRestrictQueryOptionsByType(
 	p *rpc.RestrictFetchType,
 ) (*storage.RestrictByType, error) {
 	result := &storage.RestrictByType{}
@@ -399,10 +403,15 @@ func decodeRestrictFetchOptionsByType(
 		result.StoragePolicy = storagePolicy
 	}
 
+	if err := result.Validate(); err != nil {
+		return nil, err
+
+	}
+
 	return result, nil
 }
 
-func decodeRestrictFetchOptionsByTag(
+func decodeRestrictQueryOptionsByTag(
 	p *rpc.RestrictFetchTags,
 ) (*storage.RestrictByTag, error) {
 	if p == nil {
@@ -420,20 +429,20 @@ func decodeRestrictFetchOptionsByTag(
 	}, nil
 }
 
-func decodeRestrictFetchOptions(
-	p *rpc.RestrictFetchOptions,
-) (*storage.RestrictFetchOptions, error) {
-	byType, err := decodeRestrictFetchOptionsByType(p.GetRestrictFetchType())
+func decodeRestrictQueryOptions(
+	p *rpc.RestrictQueryOptions,
+) (*storage.RestrictQueryOptions, error) {
+	byType, err := decodeRestrictQueryOptionsByType(p.GetRestrictFetchType())
 	if err != nil {
 		return nil, err
 	}
 
-	byTag, err := decodeRestrictFetchOptionsByTag(p.GetRestrictFetchTags())
+	byTag, err := decodeRestrictQueryOptionsByTag(p.GetRestrictFetchTags())
 	if err != nil {
 		return nil, err
 	}
 
-	return &storage.RestrictFetchOptions{
+	return &storage.RestrictQueryOptions{
 		RestrictByType: byType,
 		RestrictByTag:  byTag,
 	}, nil
@@ -470,12 +479,12 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 	}
 
 	if v := rpcFetchOptions.Restrict; v != nil {
-		restrict, err := decodeRestrictFetchOptions(v)
+		restrict, err := decodeRestrictQueryOptions(v)
 		if err != nil {
 			return nil, err
 		}
 
-		result.RestrictFetchOptions = restrict
+		result.RestrictQueryOptions = restrict
 	}
 
 	if v := rpcFetchOptions.LookbackDuration; v > 0 {

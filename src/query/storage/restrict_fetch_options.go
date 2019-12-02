@@ -29,7 +29,7 @@ import (
 )
 
 // Validate will validate the restrict fetch options.
-func (o *RestrictFetchOptions) Validate() error {
+func (o *RestrictQueryOptions) Validate() error {
 	if o.RestrictByType != nil {
 		return o.RestrictByType.Validate()
 	}
@@ -38,7 +38,7 @@ func (o *RestrictFetchOptions) Validate() error {
 }
 
 // GetRestrictByType provides the type restrictions if present; nil otherwise.
-func (o *RestrictFetchOptions) GetRestrictByType() *RestrictByType {
+func (o *RestrictQueryOptions) GetRestrictByType() *RestrictByType {
 	if o == nil {
 		return nil
 	}
@@ -47,7 +47,7 @@ func (o *RestrictFetchOptions) GetRestrictByType() *RestrictByType {
 }
 
 // GetRestrictByTag provides the tag restrictions if present; nil otherwise.
-func (o *RestrictFetchOptions) GetRestrictByTag() *RestrictByTag {
+func (o *RestrictQueryOptions) GetRestrictByTag() *RestrictByTag {
 	if o == nil {
 		return nil
 	}
@@ -122,7 +122,7 @@ func (q *FetchQuery) WithAppliedOptions(
 		return &result
 	}
 
-	restrictOpts := opts.RestrictFetchOptions
+	restrictOpts := opts.RestrictQueryOptions
 	if restrictOpts == nil {
 		return &result
 	}

@@ -47,7 +47,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		headers          map[string]string
 		query            string
 		expectedLimit    int
-		expectedRestrict *storage.RestrictFetchOptions
+		expectedRestrict *storage.RestrictQueryOptions
 		expectedLookback *expectedLookback
 		expectedErr      bool
 	}{
@@ -78,7 +78,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			headers: map[string]string{
 				MetricsTypeHeader: storage.UnaggregatedMetricsType.String(),
 			},
-			expectedRestrict: &storage.RestrictFetchOptions{
+			expectedRestrict: &storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
 					MetricsType: storage.UnaggregatedMetricsType,
 				},
@@ -90,7 +90,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				MetricsTypeHeader:          storage.AggregatedMetricsType.String(),
 				MetricsStoragePolicyHeader: "1m:14d",
 			},
-			expectedRestrict: &storage.RestrictFetchOptions{
+			expectedRestrict: &storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
 					MetricsType:   storage.AggregatedMetricsType,
 					StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
@@ -171,10 +171,10 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.Limit)
 				if test.expectedRestrict == nil {
-					require.Nil(t, opts.RestrictFetchOptions)
+					require.Nil(t, opts.RestrictQueryOptions)
 				} else {
-					require.NotNil(t, opts.RestrictFetchOptions)
-					require.Equal(t, *test.expectedRestrict, *opts.RestrictFetchOptions)
+					require.NotNil(t, opts.RestrictQueryOptions)
+					require.Equal(t, *test.expectedRestrict, *opts.RestrictQueryOptions)
 				}
 				if test.expectedLookback == nil {
 					require.Nil(t, opts.LookbackDuration)

@@ -29,11 +29,11 @@ import (
 )
 
 func TestGetRestrict(t *testing.T) {
-	var opts *RestrictFetchOptions
+	var opts *RestrictQueryOptions
 	require.Nil(t, opts.GetRestrictByTag())
 	require.Nil(t, opts.GetRestrictByType())
 
-	opts = &RestrictFetchOptions{}
+	opts = &RestrictQueryOptions{}
 	require.Nil(t, opts.GetRestrictByTag())
 	require.Nil(t, opts.GetRestrictByType())
 

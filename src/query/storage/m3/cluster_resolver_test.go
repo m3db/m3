@@ -163,7 +163,7 @@ var testCases = []struct {
 	name                 string
 	queryLength          time.Duration
 	opts                 *storage.FanoutOptions
-	restrict             *storage.RestrictFetchOptions
+	restrict             *storage.RestrictQueryOptions
 	expectedType         queryFanoutType
 	expectedClusterNames []string
 	expectedErr          error
@@ -311,7 +311,7 @@ var testCases = []struct {
 	{
 		name:        "restrict to unaggregated",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
+		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
 				MetricsType: storage.UnaggregatedMetricsType,
 			},
@@ -322,7 +322,7 @@ var testCases = []struct {
 	{
 		name:        "restrict to aggregate filtered",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
+		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
 				MetricsType: storage.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
@@ -335,7 +335,7 @@ var testCases = []struct {
 	{
 		name:        "restrict to aggregate unfiltered",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
+		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
 				MetricsType: storage.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
@@ -348,7 +348,7 @@ var testCases = []struct {
 	{
 		name:        "restrict with unknown metrics type",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
+		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
 				MetricsType: storage.UnknownMetricsType,
 			},
@@ -358,7 +358,7 @@ var testCases = []struct {
 	{
 		name:        "restrict with unknown storage policy",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
+		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
 				MetricsType:   storage.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy("1s:100d"),

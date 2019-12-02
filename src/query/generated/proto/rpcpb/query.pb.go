@@ -34,7 +34,7 @@
 		TagMatchers
 		TagMatcher
 		FetchOptions
-		RestrictFetchOptions
+		RestrictQueryOptions
 		RestrictFetchType
 		RestrictFetchTags
 		FetchResponse
@@ -396,7 +396,7 @@ func (m *TagMatcher) GetType() MatcherType {
 
 type FetchOptions struct {
 	Limit               int64                 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
-	Restrict            *RestrictFetchOptions `protobuf:"bytes,2,opt,name=restrict" json:"restrict,omitempty"`
+	Restrict            *RestrictQueryOptions `protobuf:"bytes,2,opt,name=restrict" json:"restrict,omitempty"`
 	LookbackDuration    int64                 `protobuf:"varint,3,opt,name=lookbackDuration,proto3" json:"lookbackDuration,omitempty"`
 	Unaggregated        FanoutOption          `protobuf:"varint,4,opt,name=unaggregated,proto3,enum=rpc.FanoutOption" json:"unaggregated,omitempty"`
 	Aggregated          FanoutOption          `protobuf:"varint,5,opt,name=aggregated,proto3,enum=rpc.FanoutOption" json:"aggregated,omitempty"`
@@ -416,7 +416,7 @@ func (m *FetchOptions) GetLimit() int64 {
 	return 0
 }
 
-func (m *FetchOptions) GetRestrict() *RestrictFetchOptions {
+func (m *FetchOptions) GetRestrict() *RestrictQueryOptions {
 	if m != nil {
 		return m.Restrict
 	}
@@ -458,24 +458,24 @@ func (m *FetchOptions) GetIncludeResolution() bool {
 	return false
 }
 
-type RestrictFetchOptions struct {
+type RestrictQueryOptions struct {
 	RestrictFetchType *RestrictFetchType `protobuf:"bytes,1,opt,name=RestrictFetchType" json:"RestrictFetchType,omitempty"`
 	RestrictFetchTags *RestrictFetchTags `protobuf:"bytes,2,opt,name=RestrictFetchTags" json:"RestrictFetchTags,omitempty"`
 }
 
-func (m *RestrictFetchOptions) Reset()                    { *m = RestrictFetchOptions{} }
-func (m *RestrictFetchOptions) String() string            { return proto.CompactTextString(m) }
-func (*RestrictFetchOptions) ProtoMessage()               {}
-func (*RestrictFetchOptions) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{6} }
+func (m *RestrictQueryOptions) Reset()                    { *m = RestrictQueryOptions{} }
+func (m *RestrictQueryOptions) String() string            { return proto.CompactTextString(m) }
+func (*RestrictQueryOptions) ProtoMessage()               {}
+func (*RestrictQueryOptions) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{6} }
 
-func (m *RestrictFetchOptions) GetRestrictFetchType() *RestrictFetchType {
+func (m *RestrictQueryOptions) GetRestrictFetchType() *RestrictFetchType {
 	if m != nil {
 		return m.RestrictFetchType
 	}
 	return nil
 }
 
-func (m *RestrictFetchOptions) GetRestrictFetchTags() *RestrictFetchTags {
+func (m *RestrictQueryOptions) GetRestrictFetchTags() *RestrictFetchTags {
 	if m != nil {
 		return m.RestrictFetchTags
 	}
@@ -1618,7 +1618,7 @@ func init() {
 	proto.RegisterType((*TagMatchers)(nil), "rpc.TagMatchers")
 	proto.RegisterType((*TagMatcher)(nil), "rpc.TagMatcher")
 	proto.RegisterType((*FetchOptions)(nil), "rpc.FetchOptions")
-	proto.RegisterType((*RestrictFetchOptions)(nil), "rpc.RestrictFetchOptions")
+	proto.RegisterType((*RestrictQueryOptions)(nil), "rpc.RestrictQueryOptions")
 	proto.RegisterType((*RestrictFetchType)(nil), "rpc.RestrictFetchType")
 	proto.RegisterType((*RestrictFetchTags)(nil), "rpc.RestrictFetchTags")
 	proto.RegisterType((*FetchResponse)(nil), "rpc.FetchResponse")
@@ -2138,7 +2138,7 @@ func (m *FetchOptions) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *RestrictFetchOptions) Marshal() (dAtA []byte, err error) {
+func (m *RestrictQueryOptions) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -2148,7 +2148,7 @@ func (m *RestrictFetchOptions) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *RestrictFetchOptions) MarshalTo(dAtA []byte) (int, error) {
+func (m *RestrictQueryOptions) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -3323,7 +3323,7 @@ func (m *FetchOptions) Size() (n int) {
 	return n
 }
 
-func (m *RestrictFetchOptions) Size() (n int) {
+func (m *RestrictQueryOptions) Size() (n int) {
 	var l int
 	_ = l
 	if m.RestrictFetchType != nil {
@@ -4403,7 +4403,7 @@ func (m *FetchOptions) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Restrict == nil {
-				m.Restrict = &RestrictFetchOptions{}
+				m.Restrict = &RestrictQueryOptions{}
 			}
 			if err := m.Restrict.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -4526,7 +4526,7 @@ func (m *FetchOptions) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *RestrictFetchOptions) Unmarshal(dAtA []byte) error {
+func (m *RestrictQueryOptions) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -4549,10 +4549,10 @@ func (m *RestrictFetchOptions) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: RestrictFetchOptions: wiretype end group for non-group")
+			return fmt.Errorf("proto: RestrictQueryOptions: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: RestrictFetchOptions: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: RestrictQueryOptions: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

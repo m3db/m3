@@ -114,10 +114,10 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
-		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.RestrictByType =
-			newOrExistingRestrictFetchOptionsRestrictByType(fetchOpts)
-		fetchOpts.RestrictFetchOptions.RestrictByType.MetricsType = mt
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType =
+			newOrExistingRestrictQueryOptionsRestrictByType(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType.MetricsType = mt
 	}
 
 	if str := req.Header.Get(MetricsStoragePolicyHeader); str != "" {
@@ -128,23 +128,23 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
-		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.RestrictByType =
-			newOrExistingRestrictFetchOptionsRestrictByType(fetchOpts)
-		fetchOpts.RestrictFetchOptions.RestrictByType.StoragePolicy = sp
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType =
+			newOrExistingRestrictQueryOptionsRestrictByType(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
 
-	if str := req.Header.Get(FetchRestrictLabels); str != "" {
-		var opts *storage.RestrictFetchOptions
+	if str := req.Header.Get(QueryOptionsJSONHeader); str != "" {
+		var opts *storage.RestrictQueryOptions
 		if err := json.Unmarshal([]byte(str), opts); err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
-		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.RestrictByTag = opts.RestrictByTag
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByTag = opts.RestrictByTag
 	}
 
-	if restrict := fetchOpts.RestrictFetchOptions; restrict != nil {
+	if restrict := fetchOpts.RestrictQueryOptions; restrict != nil {
 		if err := restrict.Validate(); err != nil {
 			err = fmt.Errorf(
 				"could not validate restrict options: err=%v", err)
@@ -172,19 +172,19 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	return fetchOpts, nil
 }
 
-func newOrExistingRestrictFetchOptions(
+func newOrExistingRestrictQueryOptions(
 	fetchOpts *storage.FetchOptions,
-) *storage.RestrictFetchOptions {
-	if v := fetchOpts.RestrictFetchOptions; v != nil {
+) *storage.RestrictQueryOptions {
+	if v := fetchOpts.RestrictQueryOptions; v != nil {
 		return v
 	}
-	return &storage.RestrictFetchOptions{}
+	return &storage.RestrictQueryOptions{}
 }
 
-func newOrExistingRestrictFetchOptionsRestrictByType(
+func newOrExistingRestrictQueryOptionsRestrictByType(
 	fetchOpts *storage.FetchOptions,
 ) *storage.RestrictByType {
-	if v := fetchOpts.RestrictFetchOptions.RestrictByType; v != nil {
+	if v := fetchOpts.RestrictQueryOptions.RestrictByType; v != nil {
 		return v
 	}
 	return &storage.RestrictByType{}

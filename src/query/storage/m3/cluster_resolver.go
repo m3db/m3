@@ -77,11 +77,11 @@ func resolveClusterNamespacesForQuery(
 	now, start, end time.Time,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
-	restrict *storage.RestrictFetchOptions,
+	restrict *storage.RestrictQueryOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	if restrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
-		return resolveClusterNamespacesForQueryWithRestrictFetchOptions(now,
+		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
 			start, clusters, restrict)
 	}
 
@@ -296,13 +296,13 @@ func aggregatedNamespaces(
 	return slices
 }
 
-// resolveClusterNamespacesForQueryWithRestrictFetchOptions returns the cluster
+// resolveClusterNamespacesForQueryWithRestrictQueryOptions returns the cluster
 // namespace referred to by the restrict fetch options or an error if it
 // cannot be found.
-func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
+func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	now, start time.Time,
 	clusters Clusters,
-	fetchOptions *storage.RestrictFetchOptions,
+	fetchOptions *storage.RestrictQueryOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
 		now:        now,

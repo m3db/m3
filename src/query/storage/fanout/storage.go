@@ -341,11 +341,11 @@ func applyOptions(
 	result storage.CompleteTagsResult,
 	opts *storage.FetchOptions,
 ) storage.CompleteTagsResult {
-	if opts.RestrictFetchOptions == nil {
+	if opts.RestrictQueryOptions == nil {
 		return result
 	}
 
-	filter := opts.RestrictFetchOptions.GetRestrictByTag().GetFilterByNames()
+	filter := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
 	if len(filter) > 0 {
 		// Filter out unwanted tags inplace.
 		filteredList := result.CompletedTags[:0]

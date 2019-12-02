@@ -643,7 +643,7 @@ func FilterSeriesByOptions(
 		return series
 	}
 
-	keys := opts.RestrictFetchOptions.GetRestrictByTag().GetFilterByNames()
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
 	if len(keys) > 0 {
 		for i, s := range series {
 			series[i].Tags = s.Tags.TagsWithoutKeys(keys)

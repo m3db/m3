@@ -111,9 +111,9 @@ type FetchOptions struct {
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
 	FanoutOptions *FanoutOptions
-	// RestrictFetchOptions restricts the fetch to a specific set of
+	// RestrictQueryOptions restricts the fetch to a specific set of
 	// conditions.
-	RestrictFetchOptions *RestrictFetchOptions
+	RestrictQueryOptions *RestrictQueryOptions
 	// Step is the configured step size.
 	Step time.Duration
 	// LookbackDuration if set overrides the default lookback duration.
@@ -189,20 +189,27 @@ func (o *FetchOptions) QueryFetchOptions(
 	if r.Limit <= 0 {
 		r.Limit = queryCtx.Options.LimitMaxTimeseries
 	}
-	if r.RestrictFetchOptions == nil && queryCtx.Options.RestrictFetchType != nil {
+
+	// Use inbuilt options for type restriction if none found.
+	if r.RestrictQueryOptions.GetRestrictByType() == nil &&
+		queryCtx.Options.RestrictFetchType != nil {
 		v := queryCtx.Options.RestrictFetchType
-		restrict := RestrictFetchOptions{
-			RestrictByType: &RestrictByType{
-				MetricsType:   MetricsType(v.MetricsType),
-				StoragePolicy: v.StoragePolicy,
-			},
+		restrict := &RestrictByType{
+			MetricsType:   MetricsType(v.MetricsType),
+			StoragePolicy: v.StoragePolicy,
 		}
+
 		if err := restrict.Validate(); err != nil {
 			return nil, err
 		}
 
-		r.RestrictFetchOptions = &restrict
+		if r.RestrictQueryOptions == nil {
+			r.RestrictQueryOptions = &RestrictQueryOptions{}
+		}
+
+		r.RestrictQueryOptions.RestrictByType = restrict
 	}
+
 	return r, nil
 }
 
@@ -235,8 +242,8 @@ type RestrictByTag struct {
 	Strip [][]byte `json:"strip"`
 }
 
-// RestrictFetchOptions restricts the fetch to a specific set of conditions.
-type RestrictFetchOptions struct {
+// RestrictQueryOptions restricts the query to a specific set of conditions.
+type RestrictQueryOptions struct {
 	// RestrictByType are specific restrictions to stick to a single data type.
 	RestrictByType *RestrictByType
 	// RestrictByTag are specific restrictions to enforce behavior for given
