@@ -299,10 +299,6 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 			},
 		},
 		{
-			value:       nil,
-			errContains: "no restrict fetch options",
-		},
-		{
 			value: &rpcpb.RestrictQueryOptions{
 				RestrictFetchType: &rpcpb.RestrictFetchType{
 					MetricsType: rpcpb.MetricsType_UNKNOWN_METRICS_TYPE,
