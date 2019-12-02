@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/stretchr/testify/assert"
@@ -272,4 +273,55 @@ func TestParseDurationOverflowError(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ParseDuration(r, StepParam)
 	assert.Error(t, err)
+}
+
+func TestFetchOptionsWithHeader(t *testing.T) {
+	type expectedLookback struct {
+		value time.Duration
+	}
+
+	headers := map[string]string{
+		MetricsTypeHeader:          storage.AggregatedMetricsType.String(),
+		MetricsStoragePolicyHeader: "1m:14d",
+		QueryOptionsJSONHeader: `{
+			"match":[
+				{"name":"a", "value":"b", "type":"EQUAL"},
+				{"name":"c", "value":"d", "type":"NOTEQUAL"},
+				{"name":"e", "value":"f", "type":"REGEXP"},
+				{"name":"g", "value":"h", "type":"NOTREGEXP"},
+				{"name":"i", "value":"j", "type":"EXISTS"},
+				{"name":"k", "value":"l", "type":"NOTEXISTS"}
+			],
+			"strip":["foo"]
+		}`,
+	}
+
+	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{Limit: 5})
+	req := httptest.NewRequest("GET", "/", nil)
+	for k, v := range headers {
+		req.Header.Add(k, v)
+	}
+
+	opts, err := builder.NewFetchOptions(req)
+	require.NoError(t, err)
+	require.NotNil(t, opts.RestrictQueryOptions)
+	ex := &storage.RestrictQueryOptions{
+		RestrictByType: &storage.RestrictByType{
+			MetricsType:   storage.AggregatedMetricsType,
+			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		},
+		RestrictByTag: &storage.RestrictByTag{
+			Restrict: models.Matchers{
+				mustMatcher("a", "b", models.MatchEqual),
+				mustMatcher("c", "d", models.MatchNotEqual),
+				mustMatcher("e", "f", models.MatchRegexp),
+				mustMatcher("g", "h", models.MatchNotRegexp),
+				mustMatcher("i", "j", models.MatchField),
+				mustMatcher("k", "l", models.MatchNotField),
+			},
+			Strip: toStrip("foo"),
+		},
+	}
+
+	require.Equal(t, ex, opts.RestrictQueryOptions)
 }

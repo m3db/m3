@@ -28,6 +28,7 @@ import (
 	"sort"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -150,6 +151,7 @@ func read(
 		return emptyResult, err
 	}
 
+	series = prometheus.FilterSeriesByOptions(series, fetchOpts)
 	return readResult{
 		series: series,
 		meta:   meta,

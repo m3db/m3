@@ -234,12 +234,12 @@ type RestrictByTag struct {
 	// Restrict is a set of override matchers to apply to a fetch
 	// regardless of the existing fetch matchers, they should replace any
 	// existing matchers part of a fetch if they collide.
-	Restrict models.Matchers `json:"restrict"`
+	Restrict models.Matchers
 	// Strip is a set of tag names to strip from the response.
 	//
 	// NB: If this is unset, but Restrict is set, all tag names appearing in any
 	// of the Restrict matchers are removed.
-	Strip [][]byte `json:"strip"`
+	Strip [][]byte
 }
 
 // RestrictQueryOptions restricts the query to a specific set of conditions.
@@ -248,7 +248,7 @@ type RestrictQueryOptions struct {
 	RestrictByType *RestrictByType
 	// RestrictByTag are specific restrictions to enforce behavior for given
 	// tags.
-	RestrictByTag *RestrictByTag `json:"tags"`
+	RestrictByTag *RestrictByTag
 }
 
 // Querier handles queries against a storage.

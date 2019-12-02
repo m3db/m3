@@ -135,13 +135,18 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	}
 
 	if str := req.Header.Get(QueryOptionsJSONHeader); str != "" {
-		var opts *storage.RestrictQueryOptions
-		if err := json.Unmarshal([]byte(str), opts); err != nil {
+		var opts stringTagOptions
+		if err := json.Unmarshal([]byte(str), &opts); err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		tagOpts, err := opts.toOptions()
+		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
-		fetchOpts.RestrictQueryOptions.RestrictByTag = opts.RestrictByTag
+		fetchOpts.RestrictQueryOptions.RestrictByTag = tagOpts
 	}
 
 	if restrict := fetchOpts.RestrictQueryOptions; restrict != nil {

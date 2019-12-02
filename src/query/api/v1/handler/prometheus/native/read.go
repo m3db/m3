@@ -220,8 +220,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
 	handler.AddWarningHeaders(w, result.meta)
-	series := prometheus.FilterSeriesByOptions(result.series, fetchOpts)
-	return series, params, nil
+	return result.series, params, nil
 }
 
 func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
