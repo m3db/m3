@@ -364,6 +364,8 @@ func applyOptions(
 
 			filteredList = append(filteredList, s)
 		}
+
+		result.CompletedTags = filteredList
 	}
 
 	return result

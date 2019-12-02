@@ -52,7 +52,7 @@ func matchByName(name string) (models.MatchType, error) {
 	return t, nil
 }
 
-func (m stringMatch) toMatcher() (models.Matcher, error) {
+func (m StringMatch) toMatcher() (models.Matcher, error) {
 	t, err := matchByName(m.Type)
 	if err != nil {
 		return models.Matcher{}, err
@@ -61,7 +61,7 @@ func (m stringMatch) toMatcher() (models.Matcher, error) {
 	return models.NewMatcher(t, []byte(m.Name), []byte(m.Value))
 }
 
-func (o *stringTagOptions) toOptions() (*storage.RestrictByTag, error) {
+func (o *StringTagOptions) toOptions() (*storage.RestrictByTag, error) {
 	if len(o.Restrict) == 0 && len(o.Strip) == 0 {
 		return nil, nil
 	}
@@ -96,15 +96,18 @@ func (o *stringTagOptions) toOptions() (*storage.RestrictByTag, error) {
 	return opts, nil
 }
 
-type stringMatch struct {
+// StringMatch is an easy to use JSON representation of models.Matcher that
+// allows plaintext fields rather than forcing base64 encoded values.
+type StringMatch struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
 	Value string `json:"value"`
 }
 
-// This is an easy to use JSON representation of storage.RestrictByTag that
-// allows plaintext string fields rather than forcing base64 encoded values.
-type stringTagOptions struct {
-	Restrict []stringMatch `json:"match"`
+// StringTagOptions is an easy to use JSON representation of
+// storage.RestrictByTag that allows plaintext string fields rather than
+// forcing base64 encoded values.
+type StringTagOptions struct {
+	Restrict []StringMatch `json:"match"`
 	Strip    []string      `json:"strip"`
 }

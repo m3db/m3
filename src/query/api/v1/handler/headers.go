@@ -56,8 +56,9 @@ const (
 	// metrics type.
 	MetricsStoragePolicyHeader = "M3-Storage-Policy"
 
-	// QueryOptionsJSONHeader provides tag options to enforces on queries.
-	QueryOptionsJSONHeader = "M3-Restrict-By-Tags-JSON"
+	// RestrictByTagsJSONHeader provides tag options to enforces on queries,
+	// in JSON format. See `handler.stringTagOptions` for definitions.`
+	RestrictByTagsJSONHeader = "M3-Restrict-By-Tags-JSON"
 
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"

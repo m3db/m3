@@ -337,6 +337,8 @@ function test_fanout_warning_missing_zone {
  
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_complete_tags_warning
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+
+  docker-compose -f ${COMPOSE_FILE} start coordinator-cluster-c
 }
 
 function test_fanout_warnings {

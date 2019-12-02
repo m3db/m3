@@ -283,7 +283,7 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 	headers := map[string]string{
 		MetricsTypeHeader:          storage.AggregatedMetricsType.String(),
 		MetricsStoragePolicyHeader: "1m:14d",
-		QueryOptionsJSONHeader: `{
+		RestrictByTagsJSONHeader: `{
 			"match":[
 				{"name":"a", "value":"b", "type":"EQUAL"},
 				{"name":"c", "value":"d", "type":"NOTEQUAL"},

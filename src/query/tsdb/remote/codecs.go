@@ -22,7 +22,6 @@ package remote
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -381,11 +380,11 @@ func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
 func decodeRestrictQueryOptionsByType(
 	p *rpc.RestrictFetchType,
 ) (*storage.RestrictByType, error) {
-	result := &storage.RestrictByType{}
 	if p == nil {
-		return result, errors.New("no restrict fetch options by type")
+		return nil, nil
 	}
 
+	result := &storage.RestrictByType{}
 	switch p.GetMetricsType() {
 	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
 		result.MetricsType = storage.UnaggregatedMetricsType

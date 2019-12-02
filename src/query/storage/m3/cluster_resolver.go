@@ -21,7 +21,6 @@
 package m3
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -79,10 +78,10 @@ func resolveClusterNamespacesForQuery(
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
-	if restrict != nil {
+	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
 		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
-			start, clusters, restrict)
+			start, clusters, *typeRestrict)
 	}
 
 	// First check if the unaggregated cluster can fully satisfy the query range.
@@ -302,21 +301,12 @@ func aggregatedNamespaces(
 func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	now, start time.Time,
 	clusters Clusters,
-	fetchOptions *storage.RestrictQueryOptions,
+	restrict storage.RestrictByType,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
 		now:        now,
 		queryStart: start,
 	})
-
-	if fetchOptions == nil {
-		return 0, nil, errors.New("fetch options must not be nil")
-	}
-
-	restrict := fetchOptions.RestrictByType
-	if restrict == nil {
-		return 0, nil, errors.New("fetch options type restriction must not be nil")
-	}
 
 	result := func(
 		namespace ClusterNamespace,

@@ -134,8 +134,8 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
 
-	if str := req.Header.Get(QueryOptionsJSONHeader); str != "" {
-		var opts stringTagOptions
+	if str := req.Header.Get(RestrictByTagsJSONHeader); str != "" {
+		var opts StringTagOptions
 		if err := json.Unmarshal([]byte(str), &opts); err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
