@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package storage
 
-// HeaderKeyType is the type for the header key.
-type HeaderKeyType int
+import (
+	"testing"
 
-const (
-	// HeaderKey is the key which headers will be added to in the request context.
-	HeaderKey HeaderKeyType = iota
+	"github.com/m3db/m3/src/query/models"
 
-	// RoutePrefixV1 is the v1 prefix for all coordinator routes.
-	RoutePrefixV1 = "/api/v1"
-
-	// RoutePrefixExperimental is the experimental prefix for all coordinator routes.
-	RoutePrefixExperimental = "/api/experimental"
+	"github.com/stretchr/testify/require"
 )
+
+func TestGetRestrict(t *testing.T) {
+	var opts *RestrictQueryOptions
+	require.Nil(t, opts.GetRestrictByTag())
+	require.Nil(t, opts.GetRestrictByType())
+
+	opts = &RestrictQueryOptions{}
+	require.Nil(t, opts.GetRestrictByTag())
+	require.Nil(t, opts.GetRestrictByType())
+
+	opts.RestrictByTag = &RestrictByTag{}
+	require.NotNil(t, opts.GetRestrictByTag())
+
+	matcher, err := models.NewMatcher(models.MatchEqual, []byte("f"), []byte("b"))
+	require.NoError(t, err)
+	matchers := models.Matchers{matcher}
+
+	opts.RestrictByTag.Restrict = matchers
+	require.Equal(t, matchers, opts.GetRestrictByTag().GetMatchers())
+
+	byType := &RestrictByType{}
+	opts.RestrictByType = byType
+	require.Equal(t, byType, opts.GetRestrictByType())
+}

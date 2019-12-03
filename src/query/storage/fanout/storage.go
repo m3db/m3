@@ -21,6 +21,7 @@
 package fanout
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -332,7 +333,42 @@ func (s *fanoutStorage) CompleteTags(
 
 	built := accumulatedTags.Build()
 	built.Metadata = metadata
+	built = applyOptions(built, options)
 	return &built, nil
+}
+
+func applyOptions(
+	result storage.CompleteTagsResult,
+	opts *storage.FetchOptions,
+) storage.CompleteTagsResult {
+	if opts.RestrictQueryOptions == nil {
+		return result
+	}
+
+	filter := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(filter) > 0 {
+		// Filter out unwanted tags inplace.
+		filteredList := result.CompletedTags[:0]
+		for _, s := range result.CompletedTags {
+			skip := false
+			for _, name := range filter {
+				if bytes.Equal(s.Name, name) {
+					skip = true
+					break
+				}
+			}
+
+			if skip {
+				continue
+			}
+
+			filteredList = append(filteredList, s)
+		}
+
+		result.CompletedTags = filteredList
+	}
+
+	return result
 }
 
 func (s *fanoutStorage) Write(ctx context.Context,

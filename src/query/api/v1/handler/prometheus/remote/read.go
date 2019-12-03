@@ -232,6 +232,10 @@ func (h *PromReadHandler) read(
 			mu.Lock()
 			meta = meta.CombineMetadata(result.Metadata)
 			mu.Unlock()
+			result.SeriesList = prometheus.FilterSeriesByOptions(
+				result.SeriesList,
+				fetchOpts,
+			)
 			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
 			promResults[i] = promRes
 		}()

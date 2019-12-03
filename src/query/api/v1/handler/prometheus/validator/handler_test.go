@@ -22,7 +22,6 @@ package validator
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -335,7 +334,6 @@ func TestValidateEndpoint(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	debugHandler.ServeHTTP(recorder, req)
 
-	fmt.Println(recorder.Body.String())
 	var mismatches MismatchesJSON
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &mismatches))
 	assert.False(t, mismatches.Correct)

@@ -21,6 +21,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -103,6 +104,7 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
+
 	fetchOpts.Limit = limit
 	if str := req.Header.Get(MetricsTypeHeader); str != "" {
 		mt, err := storage.ParseMetricsType(str)
@@ -111,9 +113,13 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 				"could not parse metrics type: input=%s, err=%v", str, err)
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
-		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.MetricsType = mt
+
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType =
+			newOrExistingRestrictQueryOptionsRestrictByType(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType.MetricsType = mt
 	}
+
 	if str := req.Header.Get(MetricsStoragePolicyHeader); str != "" {
 		sp, err := policy.ParseStoragePolicy(str)
 		if err != nil {
@@ -121,10 +127,29 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 				"could not parse storage policy: input=%s, err=%v", str, err)
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
-		fetchOpts.RestrictFetchOptions = newOrExistingRestrictFetchOptions(fetchOpts)
-		fetchOpts.RestrictFetchOptions.StoragePolicy = sp
+
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType =
+			newOrExistingRestrictQueryOptionsRestrictByType(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
-	if restrict := fetchOpts.RestrictFetchOptions; restrict != nil {
+
+	if str := req.Header.Get(RestrictByTagsJSONHeader); str != "" {
+		var opts StringTagOptions
+		if err := json.Unmarshal([]byte(str), &opts); err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		tagOpts, err := opts.toOptions()
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByTag = tagOpts
+	}
+
+	if restrict := fetchOpts.RestrictQueryOptions; restrict != nil {
 		if err := restrict.Validate(); err != nil {
 			err = fmt.Errorf(
 				"could not validate restrict options: err=%v", err)
@@ -152,13 +177,22 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	return fetchOpts, nil
 }
 
-func newOrExistingRestrictFetchOptions(
+func newOrExistingRestrictQueryOptions(
 	fetchOpts *storage.FetchOptions,
-) *storage.RestrictFetchOptions {
-	if v := fetchOpts.RestrictFetchOptions; v != nil {
+) *storage.RestrictQueryOptions {
+	if v := fetchOpts.RestrictQueryOptions; v != nil {
 		return v
 	}
-	return &storage.RestrictFetchOptions{}
+	return &storage.RestrictQueryOptions{}
+}
+
+func newOrExistingRestrictQueryOptionsRestrictByType(
+	fetchOpts *storage.FetchOptions,
+) *storage.RestrictByType {
+	if v := fetchOpts.RestrictQueryOptions.RestrictByType; v != nil {
+		return v
+	}
+	return &storage.RestrictByType{}
 }
 
 // ParseStep parses the step duration for an HTTP request.
