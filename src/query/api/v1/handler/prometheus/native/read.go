@@ -49,14 +49,18 @@ const (
 	// default URL for the query range endpoint found on a Prometheus server
 	PromReadURL = handler.RoutePrefixV1 + "/query_range"
 
-	// PromReadHTTPMethod is the HTTP method used with this resource.
-	PromReadHTTPMethod = http.MethodGet
-
 	// TODO: Move to config
 	initialBlockAlloc = 10
 )
 
 var (
+	// PromReadHTTPMethods is the valid HTTP methods used with this
+	// resource.
+	PromReadHTTPMethods = [...]string{
+		http.MethodGet,
+		http.MethodPost,
+	}
+
 	emptySeriesList = []*ts.Series{}
 	emptyReqParams  = models.RequestParams{}
 )
