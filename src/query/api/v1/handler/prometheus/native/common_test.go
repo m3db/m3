@@ -93,7 +93,7 @@ func TestParamParsing_POST(t *testing.T) {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	r, err := testParseParams(req)
-	require.Nil(t, err, "unable to parse request")
+	require.NoError(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Query)
 }
 

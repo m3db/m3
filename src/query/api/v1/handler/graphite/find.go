@@ -43,7 +43,7 @@ const (
 )
 
 var (
-	// FindHTTPMethods is the HTTP methods used with this resource.
+	// FindHTTPMethods are the HTTP methods for this handler.
 	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
