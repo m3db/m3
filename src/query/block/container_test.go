@@ -357,7 +357,7 @@ func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	it.EXPECT().Err().Return(nil).AnyTimes()
 	it.EXPECT().Next().Return(true)
 	it.EXPECT().Next().Return(false)
-	vals := make(ts.Datapoints, numSteps)
+	vals := make(ts.Datapoints, 0, numSteps)
 	for i := range vals {
 		tt := now.Add(time.Duration(i) * step)
 		vals = append(vals,
@@ -397,7 +397,7 @@ func TestUnconsolidatedContainerSeriesIter(t *testing.T) {
 	require.NoError(t, err)
 
 	buildExpected := func(v float64) ts.Datapoints {
-		expected := make(ts.Datapoints, numSteps)
+		expected := make(ts.Datapoints, 0, numSteps)
 		for i := range expected {
 			expected = append(expected, ts.Datapoint{
 				Timestamp: now.Add(time.Duration(i) * step),

@@ -137,14 +137,9 @@ func (c *baseNode) Process(
 		return err
 	}
 
-	var (
-		aggDuration = c.op.duration
-		seriesMeta  = seriesIter.SeriesMeta()
-	)
-
 	// rename series to exclude their __name__ tag as part of function processing.
-	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesMeta))
-	for _, m := range seriesMeta {
+	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
+	for _, m := range seriesIter.SeriesMeta() {
 		tags := m.Tags.WithoutName()
 		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
 			Name: tags.ID(),
@@ -164,91 +159,16 @@ func (c *baseNode) Process(
 
 	m := blockMeta{
 		end:         bounds.Start.UnixNano(),
+		seriesMeta:  resultSeriesMeta,
 		aggDuration: int64(c.op.duration),
 		stepSize:    int64(bounds.StepSize),
 		steps:       steps,
 	}
 
-	if batchBlock, ok := unconsolidatedBlock.(block.MultiUnconsolidatedBlock); ok {
-		builder.PopulateColumns(seriesIter.SeriesCount())
-
-		var (
-			concurrency = runtime.NumCPU()
-			iterBatches = batchBlock.MultiSeriesIter(concurrency)
-
-			mu       sync.Mutex
-			wg       sync.WaitGroup
-			multiErr xerrors.MultiError
-			idx      int
-		)
-
-		for _, batch := range iterBatches {
-			wg.Add(1)
-			// capture loop variables
-			loopIndex := idx
-			batch := batch
-			idx = idx + batch.Size
-			go func() {
-				err := buildBlockBatch(
-					loopIndex,
-					batch.Iter,
-					m,
-					c.processor,
-					resultSeriesMeta,
-					&mu,
-					builder,
-				)
-
-				mu.Lock()
-				multiErr = multiErr.Add(err)
-				mu.Unlock()
-				wg.Done()
-			}()
-		}
-
-		wg.Wait()
-		if err := multiErr.FinalError(); err != nil {
-			return err
-		}
+	if batched, ok := unconsolidatedBlock.(block.MultiUnconsolidatedBlock); ok {
+		batchProcess(batched, builder, m, c.processor)
 	} else {
-		for seriesIter.Next() {
-			var (
-				newVal float64
-				init   = 0
-				end    = bounds.Start.UnixNano()
-				start  = end - int64(aggDuration)
-				step   = int64(bounds.StepSize)
-
-				series     = seriesIter.Current()
-				datapoints = series.Datapoints()
-			)
-
-			for i := 0; i < series.Len(); i++ {
-				iterBounds := iterationBounds{
-					start: start,
-					end:   end,
-				}
-
-				l, r, b := getIndices(datapoints, start, end, init)
-				if !b {
-					newVal = c.processor.process(ts.Datapoints{}, iterBounds)
-				} else {
-					init = l
-					newVal = c.processor.process(datapoints[l:r], iterBounds)
-				}
-
-				if err := builder.AppendValue(i, newVal); err != nil {
-					return err
-				}
-
-				start += step
-				end += step
-			}
-		}
-
-		if err = seriesIter.Err(); err != nil {
-			return err
-		}
+		singleProcess(seriesIter, builder, m, c.processor)
 	}
 
 	// NB: safe to close the block here.
@@ -266,16 +186,54 @@ type blockMeta struct {
 	aggDuration int64
 	stepSize    int64
 	steps       int
+	seriesMeta  []block.SeriesMeta
+}
+
+func batchProcess(
+	batchBlock block.MultiUnconsolidatedBlock,
+	builder block.Builder,
+	m blockMeta,
+	p processor,
+) error {
+	var (
+		metas       = m.seriesMeta
+		concurrency = runtime.NumCPU()
+		iterBatches = batchBlock.MultiSeriesIter(concurrency)
+
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		idx      int
+	)
+
+	builder.PopulateColumns(len(metas))
+	for _, batch := range iterBatches {
+		wg.Add(1)
+		// capture loop variables
+		loopIndex := idx
+		batch := batch
+		idx = idx + batch.Size
+		go func() {
+			err := buildBlockBatch(loopIndex, batch.Iter, builder, m, p, &mu)
+			mu.Lock()
+			// NB: this no-ops if the error is nil.
+			multiErr = multiErr.Add(err)
+			mu.Unlock()
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	return multiErr.FinalError()
 }
 
 func buildBlockBatch(
 	idx int,
 	iter block.UnconsolidatedSeriesIter,
+	builder block.Builder,
 	blockMeta blockMeta,
 	processor processor,
-	metas []block.SeriesMeta,
 	mu *sync.Mutex,
-	builder block.Builder,
 ) error {
 	values := make([]float64, 0, blockMeta.steps)
 	for iter.Next() {
@@ -313,7 +271,7 @@ func buildBlockBatch(
 		mu.Lock()
 		// NB: this sets the values internally, so no need to worry about keeping
 		// a reference to underlying `values`.
-		err := builder.SetRow(idx, values, metas[idx])
+		err := builder.SetRow(idx, values, blockMeta.seriesMeta[idx])
 		mu.Unlock()
 		idx++
 		if err != nil {
@@ -322,6 +280,50 @@ func buildBlockBatch(
 	}
 
 	return iter.Err()
+}
+
+func singleProcess(
+	seriesIter block.UnconsolidatedSeriesIter,
+	builder block.Builder,
+	m blockMeta,
+	p processor,
+) error {
+	for seriesIter.Next() {
+		var (
+			newVal float64
+			init   = 0
+			end    = m.end
+			start  = end - m.aggDuration
+			step   = m.stepSize
+
+			series     = seriesIter.Current()
+			datapoints = series.Datapoints()
+		)
+
+		for i := 0; i < series.Len(); i++ {
+			iterBounds := iterationBounds{
+				start: start,
+				end:   end,
+			}
+
+			l, r, b := getIndices(datapoints, start, end, init)
+			if !b {
+				newVal = p.process(ts.Datapoints{}, iterBounds)
+			} else {
+				init = l
+				newVal = p.process(datapoints[l:r], iterBounds)
+			}
+
+			if err := builder.AppendValue(i, newVal); err != nil {
+				return err
+			}
+
+			start += step
+			end += step
+		}
+	}
+
+	return seriesIter.Err()
 }
 
 // getIndices returns the index of the points on the left and the right of the
