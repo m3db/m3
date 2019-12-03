@@ -300,7 +300,7 @@ func singleProcess(
 			datapoints = series.Datapoints()
 		)
 
-		for i := 0; i < series.Len(); i++ {
+		for i := 0; i < m.steps; i++ {
 			iterBounds := iterationBounds{
 				start: start,
 				end:   end,
