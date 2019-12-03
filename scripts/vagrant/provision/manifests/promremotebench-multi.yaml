@@ -53,3 +53,5 @@ spec:
           value: "100ms"
         - name: PROMREMOTEBENCH_QUERY_DEBUG
           value: "true"
+        - name: PROMREMOTEBENCH_QUERY_DEBUG_LENGTH
+          value: "0"
