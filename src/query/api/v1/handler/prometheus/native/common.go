@@ -205,6 +205,7 @@ func parseInstantaneousParams(
 	if fetchOpts.Step == 0 {
 		fetchOpts.Step = time.Second
 	}
+
 	if r.Form == nil {
 		r.Form = make(url.Values)
 	}

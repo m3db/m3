@@ -171,6 +171,7 @@ func (q *querier) FetchCompressed(
 				}
 			}
 
+			break
 		}
 	}
 

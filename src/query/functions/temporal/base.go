@@ -194,7 +194,7 @@ func (c *baseNode) Process(
 					batch.Iter,
 					m,
 					c.processor,
-					seriesMeta,
+					resultSeriesMeta,
 					&mu,
 					builder,
 				)

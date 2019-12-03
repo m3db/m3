@@ -55,11 +55,11 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
+	"github.com/prometheus/prometheus/util/httputil"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/util/httputil"
 )
 
 const (
@@ -123,9 +123,7 @@ func NewHandler(
 	serviceOptionDefaults []handler.ServiceOptionsDefault,
 ) (*Handler, error) {
 	r := mux.NewRouter()
-
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
-
 	var timeoutOpts = &prometheus.TimeoutOpts{}
 	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
 		timeoutOpts.FetchTimeout = defaultTimeout
@@ -168,13 +166,19 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 		},
 	})
 
-	// apply jaeger middleware, which will start a span
-	// for each incoming request
+	// Apply OpenTracing compatible middleware, which will start a span
+	// for each incoming request.
 	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
 		}))
-	return withMiddleware
+
+	// NB: wrap the handler with a `CompressionHandler`; this allows all
+	// routes to support `Accept-Encoding:gzip` and `Accept-Encoding:deflate`
+	// requests with the given compression types.
+	return httputil.CompressionHandler{
+		Handler: withMiddleware,
+	}
 }
 
 // RegisterRoutes registers all http routes.
@@ -182,13 +186,13 @@ func (h *Handler) RegisterRoutes() error {
 	// Wrap requests with response time logging as well as panic recovery.
 	var (
 		wrapped = func(n http.Handler) http.Handler {
-			return httputil.CompressionHandler{
-				Handler: logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts),
-			}
+			return logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts)
 		}
+
 		panicOnly = func(n http.Handler) http.Handler {
 			return logging.WithPanicErrorResponder(n, h.instrumentOpts)
 		}
+
 		nowFn    = time.Now
 		keepNans = h.config.ResultOptions.KeepNans
 	)

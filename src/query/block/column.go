@@ -47,7 +47,8 @@ type columnBlock struct {
 }
 
 func (c *columnBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
+	return nil, fmt.
+		Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
 }
 
 func (c *columnBlock) Meta() Metadata {
@@ -56,7 +57,9 @@ func (c *columnBlock) Meta() Metadata {
 
 func (c *columnBlock) StepIter() (StepIter, error) {
 	if len(c.columns) != c.meta.Bounds.Steps() {
-		return nil, fmt.Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v", len(c.columns), c.meta.Bounds)
+		return nil, fmt.
+			Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v",
+				len(c.columns), c.meta.Bounds)
 	}
 
 	return &colBlockIter{
@@ -165,8 +168,9 @@ func NewColumnBlockBuilder(
 	meta Metadata,
 	seriesMeta []SeriesMeta) Builder {
 	return ColumnBlockBuilder{
-		enforcer:        queryCtx.Enforcer.Child(cost.BlockLevel),
-		blockDatapoints: queryCtx.Scope.Tagged(map[string]string{"type": "generated"}).Counter("datapoints"),
+		enforcer: queryCtx.Enforcer.Child(cost.BlockLevel),
+		blockDatapoints: queryCtx.Scope.Tagged(
+			map[string]string{"type": "generated"}).Counter("datapoints"),
 		block: &columnBlock{
 			meta:       meta,
 			seriesMeta: seriesMeta,
@@ -223,8 +227,9 @@ func (cb ColumnBlockBuilder) AddCols(num int) error {
 
 // PopulateColumns sets all columns to the given row size.
 func (cb ColumnBlockBuilder) PopulateColumns(size int) {
+	cols := make([]float64, size*len(cb.block.columns))
 	for i := range cb.block.columns {
-		cb.block.columns[i] = column{Values: make([]float64, size)}
+		cb.block.columns[i] = column{Values: cols[size*i : size*(i+1)]}
 	}
 }
 
@@ -278,7 +283,8 @@ type column struct {
 	Values []float64
 }
 
-// columnBlockSeriesIter is used to iterate over a column. Assumes that all columns have the same length
+// columnBlockSeriesIter is used to iterate over a column.
+// Assumes that all columns have the same length.
 type columnBlockSeriesIter struct {
 	idx        int
 	blockMeta  Metadata
