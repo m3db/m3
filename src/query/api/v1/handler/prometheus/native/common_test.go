@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -80,6 +81,16 @@ func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError
 func TestParamParsing(t *testing.T) {
 	req := httptest.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
+
+	r, err := testParseParams(req)
+	require.Nil(t, err, "unable to parse request")
+	require.Equal(t, promQuery, r.Query)
+}
+
+func TestParamParsing_POST(t *testing.T) {
+	params := defaultParams().Encode()
+	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader(params))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	r, err := testParseParams(req)
 	require.Nil(t, err, "unable to parse request")
