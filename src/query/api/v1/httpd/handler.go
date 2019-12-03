@@ -227,11 +227,11 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(remote.PromWriteHTTPMethod)
 	h.router.HandleFunc(native.PromReadURL,
 		wrapped(nativePromReadHandler).ServeHTTP,
-	).Methods(native.PromReadHTTPMethod)
+	).Methods(native.PromReadHTTPMethods...)
 	h.router.HandleFunc(native.PromReadInstantURL,
 		wrapped(native.NewPromReadInstantHandler(h.engine, h.fetchOptionsBuilder,
 			h.tagOptions, h.timeoutOpts, h.instrumentOpts)).ServeHTTP,
-	).Methods(native.PromReadInstantHTTPMethod)
+	).Methods(native.PromReadInstantHTTPMethods...)
 
 	// Native M3 search and write endpoints
 	h.router.HandleFunc(handler.SearchURL,

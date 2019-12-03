@@ -40,9 +40,15 @@ const (
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server
 	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
+)
 
-	// PromReadInstantHTTPMethod is the HTTP method used with this resource.
-	PromReadInstantHTTPMethod = http.MethodGet
+var (
+	// PromReadInstantHTTPMethods is the valid HTTP methods used with this
+	// resource.
+	PromReadInstantHTTPMethods = []string{
+		http.MethodGet,
+		http.MethodPost,
+	}
 )
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.

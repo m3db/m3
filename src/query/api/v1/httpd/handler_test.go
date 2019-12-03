@@ -212,7 +212,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "POST method not defined")
+	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
 
 func TestJSONWritePost(t *testing.T) {
