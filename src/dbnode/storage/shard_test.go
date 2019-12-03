@@ -107,7 +107,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	defer shard.Close()
 
 	require.Equal(t, Bootstrapped, shard.bootstrapState)
-	require.True(t, shard.newSeriesBootstrapped)
+	require.True(t, shard.IsBootstrapped())
 }
 
 func TestShardErrorIfDoubleBootstrap(t *testing.T) {
@@ -120,15 +120,15 @@ func TestShardErrorIfDoubleBootstrap(t *testing.T) {
 	defer shard.Close()
 
 	require.Equal(t, Bootstrapped, shard.bootstrapState)
-	require.True(t, shard.newSeriesBootstrapped)
+	require.True(t, shard.IsBootstrapped())
 }
 
 func TestShardBootstrapState(t *testing.T) {
 	opts := DefaultTestOptions()
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
-	require.NoError(t, s.Bootstrap(nil))
-	require.Error(t, s.Bootstrap(nil))
+	require.NoError(t, s.Bootstrap())
+	require.Error(t, s.Bootstrap())
 }
 
 func TestShardFlushStateNotStarted(t *testing.T) {
@@ -154,7 +154,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
-	s.Bootstrap(nil)
+	s.Bootstrap()
 
 	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
@@ -162,46 +162,6 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, notStarted, flushState)
 	}
-}
-
-func TestShardBootstrapWithError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := DefaultTestOptions()
-	s := testDatabaseShard(t, opts)
-	defer s.Close()
-
-	fooSeries := series.NewMockDatabaseSeries(ctrl)
-	fooSeries.EXPECT().ID().Return(ident.StringID("foo")).AnyTimes()
-	fooSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	barSeries := series.NewMockDatabaseSeries(ctrl)
-	barSeries.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
-	barSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	s.Lock()
-	s.insertNewShardEntryWithLock(lookup.NewEntry(fooSeries, 0))
-	s.insertNewShardEntryWithLock(lookup.NewEntry(barSeries, 0))
-	s.Unlock()
-
-	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, fooBlocks, gomock.Any()).Return(series.LoadResult{}, nil)
-	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, barBlocks, gomock.Any()).Return(series.LoadResult{}, errors.New("series error"))
-	barSeries.EXPECT().IsBootstrapped().Return(true)
-
-	fooID := ident.StringID("foo")
-	barID := ident.StringID("bar")
-
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-	bootstrappedSeries.Set(fooID, result.DatabaseSeriesBlocks{ID: fooID, Blocks: fooBlocks})
-	bootstrappedSeries.Set(barID, result.DatabaseSeriesBlocks{ID: barID, Blocks: barBlocks})
-
-	err := s.Bootstrap(bootstrappedSeries)
-
-	require.NotNil(t, err)
-	require.Equal(t, "series error", err.Error())
-	require.Equal(t, Bootstrapped, s.bootstrapState)
 }
 
 // TestShardBootstrapWithFlushVersion ensures that the shard is able to bootstrap
@@ -232,7 +192,6 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
 	mockSeries.EXPECT().ID().Return(mockSeriesID).AnyTimes()
 	mockSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	mockSeries.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
@@ -262,30 +221,9 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	blocks.EXPECT().AllBlocks().AnyTimes()
-	blocks.EXPECT().Len().AnyTimes()
-	bootstrappedSeries.Set(mockSeriesID, result.DatabaseSeriesBlocks{
-		ID:     mockSeriesID,
-		Blocks: blocks,
-	})
-
-	// Ensure that the bootstrapped flush/block states get passed to the series.Load()
-	// method properly.
-	blockStateSnapshot := series.BootstrappedBlockStateSnapshot{
-		Snapshot: map[xtime.UnixNano]series.BlockState{},
-	}
-	for i, blockStart := range blockStarts {
-		blockStateSnapshot.Snapshot[xtime.ToUnixNano(blockStart)] = series.BlockState{
-			WarmRetrievable: true,
-			ColdVersion:     i,
-		}
-	}
-	mockSeries.EXPECT().Load(series.LoadOptions{Bootstrap: true}, blocks, blockStateSnapshot)
-
-	err = s.Bootstrap(bootstrappedSeries)
+	err = s.Bootstrap()
 	require.NoError(t, err)
+
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
 	for i, blockStart := range blockStarts {
@@ -344,9 +282,7 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		require.NoError(t, writer.Close())
 	}
 
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-
-	err = s.Bootstrap(bootstrappedSeries)
+	err = s.Bootstrap()
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
@@ -385,9 +321,7 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
 	mockRetrieverMgr.EXPECT().Retriever(s.namespace).Return(mockRetriever, nil)
 
-	bootstrappedSeries := result.NewMap(result.MapOptions{})
-
-	err = s.Bootstrap(bootstrappedSeries)
+	err = s.Bootstrap()
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 }
@@ -434,15 +368,15 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
 
 	seriesMap := sr.AllSeries()
-	require.NoError(t, s.Bootstrap(nil))
+	require.NoError(t, s.Bootstrap())
 
 	// First load will never trigger the limit.
-	require.NoError(t, s.Load(seriesMap))
+	require.NoError(t, s.LoadBlocks(seriesMap))
 
 	if shouldReturnError {
-		require.Error(t, s.Load(seriesMap))
+		require.Error(t, s.LoadBlocks(seriesMap))
 	} else {
-		require.NoError(t, s.Load(seriesMap))
+		require.NoError(t, s.LoadBlocks(seriesMap))
 	}
 }
 
@@ -454,7 +388,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	s := testDatabaseShard(t, DefaultTestOptions())
 	defer s.Close()
-	s.Bootstrap(nil)
+	s.Bootstrap()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
@@ -525,7 +459,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
-	s.Bootstrap(nil)
+	s.Bootstrap()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		WarmStatus:  fileOpFailed,
 		NumFailures: 1,
@@ -614,7 +548,7 @@ func TestShardColdFlush(t *testing.T) {
 
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	require.NoError(t, shard.Bootstrap())
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
 
@@ -694,7 +628,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	blockSize := opts.SeriesOptions().RetentionOptions().BlockSize()
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	require.NoError(t, shard.Bootstrap())
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
 
@@ -877,14 +811,7 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
-	return addTestSeriesWithCountAndBootstrap(shard, id, count, true)
-}
-
-func addTestSeriesWithCountAndBootstrap(shard *dbShard, id ident.ID, count int32, bootstrap bool) series.DatabaseSeries {
-	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
-	if bootstrap {
-		seriesEntry.Load(series.LoadOptions{Bootstrap: true}, nil, series.BootstrappedBlockStateSnapshot{})
-	}
+	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, 1, shard.seriesOpts)
 	shard.Lock()
 	entry := lookup.NewEntry(seriesEntry, 0)
 	for i := int32(0); i < count; i++ {
@@ -951,7 +878,7 @@ func TestShardTick(t *testing.T) {
 	sleepPerSeries := time.Microsecond
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	shard.Bootstrap()
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
 		SetTickSeriesBatchSize(1))
@@ -1120,7 +1047,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	sleepPerSeries := time.Microsecond
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	shard.Bootstrap()
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true).
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
@@ -1177,7 +1104,7 @@ func TestShardTickRace(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	shard.Bootstrap(nil)
+	shard.Bootstrap()
 
 	addTestSeries(shard, ident.StringID("foo"))
 	var wg sync.WaitGroup
@@ -1206,7 +1133,7 @@ func TestShardTickRace(t *testing.T) {
 func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	shard.Bootstrap()
 	addTestSeries(shard, ident.StringID("foo"))
 	shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
 	require.Equal(t, 0, shard.lookup.Len())
@@ -1229,7 +1156,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 			SetFilesystemOptions(fsOpts))
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(nil)
+	shard.Bootstrap()
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = 1
 	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
 
@@ -1580,7 +1507,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	require.NoError(t, shard.Bootstrap(nil))
+	require.NoError(t, shard.Bootstrap())
 
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())

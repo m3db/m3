@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"sync"
@@ -229,6 +230,8 @@ func (h *PromReadHandler) read(
 				return
 			}
 
+			result.PromResult.Timeseries = filterResults(
+				result.PromResult.GetTimeseries(), fetchOpts)
 			mu.Lock()
 			queryResults[i] = result.PromResult
 			meta = meta.CombineMetadata(result.Metadata)
@@ -246,4 +249,53 @@ func (h *PromReadHandler) read(
 	}
 
 	return readResult{result: queryResults, meta: meta}, nil
+}
+
+// filterResults removes series tags based on options.
+func filterResults(
+	series []*prompb.TimeSeries,
+	opts *storage.FetchOptions,
+) []*prompb.TimeSeries {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) == 0 {
+		return series
+	}
+
+	for i, s := range series {
+		series[i].Labels = filterLabels(s.Labels, keys)
+	}
+
+	return series
+}
+
+func filterLabels(
+	labels []prompb.Label,
+	filtering [][]byte,
+) []prompb.Label {
+	if len(filtering) == 0 {
+		return labels
+	}
+
+	filtered := labels[:0]
+	for _, l := range labels {
+		skip := false
+		for _, f := range filtering {
+			if bytes.Equal(l.GetName(), f) {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, l)
+	}
+
+	return filtered
 }

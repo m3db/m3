@@ -302,7 +302,7 @@ func (s *m3storage) fetchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +317,7 @@ func (s *m3storage) fetchCompressed(
 		query.End,
 		s.clusters,
 		options.FanoutOptions,
-		options.RestrictFetchOptions,
+		options.RestrictQueryOptions,
 	)
 	if err != nil {
 		return nil, err
@@ -441,7 +441,7 @@ func (s *m3storage) CompleteTags(
 		TagMatchers: query.TagMatchers,
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(fetchQuery)
+	m3query, err := storage.FetchQueryToM3Query(fetchQuery, options)
 	if err != nil {
 		return nil, err
 	}
@@ -568,7 +568,7 @@ func (s *m3storage) SearchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, options)
 	if err != nil {
 		return tagResult, noop, err
 	}

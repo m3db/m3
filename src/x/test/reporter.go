@@ -69,3 +69,10 @@ func (r Reporter) Errorf(format string, args ...interface{}) {
 func (r Reporter) Fatalf(format string, args ...interface{}) {
 	panic(fmt.Sprintf(format, args...))
 }
+
+// NewController provides a gomock.Controller wrapped with a xtest.Reporter,
+// which gives more useful error modes on unexpected mock calls.
+// See xtest.Reporter for more context.
+func NewController(t *testing.T) *gomock.Controller {
+	return gomock.NewController(Reporter{T: t})
+}

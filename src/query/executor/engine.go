@@ -115,7 +115,8 @@ func (e *engine) Execute(
 	opts *QueryOptions,
 	fetchOpts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return e.opts.Store().Fetch(ctx, query, fetchOpts)
+	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
+	return result, err
 }
 
 func (e *engine) ExecuteProm(

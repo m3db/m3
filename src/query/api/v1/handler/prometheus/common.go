@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -451,9 +452,10 @@ func (r results) Less(i, j int) bool {
 // Swap swaps the elements with indexes i and j.
 func (r results) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
-func (r results) sort() {
-	for _, result := range r {
-		result.genID()
+// Sort sorts the results.
+func (r results) Sort() {
+	for i, result := range r {
+		r[i] = result.genID()
 	}
 
 	sort.Sort(r)
@@ -477,18 +479,22 @@ type Values []Value
 // Value is a single value for Prometheus result.
 type Value []interface{}
 
-func (r *Result) genID() {
+func (r *Result) genID() Result {
+	tags := make(sort.StringSlice, len(r.Metric))
+	for k, v := range r.Metric {
+		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
+	}
+
+	sort.Sort(tags)
 	var sb strings.Builder
 	// NB: this may clash but exact tag values are also checked, and this is a
 	// validation endpoint so there's less concern over correctness.
-	for k, v := range r.Metric {
-		sb.WriteString(k)
-		sb.WriteString(`:"`)
-		sb.WriteString(v)
-		sb.WriteString(`",`)
+	for _, t := range tags {
+		sb.WriteString(t)
 	}
 
 	r.id = sb.String()
+	return *r
 }
 
 // MatchInformation describes how well two responses match.
@@ -533,8 +539,8 @@ func (r results) matches(other results) (MatchInformation, error) {
 		}, err
 	}
 
-	r.sort()
-	other.sort()
+	r.Sort()
+	other.Sort()
 	for i, result := range r {
 		if err := result.matches(other[i]); err != nil {
 			return MatchInformation{
@@ -631,4 +637,23 @@ func (v Value) matches(other Value) error {
 type PromDebug struct {
 	Input   Response `json:"input"`
 	Results Response `json:"results"`
+}
+
+// FilterSeriesByOptions removes series tags based on options.
+func FilterSeriesByOptions(
+	series []*ts.Series,
+	opts *storage.FetchOptions,
+) []*ts.Series {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) > 0 {
+		for i, s := range series {
+			series[i].Tags = s.Tags.TagsWithoutKeys(keys)
+		}
+	}
+
+	return series
 }

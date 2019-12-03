@@ -27,8 +27,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -119,6 +121,10 @@ func encodeFetchRequest(
 }
 
 func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) {
+	if modelMatchers == nil {
+		return nil, nil
+	}
+
 	matchers := make([]*rpc.TagMatcher, len(modelMatchers))
 	for i, matcher := range modelMatchers {
 		t, err := encodeMatcherTypeToProto(matcher.Type)
@@ -180,8 +186,8 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 	}
 
 	result.AggregatedOptimized = aggOpt
-	if v := options.RestrictFetchOptions; v != nil {
-		restrict, err := v.Proto()
+	if v := options.RestrictQueryOptions; v != nil {
+		restrict, err := encodeRestrictQueryOptions(v)
 		if err != nil {
 			return nil, err
 		}
@@ -194,6 +200,72 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 	}
 
 	return result, nil
+}
+
+func encodeRestrictQueryOptionsByType(
+	o *storage.RestrictByType,
+) (*rpcpb.RestrictFetchType, error) {
+	if o == nil {
+		return nil, nil
+	}
+
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+
+	result := &rpcpb.RestrictFetchType{}
+	switch o.MetricsType {
+	case storage.UnaggregatedMetricsType:
+		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
+	case storage.AggregatedMetricsType:
+		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
+
+		storagePolicyProto, err := o.StoragePolicy.Proto()
+		if err != nil {
+			return nil, err
+		}
+
+		result.MetricsStoragePolicy = storagePolicyProto
+	}
+
+	return result, nil
+}
+
+func encodeRestrictQueryOptionsByTag(
+	o *storage.RestrictByTag,
+) (*rpcpb.RestrictFetchTags, error) {
+	if o == nil {
+		return nil, nil
+	}
+
+	matchers, err := encodeTagMatchers(o.GetMatchers())
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpcpb.RestrictFetchTags{
+		Restrict: matchers,
+		Strip:    o.Strip,
+	}, nil
+}
+
+func encodeRestrictQueryOptions(
+	o *storage.RestrictQueryOptions,
+) (*rpcpb.RestrictQueryOptions, error) {
+	byType, err := encodeRestrictQueryOptionsByType(o.GetRestrictByType())
+	if err != nil {
+		return nil, err
+	}
+
+	byTags, err := encodeRestrictQueryOptionsByTag(o.GetRestrictByTag())
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpcpb.RestrictQueryOptions{
+		RestrictFetchType: byType,
+		RestrictFetchTags: byTags,
+	}, nil
 }
 
 func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
@@ -305,6 +377,76 @@ func decodeFanoutOption(opt rpc.FanoutOption) (storage.FanoutOption, error) {
 	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v", opt)
 }
 
+func decodeRestrictQueryOptionsByType(
+	p *rpc.RestrictFetchType,
+) (*storage.RestrictByType, error) {
+	if p == nil {
+		return nil, nil
+	}
+
+	result := &storage.RestrictByType{}
+	switch p.GetMetricsType() {
+	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
+		result.MetricsType = storage.UnaggregatedMetricsType
+	case rpcpb.MetricsType_AGGREGATED_METRICS_TYPE:
+		result.MetricsType = storage.AggregatedMetricsType
+	}
+
+	if p.GetMetricsStoragePolicy() != nil {
+		storagePolicy, err := policy.NewStoragePolicyFromProto(
+			p.MetricsStoragePolicy)
+		if err != nil {
+			return result, err
+		}
+
+		result.StoragePolicy = storagePolicy
+	}
+
+	if err := result.Validate(); err != nil {
+		return nil, err
+
+	}
+
+	return result, nil
+}
+
+func decodeRestrictQueryOptionsByTag(
+	p *rpc.RestrictFetchTags,
+) (*storage.RestrictByTag, error) {
+	if p == nil {
+		return nil, nil
+	}
+
+	matchers, err := decodeTagMatchers(p.GetRestrict())
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage.RestrictByTag{
+		Restrict: matchers,
+		Strip:    p.Strip,
+	}, nil
+}
+
+func decodeRestrictQueryOptions(
+	p *rpc.RestrictQueryOptions,
+) (*storage.RestrictQueryOptions, error) {
+	byType, err := decodeRestrictQueryOptionsByType(p.GetRestrictFetchType())
+	if err != nil {
+		return nil, err
+	}
+
+	byTag, err := decodeRestrictQueryOptionsByTag(p.GetRestrictFetchTags())
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage.RestrictQueryOptions{
+		RestrictByType: byType,
+		RestrictByTag:  byTag,
+	}, nil
+}
+
 func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOptions, error) {
 	result := storage.NewFetchOptions()
 	result.Remote = true
@@ -336,11 +478,12 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 	}
 
 	if v := rpcFetchOptions.Restrict; v != nil {
-		restrict, err := storage.NewRestrictFetchOptionsFromProto(v)
+		restrict, err := decodeRestrictQueryOptions(v)
 		if err != nil {
 			return nil, err
 		}
-		result.RestrictFetchOptions = &restrict
+
+		result.RestrictQueryOptions = restrict
 	}
 
 	if v := rpcFetchOptions.LookbackDuration; v > 0 {

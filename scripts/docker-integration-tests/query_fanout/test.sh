@@ -2,8 +2,11 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/warning.sh
+TEST_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests
+FANOUT_PATH=$TEST_PATH/query_fanout
+source $TEST_PATH/common.sh
+source $FANOUT_PATH/warning.sh
+source $FANOUT_PATH/restrict.sh
 
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
@@ -216,3 +219,6 @@ ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags
 
 echo "running fanout warning tests"
 test_fanout_warnings
+
+echo "running restrict tests"
+test_restrictions

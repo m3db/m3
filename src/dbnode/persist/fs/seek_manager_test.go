@@ -44,18 +44,20 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 
 	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
-	var byTimes []*seekersByTime
+	byTimes := make(map[uint32]*seekersByTime)
+	var mu sync.Mutex
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
-		byTimes = append(byTimes, byTime)
+		mu.Lock()
+		byTimes[byTime.shard] = byTime
+		mu.Unlock()
 		return nil
 	}
 
 	require.NoError(t, m.CacheShardIndices(shards))
-
 	// Assert captured byTime objects match expectations
 	require.Equal(t, len(shards), len(byTimes))
-	for idx, shard := range shards {
-		byTimes[idx].shard = shard
+	for _, shard := range shards {
+		byTimes[shard].shard = shard
 	}
 
 	// Assert seeksByShardIdx match expectations
@@ -63,13 +65,14 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	for _, shard := range shards {
 		shardSet[shard] = struct{}{}
 	}
+
 	for shard, byTime := range m.seekersByShardIdx {
 		_, exists := shardSet[uint32(shard)]
 		if !exists {
 			require.False(t, byTime.accessed)
 		} else {
 			require.True(t, byTime.accessed)
-			require.Equal(t, uint32(shard), byTime.shard)
+			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
 }

@@ -25,8 +25,6 @@ import (
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -41,24 +39,17 @@ type iteratorMetrics struct {
 }
 
 type iterator struct {
-	opts       Options
-	scope      tally.Scope
-	metrics    iteratorMetrics
-	log        *zap.Logger
-	files      []persist.CommitLogFile
-	reader     commitLogReader
-	read       iteratorRead
-	err        error
-	seriesPred SeriesFilterPredicate
-	setRead    bool
-	closed     bool
-}
-
-type iteratorRead struct {
-	series     ts.Series
-	datapoint  ts.Datapoint
-	unit       xtime.Unit
-	annotation []byte
+	iterOpts IteratorOpts
+	opts     Options
+	scope    tally.Scope
+	metrics  iteratorMetrics
+	log      *zap.Logger
+	files    []persist.CommitLogFile
+	reader   commitLogReader
+	read     LogEntry
+	err      error
+	setRead  bool
+	closed   bool
 }
 
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
@@ -82,14 +73,14 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWith
 
 	scope := iops.MetricsScope()
 	return &iterator{
-		opts:  opts,
-		scope: scope,
+		iterOpts: iterOpts,
+		opts:     opts,
+		scope:    scope,
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
-		log:        iops.Logger(),
-		files:      filteredFiles,
-		seriesPred: iterOpts.SeriesFilterPredicate,
+		log:   iops.Logger(),
+		files: filteredFiles,
 	}, filteredCorruptFiles, nil
 }
 
@@ -103,7 +94,7 @@ func (i *iterator) Next() bool {
 		}
 	}
 	var err error
-	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
+	i.read, err = i.reader.Read()
 	if err == io.EOF {
 		closeErr := i.closeAndResetReader()
 		if closeErr != nil {
@@ -127,12 +118,12 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *iterator) Current() LogEntry {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
-		read = iteratorRead{}
+		read = LogEntry{}
 	}
-	return read.series, read.datapoint, read.unit, read.annotation
+	return read
 }
 
 func (i *iterator) Err() error {
@@ -166,7 +157,10 @@ func (i *iterator) nextReader() bool {
 	file := i.files[0]
 	i.files = i.files[1:]
 
-	reader := newCommitLogReader(i.opts, i.seriesPred)
+	reader := newCommitLogReader(commitLogReaderOptions{
+		commitLogOptions:    i.opts,
+		returnMetadataAsRef: i.iterOpts.ReturnMetadataAsRef,
+	})
 	index, err := reader.Open(file.FilePath)
 	if err != nil {
 		i.err = err

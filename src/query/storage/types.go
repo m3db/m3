@@ -22,7 +22,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -30,16 +29,11 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
-	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
-)
-
-var (
-	errNoRestrictFetchOptionsProtoMsg = errors.New("no restrict fetch options proto message")
 )
 
 // Type describes the type of storage.
@@ -108,10 +102,6 @@ type FetchQuery struct {
 	Interval    time.Duration   `json:"interval"`
 }
 
-func (q *FetchQuery) String() string {
-	return q.Raw
-}
-
 // FetchOptions represents the options for fetch query.
 type FetchOptions struct {
 	// Remote is set when this fetch is originated by a remote grpc call.
@@ -122,9 +112,9 @@ type FetchOptions struct {
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
 	FanoutOptions *FanoutOptions
-	// RestrictFetchOptions restricts the fetch to a specific set of
+	// RestrictQueryOptions restricts the fetch to a specific set of
 	// conditions.
-	RestrictFetchOptions *RestrictFetchOptions
+	RestrictQueryOptions *RestrictQueryOptions
 	// Step is the configured step size.
 	Step time.Duration
 	// LookbackDuration if set overrides the default lookback duration.
@@ -200,18 +190,27 @@ func (o *FetchOptions) QueryFetchOptions(
 	if r.Limit <= 0 {
 		r.Limit = queryCtx.Options.LimitMaxTimeseries
 	}
-	if r.RestrictFetchOptions == nil && queryCtx.Options.RestrictFetchType != nil {
+
+	// Use inbuilt options for type restriction if none found.
+	if r.RestrictQueryOptions.GetRestrictByType() == nil &&
+		queryCtx.Options.RestrictFetchType != nil {
 		v := queryCtx.Options.RestrictFetchType
-		restrict := RestrictFetchOptions{
+		restrict := &RestrictByType{
 			MetricsType:   MetricsType(v.MetricsType),
 			StoragePolicy: v.StoragePolicy,
 		}
+
 		if err := restrict.Validate(); err != nil {
 			return nil, err
 		}
 
-		r.RestrictFetchOptions = &restrict
+		if r.RestrictQueryOptions == nil {
+			r.RestrictQueryOptions = &RestrictQueryOptions{}
+		}
+
+		r.RestrictQueryOptions.RestrictByType = restrict
 	}
+
 	return r, nil
 }
 
@@ -221,8 +220,8 @@ func (o *FetchOptions) Clone() *FetchOptions {
 	return &result
 }
 
-// RestrictFetchOptions restricts the fetch to a specific set of conditions.
-type RestrictFetchOptions struct {
+// RestrictByType are specific restrictions to stick to a single data type.
+type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
 	MetricsType MetricsType
 	// StoragePolicy is required if metrics type is not unaggregated
@@ -230,95 +229,27 @@ type RestrictFetchOptions struct {
 	StoragePolicy policy.StoragePolicy
 }
 
-// NewRestrictFetchOptionsFromProto returns a restrict fetch options from
-// protobuf message.
-// TODO: (arnikola) extract these out of types.go
-func NewRestrictFetchOptionsFromProto(
-	p *rpcpb.RestrictFetchOptions,
-) (RestrictFetchOptions, error) {
-	var result RestrictFetchOptions
-
-	if p == nil {
-		return result, errNoRestrictFetchOptionsProtoMsg
-	}
-
-	switch p.MetricsType {
-	case rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE:
-		result.MetricsType = UnaggregatedMetricsType
-	case rpcpb.MetricsType_AGGREGATED_METRICS_TYPE:
-		result.MetricsType = AggregatedMetricsType
-	}
-
-	if p.MetricsStoragePolicy != nil {
-		storagePolicy, err := policy.NewStoragePolicyFromProto(
-			p.MetricsStoragePolicy)
-		if err != nil {
-			return result, err
-		}
-
-		result.StoragePolicy = storagePolicy
-	}
-
-	// Validate the resulting options.
-	if err := result.Validate(); err != nil {
-		return result, err
-	}
-
-	return result, nil
+// RestrictByTag are specific restrictions to enforce behavior for given
+// tags.
+type RestrictByTag struct {
+	// Restrict is a set of override matchers to apply to a fetch
+	// regardless of the existing fetch matchers, they should replace any
+	// existing matchers part of a fetch if they collide.
+	Restrict models.Matchers
+	// Strip is a set of tag names to strip from the response.
+	//
+	// NB: If this is unset, but Restrict is set, all tag names appearing in any
+	// of the Restrict matchers are removed.
+	Strip [][]byte
 }
 
-// Validate will validate the restrict fetch options.
-func (o RestrictFetchOptions) Validate() error {
-	switch o.MetricsType {
-	case UnaggregatedMetricsType:
-		if o.StoragePolicy != policy.EmptyStoragePolicy {
-			return fmt.Errorf(
-				"expected no storage policy for unaggregated metrics type, "+
-					"instead got: %v", o.StoragePolicy.String())
-		}
-	case AggregatedMetricsType:
-		if v := o.StoragePolicy.Resolution().Window; v <= 0 {
-			return fmt.Errorf(
-				"expected positive resolution window, instead got: %v", v)
-		}
-		if v := o.StoragePolicy.Resolution().Precision; v <= 0 {
-			return fmt.Errorf(
-				"expected positive resolution precision, instead got: %v", v)
-		}
-		if v := o.StoragePolicy.Retention().Duration(); v <= 0 {
-			return fmt.Errorf(
-				"expected positive retention, instead got: %v", v)
-		}
-	default:
-		return fmt.Errorf(
-			"unknown metrics type: %v", o.MetricsType)
-	}
-	return nil
-}
-
-// Proto returns the protobuf message that corresponds to RestrictFetchOptions.
-func (o RestrictFetchOptions) Proto() (*rpcpb.RestrictFetchOptions, error) {
-	if err := o.Validate(); err != nil {
-		return nil, err
-	}
-
-	result := &rpcpb.RestrictFetchOptions{}
-
-	switch o.MetricsType {
-	case UnaggregatedMetricsType:
-		result.MetricsType = rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE
-	case AggregatedMetricsType:
-		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
-
-		storagePolicyProto, err := o.StoragePolicy.Proto()
-		if err != nil {
-			return nil, err
-		}
-
-		result.MetricsStoragePolicy = storagePolicyProto
-	}
-
-	return result, nil
+// RestrictQueryOptions restricts the query to a specific set of conditions.
+type RestrictQueryOptions struct {
+	// RestrictByType are specific restrictions to stick to a single data type.
+	RestrictByType *RestrictByType
+	// RestrictByTag are specific restrictions to enforce behavior for given
+	// tags.
+	RestrictByTag *RestrictByTag
 }
 
 // Querier handles queries against a storage.

@@ -106,7 +106,7 @@ func testPromReadInstantHandler(
 	test.NewBlockFromValues(bounds, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
-	req := httptest.NewRequest(PromReadInstantHTTPMethod, PromReadInstantURL, nil)
+	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
 	params.Set(queryParam, "dummy0{}")
@@ -171,7 +171,7 @@ func TestPromReadInstantHandlerStorageError(t *testing.T) {
 	storageErr := fmt.Errorf("storage err")
 	setup.Storage.SetFetchBlocksResult(block.Result{}, storageErr)
 
-	req := httptest.NewRequest(PromReadInstantHTTPMethod, PromReadInstantURL, nil)
+	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
 	params.Set(queryParam, "dummy0{}")
