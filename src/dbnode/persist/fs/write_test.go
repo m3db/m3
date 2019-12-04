@@ -11,6 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestWriteReuseAfterError was added as a regression test after it was
+// discovered that reusing a fileset writer after a called to Close() had
+// returned an error could make the fileset writer end up in a near infinite
+// loop when it was reused to write out a completely indepedent set of files.
+//
+// This test verifies that the fix works as expected and prevents regressions
+// of the issue.
 func TestWriteReuseAfterError(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
