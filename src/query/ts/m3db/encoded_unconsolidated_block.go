@@ -21,12 +21,14 @@
 package m3db
 
 import (
+	"math"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 )
 
 type encodedBlockUnconsolidated struct {
-	// There is slightly different execution for the last block in the series
+	// There is slightly different execution for the last block in the series.
 	lastBlock            bool
 	meta                 block.Metadata
 	consolidation        consolidationSettings
@@ -56,4 +58,36 @@ func (b *encodedBlockUnconsolidated) Close() error {
 
 func (b *encodedBlockUnconsolidated) Meta() block.Metadata {
 	return b.meta
+}
+
+// MultiSeriesIter returns batched series iterators for the block based on
+// given concurrency.
+func (b *encodedBlockUnconsolidated) MultiSeriesIter(
+	concurrency int,
+) ([]block.UnconsolidatedSeriesIterBatch, error) {
+	iterCount := len(b.seriesBlockIterators)
+	chunkSize := int(math.Ceil(float64(iterCount) / float64(concurrency)))
+	iters := make([]block.UnconsolidatedSeriesIterBatch, 0, concurrency)
+	for i := 0; i < iterCount; i += chunkSize {
+		end := i + chunkSize
+
+		if end > iterCount {
+			end = iterCount
+		}
+
+		iter := &encodedSeriesIterUnconsolidated{
+			idx:              -1,
+			meta:             b.meta,
+			seriesMeta:       b.seriesMetas[i:end],
+			seriesIters:      b.seriesBlockIterators[i:end],
+			lookbackDuration: b.options.LookbackDuration(),
+		}
+
+		iters = append(iters, block.UnconsolidatedSeriesIterBatch{
+			Iter: iter,
+			Size: end - i,
+		})
+	}
+
+	return iters, nil
 }

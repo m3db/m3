@@ -21,7 +21,6 @@
 package m3db
 
 import (
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -39,38 +38,6 @@ type encodedSeriesIterUnconsolidated struct {
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator
-}
-
-// MultiSeriesIter returns batched series iterators for the block based on
-// given concurrency.
-func (b *encodedBlockUnconsolidated) MultiSeriesIter(
-	concurrency int,
-) []block.UnconsolidatedSeriesIterBatch {
-	iterCount := len(b.seriesBlockIterators)
-	chunkSize := int(math.Ceil(float64(iterCount) / float64(concurrency)))
-	iters := make([]block.UnconsolidatedSeriesIterBatch, 0, concurrency)
-	for i := 0; i < iterCount; i += chunkSize {
-		end := i + chunkSize
-
-		if end > iterCount {
-			end = iterCount
-		}
-
-		iter := &encodedSeriesIterUnconsolidated{
-			idx:              -1,
-			meta:             b.meta,
-			seriesMeta:       b.seriesMetas[i:end],
-			seriesIters:      b.seriesBlockIterators[i:end],
-			lookbackDuration: b.options.LookbackDuration(),
-		}
-
-		iters = append(iters, block.UnconsolidatedSeriesIterBatch{
-			Iter: iter,
-			Size: end - i,
-		})
-	}
-
-	return iters
 }
 
 func (b *encodedBlockUnconsolidated) SeriesIter() (

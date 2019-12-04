@@ -589,6 +589,21 @@ func (mr *MockUnconsolidatedBlockMockRecorder) Meta() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).Meta))
 }
 
+// MultiSeriesIter mocks base method
+func (m *MockUnconsolidatedBlock) MultiSeriesIter(arg0 int) ([]UnconsolidatedSeriesIterBatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MultiSeriesIter", arg0)
+	ret0, _ := ret[0].([]UnconsolidatedSeriesIterBatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MultiSeriesIter indicates an expected call of MultiSeriesIter
+func (mr *MockUnconsolidatedBlockMockRecorder) MultiSeriesIter(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiSeriesIter", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).MultiSeriesIter), arg0)
+}
+
 // SeriesIter mocks base method
 func (m *MockUnconsolidatedBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 	m.ctrl.T.Helper()

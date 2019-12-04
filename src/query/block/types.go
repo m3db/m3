@@ -97,15 +97,9 @@ type UnconsolidatedBlock interface {
 	Consolidate() (Block, error)
 	// Meta returns the metadata for the block.
 	Meta() Metadata
-}
-
-// MultiUnconsolidatedBlock is a group of unconsolidated series accross a time
-// bound that allows for concurrent series iteration.
-type MultiUnconsolidatedBlock interface {
-	UnconsolidatedBlock
 	// MultiSeriesIter returns batched series iterators for the block based on
 	// given concurrency.
-	MultiSeriesIter(concurrency int) []UnconsolidatedSeriesIterBatch
+	MultiSeriesIter(concurrency int) ([]UnconsolidatedSeriesIterBatch, error)
 }
 
 // SeriesMeta is metadata data for the series.

@@ -181,10 +181,8 @@ func TestUnconsolidatedSeriesIteratorBatch(t *testing.T) {
 		require.True(t, bounds.Equals(bl.Meta().Bounds))
 		unconsolidated, err := bl.Unconsolidated()
 		require.NoError(t, err)
-
-		batch, ok := unconsolidated.(block.MultiUnconsolidatedBlock)
-		require.True(t, ok)
-		iters := batch.MultiSeriesIter(3)
+		iters, err := unconsolidated.MultiSeriesIter(3)
+		require.NoError(t, err)
 		require.Equal(t, 3, len(iters))
 
 		for i, itBatch := range iters {

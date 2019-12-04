@@ -285,3 +285,21 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 
 	return c
 }
+
+func (b *ucLazyBlock) MultiSeriesIter(
+	concurrency int,
+) ([]UnconsolidatedSeriesIterBatch, error) {
+	batches, err := b.block.MultiSeriesIter(concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, batch := range batches {
+		batches[i].Iter = &ucLazySeriesIter{
+			it:   batch.Iter,
+			opts: b.opts,
+		}
+	}
+
+	return batches, err
+}

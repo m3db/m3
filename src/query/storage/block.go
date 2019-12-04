@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -164,6 +165,12 @@ func (m multiSeriesBlock) StepIter() (block.UnconsolidatedStepIter, error) {
 
 func (m multiSeriesBlock) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
 	return newMultiSeriesBlockSeriesIter(m), nil
+}
+
+func (m multiSeriesBlock) MultiSeriesIter(
+	concurrency int,
+) ([]block.UnconsolidatedSeriesIterBatch, error) {
+	return nil, errors.New("batched iterator is not supported by multiSeriesBlock")
 }
 
 func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {

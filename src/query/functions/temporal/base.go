@@ -165,10 +165,14 @@ func (c *baseNode) Process(
 		steps:       steps,
 	}
 
-	if batched, ok := unconsolidatedBlock.(block.MultiUnconsolidatedBlock); ok {
-		batchProcess(batched, builder, m, c.processor)
-	} else {
+	concurrency := runtime.NumCPU()
+	batches, err := unconsolidatedBlock.MultiSeriesIter(concurrency)
+	if err != nil {
+		// NB: If the unconsolidated block does not support multi series iteration,
+		// fallback to processing series one by one.
 		singleProcess(seriesIter, builder, m, c.processor)
+	} else {
+		batchProcess(batches, builder, m, c.processor)
 	}
 
 	// NB: safe to close the block here.
@@ -190,15 +194,13 @@ type blockMeta struct {
 }
 
 func batchProcess(
-	batchBlock block.MultiUnconsolidatedBlock,
+	iterBatches []block.UnconsolidatedSeriesIterBatch,
 	builder block.Builder,
 	m blockMeta,
 	p processor,
 ) error {
 	var (
-		metas       = m.seriesMeta
-		concurrency = runtime.NumCPU()
-		iterBatches = batchBlock.MultiSeriesIter(concurrency)
+		metas = m.seriesMeta
 
 		mu       sync.Mutex
 		wg       sync.WaitGroup
