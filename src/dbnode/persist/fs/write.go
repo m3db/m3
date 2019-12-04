@@ -161,6 +161,11 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.currIdx = 0
 	w.currOffset = 0
 	w.err = nil
+	// This happens after writing the previous set of files index files, however, do it
+	// again to ensure they get cleared even if there was a premature error writing out the
+	// previous set of files which would have prevented them from being cleared.
+	w.indexEntries.releaseRefs()
+	w.indexEntries = w.indexEntries[:0]
 
 	var (
 		shardDir            string
