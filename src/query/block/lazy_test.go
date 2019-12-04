@@ -599,6 +599,18 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 	it, err := off.SeriesIter()
 	require.NoError(t, err)
 
+	concurrency := 5
+	batched := []UnconsolidatedSeriesIterBatch{
+		UnconsolidatedSeriesIterBatch{},
+		UnconsolidatedSeriesIterBatch{},
+		UnconsolidatedSeriesIterBatch{},
+	}
+
+	b.EXPECT().MultiSeriesIter(concurrency).Return(batched, nil)
+	bs, err := off.MultiSeriesIter(concurrency)
+	require.NoError(t, err)
+	assert.Equal(t, batched, bs)
+
 	// ensure functions are marshalled to the block's underlying series iterator.
 	iter.EXPECT().Close()
 	it.Close()

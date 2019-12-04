@@ -654,6 +654,7 @@ func (b *ucContainerBlock) MultiSeriesIter(
 		iters := make([]UnconsolidatedSeriesIter, 0, size)
 		for _, b := range multiBatches {
 			if i >= len(b) {
+				continue
 			}
 
 			iters = append(iters, b[i].Iter)
