@@ -140,6 +140,10 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 			// NB(r): Quite gross, need to actually make it possible to plumb this
 			// through for each metric.
+			// TODO_FIX_GRAPHITE_TAGGING: Using this string constant to track
+			// all places worth fixing this hack. There is at least one
+			// other path where flows back to the coordinator from the aggregator
+			// and this tag is interpreted, eventually need to handle more cleanly.
 			if bytes.Equal(name, MetricsOptionIDSchemeTagName) {
 				if bytes.Equal(value, GraphiteIDSchemeTagValue) &&
 					tags.Opts.IDSchemeType() != models.TypeGraphite {
