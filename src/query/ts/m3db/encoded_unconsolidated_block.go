@@ -21,10 +21,11 @@
 package m3db
 
 import (
-	"math"
+	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 type encodedBlockUnconsolidated struct {
@@ -65,11 +66,26 @@ func (b *encodedBlockUnconsolidated) Meta() block.Metadata {
 func (b *encodedBlockUnconsolidated) MultiSeriesIter(
 	concurrency int,
 ) ([]block.UnconsolidatedSeriesIterBatch, error) {
-	iterCount := len(b.seriesBlockIterators)
-	chunkSize := int(math.Ceil(float64(iterCount) / float64(concurrency)))
-	iters := make([]block.UnconsolidatedSeriesIterBatch, 0, concurrency)
-	for i := 0; i < iterCount; i += chunkSize {
-		end := i + chunkSize
+	if concurrency < 1 {
+		return nil, fmt.Errorf("batch size %d must be greater than 0", concurrency)
+	}
+
+	var (
+		iterCount  = len(b.seriesBlockIterators)
+		iters      = make([]block.UnconsolidatedSeriesIterBatch, 0, concurrency)
+		chunkSize  = iterCount / concurrency
+		remainder  = iterCount % concurrency
+		chunkSizes = make([]int, concurrency)
+	)
+
+	ts.MemsetInt(chunkSizes, chunkSize)
+	for i := 0; i < remainder; i++ {
+		chunkSizes[i] = chunkSizes[i] + 1
+	}
+
+	start := 0
+	for _, chunkSize := range chunkSizes {
+		end := start + chunkSize
 
 		if end > iterCount {
 			end = iterCount
@@ -78,15 +94,17 @@ func (b *encodedBlockUnconsolidated) MultiSeriesIter(
 		iter := &encodedSeriesIterUnconsolidated{
 			idx:              -1,
 			meta:             b.meta,
-			seriesMeta:       b.seriesMetas[i:end],
-			seriesIters:      b.seriesBlockIterators[i:end],
+			seriesMeta:       b.seriesMetas[start:end],
+			seriesIters:      b.seriesBlockIterators[start:end],
 			lookbackDuration: b.options.LookbackDuration(),
 		}
 
 		iters = append(iters, block.UnconsolidatedSeriesIterBatch{
 			Iter: iter,
-			Size: end - i,
+			Size: end - start,
 		})
+
+		start = end
 	}
 
 	return iters, nil
