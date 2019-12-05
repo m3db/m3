@@ -312,7 +312,7 @@ func (c Configuration) NewAdminClient(
 			size = *c.AsyncWriteWorkerPoolSize
 		}
 
-		workerPoolInstrumentOpts := iopts.SetMetricsScope(writeRequestScope)
+		workerPoolInstrumentOpts := iopts.SetMetricsScope(writeRequestScope.SubScope("workerpool"))
 		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
 			SetGrowOnDemand(true).
 			SetInstrumentOptions(workerPoolInstrumentOpts)
