@@ -1296,10 +1296,6 @@ This is due to the fact that M3DB, M3Coordinator, etc. could not connect to the 
 See our docs on the <a href="../troubleshooting/">/debug/dump api</a></p>
 </li>
 <li>
-<p><strong>How can I see the cardinality of my metrics?</strong>
-See the <code>Ticking</code> graph on <a href="https://grafana.com/dashboards/8126">M3DB dashboard</a>.</p>
-</li>
-<li>
 <p><strong>How much memory utilization should I run M3DB at?</strong>
 We recommend not going above 50%.</p>
 </li>
@@ -1310,6 +1306,10 @@ TBA</p>
 <li>
 <p><strong>What is the recommended way to create a new namespace?</strong>
 Refer to the <a href="../operational_guide/namespace_configuration/">Namespace configuration guide</a>.</p>
+</li>
+<li>
+<p><strong>How can I see the cardinality of my metrics?</strong>
+Currently, the best way is to go to the <a href="https://grafana.com/grafana/dashboards/8126">M3DB Node Details Dashboard</a> and look at the <code>Ticking</code> panel. However, this is not entirely accurate because of the way data is stored in M3DB -- time series are stored inside time-based blocks that you configure. In actuality, the <code>Ticking</code> graph shows you how many unique series there are for the most recent block that has persisted. In the future, we plan to introduce easier ways to determine the number of unique time series. </p>
 </li>
 </ul>
                 
