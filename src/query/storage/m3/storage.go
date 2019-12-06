@@ -236,19 +236,6 @@ func (s *m3storage) FetchBlocks(
 	opts := s.opts.SetLookbackDuration(
 		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
 
-	// If using decoded block, return the legacy path.
-	if options.BlockType == models.TypeDecodedBlock {
-		fetchResult, err := s.Fetch(ctx, query, options)
-		if err != nil {
-			return block.Result{
-				Metadata: block.NewResultMetadata(),
-			}, err
-		}
-
-		return storage.FetchResultToBlockResult(fetchResult, query,
-			opts.LookbackDuration(), options.Enforcer)
-	}
-
 	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{
@@ -295,6 +282,12 @@ func (s *m3storage) fetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (MultiFetchResult, error) {
+	if err := options.BlockType.Validate(); err != nil {
+		// This is an invariant error; should not be able to get to here.
+		return nil, instrument.InvariantErrorf("invalid block type on "+
+			"fetch, got: %v with error %v", options.BlockType, err)
+	}
+
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():

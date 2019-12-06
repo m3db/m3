@@ -754,3 +754,17 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	assert.False(t, bytetest.ByteSlicesBackedBySameData(name.Bytes(), n))
 	assert.False(t, bytetest.ByteSlicesBackedBySameData(value.Bytes(), v))
 }
+
+func TestInvalidBlockTypes(t *testing.T) {
+	opts := m3db.NewOptions()
+	s, err := NewStorage(nil, opts, instrument.NewOptions())
+	require.NoError(t, err)
+
+	fetchOpts := &storage.FetchOptions{BlockType: models.TypeDecodedBlock}
+	_, err = s.FetchBlocks(context.TODO(), nil, fetchOpts)
+	assert.Error(t, err)
+
+	fetchOpts.BlockType = models.TypeMultiBlock
+	_, err = s.FetchBlocks(context.TODO(), nil, fetchOpts)
+	assert.Error(t, err)
+}

@@ -26,33 +26,32 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 )
 
 // FetchResultToBlockResult converts a fetch result into coordinator blocks
-func FetchResultToBlockResult(
-	result *FetchResult,
-	query *FetchQuery,
-	lookbackDuration time.Duration,
-	enforcer cost.ChainedEnforcer,
-) (block.Result, error) {
-	multiBlock, err := NewMultiSeriesBlock(result, query, lookbackDuration)
-	if err != nil {
-		return block.Result{
-			Metadata: block.NewResultMetadata(),
-		}, err
-	}
+// func FetchResultToBlockResult(
+// 	result *FetchResult,
+// 	query *FetchQuery,
+// 	lookbackDuration time.Duration,
+// 	enforcer cost.ChainedEnforcer,
+// ) (block.Result, error) {
+// 	multiBlock, err := NewMultiSeriesBlock(result, query, lookbackDuration)
+// 	if err != nil {
+// 		return block.Result{
+// 			Metadata: block.NewResultMetadata(),
+// 		}, err
+// 	}
 
-	accountedBlock := block.NewAccountedBlock(
-		NewMultiBlockWrapper(multiBlock), enforcer)
+// 	accountedBlock := block.NewAccountedBlock(
+// 		NewMultiBlockWrapper(multiBlock), enforcer)
 
-	return block.Result{
-		Blocks:   []block.Block{accountedBlock},
-		Metadata: result.Metadata,
-	}, nil
-}
+// 	return block.Result{
+// 		Blocks:   []block.Block{accountedBlock},
+// 		Metadata: result.Metadata,
+// 	}, nil
+// }
 
 // NewMultiBlockWrapper returns a block wrapper over an unconsolidated block.
 func NewMultiBlockWrapper(

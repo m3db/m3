@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"google.golang.org/grpc"
 )
@@ -145,6 +146,12 @@ func (c *grpcClient) fetchRaw(
 		Metadata: block.NewResultMetadata(),
 	}
 
+	if err := options.BlockType.Validate(); err != nil {
+		// This is an invariant error; should not be able to get to here.
+		return fetchResult, instrument.InvariantErrorf("invalid block type on "+
+			"fetch, got: %v with error %v", options.BlockType, err)
+	}
+
 	pools, err := c.waitForPools()
 	if err != nil {
 		return fetchResult, err
@@ -211,19 +218,6 @@ func (c *grpcClient) FetchBlocks(
 	// Override options with whatever is the current specified lookback duration.
 	opts := c.opts.SetLookbackDuration(
 		options.LookbackDurationOrDefault(c.opts.LookbackDuration()))
-
-	// If using decoded block, return the legacy path.
-	if options.BlockType == models.TypeDecodedBlock {
-		fetchResult, err := c.Fetch(ctx, query, options)
-		if err != nil {
-			return block.Result{
-				Metadata: block.NewResultMetadata(),
-			}, err
-		}
-
-		return storage.FetchResultToBlockResult(fetchResult, query,
-			opts.LookbackDuration(), options.Enforcer)
-	}
 
 	fetchResult, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
