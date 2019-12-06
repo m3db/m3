@@ -21,6 +21,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -32,6 +33,19 @@ const (
 	FormatPromQL FormatType = iota
 	// FormatM3QL returns results in M3QL format
 	FormatM3QL
+
+	docsURL           = "https://m3db.github.io/m3"
+	deprecatedDocPath = "query_engine/architecture/blocks/#block-type-deprication"
+)
+
+var (
+	// ErrDecodedBlockDeprecated indicates decoded blocks are deprecated.
+	ErrDecodedBlockDeprecated = fmt.Errorf("decoded block has been deprecated, "+
+		"for more information, see: %s/%s", docsURL, deprecatedDocPath)
+
+	// ErrMultiBlockDisabled indicates multi blocks are temporarily disabled.
+	ErrMultiBlockDisabled = fmt.Errorf("multiblock has been disabled, "+
+		"for more information, see: %s/%s", docsURL, deprecatedDocPath)
 )
 
 // FetchedBlockType determines the type for fetched blocks, and how they are
