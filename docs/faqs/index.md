@@ -74,3 +74,6 @@ TBA
 
 - **What is the recommended way to create a new namespace?**
 Refer to the [Namespace configuration guide](../operational_guide/namespace_configuration.md).
+
+- **How do I see the number of unique metrics I am emitting?**
+Currently, the best way is to go to the [M3DB Node Details Dashboard](https://grafana.com/grafana/dashboards/8126) and look at the `Ticking` panel. However, this is not entirely accurate because of the way data is stored in M3DB -- time series are stored inside time-based blocks that you configure. In actuality, the `Ticking` graph shows you how many unique series there are for the most recent block that has persisted. In the future, we plan to introduce easier ways to determine the number of unique time series. 
