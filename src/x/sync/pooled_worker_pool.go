@@ -36,15 +36,15 @@ const (
 
 type pooledWorkerPool struct {
 	sync.Mutex
-	numRoutinesAtomic       int64
-	numActiveRoutinesAtomic int64
-	numRoutinesGauge        tally.Gauge
-	numActiveRoutinesGauge  tally.Gauge
-	growOnDemand            bool
-	workChs                 []chan Work
-	numShards               int64
-	killWorkerProbability   float64
-	nowFn                   NowFn
+	numRoutinesAtomic        int64
+	numWorkingRoutinesAtomic int64
+	numRoutinesGauge         tally.Gauge
+	numWorkingRoutinesGauge  tally.Gauge
+	growOnDemand             bool
+	workChs                  []chan Work
+	numShards                int64
+	killWorkerProbability    float64
+	nowFn                    NowFn
 }
 
 // NewPooledWorkerPool creates a new worker pool.
@@ -64,15 +64,15 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 	}
 
 	return &pooledWorkerPool{
-		numRoutinesAtomic:       0,
-		numActiveRoutinesAtomic: 0,
-		numRoutinesGauge:        opts.InstrumentOptions().MetricsScope().Gauge("num-routines"),
-		numActiveRoutinesGauge:  opts.InstrumentOptions().MetricsScope().Gauge("num-active-routines"),
-		growOnDemand:            opts.GrowOnDemand(),
-		workChs:                 workChs,
-		numShards:               numShards,
-		killWorkerProbability:   opts.KillWorkerProbability(),
-		nowFn:                   opts.NowFn(),
+		numRoutinesAtomic:        0,
+		numWorkingRoutinesAtomic: 0,
+		numRoutinesGauge:         opts.InstrumentOptions().MetricsScope().Gauge("num-routines"),
+		numWorkingRoutinesGauge:  opts.InstrumentOptions().MetricsScope().Gauge("num-working-routines"),
+		growOnDemand:             opts.GrowOnDemand(),
+		workChs:                  workChs,
+		numShards:                numShards,
+		killWorkerProbability:    opts.KillWorkerProbability(),
+		nowFn:                    opts.NowFn(),
 	}, nil
 }
 
@@ -95,7 +95,7 @@ func (p *pooledWorkerPool) Go(work Work) {
 
 	if currTime%numGoroutinesGaugeSampleRate == 0 {
 		p.emitNumRoutines()
-		p.emitNumActiveRoutines()
+		p.emitNumWorkingRoutines()
 	}
 
 	if !p.growOnDemand {
@@ -143,9 +143,9 @@ func (p *pooledWorkerPool) spawnWorker(
 			killThreshold = uint64(p.killWorkerProbability * float64(math.MaxUint64))
 		)
 		for f := range workCh {
-			p.incNumActiveRoutines()
+			p.incNumWorkingRoutines()
 			f()
-			p.decNumActiveRoutines()
+			p.decNumWorkingRoutines()
 			if rng.Random() < killThreshold {
 				if spawnReplacement {
 					p.spawnWorker(rng.Random(), nil, workCh, true)
@@ -174,19 +174,19 @@ func (p *pooledWorkerPool) getNumRoutines() int64 {
 	return atomic.LoadInt64(&p.numRoutinesAtomic)
 }
 
-func (p *pooledWorkerPool) emitNumActiveRoutines() {
-	numRoutines := float64(p.getNumActiveRoutines())
-	p.numActiveRoutinesGauge.Update(numRoutines)
+func (p *pooledWorkerPool) emitNumWorkingRoutines() {
+	numRoutines := float64(p.getNumWorkingRoutines())
+	p.numWorkingRoutinesGauge.Update(numRoutines)
 }
 
-func (p *pooledWorkerPool) incNumActiveRoutines() {
-	atomic.AddInt64(&p.numActiveRoutinesAtomic, 1)
+func (p *pooledWorkerPool) incNumWorkingRoutines() {
+	atomic.AddInt64(&p.numWorkingRoutinesAtomic, 1)
 }
 
-func (p *pooledWorkerPool) decNumActiveRoutines() {
-	atomic.AddInt64(&p.numActiveRoutinesAtomic, -1)
+func (p *pooledWorkerPool) decNumWorkingRoutines() {
+	atomic.AddInt64(&p.numWorkingRoutinesAtomic, -1)
 }
 
-func (p *pooledWorkerPool) getNumActiveRoutines() int64 {
-	return atomic.LoadInt64(&p.numActiveRoutinesAtomic)
+func (p *pooledWorkerPool) getNumWorkingRoutines() int64 {
+	return atomic.LoadInt64(&p.numWorkingRoutinesAtomic)
 }
