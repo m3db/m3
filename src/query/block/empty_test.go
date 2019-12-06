@@ -81,16 +81,8 @@ func TestEmptyUnconsolidatedBlock(t *testing.T) {
 	assert.Equal(t, 0, series.SeriesCount())
 	assert.Equal(t, []SeriesMeta{}, series.SeriesMeta())
 
-	step, err := bl.StepIter()
-	assert.NoError(t, err)
-	assert.NoError(t, step.Err())
-	assert.False(t, step.Next())
-	assert.Equal(t, steps, step.StepCount())
-	assert.Equal(t, []SeriesMeta{}, step.SeriesMeta())
-
 	assert.NotPanics(t, func() {
 		series.Close()
-		step.Close()
 	})
 
 	assert.NoError(t, bl.Close())

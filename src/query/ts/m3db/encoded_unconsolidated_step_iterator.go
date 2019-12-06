@@ -21,6 +21,8 @@
 package m3db
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -86,6 +88,21 @@ func (it *encodedStepIterUnconsolidated) update() {
 	for _, consolidator := range it.collectors {
 		it.points = append(it.points, consolidator.AccumulateAndMoveToNext())
 	}
+}
+
+type unconsolidatedStep struct {
+	time   time.Time
+	values []ts.Datapoints
+}
+
+// Time for the step.
+func (s unconsolidatedStep) Time() time.Time {
+	return s.time
+}
+
+// Values for the column.
+func (s unconsolidatedStep) Values() []ts.Datapoints {
+	return s.values
 }
 
 func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {

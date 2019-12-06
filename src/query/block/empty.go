@@ -88,19 +88,6 @@ func (b *ucEmptyBlock) Consolidate() (Block, error) {
 	return NewEmptyBlock(b.meta), nil
 }
 
-func (b *ucEmptyBlock) StepIter() (UnconsolidatedStepIter, error) {
-	return &ucEmptyStepIter{steps: b.meta.Bounds.Steps()}, nil
-}
-
-type ucEmptyStepIter struct{ steps int }
-
-func (it *ucEmptyStepIter) Close()                      {}
-func (it *ucEmptyStepIter) Err() error                  { return nil }
-func (it *ucEmptyStepIter) StepCount() int              { return it.steps }
-func (it *ucEmptyStepIter) SeriesMeta() []SeriesMeta    { return []SeriesMeta{} }
-func (it *ucEmptyStepIter) Next() bool                  { return false }
-func (it *ucEmptyStepIter) Current() UnconsolidatedStep { return nil }
-
 func (b *ucEmptyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 	return &ucEmptySeriesIter{}, nil
 }

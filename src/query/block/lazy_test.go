@@ -269,10 +269,6 @@ func TestUnconsolidated(t *testing.T) {
 	_, err = off.SeriesIter()
 	assert.EqualError(t, err, msg)
 
-	b.EXPECT().StepIter().Return(nil, e)
-	_, err = off.StepIter()
-	assert.EqualError(t, err, msg)
-
 	b.EXPECT().Consolidate().Return(nil, e)
 	_, err = off.Consolidate()
 	assert.EqualError(t, err, msg)
@@ -287,75 +283,6 @@ func TestUnconsolidated(t *testing.T) {
 	b.EXPECT().Close().Return(nil)
 	err = off.Close()
 	assert.NoError(t, err)
-}
-
-func TestUnconsolidatedStepIter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
-	now := time.Now()
-	msg := "err"
-	e := errors.New(msg)
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	iter := NewMockUnconsolidatedStepIter(ctrl)
-	b.EXPECT().StepIter().Return(iter, nil)
-	it, err := off.StepIter()
-	require.NoError(t, err)
-
-	seriesMetas := buildTestSeriesMeta("name")
-	expected := buildTestSeriesMeta("name_mutated")
-
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, expected, it.SeriesMeta())
-
-	// ensure functions are marshalled to the block's underlying step iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().StepCount().Return(12)
-	assert.Equal(t, 12, it.StepCount())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     12,
-			},
-		},
-	}
-
-	step := NewMockUnconsolidatedStep(ctrl)
-	step.EXPECT().Values().Return(vals).AnyTimes()
-	step.EXPECT().Time().Return(now)
-
-	iter.EXPECT().Current().Return(step)
-	actual := it.Current()
-	xts := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now.Add(offset),
-				Value:     12,
-			},
-		},
-	}
-
-	assert.Equal(t, xts, actual.Values())
-	assert.Equal(t, now.Add(offset), actual.Time())
 }
 
 func TestUnconsolidatedSeriesIter(t *testing.T) {
@@ -508,73 +435,6 @@ func TestSeriesIterWithNegativeValueOffset(t *testing.T) {
 	expectedVals := []float64{-1, -2, -3}
 	iter.EXPECT().Current().Return(series)
 	assert.Equal(t, expectedVals, it.Current().Values())
-}
-
-func TestUnconsolidatedStepIterWithNegativeValueOffset(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	offset := time.Duration(0)
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, -1.0))
-	now := time.Now()
-	msg := "err"
-	e := errors.New(msg)
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	iter := NewMockUnconsolidatedStepIter(ctrl)
-	b.EXPECT().StepIter().Return(iter, nil)
-	it, err := off.StepIter()
-	require.NoError(t, err)
-
-	// ensure functions are marshalled to the block's underlying step iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().StepCount().Return(12)
-	assert.Equal(t, 12, it.StepCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     12,
-			},
-		},
-	}
-
-	step := NewMockUnconsolidatedStep(ctrl)
-	step.EXPECT().Values().Return(vals).AnyTimes()
-	step.EXPECT().Time().Return(now)
-
-	iter.EXPECT().Current().Return(step)
-	actual := it.Current()
-	expected := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     -12,
-			},
-		},
-	}
-
-	assert.Equal(t, expected, actual.Values())
-	assert.Equal(t, now, actual.Time())
 }
 
 func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {

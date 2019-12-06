@@ -32,12 +32,12 @@ import (
 )
 
 const (
-	// TimestampType returns the timestamp of each of the samples of the given time series
-	// as the number of seconds since January 1, 1970 UTC.
+	// TimestampType returns the timestamp of each of the samples of the given
+	// time series as the number of seconds since January 1, 1970 UTC.
 	TimestampType = "timestamp"
 )
 
-// NewTimestampOp creates a new timestamp operation
+// NewTimestampOp creates a new timestamp operation.
 func NewTimestampOp(opType string) (parser.Params, error) {
 	if opType != TimestampType {
 		return timestampOp{}, fmt.Errorf("operator not supported: %s", opType)
@@ -46,17 +46,16 @@ func NewTimestampOp(opType string) (parser.Params, error) {
 	return newTimestampOp(opType), nil
 }
 
-// timestampOp stores required properties for timestamp ops
 type timestampOp struct {
 	opType string
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o timestampOp) OpType() string {
 	return o.opType
 }
 
-// String representation
+// String representation.
 func (o timestampOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
@@ -88,17 +87,20 @@ func (n *timestampNode) Params() parser.Params {
 }
 
 // Process the block
-func (n *timestampNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func (n *timestampNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
-	unconsolidatedBlock, err := b.Unconsolidated()
-	if err != nil {
-		return nil, err
-	}
-
-	iter, err := unconsolidatedBlock.StepIter()
+func (n *timestampNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
+	iter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +110,23 @@ func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.No
 		return nil, err
 	}
 
-	if err = builder.AddCols(iter.StepCount()); err != nil {
+	count := iter.StepCount()
+	if err = builder.AddCols(count); err != nil {
 		return nil, err
 	}
+
+	bounds := b.Meta().Bounds
+	start := bounds.Start.Unix()
+	step := bounds.StepSize
+	column := make([]float64, count)
+	for i := range column {
+		column[i] = 
+	}
+
+	for i := 0; i < count; i++ {
+
+	}
+	
 
 	for index := 0; iter.Next(); index++ {
 		step := iter.Current()

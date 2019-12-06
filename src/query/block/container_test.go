@@ -291,56 +291,6 @@ func buildUnconsolidatedStepBlock(ctrl *gomock.Controller,
 	return base
 }
 
-func TestUnconsolidatedContainerStepIter(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	block := buildUnconsolidatedStepBlock(ctrl, 1, true)
-	blockTwo := buildUnconsolidatedStepBlock(ctrl, 2, false)
-
-	c, err := NewContainerBlock(block, blockTwo)
-	require.NoError(t, err)
-
-	consolidated, err := c.Unconsolidated()
-	require.NoError(t, err)
-
-	assert.True(t, containerBounds.Equals(consolidated.Meta().Bounds))
-	assert.True(t, opts.Equals(consolidated.Meta().Tags.Opts))
-
-	it, err := consolidated.StepIter()
-	require.NoError(t, err)
-
-	count := 0
-	for it.Next() {
-		st := it.Current()
-		tt := now.Add(step * time.Duration(count))
-		ex := []ts.Datapoints{
-			ts.Datapoints{
-				ts.Datapoint{Timestamp: tt, Value: 1},
-				ts.Datapoint{Timestamp: tt, Value: 1},
-			},
-			ts.Datapoints{
-				ts.Datapoint{Timestamp: tt, Value: 2},
-				ts.Datapoint{Timestamp: tt, Value: 2},
-			},
-		}
-
-		assert.Equal(t, ex, st.Values())
-		count++
-	}
-
-	assert.Equal(t, count, numSteps)
-
-	metas := it.SeriesMeta()
-	assert.Equal(t, 2, len(metas))
-	assert.Equal(t, []byte("1"), metas[0].Name)
-	assert.Equal(t, []byte("2"), metas[1].Name)
-	assert.Equal(t, numSteps, it.StepCount())
-
-	assert.NoError(t, it.Err())
-	assert.NotPanics(t, func() { it.Close() })
-}
-
 func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	v float64, first bool) Block {
 	base := NewMockBlock(ctrl)

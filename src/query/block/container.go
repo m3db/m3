@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -390,127 +389,6 @@ func (b *ucContainerBlock) Consolidate() (Block, error) {
 	}
 
 	return newContainerBlock(consolidated)
-}
-
-func (b *ucContainerBlock) StepIter() (UnconsolidatedStepIter, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	it := &ucContainerStepIter{
-		its: make([]UnconsolidatedStepIter, 0, len(b.blocks)),
-	}
-
-	for _, bl := range b.blocks {
-		iter, err := bl.StepIter()
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		it.its = append(it.its, iter)
-	}
-
-	return it, nil
-}
-
-type ucContainerStepIter struct {
-	err error
-	its []UnconsolidatedStepIter
-}
-
-func (it *ucContainerStepIter) Close() {
-	for _, iter := range it.its {
-		iter.Close()
-	}
-}
-
-func (it *ucContainerStepIter) Err() error {
-	if it.err != nil {
-		return it.err
-	}
-
-	for _, iter := range it.its {
-		if it.err = iter.Err(); it.err != nil {
-			return it.err
-		}
-	}
-
-	return nil
-}
-
-func (it *ucContainerStepIter) StepCount() int {
-	// NB: when using a step iterator, step count doesn't change, but the length
-	// of each step does.
-	if len(it.its) == 0 {
-		return 0
-	}
-
-	return it.its[0].StepCount()
-}
-
-func (it *ucContainerStepIter) SeriesMeta() []SeriesMeta {
-	length := 0
-	for _, iter := range it.its {
-		length += len(iter.SeriesMeta())
-	}
-
-	metas := make([]SeriesMeta, 0, length)
-	for _, iter := range it.its {
-		metas = append(metas, iter.SeriesMeta()...)
-	}
-
-	return metas
-}
-
-func (it *ucContainerStepIter) Next() bool {
-	if it.err != nil {
-		return false
-	}
-
-	// advance all the contained iterators; if any have size mismatches, set an
-	// error and stop traversal.
-	var next bool
-	for i, iter := range it.its {
-		n := iter.Next()
-
-		if it.err = iter.Err(); it.err != nil {
-			return false
-		}
-
-		if i == 0 {
-			next = n
-		} else if next != n {
-			it.err = errMismatchedUcStepIter
-			return false
-		}
-	}
-
-	return next
-}
-
-func (it *ucContainerStepIter) Current() UnconsolidatedStep {
-	if len(it.its) == 0 {
-		return unconsolidatedStep{
-			time:   time.Time{},
-			values: []ts.Datapoints{},
-		}
-	}
-
-	curr := it.its[0].Current()
-	// NB: to get Current for contained step iterators, append results from all
-	// contained step iterators in order.
-	accumulatorStep := unconsolidatedStep{
-		time:   curr.Time(),
-		values: curr.Values(),
-	}
-
-	for _, iter := range it.its[1:] {
-		curr := iter.Current()
-		accumulatorStep.values = append(accumulatorStep.values, curr.Values()...)
-	}
-
-	return accumulatorStep
 }
 
 func (b *ucContainerBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {

@@ -20,12 +20,6 @@
 
 package block
 
-import (
-	"time"
-
-	"github.com/m3db/m3/src/query/ts"
-)
-
 type lazyBlock struct {
 	block Block
 	opts  LazyOptions
@@ -174,74 +168,6 @@ func (b *ucLazyBlock) Consolidate() (Block, error) {
 		block: block,
 		opts:  b.opts,
 	}, nil
-}
-
-func (b *ucLazyBlock) StepIter() (UnconsolidatedStepIter, error) {
-	iter, err := b.block.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucLazyStepIter{
-		it:   iter,
-		opts: b.opts,
-	}, nil
-}
-
-type ucLazyStepIter struct {
-	it   UnconsolidatedStepIter
-	opts LazyOptions
-}
-
-func (it *ucLazyStepIter) Close()         { it.it.Close() }
-func (it *ucLazyStepIter) Err() error     { return it.it.Err() }
-func (it *ucLazyStepIter) StepCount() int { return it.it.StepCount() }
-func (it *ucLazyStepIter) Next() bool     { return it.it.Next() }
-
-func (it *ucLazyStepIter) SeriesMeta() []SeriesMeta {
-	mt := it.opts.SeriesMetaTransform()
-	return mt(it.it.SeriesMeta())
-}
-
-type unconsolidatedStep struct {
-	time   time.Time
-	values []ts.Datapoints
-}
-
-// Time for the step.
-func (s unconsolidatedStep) Time() time.Time {
-	return s.time
-}
-
-// Values for the column.
-func (s unconsolidatedStep) Values() []ts.Datapoints {
-	return s.values
-}
-
-func (it *ucLazyStepIter) Current() UnconsolidatedStep {
-	var (
-		c      = it.it.Current()
-		values = c.Values()
-		dpList = make([]ts.Datapoints, 0, len(values))
-		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
-	)
-
-	for _, val := range values {
-		dps := make([]ts.Datapoint, 0, len(val))
-		for _, dp := range val.Datapoints() {
-			dps = append(dps, ts.Datapoint{
-				Timestamp: tt(dp.Timestamp),
-				Value:     vt(dp.Value),
-			})
-		}
-
-		dpList = append(dpList, dps)
-	}
-
-	return unconsolidatedStep{
-		time:   tt(c.Time()),
-		values: dpList,
-	}
 }
 
 func (b *ucLazyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {

@@ -89,7 +89,7 @@ type UnconsolidatedBlock interface {
 	io.Closer
 	// StepIter returns a step-wise block iterator, giving unconsolidated values
 	// across all series comprising the box at a single time step.
-	StepIter() (UnconsolidatedStepIter, error)
+	// StepIter() (UnconsolidatedStepIter, error)
 	// SeriesIter returns a series-wise block iterator, giving unconsolidated
 	// by series.
 	SeriesIter() (UnconsolidatedSeriesIter, error)
