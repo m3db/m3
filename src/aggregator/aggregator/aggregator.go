@@ -245,14 +245,11 @@ func (agg *aggregator) AddPassThrough(
 ) error {
 	callStart := agg.nowFn()
 	agg.metrics.passThrough.Inc(1)
-	agg.RLock()
+
 	if agg.state != aggregatorOpen {
 		agg.metrics.addPassThrough.ReportError(errAggregatorAlreadyOpenOrClosed)
-		agg.RUnlock()
 		return errAggregatorNotOpenOrClosed
 	}
-	agg.RUnlock()
-
 	if agg.passThroughWriter == nil {
 		agg.metrics.addPassThrough.ReportError(errPassThroughWriterNotDefined)
 		return errPassThroughWriterNotDefined

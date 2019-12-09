@@ -187,6 +187,21 @@ func (c *client) writeForwardedMetricWithMetadata(
 	return c.writeUnaggregatedMessage(msg)
 }
 
+func (c *client) writePassThroughMetricWithMetadata(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	// Siyu?
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.TimedMetricWithMetadataType,
+		TimedMetricWithMetadata: aggregated.TimedMetricWithMetadata{
+			Metric:        metric,
+			TimedMetadata: metadata,
+		},
+	}
+	return c.writeUnaggregatedMessage(msg)
+}
+
 func (c *client) writeUnaggregatedMessage(
 	msg encoding.UnaggregatedMessageUnion,
 ) error {

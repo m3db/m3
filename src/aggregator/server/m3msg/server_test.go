@@ -22,7 +22,6 @@ package m3msg
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -32,11 +31,11 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/golang/mock/gomock"
+	"go.uber.org/zap"
 )
 
 var (
@@ -55,13 +54,15 @@ var (
 	}
 )
 
-func TestGetWriteFn(t *testing.T) {
-	aggregator := &mockAggregator{}
-	writeFn := GetWriteFn(aggregator, nil, nil)
+func TestNewPassThroughWriteFn(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	callback := &mockCallback{
-		record: make(map[xm3msg.CallbackType]int),
-	}
+	aggregator := aggregator.NewMockAggregator(ctrl)
+	writeFn := NewPassThroughWriteFn(aggregator, nil, zap.NewNop())
+	callback := xm3msg.NewMockCallbackable(ctrl)
+	callback.EXPECT().Callback(xm3msg.OnSuccess).Times(1)
+	aggregator.EXPECT().AddPassThrough(expectedMetric, expectedMetadata).Return(nil).Times(1)
 
 	writeFn(
 		context.TODO(),
@@ -72,68 +73,4 @@ func TestGetWriteFn(t *testing.T) {
 		defaultStoragePolicy,
 		callback,
 	)
-
-	require.Equal(t, map[xm3msg.CallbackType]int{xm3msg.OnSuccess: 1}, callback.record)
-	require.Equal(t, 1, aggregator.count)
-	require.Equal(t, expectedMetric, *aggregator.receivedMetrics[0])
-	require.Equal(t, expectedMetadata, *aggregator.receivedMetadata[0])
-}
-
-type mockAggregator struct {
-	sync.RWMutex
-
-	count            int
-	receivedMetrics  []*aggregated.Metric
-	receivedMetadata []*metadata.TimedMetadata
-}
-
-func (agg *mockAggregator) Open() error {
-	return nil
-}
-
-func (agg *mockAggregator) AddUntimed(metric unaggregated.MetricUnion, metas metadata.StagedMetadatas) error {
-	return nil
-}
-
-func (agg *mockAggregator) AddTimed(metric aggregated.Metric, metadata metadata.TimedMetadata) error {
-	return nil
-}
-
-func (agg *mockAggregator) AddForwarded(metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error {
-	return nil
-}
-
-func (agg *mockAggregator) AddPassThrough(metric aggregated.Metric, metadata metadata.TimedMetadata) error {
-	agg.Lock()
-	defer agg.Unlock()
-
-	agg.count++
-	agg.receivedMetrics = append(agg.receivedMetrics, &metric)
-	agg.receivedMetadata = append(agg.receivedMetadata, &metadata)
-	return nil
-}
-
-func (agg *mockAggregator) Resign() error {
-	return nil
-}
-
-func (agg *mockAggregator) Status() aggregator.RuntimeStatus {
-	return aggregator.RuntimeStatus{
-		FlushStatus: aggregator.FlushStatus{
-			ElectionState: aggregator.UnknownState,
-			CanLead:       true,
-		},
-	}
-}
-
-func (*mockAggregator) Close() error {
-	return nil
-}
-
-type mockCallback struct {
-	record map[xm3msg.CallbackType]int
-}
-
-func (c *mockCallback) Callback(t xm3msg.CallbackType) {
-	c.record[t]++
 }

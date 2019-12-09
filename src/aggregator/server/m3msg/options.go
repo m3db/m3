@@ -21,8 +21,14 @@
 package m3msg
 
 import (
-	coordinatorM3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"errors"
+
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/x/instrument"
+)
+
+var (
+	errServerAddressEmpty = errors.New("m3msg server address is empty")
 )
 
 // Options provides a set of options for the m3msg server
@@ -34,21 +40,24 @@ type Options interface {
 	InstrumentOptions() instrument.Options
 
 	// SetM3msgConfiguration sets the m3msg configuration used by the server.
-	SetM3msgConfiguration(value *coordinatorM3msg.Configuration) Options
+	SetM3MsgConfiguration(value *m3msg.Configuration) Options
 
 	// M3msgConfiguration returns the m3msg configuration used by the server.
-	M3msgConfiguration() *coordinatorM3msg.Configuration
+	M3MsgConfiguration() *m3msg.Configuration
+
+	// Validate validates the m3msg server options and returns an error in case
+	Validate() error
 }
 
 type options struct {
 	instrumentOpts     instrument.Options
-	m3msgConfiguration *coordinatorM3msg.Configuration
+	m3msgConfiguration *m3msg.Configuration
 }
 
 // NewServerOptions creates a new set of m3msg server options.
 func NewServerOptions(
 	iOpts instrument.Options,
-	m3msgConfiguration *coordinatorM3msg.Configuration,
+	m3msgConfiguration *m3msg.Configuration,
 ) (string, Options) {
 	var addr string
 	if m3msgConfiguration != nil {
@@ -70,12 +79,19 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetM3msgConfiguration(value *coordinatorM3msg.Configuration) Options {
+func (o *options) SetM3MsgConfiguration(value *m3msg.Configuration) Options {
 	opts := *o
 	opts.m3msgConfiguration = value
 	return &opts
 }
 
-func (o *options) M3msgConfiguration() *coordinatorM3msg.Configuration {
+func (o *options) M3MsgConfiguration() *m3msg.Configuration {
 	return o.m3msgConfiguration
+}
+
+func (o *options) Validate() error {
+	if o.M3MsgConfiguration().Server.ListenAddress == "" {
+		return errServerAddressEmpty
+	}
+	return nil
 }

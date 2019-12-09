@@ -27,6 +27,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
@@ -41,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
@@ -48,12 +50,16 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
-	"github.com/m3db/m3/src/x/sync"
+	m3sync "github.com/m3db/m3/src/x/sync"
+
+	"github.com/uber-go/tally"
 )
 
 var (
 	errNoKVClientConfiguration = errors.New("no kv client configuration")
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
+
+	defaultNumPassThroughWriters = 16
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -117,6 +123,9 @@ type AggregatorConfiguration struct {
 
 	// PassThrough m3msg topic name.
 	PassThroughTopicName *string `yaml:"passThroughTopicName"`
+
+	// The number of passthrough writers
+	NumPassThroughWriters *int `yaml:"numPassThroughWriters"`
 
 	// Forwarding configuration.
 	Forwarding forwardingConfiguration `yaml:"forwarding"`
@@ -290,24 +299,14 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetFlushHandler(flushHandler)
 
-	// Set pass-through handler.
-	passThroughScope := scope.SubScope("passthrough-handler")
+	// Set passthrough writer.
+	passThroughScope := scope.SubScope("passthrough-writer")
 	iOpts = instrumentOpts.SetMetricsScope(passThroughScope)
-	// fishie9: this is a temporary change to use a separate m3msg topic for pass-through metrics during the migration
-	for _, handler := range c.Flush.Handlers {
-		if handler.DynamicBackend != nil && c.PassThroughTopicName != nil {
-			handler.DynamicBackend.Producer.Writer.TopicName = *c.PassThroughTopicName
-		}
-	}
-	passThroughHandler, err := c.Flush.NewHandler(client, iOpts)
+	passThroughWriter, err := c.newPassThroughWriter(client, iOpts, passThroughScope, opts.ShardFn())
 	if err != nil {
 		return nil, err
 	}
-	passThroughWriter, err := passThroughHandler.NewWriter(passThroughScope)
-	if err != nil {
-		return nil, err
-	}
-	opts = opts.SetPassThroughWriter(writer.NewMutexWriter(passThroughWriter))
+	opts = opts.SetPassThroughWriter(passThroughWriter)
 
 	// Set max allowed forwarding delay function.
 	jitterEnabled := flushManagerOpts.JitterEnabled()
@@ -713,7 +712,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 	}
 	if c.NumWorkersPerCPU != 0 {
 		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
-		workerPool := sync.NewWorkerPool(workerPoolSize)
+		workerPool := m3sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
 	}
@@ -778,4 +777,92 @@ func setMetricPrefix(
 		return opts
 	}
 	return fn([]byte(*str))
+}
+
+// passThroughWriter writes passthrough metrics to backends.
+type passThroughWriter struct {
+	numShards int
+	writers   []writer.Writer
+	locks     []sync.Mutex
+	shardFn   sharding.ShardFn
+}
+
+func (c *AggregatorConfiguration) newPassThroughWriter(
+	cs client.Client,
+	iOpts instrument.Options,
+	scope tally.Scope,
+	shardFn sharding.ShardFn,
+) (writer.Writer, error) {
+	// This is a temporary change to use a separate m3msg topic for pass-through metrics during the migration.
+	for _, handler := range c.Flush.Handlers {
+		if handler.DynamicBackend != nil && c.PassThroughTopicName != nil {
+			handler.DynamicBackend.Producer.Writer.TopicName = *c.PassThroughTopicName
+		}
+	}
+
+	count := defaultNumPassThroughWriters
+	if c.NumPassThroughWriters != nil {
+		count = *c.NumPassThroughWriters
+	}
+
+	writers := make([]writer.Writer, 0, count)
+	for i := 0; i < count; i++ {
+		handler, err := c.Flush.NewHandler(cs, iOpts)
+		if err != nil {
+			return nil, err
+		}
+		writer, err := handler.NewWriter(scope)
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
+	}
+
+	return &passThroughWriter{
+		numShards: count,
+		writers:   writers,
+		locks:     make([]sync.Mutex, count),
+		shardFn:   shardFn,
+	}, nil
+}
+
+func (p *passThroughWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	shardID := p.shardFn([]byte(mp.ChunkedID.String()), uint32(p.numShards))
+	p.locks[shardID].Lock()
+	defer p.locks[shardID].Unlock()
+	return p.writers[shardID].Write(mp)
+}
+
+func (p *passThroughWriter) Flush() error {
+	errStr := "failed to flush passthrough writer"
+	failed := false
+	for i := 0; i < p.numShards; i++ {
+		p.locks[i].Lock()
+		if err := p.writers[i].Flush(); err != nil {
+			failed = true
+			errStr += fmt.Sprintf(". Writer#%d-%v", i, err)
+		}
+		p.locks[i].Unlock()
+	}
+	if failed {
+		return errors.New(errStr)
+	}
+	return nil
+}
+
+func (p *passThroughWriter) Close() error {
+	errStr := "failed to close passthrough writer"
+	failed := false
+	for i := 0; i < p.numShards; i++ {
+		p.locks[i].Lock()
+		if err := p.writers[i].Close(); err != nil {
+			failed = true
+			errStr += fmt.Sprintf(". Writer#%d-%v", i, err)
+		}
+		p.locks[i].Unlock()
+	}
+	if failed {
+		return errors.New(errStr)
+	}
+	return nil
 }

@@ -62,19 +62,26 @@ func Serve(
 	defer httpServer.Close()
 	log.Infof("http server: listening on %s", httpAddr)
 
-	if m3msgServerOpts != nil {
-		if m3msgConfig := m3msgServerOpts.M3msgConfiguration(); m3msgConfig != nil {
-			s, _ := sampler.NewSampler(defaultSampleRate)
-			m3msgServer, err := m3msgConfig.NewServer(m3msgserver.GetWriteFn(aggregator, s, log), m3msgServerOpts.InstrumentOptions())
-			if err != nil {
-				return fmt.Errorf("could not create m3msg server at %s: %v", m3msgAddr, err)
-			}
-			if err := m3msgServer.ListenAndServe(); err != nil {
-				return fmt.Errorf("could not start m3msg server at %s: %v", m3msgAddr, err)
-			}
-			defer m3msgServer.Close()
-			log.Infof("m3msg server: listening on %s", m3msgAddr)
+	if err := m3msgServerOpts.Validate(); err != nil {
+		return err
+	}
+	if m3msgConfig := m3msgServerOpts.M3MsgConfiguration(); m3msgConfig != nil {
+		s, err := sampler.NewSampler(defaultSampleRate)
+		if err != nil {
+			return fmt.Errorf("could not create sampler for m3msg server: %v", err)
 		}
+		m3msgServer, err := m3msgConfig.NewServer(
+			m3msgserver.NewPassThroughWriteFn(aggregator, s, log.Desugar()),
+			m3msgServerOpts.InstrumentOptions(),
+		)
+		if err != nil {
+			return fmt.Errorf("could not create m3msg server at %s: %v", m3msgAddr, err)
+		}
+		if err := m3msgServer.ListenAndServe(); err != nil {
+			return fmt.Errorf("could not start m3msg server at %s: %v", m3msgAddr, err)
+		}
+		defer m3msgServer.Close()
+		log.Infof("m3msg server: listening on %s", m3msgAddr)
 	}
 
 	// Wait for exit signal.

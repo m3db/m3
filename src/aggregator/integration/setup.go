@@ -34,18 +34,22 @@ import (
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	m3msgconfig "github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -57,8 +61,10 @@ type testServerSetup struct {
 	opts             testServerOptions
 	rawTCPAddr       string
 	httpAddr         string
+	m3msgAddr        string
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
+	m3msgServerOpts  m3msgserver.Options
 	aggregator       aggregator.Aggregator
 	aggregatorOpts   aggregator.Options
 	handler          handler.Handler
@@ -87,6 +93,11 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Create the server options.
 	rawTCPServerOpts := rawtcpserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
+	var m3msgServerConfig m3msgconfig.Configuration
+	if err := yaml.Unmarshal([]byte(m3msgServerConfigStr), &m3msgServerConfig); err != nil {
+		return nil
+	}
+	_, m3msgServerOpts := m3msgserver.NewServerOptions(instrument.NewOptions(), &m3msgServerConfig)
 
 	// Creating the aggregator options.
 	clockOpts := opts.ClockOptions()
@@ -202,8 +213,10 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		opts:             opts,
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
+		m3msgAddr:        opts.M3MsgAddr(),
 		rawTCPServerOpts: rawTCPServerOpts,
 		httpServerOpts:   httpServerOpts,
+		m3msgServerOpts:  m3msgServerOpts,
 		aggregatorOpts:   aggregatorOpts,
 		handler:          handler,
 		electionKey:      electionKey,
@@ -249,8 +262,8 @@ func (ts *testServerSetup) startServer() error {
 			ts.rawTCPServerOpts,
 			ts.httpAddr,
 			ts.httpServerOpts,
-			"",
-			nil,
+			ts.m3msgAddr,
+			ts.m3msgServerOpts,
 			ts.aggregator,
 			ts.doneCh,
 		); err != nil {

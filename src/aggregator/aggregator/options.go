@@ -606,7 +606,6 @@ func (o *options) SetPassThroughWriter(value writer.Writer) Options {
 }
 
 func (o *options) PassThroughWriter() writer.Writer {
-	//TODO: (fishie9) check add buffer if necessary
 	return o.passThroughWriter
 }
 

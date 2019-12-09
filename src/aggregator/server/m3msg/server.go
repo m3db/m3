@@ -35,11 +35,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// GetWriteFn returns the m3msg write function for pass-through metrics.
-func GetWriteFn(
+// NewPassThroughWriteFn returns the m3msg write function for pass-through metrics.
+func NewPassThroughWriteFn(
 	aggregator aggregator.Aggregator,
 	s *sampler.Sampler,
-	log *zap.SugaredLogger,
+	log *zap.Logger,
 ) m3msg.WriteFn {
 	return func(
 		ctx context.Context,
@@ -62,21 +62,19 @@ func GetWriteFn(
 		}
 
 		if err := aggregator.AddPassThrough(metric, metadata); err != nil {
-			if log != nil {
-				log.Infof("[FAIL] to write pass-through metric %s with metadata ID=%s SP=%s",
-					metric.String(),
-					metadata.AggregationID.String(),
-					metadata.StoragePolicy.String(),
-				)
-			}
+			log.Info("[FAIL] to write pass-through metric",
+				zap.String("metric", metric.String()),
+				zap.String("aggregationID", metadata.AggregationID.String()),
+				zap.String("storagePolicy", metadata.StoragePolicy.String()),
+			)
 			callback.Callback(m3msg.OnRetriableError)
 		}
 
-		if s != nil && s.Sample() && log != nil {
-			log.Infof("[SUCCESS] to write pass-through metric %s with metadata ID=%s SP=%s (sampled)",
-				metric.String(),
-				metadata.AggregationID.String(),
-				metadata.StoragePolicy.String(),
+		if s != nil && s.Sample() {
+			log.Info("[SUCCESS] to write pass-through metric (sampled)",
+				zap.String("metric", metric.String()),
+				zap.String("aggregationID", metadata.AggregationID.String()),
+				zap.String("storagePolicy", metadata.StoragePolicy.String()),
 			)
 		}
 		callback.Callback(m3msg.OnSuccess)

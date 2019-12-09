@@ -126,7 +126,7 @@ func TestSetStreamOptions(t *testing.T) {
 func TestSetAdminClient(t *testing.T) {
 	value := client.NewClient(client.NewOptions()).(client.AdminClient)
 	o := NewOptions().SetAdminClient(value)
-	require.True(t, value == o.AdminClient())
+	require.True(t, value == br())
 }
 
 func TestSetRuntimeOptionsManager(t *testing.T) {

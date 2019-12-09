@@ -36,6 +36,7 @@ import (
 const (
 	defaultRawTCPAddr                 = "localhost:6000"
 	defaultHTTPAddr                   = "localhost:6001"
+	defaultM3MsgAddr                  = "localhost:6002"
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
 	defaultWorkerPoolSize             = 4
@@ -48,6 +49,36 @@ const (
 	defaultEntryCheckInterval         = time.Second
 	defaultJitterEnabled              = true
 	defaultDiscardNaNAggregatedValues = true
+	m3msgServerConfigStr              = `
+server:
+  listenAddress: "localhost:6002"
+  keepAliveEnabled: true
+  keepAlivePeriod: 5s
+handler:
+  protobufDecoderPool:
+    size: 100
+    watermark:
+      low: 0.001
+      high: 0.002
+consumer:
+  messagePool:
+    size: 5
+    maxBufferReuseSize: 65536
+  ackFlushInterval: 100ms
+  ackBufferSize: 100
+  connectionWriteBufferSize: 200
+  connectionReadBufferSize: 300
+  encoder:
+    maxMessageSize: 100
+    bytesPool:
+      watermark:
+        low: 0.001
+  decoder:
+    maxMessageSize: 200
+    bytesPool:
+      watermark:
+        high: 0.002
+	`
 )
 
 type testServerOptions interface {
@@ -80,6 +111,12 @@ type testServerOptions interface {
 
 	// HTTPAddr returns the http server address.
 	HTTPAddr() string
+
+	// SetM3MsgAddr sets the m3msg server address.
+	SetM3MsgAddr(value string) testServerOptions
+
+	// M3MsgAddr returns the m3msg server address.
+	M3MsgAddr() string
 
 	// SetInstanceID sets the instance id.
 	SetInstanceID(value string) testServerOptions
@@ -197,6 +234,7 @@ type serverOptions struct {
 	aggTypesOpts                aggregation.TypesOptions
 	rawTCPAddr                  string
 	httpAddr                    string
+	m3msgAddr                   string
 	instanceID                  string
 	electionKeyFmt              string
 	electionCluster             *testCluster
@@ -225,6 +263,7 @@ func newTestServerOptions() testServerOptions {
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
+		m3msgAddr:                   defaultM3MsgAddr,
 		clockOpts:                   clock.NewOptions(),
 		instrumentOpts:              instrument.NewOptions(),
 		aggTypesOpts:                aggTypesOpts,
@@ -296,6 +335,16 @@ func (o *serverOptions) SetHTTPAddr(value string) testServerOptions {
 
 func (o *serverOptions) HTTPAddr() string {
 	return o.httpAddr
+}
+
+func (o *serverOptions) SetM3MsgAddr(value string) testServerOptions {
+	opts := *o
+	opts.m3msgAddr = value
+	return &opts
+}
+
+func (o *serverOptions) M3MsgAddr() string {
+	return o.m3msgAddr
 }
 
 func (o *serverOptions) SetInstanceID(value string) testServerOptions {
