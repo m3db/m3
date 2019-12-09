@@ -210,7 +210,6 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		for it.Next() {
 			step := it.Current()
 			for i, v := range step.Values() {
-				fmt.Println(i, numSeries)
 				data[i][rowCount] = v
 			}
 

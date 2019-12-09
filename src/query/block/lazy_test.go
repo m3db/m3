@@ -127,10 +127,6 @@ func TestValidOffset(t *testing.T) {
 	err = off.Close()
 	assert.EqualError(t, err, msg)
 
-	b.EXPECT().SeriesIter().Return(nil, e)
-	_, err = off.SeriesIter()
-	assert.EqualError(t, err, msg)
-
 	b.EXPECT().StepIter().Return(nil, e)
 	_, err = off.StepIter()
 	assert.EqualError(t, err, msg)
@@ -191,49 +187,6 @@ func TestStepIter(t *testing.T) {
 	actual := it.Current()
 	assert.Equal(t, vals, actual.Values())
 	assert.Equal(t, now.Add(offset), actual.Time())
-}
-
-func TestSeriesIter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	b := NewMockBlock(ctrl)
-	offset := time.Minute
-	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
-	msg := "err"
-	e := errors.New(msg)
-
-	iter := NewMockSeriesIter(ctrl)
-	b.EXPECT().SeriesIter().Return(iter, nil)
-	it, err := off.SeriesIter()
-	require.NoError(t, err)
-
-	seriesMetas := buildTestSeriesMeta("name")
-	expected := buildTestSeriesMeta("name_mutated")
-
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, expected, it.SeriesMeta())
-
-	// ensure functions are marshalled to the block's underlying series iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().SeriesCount().Return(12)
-	assert.Equal(t, 12, it.SeriesCount())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []float64{1, 2, 3}
-	series := Series{
-		Meta:   SeriesMeta{},
-		values: vals,
-	}
-
-	iter.EXPECT().Current().Return(series)
-	assert.Equal(t, series, it.Current())
 }
 
 func TestUnconsolidated(t *testing.T) {
@@ -393,48 +346,6 @@ func TestStepIterWithNegativeValueOffset(t *testing.T) {
 	actual := it.Current()
 	assert.Equal(t, expectedVals, actual.Values())
 	assert.Equal(t, now, actual.Time())
-}
-
-func TestSeriesIterWithNegativeValueOffset(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	b := NewMockBlock(ctrl)
-	offset := time.Duration(0)
-	off := NewLazyBlock(b, testLazyOpts(offset, -1.0))
-	msg := "err"
-	e := errors.New(msg)
-
-	iter := NewMockSeriesIter(ctrl)
-	b.EXPECT().SeriesIter().Return(iter, nil)
-	it, err := off.SeriesIter()
-	require.NoError(t, err)
-
-	// ensure functions are marshalled to the block's underlying series iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().SeriesCount().Return(12)
-	assert.Equal(t, 12, it.SeriesCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []float64{1, 2, 3}
-	series := Series{
-		Meta:   SeriesMeta{},
-		values: vals,
-	}
-
-	expectedVals := []float64{-1, -2, -3}
-	iter.EXPECT().Current().Return(series)
-	assert.Equal(t, expectedVals, it.Current().Values())
 }
 
 func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {

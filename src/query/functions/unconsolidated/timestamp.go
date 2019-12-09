@@ -23,6 +23,7 @@ package unconsolidated
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -111,14 +112,15 @@ func (n *timestampNode) ProcessBlock(
 	}
 
 	count := iter.StepCount()
+	seriesCount := len(iter.SeriesMeta())
 	if err = builder.AddCols(count); err != nil {
 		return nil, err
 	}
 
 	bounds := b.Meta().Bounds
 	currentStep := float64(bounds.Start.Unix())
-	step := float64(bounds.StepSize)
-	values := make([]float64, count)
+	step := float64(bounds.StepSize) / float64(time.Second)
+	values := make([]float64, seriesCount)
 	for index := 0; iter.Next(); index++ {
 		curr := iter.Current()
 		ts.Memset(values, currentStep)

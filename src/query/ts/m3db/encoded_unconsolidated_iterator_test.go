@@ -42,68 +42,6 @@ func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
 	return vals
 }
 
-func TestUnconsolidatedStepIterator(t *testing.T) {
-	expected := [][][]float64{
-		{{}, {}, {}},
-		{{}, {}, {}},
-		{{}, {10}, {}},
-		{{}, {20}, {100}},
-		{{}, {}, {}},
-		{{}, {}, {}},
-		{{1}, {}, {}},
-		{{}, {}, {}},
-		{{2, 3}, {}, {}},
-		{{4}, {}, {200}},
-		{{5}, {}, {}},
-		{{6}, {}, {}},
-		{{7}, {}, {}},
-		{{}, {30}, {}},
-		{{}, {}, {}},
-		{{}, {}, {300}},
-		{{}, {}, {}},
-		{{8}, {}, {}},
-		{{}, {}, {}},
-		{{}, {40}, {}},
-		{{}, {}, {}},
-		{{}, {}, {400}},
-		{{9}, {}, {}},
-		{{}, {}, {}},
-		{{}, {}, {500}},
-		{{}, {}, {}},
-		{{}, {}, {}},
-		{{}, {}, {}},
-		{{}, {}, {}},
-		{{}, {}, {}},
-	}
-
-	j := 0
-	opts := NewOptions().
-		SetLookbackDuration(1 * time.Minute).
-		SetSplitSeriesByBlock(false)
-	require.NoError(t, opts.Validate())
-	blocks, bounds := generateBlocks(t, time.Minute, opts)
-	for i, block := range blocks {
-		unconsolidated, err := block.Unconsolidated()
-		require.NoError(t, err)
-
-		iters, err := unconsolidated.StepIter()
-		require.NoError(t, err)
-
-		require.True(t, bounds.Equals(block.Meta().Bounds))
-		verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
-		for iters.Next() {
-			step := iters.Current()
-			vals := step.Values()
-			actual := datapointsToFloatSlices(t, vals)
-			test.EqualsWithNans(t, expected[j], actual)
-			j++
-		}
-
-		require.Equal(t, len(expected), j)
-		require.NoError(t, iters.Err())
-	}
-}
-
 func TestUnconsolidatedSeriesIterator(t *testing.T) {
 	expected := [][]float64{
 		{1, 2, 3, 4, 5, 6, 7, 8, 9},

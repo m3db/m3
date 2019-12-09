@@ -359,13 +359,6 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	assert.True(t, hitErrHost, "round robin did not fetch from error host")
 }
 
-func validateBlockResult(t *testing.T, r block.Result) {
-	require.Equal(t, 1, len(r.Blocks))
-
-	_, err := r.Blocks[0].SeriesIter()
-	require.NoError(t, err)
-}
-
 func TestBatchedFetch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

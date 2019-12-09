@@ -45,13 +45,6 @@ func TestEmptyBlock(t *testing.T) {
 	bl := NewEmptyBlock(meta)
 	assert.True(t, meta.Equals(bl.Meta()))
 
-	series, err := bl.SeriesIter()
-	assert.NoError(t, err)
-	assert.NoError(t, series.Err())
-	assert.False(t, series.Next())
-	assert.Equal(t, 0, series.SeriesCount())
-	assert.Equal(t, []SeriesMeta{}, series.SeriesMeta())
-
 	step, err := bl.StepIter()
 	assert.NoError(t, err)
 	assert.NoError(t, step.Err())
@@ -60,7 +53,6 @@ func TestEmptyBlock(t *testing.T) {
 	assert.Equal(t, []SeriesMeta{}, step.SeriesMeta())
 
 	assert.NotPanics(t, func() {
-		series.Close()
 		step.Close()
 	})
 

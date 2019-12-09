@@ -57,19 +57,21 @@ func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block
 		return err
 	}
 
-	i := 0
-	s.Values = make([][]float64, iter.StepCount())
+	seriesCount := len(iter.SeriesMeta())
+	steps := iter.StepCount()
+	s.Values = make([][]float64, seriesCount)
 	for i := range s.Values {
-		s.Values[i] = make([]float64, len(iter.SeriesMeta()))
+		s.Values[i] = make([]float64, steps)
 	}
 
+	row := 0
 	for iter.Next() {
 		val := iter.Current()
-		val.Values()
-		i++
-		for j, v := range val.Values() {
-			s.Values[j][i] = v
+		for series, v := range val.Values() {
+			s.Values[series][row] = v
 		}
+
+		row++
 	}
 
 	if err = iter.Err(); err != nil {

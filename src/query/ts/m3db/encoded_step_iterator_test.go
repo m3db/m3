@@ -649,6 +649,6 @@ func BenchmarkNextIteration(b *testing.B) {
 		}
 
 		// NB: this is for clearer groupings.
-		fmt.Println()
+		println()
 	}
 }

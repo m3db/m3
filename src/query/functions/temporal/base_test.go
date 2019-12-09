@@ -21,7 +21,6 @@
 package temporal
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -91,11 +90,6 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 
 			err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 			require.NoError(t, err)
-
-			for i, v := range sink.Values {
-				fmt.Println(i, v)
-				fmt.Println(" ", tt.expected[i])
-			}
 
 			test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
 			// Name should be dropped from series tags.
