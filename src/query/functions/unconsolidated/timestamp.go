@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -123,7 +123,7 @@ func (n *timestampNode) ProcessBlock(
 	values := make([]float64, seriesCount)
 	for index := 0; iter.Next(); index++ {
 		curr := iter.Current()
-		ts.Memset(values, currentStep)
+		util.Memset(values, currentStep)
 		for i, dp := range curr.Values() {
 			if math.IsNaN(dp) {
 				values[i] = math.NaN()

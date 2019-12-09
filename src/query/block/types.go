@@ -135,14 +135,6 @@ type SeriesMetaIter interface {
 	SeriesCount() int
 }
 
-// SeriesIter iterates through a block horizontally.
-// type SeriesIter interface {
-// 	Iterator
-// 	SeriesMetaIter
-// 	// Current returns the current series for the block.
-// 	Current() Series
-// }
-
 // UnconsolidatedSeriesIterBatch is a batch of UnconsolidatedSeriesIterators.
 type UnconsolidatedSeriesIterBatch struct {
 	// Iter is the series iterator.

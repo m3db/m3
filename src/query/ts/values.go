@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/util"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -304,7 +305,7 @@ func newFixedStepValues(
 ) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
-	Memset(values, initialValue)
+	util.Memset(values, initialValue)
 	return &fixedResolutionValues{
 		resolution: resolution,
 		numSteps:   numSteps,

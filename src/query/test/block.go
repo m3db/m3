@@ -66,13 +66,13 @@ func NewUnconsolidatedBlockFromDatapointsWithMeta(
 		Metadata:   block.NewResultMetadata(),
 	}
 
-	b, _ := storage.NewMultiSeriesBlock(result, &storage.FetchQuery{
+	b, _ := newMultiSeriesBlock(result, &storage.FetchQuery{
 		Start:    bounds.Start,
 		End:      bounds.End(),
 		Interval: bounds.StepSize,
 	}, time.Minute)
 
-	return storage.NewMultiBlockWrapper(b)
+	return newMultiBlockWrapper(b)
 }
 
 // NewUnconsolidatedBlockFromDatapoints creates a new unconsolidated block

@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 type encodedBlockUnconsolidated struct {
@@ -78,7 +78,7 @@ func (b *encodedBlockUnconsolidated) MultiSeriesIter(
 		chunkSizes = make([]int, concurrency)
 	)
 
-	ts.MemsetInt(chunkSizes, chunkSize)
+	util.MemsetInt(chunkSizes, chunkSize)
 	for i := 0; i < remainder; i++ {
 		chunkSizes[i] = chunkSizes[i] + 1
 	}

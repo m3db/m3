@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -117,7 +117,7 @@ func processBlockBucketAtColumn(
 	currentColumnLength := currentBucketBlock.columnLength
 	currentBucketBlock.columns[columnIndex] = make(bucketColumn, currentColumnLength)
 	for i := 0; i < currentColumnLength; i++ {
-		ts.Memset(currentBucketBlock.columns[columnIndex], math.NaN())
+		util.Memset(currentBucketBlock.columns[columnIndex], math.NaN())
 	}
 
 	countedValues := countValuesFn(values, bucket)

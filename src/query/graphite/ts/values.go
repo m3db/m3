@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
-	xts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 	xpool "github.com/m3db/m3/src/x/pool"
 )
 
@@ -152,8 +152,8 @@ func newValues(ctx context.Context, millisPerStep, numSteps int, initialValue fl
 		values = make([]float64, numSteps)
 	}
 
-	// Faster way to initialize an array instead of a loop
-	xts.Memset(values, initialValue)
+	// Faster way to initialize an array instead of a loop.
+	util.Memset(values, initialValue)
 	vals := &float64Values{
 		ctx:           ctx,
 		millisPerStep: millisPerStep,

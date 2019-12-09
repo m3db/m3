@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package test
 
 import (
 	"errors"
@@ -27,11 +27,11 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 )
 
-// NewMultiBlockWrapper returns a block wrapper over an unconsolidated block.
-func NewMultiBlockWrapper(
+func newMultiBlockWrapper(
 	unconsolidatedBlock block.UnconsolidatedBlock,
 ) block.Block {
 	return &multiBlockWrapper{
@@ -95,10 +95,9 @@ type multiSeriesBlock struct {
 	seriesList       ts.SeriesList
 }
 
-// NewMultiSeriesBlock returns a new unconsolidated block from a fetch result.
-func NewMultiSeriesBlock(
-	fetchResult *FetchResult,
-	query *FetchQuery,
+func newMultiSeriesBlock(
+	fetchResult *storage.FetchResult,
+	query *storage.FetchQuery,
 	lookbackDuration time.Duration,
 ) (block.UnconsolidatedPlus, error) {
 	meta := block.Metadata{
