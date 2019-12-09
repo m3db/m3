@@ -115,13 +115,8 @@ func read(
 				return emptyResult, err
 			}
 
-			firstSeriesIter, err := b.SeriesIter()
-			if err != nil {
-				return emptyResult, err
-			}
-
 			numSteps = firstStepIter.StepCount()
-			numSeries = firstSeriesIter.SeriesCount()
+			numSeries = len(firstStepIter.SeriesMeta())
 			meta = b.Meta().ResultMetadata
 		}
 
@@ -170,28 +165,28 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		commonTags = meta.Tags.Tags
 	)
 
-	firstSeriesIter, err := firstBlock.SeriesIter()
+	firstIter, err := firstBlock.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		numSeries   = firstSeriesIter.SeriesCount()
-		seriesMeta  = firstSeriesIter.SeriesMeta()
-		seriesList  = make([]*ts.Series, 0, numSeries)
-		seriesIters = make([]block.SeriesIter, 0, len(blockList))
+		seriesMeta = firstIter.SeriesMeta()
+		numSeries  = len(seriesMeta)
+		seriesList = make([]*ts.Series, 0, numSeries)
+		iters      = make([]block.StepIter, 0, len(blockList))
 	)
 
 	// To create individual series, we iterate over seriesIterators for each
 	// block in the block list.  For each iterator, the nth current() will
 	// be combined to give the nth series.
 	for _, b := range blockList {
-		seriesIter, err := b.block.SeriesIter()
+		it, err := b.block.StepIter()
 		if err != nil {
 			return nil, err
 		}
 
-		seriesIters = append(seriesIters, seriesIter)
+		iters = append(iters, it)
 	}
 
 	numValues := 0
@@ -204,11 +199,34 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		numValues += b.StepCount()
 	}
 
+	// TODO: fix this to not alloc a big block every time.
+	data := make([][]float64, 0, numValues)
+	for i := 0; i < numValues; i++ {
+		data = append(data, make([]float64, numSeries))
+	}
+
+	rowCount := 0
+	for _, it := range iters {
+		for it.Next() {
+			step := it.Current()
+			for i, v := range step.Values() {
+				data[rowCount][i] = v
+				rowCount++
+			}
+		}
+
+		if err := it.Err(); err != nil {
+			return nil, err
+		}
+
+		rowCount++
+	}
+
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues,
 			math.NaN(), bounds.Start)
 		valIdx := 0
-		for idx, iter := range seriesIters {
+		for idx, iter := range iters {
 			if !iter.Next() {
 				if err = iter.Err(); err != nil {
 					return nil, err
@@ -252,7 +270,7 @@ func insertSortedBlock(
 	stepCount,
 	seriesCount int,
 ) (insertBlockResult, error) {
-	blockSeriesIter, err := b.SeriesIter()
+	it, err := b.StepIter()
 	emptyResult := insertBlockResult{meta: b.Meta().ResultMetadata}
 	if err != nil {
 		return emptyResult, err
@@ -271,7 +289,7 @@ func insertSortedBlock(
 		}, nil
 	}
 
-	blockSeriesCount := blockSeriesIter.SeriesCount()
+	blockSeriesCount := len(it.SeriesMeta())
 	if seriesCount != blockSeriesCount {
 		return emptyResult, fmt.Errorf(
 			"mismatch in number of series for the block, wanted: %d, found: %d",

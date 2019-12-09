@@ -90,49 +90,6 @@ func (it *lazyStepIter) Current() Step {
 	}
 }
 
-// SeriesIter returns a SeriesIterator
-func (b *lazyBlock) SeriesIter() (SeriesIter, error) {
-	iter, err := b.block.SeriesIter()
-	if err != nil {
-		return nil, err
-	}
-
-	return &lazySeriesIter{
-		it:   iter,
-		opts: b.opts,
-	}, nil
-}
-
-type lazySeriesIter struct {
-	it   SeriesIter
-	opts LazyOptions
-}
-
-func (it *lazySeriesIter) Close()           { it.it.Close() }
-func (it *lazySeriesIter) Err() error       { return it.it.Err() }
-func (it *lazySeriesIter) SeriesCount() int { return it.it.SeriesCount() }
-func (it *lazySeriesIter) Next() bool       { return it.it.Next() }
-
-func (it *lazySeriesIter) SeriesMeta() []SeriesMeta {
-	mt := it.opts.SeriesMetaTransform()
-	return mt(it.it.SeriesMeta())
-}
-
-func (it *lazySeriesIter) Current() Series {
-	var (
-		c    = it.it.Current()
-		vt   = it.opts.ValueTransform()
-		vals = make([]float64, 0, len(c.values))
-	)
-
-	for _, val := range c.values {
-		vals = append(vals, vt(val))
-	}
-
-	c.values = vals
-	return c
-}
-
 // Unconsolidated returns the unconsolidated version for the block
 func (b *lazyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	unconsolidated, err := b.block.Unconsolidated()

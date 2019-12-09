@@ -20,119 +20,109 @@
 
 package m3db
 
-import (
-	"math"
+// type encodedSeriesIter struct {
+// 	idx          int
+// 	err          error
+// 	meta         block.Metadata
+// 	bounds       models.Bounds
+// 	series       block.Series
+// 	seriesMeta   []block.SeriesMeta
+// 	seriesIters  []encoding.SeriesIterator
+// 	consolidator *consolidators.SeriesLookbackConsolidator
+// }
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/models"
-	xts "github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-)
+// func (b *encodedBlock) SeriesIter() (
+// 	block.SeriesIter,
+// 	error,
+// ) {
+// 	cs := b.consolidation
+// 	bounds := cs.bounds
+// 	consolidator := consolidators.NewSeriesLookbackConsolidator(
+// 		b.options.LookbackDuration(),
+// 		bounds.StepSize,
+// 		cs.currentTime,
+// 		cs.consolidationFn,
+// 	)
 
-type encodedSeriesIter struct {
-	idx          int
-	err          error
-	meta         block.Metadata
-	bounds       models.Bounds
-	series       block.Series
-	seriesMeta   []block.SeriesMeta
-	seriesIters  []encoding.SeriesIterator
-	consolidator *consolidators.SeriesLookbackConsolidator
-}
+// 	return &encodedSeriesIter{
+// 		idx:          -1,
+// 		meta:         b.meta,
+// 		bounds:       bounds,
+// 		seriesMeta:   b.seriesMetas,
+// 		seriesIters:  b.seriesBlockIterators,
+// 		consolidator: consolidator,
+// 	}, nil
+// }
 
-func (b *encodedBlock) SeriesIter() (
-	block.SeriesIter,
-	error,
-) {
-	cs := b.consolidation
-	bounds := cs.bounds
-	consolidator := consolidators.NewSeriesLookbackConsolidator(
-		b.options.LookbackDuration(),
-		bounds.StepSize,
-		cs.currentTime,
-		cs.consolidationFn,
-	)
+// func (it *encodedSeriesIter) Err() error {
+// 	return it.err
+// }
 
-	return &encodedSeriesIter{
-		idx:          -1,
-		meta:         b.meta,
-		bounds:       bounds,
-		seriesMeta:   b.seriesMetas,
-		seriesIters:  b.seriesBlockIterators,
-		consolidator: consolidator,
-	}, nil
-}
+// func (it *encodedSeriesIter) Current() block.Series {
+// 	return it.series
+// }
 
-func (it *encodedSeriesIter) Err() error {
-	return it.err
-}
+// func (it *encodedSeriesIter) Next() bool {
+// 	if it.err != nil {
+// 		return false
+// 	}
 
-func (it *encodedSeriesIter) Current() block.Series {
-	return it.series
-}
+// 	it.idx++
+// 	next := it.idx < len(it.seriesIters)
+// 	if !next {
+// 		return false
+// 	}
 
-func (it *encodedSeriesIter) Next() bool {
-	if it.err != nil {
-		return false
-	}
+// 	it.consolidator.Reset(it.bounds.Start)
+// 	iter := it.seriesIters[it.idx]
+// 	values := make([]float64, it.bounds.Steps())
+// 	xts.Memset(values, math.NaN())
+// 	i := 0
+// 	currentTime := it.bounds.Start
+// 	for iter.Next() {
+// 		dp, _, _ := iter.Current()
+// 		ts := dp.Timestamp
 
-	it.idx++
-	next := it.idx < len(it.seriesIters)
-	if !next {
-		return false
-	}
+// 		if !ts.After(currentTime) {
+// 			it.consolidator.AddPoint(dp)
+// 			continue
+// 		}
 
-	it.consolidator.Reset(it.bounds.Start)
-	iter := it.seriesIters[it.idx]
-	values := make([]float64, it.bounds.Steps())
-	xts.Memset(values, math.NaN())
-	i := 0
-	currentTime := it.bounds.Start
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		ts := dp.Timestamp
+// 		for i < len(values) {
+// 			values[i] = it.consolidator.ConsolidateAndMoveToNext()
+// 			i++
+// 			currentTime = currentTime.Add(it.bounds.StepSize)
 
-		if !ts.After(currentTime) {
-			it.consolidator.AddPoint(dp)
-			continue
-		}
+// 			if !ts.After(currentTime) {
+// 				it.consolidator.AddPoint(dp)
+// 				break
+// 			}
+// 		}
+// 	}
 
-		for i < len(values) {
-			values[i] = it.consolidator.ConsolidateAndMoveToNext()
-			i++
-			currentTime = currentTime.Add(it.bounds.StepSize)
+// 	if it.err = iter.Err(); it.err != nil {
+// 		return false
+// 	}
 
-			if !ts.After(currentTime) {
-				it.consolidator.AddPoint(dp)
-				break
-			}
-		}
-	}
+// 	// Consolidate any remaining points iff has not been finished
+// 	// Fill up any missing values with NaNs
+// 	for ; i < len(values) && !it.consolidator.Empty(); i++ {
+// 		values[i] = it.consolidator.ConsolidateAndMoveToNext()
+// 	}
 
-	if it.err = iter.Err(); it.err != nil {
-		return false
-	}
+// 	it.series = block.NewSeries(values, it.seriesMeta[it.idx])
+// 	return next
+// }
 
-	// Consolidate any remaining points iff has not been finished
-	// Fill up any missing values with NaNs
-	for ; i < len(values) && !it.consolidator.Empty(); i++ {
-		values[i] = it.consolidator.ConsolidateAndMoveToNext()
-	}
+// func (it *encodedSeriesIter) SeriesCount() int {
+// 	return len(it.seriesIters)
+// }
 
-	it.series = block.NewSeries(values, it.seriesMeta[it.idx])
-	return next
-}
+// func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
+// 	return it.seriesMeta
+// }
 
-func (it *encodedSeriesIter) SeriesCount() int {
-	return len(it.seriesIters)
-}
-
-func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
-	return it.seriesMeta
-}
-
-func (it *encodedSeriesIter) Close() {
-	// noop, as the resources at the step may still be in use;
-	// instead call Close() on the encodedBlock that generated this
-}
+// func (it *encodedSeriesIter) Close() {
+// 	// noop, as the resources at the step may still be in use;
+// 	// instead call Close() on the encodedBlock that generated this
+// }

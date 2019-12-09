@@ -20,91 +20,82 @@
 
 package m3db
 
-import (
-	"time"
+// type encodedStepIterUnconsolidated struct {
+// 	collectors []*consolidators.StepLookbackAccumulator
+// 	encodedStepIterWithCollector
+// 	points []ts.Datapoints
+// }
 
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-)
+// func (b *encodedBlockUnconsolidated) StepIter() (
+// 	block.UnconsolidatedStepIter,
+// 	error,
+// ) {
+// 	var (
+// 		cs       = b.consolidation
+// 		iters    = b.seriesBlockIterators
+// 		lookback = b.options.LookbackDuration()
 
-type encodedStepIterUnconsolidated struct {
-	collectors []*consolidators.StepLookbackAccumulator
-	encodedStepIterWithCollector
-	points []ts.Datapoints
-}
+// 		collectors       = make([]*consolidators.StepLookbackAccumulator, len(iters))
+// 		seriesCollectors = make([]consolidators.StepCollector, len(iters))
+// 	)
 
-func (b *encodedBlockUnconsolidated) StepIter() (
-	block.UnconsolidatedStepIter,
-	error,
-) {
-	var (
-		cs       = b.consolidation
-		iters    = b.seriesBlockIterators
-		lookback = b.options.LookbackDuration()
+// 	for i := range iters {
+// 		collectors[i] = consolidators.NewStepLookbackAccumulator(
+// 			lookback,
+// 			cs.bounds.StepSize,
+// 			cs.currentTime,
+// 		)
+// 	}
 
-		collectors       = make([]*consolidators.StepLookbackAccumulator, len(iters))
-		seriesCollectors = make([]consolidators.StepCollector, len(iters))
-	)
+// 	for i := range collectors {
+// 		seriesCollectors[i] = collectors[i]
+// 	}
 
-	for i := range iters {
-		collectors[i] = consolidators.NewStepLookbackAccumulator(
-			lookback,
-			cs.bounds.StepSize,
-			cs.currentTime,
-		)
-	}
+// 	iter := &encodedStepIterUnconsolidated{
+// 		collectors: collectors,
+// 		points:     make([]ts.Datapoints, 0, len(iters)),
+// 		encodedStepIterWithCollector: encodedStepIterWithCollector{
+// 			lastBlock: b.lastBlock,
 
-	for i := range collectors {
-		seriesCollectors[i] = collectors[i]
-	}
+// 			stepTime:   cs.currentTime,
+// 			blockEnd:   b.meta.Bounds.End(),
+// 			meta:       b.meta,
+// 			seriesMeta: b.seriesMetas,
 
-	iter := &encodedStepIterUnconsolidated{
-		collectors: collectors,
-		points:     make([]ts.Datapoints, 0, len(iters)),
-		encodedStepIterWithCollector: encodedStepIterWithCollector{
-			lastBlock: b.lastBlock,
+// 			seriesPeek:       make([]peekValue, len(iters)),
+// 			seriesIters:      iters,
+// 			seriesCollectors: seriesCollectors,
 
-			stepTime:   cs.currentTime,
-			blockEnd:   b.meta.Bounds.End(),
-			meta:       b.meta,
-			seriesMeta: b.seriesMetas,
+// 			workerPool: b.options.ReadWorkerPool(),
+// 		},
+// 	}
 
-			seriesPeek:       make([]peekValue, len(iters)),
-			seriesIters:      iters,
-			seriesCollectors: seriesCollectors,
+// 	iter.encodedStepIterWithCollector.updateFn = iter.update
+// 	return iter, nil
+// }
 
-			workerPool: b.options.ReadWorkerPool(),
-		},
-	}
+// func (it *encodedStepIterUnconsolidated) update() {
+// 	it.points = it.points[:0]
+// 	for _, consolidator := range it.collectors {
+// 		it.points = append(it.points, consolidator.AccumulateAndMoveToNext())
+// 	}
+// }
 
-	iter.encodedStepIterWithCollector.updateFn = iter.update
-	return iter, nil
-}
+// type unconsolidatedStep struct {
+// 	time   time.Time
+// 	values []ts.Datapoints
+// }
 
-func (it *encodedStepIterUnconsolidated) update() {
-	it.points = it.points[:0]
-	for _, consolidator := range it.collectors {
-		it.points = append(it.points, consolidator.AccumulateAndMoveToNext())
-	}
-}
+// // Time for the step.
+// func (s unconsolidatedStep) Time() time.Time {
+// 	return s.time
+// }
 
-type unconsolidatedStep struct {
-	time   time.Time
-	values []ts.Datapoints
-}
+// // Values for the column.
+// func (s unconsolidatedStep) Values() []ts.Datapoints {
+// 	return s.values
+// }
 
-// Time for the step.
-func (s unconsolidatedStep) Time() time.Time {
-	return s.time
-}
-
-// Values for the column.
-func (s unconsolidatedStep) Values() []ts.Datapoints {
-	return s.values
-}
-
-func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
-	return storage.NewUnconsolidatedStep(it.stepTime, it.points)
-}
+// func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
+// 	return storage.NewUnconsolidatedStep(it.stepTime, it.points)
+// }

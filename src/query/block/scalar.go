@@ -50,7 +50,8 @@ func NewScalar(
 	}
 }
 
-func (c *Scalar) Info() BlockInfo {
+// Info returns information about the block.
+func (b *Scalar) Info() BlockInfo {
 	return NewBlockInfo(BlockScalar)
 }
 
@@ -60,10 +61,13 @@ func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 		"unconsolidated view not implemented for scalar block, meta: %s", b.meta)
 }
 
+// Meta returns the metadata for the block.
 func (b *Scalar) Meta() Metadata {
 	return b.meta
 }
 
+// StepIter returns a step-wise block iterator, giving consolidated values
+// across all series comprising the box at a single time step.
 func (b *Scalar) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
@@ -75,25 +79,10 @@ func (b *Scalar) StepIter() (StepIter, error) {
 	}, nil
 }
 
-func (b *Scalar) SeriesIter() (SeriesIter, error) {
-	bounds := b.meta.Bounds
-	steps := bounds.Steps()
-	vals := make([]float64, steps)
-	t := bounds.Start
-	for i := range vals {
-		vals[i] = b.val
-		t = t.Add(bounds.StepSize)
-	}
-
-	return &scalarSeriesIter{
-		meta: b.meta,
-		vals: vals,
-		idx:  -1,
-	}, nil
-}
-
+// Close closes the block; this is a no-op for scalar block.
 func (b *Scalar) Close() error { return nil }
 
+// Value yields the constant value this scalar is set to.
 func (b *Scalar) Value() float64 {
 	return b.val
 }
@@ -154,28 +143,3 @@ type scalarStep struct {
 
 func (it *scalarStep) Time() time.Time   { return it.time }
 func (it *scalarStep) Values() []float64 { return it.vals }
-
-type scalarSeriesIter struct {
-	meta Metadata
-	vals []float64
-	idx  int
-}
-
-func (it *scalarSeriesIter) Close()           { /* No-op*/ }
-func (it *scalarSeriesIter) Err() error       { return nil }
-func (it *scalarSeriesIter) SeriesCount() int { return 1 }
-func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta {
-	return []SeriesMeta{buildSeriesMeta(it.meta)}
-}
-
-func (it *scalarSeriesIter) Next() bool {
-	it.idx++
-	return it.idx == 0
-}
-
-func (it *scalarSeriesIter) Current() Series {
-	return Series{
-		Meta:   buildSeriesMeta(it.meta),
-		values: it.vals,
-	}
-}

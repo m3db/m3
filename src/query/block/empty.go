@@ -54,19 +54,6 @@ func (it *emptyStepIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{} }
 func (it *emptyStepIter) Next() bool               { return false }
 func (it *emptyStepIter) Current() Step            { return nil }
 
-func (b *emptyBlock) SeriesIter() (SeriesIter, error) {
-	return &emptySeriesIter{}, nil
-}
-
-type emptySeriesIter struct{}
-
-func (it *emptySeriesIter) Close()                   {}
-func (it *emptySeriesIter) Err() error               { return nil }
-func (it *emptySeriesIter) SeriesCount() int         { return 0 }
-func (it *emptySeriesIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{} }
-func (it *emptySeriesIter) Next() bool               { return false }
-func (it *emptySeriesIter) Current() Series          { return Series{} }
-
 // Unconsolidated returns the unconsolidated version for the block
 func (b *emptyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 	return &ucEmptyBlock{

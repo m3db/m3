@@ -116,35 +116,20 @@ func (n *timestampNode) ProcessBlock(
 	}
 
 	bounds := b.Meta().Bounds
-	start := bounds.Start.Unix()
-	step := bounds.StepSize
-	column := make([]float64, count)
-	for i := range column {
-		column[i] = 
-	}
-
-	for i := 0; i < count; i++ {
-
-	}
-	
-
+	currentStep := float64(bounds.Start.Unix())
+	step := float64(bounds.StepSize)
+	values := make([]float64, count)
 	for index := 0; iter.Next(); index++ {
-		step := iter.Current()
-		values := make([]float64, len(step.Values()))
-		ts.Memset(values, math.NaN())
-		for i, dps := range step.Values() {
-			if len(dps) == 0 {
-				continue
-			}
-
-			values[i] = float64(dps[len(dps)-1].Timestamp.Unix())
-		}
-
-		for _, value := range values {
-			if err := builder.AppendValue(index, value); err != nil {
-				return nil, err
+		curr := iter.Current()
+		ts.Memset(values, currentStep)
+		for i, dp := range curr.Values() {
+			if math.IsNaN(dp) {
+				values[i] = math.NaN()
 			}
 		}
+
+		builder.AppendValues(index, values)
+		currentStep = currentStep + step
 	}
 
 	if err = iter.Err(); err != nil {

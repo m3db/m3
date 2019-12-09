@@ -66,9 +66,6 @@ type Block interface {
 	// StepIter returns a step-wise block iterator, giving consolidated values
 	// across all series comprising the box at a single time step.
 	StepIter() (StepIter, error)
-	// SeriesIter returns a series-wise block iterator, giving consolidated values
-	// by series.
-	SeriesIter() (SeriesIter, error)
 	// Meta returns the metadata for the block.
 	Meta() Metadata
 	// Info returns information about the block.
@@ -131,12 +128,12 @@ type SeriesMetaIter interface {
 }
 
 // SeriesIter iterates through a block horizontally.
-type SeriesIter interface {
-	Iterator
-	SeriesMetaIter
-	// Current returns the current series for the block.
-	Current() Series
-}
+// type SeriesIter interface {
+// 	Iterator
+// 	SeriesMetaIter
+// 	// Current returns the current series for the block.
+// 	Current() Series
+// }
 
 // UnconsolidatedSeriesIterBatch is a batch of UnconsolidatedSeriesIterators.
 type UnconsolidatedSeriesIterBatch struct {
@@ -171,12 +168,12 @@ type StepIter interface {
 }
 
 // UnconsolidatedStepIter iterates through a block vertically.
-type UnconsolidatedStepIter interface {
-	Iterator
-	StepMetaIter
-	// Current returns the current step for the block.
-	Current() UnconsolidatedStep
-}
+// type UnconsolidatedStepIter interface {
+// 	Iterator
+// 	StepMetaIter
+// 	// Current returns the current step for the block.
+// 	Current() UnconsolidatedStep
+// }
 
 // Step is a single time step within a block.
 type Step interface {
