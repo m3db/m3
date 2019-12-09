@@ -99,6 +99,14 @@ type UnconsolidatedBlock interface {
 	MultiSeriesIter(concurrency int) ([]UnconsolidatedSeriesIterBatch, error)
 }
 
+// UnconsolidatedPlus is UnconsolidatedPlus
+type UnconsolidatedPlus interface {
+	UnconsolidatedBlock
+	// StepIter returns a step-wise block iterator, giving unconsolidated values
+	// across all series comprising the box at a single time step.
+	StepIter() (UnconsolidatedStepIter, error)
+}
+
 // SeriesMeta is metadata data for the series.
 type SeriesMeta struct {
 	Tags models.Tags
@@ -168,12 +176,12 @@ type StepIter interface {
 }
 
 // UnconsolidatedStepIter iterates through a block vertically.
-// type UnconsolidatedStepIter interface {
-// 	Iterator
-// 	StepMetaIter
-// 	// Current returns the current step for the block.
-// 	Current() UnconsolidatedStep
-// }
+type UnconsolidatedStepIter interface {
+	Iterator
+	StepMetaIter
+	// Current returns the current step for the block.
+	Current() UnconsolidatedStep
+}
 
 // Step is a single time step within a block.
 type Step interface {

@@ -200,9 +200,9 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	}
 
 	// TODO: fix this to not alloc a big block every time.
-	data := make([][]float64, 0, numValues)
-	for i := 0; i < numValues; i++ {
-		data = append(data, make([]float64, numSeries))
+	data := make([][]float64, numSeries)
+	for i := range data {
+		data[i] = make([]float64, numValues)
 	}
 
 	rowCount := 0
@@ -210,41 +210,23 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		for it.Next() {
 			step := it.Current()
 			for i, v := range step.Values() {
-				data[rowCount][i] = v
-				rowCount++
+				fmt.Println(i, numSeries)
+				data[i][rowCount] = v
 			}
+
+			rowCount++
 		}
 
 		if err := it.Err(); err != nil {
 			return nil, err
 		}
-
-		rowCount++
 	}
 
-	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, numValues,
+	for i, vals := range data {
+		values := ts.NewFixedStepValues(bounds.StepSize, len(vals),
 			math.NaN(), bounds.Start)
-		valIdx := 0
-		for idx, iter := range iters {
-			if !iter.Next() {
-				if err = iter.Err(); err != nil {
-					return nil, err
-				}
-
-				return nil, fmt.Errorf(
-					"invalid number of datapoints for series: %d, block: %d", i, idx)
-			}
-
-			if err = iter.Err(); err != nil {
-				return nil, err
-			}
-
-			blockSeries := iter.Current()
-			for j := 0; j < blockSeries.Len(); j++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(j))
-				valIdx++
-			}
+		for j, v := range vals {
+			values.SetValueAt(j, v)
 		}
 
 		var (
