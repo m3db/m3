@@ -21,7 +21,7 @@
 package block
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
@@ -53,12 +53,6 @@ func NewScalar(
 // Info returns information about the block.
 func (b *Scalar) Info() BlockInfo {
 	return NewBlockInfo(BlockScalar)
-}
-
-// Unconsolidated returns the unconsolidated version for the block.
-func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.Errorf(
-		"unconsolidated view not implemented for scalar block, meta: %s", b.meta)
 }
 
 // Meta returns the metadata for the block.
@@ -143,3 +137,13 @@ type scalarStep struct {
 
 func (it *scalarStep) Time() time.Time   { return it.time }
 func (it *scalarStep) Values() []float64 { return it.vals }
+
+// SeriesIter is invalid for a scalar block.
+func (b *Scalar) SeriesIter() (SeriesIter, error) {
+	return nil, errors.New("series iterator undefined for a scalar block")
+}
+
+// MultiSeriesIter is invalid for a scalar block.
+func (b *Scalar) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
+	return nil, errors.New("multi series iterator undefined for a scalar block")
+}

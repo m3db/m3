@@ -231,79 +231,13 @@ func (it *containerStepIter) Current() Step {
 	return accumulatorStep
 }
 
-func (b *containerBlock) Unconsolidated() (UnconsolidatedBlock, error) {
+func (b *containerBlock) SeriesIter() (SeriesIter, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
 
-	blocks := make([]UnconsolidatedBlock, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		unconsolidated, err := bl.Unconsolidated()
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		blocks = append(blocks, unconsolidated)
-	}
-
-	return &ucContainerBlock{
-		blocks: blocks,
-		meta:   b.meta,
-	}, nil
-}
-
-type ucContainerBlock struct {
-	err    error
-	meta   Metadata
-	blocks []UnconsolidatedBlock
-}
-
-func (b *ucContainerBlock) Close() error {
-	multiErr := xerrors.NewMultiError()
-	multiErr = multiErr.Add(b.err)
-	for _, bl := range b.blocks {
-		multiErr = multiErr.Add(bl.Close())
-	}
-
-	if err := multiErr.FinalError(); err != nil {
-		b.err = err
-		return err
-	}
-
-	return nil
-}
-
-func (b *ucContainerBlock) Meta() Metadata {
-	return b.meta
-}
-
-func (b *ucContainerBlock) Consolidate() (Block, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	consolidated := make([]Block, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		block, err := bl.Consolidate()
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		consolidated = append(consolidated, block)
-	}
-
-	return newContainerBlock(consolidated)
-}
-
-func (b *ucContainerBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	it := &ucContainerSeriesIter{
-		its: make([]UnconsolidatedSeriesIter, 0, len(b.blocks)),
+	it := &containerSeriesIter{
+		its: make([]SeriesIter, 0, len(b.blocks)),
 	}
 
 	for _, bl := range b.blocks {
@@ -319,19 +253,19 @@ func (b *ucContainerBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 	return it, nil
 }
 
-type ucContainerSeriesIter struct {
+type containerSeriesIter struct {
 	err error
 	idx int
-	its []UnconsolidatedSeriesIter
+	its []SeriesIter
 }
 
-func (it *ucContainerSeriesIter) Close() {
+func (it *containerSeriesIter) Close() {
 	for _, iter := range it.its {
 		iter.Close()
 	}
 }
 
-func (it *ucContainerSeriesIter) Err() error {
+func (it *containerSeriesIter) Err() error {
 	if it.err != nil {
 		return it.err
 	}
@@ -345,7 +279,7 @@ func (it *ucContainerSeriesIter) Err() error {
 	return nil
 }
 
-func (it *ucContainerSeriesIter) SeriesCount() int {
+func (it *containerSeriesIter) SeriesCount() int {
 	count := 0
 	for _, iter := range it.its {
 		count += iter.SeriesCount()
@@ -354,7 +288,7 @@ func (it *ucContainerSeriesIter) SeriesCount() int {
 	return count
 }
 
-func (it *ucContainerSeriesIter) SeriesMeta() []SeriesMeta {
+func (it *containerSeriesIter) SeriesMeta() []SeriesMeta {
 	length := 0
 	for _, iter := range it.its {
 		length += len(iter.SeriesMeta())
@@ -368,7 +302,7 @@ func (it *ucContainerSeriesIter) SeriesMeta() []SeriesMeta {
 	return metas
 }
 
-func (it *ucContainerSeriesIter) Next() bool {
+func (it *containerSeriesIter) Next() bool {
 	if it.err != nil {
 		return false
 	}
@@ -390,13 +324,13 @@ func (it *ucContainerSeriesIter) Next() bool {
 	return false
 }
 
-func (it *ucContainerSeriesIter) Current() UnconsolidatedSeries {
+func (it *containerSeriesIter) Current() UnconsolidatedSeries {
 	return it.its[it.idx].Current()
 }
 
-func (b *ucContainerBlock) MultiSeriesIter(
+func (b *containerBlock) MultiSeriesIter(
 	concurrency int,
-) ([]UnconsolidatedSeriesIterBatch, error) {
+) ([]SeriesIterBatch, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
@@ -405,7 +339,7 @@ func (b *ucContainerBlock) MultiSeriesIter(
 		return nil, nil
 	}
 
-	multiBatches := make([][]UnconsolidatedSeriesIterBatch, 0, len(b.blocks))
+	multiBatches := make([][]SeriesIterBatch, 0, len(b.blocks))
 	for _, bl := range b.blocks {
 		batch, err := bl.MultiSeriesIter(concurrency)
 		if err != nil {
@@ -420,7 +354,7 @@ func (b *ucContainerBlock) MultiSeriesIter(
 	// NB: create a batch and merge into it rather than merging
 	// into an existing batch, in case sizes don't line up across blocks
 	// (e.g. if some contained blocks have fewer than `concurrency` series.)
-	batches := make([]UnconsolidatedSeriesIterBatch, 0, concurrency)
+	batches := make([]SeriesIterBatch, 0, concurrency)
 	// init batch sizes.
 	for i := 0; i < concurrency; i++ {
 		// Determine container iter size.
@@ -435,7 +369,7 @@ func (b *ucContainerBlock) MultiSeriesIter(
 			size += b[i].Size
 		}
 
-		iters := make([]UnconsolidatedSeriesIter, 0, size)
+		iters := make([]SeriesIter, 0, size)
 		for _, b := range multiBatches {
 			if i >= len(b) {
 				continue
@@ -444,9 +378,9 @@ func (b *ucContainerBlock) MultiSeriesIter(
 			iters = append(iters, b[i].Iter)
 		}
 
-		batches = append(batches, UnconsolidatedSeriesIterBatch{
+		batches = append(batches, SeriesIterBatch{
 			Size: size,
-			Iter: &ucContainerSeriesIter{its: iters},
+			Iter: &containerSeriesIter{its: iters},
 		})
 	}
 

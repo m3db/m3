@@ -116,23 +116,13 @@ func (c *baseNode) Process(
 	sp, _ := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
-	unconsolidatedBlock, err := b.Unconsolidated()
-	if err != nil {
-		return err
-	}
-
-	if unconsolidatedBlock == nil {
-		return fmt.Errorf(
-			"block needs to be unconsolidated for temporal operations: %s", c.op)
-	}
-
 	meta := b.Meta()
 	bounds := meta.Bounds
 	if bounds.Duration == 0 {
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
 
-	seriesIter, err := unconsolidatedBlock.SeriesIter()
+	seriesIter, err := b.SeriesIter()
 	if err != nil {
 		return err
 	}
@@ -166,7 +156,7 @@ func (c *baseNode) Process(
 	}
 
 	concurrency := runtime.NumCPU()
-	batches, err := unconsolidatedBlock.MultiSeriesIter(concurrency)
+	batches, err := b.MultiSeriesIter(concurrency)
 	if err != nil {
 		// NB: If the unconsolidated block does not support multi series iteration,
 		// fallback to processing series one by one.
@@ -194,7 +184,7 @@ type blockMeta struct {
 }
 
 func batchProcess(
-	iterBatches []block.UnconsolidatedSeriesIterBatch,
+	iterBatches []block.SeriesIterBatch,
 	builder block.Builder,
 	m blockMeta,
 	p processor,
@@ -231,7 +221,7 @@ func batchProcess(
 
 func buildBlockBatch(
 	idx int,
-	iter block.UnconsolidatedSeriesIter,
+	iter block.SeriesIter,
 	builder block.Builder,
 	blockMeta blockMeta,
 	processor processor,
@@ -285,7 +275,7 @@ func buildBlockBatch(
 }
 
 func singleProcess(
-	seriesIter block.UnconsolidatedSeriesIter,
+	seriesIter block.SeriesIter,
 	builder block.Builder,
 	m blockMeta,
 	p processor,

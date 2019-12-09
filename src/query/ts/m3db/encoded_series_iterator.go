@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-type encodedSeriesIterUnconsolidated struct {
+type encodedSeriesIter struct {
 	idx              int
 	lookbackDuration time.Duration
 	err              error
@@ -40,11 +40,8 @@ type encodedSeriesIterUnconsolidated struct {
 	seriesIters      []encoding.SeriesIterator
 }
 
-func (b *encodedBlockUnconsolidated) SeriesIter() (
-	block.UnconsolidatedSeriesIter,
-	error,
-) {
-	return &encodedSeriesIterUnconsolidated{
+func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
+	return &encodedSeriesIter{
 		idx:              -1,
 		meta:             b.meta,
 		seriesMeta:       b.seriesMetas,
@@ -53,15 +50,15 @@ func (b *encodedBlockUnconsolidated) SeriesIter() (
 	}, nil
 }
 
-func (it *encodedSeriesIterUnconsolidated) Current() block.UnconsolidatedSeries {
+func (it *encodedSeriesIter) Current() block.UnconsolidatedSeries {
 	return it.series
 }
 
-func (it *encodedSeriesIterUnconsolidated) Err() error {
+func (it *encodedSeriesIter) Err() error {
 	return it.err
 }
 
-func (it *encodedSeriesIterUnconsolidated) Next() bool {
+func (it *encodedSeriesIter) Next() bool {
 	if it.err != nil {
 		return false
 	}
@@ -100,15 +97,15 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 	return next
 }
 
-func (it *encodedSeriesIterUnconsolidated) SeriesCount() int {
+func (it *encodedSeriesIter) SeriesCount() int {
 	return len(it.seriesIters)
 }
 
-func (it *encodedSeriesIterUnconsolidated) SeriesMeta() []block.SeriesMeta {
+func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
 }
 
-func (it *encodedSeriesIterUnconsolidated) Close() {
+func (it *encodedSeriesIter) Close() {
 	// noop, as the resources at the step may still be in use;
 	// instead call Close() on the encodedBlock that generated this
 }

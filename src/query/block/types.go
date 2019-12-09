@@ -49,23 +49,22 @@ const (
 	BlockContainer
 	// BlockEmpty is a block with metadata but no series or values.
 	BlockEmpty
-	// BlockMultiSeries is a block containing series with common metadata.
-	//
-	// TODO: (arnikola) do some refactoring to remove the blocks and types below,
-	// as they can be better handled by the above block types.
-	BlockMultiSeries
-	// BlockConsolidated is a consolidated block.
-	BlockConsolidated
+	// BlockTest is a block used for testing only.
+	BlockTest
 )
 
 // Block represents a group of series across a time bound.
 type Block interface {
 	io.Closer
-	// Unconsolidated returns the unconsolidated version of the block.
-	Unconsolidated() (UnconsolidatedBlock, error)
 	// StepIter returns a step-wise block iterator, giving consolidated values
 	// across all series comprising the box at a single time step.
 	StepIter() (StepIter, error)
+	// SeriesIter returns a series-wise block iterator, giving unconsolidated
+	// by series.
+	SeriesIter() (SeriesIter, error)
+	// MultiSeriesIter returns batched series iterators for the block based on
+	// given concurrency.
+	MultiSeriesIter(concurrency int) ([]SeriesIterBatch, error)
 	// Meta returns the metadata for the block.
 	Meta() Metadata
 	// Info returns information about the block.
@@ -78,33 +77,6 @@ type AccumulatorBlock interface {
 	Block
 	// AddBlock adds a block to this accumulator.
 	AddBlock(bl Block) error
-}
-
-// UnconsolidatedBlock represents a group of unconsolidated series across
-// a time bound.
-type UnconsolidatedBlock interface {
-	io.Closer
-	// StepIter returns a step-wise block iterator, giving unconsolidated values
-	// across all series comprising the box at a single time step.
-	// StepIter() (UnconsolidatedStepIter, error)
-	// SeriesIter returns a series-wise block iterator, giving unconsolidated
-	// by series.
-	SeriesIter() (UnconsolidatedSeriesIter, error)
-	// Consolidate attempts to consolidate the unconsolidated block.
-	Consolidate() (Block, error)
-	// Meta returns the metadata for the block.
-	Meta() Metadata
-	// MultiSeriesIter returns batched series iterators for the block based on
-	// given concurrency.
-	MultiSeriesIter(concurrency int) ([]UnconsolidatedSeriesIterBatch, error)
-}
-
-// UnconsolidatedPlus is UnconsolidatedPlus
-type UnconsolidatedPlus interface {
-	UnconsolidatedBlock
-	// StepIter returns a step-wise block iterator, giving unconsolidated values
-	// across all series comprising the box at a single time step.
-	StepIter() (UnconsolidatedStepIter, error)
 }
 
 // SeriesMeta is metadata data for the series.
@@ -127,64 +99,40 @@ type Iterator interface {
 	Close()
 }
 
-// SeriesMetaIter is implemented by series iterators which provide meta information.
-type SeriesMetaIter interface {
-	// SeriesMeta returns the metadata for each series in the block.
-	SeriesMeta() []SeriesMeta
-	// SeriesCount returns the number of series.
-	SeriesCount() int
-}
-
-// UnconsolidatedSeriesIterBatch is a batch of UnconsolidatedSeriesIterators.
-type UnconsolidatedSeriesIterBatch struct {
+// SeriesIterBatch is a batch of SeriesIterators.
+type SeriesIterBatch struct {
 	// Iter is the series iterator.
-	Iter UnconsolidatedSeriesIter
+	Iter SeriesIter
 	// Size is the batch size.
 	Size int
 }
 
-// UnconsolidatedSeriesIter iterates through a block horizontally.
-type UnconsolidatedSeriesIter interface {
+// SeriesIter iterates through a block horizontally.
+type SeriesIter interface {
 	Iterator
-	SeriesMetaIter
-	// Current returns the current series for the block.
-	Current() UnconsolidatedSeries
-}
-
-// StepMetaIter is implemented by step iterators which provide meta information.
-type StepMetaIter interface {
 	// SeriesMeta returns the metadata for each series in the block.
 	SeriesMeta() []SeriesMeta
-	// StepCount returns the number of steps.
-	StepCount() int
+	// SeriesCount returns the number of series.
+	SeriesCount() int
+	// Current returns the current series for the block.
+	Current() UnconsolidatedSeries
 }
 
 // StepIter iterates through a block vertically.
 type StepIter interface {
 	Iterator
-	StepMetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
+	// StepCount returns the number of steps.
+	StepCount() int
 	// Current returns the current step for the block.
 	Current() Step
-}
-
-// UnconsolidatedStepIter iterates through a block vertically.
-type UnconsolidatedStepIter interface {
-	Iterator
-	StepMetaIter
-	// Current returns the current step for the block.
-	Current() UnconsolidatedStep
 }
 
 // Step is a single time step within a block.
 type Step interface {
 	Time() time.Time
 	Values() []float64
-}
-
-// UnconsolidatedStep is a single unconsolidated time step within a block.
-type UnconsolidatedStep interface {
-	Time() time.Time
-	Values() []ts.Datapoints
 }
 
 // Builder builds Blocks.

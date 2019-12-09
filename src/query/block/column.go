@@ -50,11 +50,6 @@ type columnBlock struct {
 	seriesMeta []SeriesMeta
 }
 
-func (c *columnBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.
-		Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
-}
-
 func (c *columnBlock) Meta() Metadata {
 	return c.meta
 }
@@ -72,6 +67,16 @@ func (c *columnBlock) StepIter() (StepIter, error) {
 		meta:       c.meta,
 		idx:        -1,
 	}, nil
+}
+
+// SeriesIter is invalid for a columnar block.
+func (c *columnBlock) SeriesIter() (SeriesIter, error) {
+	return nil, errors.New("series iterator undefined for a scalar block")
+}
+
+// MultiSeriesIter is invalid for a columnar block.
+func (c *columnBlock) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
+	return nil, errors.New("multi series iterator undefined for a scalar block")
 }
 
 func (c *columnBlock) SeriesMeta() []SeriesMeta {

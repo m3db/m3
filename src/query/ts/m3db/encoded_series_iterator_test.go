@@ -42,7 +42,7 @@ func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
 	return vals
 }
 
-func TestUnconsolidatedSeriesIterator(t *testing.T) {
+func TestSeriesIterator(t *testing.T) {
 	expected := [][]float64{
 		{1, 2, 3, 4, 5, 6, 7, 8, 9},
 		{10, 20, 30, 40},
@@ -56,10 +56,7 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 	require.NoError(t, opts.Validate())
 	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for i, block := range blocks {
-		unconsolidated, err := block.Unconsolidated()
-		require.NoError(t, err)
-
-		iters, err := unconsolidated.SeriesIter()
+		iters, err := block.SeriesIter()
 		require.NoError(t, err)
 
 		require.True(t, bounds.Equals(block.Meta().Bounds))
@@ -102,7 +99,7 @@ func verifySingleMeta(
 	assert.Equal(t, []byte(fmt.Sprint(i)), val)
 }
 
-func TestUnconsolidatedSeriesIteratorBatch(t *testing.T) {
+func TestSeriesIteratorBatch(t *testing.T) {
 	expected := [][]float64{
 		{1, 2, 3, 4, 5, 6, 7, 8, 9},
 		{10, 20, 30, 40},
@@ -117,9 +114,7 @@ func TestUnconsolidatedSeriesIteratorBatch(t *testing.T) {
 	blocks, bounds := generateBlocks(t, time.Minute, opts)
 	for _, bl := range blocks {
 		require.True(t, bounds.Equals(bl.Meta().Bounds))
-		unconsolidated, err := bl.Unconsolidated()
-		require.NoError(t, err)
-		iters, err := unconsolidated.MultiSeriesIter(3)
+		iters, err := bl.MultiSeriesIter(3)
 		require.NoError(t, err)
 		require.Equal(t, 3, len(iters))
 

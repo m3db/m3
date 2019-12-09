@@ -54,48 +54,27 @@ func (it *emptyStepIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{} }
 func (it *emptyStepIter) Next() bool               { return false }
 func (it *emptyStepIter) Current() Step            { return nil }
 
-// Unconsolidated returns the unconsolidated version for the block
-func (b *emptyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	return &ucEmptyBlock{
-		meta: b.meta,
-	}, nil
+func (b *emptyBlock) SeriesIter() (SeriesIter, error) {
+	return &emptySeriesIter{}, nil
 }
 
-type ucEmptyBlock struct {
-	meta Metadata
-}
+type emptySeriesIter struct{}
 
-func (b *ucEmptyBlock) Close() error { return nil }
+func (it *emptySeriesIter) Close()                        {}
+func (it *emptySeriesIter) Err() error                    { return nil }
+func (it *emptySeriesIter) SeriesCount() int              { return 0 }
+func (it *emptySeriesIter) SeriesMeta() []SeriesMeta      { return []SeriesMeta{} }
+func (it *emptySeriesIter) Next() bool                    { return false }
+func (it *emptySeriesIter) Current() UnconsolidatedSeries { return UnconsolidatedSeries{} }
 
-func (b *ucEmptyBlock) Meta() Metadata {
-	return b.meta
-}
-
-func (b *ucEmptyBlock) Consolidate() (Block, error) {
-	return NewEmptyBlock(b.meta), nil
-}
-
-func (b *ucEmptyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
-	return &ucEmptySeriesIter{}, nil
-}
-
-type ucEmptySeriesIter struct{}
-
-func (it *ucEmptySeriesIter) Close()                        {}
-func (it *ucEmptySeriesIter) Err() error                    { return nil }
-func (it *ucEmptySeriesIter) SeriesCount() int              { return 0 }
-func (it *ucEmptySeriesIter) SeriesMeta() []SeriesMeta      { return []SeriesMeta{} }
-func (it *ucEmptySeriesIter) Next() bool                    { return false }
-func (it *ucEmptySeriesIter) Current() UnconsolidatedSeries { return UnconsolidatedSeries{} }
-
-func (b *ucEmptyBlock) MultiSeriesIter(
+func (b *emptyBlock) MultiSeriesIter(
 	concurrency int,
-) ([]UnconsolidatedSeriesIterBatch, error) {
-	batch := make([]UnconsolidatedSeriesIterBatch, concurrency)
+) ([]SeriesIterBatch, error) {
+	batch := make([]SeriesIterBatch, concurrency)
 	for i := range batch {
-		batch[i] = UnconsolidatedSeriesIterBatch{
+		batch[i] = SeriesIterBatch{
 			Size: 1,
-			Iter: &ucEmptySeriesIter{},
+			Iter: &emptySeriesIter{},
 		}
 	}
 

@@ -90,71 +90,34 @@ func (it *lazyStepIter) Current() Step {
 	}
 }
 
-// Unconsolidated returns the unconsolidated version for the block
-func (b *lazyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	unconsolidated, err := b.block.Unconsolidated()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucLazyBlock{
-		block: unconsolidated,
-		opts:  b.opts,
-	}, nil
-}
-
-type ucLazyBlock struct {
-	block UnconsolidatedBlock
-	opts  LazyOptions
-}
-
-func (b *ucLazyBlock) Close() error { return b.block.Close() }
-
-func (b *ucLazyBlock) Meta() Metadata {
-	mt := b.opts.MetaTransform()
-	return mt(b.block.Meta())
-}
-
-func (b *ucLazyBlock) Consolidate() (Block, error) {
-	block, err := b.block.Consolidate()
-	if err != nil {
-		return nil, err
-	}
-
-	return &lazyBlock{
-		block: block,
-		opts:  b.opts,
-	}, nil
-}
-
-func (b *ucLazyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
+func (b *lazyBlock) SeriesIter() (SeriesIter, error) {
 	seriesIter, err := b.block.SeriesIter()
 	if err != nil {
 		return nil, err
 	}
 
-	return &ucLazySeriesIter{
+	return &lazySeriesIter{
 		it:   seriesIter,
 		opts: b.opts,
 	}, nil
 }
 
-type ucLazySeriesIter struct {
-	it   UnconsolidatedSeriesIter
+type lazySeriesIter struct {
+	it   SeriesIter
 	opts LazyOptions
 }
 
-func (it *ucLazySeriesIter) Close()           { it.it.Close() }
-func (it *ucLazySeriesIter) Err() error       { return it.it.Err() }
-func (it *ucLazySeriesIter) SeriesCount() int { return it.it.SeriesCount() }
-func (it *ucLazySeriesIter) Next() bool       { return it.it.Next() }
+func (it *lazySeriesIter) Close()           { it.it.Close() }
+func (it *lazySeriesIter) Err() error       { return it.it.Err() }
+func (it *lazySeriesIter) SeriesCount() int { return it.it.SeriesCount() }
+func (it *lazySeriesIter) Next() bool       { return it.it.Next() }
 
-func (it *ucLazySeriesIter) SeriesMeta() []SeriesMeta {
+func (it *lazySeriesIter) SeriesMeta() []SeriesMeta {
 	mt := it.opts.SeriesMetaTransform()
 	return mt(it.it.SeriesMeta())
 }
 
-func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
+func (it *lazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c      = it.it.Current()
 		values = c.datapoints
@@ -169,16 +132,16 @@ func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
 	return c
 }
 
-func (b *ucLazyBlock) MultiSeriesIter(
+func (b *lazyBlock) MultiSeriesIter(
 	concurrency int,
-) ([]UnconsolidatedSeriesIterBatch, error) {
+) ([]SeriesIterBatch, error) {
 	batches, err := b.block.MultiSeriesIter(concurrency)
 	if err != nil {
 		return nil, err
 	}
 
 	for i, batch := range batches {
-		batches[i].Iter = &ucLazySeriesIter{
+		batches[i].Iter = &lazySeriesIter{
 			it:   batch.Iter,
 			opts: b.opts,
 		}
