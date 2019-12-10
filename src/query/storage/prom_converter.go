@@ -127,9 +127,9 @@ func toPromConcurrently(
 	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
-	seriesList := make([]*prompb.TimeSeries, len(iters))
-
 	var (
+		seriesList = make([]*prompb.TimeSeries, len(iters))
+
 		wg       sync.WaitGroup
 		multiErr xerrors.MultiError
 		mu       sync.Mutex

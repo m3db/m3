@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,8 +137,7 @@ func TestGetIndicesError(t *testing.T) {
 	require.Equal(t, -1, r)
 	require.False(t, ok)
 
-	nowNano := now.UnixNano()
-	pastBound := nowNano + int64(time.Hour)
+	pastBound := xtime.ToUnixNano(now.Add(time.Hour))
 	l, r, ok = getIndices(dps, pastBound, pastBound+10, 0)
 	require.Equal(t, 0, l)
 	require.Equal(t, 10, r)

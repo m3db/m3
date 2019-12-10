@@ -112,8 +112,8 @@ func (s *m3storage) FetchProm(
 		return storage.PromResult{}, err
 	}
 
-	result, _, err := accumulator.FinalResultWithAttrs()
 	defer accumulator.Close()
+	result, _, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		return storage.PromResult{}, err
 	}
