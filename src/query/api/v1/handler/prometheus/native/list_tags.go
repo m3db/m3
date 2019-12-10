@@ -43,7 +43,7 @@ const (
 )
 
 var (
-	// ListTagsHTTPMethods are the HTTP methods used with this resource.
+	// ListTagsHTTPMethods are the HTTP methods for this handler.
 	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 

@@ -43,8 +43,7 @@ const (
 )
 
 var (
-	// PromReadInstantHTTPMethods is the valid HTTP methods used with this
-	// resource.
+	// PromReadInstantHTTPMethods are the HTTP methods for this handler.
 	PromReadInstantHTTPMethods = []string{
 		http.MethodGet,
 		http.MethodPost,

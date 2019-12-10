@@ -260,12 +260,10 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(remote.TagValuesHTTPMethod)
 
 	// List tag endpoints
-	for _, method := range native.ListTagsHTTPMethods {
-		h.router.HandleFunc(native.ListTagsURL,
-			wrapped(native.NewListTagsHandler(h.storage, h.fetchOptionsBuilder,
-				nowFn, h.instrumentOpts)).ServeHTTP,
-		).Methods(method)
-	}
+	h.router.HandleFunc(native.ListTagsURL,
+		wrapped(native.NewListTagsHandler(h.storage, h.fetchOptionsBuilder,
+			nowFn, h.instrumentOpts)).ServeHTTP,
+	).Methods(native.ListTagsHTTPMethods...)
 
 	// Query parse endpoints
 	h.router.HandleFunc(native.PromParseURL,
@@ -276,18 +274,16 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(native.PromThresholdHTTPMethod)
 
 	// Series match endpoints
-	for _, method := range remote.PromSeriesMatchHTTPMethods {
-		h.router.HandleFunc(remote.PromSeriesMatchURL,
-			wrapped(remote.NewPromSeriesMatchHandler(h.storage,
-				h.tagOptions, h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
-		).Methods(method)
-	}
+	h.router.HandleFunc(remote.PromSeriesMatchURL,
+		wrapped(remote.NewPromSeriesMatchHandler(h.storage,
+			h.tagOptions, h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
+	).Methods(remote.PromSeriesMatchHTTPMethods...)
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
-		wrapped(validator.NewPromDebugHandler(nativePromReadHandler,
-			h.fetchOptionsBuilder, *h.config.LookbackDuration, h.instrumentOpts)).ServeHTTP,
-	).Methods(validator.PromDebugHTTPMethod)
+		wrapped(validator.NewPromDebugHandler(
+			nativePromReadHandler, h.fetchOptionsBuilder, *h.config.LookbackDuration,
+			h.instrumentOpts)).ServeHTTP).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,

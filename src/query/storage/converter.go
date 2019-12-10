@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xcost "github.com/m3db/m3/src/x/cost"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -313,45 +314,32 @@ func decompressConcurrently(
 	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, len(iters))
-	errorCh := make(chan error, 1)
-	done := make(chan struct{})
-	stopped := func() bool {
-		select {
-		case <-done:
-			return true
-		default:
-			return false
-		}
-	}
+	var (
+		seriesList = make([]*ts.Series, len(iters))
 
-	var wg sync.WaitGroup
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
+	)
+
 	for i, iter := range iters {
 		i, iter := i, iter
 		wg.Add(1)
 		readWorkerPool.Go(func() {
 			defer wg.Done()
-			if stopped() {
-				return
-			}
-
 			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 			if err != nil {
-				// Return the first error that is encountered.
-				select {
-				case errorCh <- err:
-					close(done)
-				default:
-				}
-				return
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
 			}
+
 			seriesList[i] = series
 		})
 	}
 
 	wg.Wait()
-	close(errorCh)
-	if err := <-errorCh; err != nil {
+	if err := multiErr.LastError(); err != nil {
 		return nil, err
 	}
 

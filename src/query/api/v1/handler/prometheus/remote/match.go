@@ -42,11 +42,12 @@ const (
 )
 
 var (
-	// PromSeriesMatchHTTPMethods are the HTTP methods used with this resource.
+	// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
 	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-// PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
+// PromSeriesMatchHandler represents a handler for
+// the prometheus series matcher endpoint.
 type PromSeriesMatchHandler struct {
 	storage             storage.Storage
 	tagOptions          models.TagOptions

@@ -36,6 +36,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type tester struct{}
+
+// Ensure tester is a TestingT and set a global `t`.
+var t require.TestingT = &tester{}
+
+var (
+	// name is global and set on startup.
+	name string
+	// clusters are constant, set by the test harness.
+	clusters = []string{"coordinator-cluster-a", "coordinator-cluster-b"}
+)
+
+func (t *tester) Errorf(format string, args ...interface{}) {
+	_, fn, line, _ := runtime.Caller(4)
+	args[2] = fmt.Sprintf(" at %s:%d:\n%v", fn, line, args[2])
+	fmt.Printf(format, args...)
+}
+
+func (t *tester) FailNow() {
+	os.Exit(1)
+}
+
 func main() {
 	var ts int
 	flag.IntVar(&ts, "t", -1, "metric name to search")
@@ -93,24 +115,6 @@ func mustMatcher(t models.MatchType, n string, v string) models.Matcher {
 	return m
 }
 
-type tester struct{}
-
-// Ensure tester is a TestingT and set a global `t`.
-var t require.TestingT = &tester{}
-
-// name is global and set on startup.
-var name string
-
-func (t *tester) Errorf(format string, args ...interface{}) {
-	_, fn, line, _ := runtime.Caller(4)
-	args[2] = fmt.Sprintf(" at %s:%d:\n%v", fn, line, args[2])
-	fmt.Printf(format, args...)
-}
-
-func (t *tester) FailNow() {
-	os.Exit(1)
-}
-
 func mustParseOpts(o handler.StringTagOptions) string {
 	m, err := json.Marshal(o)
 	require.NoError(t, err, "cannot marshal to json")
@@ -124,13 +128,12 @@ func bothClusterDefaultStrip(url string) {
 		},
 	})
 
-	resp, err := queryWithHeader(url, string(m))
+	resp, err := queryWithHeader(url, m)
 	require.NoError(t, err, "failed to query")
 
 	data := resp.Data.Result
 	data.Sort()
 	require.Equal(t, len(data), 2)
-	clusters := []string{"coordinator-cluster-a", "coordinator-cluster-b"}
 	for i, d := range data {
 		require.Equal(t, 2, len(d.Metric))
 		require.Equal(t, name, d.Metric["__name__"])
@@ -152,7 +155,6 @@ func bothClusterCustomStrip(url string) {
 	data := resp.Data.Result
 	data.Sort()
 	require.Equal(t, len(data), 2)
-	clusters := []string{"coordinator-cluster-a", "coordinator-cluster-b"}
 	for i, d := range data {
 		require.Equal(t, 2, len(d.Metric))
 		require.Equal(t, clusters[i], d.Metric["cluster"])
@@ -174,7 +176,6 @@ func bothClusterNoStrip(url string) {
 	data := resp.Data.Result
 	data.Sort()
 	require.Equal(t, len(data), 2)
-	clusters := []string{"coordinator-cluster-a", "coordinator-cluster-b"}
 	for i, d := range data {
 		require.Equal(t, 3, len(d.Metric))
 		require.Equal(t, name, d.Metric["__name__"])
@@ -197,7 +198,6 @@ func bothClusterMultiStrip(url string) {
 	data := resp.Data.Result
 	data.Sort()
 	require.Equal(t, len(data), 2)
-	clusters := []string{"coordinator-cluster-a", "coordinator-cluster-b"}
 	for i, d := range data {
 		require.Equal(t, 1, len(d.Metric))
 		require.Equal(t, clusters[i], d.Metric["cluster"])
