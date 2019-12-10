@@ -626,7 +626,7 @@ func (b *ucContainerBlock) MultiSeriesIter(
 		batch, err := bl.MultiSeriesIter(concurrency)
 		if err != nil {
 			// NB: do not have to set the iterator error here, since not all
-			// contained blocks necessarily allow mutli series iteration.
+			// contained blocks necessarily allow multi series iteration.
 			return nil, err
 		}
 

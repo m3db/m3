@@ -29,9 +29,14 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	xcost "github.com/m3db/m3/src/x/cost"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
+
+func cloneBytes(b []byte) []byte {
+	return append(make([]byte, 0, len(b)), b...)
+}
 
 func tagIteratorToLabels(
 	identTags ident.TagIterator,
@@ -40,8 +45,8 @@ func tagIteratorToLabels(
 	for identTags.Next() {
 		identTag := identTags.Current()
 		labels = append(labels, prompb.Label{
-			Name:  identTag.Name.Bytes(),
-			Value: identTag.Value.Bytes(),
+			Name:  cloneBytes(identTag.Name.Bytes()),
+			Value: cloneBytes(identTag.Value.Bytes()),
 		})
 	}
 
@@ -123,36 +128,23 @@ func toPromConcurrently(
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	seriesList := make([]*prompb.TimeSeries, len(iters))
-	errorCh := make(chan error, 1)
-	done := make(chan struct{})
-	stopped := func() bool {
-		select {
-		case <-done:
-			return true
-		default:
-			return false
-		}
-	}
 
-	var wg sync.WaitGroup
+	var (
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
+	)
+
 	for i, iter := range iters {
 		i, iter := i, iter
 		wg.Add(1)
 		readWorkerPool.Go(func() {
 			defer wg.Done()
-			if stopped() {
-				return
-			}
-
 			series, err := iteratorToPromResult(iter, enforcer, tagOptions)
 			if err != nil {
-				// Return the first error that is encountered.
-				select {
-				case errorCh <- err:
-					close(done)
-				default:
-				}
-				return
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
 			}
 
 			seriesList[i] = series
@@ -160,8 +152,7 @@ func toPromConcurrently(
 	}
 
 	wg.Wait()
-	close(errorCh)
-	if err := <-errorCh; err != nil {
+	if err := multiErr.LastError(); err != nil {
 		return PromResult{}, err
 	}
 
