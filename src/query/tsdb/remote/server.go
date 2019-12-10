@@ -39,6 +39,9 @@ import (
 )
 
 const poolTimeout = time.Second * 10
+
+// TODO: adjust default batch based on message size; huge series can
+// unfortunately overwhelm this number.
 const defaultBatch = 128
 
 // TODO: add metrics

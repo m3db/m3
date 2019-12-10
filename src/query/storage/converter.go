@@ -284,7 +284,7 @@ func iteratorToTsSeries(
 	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
 }
 
-// Fall back to sequential decompression if unable to decompress concurrently
+// Fall back to sequential decompression if unable to decompress concurrently.
 func decompressSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,

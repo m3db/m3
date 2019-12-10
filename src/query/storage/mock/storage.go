@@ -22,6 +22,7 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
@@ -172,6 +173,14 @@ func (s *mockStorage) Fetch(
 
 	s.fetchResult.idx = s.fetchResult.idx + 1
 	return s.fetchResult.results[idx], s.fetchResult.err
+}
+
+func (s *mockStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return storage.PromResult{}, errors.New("not implemented")
 }
 
 func (s *mockStorage) FetchBlocks(

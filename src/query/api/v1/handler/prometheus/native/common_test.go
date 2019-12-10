@@ -143,7 +143,7 @@ func TestParseBlockType(t *testing.T) {
 		instrument.NewOptions()))
 
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
-	assert.Equal(t, models.TypeMultiBlock, parseBlockType(r,
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
 		instrument.NewOptions()))
 
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=2", nil)

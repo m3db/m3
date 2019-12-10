@@ -57,31 +57,31 @@ func (m *MockValues) EXPECT() *MockValuesMockRecorder {
 }
 
 // AlignToBounds mocks base method
-func (m *MockValues) AlignToBounds(arg0 models.Bounds, arg1 time.Duration) []Datapoints {
+func (m *MockValues) AlignToBounds(arg0 models.Bounds, arg1 time.Duration, arg2 AlignedDatapoints) AlignedDatapoints {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AlignToBounds", arg0, arg1)
-	ret0, _ := ret[0].([]Datapoints)
+	ret := m.ctrl.Call(m, "AlignToBounds", arg0, arg1, arg2)
+	ret0, _ := ret[0].(AlignedDatapoints)
 	return ret0
 }
 
 // AlignToBounds indicates an expected call of AlignToBounds
-func (mr *MockValuesMockRecorder) AlignToBounds(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockValuesMockRecorder) AlignToBounds(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AlignToBounds", reflect.TypeOf((*MockValues)(nil).AlignToBounds), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AlignToBounds", reflect.TypeOf((*MockValues)(nil).AlignToBounds), arg0, arg1, arg2)
 }
 
 // AlignToBoundsNoWriteForward mocks base method
-func (m *MockValues) AlignToBoundsNoWriteForward(arg0 models.Bounds, arg1 time.Duration) []Datapoints {
+func (m *MockValues) AlignToBoundsNoWriteForward(arg0 models.Bounds, arg1 time.Duration, arg2 AlignedDatapoints) AlignedDatapoints {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AlignToBoundsNoWriteForward", arg0, arg1)
-	ret0, _ := ret[0].([]Datapoints)
+	ret := m.ctrl.Call(m, "AlignToBoundsNoWriteForward", arg0, arg1, arg2)
+	ret0, _ := ret[0].(AlignedDatapoints)
 	return ret0
 }
 
 // AlignToBoundsNoWriteForward indicates an expected call of AlignToBoundsNoWriteForward
-func (mr *MockValuesMockRecorder) AlignToBoundsNoWriteForward(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockValuesMockRecorder) AlignToBoundsNoWriteForward(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AlignToBoundsNoWriteForward", reflect.TypeOf((*MockValues)(nil).AlignToBoundsNoWriteForward), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AlignToBoundsNoWriteForward", reflect.TypeOf((*MockValues)(nil).AlignToBoundsNoWriteForward), arg0, arg1, arg2)
 }
 
 // DatapointAt mocks base method

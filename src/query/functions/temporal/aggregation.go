@@ -138,11 +138,13 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 
 type aggNode struct {
 	controller *transform.Controller
+	values     []float64
 	aggFunc    func([]float64) float64
 }
 
 func (a *aggNode) process(datapoints ts.Datapoints, _ iterationBounds) float64 {
-	return a.aggFunc(datapoints.Values())
+	a.values = datapoints.Reset(a.values)
+	return a.aggFunc(a.values)
 }
 
 func avgOverTime(values []float64) float64 {

@@ -51,6 +51,15 @@ func (s *slowStorage) Fetch(
 	return s.storage.Fetch(ctx, query, options)
 }
 
+func (s *slowStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	time.Sleep(s.delay)
+	return s.storage.FetchProm(ctx, query, options)
+}
+
 func (s *slowStorage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,

@@ -45,14 +45,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPromReadHandler_Read(t *testing.T) {
-	testPromReadHandler_Read(t, block.NewResultMetadata(), "")
-	testPromReadHandler_Read(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testPromReadHandler_Read(t, block.ResultMetadata{Exhaustive: false},
+func TestPromReadHandlerRead(t *testing.T) {
+	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
 		handler.LimitHeaderSeriesLimitApplied)
 }
 
-func testPromReadHandler_Read(
+func testPromReadHandlerRead(
 	t *testing.T,
 	resultMeta block.ResultMetadata,
 	ex string,
@@ -100,14 +100,14 @@ type M3QLResp []struct {
 	StepSizeMs int               `json:"step_size_ms"`
 }
 
-func TestPromReadHandlerRead(t *testing.T) {
-	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
-	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
-	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
+func TestM3PromReadHandlerRead(t *testing.T) {
+	testM3PromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testM3PromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testM3PromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
 		handler.LimitHeaderSeriesLimitApplied)
 }
 
-func testPromReadHandlerRead(
+func testM3PromReadHandlerRead(
 	t *testing.T,
 	resultMeta block.ResultMetadata,
 	ex string,

@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -166,6 +167,12 @@ func (m multiSeriesBlock) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
 	return newMultiSeriesBlockSeriesIter(m), nil
 }
 
+func (m multiSeriesBlock) MultiSeriesIter(
+	concurrency int,
+) ([]block.UnconsolidatedSeriesIterBatch, error) {
+	return nil, errors.New("batched iterator is not supported by multiSeriesBlock")
+}
+
 func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 	metas := make([]block.SeriesMeta, len(m.seriesList))
 	for i, s := range m.seriesList {
@@ -206,10 +213,10 @@ func newMultiSeriesBlockStepIter(
 	bounds := b.meta.Bounds
 	for i, s := range b.seriesList {
 		if b.consolidated {
-			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration)
+			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration, nil)
 		} else {
 			values[i] = s.Values().AlignToBoundsNoWriteForward(bounds,
-				b.lookbackDuration)
+				b.lookbackDuration, nil)
 		}
 	}
 
@@ -288,26 +295,7 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 
 func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
 	s := m.block.seriesList[m.index]
-	values := make([]ts.Datapoints, m.block.StepCount())
-	lookback := m.block.lookbackDuration
-	var seriesValues []ts.Datapoints
-	if m.consolidated {
-		seriesValues = s.Values().AlignToBounds(m.block.meta.Bounds, lookback)
-	} else {
-		seriesValues = s.Values().AlignToBoundsNoWriteForward(m.block.meta.Bounds,
-			lookback)
-	}
-
-	seriesLen := len(seriesValues)
-	for i := 0; i < m.block.StepCount(); i++ {
-		if i < seriesLen {
-			values[i] = seriesValues[i]
-		} else {
-			values[i] = nil
-		}
-	}
-
-	return block.NewUnconsolidatedSeries(values, block.SeriesMeta{
+	return block.NewUnconsolidatedSeries(s.Values().Datapoints(), block.SeriesMeta{
 		Tags: s.Tags,
 		Name: s.Name(),
 	})

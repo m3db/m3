@@ -129,6 +129,21 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockStorage)(nil).FetchBlocks), arg0, arg1, arg2)
 }
 
+// FetchProm mocks base method
+func (m *MockStorage) FetchProm(arg0 context.Context, arg1 *FetchQuery, arg2 *FetchOptions) (PromResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchProm", arg0, arg1, arg2)
+	ret0, _ := ret[0].(PromResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchProm indicates an expected call of FetchProm
+func (mr *MockStorageMockRecorder) FetchProm(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchProm", reflect.TypeOf((*MockStorage)(nil).FetchProm), arg0, arg1, arg2)
+}
+
 // Name mocks base method
 func (m *MockStorage) Name() string {
 	m.ctrl.T.Helper()

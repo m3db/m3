@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,42 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package configflag
 
-import (
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/block"
-)
-
-type encodedBlockUnconsolidated struct {
-	// There is slightly different execution for the last block in the series
-	lastBlock            bool
-	meta                 block.Metadata
-	consolidation        consolidationSettings
-	seriesMetas          []block.SeriesMeta
-	seriesBlockIterators []encoding.SeriesIterator
-	options              Options
-}
-
-func (b *encodedBlockUnconsolidated) Consolidate() (block.Block, error) {
-	return &encodedBlock{
-		lastBlock:            b.lastBlock,
-		meta:                 b.meta,
-		consolidation:        b.consolidation,
-		seriesMetas:          b.seriesMetas,
-		seriesBlockIterators: b.seriesBlockIterators,
-		options:              b.options,
-	}, nil
-}
-
-func (b *encodedBlockUnconsolidated) Close() error {
-	for _, bl := range b.seriesBlockIterators {
-		bl.Close()
-	}
-
-	return nil
-}
-
-func (b *encodedBlockUnconsolidated) Meta() block.Metadata {
-	return b.meta
-}
+//go:generate sh -c "mockgen -package=configflag -destination=$GOPATH/src/github.com/m3db/m3/src/x/config/configflag/os_mock_test.go -source=$GOPATH/src/github.com/m3db/m3/src/x/config/configflag/flag.go"

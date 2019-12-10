@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
@@ -82,6 +83,86 @@ func (s *fanoutStorage) Fetch(
 	}
 
 	return handleFetchResponses(requests)
+}
+
+func (s *fanoutStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	stores := filterStores(s.stores, s.fetchFilter, query)
+	// Optimization for the single store case
+	if len(stores) == 1 {
+		return stores[0].FetchProm(ctx, query, options)
+	}
+
+	var (
+		mu         sync.Mutex
+		wg         sync.WaitGroup
+		multiErr   xerrors.MultiError
+		numWarning int
+		series     []*prompb.TimeSeries
+	)
+
+	wg.Add(len(stores))
+	resultMeta := block.NewResultMetadata()
+	for _, store := range stores {
+		store := store
+		go func() {
+			defer wg.Done()
+			result, err := store.FetchProm(ctx, query, options)
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				if warning, err := storage.IsWarning(store, err); warning {
+					resultMeta.AddWarning(store.Name(), "fetch_prom_warning")
+					numWarning++
+					s.instrumentOpts.Logger().Warn(
+						"partial results: fanout to store returned warning",
+						zap.Error(err),
+						zap.String("store", store.Name()),
+						zap.String("function", "FetchProm"))
+					return
+				}
+
+				multiErr = multiErr.Add(err)
+				s.instrumentOpts.Logger().Error(
+					"fanout to store returned error",
+					zap.Error(err),
+					zap.String("store", store.Name()),
+					zap.String("function", "FetchProm"))
+				return
+			}
+
+			if series == nil {
+				series = result.PromResult.GetTimeseries()
+			} else {
+				series = append(series, result.PromResult.GetTimeseries()...)
+			}
+
+			resultMeta = resultMeta.CombineMetadata(result.Metadata)
+		}()
+	}
+
+	wg.Wait()
+	// NB: Check multiError first; if any hard error storages errored, the entire
+	// query must be errored.
+	if err := multiErr.FinalError(); err != nil {
+		return storage.PromResult{}, err
+	}
+
+	// If there were no successful results at all, return a normal error.
+	if numWarning == len(stores) {
+		return storage.PromResult{}, errors.ErrNoValidResults
+	}
+
+	return storage.PromResult{
+		Metadata: resultMeta,
+		PromResult: &prompb.QueryResult{
+			Timeseries: series,
+		},
+	}, nil
 }
 
 func (s *fanoutStorage) FetchBlocks(
