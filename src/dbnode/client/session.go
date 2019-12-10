@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -1581,6 +1582,130 @@ func (s *session) fetchIDsAttempt(
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
 
+				// Copy the slice since the minheap will be moving things around in it.
+				itersToIncludeCopy := append(make([]encoding.MultiReaderIterator, 0, len(itersToInclude)), itersToInclude...)
+				minHeap := newMultiReaderIterHeap(itersToIncludeCopy)
+				heap.Init(minHeap)
+
+				pop := func() (time.Time, []xio.BlockReader) {
+					popped := heap.Pop(minHeap).(encoding.MultiReaderIterator)
+					numReaders, blockStart, _ := popped.Readers().CurrentReaders()
+
+					// TODO: Alloc right size or reuse.
+					blockReaders := []xio.BlockReader{}
+					for i := 0; i < numReaders; i++ {
+						blockReader := popped.Readers().CurrentReaderAt(i)
+						blockReaders = append(blockReaders, blockReader)
+					}
+
+					if popped.Readers().Next() {
+						heap.Push(minHeap, popped)
+					}
+					return blockStart, blockReaders
+				}
+
+				peak := func() (int, time.Time) {
+					numReaders, blockStart, _ := minHeap.multiReaderIters[0].Readers().CurrentReaders()
+					return numReaders, blockStart
+				}
+
+				type dedupeState struct {
+					blockReaders []xio.BlockReader
+					checksum     uint32
+				}
+
+				var (
+					deduplicatedBlockReaders = make([][][]xio.BlockReader, numItersToInclude)
+					toDedupe                 = make([]dedupeState, 0, len(itersToInclude))
+				)
+				for minHeap.Len() > 0 {
+					toDedupe = toDedupe[:0]
+					currBlockStart, currBlockReaders := pop()
+					toDedupe = append(toDedupe, dedupeState{
+						blockReaders: currBlockReaders,
+					})
+
+					for minHeap.Len() > 0 {
+						_, blockStart := peak()
+						if blockStart != currBlockStart {
+							break
+						}
+						_, blockReaders := pop()
+
+						var (
+							calculatedChecksum uint32
+							foundDuplicate     bool
+						)
+						if len(blockReaders) == 1 {
+							// Only attempt to deduplicate if there is only a single block reader since if there
+							// is more than one its unlikely that there will be an exact match between replicas.
+
+							for i, dedupeState := range toDedupe {
+								if len(dedupeState.blockReaders) != 1 {
+									continue
+								}
+
+								if dedupeState.checksum == 0 {
+									// Checksum has not been calculated yet.
+									seg, err := dedupeState.blockReaders[0].Segment()
+									if err != nil {
+										// TODO: What to do here?
+										panic(err)
+									}
+									checksum := digest.SegmentChecksum(seg)
+									dedupeState.checksum = checksum
+									toDedupe[i] = dedupeState
+								}
+
+								if calculatedChecksum == 0 {
+									// Checksum has not been calculated yet.
+									seg, err := blockReaders[0].Segment()
+									if err != nil {
+										// TODO: What to do here?
+										panic(err)
+									}
+									calculatedChecksum = digest.SegmentChecksum(seg)
+								}
+
+								if calculatedChecksum == dedupeState.checksum {
+									foundDuplicate = true
+									break
+								}
+							}
+						}
+
+						if foundDuplicate {
+							// Don't add these block readers since they're an exact duplicate.
+							continue
+						}
+
+						toDedupe = append(toDedupe, dedupeState{
+							blockReaders: blockReaders,
+							checksum:     calculatedChecksum,
+						})
+					}
+
+					for i, deduped := range toDedupe {
+						for _, br := range deduped.blockReaders {
+							seg, err := br.Segment()
+							if err != nil {
+								// TODO: What to do here?
+								panic(err)
+							}
+							br.ResetWindowed(seg, br.Start, br.BlockSize)
+						}
+						deduplicatedBlockReaders[i] = append(deduplicatedBlockReaders[i], deduped.blockReaders)
+					}
+				}
+
+				deduplicatedReplicas := make([]encoding.MultiReaderIterator, 0, len(itersToInclude))
+				for _, dedupedBRs := range deduplicatedBlockReaders {
+					multiIter := s.pools.multiReaderIterator.Get()
+					sliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(dedupedBRs)
+					multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
+					deduplicatedReplicas = append(deduplicatedReplicas, multiIter)
+				}
+
 				iter := s.pools.seriesIterator.Get()
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
@@ -1593,7 +1718,7 @@ func (s *session) fetchIDsAttempt(
 					Namespace:      namespaceID,
 					StartInclusive: startInclusive,
 					EndExclusive:   endExclusive,
-					Replicas:       itersToInclude,
+					Replicas:       deduplicatedReplicas,
 				})
 				iters.SetAt(idx, iter)
 			}
@@ -4049,4 +4174,39 @@ func minDuration(x, y time.Duration) time.Duration {
 		return x
 	}
 	return y
+}
+
+type multiReaderIterHeap struct {
+	multiReaderIters []encoding.MultiReaderIterator
+}
+
+func newMultiReaderIterHeap(iters []encoding.MultiReaderIterator) *multiReaderIterHeap {
+	return &multiReaderIterHeap{
+		multiReaderIters: iters,
+	}
+}
+
+func (h *multiReaderIterHeap) Len() int {
+	return len(h.multiReaderIters)
+}
+
+func (h *multiReaderIterHeap) Less(i, j int) bool {
+	_, _, iBlockSize := h.multiReaderIters[i].Readers().CurrentReaders()
+	_, _, jBlockSize := h.multiReaderIters[j].Readers().CurrentReaders()
+	return iBlockSize < jBlockSize
+}
+
+func (h *multiReaderIterHeap) Swap(i, j int) {
+	h.multiReaderIters[i], h.multiReaderIters[j] = h.multiReaderIters[j], h.multiReaderIters[i]
+}
+
+func (h *multiReaderIterHeap) Push(x interface{}) {
+	h.multiReaderIters = append(h.multiReaderIters, x.(encoding.MultiReaderIterator))
+}
+
+func (h *multiReaderIterHeap) Pop() interface{} {
+	lastIdx := len(h.multiReaderIters) - 1
+	toReturn := h.multiReaderIters[lastIdx]
+	h.multiReaderIters = h.multiReaderIters[:lastIdx]
+	return toReturn
 }
