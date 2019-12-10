@@ -1906,12 +1906,6 @@ func (s *session) dedupeReplicasBlockByBlock(
 		multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
 		deduplicatedReplicas = append(deduplicatedReplicas, multiIter)
 	}
-	for _, originalReplica := range replicasToDedupe {
-		// Return the original MultiReaderIterators to the pool now that we've created new ones. This is
-		// safe because closing the MultiReaderIterators will not finalize the underlying segments (which
-		// we're still using in the new deduplicated iterators).
-		originalReplica.Close()
-	}
 
 	return deduplicatedReplicas, nil
 }
