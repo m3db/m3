@@ -1740,27 +1740,39 @@ func (s *session) fetchIDsAttempt(
 	return iters, nil
 }
 
+// dedupeReplicasBlockByBlock uses a minheap to perform the "merge K-sorted arrays" algorithm to
+// deduplicate K replicas block-by-block. The output is a new slice of replicas in which any replicas
+// that had identical blocks have been stripped out. This should improve the performance of reads over
+// large number of blocks since for many blocks we will only have to decode one stream instead of 2 or 3.
 func (s *session) dedupeReplicasBlockByBlock(
 	nsCtx namespace.Context,
 	replicas []encoding.MultiReaderIterator,
 ) ([]encoding.MultiReaderIterator, error) {
 	// Copy the slice since the minheap will be moving things around in it.
-	replicasCopy := append(make([]encoding.MultiReaderIterator, 0, len(replicas)), replicas...)
-	minHeap := newMultiReaderIterHeap(replicasCopy)
+	var (
+		replicasCopy = append(make([]encoding.MultiReaderIterator, 0, len(replicas)), replicas...)
+		minHeap      = newMultiReaderIterHeap(replicasCopy)
+	)
 	heap.Init(minHeap)
 
 	pop := func() (time.Time, []xio.BlockReader) {
-		popped := heap.Pop(minHeap).(encoding.MultiReaderIterator)
-		numReaders, blockStart, _ := popped.Readers().CurrentReaders()
+		var (
+			popped      = heap.Pop(minHeap).(encoding.MultiReaderIterator)
+			currReaders = popped.Readers()
+		)
+		numReaders, blockStart, _ := currReaders.CurrentReaders()
 
-		// TODO: Alloc right size or reuse.
-		blockReaders := []xio.BlockReader{}
+		blockReaders := make([]xio.BlockReader, 0, numReaders)
 		for i := 0; i < numReaders; i++ {
-			blockReader := popped.Readers().CurrentReaderAt(i)
+			blockReader := currReaders.CurrentReaderAt(i)
 			blockReaders = append(blockReaders, blockReader)
 		}
 
-		if popped.Readers().Next() {
+		// To avoid creating a giant min heap backed by a very large slice, we limit the size of
+		// the minheap to the number of replicas (I.E only one bock per replica can be in the heap
+		// at any given moment). As a result of this, everytime we pop a block we need to check if
+		// that replicas has any more blocks, and if so, push them back into the heap.
+		if currReaders.Next() {
 			heap.Push(minHeap, popped)
 		}
 		return blockStart, blockReaders
@@ -1777,30 +1789,42 @@ func (s *session) dedupeReplicasBlockByBlock(
 	}
 
 	var (
+		// First level of slice represents a replica, second level a block, and third is a slice
+		// of data blocks that when merge generate the complete data stream for that blockStart
+		// for that replica.
 		deduplicatedBlockReaders = make([][][]xio.BlockReader, len(replicasCopy))
 		toDedupe                 = make([]dedupeState, 0, len(replicasCopy))
 	)
+	// Outer loop runs until the minheap is empty which will only occur once we've exhausted all of
+	// the data in the replica streams due to how push (documented above) is implemented.
 	for minHeap.Len() > 0 {
 		toDedupe = toDedupe[:0]
-		currBlockStart, currBlockReaders := pop()
+		currBlockStart, outerBlockReaders := pop()
 		toDedupe = append(toDedupe, dedupeState{
-			blockReaders: currBlockReaders,
+			blockReaders: outerBlockReaders,
 		})
 
+		// Inner loop runs until the minheap is exhausted OR after we peak ahead and see that the next
+		// available block of data in the heap does not belong to the same blockStart that we're currently
+		// trying to merge. The reason for this inner loop is that unlike in the standard merge K-sorted
+		// arrays algorithm, we're not just trying to generated a merged sorted array, but also actively
+		// deduplicate by blockStart which means that we need to consume all the blocks for a given blockStart
+		// in each iteration of the outer loop.
 		for minHeap.Len() > 0 {
-			_, blockStart := peak()
-			if blockStart != currBlockStart {
+			if _, blockStart := peak(); blockStart != currBlockStart {
 				break
 			}
-			_, blockReaders := pop()
+
+			_, innerBlockReaders := pop()
 
 			var (
 				calculatedChecksum uint32
 				foundDuplicate     bool
 			)
-			if len(blockReaders) == 1 {
+			if len(innerBlockReaders) == 1 {
 				// Only attempt to deduplicate if there is only a single block reader since if there
-				// is more than one its unlikely that there will be an exact match between replicas.
+				// is more than one data block for a given blockStart it is unlikely that there will be
+				// an exact match between replicas.
 
 				for i, dedupeState := range toDedupe {
 					if len(dedupeState.blockReaders) != 1 {
@@ -1811,8 +1835,7 @@ func (s *session) dedupeReplicasBlockByBlock(
 						// Checksum has not been calculated yet.
 						seg, err := dedupeState.blockReaders[0].Segment()
 						if err != nil {
-							// TODO: What to do here?
-							panic(err)
+							return nil, fmt.Errorf("error getting segment from block reader: %v", err)
 						}
 						checksum := digest.SegmentChecksum(seg)
 						dedupeState.checksum = checksum
@@ -1821,10 +1844,9 @@ func (s *session) dedupeReplicasBlockByBlock(
 
 					if calculatedChecksum == 0 {
 						// Checksum has not been calculated yet.
-						seg, err := blockReaders[0].Segment()
+						seg, err := innerBlockReaders[0].Segment()
 						if err != nil {
-							// TODO: What to do here?
-							panic(err)
+							return nil, fmt.Errorf("error getting segment from block reader: %v", err)
 						}
 						calculatedChecksum = digest.SegmentChecksum(seg)
 					}
@@ -1837,22 +1859,25 @@ func (s *session) dedupeReplicasBlockByBlock(
 			}
 
 			if foundDuplicate {
-				// Don't add these block readers since they're an exact duplicate.
+				// Don't add these block readers since they're an exact duplicate of an existing set
+				// from a different replica.
 				continue
 			}
 
+			// Otherwise add them to the set since we don't have any other copies yet.
 			toDedupe = append(toDedupe, dedupeState{
-				blockReaders: blockReaders,
+				blockReaders: innerBlockReaders,
 				checksum:     calculatedChecksum,
 			})
 		}
 
 		for i, deduped := range toDedupe {
 			for _, br := range deduped.blockReaders {
+				// Reset the block readers before appending them because they've already been partially
+				// consumed by the MultiReaderIterator.
 				seg, err := br.Segment()
 				if err != nil {
-					// TODO: What to do here?
-					panic(err)
+					return nil, fmt.Errorf("error getting segment from block reader: %v", err)
 				}
 				br.ResetWindowed(seg, br.Start, br.BlockSize)
 			}
@@ -1862,8 +1887,10 @@ func (s *session) dedupeReplicasBlockByBlock(
 
 	deduplicatedReplicas := make([]encoding.MultiReaderIterator, 0, len(toDedupe))
 	for _, dedupedBRs := range deduplicatedBlockReaders {
-		multiIter := s.pools.multiReaderIterator.Get()
-		sliceOfSlices := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(dedupedBRs)
+		var (
+			multiIter     = s.pools.multiReaderIterator.Get()
+			sliceOfSlices = xio.NewReaderSliceOfSlicesFromBlockReadersIterator(dedupedBRs)
+		)
 		multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
 		deduplicatedReplicas = append(deduplicatedReplicas, multiIter)
 	}
