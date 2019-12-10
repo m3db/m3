@@ -1748,11 +1748,24 @@ func (s *session) dedupeReplicasBlockByBlock(
 	nsCtx namespace.Context,
 	replicas []encoding.MultiReaderIterator,
 ) ([]encoding.MultiReaderIterator, error) {
+	deduplicatedReplicas := make([]encoding.MultiReaderIterator, 0, len(replicas))
+
 	// Copy the slice since the minheap will be moving things around in it.
-	var (
-		replicasCopy = append(make([]encoding.MultiReaderIterator, 0, len(replicas)), replicas...)
-		minHeap      = newMultiReaderIterHeap(replicasCopy)
-	)
+	replicasToDedupe := make([]encoding.MultiReaderIterator, 0, len(replicas))
+	for _, replica := range replicas {
+		// Minheap logic expects every replica to have readers.
+		if replica.Readers() == nil {
+			// If the replica has no data just include it in the final output as is to keep the logic for
+			// the rest of the codepaths after this function the same.
+			deduplicatedReplicas = append(deduplicatedReplicas, replica)
+		} else {
+			// If the replica has data then run it through the block-by-block deduplication logic and it will
+			// get loaded into deduplicatedReplicas at the end.
+			replicasToDedupe = append(replicasToDedupe, replica)
+		}
+	}
+
+	minHeap := newMultiReaderIterHeap(replicasToDedupe)
 	heap.Init(minHeap)
 
 	pop := func() (time.Time, []xio.BlockReader) {
@@ -1792,8 +1805,8 @@ func (s *session) dedupeReplicasBlockByBlock(
 		// First level of slice represents a replica, second level a block, and third is a slice
 		// of data blocks that when merge generate the complete data stream for that blockStart
 		// for that replica.
-		deduplicatedBlockReaders = make([][][]xio.BlockReader, len(replicasCopy))
-		toDedupe                 = make([]dedupeState, 0, len(replicasCopy))
+		deduplicatedBlockReaders = make([][][]xio.BlockReader, len(replicasToDedupe))
+		toDedupe                 = make([]dedupeState, 0, len(replicasToDedupe))
 	)
 	// Outer loop runs until the minheap is empty which will only occur once we've exhausted all of
 	// the data in the replica streams due to how push (documented above) is implemented.
@@ -1885,7 +1898,6 @@ func (s *session) dedupeReplicasBlockByBlock(
 		}
 	}
 
-	deduplicatedReplicas := make([]encoding.MultiReaderIterator, 0, len(toDedupe))
 	for _, dedupedBRs := range deduplicatedBlockReaders {
 		var (
 			multiIter     = s.pools.multiReaderIterator.Get()
