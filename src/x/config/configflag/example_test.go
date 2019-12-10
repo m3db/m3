@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package configflag_test
 
 import (
 	"flag"
-	"log"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
+	"fmt"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/server"
-	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"github.com/m3db/m3/src/x/etcd"
 )
 
-func main() {
+// The FlagStringSlice allows for multiple values when used as a flag variable.
+func ExampleFlagStringSlice() {
+	var configFiles configflag.FlagStringSlice
+	fs := flag.NewFlagSet("config", flag.PanicOnError)
+	fs.Var(&configFiles, "f", "config files")
+	noError(fs.Parse([]string{"-f", "file1.yaml", "-f", "file2.yaml", "-f", "file3.yaml"}))
+
+	fmt.Println("Config files:", configFiles.Value)
+	// Output:
+	// Config files: [file1.yaml file2.yaml file3.yaml]
+}
+
+// Options supports registration of config related flags, followed by config
+// loading.
+func ExampleOptionsRegister() {
 	var cfgOpts configflag.Options
-	cfgOpts.Register()
 
-	flag.Parse()
+	var flags flag.FlagSet
 
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
+	// normal use would use Register() (default flagset)
+	cfgOpts.RegisterFlagSet(&flags)
 
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatal(err.Error())
+	noError(flags.Parse([]string{"-f", "./testdata/config1.yaml", "-f", "./testdata/config2.yaml"}))
+
+	var cfg struct {
+		Foo int    `yaml:"foo"`
+		Bar string `yaml:"bar"`
 	}
+	noError(cfgOpts.MainLoad(&cfg, config.Options{}))
 
-	server.Run(server.RunOptions{
-		Config: cfg,
-	})
+	fmt.Println(cfg)
+	// Output: {1 bar}
+}
+
+func noError(err error) {
+	if err != nil {
+		panic(err.Error())
+	}
 }

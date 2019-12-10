@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,25 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config_test
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/m3db/m3/src/x/config"
-)
-
-type configuration struct {
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-}
-
-func ExampleLoadFile() {
-	var cfg configuration
-	file := "testdata/conf.yaml"
-	if err := config.LoadFile(&cfg, file, config.Options{}); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)
-	// Output: listenAddress: 0.0.0.0:8392
-}
+// Package configflag provides a utility for registering config related command
+// line options with the stdlib flag package.
+package configflag
