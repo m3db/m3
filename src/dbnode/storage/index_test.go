@@ -146,10 +146,10 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 	})).Return(preparedPersist, nil)
 
 	results := block.NewMockFetchBlocksMetadataResults(ctrl)
-	results.EXPECT().Results().Return(nil)
-	results.EXPECT().Close()
+	results.EXPECT().Results().Return(nil).AnyTimes()
+	results.EXPECT().Close().AnyTimes()
 	mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyFetchTokenBlock: true}).Return(results, nil, nil).AnyTimes()
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
@@ -254,16 +254,16 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 	})).Return(preparedPersist, nil)
 
 	results1 := block.NewMockFetchBlocksMetadataResults(ctrl)
-	results1.EXPECT().Results().Return(nil)
-	results1.EXPECT().Close()
+	results1.EXPECT().Results().Return(nil).AnyTimes()
+	results1.EXPECT().Close().AnyTimes()
 	mockShard1.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results1, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyFetchTokenBlock: true}).Return(results1, nil, nil).AnyTimes()
 
 	results2 := block.NewMockFetchBlocksMetadataResults(ctrl)
-	results2.EXPECT().Results().Return(nil)
-	results2.EXPECT().Close()
+	results2.EXPECT().Results().Return(nil).AnyTimes()
+	results2.EXPECT().Close().AnyTimes()
 	mockShard2.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results2, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyFetchTokenBlock: true}).Return(results2, nil, nil).AnyTimes()
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
