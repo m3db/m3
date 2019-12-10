@@ -41,7 +41,11 @@ var (
 )
 
 func TestEmptyBlock(t *testing.T) {
-	meta := MustMakeMeta(testBound, "a", "b")
+	meta := Metadata{
+		Tags:   models.MustMakeTags("a", "b"),
+		Bounds: testBound,
+	}
+
 	bl := NewEmptyBlock(meta)
 	assert.True(t, meta.Equals(bl.Meta()))
 
@@ -56,16 +60,6 @@ func TestEmptyBlock(t *testing.T) {
 		step.Close()
 	})
 
-	assert.NoError(t, bl.Close())
-}
-
-func TestEmptyUnconsolidatedBlock(t *testing.T) {
-	meta := MustMakeMeta(testBound, "a", "b")
-	b := NewEmptyBlock(meta)
-	bl, err := b.Unconsolidated()
-	assert.NoError(t, err)
-	assert.True(t, meta.Equals(bl.Meta()))
-
 	series, err := bl.SeriesIter()
 	assert.NoError(t, err)
 	assert.NoError(t, series.Err())
@@ -76,6 +70,15 @@ func TestEmptyUnconsolidatedBlock(t *testing.T) {
 	assert.NotPanics(t, func() {
 		series.Close()
 	})
+
+	concurrency := 5
+	batch, err := bl.MultiSeriesIter(concurrency)
+	assert.NoError(t, err)
+	assert.Equal(t, concurrency, len(batch))
+	for _, b := range batch {
+		assert.Equal(t, 1, b.Size)
+		assert.False(t, b.Iter.Next())
+	}
 
 	assert.NoError(t, bl.Close())
 }

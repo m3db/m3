@@ -36,7 +36,7 @@ import (
 
 func TestTimestamp(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
+	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := newTimestampOp(TimestampType).Node(c, transform.Options{})
 	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)

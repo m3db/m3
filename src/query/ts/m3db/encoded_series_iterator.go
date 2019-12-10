@@ -34,7 +34,6 @@ type encodedSeriesIter struct {
 	err              error
 	meta             block.Metadata
 	datapoints       ts.Datapoints
-	alignedValues    []ts.Datapoints
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator

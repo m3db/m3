@@ -22,7 +22,6 @@ package test
 
 import (
 	"errors"
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -70,7 +69,7 @@ func (m multiSeriesBlock) StepCount() int {
 }
 
 func (m multiSeriesBlock) StepIter() (block.StepIter, error) {
-	return newMultiSeriesBlockStepIter(m), nil
+	return nil, errors.New("step iterator is not supported by test block")
 }
 
 func (m multiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
@@ -80,7 +79,7 @@ func (m multiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
 func (m multiSeriesBlock) MultiSeriesIter(
 	concurrency int,
 ) ([]block.SeriesIterBatch, error) {
-	return nil, errors.New("batched iterator is not supported by multiSeriesBlock")
+	return nil, errors.New("batched iterator is not supported by test block")
 }
 
 func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
@@ -100,91 +99,6 @@ func (m multiSeriesBlock) Info() block.BlockInfo {
 // TODO: Actually free up resources
 func (m multiSeriesBlock) Close() error {
 	return nil
-}
-
-type multiSeriesBlockStepIter struct {
-	block  multiSeriesBlock
-	index  int
-	values [][]ts.Datapoints
-}
-
-func newMultiSeriesBlockStepIter(
-	b multiSeriesBlock,
-) block.StepIter {
-	values := make([][]ts.Datapoints, len(b.seriesList))
-	bounds := b.meta.Bounds
-	for i, s := range b.seriesList {
-		if b.consolidated {
-			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration, nil)
-		} else {
-			values[i] = s.Values().AlignToBoundsNoWriteForward(bounds,
-				b.lookbackDuration, nil)
-		}
-	}
-
-	return &multiSeriesBlockStepIter{
-		index:  -1,
-		block:  b,
-		values: values,
-	}
-}
-
-func (m *multiSeriesBlockStepIter) SeriesMeta() []block.SeriesMeta {
-	return m.block.SeriesMeta()
-}
-
-func (m *multiSeriesBlockStepIter) Next() bool {
-	if len(m.values) == 0 {
-		return false
-	}
-
-	m.index++
-	return m.index < len(m.values[0])
-}
-
-func (m *multiSeriesBlockStepIter) Err() error {
-	return nil
-}
-
-type unconsolidatedStep struct {
-	time   time.Time
-	values []float64
-}
-
-// Time for the step.
-func (s unconsolidatedStep) Time() time.Time {
-	return s.time
-}
-
-// Values for the column.
-func (s unconsolidatedStep) Values() []float64 {
-	return s.values
-}
-
-func (m *multiSeriesBlockStepIter) Current() block.Step {
-	valsAtIndex := m.values[m.index]
-	v := make([]float64, 0, len(valsAtIndex))
-	for _, vv := range valsAtIndex {
-		last := math.NaN()
-		fs := vv.Values()
-		if len(fs) > 0 {
-			last = fs[len(fs)-1]
-		}
-
-		v = append(v, last)
-	}
-
-	t, _ := m.block.meta.Bounds.TimeForIndex(m.index)
-	return unconsolidatedStep{time: t, values: v}
-}
-
-func (m *multiSeriesBlockStepIter) StepCount() int {
-	// If series has fewer points then it should return NaNs
-	return m.block.StepCount()
-}
-
-// TODO: Actually free up resources
-func (m *multiSeriesBlockStepIter) Close() {
 }
 
 type multiSeriesBlockSeriesIter struct {

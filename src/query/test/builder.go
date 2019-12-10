@@ -103,29 +103,6 @@ func seriesValuesToDatapoints(
 	return dps
 }
 
-// NewMultiUnconsolidatedBlocksFromValues creates
-// new blocks using the provided values and a modifier.
-func NewMultiUnconsolidatedBlocksFromValues(
-	bounds models.Bounds,
-	seriesValues [][]float64,
-	valueMod ValueMod,
-	numBlocks int,
-) []block.Block {
-	meta := NewSeriesMeta("dummy", len(seriesValues))
-	blocks := make([]block.Block, numBlocks)
-	for i := 0; i < numBlocks; i++ {
-		blocks[i] = NewUnconsolidatedBlockFromDatapointsWithMeta(bounds,
-			meta, seriesValues)
-		// Avoid modifying the first value
-		for i, val := range seriesValues {
-			seriesValues[i] = valueMod(val)
-		}
-
-		bounds = bounds.Next(1)
-	}
-	return blocks
-}
-
 // NewSeriesMetaWithoutName creates new metadata tags in the format
 // [tagPrefix:i] for the number of series, without including the __name__.
 func NewSeriesMetaWithoutName(tagPrefix string, count int) []block.SeriesMeta {
@@ -153,6 +130,7 @@ func newSeriesMeta(tagPrefix string, count int, name bool) []block.SeriesMeta {
 			Tags: tags,
 		}
 	}
+
 	return seriesMeta
 }
 

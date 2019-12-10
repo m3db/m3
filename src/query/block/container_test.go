@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -183,23 +183,20 @@ func TestContainerStepIter(t *testing.T) {
 
 func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	v float64, first bool) Block {
-	base := NewMockBlock(ctrl)
-	b := NewMockUnconsolidatedBlock(ctrl)
-	base.EXPECT().Unconsolidated().Return(b, nil)
+	b := NewMockBlock(ctrl)
 
 	meta := Metadata{
 		Tags:   models.NewTags(0, models.NewTagOptions()),
 		Bounds: containerBounds,
 	}
 
-	base.EXPECT().Meta().Return(meta).AnyTimes()
-	it := NewMockUnconsolidatedSeriesIter(ctrl)
+	b.EXPECT().Meta().Return(meta).AnyTimes()
+	it := NewMockSeriesIter(ctrl)
 	it.EXPECT().Close()
 	it.EXPECT().Err().Return(nil).AnyTimes()
 	it.EXPECT().Next().Return(true)
 	it.EXPECT().Next().Return(false)
 	vals := make(ts.Datapoints, 0, numSteps)
-	// for i := range vals {
 	for i := 0; i < numSteps; i++ {
 		tt := now.Add(time.Duration(i) * step)
 		vals = append(vals,
@@ -216,7 +213,7 @@ func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	it.EXPECT().SeriesMeta().
 		Return([]SeriesMeta{{Name: []byte(fmt.Sprint(v))}}).Times(2)
 	b.EXPECT().SeriesIter().Return(it, nil)
-	return base
+	return b
 }
 
 func buildExpected(v float64) ts.Datapoints {
@@ -244,13 +241,10 @@ func TestUnconsolidatedContainerSeriesIter(t *testing.T) {
 	c, err := NewContainerBlock(block, blockTwo)
 	require.NoError(t, err)
 
-	consolidated, err := c.Unconsolidated()
-	require.NoError(t, err)
+	assert.True(t, containerBounds.Equals(c.Meta().Bounds))
+	assert.True(t, opts.Equals(c.Meta().Tags.Opts))
 
-	assert.True(t, containerBounds.Equals(consolidated.Meta().Bounds))
-	assert.True(t, opts.Equals(consolidated.Meta().Tags.Opts))
-
-	it, err := consolidated.SeriesIter()
+	it, err := c.SeriesIter()
 	require.NoError(t, err)
 
 	expected := []ts.Datapoints{buildExpected(1), buildExpected(2)}
@@ -272,30 +266,23 @@ func TestUnconsolidatedContainerSeriesIter(t *testing.T) {
 	assert.NotPanics(t, func() { it.Close() })
 }
 
-func buildUnconsolidatedMultiSeriesBlock(
+func buildMultiSeriesBlock(
 	ctrl *gomock.Controller,
 	count int,
 	concurrency int,
 	v float64,
 ) Block {
-	base := NewMockBlock(ctrl)
-	b := NewMockUnconsolidatedBlock(ctrl)
-	base.EXPECT().Unconsolidated().Return(b, nil)
+	b := NewMockBlock(ctrl)
 
 	meta := Metadata{
 		Tags:   models.NewTags(0, models.NewTagOptions()),
 		Bounds: containerBounds,
 	}
 
-	// metas := make([]SeriesMeta, count)
-	// for i := range metas {
-	// 	metas[i] = SeriesMeta{Name: []byte(fmt.Sprint(i))}
-	// }
-
-	base.EXPECT().Meta().Return(meta).AnyTimes()
-	batches := make([]UnconsolidatedSeriesIterBatch, 0, concurrency)
+	b.EXPECT().Meta().Return(meta).AnyTimes()
+	batches := make([]SeriesIterBatch, 0, concurrency)
 	for i := 0; i < count; i++ {
-		it := NewMockUnconsolidatedSeriesIter(ctrl)
+		it := NewMockSeriesIter(ctrl)
 		it.EXPECT().Close()
 		it.EXPECT().Err().Return(nil).AnyTimes()
 		it.EXPECT().Next().Return(true)
@@ -314,11 +301,11 @@ func buildUnconsolidatedMultiSeriesBlock(
 			Meta:       SeriesMeta{Name: []byte(fmt.Sprintf("%d_%d", i, int(v)))},
 		})
 
-		batches = append(batches, UnconsolidatedSeriesIterBatch{Iter: it, Size: 1})
+		batches = append(batches, SeriesIterBatch{Iter: it, Size: 1})
 	}
 
 	b.EXPECT().MultiSeriesIter(concurrency).Return(batches, nil)
-	return base
+	return b
 }
 
 func TestUnconsolidatedContainerMultiSeriesIter(t *testing.T) {
@@ -327,21 +314,17 @@ func TestUnconsolidatedContainerMultiSeriesIter(t *testing.T) {
 
 	concurrency := 5
 	c, err := NewContainerBlock(
-		buildUnconsolidatedMultiSeriesBlock(ctrl, 0, concurrency, 1),
-		buildUnconsolidatedMultiSeriesBlock(ctrl, 4, concurrency, 2),
-		buildUnconsolidatedMultiSeriesBlock(ctrl, 5, concurrency, 3),
-		buildUnconsolidatedMultiSeriesBlock(ctrl, 1, concurrency, 4),
+		buildMultiSeriesBlock(ctrl, 0, concurrency, 1),
+		buildMultiSeriesBlock(ctrl, 4, concurrency, 2),
+		buildMultiSeriesBlock(ctrl, 5, concurrency, 3),
+		buildMultiSeriesBlock(ctrl, 1, concurrency, 4),
 	)
 
 	require.NoError(t, err)
+	assert.True(t, containerBounds.Equals(c.Meta().Bounds))
+	assert.True(t, opts.Equals(c.Meta().Tags.Opts))
 
-	consolidated, err := c.Unconsolidated()
-	require.NoError(t, err)
-
-	assert.True(t, containerBounds.Equals(consolidated.Meta().Bounds))
-	assert.True(t, opts.Equals(consolidated.Meta().Tags.Opts))
-
-	batch, err := consolidated.MultiSeriesIter(concurrency)
+	batch, err := c.MultiSeriesIter(concurrency)
 	require.NoError(t, err)
 	require.Equal(t, concurrency, len(batch))
 

@@ -22,11 +22,9 @@ package block
 
 import (
 	"io"
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/ts"
 )
 
 // BlockType describes a block type.
@@ -162,20 +160,6 @@ type Result struct {
 	Metadata ResultMetadata
 	// Resolutions contains a slice representing resolution for graphite queries.
 	Resolutions []int
-}
-
-// ConsolidationFunc consolidates a bunch of datapoints into a single float value.
-type ConsolidationFunc func(datapoints ts.Datapoints) float64
-
-// TakeLast is a consolidation function which takes the last datapoint which has non nan value.
-func TakeLast(values ts.Datapoints) float64 {
-	for i := len(values) - 1; i >= 0; i-- {
-		if !math.IsNaN(values[i].Value) {
-			return values[i].Value
-		}
-	}
-
-	return math.NaN()
 }
 
 // TimeTransform transforms a timestamp.
