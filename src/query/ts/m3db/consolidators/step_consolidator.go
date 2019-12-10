@@ -87,6 +87,7 @@ func (c *StepLookbackConsolidator) AddPoint(dp ts.Datapoint) {
 	c.datapoints = append(c.datapoints, dp)
 }
 
+// BufferStep adds viable points to the next unconsumed buffer step.
 func (c *StepLookbackConsolidator) BufferStep() {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	val := c.fn(c.datapoints)
@@ -94,6 +95,7 @@ func (c *StepLookbackConsolidator) BufferStep() {
 	c.unconsumed = append(c.unconsumed, val)
 }
 
+// BufferStepCount indicates how many accumulated points are still unconsumed.
 func (c *StepLookbackConsolidator) BufferStepCount() int {
 	return len(c.unconsumed)
 }

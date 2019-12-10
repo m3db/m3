@@ -44,6 +44,8 @@ const (
 	TypeSingleBlock FetchedBlockType = iota
 	// TypeMultiBlock represents multiple blocks, each containing a time-based slice
 	// of encoded fetched series. Default block type for non-Prometheus queries.
+	//
+	// NB: Currently disabled.
 	TypeMultiBlock
 	// TypeDecodedBlock represents a single block which contains all fetched series
 	// which get decoded.

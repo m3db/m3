@@ -54,13 +54,21 @@ func NewStorage(promReadResp prometheus.Response, lookbackDuration time.Duration
 }
 
 func (s *debugStorage) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return &storage.FetchResult{
 		SeriesList: s.seriesList,
 	}, nil
+}
+
+func (s *debugStorage) FetchProm(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return storage.PromResult{}, errors.New("not implemented")
 }
 
 func (s *debugStorage) FetchBlocks(
