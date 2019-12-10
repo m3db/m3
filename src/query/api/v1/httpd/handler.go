@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
@@ -278,12 +277,6 @@ func (h *Handler) RegisterRoutes() error {
 		wrapped(remote.NewPromSeriesMatchHandler(h.storage,
 			h.tagOptions, h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 	).Methods(remote.PromSeriesMatchHTTPMethods...)
-
-	// Debug endpoints
-	h.router.HandleFunc(validator.PromDebugURL,
-		wrapped(validator.NewPromDebugHandler(
-			nativePromReadHandler, h.fetchOptionsBuilder, *h.config.LookbackDuration,
-			h.instrumentOpts)).ServeHTTP).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
