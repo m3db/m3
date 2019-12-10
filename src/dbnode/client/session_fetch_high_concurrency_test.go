@@ -52,12 +52,12 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		numShards   = 32
+		numShards   = 1024
 		numReplicas = 3
 		numHosts    = 8
 
 		concurrency  = 4
-		fetchAllEach = 16
+		fetchAllEach = 128
 
 		maxIDs        = 0
 		fetchAllTypes = []struct {
