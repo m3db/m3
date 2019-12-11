@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
@@ -96,58 +98,53 @@ func TestTranslateQueryTrailingDot(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestTranslateTimeseries(t *testing.T) {
-	ctx := xctx.New()
-	resolution := 10 * time.Second
-	steps := 3
-	start := time.Now().Truncate(resolution).Add(time.Second)
-	end := start.Add(time.Duration(steps) * resolution).Add(time.Second * -2)
-
-	// NB: truncated steps should have 1 less data point than input series since
-	// the first data point is not valid.
-	truncatedSteps := steps - 1
-	truncated := start.Truncate(resolution).Add(resolution)
-	truncatedEnd := truncated.Add(resolution * time.Duration(truncatedSteps))
-
-	expected := 5
-	seriesList := make(m3ts.SeriesList, expected)
-	for i := 0; i < expected; i++ {
-		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)),
-			vals, models.NewTags(0, nil))
-		seriesList[i] = series
-	}
-
-	resos := make([]int64, 0, expected)
-	for range seriesList {
+func buildResult(
+	ctrl *gomock.Controller,
+	resolution time.Duration,
+	size int,
+	steps int,
+	start time.Time,
+) block.Result {
+	resos := make([]int64, 0, size)
+	metas := make([]block.SeriesMeta, 0, size)
+	for i := 0; i < size; i++ {
 		resos = append(resos, int64(resolution))
+		metas = append(metas, block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))})
 	}
 
-	result := &storage.FetchResult{
-		SeriesList: seriesList,
+	var (
+		bl = block.NewMockBlock(ctrl)
+		it = block.NewMockSeriesIter(ctrl)
+	)
+
+	orderedOps := make([]*gomock.Call, 0, size*2+7)
+	addOp := func(op *gomock.Call) { orderedOps = append(orderedOps, op) }
+	addOp(bl.EXPECT().SeriesIter().Return(it, nil))
+	addOp(it.EXPECT().SeriesMeta().Return(metas))
+	for i := 0; i < size; i++ {
+		addOp(it.EXPECT().Next().Return(true))
+		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
+		c := block.NewUnconsolidatedSeries(vals.Datapoints(), metas[i])
+		addOp(it.EXPECT().Current().Return(c))
+	}
+
+	addOp(it.EXPECT().Next().Return(false))
+	addOp(it.EXPECT().Err().Return(nil))
+	addOp(bl.EXPECT().Close().Return(nil))
+
+	gomock.InOrder(orderedOps...)
+	return block.Result{
+		Blocks: []block.Block{bl},
 		Metadata: block.ResultMetadata{
 			Resolutions: resos,
 		},
-	}
-
-	translated, err := translateTimeseries(ctx, result, start, end)
-	require.NoError(t, err)
-
-	require.Equal(t, expected, len(translated))
-	for i, tt := range translated {
-		ex := make([]float64, truncatedSteps)
-		for j := range ex {
-			ex[j] = float64(i)
-		}
-
-		assert.Equal(t, truncated, tt.StartTime())
-		assert.Equal(t, truncatedEnd, tt.EndTime())
-		assert.Equal(t, ex, tt.SafeValues())
-		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
 	}
 }
 
-func TestTranslateTimeseriesWithTags(t *testing.T) {
+func TestTranslateTimeseries(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	ctx := xctx.New()
 	resolution := 10 * time.Second
 	steps := 3
@@ -159,27 +156,9 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 	truncatedSteps := steps - 1
 	truncated := start.Truncate(resolution).Add(resolution)
 	truncatedEnd := truncated.Add(resolution * time.Duration(truncatedSteps))
+
 	expected := 5
-	seriesList := make(m3ts.SeriesList, expected)
-	for i := 0; i < expected; i++ {
-		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)), vals,
-			models.NewTags(0, nil))
-		seriesList[i] = series
-	}
-
-	resos := make([]int64, 0, expected)
-	for range seriesList {
-		resos = append(resos, int64(resolution))
-	}
-
-	result := &storage.FetchResult{
-		SeriesList: seriesList,
-		Metadata: block.ResultMetadata{
-			Resolutions: resos,
-		},
-	}
-
+	result := buildResult(ctrl, resolution, expected, steps, start)
 	translated, err := translateTimeseries(ctx, result, start, end)
 	require.NoError(t, err)
 
@@ -198,27 +177,24 @@ func TestTranslateTimeseriesWithTags(t *testing.T) {
 }
 
 func TestFetchByQuery(t *testing.T) {
-	store := mock.NewMockStorage()
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
 	resolution := 10 * time.Second
 	start := time.Now().Add(time.Hour * -1).Truncate(resolution).Add(time.Second)
 	steps := 3
-	vals := m3ts.NewFixedStepValues(resolution, steps, 3, start)
-	seriesList := m3ts.SeriesList{
-		m3ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
+	res := buildResult(ctrl, resolution, 1, steps, start)
+	res.Metadata = block.ResultMetadata{
+		Exhaustive:  false,
+		LocalOnly:   true,
+		Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Resolutions: []int64{int64(resolution)},
 	}
 
-	store.SetFetchResult(&storage.FetchResult{
-		SeriesList: seriesList,
-		Metadata: block.ResultMetadata{
-			Exhaustive:  false,
-			LocalOnly:   true,
-			Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-			Resolutions: []int64{int64(resolution)},
-		},
-	}, nil)
+	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(res, nil)
 
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
 	childEnforcer := cost.NewMockChainedEnforcer(ctrl)
 	childEnforcer.EXPECT().Close()
 
@@ -239,15 +215,13 @@ func TestFetchByQuery(t *testing.T) {
 
 	query := "a*b"
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Equal(t, 1, len(result.SeriesList))
 	series := result.SeriesList[0]
-	assert.Equal(t, "a", series.Name())
+	assert.Equal(t, "a0", series.Name())
 	// NB: last point is expected to be truncated.
-	assert.Equal(t, []float64{3, 3}, series.SafeValues())
+	assert.Equal(t, []float64{0, 0}, series.SafeValues())
 
-	// NB: ensure the fetch was called with the base enforcer's child correctly
-	assert.Equal(t, childEnforcer, store.LastFetchOptions().Enforcer)
 	assert.False(t, result.Metadata.Exhaustive)
 	assert.True(t, result.Metadata.LocalOnly)
 	require.Equal(t, 1, len(result.Metadata.Warnings))

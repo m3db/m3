@@ -23,6 +23,8 @@ package native
 import (
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // The Engine for running queries.
@@ -32,6 +34,12 @@ type Engine struct {
 
 // NewEngine creates a new query engine.
 func NewEngine(store storage.Storage) *Engine {
+	// Enable pooling.
+	bucket := []pool.Bucket{
+		pool.Bucket{Capacity: 16, Count: 4098},
+	}
+
+	ts.EnablePooling(bucket, bucket)
 	return &Engine{
 		storage: store,
 	}
