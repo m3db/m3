@@ -48,14 +48,6 @@ func NewStorage(c remote.Client, opts Options) storage.Storage {
 	return &remoteStorage{client: c, opts: opts}
 }
 
-func (s *remoteStorage) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	return s.client.Fetch(ctx, query, options)
-}
-
 func (s *remoteStorage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,

@@ -21,24 +21,16 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	xcost "github.com/m3db/m3/src/x/cost"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,70 +64,6 @@ func TestLabelConversion(t *testing.T) {
 
 	reverted := TagsToPromLabels(tags)
 	assert.Equal(t, labels, reverted)
-}
-
-func verifyExpandSeries(
-	t *testing.T,
-	ctrl *gomock.Controller,
-	num int,
-	ex bool,
-	pools xsync.PooledWorkerPool,
-) {
-	testTags := seriesiter.GenerateTag()
-	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
-
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true,
-		block.ResultMetadata{
-			Exhaustive: ex,
-			LocalOnly:  true,
-			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-		}, enforcer, nil)
-	assert.NoError(t, err)
-
-	require.NotNil(t, results)
-	require.NotNil(t, results.SeriesList)
-	require.Equal(t, ex, results.Metadata.Exhaustive)
-	require.Equal(t, 1, len(results.Metadata.Warnings))
-	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
-	require.Len(t, results.SeriesList, num)
-	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(),
-		Value: testTags.Value.Bytes()}}
-	for i := 0; i < num; i++ {
-		series := results.SeriesList[i]
-		require.NotNil(t, series)
-		require.Equal(t, expectedTags, series.Tags.Tags)
-	}
-}
-
-func testExpandSeries(t *testing.T, ex bool, pools xsync.PooledWorkerPool) {
-	ctrl := xtest.NewController(t)
-
-	for i := 0; i < 100; i++ {
-		verifyExpandSeries(t, ctrl, i, ex, pools)
-	}
-}
-
-func TestExpandSeriesNilPools(t *testing.T) {
-	testExpandSeries(t, false, nil)
-	testExpandSeries(t, true, nil)
-}
-
-func TestExpandSeriesValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	pool.Init()
-	testExpandSeries(t, false, pool)
-	testExpandSeries(t, true, pool)
-}
-
-func TestExpandSeriesSmallValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	pool.Init()
-	testExpandSeries(t, false, pool)
-	testExpandSeries(t, true, pool)
 }
 
 var (
@@ -236,25 +164,6 @@ func TestPromReadQueryToM3(t *testing.T) {
 var (
 	benchResult *prompb.QueryResult
 )
-
-func TestIteratorToTsSeries(t *testing.T) {
-	t.Run("errors on iterator error", func(t *testing.T) {
-		ctrl := xtest.NewController(t)
-		mockIter := encoding.NewMockSeriesIterator(ctrl)
-
-		expectedErr := errors.New("expected")
-		mockIter.EXPECT().Err().Return(expectedErr)
-
-		mockIter = seriesiter.NewMockSeriesIteratorFromBase(mockIter, seriesiter.NewMockValidTagGenerator(ctrl), 1)
-		enforcer := cost.NewMockChainedEnforcer(ctrl)
-		enforcer.EXPECT().Add(xcost.Cost(2)).Times(1)
-
-		dps, err := iteratorToTsSeries(mockIter, enforcer, models.NewTagOptions())
-
-		assert.Nil(t, dps)
-		assert.EqualError(t, err, expectedErr.Error())
-	})
-}
 
 func TestFetchResultToPromResult(t *testing.T) {
 	ctrl := xtest.NewController(t)

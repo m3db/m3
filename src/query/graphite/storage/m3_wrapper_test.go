@@ -35,8 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -217,7 +217,7 @@ func TestFetchByQuery(t *testing.T) {
 		},
 	}, nil)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	childEnforcer := cost.NewMockChainedEnforcer(ctrl)
 	childEnforcer.EXPECT().Close()

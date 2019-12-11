@@ -42,15 +42,6 @@ func NewSlowStorage(
 	return &slowStorage{storage: storage, delay: delay}
 }
 
-func (s *slowStorage) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	time.Sleep(s.delay)
-	return s.storage.Fetch(ctx, query, options)
-}
-
 func (s *slowStorage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,

@@ -91,25 +91,6 @@ func NewGRPCClient(
 	}, nil
 }
 
-func (c *grpcClient) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	result, err := c.fetchRaw(ctx, query, options)
-	if err != nil {
-		return nil, err
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	return storage.SeriesIteratorsToFetchResult(result.SeriesIterators,
-		c.opts.ReadWorkerPool(), true, result.Metadata, enforcer, c.opts.TagOptions())
-}
-
 func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
 	c.once.Do(func() {
 		c.pools, c.poolErr = c.poolWrapper.WaitForIteratorPools(poolTimeout)

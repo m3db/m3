@@ -113,7 +113,7 @@ func (s *m3storage) FetchProm(
 	}
 
 	defer accumulator.Close()
-	result, _, err := accumulator.FinalResultWithAttrs()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -123,55 +123,25 @@ func (s *m3storage) FetchProm(
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	return storage.SeriesIteratorsToPromResult(
+	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result.SeriesIterators,
 		s.opts.ReadWorkerPool(),
 		result.Metadata,
 		enforcer,
 		s.opts.TagOptions(),
 	)
-}
-
-func (s *m3storage) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
-	if err != nil {
-		return nil, err
-	}
-
-	result, attrs, err := accumulator.FinalResultWithAttrs()
-	defer accumulator.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(
-		result.SeriesIterators,
-		s.opts.ReadWorkerPool(),
-		true,
-		result.Metadata,
-		enforcer,
-		s.opts.TagOptions(),
-	)
 
 	if err != nil {
-		return nil, err
+		return storage.PromResult{}, err
 	}
 
-	if len(fetchResult.SeriesList) != len(attrs) {
-		return nil, errMismatchedFetchedLength
+	tsLength := len(fetchResult.PromResult.GetTimeseries())
+	if tsLength != len(attrs) {
+		return storage.PromResult{}, errMismatchedFetchedLength
 	}
 
 	if options.IncludeResolution {
-		resolutions := make([]int64, 0, len(fetchResult.SeriesList))
+		resolutions := make([]int64, 0, tsLength)
 		for _, attr := range attrs {
 			resolutions = append(resolutions, int64(attr.Resolution))
 		}

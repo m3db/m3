@@ -216,16 +216,16 @@ func (s *m3WrappedStore) FetchByQuery(
 		FanoutAggregatedOptimized: storage.FanoutForceDisable,
 	}
 
-	m3result, err := s.m3.Fetch(m3ctx, m3query, fetchOptions)
+	res, err := s.m3.FetchProm(m3ctx, m3query, fetchOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	series, err := translateTimeseries(ctx, m3result,
+	series, err := translateTimeseries(ctx, res.PromResult.GetTimeseries(),
 		opts.StartTime, opts.EndTime)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewFetchResult(ctx, series, m3result.Metadata), nil
+	return NewFetchResult(ctx, series, res.Metadata), nil
 }

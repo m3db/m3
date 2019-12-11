@@ -34,6 +34,8 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
+const initRawFetchAllocSize = 32
+
 func cloneBytes(b []byte) []byte {
 	return append(make([]byte, 0, len(b)), b...)
 }
@@ -103,10 +105,6 @@ func toPromSequentially(
 		series, err := iteratorToPromResult(iter, enforcer, tagOptions)
 		if err != nil {
 			return PromResult{}, err
-		}
-
-		if len(series.GetSamples()) == 0 {
-			continue
 		}
 
 		seriesList = append(seriesList, series)
