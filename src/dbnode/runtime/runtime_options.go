@@ -46,7 +46,7 @@ const (
 	// attempt to divide a mutable index block into when flushing the index
 	// block. The fewer the blocks the better for searches, but the more memory
 	// intensive it is to build at runtime.
-	DefaultFlushIndexBlockNumSegments = 4
+	DefaultFlushIndexBlockNumSegments = 1
 
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
