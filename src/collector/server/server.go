@@ -44,11 +44,7 @@ import (
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
-	// ConfigFile is the config file to use.
-	ConfigFile string
-
-	// Config is an alternate way to provide configuration and will be used
-	// instead of parsing ConfigFile if ConfigFile is not specified.
+	// Config will be used to configure the application.
 	Config config.Configuration
 
 	// InterruptCh is a programmatic interrupt channel to supply to
@@ -58,15 +54,7 @@ type RunOptions struct {
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
-	var cfg config.Configuration
-	if runOpts.ConfigFile != "" {
-		if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
-			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
-			os.Exit(1)
-		}
-	} else {
-		cfg = runOpts.Config
-	}
+	cfg := runOpts.Config
 
 	ctx := context.Background()
 	logger, err := cfg.Logging.Build()

@@ -39,6 +39,7 @@ import (
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/x/instrument"
@@ -63,7 +64,7 @@ type fakeSource struct {
 	content   string
 }
 
-func (f *fakeSource) Write(w io.Writer) error {
+func (f *fakeSource) Write(w io.Writer, _ *http.Request) error {
 	f.called = true
 	if f.shouldErr {
 		return errors.New("bad write")
@@ -87,7 +88,7 @@ func TestWriteZip(t *testing.T) {
 	zipWriter.RegisterSource("test2", fs2)
 	zipWriter.RegisterSource("test3", fs3)
 	buff := bytes.NewBuffer([]byte{})
-	err := zipWriter.WriteZip(buff)
+	err := zipWriter.WriteZip(buff, &http.Request{})
 
 	bytesReader := bytes.NewReader(buff.Bytes())
 	readerCloser, zerr := zip.NewReader(bytesReader, int64(len(buff.Bytes())))
@@ -125,7 +126,7 @@ func TestWriteZipErr(t *testing.T) {
 	}
 	zipWriter.RegisterSource("test", fs)
 	buff := bytes.NewBuffer([]byte{})
-	err := zipWriter.WriteZip(buff)
+	err := zipWriter.WriteZip(buff, &http.Request{})
 	require.Error(t, err)
 	require.True(t, fs.called)
 }
@@ -273,17 +274,19 @@ func newHandlerOptsAndClient(t *testing.T) (placement.HandlerOptions, *clustercl
 
 func TestDefaultSources(t *testing.T) {
 	defaultSources := []string{
-		"cpuSource",
-		"heapSource",
-		"hostSource",
-		"goroutineProfile",
-		"namespaceSource",
-		"placementSource",
+		"cpu.prof",
+		"heap.prof",
+		"host.json",
+		"goroutine.prof",
+		"namespace.json",
+		"placement-m3db.json",
 	}
 
 	handlerOpts, mockClient := newHandlerOptsAndClient(t)
-
-	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions(), mockClient, handlerOpts, []string{"m3db"})
+	svcDefaults := []apihandler.ServiceNameAndDefaults{{
+		ServiceName: "m3db",
+	}}
+	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, mockClient, handlerOpts, svcDefaults, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NotNil(t, zw)
 
@@ -292,14 +295,13 @@ func TestDefaultSources(t *testing.T) {
 		iv := reflect.ValueOf(zw).Elem().Interface()
 		z, ok := iv.(zipWriter)
 		require.True(t, ok)
-
 		_, ok = z.sources[source]
 		require.True(t, ok)
 	}
 
 	// Check writing ZIP is ok
 	buff := bytes.NewBuffer([]byte{})
-	err = zw.WriteZip(buff)
+	err = zw.WriteZip(buff, &http.Request{})
 	require.NoError(t, err)
 	require.NotZero(t, buff.Len())
 

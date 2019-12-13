@@ -36,7 +36,7 @@ type SamplePool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Get returns a sample from the pool.
+	// Get gets a sample from the pool.
 	Get() *Sample
 
 	// Put returns a sample to the pool.

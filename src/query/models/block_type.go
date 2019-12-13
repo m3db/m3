@@ -27,13 +27,17 @@ import (
 var (
 	validBlockTypes = []FetchedBlockType{
 		TypeSingleBlock,
-		TypeMultiBlock,
 		TypeDecodedBlock,
 	}
 )
 
 // Validate validates the fetched block type.
 func (t FetchedBlockType) Validate() error {
+	// Temporarily disabling multiblock as it is not currently supported.
+	if t == TypeMultiBlock {
+		return fmt.Errorf("multiblock support currently disabled")
+	}
+
 	if t >= TypeSingleBlock && t <= TypeDecodedBlock {
 		return nil
 	}

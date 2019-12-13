@@ -41,7 +41,8 @@ func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
 
 // EqualsWithNansWithDelta helps compare float slices which have NaNs in them
 // allowing a delta for float comparisons.
-func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interface{}, delta float64) {
+func EqualsWithNansWithDelta(t *testing.T,
+	expected interface{}, actual interface{}, delta float64) {
 	debugMsg := fmt.Sprintf("expected: %v, actual: %v", expected, actual)
 	switch v := expected.(type) {
 	case [][]float64:
@@ -74,7 +75,8 @@ func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interfac
 	}
 }
 
-func equalsWithNans(t *testing.T, expected []float64, actual []float64, delta float64, debugMsg string) {
+func equalsWithNans(t *testing.T, expected []float64,
+	actual []float64, delta float64, debugMsg string) {
 	require.Equal(t, len(expected), len(actual))
 	for i, v := range expected {
 		if math.IsNaN(v) {

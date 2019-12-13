@@ -21,8 +21,6 @@
 package common
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 )
@@ -32,8 +30,7 @@ type QueryEngine interface {
 	FetchByQuery(
 		ctx context.Context,
 		query string,
-		start, end time.Time,
-		timeout time.Duration,
+		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
 }
 
@@ -53,18 +50,7 @@ func NewEngine(storage storage.Storage) *Engine {
 func (e *Engine) FetchByQuery(
 	ctx context.Context,
 	query string,
-	start, end time.Time,
-	timeout time.Duration,
+	options storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return e.storage.FetchByQuery(
-		ctx,
-		query,
-		storage.FetchOptions{
-			StartTime: start,
-			EndTime:   end,
-			DataOptions: storage.DataOptions{
-				Timeout: timeout,
-			},
-		},
-	)
+	return e.storage.FetchByQuery(ctx, query, options)
 }

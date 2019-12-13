@@ -135,6 +135,7 @@ type createHandler struct {
 	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
 	embeddedDbCfg          *dbconfig.DBConfiguration
+	defaults               []handler.ServiceOptionsDefault
 	instrumentOpts         instrument.Options
 }
 
@@ -143,6 +144,7 @@ func NewCreateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
+	defaults []handler.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) (http.Handler, error) {
 	placementHandlerOptions, err := placement.NewHandlerOptions(client,
@@ -157,8 +159,16 @@ func NewCreateHandler(
 		namespaceGetHandler:    namespace.NewGetHandler(client, instrumentOpts),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client, instrumentOpts),
 		embeddedDbCfg:          embeddedDbCfg,
+		defaults:               defaults,
 		instrumentOpts:         instrumentOpts,
 	}, nil
+}
+
+func (h *createHandler) serviceNameAndDefaults() handler.ServiceNameAndDefaults {
+	return handler.ServiceNameAndDefaults{
+		ServiceName: handler.M3DBServiceName,
+		Defaults:    h.defaults,
+	}
 }
 
 func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -166,8 +176,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
-
-	currPlacement, _, err := h.placementGetHandler.Get(handler.M3DBServiceName, nil)
+	currPlacement, _, err := h.placementGetHandler.Get(
+		h.serviceNameAndDefaults(), nil)
 	if err != nil {
 		logger.Error("unable to get placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -210,7 +220,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions(handler.M3DBServiceName, r.Header, nil)
+	opts := handler.NewServiceOptions(h.serviceNameAndDefaults(),
+		r.Header, nil)
 	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Error(err))
@@ -247,7 +258,8 @@ func (h *createHandler) maybeInitPlacement(
 		// If we're here then there is no existing placement, so just create it. This is safe because in
 		// the case where a placement did not already exist, the parse function above validated that we
 		// have all the required information to create a placement.
-		newPlacement, err := h.placementInitHandler.Init(handler.M3DBServiceName, r, placementRequest)
+		newPlacement, err := h.placementInitHandler.Init(h.serviceNameAndDefaults(),
+			r, placementRequest)
 		if err != nil {
 			return nil, false, err
 		}

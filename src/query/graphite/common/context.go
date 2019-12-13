@@ -54,6 +54,9 @@ type contextBase struct {
 	// specify zero to indicate default timeout or a positive value
 	Timeout time.Duration
 
+	// Limit provides a cap on the number of results returned from the database.
+	Limit int
+
 	parent         *Context
 	reqCtx         ctx.Context
 	storageContext context.Context
@@ -71,6 +74,7 @@ type ContextOptions struct {
 	End     time.Time
 	Engine  QueryEngine
 	Timeout time.Duration
+	Limit   int
 }
 
 // TimeRangeAdjustment is an applied time range adjustment.
@@ -92,6 +96,7 @@ func NewContext(options ContextOptions) *Context {
 			Engine:         options.Engine,
 			storageContext: context.New(),
 			Timeout:        options.Timeout,
+			Limit:          options.Limit,
 		},
 	}
 }

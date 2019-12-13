@@ -1447,7 +1447,11 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader, ok := enc.Stream(encoding.StreamOptions{})
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
@@ -1594,7 +1598,11 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader, ok := enc.Stream(encoding.StreamOptions{})
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	reader, ok := enc.Stream(ctx)
 	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
@@ -1900,8 +1908,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	enqueueChInputs, err := enqueueCh.get()
-	require.NoError(t, err)
+	enqueueChInputs := enqueueCh.read()
 	require.Equal(t, 0, len(enqueueChInputs))
 
 	// Actually enqueue the blocks
@@ -1911,8 +1918,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	enqueueDelayedDone()
 
 	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	enqueueChInputs, err = enqueueCh.get()
-	require.NoError(t, err)
+	enqueueChInputs = enqueueCh.read()
 	require.Equal(t, numBlocks, len(enqueueChInputs))
 
 	// Process the blocks
@@ -1923,8 +1929,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	}
 
 	require.Equal(t, 0, enqueueCh.unprocessedLen())
-	enqueueChInputs, err = enqueueCh.get()
-	require.NoError(t, err)
+	enqueueChInputs = enqueueCh.read()
 	require.Equal(t, 0, len(enqueueChInputs))
 }
 
@@ -2493,8 +2498,7 @@ func assertEnqueueChannel(
 	var distinct []receivedBlockMetadata
 	for {
 		var perPeerBlocksMetadata []receivedBlockMetadata
-		enqueueChInputs, err := enqueueCh.get()
-		require.NoError(t, err)
+		enqueueChInputs := enqueueCh.read()
 
 		select {
 		case perPeerBlocksMetadata = <-enqueueChInputs:
@@ -2541,7 +2545,7 @@ func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 	return fmt.Errorf("not implemented")
 }
 
-func (e *testEncoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
+func (e *testEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
 	return xio.NewSegmentReader(e.data), true
 }
 

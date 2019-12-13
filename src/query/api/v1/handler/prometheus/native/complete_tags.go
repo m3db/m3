@@ -86,6 +86,8 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO: Support multiple result types
-	prometheus.RenderTagCompletionResultsJSON(w, result)
+	handler.AddWarningHeaders(w, result.Metadata)
+	if err = prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
+		logger.Error("unable to render results", zap.Error(err))
+	}
 }

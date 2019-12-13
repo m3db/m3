@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
+	"go.uber.org/zap"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -99,6 +100,10 @@ func testNamespaceIndexHighConcurrentQueries(
 		err := test.index.Close()
 		require.NoError(t, err)
 	}()
+
+	logger := test.opts.InstrumentOptions().Logger()
+	logger.Info("start high index concurrent index query test",
+		zap.Any("opts", opts))
 
 	now := time.Now().Truncate(test.indexBlockSize)
 
@@ -281,7 +286,17 @@ func testNamespaceIndexHighConcurrentQueries(
 		readyWg.Add(1)
 		enqueueWg.Add(1)
 		go func() {
-			defer enqueueWg.Done()
+			var ctxs []context.Context
+			defer func() {
+				if !opts.forceTimeouts {
+					// Only close if not being closed by the force timeouts code
+					// at end of the test.
+					for _, ctx := range ctxs {
+						ctx.Close()
+					}
+				}
+				enqueueWg.Done()
+			}()
 			readyWg.Done()
 			startWg.Wait()
 
@@ -290,7 +305,7 @@ func testNamespaceIndexHighConcurrentQueries(
 				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
 				ctx := context.NewContext()
-				defer ctx.Close()
+				ctxs = append(ctxs, ctx)
 
 				if opts.forceTimeouts {
 					// For the force timeout tests we just want to spin up the
@@ -332,7 +347,7 @@ func testNamespaceIndexHighConcurrentQueries(
 				for _, entry := range results.Results.Map().Iter() {
 					id := entry.Key().String()
 
-					doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
+					doc, err := convert.FromMetricIterNoClone(entry.Key(), entry.Value())
 					require.NoError(t, err)
 					if err != nil {
 						continue // this will fail the test anyway, but don't want to panic
@@ -364,15 +379,20 @@ func testNamespaceIndexHighConcurrentQueries(
 	// while we close the contexts so any races with finalization and
 	// potentially aborted requests will race against each other.
 	if opts.forceTimeouts {
+		logger.Info("waiting for timeouts")
+
 		// First wait for timeouts
 		timedOutQueriesWg.Wait()
+		logger.Info("timeouts done")
 
 		var ctxCloseWg sync.WaitGroup
 		ctxCloseWg.Add(len(timeoutContexts))
 		go func() {
-			// Start allowing timedout queries to complete
+			// Start allowing timedout queries to complete.
+			logger.Info("allow block queries to begin returning")
 			timeoutWg.Done()
-			// Race closing all contexts at once
+
+			// Race closing all contexts at once.
 			for _, ctx := range timeoutContexts {
 				ctx := ctx
 				go func() {
@@ -381,6 +401,9 @@ func testNamespaceIndexHighConcurrentQueries(
 				}()
 			}
 		}()
+		logger.Info("waiting for contexts to finish blocking closing")
 		ctxCloseWg.Wait()
+
+		logger.Info("finished with timeouts")
 	}
 }

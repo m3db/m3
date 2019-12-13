@@ -28,7 +28,6 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 
@@ -87,6 +86,21 @@ func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTags", reflect.TypeOf((*MockStorage)(nil).CompleteTags), arg0, arg1, arg2)
 }
 
+// CompleteTagsCompressed mocks base method
+func (m *MockStorage) CompleteTagsCompressed(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*storage.CompleteTagsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteTagsCompressed", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*storage.CompleteTagsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteTagsCompressed indicates an expected call of CompleteTagsCompressed
+func (mr *MockStorageMockRecorder) CompleteTagsCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTagsCompressed", reflect.TypeOf((*MockStorage)(nil).CompleteTagsCompressed), arg0, arg1, arg2)
+}
+
 // ErrorBehavior mocks base method
 func (m *MockStorage) ErrorBehavior() storage.ErrorBehavior {
 	m.ctrl.T.Helper()
@@ -132,10 +146,10 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 }
 
 // FetchCompressed mocks base method
-func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (encoding.SeriesIterators, Cleanup, error) {
+func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (SeriesFetchResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret0, _ := ret[0].(SeriesFetchResult)
 	ret1, _ := ret[1].(Cleanup)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -145,6 +159,21 @@ func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQ
 func (mr *MockStorageMockRecorder) FetchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressed", reflect.TypeOf((*MockStorage)(nil).FetchCompressed), arg0, arg1, arg2)
+}
+
+// FetchProm mocks base method
+func (m *MockStorage) FetchProm(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (storage.PromResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchProm", arg0, arg1, arg2)
+	ret0, _ := ret[0].(storage.PromResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchProm indicates an expected call of FetchProm
+func (mr *MockStorageMockRecorder) FetchProm(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchProm", reflect.TypeOf((*MockStorage)(nil).FetchProm), arg0, arg1, arg2)
 }
 
 // Name mocks base method
@@ -162,10 +191,10 @@ func (mr *MockStorageMockRecorder) Name() *gomock.Call {
 }
 
 // SearchCompressed mocks base method
-func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) ([]MultiTagResult, Cleanup, error) {
+func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (TagResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].([]MultiTagResult)
+	ret0, _ := ret[0].(TagResult)
 	ret1, _ := ret[1].(Cleanup)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

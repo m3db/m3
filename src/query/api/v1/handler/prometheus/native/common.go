@@ -25,7 +25,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -81,6 +80,10 @@ func parseParams(
 ) (models.RequestParams, *xhttp.ParseError) {
 	var params models.RequestParams
 
+	if err := r.ParseForm(); err != nil {
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+	}
+
 	params.Now = time.Now()
 	if v := r.FormValue(timeParam); v != "" {
 		var err error
@@ -115,7 +118,7 @@ func parseParams(
 	params.End = end
 	step := fetchOpts.Step
 	if step <= 0 {
-		err := fmt.Errorf("expected postive step size, instead got: %d", step)
+		err := fmt.Errorf("expected positive step size, instead got: %d", step)
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, handler.StepParam, err), http.StatusBadRequest)
 	}
 
@@ -202,15 +205,16 @@ func parseInstantaneousParams(
 	fetchOpts *storage.FetchOptions,
 	instrumentOpts instrument.Options,
 ) (models.RequestParams, *xhttp.ParseError) {
+	if err := r.ParseForm(); err != nil {
+		return models.RequestParams{}, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
 	if fetchOpts.Step == 0 {
 		fetchOpts.Step = time.Second
 	}
-	if r.Form == nil {
-		r.Form = make(url.Values)
-	}
+
 	r.Form.Set(startParam, nowTimeValue)
 	r.Form.Set(endParam, nowTimeValue)
-
 	params, err := parseParams(r, engineOpts, timeoutOpts,
 		fetchOpts, instrumentOpts)
 	if err != nil {
@@ -221,7 +225,15 @@ func parseInstantaneousParams(
 }
 
 func parseQuery(r *http.Request) (string, error) {
-	queries, ok := r.URL.Query()[queryParam]
+	if err := r.ParseForm(); err != nil {
+		return "", err
+	}
+
+	// NB(schallert): r.Form is generic over GET and POST requests, with body
+	// parameters taking precedence over URL parameters (see r.ParseForm() docs
+	// for more details). We depend on the generic behavior for properly parsing
+	// POST and GET queries.
+	queries, ok := r.Form[queryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
 		return "", errors.ErrNoQueryFound
 	}

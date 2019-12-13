@@ -87,9 +87,8 @@ func TestCommitLogReadWrite(t *testing.T) {
 
 	i := 0
 	iterOpts := IteratorOpts{
-		CommitLogOptions:      opts,
-		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		CommitLogOptions:    opts,
+		FileFilterPredicate: ReadAllPredicate(),
 	}
 	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
@@ -110,9 +109,13 @@ func TestCommitLogReadWrite(t *testing.T) {
 	}
 
 	for ; iter.Next(); i++ {
-		series, datapoint, _, _ := iter.Current()
-		require.NoError(t, iter.Err())
+		logEntry := iter.Current()
+		var (
+			series    = logEntry.Series
+			datapoint = logEntry.Datapoint
+		)
 
+		require.NoError(t, iter.Err())
 		seriesWrites := writesBySeries[series.ID.String()]
 		write := seriesWrites.writes[seriesWrites.readPosition]
 
@@ -484,9 +487,8 @@ func newInitState(
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	writesOnDisk := make(map[string]map[xtime.UnixNano]generatedWrite)
 	iterOpts := IteratorOpts{
-		CommitLogOptions:      s.opts,
-		FileFilterPredicate:   ReadAllPredicate(),
-		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+		CommitLogOptions:    s.opts,
+		FileFilterPredicate: ReadAllPredicate(),
 	}
 	// Based on the corruption type this could return some corrupt files
 	// or it could not, so we don't check it.
@@ -502,8 +504,15 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 
 	count := 0
 	for iter.Next() {
-		series, datapoint, unit, annotation := iter.Current()
-		idString := series.ID.String()
+		logEntry := iter.Current()
+		var (
+			series     = logEntry.Series
+			datapoint  = logEntry.Datapoint
+			unit       = logEntry.Unit
+			annotation = logEntry.Annotation
+			idString   = series.ID.String()
+		)
+
 		seriesMap, ok := writesOnDisk[idString]
 		if !ok {
 			seriesMap = make(map[xtime.UnixNano]generatedWrite)

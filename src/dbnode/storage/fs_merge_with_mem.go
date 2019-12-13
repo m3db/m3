@@ -117,6 +117,9 @@ func (m *fsMergeWithMem) ForEachRemaining(
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
 		seriesID := seriesElement.Value
+
+		// TODO(r): We should really not be looking this up per series element
+		// and just keep it in the linked list next to the series ID.
 		tags, ok, err := m.shard.TagsFromSeriesID(seriesID)
 		if err != nil {
 			return err
@@ -125,6 +128,9 @@ func (m *fsMergeWithMem) ForEachRemaining(
 			// Receiving not ok means that the series was not found, for some
 			// reason like it falling out of retention, therefore we skip this
 			// series and continue.
+			// TODO(r): This should actually be an invariant error - these should not
+			// be evicted until a flush otherwise the durability guarantee was not
+			// upheld.
 			continue
 		}
 

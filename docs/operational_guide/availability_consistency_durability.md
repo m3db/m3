@@ -92,7 +92,7 @@ You can read about the consistency levels in more detail in [the Consistency Lev
 ### Commitlog Configuration
 
 M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
-We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](./bootstrapping.md).
+We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](./bootstrapping_crash_recovery.md).
 
 
 ### Writing New Series Asynchronously

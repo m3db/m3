@@ -21,11 +21,11 @@
 import React from 'react';
 import {Table, Tag} from 'antd';
 import _ from 'lodash';
-import MappingRuleEditor from 'components/MappingRuleEditor';
+import MappingRuleEditor from './MappingRuleEditor';
 import TableActions from './TableActions';
 import {compose} from 'recompose';
-import {connectR2API} from 'hocs';
-import {formatTimestampMilliseconds} from 'utils';
+import {connectR2API} from '../hocs';
+import {formatTimestampMilliseconds} from '../utils';
 import HelpTooltip from './HelpTooltip';
 const {Column} = Table;
 

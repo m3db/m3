@@ -115,7 +115,17 @@ func (e *engine) Execute(
 	opts *QueryOptions,
 	fetchOpts *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	return e.opts.Store().Fetch(ctx, query, fetchOpts)
+	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
+	return result, err
+}
+
+func (e *engine) ExecuteProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return e.opts.Store().FetchProm(ctx, query, fetchOpts)
 }
 
 func (e *engine) ExecuteExpr(
@@ -128,7 +138,6 @@ func (e *engine) ExecuteExpr(
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
 	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
-
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
 		return nil, err

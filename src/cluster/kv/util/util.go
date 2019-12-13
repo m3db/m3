@@ -211,6 +211,15 @@ func getTime(v kv.Value) (interface{}, error) {
 	return time.Unix(int64Proto.Value, 0), nil
 }
 
+func getDuration(v kv.Value) (interface{}, error) {
+	var int64Proto commonpb.Int64Proto
+	if err := v.Unmarshal(&int64Proto); err != nil {
+		return nil, err
+	}
+
+	return time.Duration(int64Proto.Value), nil
+}
+
 func watchAndUpdate(
 	store kv.Store,
 	key string,

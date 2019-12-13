@@ -64,7 +64,7 @@ func TestEngine_Execute(t *testing.T) {
 
 	// Results is closed by execute
 	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
-	_, err := engine.Execute(context.TODO(),
+	_, err := engine.ExecuteProm(context.TODO(),
 		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
 	assert.NotNil(t, err)
 }
@@ -79,7 +79,7 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 	mockParent := cost.NewMockChainedEnforcer(ctrl)
 	mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
 
-	parser, err := promql.Parse("foo", models.NewTagOptions())
+	parser, err := promql.Parse("foo", time.Second, models.NewTagOptions())
 	require.NoError(t, err)
 
 	engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,

@@ -56,6 +56,8 @@ func newContainerBlock(blocks []Block) (AccumulatorBlock, error) {
 			return nil, fmt.Errorf("mismatched metadata in container block: "+
 				"expected %s, got %s", meta.String(), m.String())
 		}
+
+		meta.ResultMetadata = meta.ResultMetadata.CombineMetadata(m.ResultMetadata)
 	}
 
 	return &containerBlock{
@@ -86,11 +88,13 @@ func (b *containerBlock) AddBlock(bl Block) error {
 			"expected %s, got %s", m.String(), blockMeta.String())
 	}
 
+	b.meta.ResultMetadata = b.meta.ResultMetadata.
+		CombineMetadata(blockMeta.ResultMetadata)
 	b.blocks = append(b.blocks, bl)
 	return nil
 }
 
-func (c *containerBlock) Info() BlockInfo {
+func (b *containerBlock) Info() BlockInfo {
 	return NewBlockInfo(BlockContainer)
 }
 
@@ -107,28 +111,6 @@ func (b *containerBlock) Close() error {
 	}
 
 	return nil
-}
-
-func (b *containerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (Block, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]Block, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return newContainerBlock(updatedBlockList)
 }
 
 func (b *containerBlock) StepIter() (StepIter, error) {
@@ -326,7 +308,7 @@ func (it *containerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 
@@ -389,31 +371,6 @@ func (b *ucContainerBlock) Close() error {
 
 func (b *ucContainerBlock) Meta() Metadata {
 	return b.meta
-}
-
-func (b *ucContainerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (UnconsolidatedBlock, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]UnconsolidatedBlock, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return &ucContainerBlock{
-		blocks: updatedBlockList,
-		meta:   meta,
-	}, nil
 }
 
 func (b *ucContainerBlock) Consolidate() (Block, error) {
@@ -635,7 +592,7 @@ func (it *ucContainerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 
@@ -651,4 +608,63 @@ func (it *ucContainerSeriesIter) Next() bool {
 
 func (it *ucContainerSeriesIter) Current() UnconsolidatedSeries {
 	return it.its[it.idx].Current()
+}
+
+func (b *ucContainerBlock) MultiSeriesIter(
+	concurrency int,
+) ([]UnconsolidatedSeriesIterBatch, error) {
+	if b.err != nil {
+		return nil, b.err
+	}
+
+	if len(b.blocks) == 0 {
+		return nil, nil
+	}
+
+	multiBatches := make([][]UnconsolidatedSeriesIterBatch, 0, len(b.blocks))
+	for _, bl := range b.blocks {
+		batch, err := bl.MultiSeriesIter(concurrency)
+		if err != nil {
+			// NB: do not have to set the iterator error here, since not all
+			// contained blocks necessarily allow multi series iteration.
+			return nil, err
+		}
+
+		multiBatches = append(multiBatches, batch)
+	}
+
+	// NB: create a batch and merge into it rather than merging
+	// into an existing batch, in case sizes don't line up across blocks
+	// (e.g. if some contained blocks have fewer than `concurrency` series.)
+	batches := make([]UnconsolidatedSeriesIterBatch, 0, concurrency)
+	// init batch sizes.
+	for i := 0; i < concurrency; i++ {
+		// Determine container iter size.
+		size := 0
+		for _, b := range multiBatches {
+			if i >= len(b) {
+				// NB: the current batch has been exhausted, but batches from other
+				// contained blocks may still have values.
+				continue
+			}
+
+			size += b[i].Size
+		}
+
+		iters := make([]UnconsolidatedSeriesIter, 0, size)
+		for _, b := range multiBatches {
+			if i >= len(b) {
+				continue
+			}
+
+			iters = append(iters, b[i].Iter)
+		}
+
+		batches = append(batches, UnconsolidatedSeriesIterBatch{
+			Size: size,
+			Iter: &ucContainerSeriesIter{its: iters},
+		})
+	}
+
+	return batches, nil
 }

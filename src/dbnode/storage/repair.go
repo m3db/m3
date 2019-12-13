@@ -336,7 +336,7 @@ func (r shardRepairer) loadDataIntoShard(shard databaseShard, data result.ShardR
 	}()
 
 	for {
-		err := shard.Load(data.AllSeries())
+		err := shard.LoadBlocks(data.AllSeries())
 		if err == ErrDatabaseLoadLimitHit {
 			waitedCounter.Inc(1)
 			waitingLock.Lock()
@@ -714,7 +714,7 @@ func (r shardRepairer) shadowCompare(
 		peerM = dynamic.NewMessage(nsCtx.Schema.Get().MessageDescriptor)
 	}
 
-	tmpCtx := context.NewContext()
+	readCtx := r.opts.ContextPool().Get()
 	compareResultFunc := func(result block.FetchBlocksMetadataResult) error {
 		seriesID := result.ID
 		peerSeriesIter, err := session.Fetch(nsCtx.ID, seriesID, start, end)
@@ -723,10 +723,10 @@ func (r shardRepairer) shadowCompare(
 		}
 		defer peerSeriesIter.Close()
 
-		tmpCtx.Reset()
-		defer tmpCtx.BlockingClose()
+		readCtx.Reset()
+		defer readCtx.BlockingCloseReset()
 
-		unfilteredLocalSeriesDataBlocks, err := shard.ReadEncoded(tmpCtx, seriesID, start, end, nsCtx)
+		unfilteredLocalSeriesDataBlocks, err := shard.ReadEncoded(readCtx, seriesID, start, end, nsCtx)
 		if err != nil {
 			return err
 		}

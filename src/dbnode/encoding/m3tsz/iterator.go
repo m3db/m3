@@ -53,7 +53,7 @@ type readerIterator struct {
 // NewReaderIterator returns a new iterator for a given reader
 func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
 	return &readerIterator{
-		is:           encoding.NewIStream(reader),
+		is:           encoding.NewIStream(reader, opts.IStreamReaderSizeM3TSZ()),
 		opts:         opts,
 		tsIterator:   NewTimestampIterator(opts, false),
 		intOptimized: intOptimized,

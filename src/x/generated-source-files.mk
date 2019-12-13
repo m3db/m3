@@ -8,11 +8,11 @@ gorename_package_version := 52c7307cddd221bb98f0a3215216789f3c821b10
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
 test-genny-all: genny-all
-	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
-	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
+	@test "$(shell git --no-pager diff --shortstat 2>/dev/null)" = "" || (git --no-pager diff --no-color && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: genny-all
-genny-all: genny-map-all genny-arraypool-all
+genny-all: genny-map-all genny-list-all genny-arraypool-all
 
 .PHONY: genny-map-all
 genny-map-all: idhashmap-update byteshashmap-update
@@ -41,7 +41,7 @@ idhashmap-gen:
 	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
 	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
-	make hashmap-gen-rename
+	make hashmap-gen-rename rename_nogen_key="true"
 endif
 
 .PHONY: byteshashmap-gen
@@ -50,7 +50,7 @@ byteshashmap-gen:
 	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
 	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
-	make hashmap-gen-rename
+	make hashmap-gen-rename rename_nogen_key="true"
 endif
 
 .PHONY: hashmap-gen-rename-helper
@@ -79,44 +79,50 @@ hashmap-gen-rename: install-gorename
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 	echo $(temp_outdir)
-	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
+	@if test -d $(temp_outdir); then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
 	mkdir -p $(temp_outdir)
-	[ ! -f $(out_dir)/new_map_gen.go ] || mv $(out_dir)/new_map_gen.go $(temp_outdir)/new_map_gen.go
+	! test -f $(out_dir)/new_map_gen.go || mv $(out_dir)/new_map_gen.go $(temp_outdir)/new_map_gen.go
 ifeq ($(rename_nogen_key),)
 	# allow users to short circuit the generation of key.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/key.go
 	echo '' >> $(temp_outdir)/key.go
-	[ "$(key_type_alias)" == "" ] || echo "type $(key_type_alias) interface{}" >> $(temp_outdir)/key.go
+	test "$(key_type_alias)" == ""  || echo "type $(key_type_alias) interface{}" >> $(temp_outdir)/key.go
 endif
 ifeq ($(rename_nogen_value),)
 	# Allow users to short circuit the generation of value.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/value.go
 	echo '' >> $(temp_outdir)/value.go
-	[[ $(value_type_alias) = struct* ]] || echo 'type $(value_type_alias) interface{}' >> $(temp_outdir)/value.go
+	test "$(value_type_alias)" = "struct*" || echo 'type $(value_type_alias) interface{}' >> $(temp_outdir)/value.go
 endif
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
 	make hashmap-gen-rename-helper
 	mv $(temp_outdir)/map_gen.go $(out_dir)/map_gen.go
-	[ ! -f $(temp_outdir)/new_map_gen.go ] || mv $(temp_outdir)/new_map_gen.go $(out_dir)/new_map_gen.go
+	! test -f $(temp_outdir)/new_map_gen.go || mv $(temp_outdir)/new_map_gen.go $(out_dir)/new_map_gen.go
 	rm -f $(temp_outdir)/key.go
 	rm -f $(temp_outdir)/value.go
 	rmdir $(temp_outdir)
 
-.PHONY: genny-arraypool-all
-genny-arraypool-all: genny-arraypool-context-finalizeables genny-arraypool-ident-tags
+# Generation rule for all generated lists
+.PHONY: genny-list-all
+genny-list-all:                              \
+	genny-list-context-finalizeables
 
-# arraypool generation rule for context/finalizeablesPool
-.PHONY: genny-arraypool-context-finalizeables
-genny-arraypool-context-finalizeables:
-	cd $(m3x_package_path) && make genny-arraypool \
-		pkg=context                                  \
-		elem_type=finalizeable                       \
-		target_package=$(m3x_package)/context        \
-		out_file=finalizeables_arraypool_gen.go      \
-		rename_type_middle=Finalizeables             \
-		rename_constructor=newFinalizeablesArrayPool \
-		rename_type_prefix=finalizeables             \
-		rename_gen_types=true
+# List generation rule for context/finalizeablesList
+.PHONY: genny-list-context-finalizeables
+genny-list-context-finalizeables:
+	cd $(m3x_package_path) && make genny-pooled-elem-list-gen \
+		pkg=context                                           \
+		elem_type=finalizeable                                \
+		value_type=finalizeable                               \
+		rename_type_prefix=finalizeable                       \
+		rename_type_middle=Finalizeable                       \
+		rename_gen_types=true                                 \
+		target_package=github.com/m3db/m3/src/x/context
+	# Rename generated list file
+	mv -f $(m3x_package_path)/context/list_gen.go $(m3x_package_path)/context/finalizeable_list_gen.go
+
+.PHONY: genny-arraypool-all
+genny-arraypool-all: genny-arraypool-ident-tags
 
 # arraypool generation rule for ident/tagsArrayPool
 .PHONY: genny-arraypool-ident-tags

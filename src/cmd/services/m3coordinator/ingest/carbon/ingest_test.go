@@ -198,11 +198,12 @@ func TestIngesterHandleConn(t *testing.T) {
 		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		annotation []byte,
 		overrides ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
@@ -238,11 +239,12 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		found = []testMetric{}
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		annotation []byte,
 		writeOpts ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()

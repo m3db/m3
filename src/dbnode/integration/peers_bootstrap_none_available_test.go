@@ -29,9 +29,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -56,7 +56,11 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	minShard := uint32(0)
 	maxShard := uint32(opts.NumShards()) - uint32(1)

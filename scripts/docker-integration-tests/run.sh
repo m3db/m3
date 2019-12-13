@@ -13,6 +13,7 @@ TESTS=(
 	scripts/docker-integration-tests/repair/test.sh
 	scripts/docker-integration-tests/replication/test.sh
 	scripts/docker-integration-tests/repair_and_replication/test.sh
+	scripts/docker-integration-tests/multi_cluster_write/test.sh
 )
 
 scripts/docker-integration-tests/setup.sh

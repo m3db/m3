@@ -367,7 +367,31 @@ func (n noopCollector) AddPoint(dp ts.Datapoint) {}
 func (n noopCollector) BufferStep()              {}
 func (n noopCollector) BufferStepCount() int     { return 0 }
 
-func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
+type iterType uint
+
+const (
+	stepSequential iterType = iota
+	stepParallel
+	seriesSequential
+)
+
+func (t iterType) name(name string) string {
+	var n string
+	switch t {
+	case stepParallel:
+		n = "parallel"
+	case stepSequential:
+		n = "sequential"
+	case seriesSequential:
+		n = "series"
+	default:
+		panic(fmt.Sprint("bad iter type", t))
+	}
+
+	return fmt.Sprintf("%s_%s", n, name)
+}
+
+func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 	var (
 		seriesCount   = 100
 		replicasCount = 3
@@ -461,30 +485,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 		}
 	}
 
-	it := &encodedStepIterWithCollector{
-		stepTime: start,
-		blockEnd: end,
-		meta: block.Metadata{
-			Bounds: models.Bounds{
-				Start:    start,
-				StepSize: stepSize,
-				Duration: window,
-			},
-		},
-
-		seriesCollectors: collectors,
-		seriesPeek:       peeks,
-		seriesIters:      iters,
-	}
-
-	if usePools {
-		opts := xsync.NewPooledWorkerPoolOptions()
-		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
-		require.NoError(b, err)
-		readWorkerPools.Init()
-		it.workerPool = readWorkerPools
-	}
-
+	usePools := t == stepParallel
 	if os.Getenv("PROFILE_TEST_CPU") == "true" {
 		key := profileTakenKey{
 			profile:    "cpu",
@@ -512,6 +513,67 @@ func benchmarkNextIteration(b *testing.B, iterations int, usePools bool) {
 		}
 
 		profilesTaken[key] = profilesTaken[key] + 1
+	}
+
+	if t == seriesSequential {
+		sm := make([]block.SeriesMeta, seriesCount)
+		for i := range iters {
+			sm[i] = block.SeriesMeta{}
+		}
+
+		it := encodedSeriesIterUnconsolidated{
+			idx: -1,
+			meta: block.Metadata{
+				Bounds: models.Bounds{
+					Start:    start,
+					StepSize: stepSize,
+					Duration: window,
+				},
+			},
+
+			seriesIters:      iters,
+			seriesMeta:       sm,
+			lookbackDuration: time.Minute * 5,
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			it.idx = -1
+			// Reset all the underlying compressed series iterators.
+			for _, reset := range itersReset {
+				reset()
+			}
+
+			for it.Next() {
+			}
+			require.NoError(b, it.Err())
+		}
+
+		return
+	}
+
+	it := &encodedStepIterWithCollector{
+		stepTime: start,
+		blockEnd: end,
+		meta: block.Metadata{
+			Bounds: models.Bounds{
+				Start:    start,
+				StepSize: stepSize,
+				Duration: window,
+			},
+		},
+
+		seriesCollectors: collectors,
+		seriesPeek:       peeks,
+		seriesIters:      iters,
+	}
+
+	if usePools {
+		opts := xsync.NewPooledWorkerPoolOptions()
+		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
+		require.NoError(b, err)
+		readWorkerPools.Init()
+		it.workerPool = readWorkerPools
 	}
 
 	b.ResetTimer()
@@ -548,30 +610,45 @@ var (
 // goos: darwin
 // goarch: amd64
 // pkg: github.com/m3db/m3/src/query/ts/m3db
-// BenchmarkNextIteration/10_parallel-12     3000      414176 ns/op
-// BenchmarkNextIteration/100_parallel-12    2000      900668 ns/op
-// BenchmarkNextIteration/200_parallel-12    1000     1259786 ns/op
-// BenchmarkNextIteration/500_parallel-12    1000     2144580 ns/op
-// BenchmarkNextIteration/1000_parallel-12    500     3759071 ns/op
-// BenchmarkNextIteration/2000_parallel-12    200     7026334 ns/op
-// BenchmarkNextIteration/10_sequential-12   2000      665541 ns/op
-// BenchmarkNextIteration/100_sequential-12  1000     1861140 ns/op
-// BenchmarkNextIteration/200_sequential-12   500     2757445 ns/op
-// BenchmarkNextIteration/500_sequential-12   300     4830012 ns/op
-// BenchmarkNextIteration/1000_sequential-12  200     7715052 ns/op
-// BenchmarkNextIteration/2000_sequential-12  100    12864308 ns/op
+// BenchmarkNextIteration/sequential_10-12			1776			642349 ns/op
+// BenchmarkNextIteration/parallel_10-12	  		2538			466186 ns/op
+// BenchmarkNextIteration/series_10-12	    		1915			601583 ns/op
+
+// BenchmarkNextIteration/sequential_100-12			621				1945963 ns/op
+// BenchmarkNextIteration/parallel_100-12	 			1118			1042822 ns/op
+// BenchmarkNextIteration/series_100-12	    		834				1451031 ns/op
+
+// BenchmarkNextIteration/sequential_200-12			398				3002165 ns/op
+// BenchmarkNextIteration/parallel_200-12	  		699				1613085 ns/op
+// BenchmarkNextIteration/series_200-12	    		614				1969783 ns/op
+
+// BenchmarkNextIteration/sequential_500-12			214				5522765 ns/op
+// BenchmarkNextIteration/parallel_500-12	  		382				2904843 ns/op
+// BenchmarkNextIteration/series_500-12	    		400				2996965 ns/op
+
+// BenchmarkNextIteration/sequential_1000-12		129				9050684 ns/op
+// BenchmarkNextIteration/parallel_1000-12	 		238				4775567 ns/op
+// BenchmarkNextIteration/series_1000-12	   		289				4176052 ns/op
+
+// BenchmarkNextIteration/sequential_2000-12		64				16190003 ns/op
+// BenchmarkNextIteration/parallel_2000-12	 		136				8238382 ns/op
+// BenchmarkNextIteration/series_2000-12	   		207				5744589 ns/op
 func BenchmarkNextIteration(b *testing.B) {
-	for _, useGoroutineWorkerPools := range []bool{true, false} {
-		for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
-			name := fmt.Sprintf("%d", s)
-			if useGoroutineWorkerPools {
-				name = name + "_parallel"
-			} else {
-				name = name + "_sequential"
-			}
+	iterTypes := []iterType{
+		stepSequential,
+		stepParallel,
+		seriesSequential,
+	}
+
+	for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
+		for _, t := range iterTypes {
+			name := t.name(fmt.Sprintf("%d", s))
 			b.Run(name, func(b *testing.B) {
-				benchmarkNextIteration(b, s, useGoroutineWorkerPools)
+				benchmarkNextIteration(b, s, t)
 			})
 		}
+
+		// NB: this is for clearer groupings.
+		fmt.Println()
 	}
 }

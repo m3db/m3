@@ -25,6 +25,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
 )
@@ -636,6 +637,23 @@ type SeriesList struct {
 	Values []*Series
 	// SortApplied specifies whether a specific sort order has been applied.
 	SortApplied bool
+	// Metadata contains any additional metadata indicating information about
+	// series execution.
+	Metadata block.ResultMetadata
+}
+
+// NewSeriesList creates a blank series list.
+func NewSeriesList() SeriesList {
+	return SeriesList{Metadata: block.NewResultMetadata()}
+}
+
+// NewSeriesListWithSeries creates a series list with the given series and
+// default metadata.
+func NewSeriesListWithSeries(values ...*Series) SeriesList {
+	return SeriesList{
+		Values:   values,
+		Metadata: block.NewResultMetadata(),
+	}
 }
 
 // Len returns the length of the list.

@@ -135,7 +135,6 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
-
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -297,12 +296,14 @@ type DatabaseShardBlockRetriever interface {
 // DatabaseBlockRetrieverManager creates and holds block retrievers
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
+	// Retriever provides the DatabaseBlockRetriever for the given namespace.
 	Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error)
 }
 
 // DatabaseShardBlockRetrieverManager creates and holds shard block
 // retrievers binding shards to an existing retriever.
 type DatabaseShardBlockRetrieverManager interface {
+	// ShardRetriever provides the DatabaseShardBlockRetriever for the given shard.
 	ShardRetriever(shard uint32) DatabaseShardBlockRetriever
 }
 

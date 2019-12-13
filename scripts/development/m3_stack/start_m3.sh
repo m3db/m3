@@ -50,7 +50,7 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
         "replication_factor": 1,
         "instances": [
             {
-                "id": "m3aggregator01:6000",
+                "id": "m3aggregator01",
                 "isolation_group": "rack-a",
                 "zone": "embedded",
                 "weight": 1024,

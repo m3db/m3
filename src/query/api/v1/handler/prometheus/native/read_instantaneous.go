@@ -40,9 +40,14 @@ const (
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server
 	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
+)
 
-	// PromReadInstantHTTPMethod is the HTTP method used with this resource.
-	PromReadInstantHTTPMethod = http.MethodGet
+var (
+	// PromReadInstantHTTPMethods are the HTTP methods for this handler.
+	PromReadInstantHTTPMethods = []string{
+		http.MethodGet,
+		http.MethodPost,
+	}
 )
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
@@ -96,7 +101,9 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
-	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
 		restrict := &models.RestrictFetchTypeQueryContextOptions{
 			MetricsType:   uint(restrictOpts.MetricsType),
 			StoragePolicy: restrictOpts.StoragePolicy,
@@ -104,7 +111,8 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, err := read(ctx, h.engine, queryOpts, fetchOpts, h.tagOpts, w, params, h.instrumentOpts)
+	result, err := read(ctx, h.engine, queryOpts, fetchOpts,
+		h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -113,5 +121,6 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	renderResultsInstantaneousJSON(w, result)
+	handler.AddWarningHeaders(w, result.meta)
+	renderResultsInstantaneousJSON(w, result.series)
 }

@@ -35,25 +35,34 @@ import (
 )
 
 type promParser struct {
-	expr    pql.Expr
-	tagOpts models.TagOptions
+	stepSize time.Duration
+	expr     pql.Expr
+	tagOpts  models.TagOptions
 }
 
 // Parse takes a promQL string and converts parses it into a DAG.
-func Parse(q string, tagOpts models.TagOptions) (parser.Parser, error) {
+func Parse(
+	q string,
+	stepSize time.Duration,
+	tagOpts models.TagOptions,
+) (parser.Parser, error) {
 	expr, err := pql.ParseExpr(q)
 	if err != nil {
 		return nil, err
 	}
 
 	return &promParser{
-		expr:    expr,
-		tagOpts: tagOpts,
+		expr:     expr,
+		stepSize: stepSize,
+		tagOpts:  tagOpts,
 	}, nil
 }
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
-	state := &parseState{tagOpts: p.tagOpts}
+	state := &parseState{
+		stepSize: p.stepSize,
+		tagOpts:  p.tagOpts,
+	}
 	err := state.walk(p.expr)
 	if err != nil {
 		return nil, nil, err
@@ -67,6 +76,7 @@ func (p *promParser) String() string {
 }
 
 type parseState struct {
+	stepSize   time.Duration
 	edges      parser.Edges
 	transforms parser.Nodes
 	tagOpts    models.TagOptions
@@ -82,11 +92,6 @@ func (p *parseState) lastTransformID() parser.NodeID {
 
 func (p *parseState) transformLen() int {
 	return len(p.transforms)
-}
-
-func validOffset(offset time.Duration) error {
-
-	return nil
 }
 
 func (p *parseState) addLazyUnaryTransform(unaryOp string) error {
@@ -148,6 +153,18 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	return nil
 }
 
+func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
+	// handles case where offset is 0 too.
+	align := offset % step
+	if align == 0 {
+		return offset
+	}
+
+	// NB: Prometheus rounds offsets up to step size, e.g. a 61 second offset with
+	// a 1 minute stepsize gets rounded to a 2 minute offset.
+	return offset + step - align
+}
+
 func (p *parseState) walk(node pql.Node) error {
 	if node == nil {
 		return nil
@@ -175,6 +192,8 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.MatrixSelector:
+		// Align offset to stepSize.
+		n.Offset = adjustOffset(n.Offset, p.stepSize)
 		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -187,6 +206,8 @@ func (p *parseState) walk(node pql.Node) error {
 		return p.addLazyOffsetTransform(n.Offset)
 
 	case *pql.VectorSelector:
+		// Align offset to stepSize.
+		n.Offset = adjustOffset(n.Offset, p.stepSize)
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
 		if err != nil {
 			return err

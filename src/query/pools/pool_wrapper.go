@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
-// PoolWrapper is an asynchronous wrapper for iterator pools
+// PoolWrapper is an asynchronous wrapper for iterator pools.
 type PoolWrapper struct {
 	mu          sync.Mutex
 	watchers    []chan encoding.IteratorPools
@@ -37,17 +37,17 @@ type PoolWrapper struct {
 	err         error
 }
 
-// NewPoolsWrapper creates an initialized pool wrapper
+// NewPoolsWrapper creates an initialized pool wrapper.
 func NewPoolsWrapper(pools encoding.IteratorPools) *PoolWrapper {
 	return &PoolWrapper{pools: pools}
 }
 
-// NewAsyncPoolsWrapper creates a pool wrapper which must be initialized
+// NewAsyncPoolsWrapper creates a pool wrapper which must be initialized.
 func NewAsyncPoolsWrapper() *PoolWrapper {
 	return &PoolWrapper{}
 }
 
-// Init initializes the wrapper with iterator pools and notifies any watchers
+// Init initializes the wrapper with iterator pools and notifies any watchers.
 func (w *PoolWrapper) Init(
 	sessionPools encoding.IteratorPools,
 	err error,
@@ -63,9 +63,8 @@ func (w *PoolWrapper) Init(
 	w.mu.Unlock()
 }
 
-// nolint
-// IteratorPools either returns iterator pools and errors, or channels that will be notified
-// when iterator pools become available
+// IteratorPools either returns iterator pools and errors, or channels that will
+// be notified when iterator pools become available.
 func (w *PoolWrapper) IteratorPools() (
 	bool, encoding.IteratorPools, error, <-chan encoding.IteratorPools, <-chan error) {
 	w.mu.Lock()
@@ -81,7 +80,7 @@ func (w *PoolWrapper) IteratorPools() (
 }
 
 // WaitForIteratorPools will block until iterator pools are available.
-// If given a timeout of 0, will block indefinitely
+// If given a timeout of 0, will block indefinitely.
 func (w *PoolWrapper) WaitForIteratorPools(
 	timeout time.Duration,
 ) (encoding.IteratorPools, error) {

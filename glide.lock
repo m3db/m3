@@ -1,6 +1,8 @@
-hash: 23f25edb1347706961248024fb285312780d512b05ad4b8e466c49e749cdb269
-updated: 2019-09-05T13:10:16.128949-04:00
+hash: 54d750cfc681a3acbdc3a39a51626e0ed1804f93fce5955ca5676d9940eabd6b
+updated: 2019-10-04T13:32:26.527615-04:00
 imports:
+- name: github.com/alecthomas/units
+  version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
 - name: github.com/apache/thrift
   version: 05b5a2227fe44056ce829fe59583126fd6478a58
   repo: https://github.com/m3db/thrift
@@ -133,7 +135,7 @@ imports:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
-  version: 07c9b44f60d7ffdfb7d8efe1ad539965737836dc
+  version: 432dd90af23366a89a611c020003fc8ba281ae5d
 - name: github.com/go-playground/locales
   version: 630ebbb602847eba93e75ae38bbc7bb7abcf1ff3
   subpackages:
@@ -278,12 +280,10 @@ imports:
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
-- name: github.com/nightlyone/lockfile
-  version: 0ad87eef1443f64d3d8c50da647e2b1552851124
 - name: github.com/oklog/ulid
   version: e51a56f2a4c1bf73c967ca6d45d5366bade31943
 - name: github.com/opentracing-contrib/go-stdlib
-  version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+  version: cf7a6c988dc994e945d2715565026f3cc8718689
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
@@ -297,7 +297,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 781fbae71e40e8e598206a0ac02c680d64df2fd0
+  version: 8fe62057ea2d46ce44254c98e84e810044dbe197
 - name: github.com/pilosa/pilosa
   version: bc9747cc0f19702d9753de7ea9375d8311dfc706
   subpackages:
@@ -320,7 +320,7 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
+  version: 287d3e634a1e550c9e463dd7e5a75a422c614505
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
@@ -330,8 +330,9 @@ imports:
   subpackages:
   - xfs
 - name: github.com/prometheus/prometheus
-  version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+  version: 43acd0e2e93f9f70c49b2267efa0124f1e759e86
   subpackages:
+  - pkg/gate
   - pkg/labels
   - pkg/textparse
   - pkg/timestamp
@@ -339,23 +340,26 @@ imports:
   - promql
   - storage
   - storage/tsdb
+  - tsdb
+  - tsdb/chunkenc
+  - tsdb/chunks
+  - tsdb/encoding
+  - tsdb/errors
+  - tsdb/fileutil
+  - tsdb/goversion
+  - tsdb/index
+  - tsdb/labels
+  - tsdb/wal
   - util/stats
   - util/strutil
+  - util/teststorage
   - util/testutil
-- name: github.com/prometheus/tsdb
-  version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
-  subpackages:
-  - chunkenc
-  - chunks
-  - fileutil
-  - index
-  - labels
 - name: github.com/rakyll/statik
-  version: 925a23bda946b50bb0804894f340c5da2b95603b
+  version: 3bac566d30cdbeddef402a80f3d6305860e59f12
   subpackages:
   - fs
 - name: github.com/RoaringBitmap/roaring
-  version: b5aa429c0a75ca180ffaa22f1fdaaac5663ba264
+  version: 4676818d7478f72f5041418f5afbb15a5080dbb7
 - name: github.com/russross/blackfriday
   version: d3b5b032dc8e8927d31a5071b56e14c89f045135
 - name: github.com/satori/go.uuid
@@ -373,7 +377,7 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: c01685bb8421cecb276fa517e91f757215f980b3
+  version: f31dc0aaab5a2feeca5c41783abbc347731fd08e
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
   subpackages:
@@ -426,7 +430,7 @@ imports:
   - transport
   - utils
 - name: github.com/uber/jaeger-lib
-  version: 0e30338a695636fe5bcf7301e8030ce8dd2a8530
+  version: a87ae9d84fb038a8d79266298970720be7c80fcd
   subpackages:
   - metrics
   - metrics/tally
@@ -451,8 +455,10 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
   version: df976f2515e274675050de7b3f42545de80594fd
+- name: go.uber.org/config
+  version: 46dea54a68b3e94c239093186902985c7ced97b5
 - name: go.uber.org/multierr
-  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+  version: 71e610a0e48dbda460d9c18adca8b5f2de04a7c1
 - name: go.uber.org/zap
   version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
@@ -488,7 +494,7 @@ imports:
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: e48874b42435b4347fc52bdee0424a52abc974d7
+  version: c178f38b412c7b426e4e97be2e75d11ff7b8d4d4
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -537,6 +543,8 @@ imports:
   - metadata
   - naming
   - peer
+  - reflection
+  - reflection/grpc_reflection_v1alpha
   - resolver
   - stats
   - status

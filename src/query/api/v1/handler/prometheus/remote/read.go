@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"sync"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -69,9 +71,11 @@ func NewPromReadHandler(
 	keepEmpty bool,
 	instrumentOpts instrument.Options,
 ) http.Handler {
+	taggedScope := instrumentOpts.MetricsScope().
+		Tagged(map[string]string{"handler": "remote-read"})
 	return &PromReadHandler{
 		engine:              engine,
-		promReadMetrics:     newPromReadMetrics(instrumentOpts.MetricsScope()),
+		promReadMetrics:     newPromReadMetrics(taggedScope),
 		timeoutOpts:         timeoutOpts,
 		fetchOptionsBuilder: fetchOptionsBuilder,
 		keepEmpty:           keepEmpty,
@@ -83,6 +87,7 @@ type promReadMetrics struct {
 	fetchSuccess      tally.Counter
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -93,16 +98,15 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 			Counter("fetch.errors"),
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
 	}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-
 	req, rErr := h.parseRequest(r)
-
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -121,7 +125,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.read(ctx, w, req, timeout, fetchOpts)
+	readResult, err := h.read(ctx, w, req, timeout, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -130,7 +134,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &prompb.ReadResponse{
-		Results: result,
+		Results: readResult.result,
 	}
 
 	data, err := proto.Marshal(resp)
@@ -143,6 +147,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
+	handler.AddWarningHeaders(w, readResult.meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -153,6 +158,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	timer.Stop()
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
@@ -172,25 +178,31 @@ func (h *PromReadHandler) parseRequest(
 	return &req, nil
 }
 
+type readResult struct {
+	meta   block.ResultMetadata
+	result []*prompb.QueryResult
+}
+
 func (h *PromReadHandler) read(
 	reqCtx context.Context,
 	w http.ResponseWriter,
 	r *prompb.ReadRequest,
 	timeout time.Duration,
 	fetchOpts *storage.FetchOptions,
-) ([]*prompb.QueryResult, error) {
+) (readResult, error) {
 	var (
-		queryCount  = len(r.Queries)
-		promResults = make([]*prompb.QueryResult, queryCount)
-		cancelFuncs = make([]context.CancelFunc, queryCount)
-		queryOpts   = &executor.QueryOptions{
+		queryCount   = len(r.Queries)
+		cancelFuncs  = make([]context.CancelFunc, queryCount)
+		queryResults = make([]*prompb.QueryResult, queryCount)
+		meta         = block.NewResultMetadata()
+		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
 
-		wg           sync.WaitGroup
-		multiErr     xerrors.MultiError
-		multiErrLock sync.Mutex
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		multiErr xerrors.MultiError
 	)
 
 	wg.Add(queryCount)
@@ -202,24 +214,28 @@ func (h *PromReadHandler) read(
 			cancelFuncs[i] = cancel
 			query, err := storage.PromReadQueryToM3(promQuery)
 			if err != nil {
-				multiErrLock.Lock()
+				mu.Lock()
 				multiErr = multiErr.Add(err)
-				multiErrLock.Unlock()
+				mu.Unlock()
 				return
 			}
 
 			// Detect clients closing connections
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			result, err := h.engine.Execute(ctx, query, queryOpts, fetchOpts)
+			result, err := h.engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
-				multiErrLock.Lock()
+				mu.Lock()
 				multiErr = multiErr.Add(err)
-				multiErrLock.Unlock()
+				mu.Unlock()
 				return
 			}
 
-			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
-			promResults[i] = promRes
+			result.PromResult.Timeseries = filterResults(
+				result.PromResult.GetTimeseries(), fetchOpts)
+			mu.Lock()
+			queryResults[i] = result.PromResult
+			meta = meta.CombineMetadata(result.Metadata)
+			mu.Unlock()
 		}()
 	}
 
@@ -229,8 +245,57 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return nil, err
+		return readResult{result: nil, meta: meta}, err
 	}
 
-	return promResults, nil
+	return readResult{result: queryResults, meta: meta}, nil
+}
+
+// filterResults removes series tags based on options.
+func filterResults(
+	series []*prompb.TimeSeries,
+	opts *storage.FetchOptions,
+) []*prompb.TimeSeries {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) == 0 {
+		return series
+	}
+
+	for i, s := range series {
+		series[i].Labels = filterLabels(s.Labels, keys)
+	}
+
+	return series
+}
+
+func filterLabels(
+	labels []prompb.Label,
+	filtering [][]byte,
+) []prompb.Label {
+	if len(filtering) == 0 {
+		return labels
+	}
+
+	filtered := labels[:0]
+	for _, l := range labels {
+		skip := false
+		for _, f := range filtering {
+			if bytes.Equal(l.GetName(), f) {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, l)
+	}
+
+	return filtered
 }

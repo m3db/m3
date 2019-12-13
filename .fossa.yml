@@ -62,6 +62,10 @@ analyze:
     path: src/cmd/services/m3query/main
     options:
       allow-unresolved: true
+  - name: github.com/m3db/m3/src/cmd/services/m3comparator/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/services/m3comparator/main
+    path: src/cmd/services/m3comparator/main
   - name: github.com/m3db/m3/src/cmd/tools/carbon_load/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/carbon_load/main
@@ -86,10 +90,6 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_index_ids/main
     path: src/cmd/tools/read_index_ids/main
-  - name: github.com/m3db/m3/src/cmd/tools/verify_commitlogs/main
-    type: go
-    target: github.com/m3db/m3/src/cmd/tools/verify_commitlogs/main
-    path: src/cmd/tools/verify_commitlogs/main
   - name: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/verify_index_files/main

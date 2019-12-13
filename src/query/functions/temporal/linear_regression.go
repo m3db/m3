@@ -128,14 +128,19 @@ type linearRegressionNode struct {
 
 func (l linearRegressionNode) process(
 	dps ts.Datapoints,
-	evaluationTime time.Time,
+	iterBounds iterationBounds,
 ) float64 {
 	if dps.Len() < 2 {
 		return math.NaN()
 	}
 
+	evaluationTime := iterBounds.end
 	slope, intercept := linearRegression(dps, evaluationTime, l.isDeriv)
 	return l.fn(slope, intercept)
+}
+
+func subSeconds(from int64, sub int64) float64 {
+	return float64(from-sub) / float64(time.Second)
 }
 
 // linearRegression performs a least-square linear regression analysis on the
@@ -144,7 +149,7 @@ func (l linearRegressionNode) process(
 // Uses this algorithm: https://en.wikipedia.org/wiki/Simple_linear_regression.
 func linearRegression(
 	dps ts.Datapoints,
-	interceptTime time.Time,
+	interceptTime int64,
 	isDeriv bool,
 ) (float64, float64) {
 	var (
@@ -161,11 +166,11 @@ func linearRegression(
 
 		if valueCount == 0 && isDeriv {
 			// set interceptTime as timestamp of first non-NaN dp
-			interceptTime = dp.Timestamp
+			interceptTime = dp.Timestamp.UnixNano()
 		}
 
 		valueCount++
-		timeDiff := dp.Timestamp.Sub(interceptTime).Seconds()
+		timeDiff := subSeconds(dp.Timestamp.UnixNano(), interceptTime)
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 
@@ -119,13 +118,13 @@ var consolidationTests = []struct {
 			{3, nan, nan},
 			{5, nan, 200},
 			{7, nan, nan},
-			{nan, 30, nan},
+			{7, 30, nan},
 			{nan, nan, 300},
 			{8, nan, nan},
-			{nan, nan, nan},
+			{nan, 40, nan},
 			{9, nan, 400},
+			{9, nan, 500},
 			{nan, nan, 500},
-			{nan, nan, nan},
 			{nan, nan, nan},
 		},
 	},
@@ -135,14 +134,14 @@ var consolidationTests = []struct {
 		expected: [][]float64{
 			{nan, nan, nan},
 			{nan, 20, 100},
-			{1, nan, nan},
+			{1, 20, 100},
 			{4, nan, 200},
-			{7, nan, nan},
-			{nan, nan, 300},
-			{8, nan, nan},
-			{nan, nan, 400},
+			{7, nan, 200},
+			{7, 30, 300},
+			{8, nan, 300},
+			{nan, 40, 400},
+			{9, nan, 500},
 			{nan, nan, 500},
-			{nan, nan, nan},
 		},
 	},
 }
@@ -173,7 +172,12 @@ func TestConsolidation(t *testing.T) {
 			Interval: tt.stepSize,
 		}
 
-		unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery, time.Minute)
+		result := &FetchResult{
+			SeriesList: seriesList,
+			Metadata:   block.NewResultMetadata(),
+		}
+
+		unconsolidated, err := NewMultiSeriesBlock(result, fetchQuery, time.Minute)
 		assert.NoError(t, err)
 
 		bl, err := unconsolidated.Consolidate()

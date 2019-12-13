@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -50,6 +51,11 @@ import (
 var (
 	testDBCfg = &dbconfig.DBConfiguration{
 		ListenAddress: "0.0.0.0:9000",
+	}
+	svcDefaultOptions = []handler.ServiceOptionsDefault{
+		func(o handler.ServiceOptions) handler.ServiceOptions {
+			return o
+		},
 	}
 )
 
@@ -92,7 +98,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -206,7 +212,7 @@ func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -253,7 +259,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -364,7 +370,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -475,7 +481,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -598,7 +604,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -654,7 +660,7 @@ func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -701,7 +707,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -849,7 +855,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -980,7 +986,7 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		testDBCfg, instrument.NewOptions())
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -1011,7 +1017,7 @@ func TestBadType(t *testing.T) {
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
-		nil, instrument.NewOptions())
+		nil, svcDefaultOptions, instrument.NewOptions())
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 

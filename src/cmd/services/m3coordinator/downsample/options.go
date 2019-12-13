@@ -189,6 +189,9 @@ type Configuration struct {
 
 	// BufferPastLimits specifies the buffer past limits.
 	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
+
+	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
+	EntryTTL time.Duration `yaml:"entryTTL"`
 }
 
 // RemoteAggregatorConfiguration specifies a remote aggregator
@@ -422,6 +425,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			aggregatorOpts,
 		)
 	})
+
+	if cfg.EntryTTL != 0 {
+		aggregatorOpts = aggregatorOpts.SetEntryTTL(cfg.EntryTTL)
+	}
 
 	aggregatorInstance := aggregator.NewAggregator(aggregatorOpts)
 	if err := aggregatorInstance.Open(); err != nil {

@@ -33,12 +33,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/x/xpool"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -68,6 +71,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -316,14 +321,6 @@ func Run(runOpts RunOptions) {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
-		cpuProfileDuration,
-		iopts,
-	)
-	if err != nil {
-		logger.Error("unable to create debug writer", zap.Error(err))
-	}
-
 	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(cfg.Index.MaxQueryIDsConcurrency)
 		queryIDsWorkerPool.Init()
@@ -444,7 +441,8 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
-		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault())
+		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
+		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault())
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -499,7 +497,7 @@ func Run(runOpts RunOptions) {
 		// to service a cache miss
 		retrieverOpts := fs.NewBlockRetrieverOptions().
 			SetBytesPool(opts.BytesPool()).
-			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetRetrieveRequestPool(opts.RetrieveRequestPool()).
 			SetIdentifierPool(opts.IdentifierPool()).
 			SetBlockLeaseManager(blockLeaseManager)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
@@ -571,6 +569,7 @@ func Run(runOpts RunOptions) {
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool).
+		SetCheckedBytesWrapperPool(opts.CheckedBytesWrapperPool()).
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
@@ -602,6 +601,38 @@ func Run(runOpts RunOptions) {
 	logger.Info("node httpjson: listening", zap.String("address", cfg.HTTPNodeListenAddress))
 
 	if cfg.DebugListenAddress != "" {
+		var debugWriter xdebug.ZipWriter
+		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
+			queryconfig.Configuration{}, nil, iopts)
+		if err != nil {
+			logger.Warn("could not create handler options for debug writer", zap.Error(err))
+		} else {
+			envCfg, err := cfg.EnvironmentConfig.Services.SyncCluster()
+			if err != nil || envCfg.Service == nil {
+				logger.Warn("could not get cluster config for debug writer",
+					zap.Error(err),
+					zap.Bool("envCfgServiceIsNil", envCfg.Service == nil))
+			} else {
+				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+					cpuProfileDuration,
+					syncCfg.ClusterClient,
+					handlerOpts,
+					[]handler.ServiceNameAndDefaults{
+						{
+							ServiceName: handler.M3DBServiceName,
+							Defaults: []handler.ServiceOptionsDefault{
+								handler.WithDefaultServiceEnvironment(envCfg.Service.Env),
+								handler.WithDefaultServiceZone(envCfg.Service.Zone),
+							},
+						},
+					},
+					iopts)
+				if err != nil {
+					logger.Error("unable to create debug writer", zap.Error(err))
+				}
+			}
+		}
+
 		go func() {
 			mux := http.DefaultServeMux
 			if debugWriter != nil {
@@ -685,8 +716,8 @@ func Run(runOpts RunOptions) {
 				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 			if err != nil {
 				logger.Fatal(
-					"unable to create client for replicated cluster: %s",
-					zap.String("clusterName", cluster.Name))
+					"unable to create client for replicated cluster",
+					zap.String("clusterName", cluster.Name), zap.Error(err))
 			}
 			repairClients = append(repairClients, clusterClient)
 		}
@@ -1233,13 +1264,12 @@ func withEncodingAndPoolingOptions(
 		scope.SubScope("closers-pool"))
 
 	contextPoolOpts := poolOptions(
-		policy.ContextPool.PoolPolicy,
+		policy.ContextPool,
 		scope.SubScope("context-pool"))
 
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
-		SetFinalizerPoolOptions(closersPoolOpts).
-		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityOrDefault()))
+		SetFinalizerPoolOptions(closersPoolOpts))
 
 	iteratorPool := encoding.NewReaderIteratorPool(
 		poolOptions(
@@ -1323,11 +1353,19 @@ func withEncodingAndPoolingOptions(
 			scope.SubScope("fetch-blocks-metadata-results-pool")),
 		fetchBlocksMetadataResultsPoolPolicy.CapacityOrDefault())
 
+	bytesWrapperPoolOpts := poolOptions(
+		policy.CheckedBytesWrapperPool,
+		scope.SubScope("checked-bytes-wrapper-pool"))
+	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(
+		bytesWrapperPoolOpts)
+	bytesWrapperPool.Init()
+
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
-		SetSegmentReaderPool(segmentReaderPool)
+		SetSegmentReaderPool(segmentReaderPool).
+		SetCheckedBytesWrapperPool(bytesWrapperPool)
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
@@ -1358,6 +1396,10 @@ func withEncodingAndPoolingOptions(
 	bucketVersionsPool := series.NewBufferBucketVersionsPool(
 		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
 
+	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool,
+		poolOptions(policy.RetrieveRequestPool, scope.SubScope("retrieve-request-pool")))
+	retrieveRequestPool.Init()
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -1369,7 +1411,9 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
 		SetWriteBatchPool(writeBatchPool).
 		SetBufferBucketPool(bucketPool).
-		SetBufferBucketVersionsPool(bucketVersionsPool)
+		SetBufferBucketVersionsPool(bucketVersionsPool).
+		SetRetrieveRequestPool(retrieveRequestPool).
+		SetCheckedBytesWrapperPool(bytesWrapperPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
@@ -1451,7 +1495,8 @@ func withEncodingAndPoolingOptions(
 		SetFSTSegmentOptions(
 			opts.IndexOptions().FSTSegmentOptions().
 				SetPostingsListPool(postingsList).
-				SetInstrumentOptions(iopts)).
+				SetInstrumentOptions(iopts).
+				SetContextPool(opts.ContextPool())).
 		SetSegmentBuilderOptions(
 			opts.IndexOptions().SegmentBuilderOptions().
 				SetPostingsListPool(postingsList)).

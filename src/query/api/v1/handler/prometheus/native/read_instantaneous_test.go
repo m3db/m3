@@ -30,9 +30,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 	xtest "github.com/m3db/m3/src/x/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,15 +79,34 @@ func (v vectorResultValues) parse() (time.Time, int, error) {
 }
 
 func TestPromReadInstantHandler(t *testing.T) {
+	testPromReadInstantHandler(t, block.NewResultMetadata(), "")
+	testPromReadInstantHandler(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadInstantHandler(t, block.ResultMetadata{Exhaustive: false},
+		handler.LimitHeaderSeriesLimitApplied)
+}
+
+func testPromReadInstantHandler(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
 	promReadInstant := setup.Handlers.InstantRead
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	meta := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(meta, seriesMeta, values)
+	test.NewBlockFromValues(bounds, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
-	req := httptest.NewRequest(PromReadInstantHTTPMethod, PromReadInstantURL, nil)
+	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
 	params.Set(queryParam, "dummy0{}")
@@ -95,6 +117,9 @@ func TestPromReadInstantHandler(t *testing.T) {
 	promReadInstant.ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+
+	header := recorder.Header().Get(handler.LimitHeader)
+	assert.Equal(t, ex, header)
 
 	var result vectorResult
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &result))
@@ -146,7 +171,7 @@ func TestPromReadInstantHandlerStorageError(t *testing.T) {
 	storageErr := fmt.Errorf("storage err")
 	setup.Storage.SetFetchBlocksResult(block.Result{}, storageErr)
 
-	req := httptest.NewRequest(PromReadInstantHTTPMethod, PromReadInstantURL, nil)
+	req := httptest.NewRequest(PromReadInstantHTTPMethods[0], PromReadInstantURL, nil)
 
 	params := url.Values{}
 	params.Set(queryParam, "dummy0{}")

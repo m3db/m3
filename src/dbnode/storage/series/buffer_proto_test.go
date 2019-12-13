@@ -37,7 +37,8 @@ var (
 	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
 	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
 	testProtoEqual    = func(t *testing.T, expect, actual []byte) {
-		prototest.RequireEqual(t, testSchema, expect, actual)}
+		prototest.RequireEqual(t, testSchema, expect, actual)
+	}
 )
 
 func newBufferTestProtoOptions(t *testing.T) Options {
@@ -62,11 +63,11 @@ func newBufferTestProtoOptions(t *testing.T) Options {
 	return opts
 }
 
-func testSetProtoAnnotation(data []value) []value {
+func testSetProtoAnnotation(data []DecodedTestValue) []DecodedTestValue {
 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
 	for i := 0; i < len(data); i++ {
-		data[i].value = 0
-		data[i].annotation = protoIter.Next()
+		data[i].Value = 0
+		data[i].Annotation = protoIter.Next()
 	}
 	return data
 }

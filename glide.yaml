@@ -153,7 +153,7 @@ import:
       - errgroup
 
   - package: github.com/google/go-cmp
-    version: ^0.2
+    version: ^0.3
     subpackages:
       - cmp
 
@@ -165,18 +165,12 @@ import:
 
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
-    version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+    version: ~2.12.0
 
   # To avoid prometheus/prometheus dependencies from breaking,
   # pin the transitive dependencies
   - package: github.com/prometheus/common
-    version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
-
-  - package: github.com/prometheus/procfs
-    version: a1dba9ce8baed984a2495b658c82687f8157b98f
-
-  - package: github.com/prometheus/tsdb
-    version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
+    version: ~0.7.0
   # END_PROMETHEUS_DEPS
 
   # START_TALLY_PROMETHEUS_DEPS
@@ -208,7 +202,7 @@ import:
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
     # the same code.
-    version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+    version: cf7a6c988dc994e945d2715565026f3cc8718689
 
   # END_JAEGER_DEPS
 
@@ -244,3 +238,14 @@ import:
 
   - package: github.com/leanovate/gopter
     version: e2604588f4db2d2e5eb78ae75d615516f55873e3
+
+  - package: github.com/rakyll/statik
+    version: ^0.1.6
+
+  - package: golang.org/x/sys
+    subpackages:
+      - unix
+    version: c178f38b412c7b426e4e97be2e75d11ff7b8d4d4
+
+  - package: go.uber.org/config
+    version: ^1.3.1

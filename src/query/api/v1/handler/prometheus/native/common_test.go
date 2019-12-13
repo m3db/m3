@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +87,16 @@ func TestParamParsing(t *testing.T) {
 	require.Equal(t, promQuery, r.Query)
 }
 
+func TestParamParsing_POST(t *testing.T) {
+	params := defaultParams().Encode()
+	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader(params))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	r, err := testParseParams(req)
+	require.NoError(t, err, "unable to parse request")
+	require.Equal(t, promQuery, r.Query)
+}
+
 func TestInstantaneousParamParsing(t *testing.T) {
 	req := httptest.NewRequest("GET", PromReadURL, nil)
 	params := url.Values{}
@@ -132,7 +143,7 @@ func TestParseBlockType(t *testing.T) {
 		instrument.NewOptions()))
 
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=1", nil)
-	assert.Equal(t, models.TypeMultiBlock, parseBlockType(r,
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
 		instrument.NewOptions()))
 
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=2", nil)

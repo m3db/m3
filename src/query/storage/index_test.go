@@ -201,7 +201,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 				Interval:    15 * time.Second,
 			}
 
-			m3Query, err := FetchQueryToM3Query(fetchQuery)
+			m3Query, err := FetchQueryToM3Query(fetchQuery, nil)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, m3Query.String())
 		})

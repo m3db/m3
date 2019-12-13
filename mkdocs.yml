@@ -102,9 +102,10 @@ pages:
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
     - "Namespace Configuration": "operational_guide/namespace_configuration.md"
-    - "Bootstrapping": "operational_guide/bootstrapping.md"
+    - "Bootstrapping & Crash Recovery": "operational_guide/bootstrapping_crash_recovery.md"
     - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
+    - "Monitoring": "operational_guide/monitoring.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

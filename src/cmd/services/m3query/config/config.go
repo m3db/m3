@@ -134,6 +134,9 @@ type Configuration struct {
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
 
+	// Experimental is the configuration for the experimental API group.
+	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+
 	// Cache configurations.
 	//
 	// Deprecated: cache configurations are no longer supported. Remove from file
@@ -292,10 +295,12 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	Debug          bool                              `yaml:"debug"`
-	ListenAddress  string                            `yaml:"listenAddress"`
-	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	// Deprecated: simply use the logger debug level, this has been deprecated
+	// in favor of setting the log level to debug.
+	DeprecatedDebug bool                              `yaml:"debug"`
+	ListenAddress   string                            `yaml:"listenAddress"`
+	MaxConcurrency  int                               `yaml:"maxConcurrency"`
+	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration
@@ -509,4 +514,9 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	return opts, nil
+}
+
+// ExperimentalAPIConfiguration is the configuration for the experimental API group.
+type ExperimentalAPIConfiguration struct {
+	Enabled bool `yaml:"enabled"`
 }

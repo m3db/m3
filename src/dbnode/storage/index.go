@@ -909,7 +909,7 @@ func (i *nsIndex) flushBlockSegment(
 	// Reset the builder
 	builder.Reset(0)
 
-	ctx := context.NewContext()
+	ctx := i.opts.ContextPool().Get()
 	for _, shard := range shards {
 		var (
 			first     = true
@@ -945,7 +945,10 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			results.Close()
-			ctx.BlockingClose()
+
+			// Use BlockingCloseReset so that we can reuse the context without
+			// it going back to the pool.
+			ctx.BlockingCloseReset()
 		}
 	}
 

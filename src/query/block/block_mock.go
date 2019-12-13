@@ -143,21 +143,6 @@ func (mr *MockBlockMockRecorder) Unconsolidated() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unconsolidated", reflect.TypeOf((*MockBlock)(nil).Unconsolidated))
 }
 
-// WithMetadata mocks base method
-func (m *MockBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (Block, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithMetadata", arg0, arg1)
-	ret0, _ := ret[0].(Block)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WithMetadata indicates an expected call of WithMetadata
-func (mr *MockBlockMockRecorder) WithMetadata(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockBlock)(nil).WithMetadata), arg0, arg1)
-}
-
 // MockStepIter is a mock of StepIter interface
 type MockStepIter struct {
 	ctrl     *gomock.Controller
@@ -461,6 +446,32 @@ func (mr *MockBuilderMockRecorder) BuildAsType(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildAsType", reflect.TypeOf((*MockBuilder)(nil).BuildAsType), arg0)
 }
 
+// PopulateColumns mocks base method
+func (m *MockBuilder) PopulateColumns(arg0 int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "PopulateColumns", arg0)
+}
+
+// PopulateColumns indicates an expected call of PopulateColumns
+func (mr *MockBuilderMockRecorder) PopulateColumns(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopulateColumns", reflect.TypeOf((*MockBuilder)(nil).PopulateColumns), arg0)
+}
+
+// SetRow mocks base method
+func (m *MockBuilder) SetRow(arg0 int, arg1 []float64, arg2 SeriesMeta) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRow", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetRow indicates an expected call of SetRow
+func (mr *MockBuilderMockRecorder) SetRow(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRow", reflect.TypeOf((*MockBuilder)(nil).SetRow), arg0, arg1, arg2)
+}
+
 // MockStep is a mock of Step interface
 type MockStep struct {
 	ctrl     *gomock.Controller
@@ -578,6 +589,21 @@ func (mr *MockUnconsolidatedBlockMockRecorder) Meta() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).Meta))
 }
 
+// MultiSeriesIter mocks base method
+func (m *MockUnconsolidatedBlock) MultiSeriesIter(arg0 int) ([]UnconsolidatedSeriesIterBatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MultiSeriesIter", arg0)
+	ret0, _ := ret[0].([]UnconsolidatedSeriesIterBatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MultiSeriesIter indicates an expected call of MultiSeriesIter
+func (mr *MockUnconsolidatedBlockMockRecorder) MultiSeriesIter(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiSeriesIter", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).MultiSeriesIter), arg0)
+}
+
 // SeriesIter mocks base method
 func (m *MockUnconsolidatedBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 	m.ctrl.T.Helper()
@@ -606,21 +632,6 @@ func (m *MockUnconsolidatedBlock) StepIter() (UnconsolidatedStepIter, error) {
 func (mr *MockUnconsolidatedBlockMockRecorder) StepIter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StepIter", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).StepIter))
-}
-
-// WithMetadata mocks base method
-func (m *MockUnconsolidatedBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (UnconsolidatedBlock, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithMetadata", arg0, arg1)
-	ret0, _ := ret[0].(UnconsolidatedBlock)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WithMetadata indicates an expected call of WithMetadata
-func (mr *MockUnconsolidatedBlockMockRecorder) WithMetadata(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).WithMetadata), arg0, arg1)
 }
 
 // MockUnconsolidatedStepIter is a mock of UnconsolidatedStepIter interface

@@ -209,7 +209,11 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 
 		for _, promdp := range promdps {
 			if math.IsNaN(promdp.Value) && !math.IsNaN(m3dp.Value) {
-				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp, nil))
+				mismatchList = append(
+					mismatchList,
+					newMismatch(id, promdp.Value, m3dp.Value,
+						promdp.Timestamp, m3dp.Timestamp, nil),
+				)
 				continue
 			}
 
@@ -219,13 +223,20 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 
 			if m3idx > len(m3dps)-1 {
 				err := errors.New("series has extra prom datapoints")
-				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, math.NaN(), promdp.Timestamp, time.Time{}, err))
+				mismatchList = append(mismatchList,
+					newMismatch(id, promdp.Value, math.NaN(),
+						promdp.Timestamp, time.Time{}, err),
+				)
 				continue
 			}
 
 			m3dp = m3dps[m3idx]
-			if (promdp.Value != m3dp.Value && !math.IsNaN(promdp.Value)) || !promdp.Timestamp.Equal(m3dp.Timestamp) {
-				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp, nil))
+			if (promdp.Value != m3dp.Value && !math.IsNaN(promdp.Value)) ||
+				!promdp.Timestamp.Equal(m3dp.Timestamp) {
+				mismatchList = append(mismatchList,
+					newMismatch(id, promdp.Value, m3dp.Value,
+						promdp.Timestamp, m3dp.Timestamp, nil),
+				)
 			}
 
 			m3idx++
@@ -235,7 +246,8 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 		for _, dp := range m3dps[m3idx:] {
 			if !math.IsNaN(dp.Value) {
 				err := errors.New("series has extra m3 datapoints")
-				mismatchList = append(mismatchList, newMismatch(id, math.NaN(), dp.Value, time.Time{}, dp.Timestamp, err))
+				mismatchList = append(mismatchList,
+					newMismatch(id, math.NaN(), dp.Value, time.Time{}, dp.Timestamp, err))
 			}
 		}
 
@@ -247,7 +259,8 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 	return mismatches, nil
 }
 
-func newMismatch(name string, promVal, m3Val float64, promTime, m3Time time.Time, err error) mismatch {
+func newMismatch(name string, promVal, m3Val float64,
+	promTime, m3Time time.Time, err error) mismatch {
 	return mismatch{
 		seriesName: name,
 		promVal:    promVal,

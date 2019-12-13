@@ -44,20 +44,29 @@ const (
 	TimeType = "time"
 )
 
-type scalarOp struct {
+// ScalarOp is a scalar operation representing a constant.
+type ScalarOp struct {
 	val        float64
 	tagOptions models.TagOptions
 }
 
-func (o scalarOp) OpType() string {
+// Value is the constant value for thes scalar operation.
+func (o ScalarOp) Value() float64 {
+	return o.val
+}
+
+// OpType is the operation type of the scalar operation.
+func (o ScalarOp) OpType() string {
 	return ScalarType
 }
 
-func (o scalarOp) String() string {
+// String is the string representation of the scalar operation.
+func (o ScalarOp) String() string {
 	return "type: scalar"
 }
 
-func (o scalarOp) Node(
+// Node returns this scalar operation's execution node.
+func (o ScalarOp) Node(
 	controller *transform.Controller,
 	opts transform.Options,
 ) parser.Source {
@@ -73,7 +82,7 @@ func NewScalarOp(
 	val float64,
 	tagOptions models.TagOptions,
 ) (parser.Params, error) {
-	return &scalarOp{
+	return &ScalarOp{
 		val:        val,
 		tagOptions: tagOptions,
 	}, nil
@@ -81,7 +90,7 @@ func NewScalarOp(
 
 // scalarNode is the execution node for time source.
 type scalarNode struct {
-	op         scalarOp
+	op         ScalarOp
 	controller *transform.Controller
 	opts       transform.Options
 }
@@ -89,8 +98,9 @@ type scalarNode struct {
 // Execute runs the scalar source's pipeline.
 func (n *scalarNode) Execute(queryCtx *models.QueryContext) error {
 	meta := block.Metadata{
-		Bounds: n.opts.TimeSpec().Bounds(),
-		Tags:   models.NewTags(0, n.op.tagOptions),
+		Bounds:         n.opts.TimeSpec().Bounds(),
+		Tags:           models.NewTags(0, n.op.tagOptions),
+		ResultMetadata: block.NewResultMetadata(),
 	}
 
 	block := block.NewScalar(n.op.val, meta)

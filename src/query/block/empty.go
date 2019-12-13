@@ -35,10 +35,6 @@ func (b *emptyBlock) Info() BlockInfo {
 	return NewBlockInfo(BlockEmpty)
 }
 
-func (b *emptyBlock) WithMetadata(meta Metadata, _ []SeriesMeta) (Block, error) {
-	return NewEmptyBlock(meta), nil
-}
-
 func (b *emptyBlock) Meta() Metadata {
 	return b.meta
 }
@@ -84,13 +80,6 @@ type ucEmptyBlock struct {
 
 func (b *ucEmptyBlock) Close() error { return nil }
 
-func (b *ucEmptyBlock) WithMetadata(
-	meta Metadata, _ []SeriesMeta) (UnconsolidatedBlock, error) {
-	return &ucEmptyBlock{
-		meta: meta,
-	}, nil
-}
-
 func (b *ucEmptyBlock) Meta() Metadata {
 	return b.meta
 }
@@ -124,3 +113,17 @@ func (it *ucEmptySeriesIter) SeriesCount() int              { return 0 }
 func (it *ucEmptySeriesIter) SeriesMeta() []SeriesMeta      { return []SeriesMeta{} }
 func (it *ucEmptySeriesIter) Next() bool                    { return false }
 func (it *ucEmptySeriesIter) Current() UnconsolidatedSeries { return UnconsolidatedSeries{} }
+
+func (b *ucEmptyBlock) MultiSeriesIter(
+	concurrency int,
+) ([]UnconsolidatedSeriesIterBatch, error) {
+	batch := make([]UnconsolidatedSeriesIterBatch, concurrency)
+	for i := range batch {
+		batch[i] = UnconsolidatedSeriesIterBatch{
+			Size: 1,
+			Iter: &ucEmptySeriesIter{},
+		}
+	}
+
+	return batch, nil
+}

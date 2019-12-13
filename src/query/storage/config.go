@@ -64,14 +64,14 @@ func ValidateMetricsType(v MetricsType) error {
 }
 
 // UnmarshalYAML unmarshals a stored merics type.
-func (v *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (t *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
 
 	if value, err := ParseMetricsType(str); err == nil {
-		*v = value
+		*t = value
 		return nil
 	}
 

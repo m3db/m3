@@ -28,11 +28,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xcost "github.com/m3db/m3/src/x/cost"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -67,7 +69,7 @@ var (
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
 func PromLabelsToM3Tags(
-	labels []*prompb.Label,
+	labels []prompb.Label,
 	tagOptions models.TagOptions,
 ) models.Tags {
 	tags := models.NewTags(len(labels), tagOptions)
@@ -92,7 +94,7 @@ func PromLabelsToM3Tags(
 }
 
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
-func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
+func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
 		timestamp := PromTimestampToTime(sample.Timestamp)
@@ -169,9 +171,6 @@ func TimeToPromTimestamp(timestamp time.Time) int64 {
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
-// TODO(rartoul): We should pool all of these intermediary datastructures, or
-// at least the []*prompb.Sample (as thats the most heavily allocated object)
-// since we have full control over the lifecycle.
 func FetchResultToPromResult(
 	result *FetchResult,
 	keepEmpty bool,
@@ -215,10 +214,7 @@ func (t sortableLabels) Less(i, j int) bool {
 }
 
 // TagsToPromLabels converts tags to prometheus labels.
-func TagsToPromLabels(tags models.Tags) []*prompb.Label {
-	// Perform bulk allocation upfront then convert to pointers afterwards
-	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-	// if modifying.
+func TagsToPromLabels(tags models.Tags) []prompb.Label {
 	l := tags.Len()
 	labels := make([]prompb.Label, 0, l)
 
@@ -239,24 +235,17 @@ func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// Sort here since name and label may be added in a different order in tags
 	// if default metric name or bucket names are overridden.
 	sort.Sort(sortableLabels(labels))
-	labelsPointers := make([]*prompb.Label, 0, l)
-	for i := range labels {
-		labelsPointers = append(labelsPointers, &labels[i])
-	}
 
-	return labelsPointers
+	return labels
 }
 
 // SeriesToPromSamples series datapoints to prometheus samples.SeriesToPromSamples.
-func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
+func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	var (
 		seriesLen  = series.Len()
 		values     = series.Values()
 		datapoints = values.Datapoints()
-		// Perform bulk allocation upfront then convert to pointers afterwards
-		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-		// if modifying.
-		samples = make([]prompb.Sample, 0, seriesLen)
+		samples    = make([]prompb.Sample, 0, seriesLen)
 	)
 	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
@@ -265,12 +254,7 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 		})
 	}
 
-	samplesPointers := make([]*prompb.Sample, 0, len(samples))
-	for i := range samples {
-		samplesPointers = append(samplesPointers, &samples[i])
-	}
-
-	return samplesPointers
+	return samples
 }
 
 func iteratorToTsSeries(
@@ -301,10 +285,11 @@ func iteratorToTsSeries(
 	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
 }
 
-// Fall back to sequential decompression if unable to decompress concurrently
+// Fall back to sequential decompression if unable to decompress concurrently.
 func decompressSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
+	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, 0, len(iters))
@@ -318,6 +303,7 @@ func decompressSequentially(
 
 	return &FetchResult{
 		SeriesList: seriesList,
+		Metadata:   metadata,
 	}, nil
 }
 
@@ -325,52 +311,41 @@ func decompressConcurrently(
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
+	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, len(iters))
-	errorCh := make(chan error, 1)
-	done := make(chan struct{})
-	stopped := func() bool {
-		select {
-		case <-done:
-			return true
-		default:
-			return false
-		}
-	}
+	var (
+		seriesList = make([]*ts.Series, len(iters))
 
-	var wg sync.WaitGroup
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
+	)
+
 	for i, iter := range iters {
 		i, iter := i, iter
 		wg.Add(1)
 		readWorkerPool.Go(func() {
 			defer wg.Done()
-			if stopped() {
-				return
-			}
-
 			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
 			if err != nil {
-				// Return the first error that is encountered.
-				select {
-				case errorCh <- err:
-					close(done)
-				default:
-				}
-				return
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
 			}
+
 			seriesList[i] = series
 		})
 	}
 
 	wg.Wait()
-	close(errorCh)
-	if err := <-errorCh; err != nil {
+	if err := multiErr.LastError(); err != nil {
 		return nil, err
 	}
 
 	return &FetchResult{
 		SeriesList: seriesList,
+		Metadata:   metadata,
 	}, nil
 }
 
@@ -379,6 +354,7 @@ func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
+	metadata block.ResultMetadata,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
@@ -388,9 +364,9 @@ func SeriesIteratorsToFetchResult(
 
 	iters := seriesIterators.Iters()
 	if readWorkerPool == nil {
-		return decompressSequentially(iters, enforcer, tagOptions)
+		return decompressSequentially(iters, enforcer, metadata, tagOptions)
 	}
 
 	return decompressConcurrently(iters, readWorkerPool,
-		enforcer, tagOptions)
+		enforcer, metadata, tagOptions)
 }
