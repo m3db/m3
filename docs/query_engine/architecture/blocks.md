@@ -59,13 +59,3 @@ At a high level, M3DB returns to M3 Query `SeriesBlocks` that contain a list of 
 For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3 Query `Block`, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise it will not be possible to perform correctly apply functions.
 
 > Coming Soon: More documentation on how M3 Query applies consolidation.
-
-## Block type deprecation
-
-M3Query previously supported multiple block types for db fetches;
-
-- Decoded: decodes M3TSZ encoded series before applying query functions.
-- Multiblock encoded: Splits encoded series into blocks accross database block boundaries and processes them in parallel.
-- Singleblock encoded: Uses encoded series as a single block during processing.
-
-Decoded has since been deprecated, and Multiblock is currently disabled while query performance fixes are added. These improvements allowed series to be decoded in parallel, which resulted in superior CPU utilization results to those seen previously in Multiblock mode. If this is a concern for your use cases, please reach out to the M3DB authors at http://bit.ly/m3slack.

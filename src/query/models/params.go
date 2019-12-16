@@ -34,18 +34,18 @@ const (
 	// FormatM3QL returns results in M3QL format
 	FormatM3QL
 
-	docsURL           = "https://m3db.github.io/m3"
-	deprecatedDocPath = "query_engine/architecture/blocks/#block-type-deprecation"
+	infoMsg = "if this is causing issues for your use case, please file an " +
+		"issue on https://github.com/m3db/m3"
 )
 
 var (
 	// ErrDecodedBlockDeprecated indicates decoded blocks are deprecated.
-	ErrDecodedBlockDeprecated = fmt.Errorf("decoded block has been deprecated, "+
-		"for more information, see: %s/%s", docsURL, deprecatedDocPath)
+	ErrDecodedBlockDeprecated = fmt.Errorf("decoded block has been deprecated %s",
+		infoMsg)
 
 	// ErrMultiBlockDisabled indicates multi blocks are temporarily disabled.
-	ErrMultiBlockDisabled = fmt.Errorf("multiblock has been disabled, "+
-		"for more information, see: %s/%s", docsURL, deprecatedDocPath)
+	ErrMultiBlockDisabled = fmt.Errorf("multiblock is temporarily disabled %s",
+		infoMsg)
 )
 
 // FetchedBlockType determines the type for fetched blocks, and how they are

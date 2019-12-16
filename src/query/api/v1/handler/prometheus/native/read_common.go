@@ -199,23 +199,26 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		numValues += b.StepCount()
 	}
 
-	// TODO: fix this to not alloc a big block every time.
-	data := make([][]float64, numSeries)
-	valuesBatchAlloc := make([]float64, numSeries*numValues)
+	// Initialize data slices.
+	data := make([]ts.FixedResolutionMutableValues, numSeries)
 	for i := range data {
-		data[i] = valuesBatchAlloc[:numValues]
-		valuesBatchAlloc = valuesBatchAlloc[numValues:]
+		data[i] = ts.NewFixedStepValues(bounds.StepSize, numValues,
+			math.NaN(), bounds.Start)
 	}
 
-	rowCount := 0
+	stepIndex := 0
 	for _, it := range iters {
 		for it.Next() {
 			step := it.Current()
-			for i, v := range step.Values() {
-				data[i][rowCount] = v
+			for seriesIndex, v := range step.Values() {
+				// NB: iteration moves by time step across a block, so each value in the
+				// step iterator corresponds to a different series; transform it to
+				// series-based iteration using mutable series values.
+				mutableValuesForSeries := data[seriesIndex]
+				mutableValuesForSeries.SetValueAt(stepIndex, v)
 			}
 
-			rowCount++
+			stepIndex++
 		}
 
 		if err := it.Err(); err != nil {
@@ -223,13 +226,7 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		}
 	}
 
-	for i, vals := range data {
-		values := ts.NewFixedStepValues(bounds.StepSize, len(vals),
-			math.NaN(), bounds.Start)
-		for j, v := range vals {
-			values.SetValueAt(j, v)
-		}
-
+	for i, values := range data {
 		var (
 			meta   = seriesMeta[i]
 			tags   = meta.Tags.AddTags(commonTags)
