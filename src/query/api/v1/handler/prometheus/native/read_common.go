@@ -201,8 +201,10 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 
 	// TODO: fix this to not alloc a big block every time.
 	data := make([][]float64, numSeries)
+	valuesBatchAlloc := make([]float64, numSeries*numValues)
 	for i := range data {
-		data[i] = make([]float64, numValues)
+		data[i] = valuesBatchAlloc[:numValues]
+		valuesBatchAlloc = valuesBatchAlloc[numValues:]
 	}
 
 	rowCount := 0

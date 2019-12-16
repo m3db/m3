@@ -60,7 +60,7 @@ For example, let's say we have a query that returns two timeseries from two diff
 
 > Coming Soon: More documentation on how M3 Query applies consolidation.
 
-## Block type deprication
+## Block type deprecation
 
 M3Query previously supported multiple block types for db fetches;
 
@@ -68,4 +68,4 @@ M3Query previously supported multiple block types for db fetches;
 - Multiblock encoded: Splits encoded series into blocks accross database block boundaries and processes them in parallel.
 - Singleblock encoded: Uses encoded series as a single block during processing.
 
-Decoded has since been deprecated, and Multiblock is currently disabled while query performance fixes are added. If this is a concern for your use cases, please reach out to the M3DB authors at http://bit.ly/m3slack.
+Decoded has since been deprecated, and Multiblock is currently disabled while query performance fixes are added. These improvements allowed series to be decoded in parallel, which resulted in superior CPU utilization results to those seen previously in Multiblock mode. If this is a concern for your use cases, please reach out to the M3DB authors at http://bit.ly/m3slack.

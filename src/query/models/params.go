@@ -35,7 +35,7 @@ const (
 	FormatM3QL
 
 	docsURL           = "https://m3db.github.io/m3"
-	deprecatedDocPath = "query_engine/architecture/blocks/#block-type-deprication"
+	deprecatedDocPath = "query_engine/architecture/blocks/#block-type-deprecation"
 )
 
 var (
