@@ -35,13 +35,18 @@ var (
 	errNoValidMirrorInstance = errors.New("no valid instance for mirror placement in the candidate list")
 )
 
-type mirroredSelector struct {
+// mirroredPortSelector groups instances by their port--see NewPortMirroredSelector for details.
+type mirroredPortSelector struct {
 	opts   placement.Options
 	logger *zap.Logger
 }
 
-func newMirroredSelector(opts placement.Options) placement.InstanceSelector {
-	return &mirroredSelector{
+// NewPortMirroredSelector returns a placement.InstanceSelector which creates groups of instances
+// by their port number and assigns a shardset to each group, taking isolation groups into account
+// while creating groups. This is the default behavior used by NewInstanceSelector if IsMirrored
+// is true.
+func NewPortMirroredSelector(opts placement.Options) placement.InstanceSelector {
+	return &mirroredPortSelector{
 		opts:   opts,
 		logger: opts.InstrumentOptions().Logger(),
 	}
@@ -49,11 +54,15 @@ func newMirroredSelector(opts placement.Options) placement.InstanceSelector {
 
 // SelectInitialInstances tries to make as many groups as possible from
 // the candidate instances to make the initial placement.
-func (f *mirroredSelector) SelectInitialInstances(
+func (f *mirroredPortSelector) SelectInitialInstances(
 	candidates []placement.Instance,
 	rf int,
 ) ([]placement.Instance, error) {
-	candidates, err := getValidCandidates(placement.NewPlacement(), candidates, f.opts)
+	candidates, err := getValidCandidates(
+		placement.NewPlacement(),
+		candidates,
+		f.opts,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -90,12 +99,12 @@ func (f *mirroredSelector) SelectInitialInstances(
 		return nil, errNoValidMirrorInstance
 	}
 
-	return assignShardsToGroupedInstances(groups, placement.NewPlacement()), nil
+	return assignShardsetsToGroupedInstances(groups, placement.NewPlacement()), nil
 }
 
 // SelectAddingInstances tries to make just one group of hosts from
 // the candidate instances to be added to the placement.
-func (f *mirroredSelector) SelectAddingInstances(
+func (f *mirroredPortSelector) SelectAddingInstances(
 	candidates []placement.Instance,
 	p placement.Placement,
 ) ([]placement.Instance, error) {
@@ -138,14 +147,14 @@ func (f *mirroredSelector) SelectAddingInstances(
 		return nil, errNoValidMirrorInstance
 	}
 
-	return assignShardsToGroupedInstances(groups, p), nil
+	return assignShardsetsToGroupedInstances(groups, p), nil
 }
 
-// FindReplaceInstances for mirror supports replacing multiple instances from one host.
+// SelectReplaceInstances for mirror supports replacing multiple instances from one host.
 // Two main use cases:
 // 1, find a new host from a pool of hosts to replace a host in the placement.
 // 2, back out of a replacement, both leaving and adding host are still in the placement.
-func (f *mirroredSelector) SelectReplaceInstances(
+func (f *mirroredPortSelector) SelectReplaceInstances(
 	candidates []placement.Instance,
 	leavingInstanceIDs []string,
 	p placement.Placement,
@@ -155,13 +164,9 @@ func (f *mirroredSelector) SelectReplaceInstances(
 		return nil, err
 	}
 
-	leavingInstances := make([]placement.Instance, 0, len(leavingInstanceIDs))
-	for _, id := range leavingInstanceIDs {
-		leavingInstance, exist := p.Instance(id)
-		if !exist {
-			return nil, errInstanceAbsent
-		}
-		leavingInstances = append(leavingInstances, leavingInstance)
+	leavingInstances, err := getLeavingInstances(p, leavingInstanceIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate leaving instances.
@@ -207,7 +212,7 @@ func (f *mirroredSelector) SelectReplaceInstances(
 		conflictIGs[instance.IsolationGroup()] = struct{}{}
 	}
 
-	var groups [][]placement.Instance
+	var replacementGroups []mirroredReplacementGroup
 	for _, candidateHost := range hosts {
 		if candidateHost.name == h.name {
 			continue
@@ -217,7 +222,7 @@ func (f *mirroredSelector) SelectReplaceInstances(
 			continue
 		}
 
-		groups, err = groupInstancesByHostPort([][]host{[]host{h, candidateHost}})
+		groups, err := groupInstancesByHostPort([][]host{[]host{h, candidateHost}})
 		if err != nil {
 			f.logger.Warn("could not match up candidate host with target host",
 				zap.String("candidate", candidateHost.name),
@@ -226,32 +231,95 @@ func (f *mirroredSelector) SelectReplaceInstances(
 			continue
 		}
 
+		for _, group := range groups {
+			if len(group) != 2 {
+				return nil, fmt.Errorf(
+					"unexpected length of instance group for replacement: %d",
+					len(group),
+				)
+			}
+
+			replacementGroup := mirroredReplacementGroup{}
+
+			// search for leaving + replacement in the group (don't assume anything about the order)
+			for _, inst := range group {
+				if inst.Hostname() == h.name {
+					replacementGroup.Leaving = inst
+				} else if inst.Hostname() == candidateHost.name {
+					replacementGroup.Replacement = inst
+				}
+			}
+			if replacementGroup.Replacement == nil {
+				return nil, fmt.Errorf(
+					"programming error: failed to find replacement instance for host %s in group",
+					candidateHost.name,
+				)
+			}
+			if replacementGroup.Leaving == nil {
+				return nil, fmt.Errorf(
+					"programming error: failed to find leaving instance for host %s in group",
+					h.name,
+				)
+			}
+
+			replacementGroups = append(
+				replacementGroups,
+				replacementGroup,
+			)
+		}
+
 		// Successfully grouped candidate with the host in placement.
 		break
 	}
 
-	if len(groups) == 0 {
+	if len(replacementGroups) == 0 {
 		return nil, errNoValidMirrorInstance
 	}
 
+	return assignShardsetIDsToReplacements(leavingInstanceIDs, replacementGroups)
+}
+
+// assignShardsetIDsToReplacements assigns the shardset of each leaving instance to each replacement
+// instance. The output is ordered in the order of leavingInstanceIDs.
+func assignShardsetIDsToReplacements(
+	leavingInstanceIDs []string,
+	groups []mirroredReplacementGroup,
+) ([]placement.Instance, error) {
+	if len(groups) != len(leavingInstanceIDs) {
+		return nil, fmt.Errorf(
+			"failed to find %d replacement instances to replace %d leaving instances",
+			len(groups), len(leavingInstanceIDs),
+		)
+	}
 	// The groups returned from the groupInstances() might not be the same order as
 	// the instances in leavingInstanceIDs. We need to reorder them to the same order
 	// as leavingInstanceIDs.
 	var res = make([]placement.Instance, len(groups))
 	for _, group := range groups {
-		if len(group) != 2 {
-			return nil, fmt.Errorf("unexpected length of instance group for replacement: %d", len(group))
-		}
-
-		idx := findIndex(leavingInstanceIDs, group[0].ID())
+		idx := findIndex(leavingInstanceIDs, group.Leaving.ID())
 		if idx == -1 {
-			return nil, fmt.Errorf("could not find instance id: '%s' in leaving instances", group[0].ID())
+			return nil, fmt.Errorf(
+				"could not find instance id: '%s' in leaving instances", group.Leaving.ID())
 		}
 
-		res[idx] = group[1].SetShardSetID(group[0].ShardSetID())
+		res[idx] = group.Replacement.SetShardSetID(group.Leaving.ShardSetID())
 	}
-
 	return res, nil
+}
+
+func getLeavingInstances(
+	p placement.Placement,
+	leavingInstanceIDs []string,
+) ([]placement.Instance, error) {
+	leavingInstances := make([]placement.Instance, 0, len(leavingInstanceIDs))
+	for _, id := range leavingInstanceIDs {
+		leavingInstance, exist := p.Instance(id)
+		if !exist {
+			return nil, errInstanceAbsent
+		}
+		leavingInstances = append(leavingInstances, leavingInstance)
+	}
+	return leavingInstances, nil
 }
 
 func findIndex(ids []string, id string) int {
@@ -367,7 +435,9 @@ func groupInstancesByHostPort(hostGroups [][]host) ([][]placement.Instance, erro
 	return instanceGroups, nil
 }
 
-func assignShardsToGroupedInstances(
+// assignShardsetsToGroupedInstances is a helper for mirrored selectors, which assigns shardset
+// IDs to the given groups.
+func assignShardsetsToGroupedInstances(
 	groups [][]placement.Instance,
 	p placement.Placement,
 ) []placement.Instance {

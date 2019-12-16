@@ -742,7 +742,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		[]string{h4p1.ID(), h4p2.ID(), h4p3.ID()},
 		[]placement.Instance{h3p1, h3p2, h3p3, h7p1, h7p2, h7p3},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	h4p1, ok := p.Instance(h4p1.ID())
 	assert.True(t, ok)
 	h4p2, ok = p.Instance(h4p2.ID())
