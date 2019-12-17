@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -49,6 +50,13 @@ var (
 	// us splitting an index block into smaller pieces is moot because we'll
 	// pull a lot more data into memory if we create more than one at a time.
 	defaultBootstrapIndexNumProcessors = 1
+
+	// documentArrayPool size in general: 256*256*sizeof(doc.Document)
+	// = 256 * 256 * 16
+	// = 1mb (but with Go's heap probably 2mb)
+	documentArrayPoolSize        = 256
+	documentArrayPoolCapacity    = 256
+	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 )
 
 type options struct {
@@ -61,6 +69,7 @@ type options struct {
 	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptsMgr              runtime.OptionsManager
 	identifierPool              ident.Pool
+	docArrayPool                doc.DocumentArrayPool
 }
 
 // NewOptions creates new bootstrap options
@@ -70,14 +79,24 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
+
+	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(documentArrayPoolSize),
+		Capacity:    documentArrayPoolCapacity,
+		MaxCapacity: documentArrayPoolMaxCapacity,
+	})
+	docArrayPool.Init()
+
 	return &options{
-		instrumentOpts: instrument.NewOptions(),
-		resultOpts:     result.NewOptions(),
-		fsOpts:         fs.NewOptions(),
+		instrumentOpts:              instrument.NewOptions(),
+		resultOpts:                  result.NewOptions(),
+		fsOpts:                      fs.NewOptions(),
 		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
 		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
 		identifierPool:              idPool,
+		docArrayPool:                docArrayPool,
 	}
 }
 
@@ -178,4 +197,14 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *options) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
+	opts := *o
+	opts.docArrayPool = value
+	return &opts
+}
+
+func (o *options) DocumentArrayPool() doc.DocumentArrayPool {
+	return o.docArrayPool
 }

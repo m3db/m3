@@ -67,11 +67,12 @@ type IndexBlock struct {
 	blockStart time.Time
 	segments   []segment.Segment
 	fulfilled  ShardTimeRanges
+	builder    segment.DocumentsBuilder
 }
 
-// MutableSegmentAllocator allocates a new MutableSegment type when
+// DocumentsBuilderAllocator allocates a new DocumentsBuilder type when
 // creating a bootstrap result to return to the index.
-type MutableSegmentAllocator func() (segment.MutableSegment, error)
+type DocumentsBuilderAllocator func() (segment.DocumentsBuilder, error)
 
 // ShardResult returns the bootstrap result for a shard.
 type ShardResult interface {
@@ -152,9 +153,9 @@ type Options interface {
 	// SeriesCachePolicy returns the series cache policy.
 	SeriesCachePolicy() series.CachePolicy
 
-	// SetIndexMutableSegmentAllocator sets the index mutable segment allocator.
-	SetIndexMutableSegmentAllocator(value MutableSegmentAllocator) Options
+	// SetIndexDocumentsBuilderAllocator sets the index mutable segment allocator.
+	SetIndexDocumentsBuilderAllocator(value DocumentsBuilderAllocator) Options
 
-	// IndexMutableSegmentAllocator returns the index mutable segment allocator.
-	IndexMutableSegmentAllocator() MutableSegmentAllocator
+	// IndexDocumentsBuilderAllocator returns the index documents builder allocator.
+	IndexDocumentsBuilderAllocator() DocumentsBuilderAllocator
 }

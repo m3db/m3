@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -105,4 +106,10 @@ type Options interface {
 
 	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
+
+	// SetDocumentArrayPool sets the document array pool.
+	SetDocumentArrayPool(value doc.DocumentArrayPool) Options
+
+	// DocumentArrayPool returns the document array pool.
+	DocumentArrayPool() doc.DocumentArrayPool
 }

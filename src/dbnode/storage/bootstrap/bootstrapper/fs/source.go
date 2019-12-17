@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -489,12 +491,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	readerPool *readerPool,
 ) {
 	var (
-		blockPool         = ropts.DatabaseBlockOptions().DatabaseBlockPool()
-		seriesCachePolicy = ropts.SeriesCachePolicy()
-		indexBlockSegment segment.MutableSegment
-		timesWithErrors   []time.Time
-		nsCtx             = namespace.NewContextFrom(ns)
+		blockPool                  = ropts.DatabaseBlockOptions().DatabaseBlockPool()
+		seriesCachePolicy          = ropts.SeriesCachePolicy()
+		indexBlockDocumentsBuilder segment.DocumentsBuilder
+		timesWithErrors            []time.Time
+		nsCtx                      = namespace.NewContextFrom(ns)
+		docsPool                   = s.opts.DocumentArrayPool()
+		batch                      = docsPool.Get()
 	)
+	defer func() {
+		docsPool.Put(batch)
+	}()
 
 	requestedRanges := timeWindowReaders.ranges
 	remainingRanges := requestedRanges.Copy()
@@ -514,10 +521,47 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			case bootstrapDataRunType:
 				// Pass, since nothing to do.
 			case bootstrapIndexRunType:
-				indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
+				indexBlockDocumentsBuilder, err = runResult.getOrAddDocumentsBuilder(start, ns, ropts)
 			default:
 				// Unreachable unless an internal method calls with a run type casted from int.
 				panic(fmt.Errorf("invalid run type: %d", run))
+			}
+
+			// flushBatch is declared for code reuse
+			flushBatch := func() error {
+				if len(batch) == 0 {
+					// Last flush might not have any docs enqueued
+					return nil
+				}
+
+				// NB(bodu): Prevent concurrent writes to index builder.
+				runResult.Lock()
+				err := indexBlockDocumentsBuilder.InsertBatch(index.Batch{
+					Docs:                batch,
+					AllowPartialUpdates: true,
+				})
+				runResult.Unlock()
+				if err != nil && index.IsBatchPartialError(err) {
+					// If after filtering out duplicate ID errors
+					// there are no errors, then this was a successful
+					// insertion.
+					batchErr := err.(*index.BatchPartialError)
+					// NB(r): FilterDuplicateIDErrors returns nil
+					// if no errors remain after filtering duplicate ID
+					// errors, this case is covered in unit tests.
+					err = batchErr.FilterDuplicateIDErrors()
+				}
+				if err != nil {
+					return err
+				}
+
+				// Reset docs batch for reuse
+				var empty doc.Document
+				for i := range batch {
+					batch[i] = empty
+				}
+				batch = batch[:0]
+				return nil
 			}
 
 			numEntries := r.Entries()
@@ -528,7 +572,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						runResult, start, blockSize, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
-					err = s.readNextEntryAndIndex(r, runResult, indexBlockSegment)
+					err = s.readNextEntryAndMaybeIndex(r, batch, flushBatch)
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
@@ -659,59 +703,34 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	return nil
 }
 
-func (s *fileSystemSource) readNextEntryAndIndex(
+func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
-	runResult *runResult,
-	segment segment.MutableSegment,
+	batch []doc.Document,
+	flushBatch func() error,
 ) error {
+	var docsMaxBatch = documentArrayPoolCapacity
+
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
 	if err != nil {
 		return err
 	}
 
-	// NB(r): Avoiding defer in the hot path here.
-	release := func() {
-		// Finalize the ID and tags.
-		id.Finalize()
-		tagsIter.Close()
-	}
-
-	idBytes := id.Bytes()
-
-	runResult.RLock()
-	exists, err := segment.ContainsID(idBytes)
-	runResult.RUnlock()
-	if err != nil {
-		release()
-		return err
-	}
-	if exists {
-		release()
-		return nil
-	}
-
 	d, err := convert.FromMetricIter(id, tagsIter)
-	release()
+	// Finalize the ID and tags.
+	id.Finalize()
+	tagsIter.Close()
 	if err != nil {
 		return err
 	}
 
-	runResult.Lock()
-	exists, err = segment.ContainsID(d.ID)
-	// ID and tags no longer required below.
-	if err != nil {
-		runResult.Unlock()
-		return err
-	}
-	if exists {
-		runResult.Unlock()
-		return nil
-	}
-	_, err = segment.Insert(d)
-	runResult.Unlock()
+	batch = append(batch, d)
 
-	return err
+	if len(batch) >= docsMaxBatch {
+		return flushBatch()
+	}
+
+	return nil
 }
 
 func (s *fileSystemSource) persistBootstrapIndexSegment(
@@ -767,46 +786,19 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 	}
 
 	var (
-		mutableSegment     segment.MutableSegment
-		numMutableSegments = 0
-	)
-
-	for _, seg := range indexBlock.Segments() {
-		if mSeg, ok := seg.(segment.MutableSegment); ok {
-			mutableSegment = mSeg
-			numMutableSegments++
-		}
-	}
-
-	if numMutableSegments != 1 {
-		return fmt.Errorf("error asserting index block has single mutable segment for blocksStart: %d, found: %d",
-			blockStart.Unix(), numMutableSegments)
-	}
-
-	var (
-		fulfilled           = indexBlock.Fulfilled()
-		success             = false
-		replacementSegments []segment.Segment
+		fulfilled         = indexBlock.Fulfilled()
+		success           = false
+		persistedSegments []segment.Segment
 	)
 	defer func() {
 		if !success {
 			return
 		}
-		// if we're successful, we need to update the segments in the block.
-		segments := replacementSegments
 
-		// get references to existing immutable segments from the block.
+		// Combine persisted  and existing segments.
+		segments := persistedSegments
 		for _, seg := range indexBlock.Segments() {
-			mSeg, ok := seg.(segment.MutableSegment)
-			if !ok {
-				segments = append(segments, seg)
-				continue
-			}
-			if err := mSeg.Close(); err != nil {
-				// safe to only log warning as we have persisted equivalent for the mutable block
-				// at this point.
-				s.log.Warn("encountered error while closing persisted mutable segment", zap.Error(err))
-			}
+			segments = append(segments, seg)
 		}
 
 		// Now replace the active segment with the persisted segment.
@@ -863,18 +855,12 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 		}
 	}()
 
-	if !mutableSegment.IsSealed() {
-		if err := mutableSegment.Seal(); err != nil {
-			return err
-		}
-	}
-
-	if err := preparedPersist.Persist(mutableSegment); err != nil {
+	if err := preparedPersist.Persist(indexBlock.Builder()); err != nil {
 		return err
 	}
 
 	calledClose = true
-	replacementSegments, err = preparedPersist.Close()
+	persistedSegments, err = preparedPersist.Close()
 	if err != nil {
 		return err
 	}
@@ -887,7 +873,7 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 	// Track success.
 	s.metrics.persistedIndexBlocksWrite.Inc(1)
 
-	// indicate the defer above should replace the mutable segments in the index block.
+	// Indicate the defer above should merge newly built segments w/ existing.
 	success = true
 	return nil
 }
@@ -1166,19 +1152,19 @@ func newRunResult() *runResult {
 	}
 }
 
-func (r *runResult) getOrAddIndexSegment(
+func (r *runResult) getOrAddDocumentsBuilder(
 	start time.Time,
 	ns namespace.Metadata,
 	ropts result.Options,
-) (segment.MutableSegment, error) {
+) (segment.DocumentsBuilder, error) {
 	// Only called once per shard so ok to acquire write lock immediately.
 	r.Lock()
 	defer r.Unlock()
 
 	indexResults := r.index.IndexResults()
-	indexBlockSegment, err := indexResults.GetOrAddSegment(start,
+	indexBlockDocumentsBuilder, err := indexResults.GetOrAddDocumentsBuilder(start,
 		ns.Options().IndexOptions(), ropts)
-	return indexBlockSegment, err
+	return indexBlockDocumentsBuilder, err
 }
 
 func (r *runResult) mergedResult(other *runResult) *runResult {

@@ -26,15 +26,15 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// NewDefaultMutableSegmentAllocator returns a default mutable segment
+// NewDefaultDocumentsBuilderAllocator returns a default mutable segment
 // allocator.
-func NewDefaultMutableSegmentAllocator() MutableSegmentAllocator {
-	return func() (segment.MutableSegment, error) {
-		return mem.NewSegment(0, mem.NewOptions())
+func NewDefaultDocumentsBuilderAllocator() DocumentsBuilderAllocator {
+	return func() (segment.DocumentsBuilder, error) {
+		return builder.NewBuilderFromDocuments(builder.NewOptions())
 	}
 }
 
@@ -103,12 +103,12 @@ func (r IndexResults) AddResults(other IndexResults) {
 	}
 }
 
-// GetOrAddSegment get or create a new mutable segment.
-func (r IndexResults) GetOrAddSegment(
+// GetOrAddDocumentsBuilder get or create a new documents builder.
+func (r IndexResults) GetOrAddDocumentsBuilder(
 	t time.Time,
 	idxopts namespace.IndexOptions,
 	opts Options,
-) (segment.MutableSegment, error) {
+) (segment.DocumentsBuilder, error) {
 	// NB(r): The reason we can align by the retention block size and guarantee
 	// there is only one entry for this time is because index blocks must be a
 	// positive multiple of the data block size, making it easy to map a data
@@ -121,21 +121,19 @@ func (r IndexResults) GetOrAddSegment(
 		block = NewIndexBlock(blockStart, nil, nil)
 		r[blockStartNanos] = block
 	}
-	for _, seg := range block.Segments() {
-		if mutable, ok := seg.(segment.MutableSegment); ok {
-			return mutable, nil
-		}
+	if block.builder != nil {
+		return block.builder, nil
 	}
 
-	alloc := opts.IndexMutableSegmentAllocator()
-	mutable, err := alloc()
+	alloc := opts.IndexDocumentsBuilderAllocator()
+	builder, err := alloc()
 	if err != nil {
 		return nil, err
 	}
+	block.builder = builder
 
-	segments := []segment.Segment{mutable}
-	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, segments, nil))
-	return mutable, nil
+	r[blockStartNanos] = block
+	return builder, nil
 }
 
 // MarkFulfilled will mark an index block as fulfilled, either partially or
@@ -224,6 +222,11 @@ func (b IndexBlock) BlockStart() time.Time {
 // Segments returns the segments.
 func (b IndexBlock) Segments() []segment.Segment {
 	return b.segments
+}
+
+// Builder returns the block index segment builder.
+func (b IndexBlock) Builder() segment.DocumentsBuilder {
+	return b.builder
 }
 
 // Fulfilled returns the fulfilled time ranges by this index block.

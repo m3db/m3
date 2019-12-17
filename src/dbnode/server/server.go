@@ -693,7 +693,7 @@ func Run(runOpts RunOptions) {
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-		SetIndexMutableSegmentAllocator(mutableSegmentAlloc)
+		SetIndexDocumentsBuilderAllocator(mutableSegmentAlloc)
 
 	var repairClients []client.AdminClient
 	if cfg.Repair != nil && cfg.Repair.Enabled {

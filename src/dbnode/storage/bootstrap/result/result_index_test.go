@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -37,10 +38,11 @@ func TestIndexResultGetOrAddSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	created := segment.NewMockMutableSegment(ctrl)
+	created, err := builder.NewBuilderFromDocuments(builder.NewOptions())
+	require.Nil(t, err)
 	allocated := 0
 	opts := NewOptions().
-		SetIndexMutableSegmentAllocator(func() (segment.MutableSegment, error) {
+		SetIndexDocumentsBuilderAllocator(func() (segment.DocumentsBuilder, error) {
 			allocated++
 			return created, nil
 		})
@@ -51,17 +53,17 @@ func TestIndexResultGetOrAddSegment(t *testing.T) {
 	aligned := now.Truncate(blockSize)
 
 	results := IndexResults{}
-	seg, err := results.GetOrAddSegment(aligned.Add(time.Minute), idxOpts, opts)
+	seg, err := results.GetOrAddDocumentsBuilder(aligned.Add(time.Minute), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, seg == created)
 	require.Equal(t, 1, len(results))
 
-	seg, err = results.GetOrAddSegment(aligned.Add(2*time.Minute), idxOpts, opts)
+	seg, err = results.GetOrAddDocumentsBuilder(aligned.Add(2*time.Minute), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, seg == created)
 	require.Equal(t, 1, len(results))
 
-	seg, err = results.GetOrAddSegment(aligned.Add(blockSize), idxOpts, opts)
+	seg, err = results.GetOrAddDocumentsBuilder(aligned.Add(blockSize), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, seg == created)
 	require.Equal(t, 2, len(results))
