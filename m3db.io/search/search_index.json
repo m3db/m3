@@ -47,7 +47,7 @@
         },
         {
             "location": "/getting_started/installation/",
-            "text": "Installation\n\n\nBe sure to take a look at the \nrequirements\n before installing the operator.\n\n\nHelm\n\n\n\n\nAdd the \nm3db-operator\n repo:\n\n\n\n\nhelm repo add m3db https://s3.amazonaws.com/m3-helm-charts-repository/stable\n\n\n\n\n\n\nInstall the \nm3db-operator\n chart:\n\n\n\n\nhelm install m3db/m3db-operator --namespace m3db-operator\n\n\n\n\nNote\n: If uninstalling an instance of the operator that was installed with Helm, some resources such as the\nClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.\n\n\nManually\n\n\nInstall the bundled operator manifests in the current namespace:\n\n\nkubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml",
+            "text": "Installation\n\n\nBe sure to take a look at the \nrequirements\n before installing the operator.\n\n\nHelm\n\n\n\n\nAdd the \nm3db-operator\n repo:\n\n\n\n\nhelm repo add m3db https://m3-helm-charts.storage.googleapis.com/stable\n\n\n\n\n\n\nInstall the \nm3db-operator\n chart:\n\n\n\n\nhelm install m3db/m3db-operator --namespace m3db-operator\n\n\n\n\nNote\n: If uninstalling an instance of the operator that was installed with Helm, some resources such as the\nClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.\n\n\nManually\n\n\nInstall the bundled operator manifests in the current namespace:\n\n\nkubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml",
             "title": "Installation"
         },
         {
@@ -57,7 +57,7 @@
         },
         {
             "location": "/getting_started/installation/#helm",
-            "text": "Add the  m3db-operator  repo:   helm repo add m3db https://s3.amazonaws.com/m3-helm-charts-repository/stable   Install the  m3db-operator  chart:   helm install m3db/m3db-operator --namespace m3db-operator  Note : If uninstalling an instance of the operator that was installed with Helm, some resources such as the\nClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.",
+            "text": "Add the  m3db-operator  repo:   helm repo add m3db https://m3-helm-charts.storage.googleapis.com/stable   Install the  m3db-operator  chart:   helm install m3db/m3db-operator --namespace m3db-operator  Note : If uninstalling an instance of the operator that was installed with Helm, some resources such as the\nClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.",
             "title": "Helm"
         },
         {
