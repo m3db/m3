@@ -369,13 +369,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#deleting-a-cluster" title="Deleting a Cluster" class="md-nav__link">
-    Deleting a Cluster
-  </a>
-  
-</li>
-      
       
       
       
@@ -384,6 +377,18 @@
   
 </nav>
     
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../delete_cluster/" title="Deleting a Cluster" class="md-nav__link">
+      Deleting a Cluster
+    </a>
   </li>
 
         
@@ -562,13 +567,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#deleting-a-cluster" title="Deleting a Cluster" class="md-nav__link">
-    Deleting a Cluster
-  </a>
-  
-</li>
-      
       
       
       
@@ -731,17 +729,6 @@ simple-cluster-rep2-0   1/1     Running   0          37s
 <div class="highlight"><pre><span></span>$ kubectl exec simple-cluster-rep2-0 -- curl -sSf localhost:9002/health
 {&quot;ok&quot;:true,&quot;status&quot;:&quot;up&quot;,&quot;bootstrapped&quot;:true}
 </pre></div></p>
-<h2 id="deleting-a-cluster">Deleting a Cluster</h2>
-<p>Delete your M3DB cluster with <code>kubectl</code>:
-<div class="highlight"><pre><span></span>kubectl delete m3dbcluster simple-cluster
-</pre></div></p>
-<p>After deleting a cluster you'll have to delete the metadata in etcd if you want to reuse the same etcd cluster for a new
-M3DB cluster. On our roadmap is to add a finalizer to <code>m3dbcluster</code> API objects to allow the operator to clean up their
-data in etcd. Until then, you'll have to do so manually:</p>
-<p><strong>WARNING</strong>: This will delete all data in your etcd cluster. If you are using this cluster for anything other than M3DB,
-you will want to delete only the relevant keys (generally anything containing the string <code>m3db</code>).</p>
-<div class="highlight"><pre><span></span>kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl del --prefix &quot;&quot;
-</pre></div>
                 
                   
                 
@@ -777,13 +764,13 @@ you will want to delete only the relevant keys (generally anything containing th
           </a>
         
         
-          <a href="../monitoring/" title="Monitoring" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../delete_cluster/" title="Deleting a Cluster" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Monitoring
+                Deleting a Cluster
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
