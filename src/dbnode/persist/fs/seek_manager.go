@@ -32,6 +32,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
@@ -40,6 +41,7 @@ import (
 const (
 	seekManagerCloseInterval        = time.Second
 	reusableSeekerResourcesPoolSize = 10
+	concurrentCacheShardIndices     = 16
 )
 
 var (
@@ -71,6 +73,10 @@ const (
 	seekerManagerClosed
 )
 
+// seekerManager provides functionality around borrowableSeekers such as
+// opening and closing them, as well as lending them out to a Retriever.
+// There is a single seekerManager per namespace which contains all
+// open seekers for all shards and blocks within that namespace.
 type seekerManager struct {
 	sync.RWMutex
 
@@ -82,8 +88,13 @@ type seekerManager struct {
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
 
-	status                 seekerManagerStatus
-	isUpdatingLease        bool
+	status          seekerManagerStatus
+	isUpdatingLease bool
+
+	cacheShardIndicesWorkers xsync.WorkerPool
+
+	// seekersByShardIdx provides access to all seekers, first partitioned by
+	// shard and then by block start.
 	seekersByShardIdx      []*seekersByTime
 	namespace              ident.ID
 	namespaceMetadata      namespace.Metadata
@@ -92,6 +103,7 @@ type seekerManager struct {
 	newOpenSeekerFn        newOpenSeekerFn
 	sleepFn                func(d time.Duration)
 	openCloseLoopDoneCh    chan struct{}
+
 	// Pool of seeker resources that can be used to open new seekers.
 	reusableSeekerResourcesPool pool.ObjectPool
 }
@@ -111,12 +123,15 @@ type seekersAndBloom struct {
 	volume      int
 }
 
-// borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
+// borrowableSeeker is just a seeker with an additional field for keeping
+// track of whether or not it has been borrowed.
 type borrowableSeeker struct {
 	seeker     ConcurrentDataFileSetSeeker
 	isBorrowed bool
 }
 
+// seekersByTime contains all seekers for a specific shard, accessible by
+// blockStart. The accessed field allows for pre-caching those seekers.
 type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
@@ -124,6 +139,10 @@ type seekersByTime struct {
 	seekers  map[xtime.UnixNano]rotatableSeekers
 }
 
+// rotatableSeekers is a wrapper around seekersAndBloom that allows for rotating
+// out stale seekers. This is required so that the active seekers can be rotated
+// to inactive while the seeker manager waits for any outstanding stale seekers
+// to be returned.
 type rotatableSeekers struct {
 	active   seekersAndBloom
 	inactive seekersAndBloom
@@ -149,12 +168,18 @@ func NewSeekerManager(
 		return NewReusableSeekerResources(opts)
 	})
 
+	// NB(r): Since this is mainly IO bound work, perfectly
+	// fine to do this in parallel.
+	cacheShardIndicesWorkers := xsync.NewWorkerPool(concurrentCacheShardIndices)
+	cacheShardIndicesWorkers.Init()
+
 	m := &seekerManager{
 		bytesPool:                   bytesPool,
 		filePathPrefix:              opts.FilePathPrefix(),
 		opts:                        opts,
 		blockRetrieverOpts:          blockRetrieverOpts,
 		fetchConcurrency:            blockRetrieverOpts.FetchConcurrency(),
+		cacheShardIndicesWorkers:    cacheShardIndicesWorkers,
 		logger:                      opts.InstrumentOptions().Logger(),
 		openCloseLoopDoneCh:         make(chan struct{}),
 		reusableSeekerResourcesPool: reusableSeekerResourcesPool,
@@ -165,6 +190,9 @@ func NewSeekerManager(
 	return m
 }
 
+// Open opens the seekerManager, which starts background processes such as
+// the openCloseLoop, ensuring open file descriptors for the file sets accesible
+// through the seekers.
 func (m *seekerManager) Open(
 	nsMetadata namespace.Metadata,
 ) error {
@@ -191,8 +219,11 @@ func (m *seekerManager) Open(
 }
 
 func (m *seekerManager) CacheShardIndices(shards []uint32) error {
-	multiErr := xerrors.NewMultiError()
-
+	var (
+		multiErr    = xerrors.NewMultiError()
+		resultsLock sync.Mutex
+		wg          sync.WaitGroup
+	)
 	for _, shard := range shards {
 		byTime := m.seekersByTime(shard)
 
@@ -201,33 +232,54 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		byTime.accessed = true
 		byTime.Unlock()
 
-		if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+		wg.Add(1)
+		m.cacheShardIndicesWorkers.Go(func() {
+			if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
+				resultsLock.Lock()
+				multiErr = multiErr.Add(err)
+				resultsLock.Unlock()
+			}
+			wg.Done()
+		})
 	}
 
+	wg.Wait()
 	return multiErr.FinalError()
 }
 
-func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error) {
+func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
+	startNano := xtime.ToUnixNano(start)
 	byTime := m.seekersByTime(shard)
 
 	// Try fast RLock() first.
 	byTime.RLock()
-	startNano := xtime.ToUnixNano(start)
-	seekers, ok := byTime.seekers[startNano]
-	byTime.RUnlock()
-
-	if ok && seekers.active.wg == nil {
-		return seekers.active.bloomFilter, nil
+	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
+		// Seekers are open: good to test but still hold RLock while doing so
+		idExists := seekers.active.bloomFilter.Test(id.Bytes())
+		byTime.RUnlock()
+		return idExists, nil
 	}
 
+	byTime.RUnlock()
+
 	byTime.Lock()
+	defer byTime.Unlock()
+
+	// Check if raced with another call to this method
+	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
+		return seekers.active.bloomFilter.Test(id.Bytes()), nil
+	}
+
 	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
-	byTime.Unlock()
-	return seekersAndBloom.bloomFilter, err
+	if err != nil {
+		return false, err
+	}
+
+	return seekersAndBloom.bloomFilter.Test(id.Bytes()), nil
 }
 
+// Borrow returns a "borrowed" seeker which the caller has exclusive access to
+// until it's returned later.
 func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 
@@ -463,8 +515,6 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
-	// If any of the previous seekers are still borrowed this function will need to wait for
-	// them to be returned.
 	anySeekersAreBorrowed := false
 	for _, seeker := range seekers.inactive.seekers {
 		if seeker.isBorrowed {
@@ -481,12 +531,21 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		wg = &sync.WaitGroup{}
 		wg.Add(1)
 		seekers.inactive.wg = wg
+	} else {
+		// If none of the existing seekers are currently borrowed then we can just close them all.
+		m.closeSeekersAndLogError(descriptor, seekers.inactive.seekers)
+		seekers.inactive = seekersAndBloom{}
 	}
 	byTime.seekers[blockStartNano] = seekers
 
 	return wg, updateOpenLeaseResult, nil
 }
 
+// acquireByTimeLockWaitGroupAware grabs a lock on the shard and checks if
+// seekers exist for a given blockStart. If a waitgroup is present, meaning
+// a different goroutine is currently trying to open those seekers, it will
+// wait for that operation to complete first, before returning the seekers
+// while the lock on the shard is still being held.
 func (m *seekerManager) acquireByTimeLockWaitGroupAware(
 	blockStart xtime.UnixNano,
 	byTime *seekersByTime,
@@ -727,6 +786,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		m.RUnlock()
 		return byTime
 	}
+
 	m.RUnlock()
 
 	m.Lock()
@@ -739,14 +799,10 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 	}
 
 	seekersByShardIdx := make([]*seekersByTime, shard+1)
-
-	for i := range seekersByShardIdx {
-		if i < len(m.seekersByShardIdx) {
-			seekersByShardIdx[i] = m.seekersByShardIdx[i]
-			continue
-		}
-		seekersByShardIdx[i] = &seekersByTime{
-			shard:   uint32(i),
+	idx := copy(seekersByShardIdx, m.seekersByShardIdx)
+	for ; idx < len(seekersByShardIdx); idx++ {
+		seekersByShardIdx[idx] = &seekersByTime{
+			shard:   uint32(idx),
 			seekers: make(map[xtime.UnixNano]rotatableSeekers),
 		}
 	}
@@ -823,6 +879,8 @@ func (m *seekerManager) latestSeekableBlockStart() time.Time {
 	return now.Truncate(ropts.BlockSize())
 }
 
+// openCloseLoop ensures to keep seekers open for those times where they are
+// available and closes them when they fall out of retention and expire.
 func (m *seekerManager) openCloseLoop() {
 	var (
 		shouldTryOpen []*seekersByTime

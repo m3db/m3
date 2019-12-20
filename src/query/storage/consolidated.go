@@ -31,6 +31,10 @@ type consolidatedBlock struct {
 	consolidationFunc block.ConsolidationFunc
 }
 
+func (c *consolidatedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockConsolidated)
+}
+
 func (c *consolidatedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	return nil, errors.New("unconsolidated blocks are not supported")
 }
@@ -99,10 +103,6 @@ func (c *consolidatedStepIter) SeriesMeta() []block.SeriesMeta {
 	return c.unconsolidated.SeriesMeta()
 }
 
-func (c *consolidatedStepIter) Meta() block.Metadata {
-	return c.unconsolidated.Meta()
-}
-
 type consolidatedSeriesIter struct {
 	unconsolidated    block.UnconsolidatedSeriesIter
 	consolidationFunc block.ConsolidationFunc
@@ -131,8 +131,4 @@ func (c *consolidatedSeriesIter) SeriesCount() int {
 
 func (c *consolidatedSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return c.unconsolidated.SeriesMeta()
-}
-
-func (c *consolidatedSeriesIter) Meta() block.Metadata {
-	return c.unconsolidated.Meta()
 }

@@ -22,12 +22,11 @@ package index
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -401,7 +400,6 @@ func TestAggResultsReset(t *testing.T) {
 	aggResults, ok = res.(*aggregatedResults)
 	require.True(t, ok)
 	require.Equal(t, 100, aggResults.aggregateOpts.SizeLimit)
-	fmt.Println(aggResults.nsID.String())
 	require.Equal(t, newID.Bytes(), aggResults.nsID.Bytes())
 
 	// Ensure new NS is cloned

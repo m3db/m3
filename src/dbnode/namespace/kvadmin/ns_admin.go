@@ -233,3 +233,27 @@ func (as *adminService) currentRegistry() (*nsproto.Registry, int, error) {
 
 	return &protoRegistry, value.Version(), nil
 }
+
+
+func LoadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore kv.Store) error {
+	if kvStore == nil {
+		return errors.New("m3db metadata store is not configured properly")
+	}
+	as := NewAdminService(kvStore, "", nil)
+	nsReg, err := as.GetAll()
+	if err != nil {
+		return xerrors.Wrap(err, "could not get metadata from metadata store")
+	}
+	nsMap, err := namespace.FromProto(*nsReg)
+	if err != nil {
+		return xerrors.Wrap(err, "could not unmarshal metadata")
+	}
+	merr := xerrors.NewMultiError()
+	for _, metadata := range nsMap.Metadatas() {
+		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
+		if err != nil {
+			merr = merr.Add(xerrors.Wrapf(err, "could not set schema history for namespace %s", metadata.ID().String()))
+		}
+	}
+	return merr.FinalError()
+}

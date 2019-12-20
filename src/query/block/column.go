@@ -21,6 +21,7 @@
 package block
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// ColumnBlockBuilder builds a block optimized for column iteration
+// ColumnBlockBuilder builds a block optimized for column iteration.
 type ColumnBlockBuilder struct {
 	block           *columnBlock
 	enforcer        cost.ChainedEnforcer
@@ -39,13 +40,15 @@ type ColumnBlockBuilder struct {
 }
 
 type columnBlock struct {
+	blockType  BlockType
 	columns    []column
 	meta       Metadata
 	seriesMeta []SeriesMeta
 }
 
 func (c *columnBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
+	return nil, fmt.
+		Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
 }
 
 func (c *columnBlock) Meta() Metadata {
@@ -54,7 +57,9 @@ func (c *columnBlock) Meta() Metadata {
 
 func (c *columnBlock) StepIter() (StepIter, error) {
 	if len(c.columns) != c.meta.Bounds.Steps() {
-		return nil, fmt.Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v", len(c.columns), c.meta.Bounds)
+		return nil, fmt.
+			Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v",
+				len(c.columns), c.meta.Bounds)
 	}
 
 	return &colBlockIter{
@@ -65,29 +70,19 @@ func (c *columnBlock) StepIter() (StepIter, error) {
 	}, nil
 }
 
-// TODO: allow series iteration
 func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
 }
-
-func (c *columnBlock) WithMetadata(
-	meta Metadata,
-	seriesMetas []SeriesMeta,
-) (Block, error) {
-	return &columnBlock{
-		columns:    c.columns,
-		meta:       meta,
-		seriesMeta: seriesMetas,
-	}, nil
-}
-
-// TODO: allow series iteration
 func (c *columnBlock) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
 
 func (c *columnBlock) StepCount() int {
 	return len(c.columns)
+}
+
+func (c *columnBlock) Info() BlockInfo {
+	return NewBlockInfo(c.blockType)
 }
 
 // Close frees up any resources
@@ -107,10 +102,6 @@ type colBlockIter struct {
 
 func (c *colBlockIter) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
-}
-
-func (c *colBlockIter) Meta() Metadata {
-	return c.meta
 }
 
 func (c *colBlockIter) StepCount() int {
@@ -177,11 +168,13 @@ func NewColumnBlockBuilder(
 	meta Metadata,
 	seriesMeta []SeriesMeta) Builder {
 	return ColumnBlockBuilder{
-		enforcer:        queryCtx.Enforcer.Child(cost.BlockLevel),
-		blockDatapoints: queryCtx.Scope.Tagged(map[string]string{"type": "generated"}).Counter("datapoints"),
+		enforcer: queryCtx.Enforcer.Child(cost.BlockLevel),
+		blockDatapoints: queryCtx.Scope.Tagged(
+			map[string]string{"type": "generated"}).Counter("datapoints"),
 		block: &columnBlock{
 			meta:       meta,
 			seriesMeta: seriesMeta,
+			blockType:  BlockDecompressed,
 		},
 	}
 }
@@ -217,21 +210,72 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 	}
 
 	cb.blockDatapoints.Inc(int64(len(values)))
-
 	columns[idx].Values = append(columns[idx].Values, values...)
 	return nil
 }
 
-// AddCols adds new columns
+// AddCols adds the given number of columns to the block.
 func (cb ColumnBlockBuilder) AddCols(num int) error {
+	if num < 1 {
+		return fmt.Errorf("must add more than 0 columns, adding: %d", num)
+	}
+
 	newCols := make([]column, num)
 	cb.block.columns = append(cb.block.columns, newCols...)
 	return nil
 }
 
-// Build extracts the block
-// TODO: Return an immutable copy
+// PopulateColumns sets all columns to the given row size.
+func (cb ColumnBlockBuilder) PopulateColumns(size int) {
+	cols := make([]float64, size*len(cb.block.columns))
+	for i := range cb.block.columns {
+		cb.block.columns[i] = column{Values: cols[size*i : size*(i+1)]}
+	}
+}
+
+// SetRow sets a given block row to the given values and metadata.
+func (cb ColumnBlockBuilder) SetRow(
+	idx int,
+	values []float64,
+	meta SeriesMeta,
+) error {
+	cols := cb.block.columns
+	if len(values) == 0 {
+		// Sanity check. Should never happen.
+		return errors.New("cannot insert empty values")
+	}
+
+	if len(values) != len(cols) {
+		return fmt.Errorf("inserting column size %d does not match column size: %d",
+			len(values), len(cols))
+	}
+
+	rows := len(cols[0].Values)
+	if idx < 0 || idx >= rows {
+		return fmt.Errorf("cannot insert into row %d, have %d rows", idx, rows)
+	}
+
+	for i, v := range values {
+		cb.block.columns[i].Values[idx] = v
+	}
+
+	r := cb.enforcer.Add(xcost.Cost(len(values)))
+	if r.Error != nil {
+		return r.Error
+	}
+
+	cb.block.seriesMeta[idx] = meta
+	return nil
+}
+
+// Build builds the block.
 func (cb ColumnBlockBuilder) Build() Block {
+	return NewAccountedBlock(cb.block, cb.enforcer)
+}
+
+// BuildAsType builds the block, forcing it to the given BlockType.
+func (cb ColumnBlockBuilder) BuildAsType(blockType BlockType) Block {
+	cb.block.blockType = blockType
 	return NewAccountedBlock(cb.block, cb.enforcer)
 }
 
@@ -239,17 +283,14 @@ type column struct {
 	Values []float64
 }
 
-// columnBlockSeriesIter is used to iterate over a column. Assumes that all columns have the same length
+// columnBlockSeriesIter is used to iterate over a column.
+// Assumes that all columns have the same length.
 type columnBlockSeriesIter struct {
 	idx        int
 	blockMeta  Metadata
 	values     []float64
 	columns    []column
 	seriesMeta []SeriesMeta
-}
-
-func (m *columnBlockSeriesIter) Meta() Metadata {
-	return m.blockMeta
 }
 
 func newColumnBlockSeriesIter(
@@ -292,8 +333,8 @@ func (m *columnBlockSeriesIter) Next() bool {
 	}
 
 	cols := m.columns
-	for i := 0; i < len(cols); i++ {
-		m.values[i] = cols[i].Values[m.idx]
+	for i, col := range cols {
+		m.values[i] = col.Values[m.idx]
 	}
 
 	return next

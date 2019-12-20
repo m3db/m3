@@ -23,6 +23,7 @@
 package proto
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"reflect"
@@ -30,9 +31,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -163,9 +165,28 @@ func TestRoundTripProp(t *testing.T) {
 			enc.SetSchema(setSchemaDescr)
 		}
 
-		stream, ok := enc.Stream(encoding.StreamOptions{})
+		// Ensure that the Len() method always returns the length of the final stream that would
+		// be returned by a call to Stream().
+		encLen := enc.Len()
+
+		ctx := context.NewContext()
+		defer ctx.Close()
+
+		stream, ok := enc.Stream(ctx)
 		if !ok {
-			return true, nil
+			if len(input.messages) == 0 {
+				return true, nil
+			}
+			return false, fmt.Errorf("encoder returned empty stream")
+		}
+		segment, err := stream.Segment()
+		if err != nil {
+			return false, fmt.Errorf("error getting segment: %v", err)
+		}
+		if segment.Len() != encLen {
+			return false, fmt.Errorf(
+				"expected segment len (%d) to match encoder len (%d)",
+				segment.Len(), encLen)
 		}
 
 		iter.Reset(stream, schemaDescr)
@@ -212,6 +233,146 @@ func TestRoundTripProp(t *testing.T) {
 
 		if i != len(input.messages) {
 			return false, fmt.Errorf("expected %d messages but got %d", len(input.messages), i)
+		}
+
+		return true, nil
+	}, genPropTestInputs()))
+
+	if !props.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
+// TestBijectivityProp ensures that the protobuf encoding format is bijective. I.E if the same messages are
+// provided in the same order then the resulting stream should always be the same and similarly that decoding
+// and re-encoding should always generate the same stream as the original.
+func TestBijectivityProp(t *testing.T) {
+	var (
+		parameters = gopter.DefaultTestParameters()
+		seed       = time.Now().UnixNano()
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+	)
+	parameters.MinSuccessfulTests = 100
+	parameters.Rng.Seed(seed)
+
+	enc := NewEncoder(time.Time{}, testEncodingOptions)
+	iter := NewIterator(nil, nil, testEncodingOptions).(*iterator)
+	props.Property("Encoded data should be readable", prop.ForAll(func(input propTestInput) (bool, error) {
+		if len(input.messages) == 0 {
+			return true, nil
+		}
+		if debugLogs {
+			fmt.Println("---------------------------------------------------")
+		}
+
+		var (
+			start       = time.Now()
+			schemaDescr = namespace.GetTestSchemaDescr(input.schema)
+
+			originalStream  xio.SegmentReader
+			originalSegment ts.Segment
+			messageTimes    []time.Time
+			messageBytes    [][]byte
+		)
+
+		// Unfortunately the current implementation is only guaranteed to generate the exact stream
+		// for the same input Protobuf messages if the marshaled protobuf bytes are the same. The reason
+		// for that is that the Protobuf encoding format is not bijective (for example, fields do not have
+		// to be encoded in sorted order by field number and map values can appear in arbitrary orders).
+		//
+		// The protobuf encoder/iterator compensates for some of these limitations (like the lack of sorting
+		// on field order by performing the sort itself during "custom unmarshaling") but does not compensate
+		// for others (like the fact that maps are not sorted). Because of these limitations the current encoder
+		// may generate different streams (even when provided the same messages) if the messages are not first
+		// marshaled into the same exact byte streams.
+		for i, m := range input.messages {
+			if debugLogs {
+				printMessage(fmt.Sprintf("encoding %d", i), m.message)
+			}
+			clone := dynamic.NewMessage(input.schema)
+			clone.MergeFrom(m.message)
+			mBytes, err := clone.Marshal()
+			if err != nil {
+				return false, fmt.Errorf("error marshalling proto message: %v", err)
+			}
+			// Generate times up-front so they're the same for each iteration.
+			messageTimes = append(messageTimes, time.Now())
+			messageBytes = append(messageBytes, mBytes)
+		}
+
+		ctx := context.NewContext()
+		defer ctx.Close()
+
+		// First verify that if the same input byte slices are passed then the same stream will always
+		// be generated.
+		for i := 0; i < 10; i++ {
+			enc.Reset(start, 0, schemaDescr)
+			for j, mBytes := range messageBytes {
+				err := enc.Encode(ts.Datapoint{Timestamp: messageTimes[j]}, xtime.Nanosecond, mBytes)
+				if err != nil {
+					return false, fmt.Errorf(
+						"error encoding message: %v, schema: %s", err, input.schema.String())
+				}
+			}
+
+			currStream, ok := enc.Stream(ctx)
+			if !ok {
+				return false, fmt.Errorf("encoder returned empty stream")
+			}
+			currSegment, err := currStream.Segment()
+			if err != nil {
+				return false, fmt.Errorf("error getting segment: %v", err)
+			}
+
+			if originalStream == nil {
+				originalStream = currStream
+				originalSegment = currSegment
+			} else {
+				if err := compareSegments(originalSegment, currSegment); err != nil {
+					return false, fmt.Errorf("error comparing segments for re-encoding original stream: %v", err)
+				}
+			}
+		}
+
+		// Next verify that re-encoding a stream (after decoding/iterating it) will also always generate the
+		// same original stream.
+		for i := 0; i < 10; i++ {
+			originalStream.Reset(originalSegment)
+			iter.Reset(originalStream, schemaDescr)
+			enc.Reset(start, 0, schemaDescr)
+			j := 0
+			for iter.Next() {
+				dp, unit, annotation := iter.Current()
+				if debugLogs {
+					fmt.Println("iterating", dp, unit, annotation)
+				}
+				if err := enc.Encode(dp, unit, annotation); err != nil {
+					return false, fmt.Errorf("error encoding current value")
+				}
+				j++
+			}
+			if iter.Err() != nil {
+				return false, fmt.Errorf(
+					"iteration error: %v, schema: %s", iter.Err(), input.schema.String())
+			}
+
+			if j != len(input.messages) {
+				return false, fmt.Errorf("expected %d messages but got %d", len(input.messages), j)
+			}
+
+			currStream, ok := enc.Stream(ctx)
+			if !ok {
+				return false, fmt.Errorf("encoder returned empty stream")
+			}
+			currSegment, err := currStream.Segment()
+			if err != nil {
+				return false, fmt.Errorf("error getting segment: %v", err)
+			}
+
+			if err := compareSegments(originalSegment, currSegment); err != nil {
+				return false, fmt.Errorf("error comparing segments for re-encoding original stream after iterating: %v", err)
+			}
 		}
 
 		return true, nil
@@ -631,7 +792,10 @@ func genTimeUnit() gopter.Gen {
 
 func genFieldModifier() gopter.Gen {
 	return gen.OneConstOf(
-		fieldModifierRegular, fieldModifierReserved, fieldModifierRepeated, fieldModifierMap)
+		fieldModifierRegular,
+		fieldModifierReserved,
+		fieldModifierRepeated,
+		fieldModifierMap)
 }
 
 func genMapKeyType() gopter.Gen {
@@ -672,4 +836,36 @@ func printMessage(prefix string, m *dynamic.Message) {
 		panic(err)
 	}
 	fmt.Printf("%s: %s\n", prefix, string(json))
+}
+
+func compareSegments(a ts.Segment, b ts.Segment) error {
+	var (
+		aHead []byte
+		bHead []byte
+		aTail []byte
+		bTail []byte
+	)
+	if a.Head != nil {
+		aHead = a.Head.Bytes()
+	}
+	if b.Head != nil {
+		bHead = b.Head.Bytes()
+	}
+	if a.Tail != nil {
+		aTail = a.Tail.Bytes()
+	}
+	if b.Tail != nil {
+		bTail = b.Tail.Bytes()
+	}
+	if !bytes.Equal(aHead, bHead) {
+		return fmt.Errorf(
+			"heads do not match. Expected: %v but got: %v",
+			aHead, bHead)
+	}
+	if !bytes.Equal(aTail, bTail) {
+		return fmt.Errorf(
+			"tails do not match. Expected: %v but got: %v",
+			aTail, bTail)
+	}
+	return nil
 }

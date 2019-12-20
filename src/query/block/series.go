@@ -24,67 +24,61 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-// Series is a single series within a block
+// Series is a single series within a block.
 type Series struct {
 	values []float64
 	Meta   SeriesMeta
 }
 
-// NewSeries creates a new series
+// NewSeries creates a new series.
 func NewSeries(values []float64, meta SeriesMeta) Series {
 	return Series{values: values, Meta: meta}
 }
 
-// ValueAtStep returns the datapoint value at a step index
+// ValueAtStep returns the datapoint value at a step index.
 func (s Series) ValueAtStep(idx int) float64 {
 	return s.values[idx]
 }
 
-// Values returns the internal values slice
+// Values returns the internal values slice.
 func (s Series) Values() []float64 {
 	return s.values
 }
 
-// Len returns the number of datapoints in the series
+// Len returns the number of datapoints in the series.
 func (s Series) Len() int {
 	return len(s.values)
 }
 
-// UnconsolidatedSeries is the series with raw datapoints
+// UnconsolidatedSeries is the series with raw datapoints.
 type UnconsolidatedSeries struct {
-	datapoints []ts.Datapoints
+	datapoints ts.Datapoints
 	Meta       SeriesMeta
 }
 
-// NewUnconsolidatedSeries creates a new series with raw datapoints
-func NewUnconsolidatedSeries(datapoints []ts.Datapoints, meta SeriesMeta) UnconsolidatedSeries {
+// NewUnconsolidatedSeries creates a new series with raw datapoints.
+func NewUnconsolidatedSeries(
+	datapoints ts.Datapoints,
+	meta SeriesMeta,
+) UnconsolidatedSeries {
 	return UnconsolidatedSeries{datapoints: datapoints, Meta: meta}
 }
 
-// DatapointsAtStep returns the raw datapoints at a step index
-func (s UnconsolidatedSeries) DatapointsAtStep(idx int) ts.Datapoints {
-	if idx < 0 || idx >= len(s.datapoints) {
-		return nil
-	}
-
-	return s.datapoints[idx]
-}
-
-// Datapoints returns the internal datapoints slice
-func (s UnconsolidatedSeries) Datapoints() []ts.Datapoints {
+// Datapoints returns the internal datapoints slice.
+func (s UnconsolidatedSeries) Datapoints() ts.Datapoints {
 	return s.datapoints
 }
 
-// Len returns the number of datapoints slices in the series
+// Len returns the number of datapoints slices in the series.
 func (s UnconsolidatedSeries) Len() int {
 	return len(s.datapoints)
 }
 
-// Consolidated consolidates the series
+// Consolidated consolidates the series.
 func (s UnconsolidatedSeries) Consolidated(consolidationFunc ConsolidationFunc) Series {
 	values := make([]float64, len(s.datapoints))
-	for i, vals := range s.datapoints {
-		values[i] = consolidationFunc(vals)
+	for i, v := range s.datapoints {
+		values[i] = v.Value
 	}
 
 	return NewSeries(values, s.Meta)

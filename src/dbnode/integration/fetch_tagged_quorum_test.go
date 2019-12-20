@@ -249,15 +249,15 @@ func makeMultiNodeSetup(
 	asyncInserts bool,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, client.Options) {
-	var (
-		nsOpts  = namespace.NewOptions()
-		md, err = namespace.NewMetadata(testNamespaces[0],
-			nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)).
-				SetIndexOptions(namespace.NewIndexOptions().SetEnabled(indexingEnabled)))
-	)
+	nsOpts := namespace.NewOptions()
+	nsOpts = nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6 * time.Hour)).
+		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(indexingEnabled))
+	md1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
 	require.NoError(t, err)
 
-	nspaces := []namespace.Metadata{md}
+	nspaces := []namespace.Metadata{md1, md2}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts)
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)
@@ -268,7 +268,8 @@ func makeMultiNodeSetup(
 		SetClusterConnectTimeout(2 * time.Second).
 		SetWriteRequestTimeout(2 * time.Second).
 		SetFetchRequestTimeout(2 * time.Second).
-		SetTopologyInitializer(topoInit)
+		SetTopologyInitializer(topoInit).
+		SetUseV2BatchAPIs(true)
 
 	return nodes, closeFn, clientopts
 }
@@ -280,7 +281,8 @@ func makeTestFetchTagged(
 ) (testSetups, closeFn, testFetchFn) {
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 	testFetch := func(cLevel topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
-		c, err := client.NewClient(clientopts.SetReadConsistencyLevel(cLevel))
+		clientopts := clientopts.SetReadConsistencyLevel(cLevel)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

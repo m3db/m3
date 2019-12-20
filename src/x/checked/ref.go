@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -32,10 +33,17 @@ import (
 
 // RefCount is an embeddable checked.Ref.
 type RefCount struct {
-	ref       int32
-	reads     int32
-	writes    int32
-	finalizer unsafe.Pointer
+	ref           int32
+	reads         int32
+	writes        int32
+	onFinalize    unsafe.Pointer
+	finalizeState refCountFinalizeState
+}
+
+type refCountFinalizeState struct {
+	sync.Mutex
+	called   bool
+	delayRef int32
 }
 
 // IncRef increments the reference count to this entity.
@@ -75,23 +83,55 @@ func (c *RefCount) Finalize() {
 		panicRef(c, err)
 	}
 
-	if f := c.Finalizer(); f != nil {
-		f.Finalize()
+	c.finalizeState.Lock()
+	c.finalizeState.called = true
+	if c.finalizeState.delayRef == 0 {
+		c.finalizeWithLock()
+	}
+	c.finalizeState.Unlock()
+}
+
+func (c *RefCount) finalizeWithLock() {
+	// Reset the finalize called state for reuse.
+	c.finalizeState.called = false
+	if f := c.OnFinalize(); f != nil {
+		f.OnFinalize()
 	}
 }
 
-// Finalizer returns the finalizer if any or nil otherwise.
-func (c *RefCount) Finalizer() resource.Finalizer {
-	finalizerPtr := (*resource.Finalizer)(atomic.LoadPointer(&c.finalizer))
+// DelayFinalizer will delay calling the finalizer on this entity
+// until the closer returned by the method is called at least once.
+// This is useful for dependent resources requiring the lifetime of this
+// entityt to be extended.
+func (c *RefCount) DelayFinalizer() resource.Closer {
+	c.finalizeState.Lock()
+	c.finalizeState.delayRef++
+	c.finalizeState.Unlock()
+	return c
+}
+
+// Close implements resource.Closer for the purpose of use with DelayFinalizer.
+func (c *RefCount) Close() {
+	c.finalizeState.Lock()
+	c.finalizeState.delayRef--
+	if c.finalizeState.called && c.finalizeState.delayRef == 0 {
+		c.finalizeWithLock()
+	}
+	c.finalizeState.Unlock()
+}
+
+// OnFinalize returns the finalizer callback if any or nil otherwise.
+func (c *RefCount) OnFinalize() OnFinalize {
+	finalizerPtr := (*OnFinalize)(atomic.LoadPointer(&c.onFinalize))
 	if finalizerPtr == nil {
 		return nil
 	}
 	return *finalizerPtr
 }
 
-// SetFinalizer sets the finalizer.
-func (c *RefCount) SetFinalizer(f resource.Finalizer) {
-	atomic.StorePointer(&c.finalizer, unsafe.Pointer(&f))
+// SetOnFinalize sets the finalizer callback.
+func (c *RefCount) SetOnFinalize(f OnFinalize) {
+	atomic.StorePointer(&c.onFinalize, unsafe.Pointer(&f))
 }
 
 // IncReads increments the reads count to this entity.

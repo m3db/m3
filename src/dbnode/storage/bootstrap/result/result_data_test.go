@@ -27,12 +27,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var testBlockSize = 2 * time.Hour
@@ -41,65 +42,87 @@ func testResultOptions() Options {
 	return NewOptions()
 }
 
-func TestDataResultAddMergesExistingShardResults(t *testing.T) {
-	opts := testResultOptions()
-	blopts := opts.DatabaseBlockOptions()
-
+func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
-
-	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
+	rangeOne := ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: start,
+			End:   start.Add(8 * testBlockSize),
+		}),
+		1: xtime.NewRanges(xtime.Range{
+			Start: start,
+			End:   start.Add(testBlockSize),
+		}),
 	}
 
-	srs := []ShardResult{
-		NewShardResult(0, opts),
-		NewShardResult(0, opts),
+	rangeTwo := ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: start.Add(6 * testBlockSize),
+			End:   start.Add(10 * testBlockSize),
+		}),
+		2: xtime.NewRanges(xtime.Range{
+			Start: start.Add(testBlockSize),
+			End:   start.Add(2 * testBlockSize),
+		}),
 	}
-
-	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
-	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
-
-	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[0])
-	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[1])
-	srs[1].AddBlock(ident.StringID("bar"), barTags, blocks[2])
 
 	r := NewDataBootstrapResult()
-	r.Add(0, srs[0], xtime.Ranges{})
-	r.Add(0, srs[1], xtime.Ranges{})
+	r.SetUnfulfilled(rangeOne)
+	rTwo := NewDataBootstrapResult()
+	rTwo.SetUnfulfilled(rangeTwo)
 
-	srMerged := NewShardResult(0, opts)
-	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
-	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[1])
-	srMerged.AddBlock(ident.StringID("bar"), barTags, blocks[2])
+	rMerged := MergedDataBootstrapResult(nil, nil)
+	assert.Nil(t, rMerged)
 
-	merged := NewDataBootstrapResult()
-	merged.Add(0, srMerged, xtime.Ranges{})
+	rMerged = MergedDataBootstrapResult(r, nil)
+	assert.True(t, rMerged.Unfulfilled().Equal(rangeOne))
 
-	assert.True(t, r.ShardResults().Equal(merged.ShardResults()))
+	rMerged = MergedDataBootstrapResult(nil, r)
+	assert.True(t, rMerged.Unfulfilled().Equal(rangeOne))
+
+	rMerged = MergedDataBootstrapResult(r, rTwo)
+	expected := ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: start,
+			End:   start.Add(10 * testBlockSize),
+		}),
+		1: xtime.NewRanges(xtime.Range{
+			Start: start,
+			End:   start.Add(testBlockSize),
+		}),
+		2: xtime.NewRanges(xtime.Range{
+			Start: start.Add(testBlockSize),
+			End:   start.Add(testBlockSize * 2),
+		})}
+
+	assert.True(t, rMerged.Unfulfilled().Equal(expected))
 }
 
-func TestDataResultAddMergesUnfulfilled(t *testing.T) {
+func TestDataResultSetUnfulfilledOverwitesUnfulfilled(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
-
 	r := NewDataBootstrapResult()
-
-	r.Add(0, nil, xtime.NewRanges(xtime.Range{
-		Start: start,
-		End:   start.Add(8 * testBlockSize),
-	}))
-
-	r.Add(0, nil, xtime.NewRanges(xtime.Range{
-		Start: start,
-		End:   start.Add(2 * testBlockSize),
-	}).AddRange(xtime.Range{
-		Start: start.Add(6 * testBlockSize),
-		End:   start.Add(10 * testBlockSize),
-	}))
+	r.SetUnfulfilled(ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: start,
+			End:   start.Add(8 * testBlockSize),
+		}),
+	})
 
 	expected := ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
 		Start: start,
+		End:   start.Add(8 * testBlockSize),
+	})}
+
+	assert.True(t, r.Unfulfilled().Equal(expected))
+	r.SetUnfulfilled(ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: start.Add(6 * testBlockSize),
+			End:   start.Add(10 * testBlockSize),
+		}),
+	})
+
+	expected = ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
+		Start: start.Add(6 * testBlockSize),
 		End:   start.Add(10 * testBlockSize),
 	})}
 
@@ -133,100 +156,6 @@ func TestResultSetUnfulfilled(t *testing.T) {
 			End:   start.Add(2 * testBlockSize),
 		}),
 	}))
-}
-
-func TestResultNumSeries(t *testing.T) {
-	opts := testResultOptions()
-	blopts := opts.DatabaseBlockOptions()
-
-	start := time.Now().Truncate(testBlockSize)
-
-	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-	}
-
-	srs := []ShardResult{
-		NewShardResult(0, opts),
-		NewShardResult(0, opts),
-	}
-
-	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
-	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
-
-	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[0])
-	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[1])
-	srs[1].AddBlock(ident.StringID("bar"), barTags, blocks[2])
-
-	r := NewDataBootstrapResult()
-	r.Add(0, srs[0], xtime.Ranges{})
-	r.Add(1, srs[1], xtime.Ranges{})
-
-	require.Equal(t, int64(2), r.ShardResults().NumSeries())
-}
-
-func TestResultAddResult(t *testing.T) {
-	opts := testResultOptions()
-	blopts := opts.DatabaseBlockOptions()
-
-	start := time.Now().Truncate(testBlockSize)
-
-	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts, namespace.Context{}),
-	}
-
-	srs := []ShardResult{
-		NewShardResult(0, opts),
-		NewShardResult(0, opts),
-	}
-	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
-	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
-
-	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[0])
-	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[1])
-	srs[1].AddBlock(ident.StringID("bar"), barTags, blocks[2])
-
-	rs := []DataBootstrapResult{
-		NewDataBootstrapResult(),
-		NewDataBootstrapResult(),
-	}
-
-	rs[0].Add(0, srs[0], xtime.NewRanges(xtime.Range{
-		Start: start.Add(4 * testBlockSize),
-		End:   start.Add(6 * testBlockSize),
-	}))
-
-	rs[1].Add(0, srs[1], xtime.NewRanges(xtime.Range{
-		Start: start.Add(6 * testBlockSize),
-		End:   start.Add(8 * testBlockSize),
-	}))
-
-	r := MergedDataBootstrapResult(rs[0], rs[1])
-
-	srMerged := NewShardResult(0, opts)
-	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
-	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[1])
-	srMerged.AddBlock(ident.StringID("bar"), barTags, blocks[2])
-
-	expected := struct {
-		shardResults ShardResults
-		unfulfilled  ShardTimeRanges
-	}{
-		ShardResults{0: srMerged},
-		ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
-			Start: start.Add(4 * testBlockSize),
-			End:   start.Add(6 * testBlockSize),
-		}).AddRange(xtime.Range{
-			Start: start.Add(6 * testBlockSize),
-			End:   start.Add(8 * testBlockSize),
-		})},
-	}
-
-	assert.True(t, r.ShardResults().Equal(expected.shardResults))
-	assert.True(t, r.Unfulfilled().Equal(expected.unfulfilled))
 }
 
 func TestShardResultIsEmpty(t *testing.T) {
@@ -376,7 +305,6 @@ func TestShardTimeRangesToUnfulfilledDataResult(t *testing.T) {
 		}),
 	}
 	r := str.ToUnfulfilledDataResult()
-	assert.Equal(t, 0, len(r.ShardResults()))
 	assert.True(t, r.Unfulfilled().Equal(str))
 }
 
@@ -488,4 +416,31 @@ func TestShardTimeRangesSummaryString(t *testing.T) {
 	expected := "{0: 6h0m0s, 1: 4h0m0s}"
 
 	assert.Equal(t, expected, str.SummaryString())
+}
+
+func TestEstimateMapBytesSize(t *testing.T) {
+	opts := testResultOptions()
+	blopts := opts.DatabaseBlockOptions()
+
+	start := time.Now().Truncate(testBlockSize)
+
+	threeBytes := checked.NewBytes([]byte("123"), nil)
+	threeBytes.IncRef()
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{Head: threeBytes}, blopts, namespace.Context{}),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{Tail: threeBytes}, blopts, namespace.Context{}),
+	}
+
+	sr := NewShardResult(0, opts)
+	fooTags := ident.NewTags(ident.StringTag("foo", "foe"))
+	barTags := ident.NewTags(ident.StringTag("bar", "baz"))
+
+	sr.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
+	sr.AddBlock(ident.StringID("bar"), barTags, blocks[1])
+
+	require.Equal(t, int64(24), EstimateMapBytesSize(sr.AllSeries()))
+}
+
+func TestEstimateMapBytesSizeEmpty(t *testing.T) {
+	require.Equal(t, int64(0), EstimateMapBytesSize(nil))
 }

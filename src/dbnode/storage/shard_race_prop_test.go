@@ -215,7 +215,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		// existing ids
 		if i < 20 {
-			addTestSeriesWithCountAndBootstrap(shard, id, 0, false)
+			addTestSeriesWithCount(shard, id, 0)
 		}
 		// write ids
 		if i >= 10 {
@@ -246,6 +246,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		wg.Done()
 	}
 
+	assert.NoError(t, shard.Bootstrap())
 	for _, id := range writeIDs {
 		id := id
 		go func() {
@@ -263,7 +264,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		err := shard.Bootstrap(bootstrapResult)
+		err := shard.LoadBlocks(bootstrapResult)
 		assert.NoError(t, err)
 	}()
 

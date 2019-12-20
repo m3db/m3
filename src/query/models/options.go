@@ -21,6 +21,7 @@
 package models
 
 import (
+	"bytes"
 	"errors"
 )
 
@@ -89,4 +90,10 @@ func (o *tagOptions) SetIDSchemeType(scheme IDSchemeType) TagOptions {
 
 func (o *tagOptions) IDSchemeType() IDSchemeType {
 	return o.idScheme
+}
+
+func (o *tagOptions) Equals(other TagOptions) bool {
+	return o.idScheme == other.IDSchemeType() &&
+		bytes.Equal(o.metricName, other.MetricName()) &&
+		bytes.Equal(o.bucketName, other.BucketName())
 }

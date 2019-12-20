@@ -178,16 +178,15 @@ func (s *seeker) Open(
 		return err
 	}
 
-	// Setup digest readers
 	var (
-		infoFdWithDigest           = digest.NewFdWithDigestReader(s.opts.infoBufferSize)
-		indexFdWithDigest          = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		bloomFilterFdWithDigest    = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		summariesFdWithDigest      = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		digestFdWithDigestContents = digest.NewFdWithDigestContentsReader(s.opts.infoBufferSize)
+		infoFdWithDigest           = resources.seekerOpenResources.infoFDDigestReader
+		indexFdWithDigest          = resources.seekerOpenResources.indexFDDigestReader
+		bloomFilterFdWithDigest    = resources.seekerOpenResources.bloomFilterFDDigestReader
+		summariesFdWithDigest      = resources.seekerOpenResources.summariesFDDigestReader
+		digestFdWithDigestContents = resources.seekerOpenResources.digestFDDigestContentsReader
 	)
 	defer func() {
-		// NB(rartoul): We don't need to keep these FDs open as we use these up front
+		// NB(rartoul): We don't need to keep these FDs open as we use them up front.
 		infoFdWithDigest.Close()
 		bloomFilterFdWithDigest.Close()
 		summariesFdWithDigest.Close()
@@ -543,6 +542,27 @@ type ReusableSeekerResources struct {
 	// since the ReusableSeekerResources is only ever used by a single seeker at
 	// a time, we can size this pool such that it almost never has to allocate.
 	decodeIndexEntryBytesPool pool.BytesPool
+
+	seekerOpenResources reusableSeekerOpenResources
+}
+
+// reusableSeekerOpenResources contains resources used for the Open() method of the seeker.
+type reusableSeekerOpenResources struct {
+	infoFDDigestReader           digest.FdWithDigestReader
+	indexFDDigestReader          digest.FdWithDigestReader
+	bloomFilterFDDigestReader    digest.FdWithDigestReader
+	summariesFDDigestReader      digest.FdWithDigestReader
+	digestFDDigestContentsReader digest.FdWithDigestContentsReader
+}
+
+func newReusableSeekerOpenResources(opts Options) reusableSeekerOpenResources {
+	return reusableSeekerOpenResources{
+		infoFDDigestReader:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		indexFDDigestReader:          digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		bloomFilterFDDigestReader:    digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		summariesFDDigestReader:      digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		digestFDDigestContentsReader: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+	}
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
@@ -555,6 +575,7 @@ func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 		byteDecoderStream:         xmsgpack.NewByteDecoderStream(nil),
 		offsetFileReader:          newOffsetFileReader(),
 		decodeIndexEntryBytesPool: newSimpleBytesPool(),
+		seekerOpenResources:       newReusableSeekerOpenResources(opts),
 	}
 }
 

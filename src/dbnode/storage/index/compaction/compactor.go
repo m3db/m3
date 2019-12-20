@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
-	"github.com/m3db/m3/src/x/mmap"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/mmap"
 )
 
 var (
@@ -175,6 +175,10 @@ func (c *Compactor) CompactUsingBuilder(
 		}
 
 		// Reset docs batch for reuse
+		var empty doc.Document
+		for i := range batch {
+			batch[i] = empty
+		}
 		batch = batch[:0]
 		return nil
 	}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -41,11 +42,12 @@ const (
 )
 
 var (
-	// PromSeriesMatchHTTPMethods are the HTTP methods used with this resource.
+	// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
 	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-// PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
+// PromSeriesMatchHandler represents a handler for
+// the prometheus series matcher endpoint.
 type PromSeriesMatchHandler struct {
 	storage             storage.Storage
 	tagOptions          models.TagOptions
@@ -88,6 +90,7 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	results := make([]models.Metrics, len(queries))
+	meta := block.NewResultMetadata()
 	for i, query := range queries {
 		result, err := h.storage.SearchSeries(ctx, query, opts)
 		if err != nil {
@@ -97,8 +100,10 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		}
 
 		results[i] = result.Metrics
+		meta = meta.CombineMetadata(result.Metadata)
 	}
 
+	handler.AddWarningHeaders(w, meta)
 	// TODO: Support multiple result types
 	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
 		logger.Error("unable to write matched series", zap.Error(err))

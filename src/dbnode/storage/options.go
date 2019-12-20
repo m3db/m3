@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
@@ -43,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -68,6 +70,10 @@ const (
 
 	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
+
+	// defaultNumLoadedBytesLimit is the default limit (2GiB) for the number of outstanding loaded bytes that
+	// the memory tracker will allow.
+	defaultNumLoadedBytesLimit = 2 << 30
 )
 
 var (
@@ -145,8 +151,11 @@ type options struct {
 	writeBatchPool                 *ts.WriteBatchPool
 	bufferBucketPool               *series.BufferBucketPool
 	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
+	retrieveRequestPool            fs.RetrieveRequestPool
+	checkedBytesWrapperPool        xpool.CheckedBytesWrapperPool
 	schemaReg                      namespace.SchemaRegistry
 	blockLeaseManager              block.LeaseManager
+	memoryTracker                  MemoryTracker
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -167,6 +176,15 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 
 	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil, nil)
 	writeBatchPool.Init()
+
+	segmentReaderPool := xio.NewSegmentReaderPool(poolOpts)
+	segmentReaderPool.Init()
+
+	retrieveRequestPool := fs.NewRetrieveRequestPool(segmentReaderPool, poolOpts)
+	retrieveRequestPool.Init()
+
+	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOpts)
+	bytesWrapperPool.Init()
 
 	o := &options{
 		clockOpts:                clock.NewOptions(),
@@ -190,7 +208,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		seriesPool:              series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:               bytesPool,
 		encoderPool:             encoding.NewEncoderPool(poolOpts),
-		segmentReaderPool:       xio.NewSegmentReaderPool(poolOpts),
+		segmentReaderPool:       segmentReaderPool,
 		readerIteratorPool:      encoding.NewReaderIteratorPool(poolOpts),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(poolOpts),
 		identifierPool: ident.NewPool(bytesPool, ident.PoolOptions{
@@ -204,7 +222,10 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		writeBatchPool:                 writeBatchPool,
 		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
 		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
+		retrieveRequestPool:            retrieveRequestPool,
+		checkedBytesWrapperPool:        bytesWrapperPool,
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
+		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -673,6 +694,26 @@ func (o *options) BufferBucketVersionsPool() *series.BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
 }
 
+func (o *options) SetRetrieveRequestPool(value fs.RetrieveRequestPool) Options {
+	opts := *o
+	opts.retrieveRequestPool = value
+	return &opts
+}
+
+func (o *options) RetrieveRequestPool() fs.RetrieveRequestPool {
+	return o.retrieveRequestPool
+}
+
+func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+	opts := *o
+	opts.checkedBytesWrapperPool = value
+	return &opts
+}
+
+func (o *options) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	return o.checkedBytesWrapperPool
+}
+
 func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) Options {
 	opts := *o
 	opts.schemaReg = registry
@@ -691,4 +732,14 @@ func (o *options) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
 
 func (o *options) BlockLeaseManager() block.LeaseManager {
 	return o.blockLeaseManager
+}
+
+func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
+	opts := *o
+	opts.memoryTracker = memTracker
+	return &opts
+}
+
+func (o *options) MemoryTracker() MemoryTracker {
+	return o.memoryTracker
 }

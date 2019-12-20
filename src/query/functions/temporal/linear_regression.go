@@ -30,11 +30,13 @@ import (
 )
 
 const (
-	// PredictLinearType predicts the value of time series t seconds from now, based on the input series, using simple linear regression.
+	// PredictLinearType predicts the value of time series t seconds from now,
+	// based on the input series, using simple linear regression.
 	// PredictLinearType should only be used with gauges.
 	PredictLinearType = "predict_linear"
 
-	// DerivType calculates the per-second derivative of the time series, using simple linear regression.
+	// DerivType calculates the per-second derivative of the time series,
+	// using simple linear regression.
 	// DerivType should only be used with gauges.
 	DerivType = "deriv"
 )
@@ -44,9 +46,12 @@ type linearRegressionProcessor struct {
 	isDeriv bool
 }
 
-func (l linearRegressionProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (l linearRegressionProcessor) initialize(
+	_ time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &linearRegressionNode{
-		op:         op,
 		controller: controller,
 		timeSpec:   opts.TimeSpec(),
 		fn:         l.fn,
@@ -56,8 +61,12 @@ func (l linearRegressionProcessor) Init(op baseOp, controller *transform.Control
 
 type linearRegFn func(float64, float64) float64
 
-// NewLinearRegressionOp creates a new base temporal transform for linear regression functions
-func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params, error) {
+// NewLinearRegressionOp creates a new base temporal transform
+// for linear regression functions.
+func NewLinearRegressionOp(
+	args []interface{},
+	optype string,
+) (transform.Params, error) {
 	var (
 		fn      linearRegFn
 		isDeriv bool
@@ -66,12 +75,14 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 	switch optype {
 	case PredictLinearType:
 		if len(args) != 2 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", PredictLinearType, len(args))
+			return emptyOp, fmt.Errorf("invalid number of args for %s: %d",
+				PredictLinearType, len(args))
 		}
 
 		duration, ok := args[1].(float64)
 		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], PredictLinearType)
+			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s",
+				args[1], PredictLinearType)
 		}
 
 		fn = func(slope, intercept float64) float64 {
@@ -80,7 +91,8 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 
 	case DerivType:
 		if len(args) != 1 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", DerivType, len(args))
+			return emptyOp, fmt.Errorf("invalid number of args for %s: %d",
+				DerivType, len(args))
 		}
 
 		fn = func(slope, _ float64) float64 {
@@ -95,7 +107,8 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 
 	duration, ok := args[0].(time.Duration)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s",
+			args[0], optype)
 	}
 
 	l := linearRegressionProcessor{
@@ -107,26 +120,38 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 }
 
 type linearRegressionNode struct {
-	op         baseOp
 	controller *transform.Controller
 	timeSpec   transform.TimeSpec
 	fn         linearRegFn
 	isDeriv    bool
 }
 
-func (l linearRegressionNode) Process(dps ts.Datapoints, evaluationTime time.Time) float64 {
+func (l linearRegressionNode) process(
+	dps ts.Datapoints,
+	iterBounds iterationBounds,
+) float64 {
 	if dps.Len() < 2 {
 		return math.NaN()
 	}
 
+	evaluationTime := iterBounds.end
 	slope, intercept := linearRegression(dps, evaluationTime, l.isDeriv)
 	return l.fn(slope, intercept)
 }
 
+func subSeconds(from int64, sub int64) float64 {
+	return float64(from-sub) / float64(time.Second)
+}
+
 // linearRegression performs a least-square linear regression analysis on the
 // provided datapoints. It returns the slope, and the intercept value at the
-// provided time. The algorithm we use comes from https://en.wikipedia.org/wiki/Simple_linear_regression.
-func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) (float64, float64) {
+// provided time.
+// Uses this algorithm: https://en.wikipedia.org/wiki/Simple_linear_regression.
+func linearRegression(
+	dps ts.Datapoints,
+	interceptTime int64,
+	isDeriv bool,
+) (float64, float64) {
 	var (
 		n                                   float64
 		sumTimeDiff, sumVals                float64
@@ -141,11 +166,11 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) 
 
 		if valueCount == 0 && isDeriv {
 			// set interceptTime as timestamp of first non-NaN dp
-			interceptTime = dp.Timestamp
+			interceptTime = dp.Timestamp.UnixNano()
 		}
 
 		valueCount++
-		timeDiff := dp.Timestamp.Sub(interceptTime).Seconds()
+		timeDiff := subSeconds(dp.Timestamp.UnixNano(), interceptTime)
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff

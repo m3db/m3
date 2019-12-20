@@ -58,12 +58,17 @@ func buildUnconsolidatedBlock(t *testing.T) block.UnconsolidatedBlock {
 		Interval: time.Minute,
 	}
 
-	unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery, time.Minute)
+	result := &FetchResult{
+		SeriesList: seriesList,
+		Metadata:   block.NewResultMetadata(),
+	}
+
+	unconsolidated, err := NewMultiSeriesBlock(result, fetchQuery, time.Minute)
 	require.NoError(t, err)
 	return unconsolidated
 }
 
-func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
+func datapointsToFloatSlices(dps []ts.Datapoints) [][]float64 {
 	vals := make([][]float64, len(dps))
 	for i, dp := range dps {
 		vals[i] = dp.Values()
@@ -113,7 +118,7 @@ func TestUnconsolidatedStep(t *testing.T) {
 	i := 0
 	for iter.Next() {
 		step := iter.Current()
-		dps := datapointsToFloatSlices(t, step.Values())
+		dps := datapointsToFloatSlices(step.Values())
 		assert.Equal(t, expected[i], dps)
 		i++
 	}
@@ -123,19 +128,10 @@ func TestUnconsolidatedStep(t *testing.T) {
 }
 
 func TestUnconsolidatedSeries(t *testing.T) {
-	expected := [][][]float64{
-		{
-			{}, {}, {}, {}, {}, {}, {1}, {}, {2, 3}, {4}, {5}, {6}, {7}, {},
-			{}, {}, {}, {8}, {}, {}, {}, {}, {9}, {}, {}, {}, {}, {}, {}, {},
-		},
-		{
-			{}, {}, {10}, {20}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {30},
-			{}, {}, {}, {}, {}, {40}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
-		},
-		{
-			{}, {}, {}, {100}, {}, {}, {}, {}, {}, {200}, {}, {}, {}, {}, {},
-			{300}, {}, {}, {}, {}, {}, {400}, {}, {}, {500}, {}, {}, {}, {}, {},
-		},
+	expected := [][]float64{
+		{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		{10, 20, 30, 40},
+		{100, 200, 300, 400, 500},
 	}
 
 	unconsolidated := buildUnconsolidatedBlock(t)
@@ -145,7 +141,11 @@ func TestUnconsolidatedSeries(t *testing.T) {
 	i := 0
 	for iter.Next() {
 		series := iter.Current()
-		dps := datapointsToFloatSlices(t, series.Datapoints())
+		dps := make([]float64, 0, len(series.Datapoints()))
+		for _, dp := range series.Datapoints() {
+			dps = append(dps, dp.Value)
+		}
+
 		assert.Equal(t, expected[i], dps)
 		i++
 	}

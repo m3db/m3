@@ -28,12 +28,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
@@ -146,6 +148,10 @@ type nsIndexState struct {
 	// chronological order. This is used at query time to enforce determinism about results
 	// returned.
 	blockStartsDescOrder []xtime.UnixNano
+
+	// shardsFilterID is set every time the shards change to correctly
+	// only return IDs that this node owns.
+	shardsFilterID func(ident.ID) bool
 }
 
 // NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
@@ -175,6 +181,7 @@ type indexFilesetsBeforeFn func(dir string,
 
 type newNamespaceIndexOpts struct {
 	md              namespace.Metadata
+	shardSet        sharding.ShardSet
 	opts            Options
 	newIndexQueueFn newNamespaceIndexInsertQueueFn
 	newBlockFn      newBlockFn
@@ -202,10 +209,12 @@ type asyncQueryExecState struct {
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
 func newNamespaceIndex(
 	nsMD namespace.Metadata,
+	shardSet sharding.ShardSet,
 	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
+		shardSet:        shardSet,
 		opts:            opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      index.NewBlock,
@@ -215,11 +224,13 @@ func newNamespaceIndex(
 // newNamespaceIndexWithInsertQueueFn is a ctor used in tests to override the insert queue.
 func newNamespaceIndexWithInsertQueueFn(
 	nsMD namespace.Metadata,
+	shardSet sharding.ShardSet,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
+		shardSet:        shardSet,
 		opts:            opts,
 		newIndexQueueFn: newIndexQueueFn,
 		newBlockFn:      index.NewBlock,
@@ -229,11 +240,13 @@ func newNamespaceIndexWithInsertQueueFn(
 // newNamespaceIndexWithNewBlockFn is a ctor used in tests to inject blocks.
 func newNamespaceIndexWithNewBlockFn(
 	nsMD namespace.Metadata,
+	shardSet sharding.ShardSet,
 	newBlockFn newBlockFn,
 	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
+		shardSet:        shardSet,
 		opts:            opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      newBlockFn,
@@ -246,6 +259,7 @@ func newNamespaceIndexWithOptions(
 ) (namespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
+		shardSet        = newIndexOpts.shardSet
 		indexOpts       = newIndexOpts.opts.IndexOptions()
 		instrumentOpts  = newIndexOpts.opts.InstrumentOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
@@ -297,6 +311,9 @@ func newNamespaceIndexWithOptions(
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 	}
+
+	// Assign shard set upfront.
+	idx.AssignShardSet(shardSet)
 
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
@@ -676,11 +693,11 @@ func (i *nsIndex) BootstrapsDone() uint {
 	return result
 }
 
-func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
+func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	var (
 		result                     = namespaceIndexTickResult{}
-		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, tickStart)
-		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, tickStart.Add(-i.bufferPast))
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, startTime)
+		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, startTime.Add(-i.bufferPast))
 	)
 
 	i.state.Lock()
@@ -708,7 +725,7 @@ func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceInd
 		}
 
 		// tick any blocks we're going to retain
-		blockTickResult, tickErr := block.Tick(c, tickStart)
+		blockTickResult, tickErr := block.Tick(c)
 		multiErr = multiErr.Add(tickErr)
 		result.NumSegments += blockTickResult.NumSegments
 		result.NumTotalDocs += blockTickResult.NumDocs
@@ -782,7 +799,11 @@ func (i *nsIndex) flushableBlocks(
 	}
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 	for _, block := range i.state.blocksByTime {
-		if !i.canFlushBlock(block, shards) {
+		canFlush, err := i.canFlushBlock(block, shards)
+		if err != nil {
+			return nil, err
+		}
+		if !canFlush {
 			continue
 		}
 		flushable = append(flushable, block)
@@ -793,11 +814,11 @@ func (i *nsIndex) flushableBlocks(
 func (i *nsIndex) canFlushBlock(
 	block index.Block,
 	shards []databaseShard,
-) bool {
+) (bool, error) {
 	// Check the block needs flushing because it is sealed and has
 	// any mutable segments that need to be evicted from memory
 	if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
-		return false
+		return false, nil
 	}
 
 	// Check all data files exist for the shards we own
@@ -805,13 +826,17 @@ func (i *nsIndex) canFlushBlock(
 		start := block.StartTime()
 		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
 		for t := start; t.Before(block.EndTime()); t = t.Add(dataBlockSize) {
-			if shard.FlushState(t).WarmStatus != fileOpSuccess {
-				return false
+			flushState, err := shard.FlushState(t)
+			if err != nil {
+				return false, err
+			}
+			if flushState.WarmStatus != fileOpSuccess {
+				return false, nil
 			}
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 func (i *nsIndex) flushBlock(
@@ -884,7 +909,7 @@ func (i *nsIndex) flushBlockSegment(
 	// Reset the builder
 	builder.Reset(0)
 
-	ctx := context.NewContext()
+	ctx := i.opts.ContextPool().Get()
 	for _, shard := range shards {
 		var (
 			first     = true
@@ -920,12 +945,38 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			results.Close()
-			ctx.BlockingClose()
+
+			// Use BlockingCloseReset so that we can reuse the context without
+			// it going back to the pool.
+			ctx.BlockingCloseReset()
 		}
 	}
 
 	// Finally flush this segment
 	return preparedPersist.Persist(builder)
+}
+
+func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
+	// NB(r): Allocate the filter function once, it can be used outside
+	// of locks as it depends on no internal state.
+	set := bitset.NewBitSet(uint(shardSet.Max()))
+	for _, shardID := range shardSet.AllIDs() {
+		set.Set(uint(shardID))
+	}
+
+	i.state.Lock()
+	i.state.shardsFilterID = func(id ident.ID) bool {
+		// NB(r): Use a bitset for fast lookups.
+		return set.Test(uint(shardSet.Lookup(id)))
+	}
+	i.state.Unlock()
+}
+
+func (i *nsIndex) shardsFilterID() func(id ident.ID) bool {
+	i.state.RLock()
+	v := i.state.shardsFilterID
+	i.state.RUnlock()
+	return v
 }
 
 func (i *nsIndex) Query(
@@ -949,6 +1000,7 @@ func (i *nsIndex) Query(
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
 		SizeLimit: opts.Limit,
+		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)

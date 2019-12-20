@@ -113,7 +113,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
 	})
-	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps, 0))
 
 	// Start the server with filesystem bootstrapper
 	log.Debug("filesystem data expiry bootstrap test")

@@ -23,12 +23,14 @@ package fanout
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/block"
+	errs "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
@@ -82,8 +84,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, true, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, true, response[len(response)-1].err)
-	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
-	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errs.ErrNotImplemented)
+	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errs.ErrNotImplemented)
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 	session2.EXPECT().IteratorPools().
@@ -214,4 +216,206 @@ func TestCompleteTagsError(t *testing.T) {
 		storage.NewFetchOptions(),
 	)
 	assert.Error(t, err)
+}
+
+// Error continuation tests below.
+func TestFanoutSearchErrorContinues(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
+	tFilter := func(_ storage.CompleteTagsQuery, _ storage.Storage) bool { return true }
+	okStore := storage.NewMockStorage(ctrl)
+	okStore.EXPECT().SearchSeries(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.SearchResults{
+				Metrics: models.Metrics{
+					models.Metric{
+						ID: []byte("ok"),
+						Tags: models.NewTags(1, models.NewTagOptions()).AddTag(models.Tag{
+							Name:  []byte("foo"),
+							Value: []byte("bar"),
+						}),
+					},
+				},
+			},
+			nil,
+		)
+
+	dupeStore := storage.NewMockStorage(ctrl)
+	dupeStore.EXPECT().SearchSeries(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.SearchResults{
+				Metrics: models.Metrics{
+					models.Metric{
+						ID: []byte("ok"),
+						Tags: models.NewTags(1, models.NewTagOptions()).AddTag(models.Tag{
+							Name:  []byte("foo"),
+							Value: []byte("bar"),
+						}),
+					},
+				},
+			},
+			nil,
+		)
+
+	warnStore := storage.NewMockStorage(ctrl)
+	warnStore.EXPECT().SearchSeries(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.SearchResults{
+				Metrics: models.Metrics{
+					models.Metric{
+						ID: []byte("warn"),
+					},
+				},
+			},
+			errors.New("e"),
+		)
+	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
+	warnStore.EXPECT().Name().Return("warn").AnyTimes()
+
+	stores := []storage.Storage{warnStore, okStore, dupeStore}
+	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	opts := storage.NewFetchOptions()
+	result, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
+	assert.NoError(t, err)
+
+	require.Equal(t, 1, len(result.Metrics))
+	assert.Equal(t, []byte("ok"), result.Metrics[0].ID)
+	require.Equal(t, 1, result.Metrics[0].Tags.Len())
+	tag := result.Metrics[0].Tags.Tags[0]
+	require.Equal(t, []byte("foo"), tag.Name)
+	require.Equal(t, []byte("bar"), tag.Value)
+}
+
+func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
+	tFilter := func(_ storage.CompleteTagsQuery, _ storage.Storage) bool { return true }
+	okStore := storage.NewMockStorage(ctrl)
+	okStore.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.CompleteTagsResult{
+				CompleteNameOnly: true,
+				CompletedTags: []storage.CompletedTag{
+					storage.CompletedTag{
+						Name: []byte("ok"),
+					},
+				},
+			},
+			nil,
+		)
+
+	warnStore := storage.NewMockStorage(ctrl)
+	warnStore.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.CompleteTagsResult{
+				CompleteNameOnly: true,
+				CompletedTags: []storage.CompletedTag{
+					storage.CompletedTag{
+						Name: []byte("warn"),
+					},
+				},
+			},
+			errors.New("e"),
+		)
+	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
+	warnStore.EXPECT().Name().Return("warn").AnyTimes()
+
+	stores := []storage.Storage{warnStore, okStore}
+	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	opts := storage.NewFetchOptions()
+	q := &storage.CompleteTagsQuery{CompleteNameOnly: true}
+	result, err := store.CompleteTags(context.TODO(), q, opts)
+	assert.NoError(t, err)
+
+	require.True(t, result.CompleteNameOnly)
+	require.Equal(t, 1, len(result.CompletedTags))
+	assert.Equal(t, []byte("ok"), result.CompletedTags[0].Name)
+}
+
+func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
+	tFilter := func(_ storage.CompleteTagsQuery, _ storage.Storage) bool { return true }
+	okBlock := block.NewScalar(1, block.Metadata{})
+	okStore := storage.NewMockStorage(ctrl)
+	okStore.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			block.Result{
+				Blocks: []block.Block{okBlock},
+			},
+			nil,
+		)
+
+	warnStore := storage.NewMockStorage(ctrl)
+	warnBlock := block.NewScalar(2, block.Metadata{})
+	warnStore.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			block.Result{
+				Blocks: []block.Block{warnBlock},
+			},
+			errors.New("e"),
+		)
+	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
+	warnStore.EXPECT().Name().Return("warn").AnyTimes()
+
+	stores := []storage.Storage{warnStore, okStore}
+	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	opts := storage.NewFetchOptions()
+	result, err := store.FetchBlocks(context.TODO(), &storage.FetchQuery{}, opts)
+	assert.NoError(t, err)
+
+	require.Equal(t, 1, len(result.Blocks))
+	assert.Equal(t, block.BlockLazy, result.Blocks[0].Info().Type())
+	it, err := result.Blocks[0].StepIter()
+	require.NoError(t, err)
+	for it.Next() {
+		assert.Equal(t, []float64{1}, it.Current().Values())
+	}
+}
+
+func TestFanoutFetchErrorContinues(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
+	tFilter := func(_ storage.CompleteTagsQuery, _ storage.Storage) bool { return true }
+	okStore := storage.NewMockStorage(ctrl)
+	okStore.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.FetchResult{
+				SeriesList: ts.SeriesList{
+					ts.NewSeries([]byte("ok"), nil, models.Tags{}),
+				},
+			},
+			nil,
+		)
+	okStore.EXPECT().Type().Return(storage.TypeLocalDC).AnyTimes()
+
+	warnStore := storage.NewMockStorage(ctrl)
+	warnStore.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			&storage.FetchResult{
+				SeriesList: ts.SeriesList{
+					ts.NewSeries([]byte("warn"), nil, models.Tags{}),
+				},
+			},
+			errors.New("e"),
+		)
+	warnStore.EXPECT().ErrorBehavior().Return(storage.BehaviorWarn)
+	warnStore.EXPECT().Name().Return("warn").AnyTimes()
+
+	stores := []storage.Storage{warnStore, okStore}
+	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	opts := storage.NewFetchOptions()
+	result, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, opts)
+	assert.NoError(t, err)
+
+	require.Equal(t, 1, len(result.SeriesList))
+	assert.Equal(t, []byte("ok"), result.SeriesList[0].Name())
 }

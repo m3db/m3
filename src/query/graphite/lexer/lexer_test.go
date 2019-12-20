@@ -53,21 +53,13 @@ func TestLexer(t *testing.T) {
 			[]Token{{Pattern, "stats.foo.counts.bar.baz.status_code.?XX"}}, nil},
 		{"456.03", []Token{{Number, "456.03"}}, nil},
 		{"foo:bar", []Token{
-			{Identifier, "foo"},
-			{Colon, ":"},
-			{Identifier, "bar"}}, nil},
-		{"foo:bar  baz : q*x", []Token{
-			{Identifier, "foo"},
-			{Colon, ":"},
-			{Identifier, "bar"},
-			{Identifier, "baz"},
-			{Colon, ":"},
-			{Pattern, "q*x"}}, nil},
+			{Identifier, "foo:bar"}}, nil},
+		{"foo:bar  baz:q*x", []Token{
+			{Identifier, "foo:bar"},
+			{Pattern, "baz:q*x"}}, nil},
 		{"!service:dispatch.*", []Token{
 			{NotOperator, "!"},
-			{Identifier, "service"},
-			{Colon, ":"},
-			{Pattern, "dispatch.*"}}, nil},
+			{Pattern, "service:dispatch.*"}}, nil},
 		{"\"Whatever man\"", []Token{{String, "Whatever man"}}, nil}, // double quoted string
 		// no need to escape single quotes within double quoted string
 		{"\"Whatever 'man'\"", []Token{{String, "Whatever 'man'"}}, nil},
@@ -111,6 +103,22 @@ func TestLexer(t *testing.T) {
 				{Comma, ","},
 				{String, `\1.\2`},
 				{RParenthesis, ")"}}, nil},
+		{"sumSeries(stats.with:colon)",
+			[]Token{
+				{Identifier, "sumSeries"},
+				{LParenthesis, "("},
+				{Pattern, "stats.with:colon"},
+				{RParenthesis, ")"},
+			},
+			nil},
+		{"sumSeries(stats.with:colon.extended.pattern.*)",
+			[]Token{
+				{Identifier, "sumSeries"},
+				{LParenthesis, "("},
+				{Pattern, "stats.with:colon.extended.pattern.*"},
+				{RParenthesis, ")"},
+			},
+			nil},
 	}
 
 	for _, test := range lexerTestInput {

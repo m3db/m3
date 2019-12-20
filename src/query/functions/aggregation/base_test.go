@@ -108,7 +108,7 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	expected := [][]float64{
 		// stddev of first two series
 		{0, 0, 2.5, 2.5, 2.5},
-		// stddev of third, fourth, and fifth series
+		// stddev of third, fourth, and fifth series
 		{36.81787, 77.17225, 118.97712, 161.10728, 203.36065},
 		// stddev of sixth series
 		{0, 0, 0, 0, 0},

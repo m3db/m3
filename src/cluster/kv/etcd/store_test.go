@@ -125,6 +125,35 @@ func TestNoCache(t *testing.T) {
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 }
 
+func TestCacheDirCreation(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	tdir, err := ioutil.TempDir("", "m3tests")
+	require.NoError(t, err)
+	defer os.RemoveAll(tdir)
+
+	cdir := path.Join(tdir, "testCache")
+	opts = opts.SetCacheFileFn(func(string) string {
+		return path.Join(cdir, opts.Prefix())
+	})
+
+	store, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
+
+	info, err := os.Stat(cdir)
+	require.NoError(t, err)
+	require.Equal(t, info.IsDir(), true)
+
+	_, err = store.Set("foo", genProto("bar"))
+	require.NoError(t, err)
+
+	value, err := store.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar", 1)
+	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+}
+
 func TestCache(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 

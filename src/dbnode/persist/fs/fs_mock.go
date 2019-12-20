@@ -1028,21 +1028,6 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Close))
 }
 
-// ConcurrentIDBloomFilter mocks base method
-func (m *MockDataFileSetSeekerManager) ConcurrentIDBloomFilter(arg0 uint32, arg1 time.Time) (*ManagedConcurrentBloomFilter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConcurrentIDBloomFilter", arg0, arg1)
-	ret0, _ := ret[0].(*ManagedConcurrentBloomFilter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ConcurrentIDBloomFilter indicates an expected call of ConcurrentIDBloomFilter
-func (mr *MockDataFileSetSeekerManagerMockRecorder) ConcurrentIDBloomFilter(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConcurrentIDBloomFilter", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).ConcurrentIDBloomFilter), arg0, arg1)
-}
-
 // Open mocks base method
 func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata) error {
 	m.ctrl.T.Helper()
@@ -1069,6 +1054,21 @@ func (m *MockDataFileSetSeekerManager) Return(arg0 uint32, arg1 time.Time, arg2 
 func (mr *MockDataFileSetSeekerManagerMockRecorder) Return(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Return", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Return), arg0, arg1, arg2)
+}
+
+// Test mocks base method
+func (m *MockDataFileSetSeekerManager) Test(arg0 ident.ID, arg1 uint32, arg2 time.Time) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Test", arg0, arg1, arg2)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Test indicates an expected call of Test
+func (mr *MockDataFileSetSeekerManagerMockRecorder) Test(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Test", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Test), arg0, arg1, arg2)
 }
 
 // MockConcurrentDataFileSetSeeker is a mock of ConcurrentDataFileSetSeeker interface

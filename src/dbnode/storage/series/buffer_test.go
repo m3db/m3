@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -76,9 +77,11 @@ func newBufferTestOptions() Options {
 }
 
 // Writes to buffer, verifying no error and that further writes should happen.
-func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer, v value, schema namespace.SchemaDescr) {
+func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer,
+	v DecodedTestValue, schema namespace.SchemaDescr) {
 	ctx := context.NewContext()
-	wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{SchemaDesc: schema})
+	wasWritten, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
+		v.Annotation, WriteOptions{SchemaDesc: schema})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -163,7 +166,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(ident.StringID("foo"), opts)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
 		{curr.Add(secs(2)), 2, xtime.Second, nil},
 		{curr.Add(secs(3)), 3, xtime.Second, nil},
@@ -199,13 +202,13 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(ident.StringID("foo"), opts)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
 		{curr.Add(mins(3)), 2, xtime.Second, nil},
 	}
 
 	for _, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
@@ -217,7 +220,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	results, err := buffer.ReadEncoded(ctx, firstBucketStart, firstBucketEnd, namespace.Context{})
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
-	requireReaderValuesEqual(t, []value{data[0]}, results, opts, namespace.Context{})
+	requireReaderValuesEqual(t, []DecodedTestValue{data[0]}, results, opts, namespace.Context{})
 
 	secondBucketStart := start.Add(mins(2)).Truncate(time.Second)
 	secondBucketEnd := start.Add(mins(4)).Truncate(time.Second)
@@ -225,7 +228,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
-	requireReaderValuesEqual(t, []value{data[1]}, results, opts, namespace.Context{})
+	requireReaderValuesEqual(t, []DecodedTestValue{data[1]}, results, opts, namespace.Context{})
 }
 
 func TestBufferWriteOutOfOrder(t *testing.T) {
@@ -239,15 +242,15 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(ident.StringID("foo"), opts)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(secs(10)), 2, xtime.Second, nil},
 		{curr.Add(secs(5)), 3, xtime.Second, nil},
 	}
 
 	for _, v := range data {
-		if v.timestamp.After(curr) {
-			curr = v.timestamp
+		if v.Timestamp.After(curr) {
+			curr = v.Timestamp
 		}
 		verifyWriteToBuffer(t, buffer, v, nil)
 	}
@@ -257,11 +260,11 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
 	assert.Equal(t, 2, len(bucket.encoders))
-	assert.Equal(t, data[1].timestamp, mustGetLastEncoded(t, bucket.encoders[0]).Timestamp)
-	assert.Equal(t, data[2].timestamp, mustGetLastEncoded(t, bucket.encoders[1]).Timestamp)
+	assert.Equal(t, data[1].Timestamp, mustGetLastEncoded(t, bucket.encoders[0]).Timestamp)
+	assert.Equal(t, data[2].Timestamp, mustGetLastEncoded(t, bucket.encoders[1]).Timestamp)
 
 	// Restore data to in order for comparison.
-	sort.Sort(valuesByTime(data))
+	sort.Sort(ValuesByTime(data))
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -273,14 +276,15 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	requireReaderValuesEqual(t, data, results, opts, namespace.Context{})
 }
 
-func newTestBufferBucketWithData(t *testing.T, opts Options, setAnn setAnnotation) (*BufferBucket, []value) {
+func newTestBufferBucketWithData(t *testing.T,
+	opts Options, setAnn setAnnotation) (*BufferBucket, []DecodedTestValue) {
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 
 	bd := blockData{
 		start:     curr,
 		writeType: WarmWrite,
-		data: [][]value{
+		data: [][]DecodedTestValue{
 			{
 				{curr, 1, xtime.Second, nil},
 				{curr.Add(secs(10)), 2, xtime.Second, nil},
@@ -309,7 +313,7 @@ func newTestBufferBucketWithCustomData(
 	bd blockData,
 	opts Options,
 	setAnn setAnnotation,
-) (*BufferBucket, []value) {
+) (*BufferBucket, []DecodedTestValue) {
 	b := &BufferBucket{opts: opts}
 	b.resetTo(bd.start, bd.writeType, opts)
 	data := bd.data
@@ -321,7 +325,7 @@ func newTestBufferBucketWithCustomData(
 	if setAnn != nil {
 		nsCtx = namespace.Context{Schema: testSchemaDesc}
 	}
-	var expected []value
+	var expected []DecodedTestValue
 	for i := 0; i < len(data); i++ {
 		if setAnn != nil {
 			data[i] = setAnn(data[i])
@@ -332,21 +336,22 @@ func newTestBufferBucketWithCustomData(
 		encoder.Reset(bd.start, 0, nsCtx.Schema)
 		for _, v := range data[i] {
 			dp := ts.Datapoint{
-				Timestamp: v.timestamp,
-				Value:     v.value,
+				Timestamp: v.Timestamp,
+				Value:     v.Value,
 			}
-			err := encoder.Encode(dp, v.unit, v.annotation)
+			err := encoder.Encode(dp, v.Unit, v.Annotation)
 			require.NoError(t, err)
 			encoded++
 		}
 		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
 		expected = append(expected, data[i]...)
 	}
-	sort.Sort(valuesByTime(expected))
+	sort.Sort(ValuesByTime(expected))
 	return b, expected
 }
 
-func newTestBufferBucketsWithData(t *testing.T, opts Options, setAnn setAnnotation) (*BufferBucketVersions, []value) {
+func newTestBufferBucketsWithData(t *testing.T, opts Options,
+	setAnn setAnnotation) (*BufferBucketVersions, []DecodedTestValue) {
 	newBucket, vals := newTestBufferBucketWithData(t, opts, setAnn)
 	return &BufferBucketVersions{
 		buckets: []*BufferBucket{newBucket},
@@ -360,7 +365,7 @@ func newTestBufferBucketVersionsWithCustomData(
 	bd blockData,
 	opts Options,
 	setAnn setAnnotation,
-) (*BufferBucketVersions, []value) {
+) (*BufferBucketVersions, []DecodedTestValue) {
 	newBucket, vals := newTestBufferBucketWithCustomData(t, bd, opts, setAnn)
 	return &BufferBucketVersions{
 		buckets: []*BufferBucket{newBucket},
@@ -374,10 +379,10 @@ func newTestBufferWithCustomData(
 	blockDatas []blockData,
 	opts Options,
 	setAnn setAnnotation,
-) (*dbBuffer, map[xtime.UnixNano][]value) {
+) (*dbBuffer, map[xtime.UnixNano][]DecodedTestValue) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(ident.StringID("foo"), opts)
-	expectedMap := make(map[xtime.UnixNano][]value)
+	expectedMap := make(map[xtime.UnixNano][]DecodedTestValue)
 
 	for _, bd := range blockDatas {
 		bucketVersions, expected := newTestBufferBucketVersionsWithCustomData(t, bd, opts, setAnn)
@@ -427,7 +432,10 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	emptyEncoder.Reset(curr, 0, nil)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 
-	_, ok := b.encoders[0].encoder.Stream(encoding.StreamOptions{})
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	_, ok := b.encoders[0].encoder.Stream(ctx)
 	require.False(t, ok)
 
 	encoder := opts.EncoderPool().Get()
@@ -439,9 +447,9 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 
 	blopts := opts.DatabaseBlockOptions()
 	newBlock := block.NewDatabaseBlock(curr, 0, encoder.Discard(), blopts, namespace.Context{})
-	b.bootstrapped = append(b.bootstrapped, newBlock)
-	ctx := opts.ContextPool().Get()
-	stream, err := b.bootstrapped[0].Stream(ctx)
+	b.loadedBlocks = append(b.loadedBlocks, newBlock)
+
+	stream, err := b.loadedBlocks[0].Stream(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
@@ -449,7 +457,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, mergeRes)
 	assert.Equal(t, 1, len(b.encoders))
-	assert.Equal(t, 0, len(b.bootstrapped))
+	assert.Equal(t, 0, len(b.loadedBlocks))
 }
 
 func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
@@ -460,7 +468,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	b := &BufferBucket{}
 	b.resetTo(curr, WarmWrite, opts)
 
-	data := [][]value{
+	data := [][]DecodedTestValue{
 		{
 			{curr, 1, xtime.Second, nil},
 			{curr.Add(secs(10)), 2, xtime.Second, nil},
@@ -482,7 +490,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 		},
 	}
 
-	expected := []value{
+	expected := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(secs(10)), 10, xtime.Second, nil},
 		{curr.Add(secs(40)), 8, xtime.Second, nil},
@@ -494,8 +502,8 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 
 	for _, values := range data {
 		for _, value := range values {
-			wasWritten, err := b.write(value.timestamp, value.value,
-				value.unit, value.annotation, nil)
+			wasWritten, err := b.write(value.Timestamp, value.Value,
+				value.Unit, value.Annotation, nil)
 			require.NoError(t, err)
 			require.True(t, wasWritten)
 		}
@@ -527,34 +535,34 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	b.resetTo(curr, WarmWrite, opts)
 
 	type dataWithShouldWrite struct {
-		v value
+		v DecodedTestValue
 		w bool
 	}
 
 	data := [][]dataWithShouldWrite{
 		{
-			{w: true, v: value{curr, 1, xtime.Second, nil}},
-			{w: false, v: value{curr, 1, xtime.Second, nil}},
-			{w: false, v: value{curr, 1, xtime.Second, nil}},
-			{w: false, v: value{curr, 1, xtime.Second, nil}},
-			{w: true, v: value{curr.Add(secs(10)), 2, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr, 1, xtime.Second, nil}},
+			{w: false, v: DecodedTestValue{curr, 1, xtime.Second, nil}},
+			{w: false, v: DecodedTestValue{curr, 1, xtime.Second, nil}},
+			{w: false, v: DecodedTestValue{curr, 1, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr.Add(secs(10)), 2, xtime.Second, nil}},
 		},
 		{
-			{w: true, v: value{curr, 1, xtime.Second, nil}},
-			{w: false, v: value{curr.Add(secs(10)), 2, xtime.Second, nil}},
-			{w: true, v: value{curr.Add(secs(10)), 5, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr, 1, xtime.Second, nil}},
+			{w: false, v: DecodedTestValue{curr.Add(secs(10)), 2, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr.Add(secs(10)), 5, xtime.Second, nil}},
 		},
 		{
-			{w: true, v: value{curr, 1, xtime.Second, nil}},
-			{w: true, v: value{curr.Add(secs(20)), 8, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr, 1, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr.Add(secs(20)), 8, xtime.Second, nil}},
 		},
 		{
-			{w: true, v: value{curr, 10, xtime.Second, nil}},
-			{w: true, v: value{curr.Add(secs(20)), 10, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr, 10, xtime.Second, nil}},
+			{w: true, v: DecodedTestValue{curr.Add(secs(20)), 10, xtime.Second, nil}},
 		},
 	}
 
-	expected := []value{
+	expected := []DecodedTestValue{
 		{curr, 10, xtime.Second, nil},
 		{curr.Add(secs(10)), 5, xtime.Second, nil},
 		{curr.Add(secs(20)), 10, xtime.Second, nil},
@@ -563,8 +571,8 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	for _, valuesWithMeta := range data {
 		for _, valueWithMeta := range valuesWithMeta {
 			value := valueWithMeta.v
-			wasWritten, err := b.write(value.timestamp, value.value,
-				value.unit, value.annotation, nil)
+			wasWritten, err := b.write(value.Timestamp, value.Value,
+				value.Unit, value.Annotation, nil)
 			require.NoError(t, err)
 			assert.Equal(t, valueWithMeta.w, wasWritten)
 		}
@@ -598,7 +606,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(ident.StringID("foo"), opts)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
 		{curr.Add(secs(2)), 2, xtime.Second, nil},
 		{curr.Add(secs(3)), 3, xtime.Second, nil},
@@ -614,8 +622,8 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 				ForceValue:        forceValue,
 			},
 		}
-		wasWritten, err := buffer.Write(ctx, v.timestamp, v.value, v.unit,
-			v.annotation, writeOpts)
+		wasWritten, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
+			v.Annotation, writeOpts)
 		require.NoError(t, err)
 		expectedWrite := i == 0
 		require.Equal(t, expectedWrite, wasWritten)
@@ -629,7 +637,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
 
-	ex := []value{
+	ex := []DecodedTestValue{
 		{curr, forceValue, xtime.Second, nil},
 	}
 
@@ -676,7 +684,7 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	coldBucket.resetTo(curr, ColdWrite, opts)
 	coldBucket.encoders = nil
 	buckets := []*BufferBucket{warmBucket, coldBucket}
-	warmEncoder := [][]value{
+	warmEncoder := [][]DecodedTestValue{
 		{
 			{curr, 1, xtime.Second, nil},
 			{curr.Add(secs(10)), 2, xtime.Second, nil},
@@ -695,14 +703,14 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 			{curr.Add(secs(35)), 6, xtime.Second, nil},
 		},
 	}
-	coldEncoder := [][]value{
+	coldEncoder := [][]DecodedTestValue{
 		{
 			{curr.Add(secs(15)), 10, xtime.Second, nil},
 			{curr.Add(secs(25)), 20, xtime.Second, nil},
 			{curr.Add(secs(40)), 30, xtime.Second, nil},
 		},
 	}
-	data := [][][]value{warmEncoder, coldEncoder}
+	data := [][][]DecodedTestValue{warmEncoder, coldEncoder}
 
 	for i, bucket := range data {
 		for _, d := range bucket {
@@ -711,10 +719,10 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 			encoder.Reset(curr, 0, nil)
 			for _, v := range d {
 				dp := ts.Datapoint{
-					Timestamp: v.timestamp,
-					Value:     v.value,
+					Timestamp: v.Timestamp,
+					Value:     v.Value,
 				}
-				err := encoder.Encode(dp, v.unit, v.annotation)
+				err := encoder.Encode(dp, v.Unit, v.Annotation)
 				require.NoError(t, err)
 				encoded++
 			}
@@ -770,16 +778,28 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	require.NoError(t, err)
 	res := metadata.Results()
 	require.Equal(t, 1, len(res))
-	assert.Equal(t, b.start, res[0].Start)
-	assert.Equal(t, expectedSize, res[0].Size)
-	// checksum is never available for buffer block.
-	assert.Equal(t, (*uint32)(nil), res[0].Checksum)
-	assert.True(t, expectedLastRead.Equal(res[0].LastRead))
+	require.Equal(t, b.start, res[0].Start)
+	require.Equal(t, expectedSize, res[0].Size)
+	// Checksum not available since there are multiple streams.
+	require.Equal(t, (*uint32)(nil), res[0].Checksum)
+	require.True(t, expectedLastRead.Equal(res[0].LastRead))
+
+	// Tick to merge all of the streams into one.
+	buffer.Tick(ShardBlockStateSnapshot{}, namespace.Context{})
+	metadata, err = buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts)
+	require.NoError(t, err)
+	res = metadata.Results()
+	require.Equal(t, 1, len(res))
+	// Checksum should be available now since there was only one stream.
+	require.NotNil(t, res[0].Checksum)
 }
 
 func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
@@ -792,7 +812,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Perform out of order writes that will create two in order encoders.
-	data := []value{
+	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
 		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
@@ -800,10 +820,10 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		{curr.Add(mins(1.5)), 5, xtime.Second, nil},
 		{curr.Add(mins(1.5)).Add(-5 * time.Second), 6, xtime.Second, nil},
 	}
-	end := data[len(data)-1].timestamp.Add(time.Nanosecond)
+	end := data[len(data)-1].Timestamp.Add(time.Nanosecond)
 
 	for _, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
@@ -815,7 +835,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		for j := range bucket.encoders {
 			encoder := bucket.encoders[j].encoder
 
-			_, ok := encoder.Stream(encoding.StreamOptions{})
+			_, ok := encoder.Stream(ctx)
 			require.True(t, ok)
 
 			encoders = append(encoders, encoder)
@@ -824,24 +844,25 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	assert.Equal(t, 2, len(encoders))
 
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(start): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
+	shardBlockState := NewShardBlockStateSnapshot(true, blockStates)
 	// Perform a tick and ensure merged out of order blocks.
-	r := buffer.Tick(blockStates, namespace.Context{})
+	r := buffer.Tick(shardBlockState, namespace.Context{})
 	assert.Equal(t, 1, r.mergedOutOfOrderBlocks)
 
 	// Check values correct.
-	ctx := context.NewContext()
-	defer ctx.Close()
-
 	results, err := buffer.ReadEncoded(ctx, start, end, namespace.Context{})
 	assert.NoError(t, err)
-	expected := make([]value, len(data))
+	expected := make([]DecodedTestValue, len(data))
 	copy(expected, data)
-	sort.Sort(valuesByTime(expected))
+	sort.Sort(ValuesByTime(expected))
 	requireReaderValuesEqual(t, expected, results, opts, namespace.Context{})
 
 	// Count the encoders again.
@@ -854,7 +875,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -879,7 +900,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Perform out of order writes that will create two in order encoders.
-	data := []value{
+	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
 		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
@@ -889,7 +910,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	}
 
 	for _, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToBuffer(t, buffer, v, nil)
 	}
 
@@ -900,17 +921,21 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	// Simulate that a flush has fully completed on this bucket so that it will.
 	// get removed from the bucket.
-	blockStates := make(map[xtime.UnixNano]BlockState)
-	blockStates[xtime.ToUnixNano(start)] = BlockState{
-		WarmRetrievable: true,
-		ColdVersion:     1,
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(start): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
 	}
+	shardBlockState := NewShardBlockStateSnapshot(true, blockStates)
 	bucket.version = 1
 
 	// False because we just wrote to it.
 	assert.False(t, buffer.IsEmpty())
 	// Perform a tick to remove the bucket which has been flushed.
-	buffer.Tick(blockStates, namespace.Context{})
+	buffer.Tick(shardBlockState, namespace.Context{})
 	// True because we just removed the bucket.
 	assert.True(t, buffer.IsEmpty())
 }
@@ -933,7 +958,7 @@ func testBuffertoStream(t *testing.T, opts Options, setAnn setAnnotation) {
 	bucket, exists := b.writableBucket(WarmWrite)
 	require.True(t, exists)
 	assert.Len(t, bucket.encoders, 4)
-	assert.Len(t, bucket.bootstrapped, 0)
+	assert.Len(t, bucket.loadedBlocks, 0)
 
 	stream, err := b.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 	require.NoError(t, err)
@@ -971,6 +996,8 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 
 	// Perform one valid write to setup the state of the buffer.
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	wasWritten, err := buffer.Write(ctx, curr, 1, xtime.Second, nil, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
@@ -984,7 +1011,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		// Reset the encoder to simulate the situation in which an encoder is present but
@@ -1032,11 +1059,15 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	buffer.Reset(ident.StringID("foo"), opts)
 
 	// Create test data to perform out of order writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
-	data := []value{
+	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
 		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
@@ -1055,7 +1086,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 
 	// Perform the writes.
 	for _, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
 	}
 
@@ -1070,7 +1101,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -1081,9 +1112,9 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	assertPersistDataFn := func(id ident.ID, tags ident.Tags, segment ts.Segment, checlsum uint32) error {
 		// Check we got the right results.
 		expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint.
-		expectedCopy := make([]value, len(expectedData))
+		expectedCopy := make([]DecodedTestValue, len(expectedData))
 		copy(expectedCopy, expectedData)
-		sort.Sort(valuesByTime(expectedCopy))
+		sort.Sort(ValuesByTime(expectedCopy))
 		actual := [][]xio.BlockReader{{
 			xio.BlockReader{
 				SegmentReader: xio.NewSegmentReader(segment),
@@ -1095,8 +1126,6 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	}
 
 	// Perform a snapshot.
-	ctx := context.NewContext()
-	defer ctx.Close()
 	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
 	assert.NoError(t, err)
 
@@ -1110,7 +1139,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		encoders = append(encoders, encoder)
@@ -1138,7 +1167,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 
 	// Create test data to perform warm writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
-	warmData := []value{
+	warmData := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
 		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
@@ -1154,7 +1183,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	// Perform warm writes.
 	for _, v := range warmData {
 		// Set curr so that every write is a warm write.
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
 	}
 
@@ -1168,7 +1197,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	// the same timestamps used in the warm writes above, otherwise these will
 	// overwrite them.
 	// Buffer past/future in this test case is 10 seconds.
-	coldData := []value{
+	coldData := []DecodedTestValue{
 		{start.Add(secs(2)), 11, xtime.Second, nil},
 		{start.Add(secs(4)), 12, xtime.Second, nil},
 		{start.Add(secs(6)), 13, xtime.Second, nil},
@@ -1186,6 +1215,8 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 		warmEncoders []encoding.Encoder
 		coldEncoders []encoding.Encoder
 	)
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	buckets, ok := buffer.bucketVersionsAt(start)
 	require.True(t, ok)
@@ -1196,7 +1227,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		warmEncoders = append(warmEncoders, encoder)
@@ -1209,7 +1240,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for j := range bucket.encoders {
 		encoder := bucket.encoders[j].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		coldEncoders = append(coldEncoders, encoder)
@@ -1222,9 +1253,9 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 		// since it's for a different block.
 		expectedData := warmData[:len(warmData)-1]
 		expectedData = append(expectedData, coldData...)
-		expectedCopy := make([]value, len(expectedData))
+		expectedCopy := make([]DecodedTestValue, len(expectedData))
 		copy(expectedCopy, expectedData)
-		sort.Sort(valuesByTime(expectedCopy))
+		sort.Sort(ValuesByTime(expectedCopy))
 		actual := [][]xio.BlockReader{{
 			xio.BlockReader{
 				SegmentReader: xio.NewSegmentReader(segment),
@@ -1236,8 +1267,6 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	}
 
 	// Perform a snapshot.
-	ctx := context.NewContext()
-	defer ctx.Close()
 	err := buffer.Snapshot(ctx, start, ident.StringID("some-id"), ident.Tags{}, assertPersistDataFn, nsCtx)
 	require.NoError(t, err)
 
@@ -1252,7 +1281,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		warmEncoders = append(warmEncoders, encoder)
@@ -1271,7 +1300,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for i := range bucket.encoders {
 		encoder := bucket.encoders[i].encoder
 
-		_, ok := encoder.Stream(encoding.StreamOptions{})
+		_, ok := encoder.Stream(ctx)
 		require.True(t, ok)
 
 		coldEncoders = append(coldEncoders, encoder)
@@ -1398,7 +1427,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 		blockData{
 			start:     blockStart1,
 			writeType: ColdWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart1, 1, xtime.Second, nil},
 					{blockStart1.Add(secs(5)), 2, xtime.Second, nil},
@@ -1409,7 +1438,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 		blockData{
 			start:     blockStart2,
 			writeType: ColdWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
 					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
@@ -1422,7 +1451,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 		blockData{
 			start:     blockStart3,
 			writeType: ColdWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart3.Add(secs(71)), 9, xtime.Second, nil},
 				},
@@ -1431,7 +1460,7 @@ func TestColdFlushBlockStarts(t *testing.T) {
 		blockData{
 			start:     blockStart4,
 			writeType: WarmWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart4.Add(secs(57)), 10, xtime.Second, nil},
 					{blockStart4.Add(secs(66)), 11, xtime.Second, nil},
@@ -1514,7 +1543,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 		blockData{
 			start:     blockStart1,
 			writeType: ColdWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart1, 1, xtime.Second, nil},
 					{blockStart1.Add(secs(5)), 2, xtime.Second, nil},
@@ -1525,7 +1554,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 		blockData{
 			start:     blockStart2,
 			writeType: ColdWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
 					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
@@ -1538,7 +1567,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 		blockData{
 			start:     blockStart3,
 			writeType: ColdWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart3.Add(secs(71)), 9, xtime.Second, nil},
 				},
@@ -1547,7 +1576,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 		blockData{
 			start:     blockStart4,
 			writeType: WarmWrite,
-			data: [][]value{
+			data: [][]DecodedTestValue{
 				{
 					{blockStart4.Add(secs(57)), 10, xtime.Second, nil},
 					{blockStart4.Add(secs(66)), 11, xtime.Second, nil},
@@ -1584,5 +1613,67 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	// but is not an error.
 	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, []value{}, [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{reader}, opts, nsCtx)
+}
+
+// TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into
+// the buffer and treated as warm writes.
+func TestBufferLoadWarmWrite(t *testing.T) {
+	var (
+		opts      = newBufferTestOptions()
+		buffer    = newDatabaseBuffer()
+		blockSize = opts.RetentionOptions().BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		nsCtx     = namespace.Context{}
+	)
+	buffer.Reset(nil, opts)
+	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(encoded))
+
+	data := checked.NewBytes([]byte("some-data"), nil)
+	data.IncRef()
+	segment := ts.Segment{Head: data}
+	block := block.NewDatabaseBlock(curr, blockSize, segment, opts.DatabaseBlockOptions(), nsCtx)
+	buffer.Load(block, WarmWrite)
+
+	// Ensure the bootstrapped block is loaded and readable.
+	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(encoded))
+
+	// Ensure bootstrapped blocks are loaded as warm writes.
+	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
+	require.Equal(t, 0, coldFlushBlockStarts.Len())
+}
+
+// TestBufferLoadColdWrite tests the Load method, ensuring that blocks are successfully loaded into
+// the buffer and treated as cold writes.
+func TestBufferLoadColdWrite(t *testing.T) {
+	var (
+		opts      = newBufferTestOptions()
+		buffer    = newDatabaseBuffer()
+		blockSize = opts.RetentionOptions().BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		nsCtx     = namespace.Context{}
+	)
+	buffer.Reset(nil, opts)
+	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(encoded))
+
+	data := checked.NewBytes([]byte("some-data"), nil)
+	data.IncRef()
+	segment := ts.Segment{Head: data}
+	block := block.NewDatabaseBlock(curr, blockSize, segment, opts.DatabaseBlockOptions(), nsCtx)
+	buffer.Load(block, ColdWrite)
+
+	// Ensure the bootstrapped block is loaded and readable.
+	encoded, err = buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(encoded))
+
+	// Ensure bootstrapped blocks are loaded as cold writes.
+	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
+	require.Equal(t, 1, coldFlushBlockStarts.Len())
 }

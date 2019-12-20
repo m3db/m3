@@ -114,8 +114,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	log.Sugar().Debugf("fetching data from namespace %s again", testNamespaces[0])
 	res, err = testSetup.fetch(fetchReq)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(res))
+	require.Error(t, err)
 
 	log.Sugar().Debugf("fetching data from a different namespace %s", testNamespaces[1])
 	fetchReq.ID = "bar"

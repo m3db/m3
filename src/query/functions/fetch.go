@@ -48,7 +48,7 @@ type FetchOp struct {
 	Matchers models.Matchers
 }
 
-// FetchNode is the execution node
+// FetchNode is a fetch execution node.
 // TODO: Make FetchNode private
 type FetchNode struct {
 	debug          bool
@@ -61,12 +61,12 @@ type FetchNode struct {
 	instrumentOpts instrument.Options
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o FetchOp) OpType() string {
 	return FetchType
 }
 
-// Bounds returns the bounds for the spec
+// Bounds returns the bounds for this operation.
 func (o FetchOp) Bounds() transform.BoundSpec {
 	return transform.BoundSpec{
 		Range:  o.Range,
@@ -74,13 +74,18 @@ func (o FetchOp) Bounds() transform.BoundSpec {
 	}
 }
 
-// String representation
+// String is the string representation for this operation.
 func (o FetchOp) String() string {
-	return fmt.Sprintf("type: %s. name: %s, range: %v, offset: %v, matchers: %v", o.OpType(), o.Name, o.Range, o.Offset, o.Matchers)
+	return fmt.Sprintf("type: %s. name: %s, range: %v, offset: %v, matchers: %v",
+		o.OpType(), o.Name, o.Range, o.Offset, o.Matchers)
 }
 
-// Node creates an execution node
-func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
+// Node creates the fetch execution node for this operation.
+func (o FetchOp) Node(
+	controller *transform.Controller,
+	storage storage.Storage,
+	options transform.Options,
+) parser.Source {
 	return &FetchNode{
 		op:             o,
 		controller:     controller,
@@ -99,7 +104,8 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	defer sp.Finish()
 
 	timeSpec := n.timespec
-	// No need to adjust start and ends since physical plan already considers the offset, range
+	// No need to adjust start and ends since physical plan
+	// already considers the offset, range
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
 
@@ -131,7 +137,7 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 			iter, _ := block.StepIter()
 			if iter != nil {
 				logging.WithContext(ctx, n.instrumentOpts).
-					Info("fetch node", zap.Any("meta", iter.Meta()))
+					Info("fetch node", zap.Any("meta", block.Meta()))
 			}
 		}
 

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
@@ -139,15 +140,15 @@ func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]b
 /*
 Builds compressed rpc series from a SeriesIterator
 SeriesIterator is the top level iterator returned by m3db
-This SeriesIterator contains MultiReaderIterators, each representing a single replica
-Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each step through the
-iterator exposes a slice of underlying BlockReaders. Each BlockReader contains the
-run time encoded bytes that represent the series.
+This SeriesIterator contains MultiReaderIterators, each representing a single
+replica. Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each
+step through the iterator exposes a slice of underlying BlockReaders. Each
+BlockReader contains the run time encoded bytes that represent the series.
 
 SeriesIterator also has a TagIterator representing the tags associated with it.
 
-This function transforms a SeriesIterator into a protobuf representation to be able
-to send it across the wire without needing to expand the series.
+This function transforms a SeriesIterator into a protobuf representation to be
+able to send it across the wire without needing to expand the series.
 */
 func compressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
@@ -197,10 +198,10 @@ func compressedSeriesFromSeriesIterator(
 
 // encodeToCompressedSeries encodes SeriesIterators to compressed series.
 func encodeToCompressedSeries(
-	iterators encoding.SeriesIterators,
+	results m3.SeriesFetchResult,
 	iterPools encoding.IteratorPools,
 ) ([]*rpc.Series, error) {
-	iters := iterators.Iters()
+	iters := results.SeriesIterators.Iters()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
 		series, err := compressedSeriesFromSeriesIterator(iter, iterPools)

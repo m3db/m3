@@ -21,7 +21,9 @@
 package linear
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -29,29 +31,57 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRoundWithSomeValues(t *testing.T) {
-	v := [][]float64{
-		{0, nan, 2, 16, 25},
-		{nan, 6, 15, 14, 9},
-	}
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
+var (
+	emptyArgs = []interface{}{}
+	nan       = math.NaN()
+	step      = time.Second
+	tests     = []struct {
+		name     string
+		v        []float64
+		args     []interface{}
+		expected []float64
+	}{
+		{"default", []float64{1.2, 4.5, 6, nan},
+			emptyArgs, []float64{1, 5, 6, nan}},
 
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewRoundOp([]interface{}{10.0})
-	require.NoError(t, err)
-	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
-	require.NoError(t, err)
+		{"1.2", []float64{1.2, 4.5, 6, nan},
+			toArgs(1.2), []float64{1.2, 4.8, 6, nan}},
 
-	expected := [][]float64{
-		{0, nan, 0, 20, 30},
-		{nan, 10, 20, 10, 10},
+		{"-3", []float64{1.2, 4.5, 6, nan},
+			toArgs(-3), []float64{0, 3, 6, nan}},
+
+		{"0", []float64{1.2, 4.5, 6, nan},
+			toArgs(0), []float64{nan, nan, nan, nan}},
 	}
-	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+)
+
+func toArgs(f float64) []interface{} { return []interface{}{f} }
+
+func TestRoundWithArgs(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bounds := models.Bounds{
+				StepSize: step,
+				Duration: step * time.Duration(len(tt.v)),
+			}
+
+			v := [][]float64{tt.v}
+			block := test.NewBlockFromValues(bounds, v)
+			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+			roundOp, err := NewRoundOp(tt.args)
+			require.NoError(t, err)
+
+			op, ok := roundOp.(transform.Params)
+			require.True(t, ok)
+
+			node := op.Node(c, transform.Options{})
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+			require.NoError(t, err)
+			require.Len(t, sink.Values, 1)
+			test.EqualsWithNans(t, tt.expected, sink.Values[0])
+		})
+	}
 }

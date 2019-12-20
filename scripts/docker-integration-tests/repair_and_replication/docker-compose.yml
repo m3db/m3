@@ -1,0 +1,88 @@
+version: "3.5"
+services:
+  cluster_a_dbnode01:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9012:9002"
+      - "0.0.0.0:9013:9003"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_HOST_ID=cluster_a_m3db_local_1
+    volumes:
+      - "./m3dbnode-cluster-a.yml:/etc/m3dbnode/m3dbnode.yml"
+  cluster_a_dbnode02:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9022:9002"
+      - "0.0.0.0:9023:9003"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_HOST_ID=cluster_a_m3db_local_2
+    volumes:
+      - "./m3dbnode-cluster-a.yml:/etc/m3dbnode/m3dbnode.yml"
+  cluster_a_coordinator01:
+    expose:
+      - "7201"
+      - "7203"
+      - "7204"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+      - "0.0.0.0:7204:7204"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator-cluster-a.yml/:/etc/m3coordinator/m3coordinator.yml"
+  cluster_b_dbnode01:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9112:9002"
+      - "0.0.0.0:9113:9003"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_HOST_ID=cluster_b_m3db_local_1
+    volumes:
+      - "./m3dbnode-cluster-b.yml:/etc/m3dbnode/m3dbnode.yml"
+  cluster_b_dbnode02:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9122:9002"
+      - "0.0.0.0:9123:9003"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+    environment:
+      - M3DB_HOST_ID=cluster_b_m3db_local_2
+    volumes:
+      - "./m3dbnode-cluster-b.yml:/etc/m3dbnode/m3dbnode.yml"
+  cluster_b_coordinator01:
+    expose:
+      - "7201"
+      - "7203"
+      - "7204"
+    ports:
+      - "0.0.0.0:17201:7201"
+      - "0.0.0.0:17203:7203"
+      - "0.0.0.0:17204:7204"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator-cluster-b.yml:/etc/m3coordinator/m3coordinator.yml"
+networks:
+  backend:

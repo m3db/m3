@@ -80,26 +80,30 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	})
 
 	var (
-		opts = DefaultTestOptions().SetDatabaseBlockOptions(
+		blockSize = time.Hour * 2
+		start     = time.Now().Truncate(blockSize)
+		opts      = DefaultTestOptions().SetDatabaseBlockOptions(
 			blOpts.
 				SetWiredList(wl).
 				SetDatabaseBlockPool(blPool),
 		)
-		shard  = testDatabaseShard(t, opts)
-		id     = ident.StringID("foo")
-		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
+		shard       = testDatabaseShard(t, opts)
+		id          = ident.StringID("foo")
+		seriesEntry = series.NewDatabaseSeries(id, ident.Tags{}, 1, shard.seriesOpts)
+		block       = block.NewDatabaseBlock(start, blockSize, ts.Segment{}, blOpts, namespace.Context{})
 	)
 
-	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
-	series.Bootstrap(nil)
+	seriesEntry.Reset(id, ident.Tags{}, 1, nil,
+		shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
+
+	seriesEntry.LoadBlock(block, series.WarmWrite)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(seriesEntry, 0))
 	shard.Unlock()
 
 	var (
-		wg        = sync.WaitGroup{}
-		doneCh    = make(chan struct{})
-		blockSize = 2 * time.Hour
+		wg     = sync.WaitGroup{}
+		doneCh = make(chan struct{})
 	)
 	go func() {
 		// Try and trigger any pooling issues
@@ -115,7 +119,6 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	}()
 
 	var (
-		start          = time.Now().Truncate(blockSize)
 		startLock      = sync.Mutex{}
 		getAndIncStart = func() time.Time {
 			startLock.Lock()

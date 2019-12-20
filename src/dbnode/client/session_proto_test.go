@@ -21,19 +21,20 @@
 package client
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 )
 
 var (
@@ -78,6 +79,20 @@ func TestProtoSessionFetchIDs(t *testing.T) {
 	testSessionFetchIDs(t, testOpts)
 }
 
+func TestProtoSessionFetchIDsNoSchema(t *testing.T) {
+	opts := newSessionTestOptions().
+		SetEncodingProto(encoding.NewOptions().SetBytesPool(prototest.ProtoPools.BytesPool))
+	testOpts := testOptions{
+		nsID:        testNamespace,
+		opts:        opts,
+		setFetchAnn: setFetchProtoAnnotation,
+		annEqual:    testProtoEqual,
+		encoderPool: prototest.ProtoPools.EncoderPool,
+		expectedErr: fmt.Errorf("no protobuf schema found for namespace: %s", testNamespace.String()),
+	}
+	testSessionFetchIDs(t, testOpts)
+}
+
 func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	protoIter := prototest.NewProtoMessageIterator(testProtoMessages)
@@ -104,7 +119,6 @@ func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 	result := []*rpc.Segments{&rpc.Segments{
 		Merged: &rpc.Segment{Head: bytesIfNotNil(seg.Head), Tail: bytesIfNotNil(seg.Tail)},
 	}}
-
 
 	sliceReaderPool := newReaderSliceOfSlicesIteratorPool(nil)
 	sliceReaderPool.Init()
@@ -143,8 +157,8 @@ func TestProtoSessionWrite(t *testing.T) {
 	require.NoError(t, opts.SchemaRegistry().SetSchemaHistory(testNamespace, testSchemaHistory))
 
 	testSessionWrite(t, testOptions{
-		opts: opts,
+		opts:        opts,
 		setWriteAnn: setWriteProtoAnnotation,
-		annEqual: testProtoEqual,
+		annEqual:    testProtoEqual,
 	})
 }

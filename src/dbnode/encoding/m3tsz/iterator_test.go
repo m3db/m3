@@ -57,7 +57,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes))
+		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		it.TimeUnit = input.timeUnit
@@ -68,7 +68,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 		require.Equal(t, input.expectedTimeDelta, it.PrevTimeDelta)
 	}
 
-	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}))
+	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}), 16)
 	it := NewTimestampIterator(encoding.NewOptions(), false)
 	err := it.readNextTimestamp(stream)
 	require.Error(t, err)
@@ -127,7 +127,7 @@ func TestReaderIteratorReadAnnotation(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes))
+		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		err := it.readAnnotation(stream)
@@ -157,7 +157,7 @@ func TestReaderIteratorReadTimeUnit(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes))
+		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 		it.TimeUnit = input.timeUnit
 

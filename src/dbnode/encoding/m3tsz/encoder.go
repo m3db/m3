@@ -26,11 +26,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
@@ -276,8 +277,8 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
-	segment := enc.segment(byCopyResultType)
+func (enc *encoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
+	segment := enc.segmentZeroCopy(ctx)
 	if segment.Len() == 0 {
 		return nil, false
 	}
@@ -310,9 +311,26 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
-// Len returns the length of the data stream.
+// Len returns the length of the final data stream that would be generated
+// by a call to Stream().
 func (enc *encoder) Len() int {
-	return enc.os.Len()
+	raw, pos := enc.os.Rawbytes()
+	if len(raw) == 0 {
+		return 0
+	}
+
+	// Calculate how long the stream would be once it was "capped" with a tail.
+	var (
+		lastIdx  = len(raw) - 1
+		lastByte = raw[lastIdx]
+		scheme   = enc.opts.MarkerEncodingScheme()
+		tail     = scheme.Tail(lastByte, pos)
+	)
+	tail.IncRef()
+	tailLen := tail.Len()
+	tail.DecRef()
+
+	return len(raw[:lastIdx]) + tailLen
 }
 
 // Close closes the encoder.
@@ -331,14 +349,10 @@ func (enc *encoder) Close() {
 	}
 }
 
-func (enc *encoder) discard() ts.Segment {
-	return enc.segment(byRefResultType)
-}
-
 // Discard closes the encoder and transfers ownership of the data stream to
 // the caller.
 func (enc *encoder) Discard() ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 
 	// Close the encoder no longer needed
 	enc.Close()
@@ -349,12 +363,12 @@ func (enc *encoder) Discard() ts.Segment {
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
 func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
 	return segment
 }
 
-func (enc *encoder) segment(resType resultType) ts.Segment {
+func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	length := enc.os.Len()
 	if length == 0 {
 		return ts.Segment{}
@@ -362,30 +376,26 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data.
+	rawBuffer, pos := enc.os.Rawbytes()
+	lastByte := rawBuffer[length-1]
+
+	// Take ref up to last byte.
+	headBytes := rawBuffer[:length-1]
+
+	// Zero copy from the output stream.
 	var head checked.Bytes
-	buffer, pos := enc.os.Rawbytes()
-	lastByte := buffer[length-1]
-	if resType == byRefResultType {
-		// Take ref from the ostream
-		head = enc.os.Discard()
-
-		// Resize to crop out last byte
-		head.IncRef()
-		defer head.DecRef()
-
-		head.Resize(length - 1)
+	if pool := enc.opts.CheckedBytesWrapperPool(); pool != nil {
+		head = pool.Get(headBytes)
 	} else {
-		// Copy into new buffer
-		head = enc.newBuffer(length - 1)
-
-		head.IncRef()
-		defer head.DecRef()
-
-		// Copy up to last byte
-		head.AppendAll(buffer[:length-1])
+		head = checked.NewBytes(headBytes, nil)
 	}
 
-	// Take a shared ref to a known good tail
+	// Make sure the ostream bytes ref is delayed from finalizing
+	// until this operation is complete (since this is zero copy).
+	buffer, _ := enc.os.CheckedBytes()
+	ctx.RegisterCloser(buffer.DelayFinalizer())
+
+	// Take a shared ref to a known good tail.
 	scheme := enc.opts.MarkerEncodingScheme()
 	tail := scheme.Tail(lastByte, pos)
 
@@ -395,9 +405,30 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead)
 }
 
-type resultType int
+func (enc *encoder) segmentTakeOwnership() ts.Segment {
+	length := enc.os.Len()
+	if length == 0 {
+		return ts.Segment{}
+	}
 
-const (
-	byCopyResultType resultType = iota
-	byRefResultType
-)
+	// We need a multibyte tail since the tail isn't set correctly midstream.
+	rawBuffer, pos := enc.os.Rawbytes()
+	lastByte := rawBuffer[length-1]
+
+	// Take ref from the ostream.
+	head := enc.os.Discard()
+
+	// Resize to crop out last byte.
+	head.IncRef()
+	head.Resize(length - 1)
+	head.DecRef()
+
+	// Take a shared ref to a known good tail.
+	scheme := enc.opts.MarkerEncodingScheme()
+	tail := scheme.Tail(lastByte, pos)
+
+	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
+	// ref we have no ref to it anymore and if by copy then the owner should
+	// be finalizing the bytes when the segment is finalized.
+	return ts.NewSegment(head, tail, ts.FinalizeHead)
+}

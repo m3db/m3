@@ -48,7 +48,7 @@ func (b *encodedBlock) SeriesIter() (
 	cs := b.consolidation
 	bounds := cs.bounds
 	consolidator := consolidators.NewSeriesLookbackConsolidator(
-		b.lookback,
+		b.options.LookbackDuration(),
 		bounds.StepSize,
 		cs.currentTime,
 		cs.consolidationFn,
@@ -130,10 +130,6 @@ func (it *encodedSeriesIter) SeriesCount() int {
 
 func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
-}
-
-func (it *encodedSeriesIter) Meta() block.Metadata {
-	return it.meta
 }
 
 func (it *encodedSeriesIter) Close() {

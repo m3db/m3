@@ -27,7 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -50,7 +52,19 @@ var (
 	defaultQuery = index.Query{
 		Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
 	}
+
+	testShardSet sharding.ShardSet
 )
+
+func init() {
+	shards := sharding.NewShards([]uint32{0, 1, 2, 3}, shard.Available)
+	hashFn := sharding.DefaultHashFn(len(shards))
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	if err != nil {
+		panic(err)
+	}
+	testShardSet = shardSet
+}
 
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
@@ -135,7 +149,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	index, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	index, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -175,7 +189,7 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 		return nil, fmt.Errorf("randomerr")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	_, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	_, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.Error(t, err)
 }
 
@@ -203,7 +217,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -276,7 +290,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -353,7 +367,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	seg1 := segment.NewMockSegment(ctrl)
@@ -401,7 +415,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	nowLock.Lock()
@@ -450,7 +464,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -458,7 +472,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	}()
 
 	c := context.NewCancellable()
-	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
@@ -474,7 +488,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	now = now.Add(2 * blockSize)
 	nowLock.Unlock()
 
-	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
@@ -489,7 +503,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumTotalDocs:    10,
 	}, result)
 
-	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
@@ -549,7 +563,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -661,7 +675,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	stubResult := index.NewQueryResults(ident.StringID("ns"), index.QueryResultsOptions{}, iopts)
 
 	md := testNamespaceMetadata(blockSize, retention)
-	idxIface, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	idx, ok := idxIface.(*nsIndex)
@@ -747,7 +761,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -866,7 +880,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	stubResult := index.NewAggregateResults(ident.StringID("ns"), index.AggregateResultsOptions{}, iopts)
 
 	md := testNamespaceMetadata(blockSize, retention)
-	idxIface, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	idx, ok := idxIface.(*nsIndex)
@@ -957,7 +971,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {

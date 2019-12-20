@@ -167,7 +167,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 			{IDs: []string{ids[0].str, ids[2].str}, NumPoints: 90, Start: blockStart},
 		})
 	)
-	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
 
 	// Prepare verification of data on nodes.

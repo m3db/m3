@@ -74,3 +74,22 @@ func TestBadSchemeTagOptions(t *testing.T) {
 		SetIDSchemeType(IDSchemeType(6))
 	assert.EqualError(t, opts.Validate(), msg)
 }
+
+func TestOptionsEquals(t *testing.T) {
+	opts, other := NewTagOptions(), NewTagOptions()
+	assert.True(t, opts.Equals(other))
+
+	bad := []byte("aaa")
+	n := opts.BucketName()
+	opts = opts.SetBucketName(bad)
+	assert.False(t, opts.Equals(other))
+
+	opts = opts.SetBucketName(n)
+	n = opts.MetricName()
+	opts = opts.SetMetricName(bad)
+	assert.False(t, opts.Equals(other))
+
+	opts = opts.SetMetricName(n)
+	opts = opts.SetIDSchemeType(IDSchemeType(10))
+	assert.False(t, opts.Equals(other))
+}

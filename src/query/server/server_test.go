@@ -21,6 +21,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -202,41 +203,6 @@ func waitForServerHealthy(t *testing.T, addr string) {
 		maxWait.String())
 }
 
-type queryServer struct {
-	reads, searches, tagCompletes int
-	mu                            sync.Mutex
-}
-
-func (s *queryServer) Fetch(
-	*rpc.FetchRequest,
-	rpc.Query_FetchServer,
-) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.reads++
-	return nil
-}
-
-func (s *queryServer) Search(
-	*rpc.SearchRequest,
-	rpc.Query_SearchServer,
-) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.searches++
-	return nil
-}
-
-func (s *queryServer) CompleteTags(
-	*rpc.CompleteTagsRequest,
-	rpc.Query_CompleteTagsServer,
-) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.tagCompletes++
-	return nil
-}
-
 func TestGRPCBackend(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -286,7 +252,7 @@ writeWorkerPoolPolicy:
 
 	s := grpc.NewServer()
 	defer s.GracefulStop()
-	qs := &queryServer{}
+	qs := newQueryServer()
 	rpc.RegisterQueryServer(s, qs)
 	go func() {
 		s.Serve(lis)
@@ -388,4 +354,57 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 	r, _ = tctx.Global.State()
 	floatsEqual(float64(r.Cost), 11)
 	require.NoError(t, r.Error)
+}
+
+var _ rpc.QueryServer = &queryServer{}
+
+type queryServer struct {
+	up                            time.Time
+	reads, searches, tagCompletes int
+	mu                            sync.Mutex
+}
+
+func newQueryServer() *queryServer {
+	return &queryServer{up: time.Now()}
+}
+
+func (s *queryServer) Health(
+	ctx context.Context,
+	req *rpc.HealthRequest,
+) (*rpc.HealthResponse, error) {
+	up := time.Since(s.up)
+	return &rpc.HealthResponse{
+		UptimeDuration:    up.String(),
+		UptimeNanoseconds: int64(up),
+	}, nil
+}
+
+func (s *queryServer) Fetch(
+	*rpc.FetchRequest,
+	rpc.Query_FetchServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reads++
+	return nil
+}
+
+func (s *queryServer) Search(
+	*rpc.SearchRequest,
+	rpc.Query_SearchServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.searches++
+	return nil
+}
+
+func (s *queryServer) CompleteTags(
+	*rpc.CompleteTagsRequest,
+	rpc.Query_CompleteTagsServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tagCompletes++
+	return nil
 }

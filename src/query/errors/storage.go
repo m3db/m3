@@ -45,6 +45,10 @@ var (
 	// an invalid type.
 	ErrFetchRequestType = errors.New("invalid request type")
 
+	// ErrNoValidResults is an error returned when there are no stores
+	// that succeeded the fanout.
+	ErrNoValidResults = errors.New("no valid results in fanout")
+
 	// ErrInvalidFetchResult is an error returned when fetch result is invalid.
 	ErrInvalidFetchResult = errors.New("invalid fetch result")
 

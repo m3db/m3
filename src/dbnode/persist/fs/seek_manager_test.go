@@ -44,18 +44,20 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 
 	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
-	var byTimes []*seekersByTime
+	byTimes := make(map[uint32]*seekersByTime)
+	var mu sync.Mutex
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
-		byTimes = append(byTimes, byTime)
+		mu.Lock()
+		byTimes[byTime.shard] = byTime
+		mu.Unlock()
 		return nil
 	}
 
 	require.NoError(t, m.CacheShardIndices(shards))
-
 	// Assert captured byTime objects match expectations
 	require.Equal(t, len(shards), len(byTimes))
-	for idx, shard := range shards {
-		byTimes[idx].shard = shard
+	for _, shard := range shards {
+		byTimes[shard].shard = shard
 	}
 
 	// Assert seeksByShardIdx match expectations
@@ -63,13 +65,14 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	for _, shard := range shards {
 		shardSet[shard] = struct{}{}
 	}
+
 	for shard, byTime := range m.seekersByShardIdx {
 		_, exists := shardSet[uint32(shard)]
 		if !exists {
 			require.False(t, byTime.accessed)
 		} else {
 			require.True(t, byTime.accessed)
-			require.Equal(t, uint32(shard), byTime.shard)
+			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
 }
@@ -84,6 +87,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	)
 	defer ctrl.Finish()
 
+	var (
+		mockSeekerStatsLock sync.Mutex
+		numMockSeekerCloses int
+	)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
@@ -96,7 +103,12 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 			mock.EXPECT().ConcurrentClone().Return(mock, nil)
 		}
 		for i := 0; i < defaultFetchConcurrency; i++ {
-			mock.EXPECT().Close().Return(nil)
+			mock.EXPECT().Close().DoAndReturn(func() error {
+				mockSeekerStatsLock.Lock()
+				numMockSeekerCloses++
+				mockSeekerStatsLock.Unlock()
+				return nil
+			})
 			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
 		}
 		return mock, nil
@@ -106,17 +118,20 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	}
 
 	metadata := testNs1Metadata(t)
+	// Pick a start time thats within retention so the background loop doesn't close
+	// the seeker.
+	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
 	require.NoError(t, m.Open(metadata))
 	for _, shard := range shards {
-		seeker, err := m.Borrow(shard, time.Time{})
+		seeker, err := m.Borrow(shard, blockStart)
 		require.NoError(t, err)
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
-		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
 		require.Equal(t, 0, seekers.active.volume)
 		byTime.RUnlock()
-		require.NoError(t, m.Return(shard, time.Time{}, seeker))
+		require.NoError(t, m.Return(shard, blockStart, seeker))
 	}
 
 	// Ensure that UpdateOpenLease() updates the volumes.
@@ -124,32 +139,36 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
 			Namespace:  metadata.ID(),
 			Shard:      shard,
-			BlockStart: time.Time{},
+			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 1})
 		require.NoError(t, err)
 		require.Equal(t, block.UpdateOpenLease, updateResult)
 
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
-		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
 		require.Equal(t, 1, seekers.active.volume)
 		byTime.RUnlock()
 	}
+	// Ensure that the old seekers actually get closed.
+	mockSeekerStatsLock.Lock()
+	require.Equal(t, len(shards)*defaultFetchConcurrency, numMockSeekerCloses)
+	mockSeekerStatsLock.Unlock()
 
 	// Ensure that UpdateOpenLease() ignores updates for the wrong namespace.
 	for _, shard := range shards {
 		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
 			Namespace:  ident.StringID("some-other-ns"),
 			Shard:      shard,
-			BlockStart: time.Time{},
+			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 2})
 		require.NoError(t, err)
 		require.Equal(t, block.NoOpenLease, updateResult)
 
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
-		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
 		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
 		// Should not have increased to 2.
 		require.Equal(t, 1, seekers.active.volume)
@@ -161,7 +180,7 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
 			Namespace:  metadata.ID(),
 			Shard:      shard,
-			BlockStart: time.Time{},
+			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 0})
 		require.Equal(t, errOutOfOrderUpdateOpenLease, err)
 	}

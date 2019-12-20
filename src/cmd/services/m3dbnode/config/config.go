@@ -104,9 +104,11 @@ type DBConfiguration struct {
 	// The initial garbage collection target percentage.
 	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
 
+	// TODO(V1): Move to `limits`.
 	// Write new series limit per second to limit overwhelming during new ID bursts.
 	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
 
+	// TODO(V1): Move to `limits`.
 	// Write new series backoff between batches of new series insertions.
 	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
@@ -128,8 +130,11 @@ type DBConfiguration struct {
 	// The commit log policy for the node.
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
-	// The repair policy for repairing in-memory data.
+	// The repair policy for repairing data within a cluster.
 	Repair *RepairPolicy `yaml:"repair"`
+
+	// The replication policy for replicating data between clusters.
+	Replication *ReplicationPolicy `yaml:"replication"`
 
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"pooling"`
@@ -148,6 +153,10 @@ type DBConfiguration struct {
 
 	// Tracing configures opentracing. If not provided, tracing is disabled.
 	Tracing *opentracing.TracingConfiguration `yaml:"tracing"`
+
+	// Limits contains configuration for limits that can be applied to M3DB for the purposes
+	// of applying back-pressure or protecting the db nodes.
+	Limits Limits `yaml:"limits"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -171,6 +180,12 @@ func (c *DBConfiguration) InitDefaultsAndValidate() error {
 
 	if err := c.Transforms.Validate(); err != nil {
 		return err
+	}
+
+	if c.Replication != nil {
+		if err := c.Replication.Validate(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -211,6 +226,7 @@ type TransformConfiguration struct {
 	ForcedValue *float64 `yaml:"forceValue"`
 }
 
+// Validate validates the transform configuration.
 func (c *TransformConfiguration) Validate() error {
 	if c == nil {
 		return nil
@@ -299,20 +315,63 @@ type RepairPolicy struct {
 	// Enabled or disabled.
 	Enabled bool `yaml:"enabled"`
 
-	// The repair interval.
-	Interval time.Duration `yaml:"interval" validate:"nonzero"`
-
-	// The repair time offset.
-	Offset time.Duration `yaml:"offset" validate:"nonzero"`
-
-	// The repair time jitter.
-	Jitter time.Duration `yaml:"jitter" validate:"nonzero"`
-
 	// The repair throttle.
-	Throttle time.Duration `yaml:"throttle" validate:"nonzero"`
+	Throttle time.Duration `yaml:"throttle"`
 
 	// The repair check interval.
-	CheckInterval time.Duration `yaml:"checkInterval" validate:"nonzero"`
+	CheckInterval time.Duration `yaml:"checkInterval"`
+
+	// Whether debug shadow comparisons are enabled.
+	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`
+
+	// If enabled, what percentage of metadata should perform a detailed debug
+	// shadow comparison.
+	DebugShadowComparisonsPercentage float64 `yaml:"debugShadowComparisonsPercentage"`
+}
+
+// ReplicationPolicy is the replication policy.
+type ReplicationPolicy struct {
+	Clusters []ReplicatedCluster `yaml:"clusters"`
+}
+
+// Validate validates the replication policy.
+func (r *ReplicationPolicy) Validate() error {
+	names := map[string]bool{}
+	for _, c := range r.Clusters {
+		if err := c.Validate(); err != nil {
+			return err
+		}
+
+		if _, ok := names[c.Name]; ok {
+			return fmt.Errorf(
+				"replicated cluster names must be unique, but %s was repeated",
+				c.Name)
+		}
+		names[c.Name] = true
+	}
+
+	return nil
+}
+
+// ReplicatedCluster defines a cluster to replicate data from.
+type ReplicatedCluster struct {
+	Name          string                `yaml:"name"`
+	RepairEnabled bool                  `yaml:"repairEnabled"`
+	Client        *client.Configuration `yaml:"client"`
+}
+
+// Validate validates the configuration for a replicated cluster.
+func (r *ReplicatedCluster) Validate() error {
+	if r.Name == "" {
+		return errors.New("replicated cluster must be assigned a name")
+	}
+
+	if r.RepairEnabled && r.Client == nil {
+		return fmt.Errorf(
+			"replicated cluster: %s has repair enabled but not client configuration", r.Name)
+	}
+
+	return nil
 }
 
 // HashingConfiguration is the configuration for hashing.
@@ -324,10 +383,11 @@ type HashingConfiguration struct {
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
 type ProtoConfiguration struct {
 	// Enabled specifies whether proto is enabled.
-	Enabled bool `yaml:"enabled"`
+	Enabled        bool                            `yaml:"enabled"`
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
+// NamespaceProtoSchema is the namespace protobuf schema.
 type NamespaceProtoSchema struct {
 	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
 	// we allow loading user schema from local file into schema registry.

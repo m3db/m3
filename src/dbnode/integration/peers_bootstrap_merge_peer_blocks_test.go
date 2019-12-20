@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -60,7 +60,11 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 		SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)
 		namesp = opts.Namespaces()[0]
@@ -112,8 +116,8 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 			appendSeries(right, start.ToTime(), series)
 		}
 	}
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], left))
-	require.NoError(t, writeTestDataToDisk(namesp, setups[1], right))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], left, 0))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[1], right, 0))
 
 	// Start the first two servers with filesystem bootstrappers
 	setups[:2].parallel(func(s *testSetup) {

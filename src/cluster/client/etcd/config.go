@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/client"
@@ -32,7 +33,7 @@ import (
 type ClusterConfig struct {
 	Zone             string           `yaml:"zone"`
 	Endpoints        []string         `yaml:"endpoints"`
-	KeepAlive        *keepAliveConfig `yaml:"keepAlive"`
+	KeepAlive        *KeepAliveConfig `yaml:"keepAlive"`
 	TLS              *TLSConfig       `yaml:"tls"`
 	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
 }
@@ -71,14 +72,14 @@ func (c *TLSConfig) newOptions() TLSOptions {
 }
 
 // keepAliveConfig configures keepAlive behavior.
-type keepAliveConfig struct {
+type KeepAliveConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	Period  time.Duration `yaml:"period"`
 	Jitter  time.Duration `yaml:"jitter"`
 	Timeout time.Duration `yaml:"timeout"`
 }
 
-func (c *keepAliveConfig) NewOptions() KeepAliveOptions {
+func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 	return NewKeepAliveOptions().
 		SetKeepAliveEnabled(c.Enabled).
 		SetKeepAlivePeriod(c.Period).
@@ -95,6 +96,7 @@ type Configuration struct {
 	ETCDClusters      []ClusterConfig        `yaml:"etcdClusters"`
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
+	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
 }
 
 // NewClient creates a new config service client.
@@ -104,7 +106,7 @@ func (cfg Configuration) NewClient(iopts instrument.Options) (client.Client, err
 
 // NewOptions returns a new Options.
 func (cfg Configuration) NewOptions() Options {
-	return NewOptions().
+	opts := NewOptions().
 		SetZone(cfg.Zone).
 		SetEnv(cfg.Env).
 		SetService(cfg.Service).
@@ -112,6 +114,14 @@ func (cfg Configuration) NewOptions() Options {
 		SetClusters(cfg.etcdClusters()).
 		SetServicesOptions(cfg.SDConfig.NewOptions()).
 		SetWatchWithRevision(cfg.WatchWithRevision)
+
+	if v := cfg.NewDirectoryMode; v != nil {
+		opts = opts.SetNewDirectoryMode(*v)
+	} else {
+		opts = opts.SetNewDirectoryMode(defaultDirectoryMode)
+	}
+
+	return opts
 }
 
 func (cfg Configuration) etcdClusters() []Cluster {

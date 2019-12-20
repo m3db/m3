@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	ns "github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
 
 	"go.uber.org/zap"
@@ -93,7 +93,7 @@ func (g *generator) Generate(nsCtx ns.Context, shard uint32) error {
 	g.logger.Debug("created fake data")
 
 	writer := generate.NewWriter(gOpts)
-	err := writer.WriteData(nsCtx, shardSet, data)
+	err := writer.WriteData(nsCtx, shardSet, data, 0)
 	if err != nil {
 		return fmt.Errorf("unable to write data: %v", err)
 	}

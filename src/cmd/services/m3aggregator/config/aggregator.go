@@ -23,11 +23,13 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"runtime"
 	"sort"
 	"sync"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
@@ -66,6 +68,9 @@ var (
 type AggregatorConfiguration struct {
 	// HostID is the local host ID configuration.
 	HostID *hostid.Configuration `yaml:"hostID"`
+
+	// InstanceID is the instance ID configuration.
+	InstanceID InstanceIDConfiguration `yaml:"instanceID"`
 
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
@@ -164,6 +169,78 @@ type AggregatorConfiguration struct {
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
 }
 
+// InstanceIDType is the instance ID type that defines how the
+// instance ID is constructed, which is then used to lookup the
+// aggregator instance in the placement.
+type InstanceIDType uint
+
+const (
+	// HostIDPortInstanceIDType specifies to use the host ID
+	// concatenated with the port to be used for lookup
+	// in the placement.
+	// NB: this is a legacy instance ID type and is how the instance
+	// ID used to be constructed which imposed the strange
+	// requirement that the instance ID in the topology used to require
+	// the port concat'd with the host ID).
+	HostIDPortInstanceIDType InstanceIDType = iota
+	// HostIDInstanceIDType specifies to just use the host ID
+	// as the instance ID for lookup in the placement.
+	HostIDInstanceIDType
+
+	// defaultInstanceIDType must be used as the legacy instance ID
+	// since the config needs to be backwards compatible and for those
+	// not explicitly specifying the instance ID type it will cause
+	// existing placements to not work with latest versions of the aggregator
+	// in a backwards compatible fashion.
+	defaultInstanceIDType = HostIDPortInstanceIDType
+)
+
+func (t InstanceIDType) String() string {
+	switch t {
+	case HostIDInstanceIDType:
+		return "host_id"
+	case HostIDPortInstanceIDType:
+		return "host_id_port"
+	}
+	return "unknown"
+}
+
+var (
+	validInstanceIDTypes = []InstanceIDType{
+		HostIDInstanceIDType,
+		HostIDPortInstanceIDType,
+	}
+)
+
+// UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
+func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultInstanceIDType
+		return nil
+	}
+	strs := make([]string, 0, len(validInstanceIDTypes))
+	for _, valid := range validInstanceIDTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf(
+		"invalid InstanceIDType '%s' valid types are: %s", str, strings.Join(strs, ", "))
+}
+
+// InstanceIDConfiguration is the instance ID configuration.
+type InstanceIDConfiguration struct {
+	// InstanceIDType specifies how to construct the instance ID
+	// that is used for lookup of the aggregator in the placement.
+	InstanceIDType InstanceIDType `yaml:"type"`
+}
+
 // NewAggregatorOptions creates a new set of aggregator options.
 func (c *AggregatorConfiguration) NewAggregatorOptions(
 	address string,
@@ -209,7 +286,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetAdminClient(adminClient)
 
-	// Set instance id.
+	// Set instance ID.
 	instanceID, err := c.newInstanceID(address)
 	if err != nil {
 		return nil, err
@@ -382,23 +459,31 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {
 	var (
-		hostName string
-		err      error
+		hostIDValue string
+		err         error
 	)
 	if c.HostID != nil {
-		hostName, err = c.HostID.Resolve()
+		hostIDValue, err = c.HostID.Resolve()
 	} else {
-		hostName, err = os.Hostname()
+		hostIDValue, err = os.Hostname()
 	}
 	if err != nil {
-		return "", fmt.Errorf("error determining host name: %v", err)
+		return "", fmt.Errorf("error determining host ID: %v", err)
 	}
 
-	_, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+	switch c.InstanceID.InstanceIDType {
+	case HostIDInstanceIDType:
+		return hostIDValue, nil
+	case HostIDPortInstanceIDType:
+		_, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+		}
+		return net.JoinHostPort(hostIDValue, port), nil
+	default:
+		return "", fmt.Errorf("unknown instance ID type: value=%d, str=%s",
+			c.InstanceID.InstanceIDType, c.InstanceID.InstanceIDType.String())
 	}
-	return net.JoinHostPort(hostName, port), nil
 }
 
 func bufferForPastTimedMetricFn(buffer time.Duration) aggregator.BufferForPastTimedMetricFn {
@@ -711,8 +796,13 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		opts = opts.SetMaxJitterFn(maxJitterFn)
 	}
 	if c.NumWorkersPerCPU != 0 {
-		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
-		workerPool := m3sync.NewWorkerPool(workerPoolSize)
+		runtimeCPU := float64(runtime.NumCPU())
+		numWorkers := c.NumWorkersPerCPU * runtimeCPU
+		workerPoolSize := int(math.Ceil(numWorkers))
+		if workerPoolSize < 1 {
+			workerPoolSize = 1
+		}
+		workerPool := sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
 	}

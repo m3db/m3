@@ -74,10 +74,13 @@ type aggProcessor struct {
 	aggFunc aggFunc
 }
 
-func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (a aggProcessor) initialize(
+	_ time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &aggNode{
 		controller: controller,
-		op:         op,
 		aggFunc:    a.aggFunc,
 	}
 }
@@ -134,13 +137,14 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 }
 
 type aggNode struct {
-	op         baseOp
 	controller *transform.Controller
+	values     []float64
 	aggFunc    func([]float64) float64
 }
 
-func (a *aggNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
-	return a.aggFunc(datapoints.Values())
+func (a *aggNode) process(datapoints ts.Datapoints, _ iterationBounds) float64 {
+	a.values = datapoints.Reset(a.values)
+	return a.aggFunc(a.values)
 }
 
 func avgOverTime(values []float64) float64 {
@@ -211,7 +215,8 @@ func stdvarOverTime(values []float64) float64 {
 		}
 	}
 
-	if count == 0 {
+	// NB: stdvar and stddev are undefined unless there are more than 2 points.
+	if count < 2 {
 		return math.NaN()
 	}
 

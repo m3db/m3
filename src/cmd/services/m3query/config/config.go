@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -112,6 +113,9 @@ type Configuration struct {
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
+	// WriteForwarding is the write forwarding options.
+	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
+
 	// Downsample configurates how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
@@ -130,6 +134,9 @@ type Configuration struct {
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
 
+	// Experimental is the configuration for the experimental API group.
+	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+
 	// Cache configurations.
 	//
 	// Deprecated: cache configurations are no longer supported. Remove from file
@@ -138,6 +145,11 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
+}
+
+// WriteForwardingConfiguration is the write forwarding configuration.
+type WriteForwardingConfiguration struct {
+	PromRemoteWrite remote.PromWriteHandlerForwardingOptions `yaml:"promRemoteWrite"`
 }
 
 // Filter is a query filter type.
@@ -283,10 +295,12 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	Debug          bool                              `yaml:"debug"`
-	ListenAddress  string                            `yaml:"listenAddress"`
-	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	// Deprecated: simply use the logger debug level, this has been deprecated
+	// in favor of setting the log level to debug.
+	DeprecatedDebug bool                              `yaml:"debug"`
+	ListenAddress   string                            `yaml:"listenAddress"`
+	MaxConcurrency  int                               `yaml:"maxConcurrency"`
+	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration
@@ -410,29 +424,37 @@ type ClusterManagementConfiguration struct {
 	Etcd etcdclient.Configuration `yaml:"etcd"`
 }
 
-// Remotes is a set of remote host configurations.
-type Remotes []Remote
+// RemoteConfigurations is a set of remote host configurations.
+type RemoteConfigurations []RemoteConfiguration
 
-// Remote is the configuration for a single remote host.
-type Remote struct {
+// RemoteConfiguration is the configuration for a single remote host.
+type RemoteConfiguration struct {
 	// Name is the name for the remote zone.
 	Name string `yaml:"name"`
 	// RemoteListenAddresses is the remote listen addresses to call for remote
 	// coordinator calls in the remote zone.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+	// ErrorBehavior overrides the default error behavior for this host.
+	//
+	// NB: defaults to warning on error.
+	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
 }
 
 // RPCConfiguration is the RPC configuration for the coordinator for
 // the GRPC server used for remote coordinator to coordinator calls.
 type RPCConfiguration struct {
 	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
+	//
+	// NB: this is no longer necessary to set to true if RPC is desired; enabled
+	// status is inferred based on which other options are provided;
+	// this remains for back-compat, and for disabling any existing RPC options.
+	Enabled *bool `yaml:"enabled"`
 
 	// ListenAddress is the RPC server listen address.
 	ListenAddress string `yaml:"listenAddress"`
 
 	// Remotes are the configuration settings for remote coordinator zones.
-	Remotes Remotes `yaml:"remotes"`
+	Remotes RemoteConfigurations `yaml:"remotes"`
 
 	// RemoteListenAddresses is the remote listen addresses to call for
 	// remote coordinator calls.
@@ -440,6 +462,15 @@ type RPCConfiguration struct {
 	// NB: this is deprecated in favor of using RemoteZones, as setting
 	// RemoteListenAddresses will only allow for a single remote zone to be used.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+
+	// ErrorBehavior overrides the default error behavior for all rpc hosts.
+	//
+	// NB: defaults to warning on error.
+	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
+
+	// ReflectionEnabled will enable reflection on the GRPC server, useful
+	// for testing connectivity with grpcurl, etc.
+	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options
@@ -483,4 +514,9 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	return opts, nil
+}
+
+// ExperimentalAPIConfiguration is the configuration for the experimental API group.
+type ExperimentalAPIConfiguration struct {
+	Enabled bool `yaml:"enabled"`
 }

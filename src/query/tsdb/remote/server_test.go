@@ -33,11 +33,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	m3err "github.com/m3db/m3/src/query/errors"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -72,14 +74,16 @@ func newMockStorage(
 			ctx context.Context,
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
-		) (encoding.SeriesIterators, m3.Cleanup, error) {
+		) (m3.SeriesFetchResult, m3.Cleanup, error) {
 			var cleanup = func() error { return nil }
 			if opts.cleanup != nil {
 				cleanup = opts.cleanup
 			}
 
 			if opts.err != nil {
-				return nil, cleanup, opts.err
+				return m3.SeriesFetchResult{
+					Metadata: block.NewResultMetadata(),
+				}, cleanup, opts.err
 			}
 
 			if opts.fetchCompressedSleep > 0 {
@@ -96,7 +100,10 @@ func newMockStorage(
 				)
 			}
 
-			return iters, cleanup, nil
+			return m3.SeriesFetchResult{
+				SeriesIterators: iters,
+				Metadata:        block.NewResultMetadata(),
+			}, cleanup, nil
 		}).
 		AnyTimes()
 	return store
@@ -158,8 +165,12 @@ func buildClient(t *testing.T, hosts []string) Client {
 		xsync.NewPooledWorkerPoolOptions())
 	readWorkerPool.Init()
 	require.NoError(t, err)
-	client, err := NewGRPCClient(hosts, poolsWrapper, readWorkerPool,
-		models.NewTagOptions(), 0, grpc.WithBlock())
+
+	opts := m3db.NewOptions().
+		SetReadWorkerPool(readWorkerPool).
+		SetTagOptions(models.NewTagOptions())
+
+	client, err := NewGRPCClient(hosts, poolsWrapper, opts, grpc.WithBlock())
 	require.NoError(t, err)
 	return client
 }
@@ -177,6 +188,30 @@ func TestRpc(t *testing.T) {
 	}()
 
 	checkFetch(ctx, t, client, read, readOpts)
+}
+
+func TestRpcHealth(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx, _, _ := createCtxReadOpts(t)
+	store := newMockStorage(t, ctrl, mockStorageOptions{})
+	listener := startServer(t, ctrl, store)
+	serverClient := buildClient(t, []string{listener.Addr().String()})
+	defer func() {
+		assert.NoError(t, serverClient.Close())
+	}()
+
+	client, ok := serverClient.(*grpcClient)
+	require.True(t, ok)
+
+	resp, err := client.client.Health(ctx, &rpc.HealthRequest{})
+	require.NoError(t, err)
+
+	uptime, err := time.ParseDuration(resp.UptimeDuration)
+	require.NoError(t, err)
+	assert.True(t, uptime > 0)
+	assert.Equal(t, uptime, time.Duration(resp.UptimeNanoseconds))
 }
 
 func TestRpcMultipleRead(t *testing.T) {
@@ -256,14 +291,9 @@ func TestMultipleClientRpc(t *testing.T) {
 }
 
 func TestEmptyAddressListErrors(t *testing.T) {
-	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.NumCPU(),
-		xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	readWorkerPool.Init()
-
 	addresses := []string{}
-	client, err := NewGRPCClient(addresses, poolsWrapper, readWorkerPool,
-		models.NewTagOptions(), 0, grpc.WithBlock())
+	opts := m3db.NewOptions()
+	client, err := NewGRPCClient(addresses, poolsWrapper, opts, grpc.WithBlock())
 	assert.Nil(t, client)
 	assert.Equal(t, m3err.ErrNoClientAddresses, err)
 }
@@ -430,8 +460,13 @@ func TestBatchedSearch(t *testing.T) {
 		}
 
 		store := m3.NewMockStorage(ctrl)
+		tagResult := m3.TagResult{
+			Tags:     tags,
+			Metadata: block.NewResultMetadata(),
+		}
+
 		store.EXPECT().SearchCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(tags, noopCleanup, nil)
+			Return(tagResult, noopCleanup, nil)
 
 		listener := startServer(t, ctrl, store)
 		client := buildClient(t, []string{listener.Addr().String()})
@@ -488,9 +523,14 @@ func TestBatchedCompleteTags(t *testing.T) {
 			expected := &storage.CompleteTagsResult{
 				CompleteNameOnly: nameOnly,
 				CompletedTags:    tags,
+				Metadata: block.ResultMetadata{
+					Exhaustive: false,
+					LocalOnly:  true,
+					Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+				},
 			}
 
-			store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
+			store.EXPECT().CompleteTagsCompressed(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(expected, nil)
 
 			listener := startServer(t, ctrl, store)
@@ -502,6 +542,13 @@ func TestBatchedCompleteTags(t *testing.T) {
 			result, err := client.CompleteTags(ctx, q, readOpts)
 			require.NoError(t, err, msg)
 			require.Equal(t, size, len(result.CompletedTags), msg)
+			if size == 0 {
+				// NB: 0 result is exhaustive and no warnings should be seen.
+				expected.Metadata = block.NewResultMetadata()
+			} else {
+				// NB: since this is a fanout with remotes, LocalOnly should be false.
+				expected.Metadata.LocalOnly = false
+			}
 			assert.Equal(t, expected, result, msg)
 		}
 	}

@@ -23,8 +23,8 @@ import {compose, withProps, withState} from 'recompose';
 import {Button, Card, Input, Popconfirm, Table, Icon} from 'antd';
 import _ from 'lodash';
 import {Link} from 'react-router-dom';
-import {connectR2API, withFilter} from 'hocs';
-import {getHelpText} from 'utils/helpText';
+import {connectR2API, withFilter} from '../hocs';
+import {getHelpText} from '../utils/helpText';
 const {Column} = Table;
 
 function NamespaceTable(props) {

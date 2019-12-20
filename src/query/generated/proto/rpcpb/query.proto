@@ -7,10 +7,18 @@ option go_package = "rpcpb";
 import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
 
 service Query {
+	rpc Health(HealthRequest)             returns (HealthResponse);
 	rpc Fetch(FetchRequest)               returns (stream FetchResponse);
-
 	rpc Search(SearchRequest)             returns (stream SearchResponse);
 	rpc CompleteTags(CompleteTagsRequest) returns (stream CompleteTagsResponse);
+}
+
+message HealthRequest {
+}
+
+message HealthResponse {
+	string uptimeDuration = 1;
+	int64 uptimeNanoseconds = 2;
 }
 
 message FetchRequest {
@@ -47,14 +55,28 @@ enum MatcherType {
 }
 
 message FetchOptions {
-	int64 limit                   = 1;
-	RestrictFetchOptions restrict = 2;
-	int64 lookbackDuration        = 3;
+	int64 limit                      = 1;
+	RestrictQueryOptions restrict    = 2;
+	int64 lookbackDuration           = 3;
+	FanoutOption unaggregated        = 4;
+	FanoutOption aggregated          = 5;
+	FanoutOption aggregatedOptimized = 6;
+	bool includeResolution           = 7;
 }
 
-message RestrictFetchOptions {
+message RestrictQueryOptions {
+	RestrictQueryType restrictQueryType = 3;
+	RestrictQueryTags restrictQueryTags = 4;
+}
+
+message RestrictQueryType {
 	MetricsType metricsType                     = 1;
 	policypb.StoragePolicy metricsStoragePolicy = 2;
+}
+
+message RestrictQueryTags {
+	TagMatchers restrict = 1;
+	repeated bytes strip = 2;
 }
 
 enum MetricsType {
@@ -63,8 +85,15 @@ enum MetricsType {
 	AGGREGATED_METRICS_TYPE   = 2;
 }
 
+enum FanoutOption {
+	DEFAULT_OPTION   = 0;
+	FORCE_ENABLED    = 1;
+	FORCE_DISABLED   = 2;
+}
+
 message FetchResponse {
 	repeated Series series = 1;
+	ResultMetadata meta    = 2;
 }
 
 message Series {
@@ -76,9 +105,9 @@ message Series {
 }
 
 message SeriesMetadata {
-	bytes id        = 1;
-	int64 startTime = 2;
-	int64 endTime   = 3;
+	bytes id         = 1;
+	int64 startTime  = 2;
+	int64 endTime    = 3;
 }
 
 message DecompressedSeries {
@@ -121,6 +150,9 @@ message SearchRequest {
 	oneof matchers {
 		TagMatchers tagMatchers = 1;
 	}
+	int64 start               = 2;
+	int64 end                 = 3;
+	FetchOptions options      = 4;
 }
 
 message M3TagProperty {
@@ -146,6 +178,8 @@ message SearchResponse {
 		TagProperties decompressed = 1;
 		M3TagProperties compressed = 2;
 	}
+
+	ResultMetadata meta          = 3;
 }
 
 enum CompleteTagsType {
@@ -160,12 +194,14 @@ message CompleteTagsRequestOptions {
 	repeated bytes filterNameTags = 2;
 	int64 start                   = 3;
 	int64 end                     = 4;
+	FetchOptions options          = 5;
 }
 
 message CompleteTagsRequest {
 	oneof matchers {
 		TagMatchers tagMatchers          = 1;
 	}
+
 	CompleteTagsRequestOptions options = 2;
 }
 
@@ -184,7 +220,20 @@ message TagValues {
 
 message CompleteTagsResponse {
 	oneof value {
-		TagValues default  = 1;
-		TagNames namesOnly = 2;
+		TagValues default   = 1;
+		TagNames namesOnly  = 2;
 	}
+
+	ResultMetadata meta   = 3;
+}
+
+message ResultMetadata {
+	bool exhaustive            = 1;
+	repeated Warning warnings  = 2;
+	repeated int64 resolutions = 3;
+}
+
+message Warning {
+	bytes name    = 1;
+	bytes message = 2;
 }

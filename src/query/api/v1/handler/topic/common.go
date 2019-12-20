@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -84,6 +84,9 @@ func RegisterRoutes(
 	r.HandleFunc(AddURL,
 		wrapped(NewAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(AddHTTPMethod)
+	r.HandleFunc(DeleteURL,
+		wrapped(NewDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		Methods(DeleteHTTPMethod)
 }
 
 func topicName(headers http.Header) string {

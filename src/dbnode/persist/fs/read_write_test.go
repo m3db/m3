@@ -494,12 +494,6 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	checkedBytes := func(b []byte) checked.Bytes {
-		r := checked.NewBytes(b, nil)
-		r.IncRef()
-		return r
-	}
-
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
@@ -525,4 +519,10 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", nil, []byte{1, 2, 3, 4, 5, 6}},
 	})
+}
+
+func checkedBytes(b []byte) checked.Bytes {
+	r := checked.NewBytes(b, nil)
+	r.IncRef()
+	return r
 }

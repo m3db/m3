@@ -44,6 +44,9 @@ type PlacementManager interface {
 	// Open opens the placement manager.
 	Open() error
 
+	// InstanceID returns the configured instance ID.
+	InstanceID() string
+
 	// Placement returns the active staged placement and the active placement.
 	Placement() (placement.ActiveStagedPlacement, placement.Placement, error)
 
@@ -120,6 +123,13 @@ func (mgr *placementManager) Open() error {
 	}
 	mgr.state = placementManagerOpen
 	return nil
+}
+
+func (mgr *placementManager) InstanceID() string {
+	mgr.RLock()
+	value := mgr.instanceID
+	mgr.RUnlock()
+	return value
 }
 
 func (mgr *placementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {

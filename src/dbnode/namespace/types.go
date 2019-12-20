@@ -256,3 +256,17 @@ type DynamicOptions interface {
 	// NamespaceRegistry
 	NamespaceRegistryKey() string
 }
+
+// NamespaceWatch watches for namespace updates.
+type NamespaceWatch interface {
+	// Start starts the namespace watch.
+	Start() error
+
+	// Stop stops the namespace watch.
+	Stop() error
+
+	// close stops the watch, and releases any held resources.
+	Close() error
+}
+
+type NamespaceUpdater func(Map) error

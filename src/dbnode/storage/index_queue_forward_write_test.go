@@ -90,7 +90,7 @@ func setupForwardIndex(
 	require.NoError(t, err)
 
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
 	require.NoError(t, err)
 
 	var (
@@ -128,6 +128,8 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
 	defer idx.Close()
 
@@ -153,7 +155,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("name", "value")).Matches(
-			ident.NewTagsIterator(tags)))
+			tags))
 	}
 }
 
@@ -163,6 +165,8 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
 	defer idx.Close()
 
@@ -276,7 +280,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	mockBlock, futureBlock, newBlockFn := createMockBlocks(ctrl, blockStart, futureStart)
 
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -316,7 +320,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 	mockBlock, futureBlock, newBlockFn := createMockBlocks(ctrl, blockStart, futureStart)
 
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -374,7 +378,7 @@ func testShardForwardWriteTaggedRefCountIndex(
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
 	opts = opts.SetIndexOptions(opts.IndexOptions().SetInsertMode(syncType))
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
 	require.NoError(t, err)
 
 	defer func() {

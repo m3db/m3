@@ -93,7 +93,7 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    databaseNamespaceWatch
+	nsWatch    namespace.NamespaceWatch
 	namespaces *databaseNamespacesMap
 
 	commitLog commitlog.CommitLog
@@ -207,7 +207,10 @@ func NewDatabase(
 	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
-	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
+	dbUpdater := func(namespaces namespace.Map) error {
+		return d.UpdateOwnedNamespaces(namespaces)
+	}
+	d.nsWatch = namespace.NewNamespaceWatch(dbUpdater, watch, databaseIOpts)
 	nsMap := watch.Get()
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		// Log the error and proceed in case some namespace is miss-configured, e.g. missing schema.
@@ -227,55 +230,13 @@ func NewDatabase(
 	return d, nil
 }
 
-func (d *db) updateSchemaRegistry(newNamespaces namespace.Map) error {
-	schemaReg := d.opts.SchemaRegistry()
-	schemaUpdates := newNamespaces.Metadatas()
-	merr := xerrors.NewMultiError()
-	for _, metadata := range schemaUpdates {
-		curSchemaID := "none"
-		curSchema, err := schemaReg.GetLatestSchema(metadata.ID())
-		if curSchema != nil {
-			curSchemaID = curSchema.DeployId()
-			if len(curSchemaID) == 0 {
-				d.log.Warn("can not update namespace schema with empty deploy ID", zap.Stringer("namespace", metadata.ID()),
-					zap.String("currentSchemaID", curSchemaID))
-				merr.Add(fmt.Errorf("can not update namespace(%v) schema with empty deploy ID", metadata.ID().String()))
-				continue
-			}
-		}
-		// Log schema update.
-		latestSchema, found := metadata.Options().SchemaHistory().GetLatest()
-		if !found {
-			d.log.Warn("can not update namespace schema to empty", zap.Stringer("namespace", metadata.ID()),
-				zap.String("currentSchema", curSchemaID))
-			merr.Add(fmt.Errorf("can not update namespace(%v) schema to empty", metadata.ID().String()))
-			continue
-		}
-		d.log.Info("updating database namespace schema", zap.Stringer("namespace", metadata.ID()),
-			zap.String("currentSchema", curSchemaID), zap.String("latestSchema", latestSchema.DeployId()))
-
-		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
-		if err != nil {
-			d.log.Warn("failed to update latest schema for namespace",
-				zap.Stringer("namespace", metadata.ID()),
-				zap.Error(err))
-			merr.Add(fmt.Errorf("failed to update latest schema for namespace %v, error: %v",
-				metadata.ID().String(), err))
-		}
-	}
-	if merr.Empty() {
-		return nil
-	}
-	return merr
-}
-
 func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	if newNamespaces == nil {
 		return nil
 	}
 
 	// Always update schema registry before owned namespaces.
-	if err := d.updateSchemaRegistry(newNamespaces); err != nil {
+	if err := namespace.UpdateSchemaRegistry(newNamespaces, d.opts.SchemaRegistry(), d.log); err != nil {
 		// Log schema update error and proceed.
 		// In a multi-namespace database, schema update failure for one namespace be isolated.
 		d.log.Error("failed to update schema registry", zap.Error(err))
@@ -437,7 +398,15 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		ns.AssignShardSet(shardSet)
 	}
 
-	d.queueBootstrapWithLock()
+	if receivedNewShards {
+		// Only trigger a bootstrap if the node received new shards otherwise
+		// the nodes will perform lots of small bootstraps (that accomplish nothing)
+		// during topology changes as other nodes mark their shards as available.
+		//
+		// These small bootstraps can significantly delay topology changes as they prevent
+		// the nodes from marking themselves as bootstrapped and durable, for example.
+		d.queueBootstrapWithLock()
+	}
 }
 
 func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
@@ -482,8 +451,8 @@ func (d *db) queueBootstrapWithLock() {
 		// enqueue a new bootstrap to execute before the current bootstrap
 		// completes.
 		go func() {
-			if err := d.mediator.Bootstrap(); err != nil {
-				d.log.Error("error while bootstrapping", zap.Error(err))
+			if result, err := d.mediator.Bootstrap(); err != nil && !result.AlreadyBootstrapping {
+				d.log.Error("error bootstrapping", zap.Error(err))
 			}
 		}()
 	}
@@ -858,7 +827,8 @@ func (d *db) Bootstrap() error {
 	d.Lock()
 	d.bootstraps++
 	d.Unlock()
-	return d.mediator.Bootstrap()
+	_, err := d.mediator.Bootstrap()
+	return err
 }
 
 func (d *db) IsBootstrapped() bool {
@@ -992,8 +962,9 @@ func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
 }
 
 func (d *db) nextIndex() uint64 {
-	created := atomic.AddUint64(&d.created, 1)
-	return created - 1
+	// Start with index at "1" so that a default "uniqueIndex"
+	// with "0" is invalid (AddUint64 will return the new value).
+	return atomic.AddUint64(&d.created, 1)
 }
 
 type tsIDs []ident.ID

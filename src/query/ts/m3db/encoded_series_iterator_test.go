@@ -101,14 +101,15 @@ func TestConsolidatedSeriesIteratorWithLookback(t *testing.T) {
 		opts := NewOptions().
 			SetLookbackDuration(1 * time.Minute).
 			SetSplitSeriesByBlock(false)
+		require.NoError(t, opts.Validate())
 		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
 		j := 0
 		for i, block := range blocks {
 			iters, err := block.SeriesIter()
 			require.NoError(t, err)
 
-			require.True(t, bounds.Equals(iters.Meta().Bounds))
-			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
+			require.True(t, bounds.Equals(block.Meta().Bounds))
+			verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				series := iters.Current()
 				test.EqualsWithNans(t, tt.expected[j], series.Values())
@@ -225,14 +226,15 @@ func TestConsolidatedSeriesIteratorSplitByBlock(t *testing.T) {
 		opts := NewOptions().
 			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
+		require.NoError(t, opts.Validate())
 		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
 		for i, block := range blocks {
 			iters, err := block.SeriesIter()
 			require.NoError(t, err)
 
 			j := 0
-			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
-			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
+			idx := verifyBoundsAndGetBlockIndex(t, bounds, block.Meta().Bounds)
+			verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				series := iters.Current()
 				test.EqualsWithNans(t, tt.expected[idx][j], series.Values())

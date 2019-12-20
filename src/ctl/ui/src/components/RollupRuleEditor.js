@@ -23,10 +23,10 @@ import {Button, Input, Form, Icon, Select, Card, Tag} from 'antd';
 import {toClass} from 'recompose';
 import _ from 'lodash';
 import {withFormik} from 'formik';
-import * as util from 'utils';
+import * as util from '../utils';
 import PoliciesEditor from './PolicyEditor';
-import {filterPoliciesBasedOnTag} from 'utils';
-import {getHelpText} from 'utils/helpText';
+import {filterPoliciesBasedOnTag} from '../utils';
+import {getHelpText} from '../utils/helpText';
 import HelpTooltip from './HelpTooltip';
 
 // @TODO Move to config service

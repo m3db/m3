@@ -50,6 +50,7 @@ var (
 	multiIterPool encoding.MultiReaderIteratorPool
 	identPool     ident.Pool
 	encoderPool   encoding.EncoderPool
+	contextPool   context.Pool
 
 	startTime = time.Now().Truncate(blockSize)
 
@@ -64,21 +65,25 @@ var (
 // init resources _except_ the fsReader, which should be configured on a
 // per-test basis with NewMockDataFileSetReader.
 func init() {
-	srPool = xio.NewSegmentReaderPool(nil)
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	srPool = xio.NewSegmentReaderPool(poolOpts)
 	srPool.Init()
-	multiIterPool = encoding.NewMultiReaderIteratorPool(nil)
+	multiIterPool = encoding.NewMultiReaderIteratorPool(poolOpts)
 	multiIterPool.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	})
-	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
+	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, poolOpts)
 	})
 	bytesPool.Init()
 	identPool = ident.NewPool(bytesPool, ident.PoolOptions{})
-	encoderPool = encoding.NewEncoderPool(nil)
+	encoderPool = encoding.NewEncoderPool(poolOpts)
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(startTime, nil, true, encoding.NewOptions())
 	})
+	contextPool = context.NewPool(context.NewOptions().
+		SetContextPoolOptions(poolOpts).
+		SetFinalizerPoolOptions(poolOpts))
 }
 
 func TestMergeWithIntersection(t *testing.T) {
@@ -436,8 +441,11 @@ func testMergeWith(
 		persist.PreparedDataPersist{
 			Persist: func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error {
 				persisted = append(persisted, persistedData{
-					id:      id,
-					segment: segment,
+					id: id,
+					// NB(bodu): Once data is persisted the `ts.Segment` gets finalized
+					// so we can't read from it anymore or that violates the read after
+					// free invariant. So we `Clone` the segment here.
+					segment: segment.Clone(nil),
 				})
 				return nil
 			},
@@ -446,7 +454,8 @@ func testMergeWith(
 	nsCtx := namespace.Context{}
 
 	nsOpts := namespace.NewOptions()
-	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, nsOpts)
+	merger := NewMerger(reader, 0, srPool, multiIterPool,
+		identPool, encoderPool, contextPool, nsOpts)
 	fsID := FileSetFileIdentifier{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      uint32(8),
@@ -486,18 +495,22 @@ func assertPersistedAsExpected(
 
 func datapointsToCheckedBytes(t *testing.T, dps []ts.Datapoint) checked.Bytes {
 	encoder := encoderPool.Get()
+	defer encoder.Close()
 	for _, dp := range dps {
 		encoder.Encode(dp, xtime.Second, nil)
 	}
 
-	r, ok := encoder.Stream(encoding.StreamOptions{})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	r, ok := encoder.Stream(ctx)
 	require.True(t, ok)
 	var b [1000]byte
 	n, err := r.Read(b[:])
 	require.NoError(t, err)
 
-	cb := checked.NewBytes(b[:n], nil)
-	cb.IncRef()
+	copied := append([]byte(nil), b[:n]...)
+	cb := checked.NewBytes(copied, nil)
 	return cb
 }
 
@@ -603,4 +616,19 @@ func datapointsFromSegment(t *testing.T, seg ts.Segment) []ts.Datapoint {
 	require.NoError(t, iter.Err())
 
 	return dps
+}
+
+func blockReaderFromData(
+	data checked.Bytes,
+	segReader xio.SegmentReader,
+	startTime time.Time,
+	blockSize time.Duration,
+) xio.BlockReader {
+	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	segReader.Reset(seg)
+	return xio.BlockReader{
+		SegmentReader: segReader,
+		Start:         startTime,
+		BlockSize:     blockSize,
+	}
 }

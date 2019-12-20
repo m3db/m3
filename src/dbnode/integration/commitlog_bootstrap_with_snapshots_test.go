@@ -98,7 +98,7 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 	)
 
 	writeSnapshotsWithPredicate(
-		t, setup, commitLogOpts, seriesMaps, ns1, nil, pred, snapshotInterval)
+		t, setup, commitLogOpts, seriesMaps, 0,ns1, nil, pred, snapshotInterval)
 
 	numDatapointsNotInCommitLogs := 0
 	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp generate.TestValue) bool {

@@ -29,12 +29,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/x/instrument"
-
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,6 +79,14 @@ var _ gomock.Matcher = &listTagsMatcher{}
 func b(s string) []byte { return []byte(s) }
 
 func TestListTags(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testListTags(t, tt.meta, tt.ex)
+		})
+	}
+}
+
+func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -90,6 +99,8 @@ func TestListTags(t *testing.T) {
 			{Name: b("baz")},
 			{Name: b("foo")},
 		},
+
+		Metadata: meta,
 	}
 
 	now := time.Now()
@@ -97,7 +108,7 @@ func TestListTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store,
+	h := NewListTagsHandler(store,
 		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
 		nowFn, instrument.NewOptions())
 	for _, method := range []string{"GET", "POST"} {
@@ -108,7 +119,7 @@ func TestListTags(t *testing.T) {
 		req := httptest.NewRequest(method, "/labels", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		h.ServeHTTP(w, req)
 		body := w.Result().Body
 		defer body.Close()
 
@@ -117,6 +128,9 @@ func TestListTags(t *testing.T) {
 
 		ex := `{"status":"success","data":["bar","baz","foo"]}`
 		require.Equal(t, ex, string(r))
+
+		actual := w.Header().Get(handler.LimitHeader)
+		assert.Equal(t, header, actual)
 	}
 }
 

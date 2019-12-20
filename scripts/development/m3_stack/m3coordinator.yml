@@ -1,5 +1,4 @@
 listenAddress:
-  type: "config"
   value: "0.0.0.0:7201"
 
 logging:
@@ -40,9 +39,9 @@ clusters:
 
 ingest:
   ingester:
-    workerPoolSize: 100
+    workerPoolSize: 10000
     opPool:
-      size: 100
+      size: 10000
     retry:
       maxRetries: 3
       jitter: true

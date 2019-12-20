@@ -34,7 +34,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -134,6 +133,17 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 	testBlockRetrieverHighConcurrentSeeks(t, true)
 }
 
+type seekerTrackCloses struct {
+	DataFileSetSeeker
+
+	trackCloseFn func()
+}
+
+func (s seekerTrackCloses) Close() error {
+	s.trackCloseFn()
+	return s.DataFileSetSeeker.Close()
+}
+
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -142,57 +152,6 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
-
-	// Setup retriever.
-	var (
-		filePathPrefix = filepath.Join(dir, "")
-		fsOpts         = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
-
-		fetchConcurrency           = 4
-		seekConcurrency            = 4 * fetchConcurrency
-		updateOpenLeaseConcurrency = 4
-		opts                       = testBlockRetrieverOptions{
-			retrieverOpts: defaultTestBlockRetrieverOptions.
-				SetFetchConcurrency(fetchConcurrency).
-				SetRequestPoolOptions(pool.NewObjectPoolOptions().
-					// NB(r): Try to make sure same req structs are reused frequently
-					// to surface any race issues that might occur with pooling.
-					SetSize(fetchConcurrency / 2)),
-			fsOpts: fsOpts,
-		}
-	)
-	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
-	defer cleanup()
-
-	// Setup the open seeker function to fail sometimes to exercise that code path.
-	seekerMgr := retriever.seekerMgr.(*seekerManager)
-	existingNewOpenSeekerFn := seekerMgr.newOpenSeekerFn
-	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
-		// Artificially slow down how long it takes to open a seeker to exercise the logic where
-		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
-		// to wait for the others to complete.
-		time.Sleep(5 * time.Millisecond)
-		// 10% chance for this to fail so that error paths get exercised as well.
-		if val := rand.Intn(100); val >= 90 {
-			return nil, errors.New("some-error")
-		}
-		return existingNewOpenSeekerFn(shard, blockStart, volume)
-	}
-	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
-
-	// Setup the block lease manager to return errors sometimes to exercise that code path.
-	mockBlockLeaseManager := block.NewMockLeaseManager(ctrl)
-	mockBlockLeaseManager.EXPECT().RegisterLeaser(gomock.Any()).AnyTimes()
-	mockBlockLeaseManager.EXPECT().UnregisterLeaser(gomock.Any()).AnyTimes()
-	mockBlockLeaseManager.EXPECT().OpenLatestLease(gomock.Any(), gomock.Any()).DoAndReturn(func(_ block.Leaser, _ block.LeaseDescriptor) (block.LeaseState, error) {
-		// 10% chance for this to fail so that error paths get exercised as well.
-		if val := rand.Intn(100); val >= 90 {
-			return block.LeaseState{}, errors.New("some-error")
-		}
-
-		return block.LeaseState{Volume: 0}, nil
-	}).AnyTimes()
-	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.SetBlockLeaseManager(mockBlockLeaseManager)
 
 	// Setup data generation.
 	var (
@@ -215,6 +174,88 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
+
+	// Setup retriever.
+	var (
+		filePathPrefix             = filepath.Join(dir, "")
+		fsOpts                     = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+		fetchConcurrency           = 4
+		seekConcurrency            = 4 * fetchConcurrency
+		updateOpenLeaseConcurrency = 4
+		// NB(r): Try to make sure same req structs are reused frequently
+		// to surface any race issues that might occur with pooling.
+		poolOpts = pool.NewObjectPoolOptions().
+				SetSize(fetchConcurrency / 2)
+	)
+	segReaderPool := xio.NewSegmentReaderPool(poolOpts)
+	segReaderPool.Init()
+
+	retrieveRequestPool := NewRetrieveRequestPool(segReaderPool, poolOpts)
+	retrieveRequestPool.Init()
+
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: defaultTestBlockRetrieverOptions.
+			SetFetchConcurrency(fetchConcurrency).
+			SetRetrieveRequestPool(retrieveRequestPool),
+		fsOpts: fsOpts,
+	}
+
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Setup the open seeker function to fail sometimes to exercise that code path.
+	var (
+		seekerMgr                 = retriever.seekerMgr.(*seekerManager)
+		existingNewOpenSeekerFn   = seekerMgr.newOpenSeekerFn
+		seekerStatsLock           sync.Mutex
+		numNonTerminalVolumeOpens int
+		numSeekerCloses           int
+	)
+	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
+		// Artificially slow down how long it takes to open a seeker to exercise the logic where
+		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
+		// to wait for the others to complete.
+		time.Sleep(5 * time.Millisecond)
+		// 10% chance for this to fail so that error paths get exercised as well.
+		if val := rand.Intn(100); val >= 90 {
+			return nil, errors.New("some-error")
+		}
+		seeker, err := existingNewOpenSeekerFn(shard, blockStart, volume)
+		if err != nil {
+			return nil, err
+		}
+
+		if volume != volumes[len(volumes)-1] {
+			// Only track the open if its not for the last volume which will help us determine if the correct
+			// number of seekers were closed later.
+			seekerStatsLock.Lock()
+			numNonTerminalVolumeOpens++
+			seekerStatsLock.Unlock()
+		}
+		return &seekerTrackCloses{
+			DataFileSetSeeker: seeker,
+			trackCloseFn: func() {
+				seekerStatsLock.Lock()
+				numSeekerCloses++
+				seekerStatsLock.Unlock()
+			},
+		}, nil
+	}
+	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
+
+	// Setup the block lease manager to return errors sometimes to exercise that code path.
+	mockBlockLeaseManager := block.NewMockLeaseManager(ctrl)
+	mockBlockLeaseManager.EXPECT().RegisterLeaser(gomock.Any()).AnyTimes()
+	mockBlockLeaseManager.EXPECT().UnregisterLeaser(gomock.Any()).AnyTimes()
+	mockBlockLeaseManager.EXPECT().OpenLatestLease(gomock.Any(), gomock.Any()).DoAndReturn(func(_ block.Leaser, _ block.LeaseDescriptor) (block.LeaseState, error) {
+		// 10% chance for this to fail so that error paths get exercised as well.
+		if val := rand.Intn(100); val >= 90 {
+			return block.LeaseState{}, errors.New("some-error")
+		}
+
+		return block.LeaseState{Volume: 0}, nil
+	}).AnyTimes()
+	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.SetBlockLeaseManager(mockBlockLeaseManager)
 
 	// Generate data.
 	for _, shard := range shards {
@@ -410,6 +451,12 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	// Wait until done.
 	enqueueWg.Wait()
+
+	seekerStatsLock.Lock()
+	// Don't multiply by fetchConcurrency because the tracking doesn't take concurrent
+	// clones into account.
+	require.Equal(t, numNonTerminalVolumeOpens, numSeekerCloses)
+	seekerStatsLock.Unlock()
 
 	// Verify the onRetrieve callback was called properly for everything.
 	for _, shard := range shardIDStrings {
@@ -651,16 +698,11 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		nsCtx      = namespace.NewContextFrom(testNs1Metadata(t))
 		shard      = uint32(0)
 		blockStart = time.Now().Truncate(rOpts.BlockSize())
-
-		// Always true because all the bits in 255 are set.
-		bloomBytes            = []byte{255, 255, 255, 255, 255, 255, 255, 255}
-		alwaysTrueBloomFilter = bloom.NewConcurrentReadOnlyBloomFilter(1, 1, bloomBytes)
-		managedBloomFilter    = newManagedConcurrentBloomFilter(alwaysTrueBloomFilter, bloomBytes)
 	)
 
 	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
 	mockSeekerManager.EXPECT().Open(gomock.Any()).Return(nil)
-	mockSeekerManager.EXPECT().ConcurrentIDBloomFilter(gomock.Any(), gomock.Any()).Return(managedBloomFilter, nil)
+	mockSeekerManager.EXPECT().Test(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	mockSeekerManager.EXPECT().Borrow(gomock.Any(), gomock.Any()).Return(mockSeeker, nil)
 	mockSeekerManager.EXPECT().Return(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	mockSeekerManager.EXPECT().Close().Return(nil)

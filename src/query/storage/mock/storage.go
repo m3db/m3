@@ -22,6 +22,7 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
@@ -34,8 +35,10 @@ type Storage interface {
 	storage.Storage
 
 	SetTypeResult(storage.Type)
+	SetErrorBehavior(storage.ErrorBehavior)
 	LastFetchOptions() *storage.FetchOptions
 	SetFetchResult(*storage.FetchResult, error)
+	SetFetchResults(...*storage.FetchResult)
 	SetSearchSeriesResult(*storage.SearchResults, error)
 	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
 	SetWriteResult(error)
@@ -49,10 +52,12 @@ type mockStorage struct {
 	typeResult struct {
 		result storage.Type
 	}
+	errorBehavior    storage.ErrorBehavior
 	lastFetchOptions *storage.FetchOptions
 	fetchResult      struct {
-		result *storage.FetchResult
-		err    error
+		results []*storage.FetchResult
+		idx     int
+		err     error
 	}
 	fetchTagsResult struct {
 		result *storage.SearchResults
@@ -86,11 +91,26 @@ func (s *mockStorage) SetTypeResult(result storage.Type) {
 	s.typeResult.result = result
 }
 
+func (s *mockStorage) SetErrorBehavior(b storage.ErrorBehavior) {
+	s.Lock()
+	defer s.Unlock()
+	s.errorBehavior = b
+}
+
 func (s *mockStorage) SetFetchResult(result *storage.FetchResult, err error) {
 	s.Lock()
 	defer s.Unlock()
-	s.fetchResult.result = result
+	s.fetchResult.results = []*storage.FetchResult{result}
 	s.fetchResult.err = err
+}
+
+func (s *mockStorage) SetFetchResults(results ...*storage.FetchResult) {
+	s.Lock()
+	defer s.Unlock()
+	s.fetchResult.results = append(
+		make([]*storage.FetchResult, 0, len(results)),
+		results...,
+	)
 }
 
 func (s *mockStorage) SetSearchSeriesResult(result *storage.SearchResults, err error) {
@@ -146,7 +166,21 @@ func (s *mockStorage) Fetch(
 	s.Lock()
 	defer s.Unlock()
 	s.lastFetchOptions = opts
-	return s.fetchResult.result, s.fetchResult.err
+	idx := s.fetchResult.idx
+	if idx >= len(s.fetchResult.results) {
+		idx = 0
+	}
+
+	s.fetchResult.idx = s.fetchResult.idx + 1
+	return s.fetchResult.results[idx], s.fetchResult.err
+}
+
+func (s *mockStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	opts *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return storage.PromResult{}, errors.New("not implemented")
 }
 
 func (s *mockStorage) FetchBlocks(
@@ -196,6 +230,16 @@ func (s *mockStorage) Type() storage.Type {
 	s.RLock()
 	defer s.RUnlock()
 	return s.typeResult.result
+}
+
+func (s *mockStorage) Name() string {
+	return "mock"
+}
+
+func (s *mockStorage) ErrorBehavior() storage.ErrorBehavior {
+	s.RLock()
+	defer s.RUnlock()
+	return s.errorBehavior
 }
 
 func (s *mockStorage) Close() error {

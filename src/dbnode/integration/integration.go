@@ -91,15 +91,14 @@ func newMultiAddrAdminClient(
 		adminOpts = client.NewAdminOptions()
 	}
 
-	clientOpts := adminOpts.
+	adminOpts = adminOpts.
 		SetOrigin(origin).
 		SetInstrumentOptions(instrumentOpts).
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
-		SetClusterConnectTimeout(time.Second)
+		SetTopologyInitializer(topologyInitializer).
+		SetClusterConnectTimeout(time.Second).(client.AdminOptions)
 
-	clientOpts = clientOpts.SetTopologyInitializer(topologyInitializer)
-
-	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
+	adminClient, err := client.NewAdminClient(adminOpts)
 	require.NoError(t, err)
 
 	return adminClient
@@ -114,6 +113,7 @@ type bootstrappableTestSetupOptions struct {
 	testStatsReporter           xmetrics.TestStatsReporter
 	disablePeersBootstrapper    bool
 	useTChannelClientForWriting bool
+	enableRepairs               bool
 }
 
 type closeFn func()
@@ -159,6 +159,7 @@ func newDefaultBootstrappableTestSetups(
 			bootstrapConsistencyLevel   = setupOpts[i].bootstrapConsistencyLevel
 			topologyInitializer         = setupOpts[i].topologyInitializer
 			testStatsReporter           = setupOpts[i].testStatsReporter
+			enableRepairs               = setupOpts[i].enableRepairs
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 		)
@@ -247,7 +248,6 @@ func newDefaultBootstrappableTestSetups(
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
-
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
 		if usingPeersBootstrapper {
@@ -265,7 +265,8 @@ func newDefaultBootstrappableTestSetups(
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 				SetPersistManager(setup.storageOpts.PersistManager()).
-				SetRuntimeOptionsManager(runtimeOptsMgr)
+				SetRuntimeOptionsManager(runtimeOptsMgr).
+				SetContextPool(setup.storageOpts.ContextPool())
 
 			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
@@ -292,6 +293,19 @@ func newDefaultBootstrappableTestSetups(
 
 		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
 
+		if enableRepairs {
+			setup.storageOpts = setup.storageOpts.
+				SetRepairEnabled(true).
+				SetRepairOptions(
+					setup.storageOpts.RepairOptions().
+						SetRepairThrottle(time.Millisecond).
+						SetRepairCheckInterval(time.Millisecond).
+						SetAdminClients([]client.AdminClient{adminClient}).
+						SetDebugShadowComparisonsPercentage(1.0).
+						// Avoid log spam.
+						SetDebugShadowComparisonsEnabled(false))
+		}
+
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
 			setup.close()
@@ -311,23 +325,25 @@ func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps generate.SeriesBlocksByStart,
+	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps)
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps generate.SeriesBlocksByStart,
+	volume int,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

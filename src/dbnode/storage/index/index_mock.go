@@ -229,18 +229,6 @@ func (mr *MockQueryResultsMockRecorder) Map() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Map", reflect.TypeOf((*MockQueryResults)(nil).Map))
 }
 
-// NoFinalize mocks base method
-func (m *MockQueryResults) NoFinalize() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NoFinalize")
-}
-
-// NoFinalize indicates an expected call of NoFinalize
-func (mr *MockQueryResultsMockRecorder) NoFinalize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NoFinalize", reflect.TypeOf((*MockQueryResults)(nil).NoFinalize))
-}
-
 // MockQueryResultsPool is a mock of QueryResultsPool interface
 type MockQueryResultsPool struct {
 	ctrl     *gomock.Controller
@@ -740,18 +728,18 @@ func (mr *MockBlockMockRecorder) AddResults(results interface{}) *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockBlock) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error) {
+func (m *MockBlock) Tick(c context.Cancellable) (BlockTickResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick", c, tickStart)
+	ret := m.ctrl.Call(m, "Tick", c)
 	ret0, _ := ret[0].(BlockTickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockBlockMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) Tick(c interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockBlock)(nil).Tick), c, tickStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockBlock)(nil).Tick), c)
 }
 
 // Stats mocks base method

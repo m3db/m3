@@ -30,13 +30,14 @@ import (
 )
 
 const (
-	// ResetsType returns the number of counter resets within the provided time range as a time series.
-	// Any decrease in the value between two consecutive datapoints is interpreted as a counter reset.
+	// ResetsType returns the number of counter resets within the provided time
+	// range as a time series. Any decrease in the value between two consecutive
+	// datapoints is interpreted as a counter reset.
 	// ResetsTemporalType should only be used with counters.
 	ResetsType = "resets"
 
-	// ChangesType returns the number of times a value changes within the provided time range for
-	// a given time series.
+	// ChangesType returns the number of times a value changes within the
+	// provided time range for a given time series.
 	ChangesType = "changes"
 )
 
@@ -46,9 +47,12 @@ type functionProcessor struct {
 	compFunc comparisonFunc
 }
 
-func (f functionProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+func (f functionProcessor) initialize(
+	_ time.Duration,
+	controller *transform.Controller,
+	opts transform.Options,
+) processor {
 	return &functionNode{
-		op:             op,
 		controller:     controller,
 		comparisonFunc: f.compFunc,
 	}
@@ -69,7 +73,8 @@ func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) 
 
 	duration, ok := args[0].(time.Duration)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		return emptyOp, fmt.
+			Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
 	}
 
 	f := functionProcessor{
@@ -80,12 +85,11 @@ func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) 
 }
 
 type functionNode struct {
-	op             baseOp
 	controller     *transform.Controller
 	comparisonFunc comparisonFunc
 }
 
-func (f *functionNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
+func (f *functionNode) process(datapoints ts.Datapoints, _ iterationBounds) float64 {
 	if len(datapoints) == 0 {
 		return math.NaN()
 	}

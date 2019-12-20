@@ -8,6 +8,8 @@
 
 ## Recorded Talks
 
+- [OSCON 2019: Large-Scale Automated Storage on Kubernetes](https://youtu.be/N9A7xSE9n-c) By Matt Schallert - Jul 18, 2019. [Slides](https://schallert.io/OSCON%20Large-Scale%20Automated%20Storage%20on%20Kubernetes.pdf)
+
 - [How to get the 30,000 ft view, 1 ft view and everything in between without breaking the bank](https://vimeo.com/341146220) By Martin Mao - June 5, 2019. [Slides](https://www.slideshare.net/MartinMao/monitorama-2019-pdx-martin-mao)
 
 - [M3 and Prometheus, Monitoring at Planet Scale for Everyone](https://kccnceu19.sched.com/event/MPbX/m3-and-prometheus-monitoring-at-planet-scale-for-everyone-rob-skillington-uber) By Rob Skillington - May 22, 2019. [Video](https://www.youtube.com/watch?v=EFutyuIpFXQ)

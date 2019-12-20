@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -62,7 +62,11 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 
 	var (
 		opts = newTestOptions(t).
-			SetNamespaces([]namespace.Metadata{namesp})
+			SetNamespaces([]namespace.Metadata{namesp}).
+			// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+			// and not write/read all nodes in the cluster.
+			SetUseTChannelClientForWriting(true).
+			SetUseTChannelClientForReading(true)
 
 		reporter = xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 
@@ -160,7 +164,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	require.Equal(t, 120, len(directWritesSeriesMaps[xtime.ToUnixNano(now)][1].Data))
 
 	// Write data to first node
-	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps, 0)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

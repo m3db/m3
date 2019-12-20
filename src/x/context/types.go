@@ -62,11 +62,19 @@ type Context interface {
 	// BlockingClose will close the context and call the
 	// registered finalizers in a blocking manner after waiting
 	// for any dependent contexts to close. After calling
-	// the context becomes safe to reset and reuse again.
+	// the context becomes safe to reset and reuse again
+	// if and only if it is not a pooled context.
 	BlockingClose()
 
 	// Reset will reset the context for reuse.
 	Reset()
+
+	// BlockingCloseReset will close the context and call the
+	// registered finalizers in a blocking manner after waiting
+	// for any dependent contexts to close. After calling
+	// the context becomes reset and is safe for reuse again as it
+	// will not be returned to a pool.
+	BlockingCloseReset()
 
 	// GoContext returns the Go std context.
 	GoContext() (stdctx.Context, bool)
@@ -105,31 +113,11 @@ type Options interface {
 
 	// FinalizerPoolOptions returns the finalizer pool options.
 	FinalizerPoolOptions() pool.ObjectPoolOptions
-
-	// SetMaxPooledFinalizerCapacity sets the maximum capacity allowed
-	// for a finalizer to be pooled.
-	SetMaxPooledFinalizerCapacity(int) Options
-
-	// MaxPooledFinalizerCapacity returns the maximum capacity allowed
-	// for a finalizer to be pooled.
-	MaxPooledFinalizerCapacity() int
-
-	// SetInitPooledFinalizerCapacity sets the capacity finalizers are
-	// initialized to.
-	SetInitPooledFinalizerCapacity(int) Options
-
-	// InitPooledFinalizerCapacity return the capacity finalizers are
-	// initialized to.
-	InitPooledFinalizerCapacity() int
 }
 
 // contextPool is the internal pool interface for contexts.
 type contextPool interface {
 	Pool
-
-	// getFinalizeables provides a finalizeables slice from the pool.
-	getFinalizeables() []finalizeable
-
-	// putFinalizeables returns the finalizers to pool.
-	putFinalizeables([]finalizeable)
+	getFinalizeablesList() *finalizeableList
+	putFinalizeablesList(v *finalizeableList)
 }

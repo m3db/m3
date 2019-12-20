@@ -51,6 +51,15 @@ func (s *slowStorage) Fetch(
 	return s.storage.Fetch(ctx, query, options)
 }
 
+func (s *slowStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	time.Sleep(s.delay)
+	return s.storage.FetchProm(ctx, query, options)
+}
+
 func (s *slowStorage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -88,6 +97,14 @@ func (s *slowStorage) Write(
 
 func (s *slowStorage) Type() storage.Type {
 	return storage.TypeMultiDC
+}
+
+func (s *slowStorage) Name() string {
+	return "slow"
+}
+
+func (s *slowStorage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorFail
 }
 
 func (s *slowStorage) Close() error {

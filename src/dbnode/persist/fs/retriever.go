@@ -84,7 +84,7 @@ type blockRetriever struct {
 
 	newSeekerMgrFn newSeekerMgrFn
 
-	reqPool    retrieveRequestPool
+	reqPool    RetrieveRequestPool
 	bytesPool  pool.CheckedBytesPool
 	idPool     ident.Pool
 	nsMetadata namespace.Metadata
@@ -108,16 +108,12 @@ func NewBlockRetriever(
 		return nil, err
 	}
 
-	segmentReaderPool := opts.SegmentReaderPool()
-	reqPoolOpts := opts.RequestPoolOptions()
-	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
-	reqPool.Init()
 	return &blockRetriever{
 		opts:           opts,
 		fsOpts:         fsOpts,
 		logger:         fsOpts.InstrumentOptions().Logger(),
 		newSeekerMgrFn: NewSeekerManager,
-		reqPool:        reqPool,
+		reqPool:        opts.RetrieveRequestPool(),
 		bytesPool:      opts.BytesPool(),
 		idPool:         opts.IdentifierPool(),
 		status:         blockRetrieverNotOpen,
@@ -157,12 +153,19 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 
 func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	r.RLock()
-	defer r.RUnlock()
-
 	if r.status != blockRetrieverOpen {
+		r.RUnlock()
 		return errBlockRetrieverNotOpen
 	}
-	return r.seekerMgr.CacheShardIndices(shards)
+	seekerMgr := r.seekerMgr
+	r.RUnlock()
+
+	// Don't hold the RLock() for duration of CacheShardIndices because
+	// it can take a very long time and it could block the regular read
+	// path (which sometimes needs to acquire an exclusive lock). In practice
+	// this is fine, it just means that the Retriever could be closed while a
+	// call to CacheShardIndices is still outstanding.
+	return seekerMgr.CacheShardIndices(shards)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
@@ -408,14 +411,14 @@ func (r *blockRetriever) Stream(
 	}
 	r.RUnlock()
 
-	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
-	if !bloomFilter.Test(id.Bytes()) {
+	if !idExists {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
 		req.onRetrieved(ts.Segment{}, namespace.Context{})
 		return req.toBlock(), nil
@@ -685,7 +688,8 @@ func (r retrieveRequestByOffsetAsc) Less(i, j int) bool {
 	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
 }
 
-type retrieveRequestPool interface {
+// RetrieveRequestPool is the retrieve request pool.
+type RetrieveRequestPool interface {
 	Init()
 	Get() *retrieveRequest
 	Put(req *retrieveRequest)
@@ -696,10 +700,11 @@ type reqPool struct {
 	pool              pool.ObjectPool
 }
 
-func newRetrieveRequestPool(
+// NewRetrieveRequestPool returns a new retrieve request pool.
+func NewRetrieveRequestPool(
 	segmentReaderPool xio.SegmentReaderPool,
 	opts pool.ObjectPoolOptions,
-) retrieveRequestPool {
+) RetrieveRequestPool {
 	return &reqPool{
 		segmentReaderPool: segmentReaderPool,
 		pool:              pool.NewObjectPool(opts),

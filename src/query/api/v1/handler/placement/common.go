@@ -228,13 +228,14 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 // RegisterRoutes registers the placement routes
 func RegisterRoutes(
 	r *mux.Router,
+	defaults []handler.ServiceOptionsDefault,
 	opts HandlerOptions,
 ) {
 	// Init
 	var (
 		initHandler      = NewInitHandler(opts)
-		deprecatedInitFn = applyDeprecatedMiddleware(initHandler.ServeHTTP, opts.instrumentOptions)
-		initFn           = applyMiddleware(initHandler.ServeHTTP, opts.instrumentOptions)
+		deprecatedInitFn = applyDeprecatedMiddleware(initHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		initFn           = applyMiddleware(initHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBInitURL, deprecatedInitFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
@@ -244,8 +245,8 @@ func RegisterRoutes(
 	// Get
 	var (
 		getHandler      = NewGetHandler(opts)
-		deprecatedGetFn = applyDeprecatedMiddleware(getHandler.ServeHTTP, opts.instrumentOptions)
-		getFn           = applyMiddleware(getHandler.ServeHTTP, opts.instrumentOptions)
+		deprecatedGetFn = applyDeprecatedMiddleware(getHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		getFn           = applyMiddleware(getHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBGetURL, deprecatedGetFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
@@ -255,40 +256,40 @@ func RegisterRoutes(
 	// Delete all
 	var (
 		deleteAllHandler      = NewDeleteAllHandler(opts)
-		deprecatedDeleteAllFn = applyDeprecatedMiddleware(deleteAllHandler.ServeHTTP, opts.instrumentOptions)
-		deleteAllFn           = applyMiddleware(deleteAllHandler.ServeHTTP, opts.instrumentOptions)
+		deprecatedDeleteAllFn = applyDeprecatedMiddleware(deleteAllHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		deleteAllFn           = applyMiddleware(deleteAllHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deprecatedDeleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteAllURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 
 	// Add
 	var (
 		addHandler      = NewAddHandler(opts)
-		deprecatedAddFn = applyDeprecatedMiddleware(addHandler.ServeHTTP, opts.instrumentOptions)
-		addFn           = applyMiddleware(addHandler.ServeHTTP, opts.instrumentOptions)
+		deprecatedAddFn = applyDeprecatedMiddleware(addHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		addFn           = applyMiddleware(addHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBAddURL, deprecatedAddFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
-	r.HandleFunc(M3CoordinatorAddURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorAddURL, addFn).Methods(AddHTTPMethod)
 
 	// Delete
 	var (
 		deleteHandler      = NewDeleteHandler(opts)
-		deprecatedDeleteFn = applyDeprecatedMiddleware(deleteHandler.ServeHTTP, opts.instrumentOptions)
-		deleteFn           = applyMiddleware(deleteHandler.ServeHTTP, opts.instrumentOptions)
+		deprecatedDeleteFn = applyDeprecatedMiddleware(deleteHandler.ServeHTTP, defaults, opts.instrumentOptions)
+		deleteFn           = applyMiddleware(deleteHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deprecatedDeleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3CoordinatorDeleteURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
-		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, opts.instrumentOptions)
+		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP, defaults, opts.instrumentOptions)
 	)
 	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
 	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
@@ -396,38 +397,49 @@ func validateAllAvailable(p placement.Placement) error {
 }
 
 func applyMiddleware(
-	f func(serviceName string, w http.ResponseWriter, r *http.Request),
+	f func(svc handler.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
+	defaults []handler.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) func(w http.ResponseWriter, r *http.Request) {
 	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
-		parseServiceMiddleware(f),
+		parseServiceMiddleware(f, defaults),
 		instrumentOpts,
 	).ServeHTTP
 }
 
 func applyDeprecatedMiddleware(
-	f func(serviceName string, w http.ResponseWriter, r *http.Request),
+	f func(svc handler.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
+	defaults []handler.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) func(w http.ResponseWriter, r *http.Request) {
 	return logging.WithResponseTimeAndPanicErrorLoggingFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			f(handler.M3DBServiceName, w, r)
+			svc := handler.ServiceNameAndDefaults{
+				ServiceName: handler.M3DBServiceName,
+				Defaults:    defaults,
+			}
+			f(svc, w, r)
 		},
 		instrumentOpts,
 	).ServeHTTP
 }
 
 func parseServiceMiddleware(
-	next func(serviceName string, w http.ResponseWriter, r *http.Request),
+	next func(svc handler.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
+	defaults []handler.ServiceOptionsDefault,
 ) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		serviceName, err := parseServiceFromRequest(r)
+		var (
+			svc = handler.ServiceNameAndDefaults{Defaults: defaults}
+			err error
+		)
+		svc.ServiceName, err = parseServiceFromRequest(r)
 		if err != nil {
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
 
-		next(serviceName, w, r)
+		next(svc, w, r)
 	}
 }
 

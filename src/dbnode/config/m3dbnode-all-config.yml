@@ -2,7 +2,6 @@
 coordinator:
   # Address for M3Coordinator to listen for traffic.
   listenAddress:
-    type: "config"
     value: "0.0.0.0:7201"
 
   # All configured M3DB namespaces must be listed in this config if running an
@@ -154,9 +153,6 @@ db:
   # This feature is currently not working, do not enable.
   repair:
     enabled: false
-    interval: 2h
-    offset: 30m
-    jitter: 1h
     throttle: 2m
     checkInterval: 1m
 
@@ -202,7 +198,7 @@ db:
         capacity: 4096
         lowWatermark: 0.7
         highWatermark: 1.0
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
         size: 131072
         capacity: 3
         lowWatermark: 0.7

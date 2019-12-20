@@ -33,6 +33,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
@@ -40,7 +41,7 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.117.2
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
@@ -63,6 +64,7 @@ SERVICES :=     \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
+	m3comparator  \
 
 SUBDIRS :=    \
 	x           \
@@ -87,7 +89,6 @@ TOOLS :=               \
 	read_index_files     \
 	clone_fileset        \
 	dtest                \
-	verify_commitlogs    \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
@@ -111,6 +112,22 @@ endif
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
+
+.PHONY: $(SERVICE)-docker-dev
+$(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
+	mkdir -p ./bin/config
+	
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+
+	# Build development docker image
+	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+
+.PHONY: $(SERVICE)-docker-dev-push
+$(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
+	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
+	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
 
 endef
 
@@ -231,17 +248,25 @@ docs-test:
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
-	@./scripts/docker-integration-tests/setup.sh
-	@./scripts/docker-integration-tests/simple/test.sh
-	@./scripts/docker-integration-tests/prometheus/test.sh
-	@./scripts/docker-integration-tests/carbon/test.sh
-	@./scripts/docker-integration-tests/aggregator/test.sh
-	@./scripts/docker-integration-tests/query_fanout/test.sh
+	./scripts/docker-integration-tests/run.sh
+
+
+.PHONY: docker-compatibility-test
+docker-compatibility-test:
+	@echo "--- Running Prometheus compatibility test"
+	./scripts/comparator/run.sh
 
 .PHONY: site-build
 site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
+
+# Generate configs in config/
+.PHONY: config-gen
+config-gen: install-tools
+	@echo "--- Generating configs"
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
 
 SUBDIR_TARGETS := \
 	mock-gen        \
@@ -308,7 +333,7 @@ asset-gen-$(SUBDIR): install-tools
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
+		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
 	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
@@ -419,7 +444,7 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(retool_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
@@ -449,23 +474,26 @@ metalint: install-gometalinter install-linter-badtime install-linter-importorder
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager diff --exit-code --shortstat 2>/dev/null)" = "" || (git --no-pager diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(combined_bin_paths):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
 	PATH=$(combined_bin_paths):$(PATH) fossa test
 
-.PHONY: clean
-clean:
-	@rm -f *.html *.xml *.out *.test
+.PHONY: clean-build
+clean-build:
 	@rm -rf $(BUILD)
+
+.PHONY: clean
+clean: clean-build
+	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(VENDOR)
 	@rm -rf ./src/ctl/ui/build
 

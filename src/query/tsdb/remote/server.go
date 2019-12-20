@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -38,13 +39,17 @@ import (
 )
 
 const poolTimeout = time.Second * 10
+
+// TODO: adjust default batch based on message size; huge series can
+// unfortunately overwhelm this number.
 const defaultBatch = 128
 
 // TODO: add metrics
 type grpcServer struct {
+	createAt         time.Time
 	poolErr          error
 	batchSize        int
-	storage          m3.Storage
+	querier          m3.Querier
 	queryContextOpts models.QueryContextOptions
 	poolWrapper      *pools.PoolWrapper
 	once             sync.Once
@@ -62,14 +67,15 @@ func min(a, b int) int {
 
 // NewGRPCServer builds a grpc server which must be started later.
 func NewGRPCServer(
-	store m3.Storage,
+	querier m3.Querier,
 	queryContextOpts models.QueryContextOptions,
 	poolWrapper *pools.PoolWrapper,
 	instrumentOpts instrument.Options,
 ) *grpc.Server {
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
-		storage:          store,
+		createAt:         time.Now(),
+		querier:          querier,
 		queryContextOpts: queryContextOpts,
 		poolWrapper:      poolWrapper,
 		instrumentOpts:   instrumentOpts,
@@ -77,6 +83,17 @@ func NewGRPCServer(
 
 	rpc.RegisterQueryServer(server, grpcServer)
 	return server
+}
+
+func (s *grpcServer) Health(
+	ctx context.Context,
+	req *rpc.HealthRequest,
+) (*rpc.HealthResponse, error) {
+	uptime := time.Since(s.createAt)
+	return &rpc.HealthResponse{
+		UptimeDuration:    uptime.String(),
+		UptimeNanoseconds: int64(uptime),
+	}, nil
 }
 
 func (s *grpcServer) waitForPools() (encoding.IteratorPools, error) {
@@ -94,9 +111,15 @@ func (s *grpcServer) Fetch(
 ) error {
 	ctx := retrieveMetadata(stream.Context(), s.instrumentOpts)
 	logger := logging.WithContext(ctx, s.instrumentOpts)
-	storeQuery, fetchOpts, err := decodeFetchRequest(message)
+	storeQuery, err := decodeFetchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode fetch query", zap.Error(err))
+		return err
+	}
+
+	fetchOpts, err := decodeFetchOptions(message.GetOptions())
+	if err != nil {
+		logger.Error("unable to decode options", zap.Error(err))
 		return err
 	}
 
@@ -106,7 +129,7 @@ func (s *grpcServer) Fetch(
 		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
 	}
 
-	result, cleanup, err := s.storage.FetchCompressed(ctx, storeQuery, fetchOpts)
+	result, cleanup, err := s.querier.FetchCompressed(ctx, storeQuery, fetchOpts)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
@@ -125,11 +148,13 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
+	resultMeta := encodeResultMetadata(result.Metadata)
 	size := min(defaultBatch, len(results))
 	for ; len(results) > 0; results = results[size:] {
 		size = min(size, len(results))
 		response := &rpc.FetchResponse{
 			Series: results[:size],
+			Meta:   resultMeta,
 		}
 
 		err = stream.Send(response)
@@ -156,11 +181,13 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	// TODO(r): Allow propagation of limit from RPC request
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Remote = true
-	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-	results, cleanup, err := s.storage.SearchCompressed(ctx, searchQuery,
+	fetchOpts, err := decodeFetchOptions(message.GetOptions())
+	if err != nil {
+		logger.Error("unable to decode options", zap.Error(err))
+		return err
+	}
+
+	searchResults, cleanup, err := s.querier.SearchCompressed(ctx, searchQuery,
 		fetchOpts)
 	defer cleanup()
 	if err != nil {
@@ -174,10 +201,12 @@ func (s *grpcServer) Search(
 		return err
 	}
 
+	results := searchResults.Tags
 	size := min(defaultBatch, len(results))
 	for ; len(results) > 0; results = results[size:] {
 		size = min(size, len(results))
-		response, err := encodeToCompressedSearchResult(results[:size], pools)
+		response, err := encodeToCompressedSearchResult(results[:size],
+			searchResults.Metadata, pools)
 		if err != nil {
 			logger.Error("unable to encode search result", zap.Error(err))
 			return err
@@ -207,11 +236,13 @@ func (s *grpcServer) CompleteTags(
 		return err
 	}
 
-	// TODO(r): Allow propagation of limit from RPC request
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Remote = true
-	fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
-	completed, err := s.storage.CompleteTags(ctx, completeTagsQuery, fetchOpts)
+	fetchOpts, err := decodeFetchOptions(message.GetOptions().GetOptions())
+	if err != nil {
+		logger.Error("unable to decode options", zap.Error(err))
+		return err
+	}
+
+	completed, err := s.querier.CompleteTagsCompressed(ctx, completeTagsQuery, fetchOpts)
 	if err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		return err
@@ -224,6 +255,7 @@ func (s *grpcServer) CompleteTags(
 		results := &storage.CompleteTagsResult{
 			CompleteNameOnly: completed.CompleteNameOnly,
 			CompletedTags:    tags[:size],
+			Metadata:         completed.Metadata,
 		}
 
 		response, err := encodeToCompressedCompleteTagsResult(results)

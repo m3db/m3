@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/services"
@@ -45,6 +46,8 @@ const (
 	defaultRetryMaxRetries     = 3
 	defaultRetryMaxBackoff     = time.Duration(math.MaxInt64)
 	defaultRetryJitter         = true
+
+	defaultDirectoryMode = os.FileMode(0755)
 )
 
 type keepAliveOptions struct {
@@ -175,6 +178,7 @@ func NewOptions() Options {
 			SetMaxBackoff(defaultRetryMaxBackoff).
 			SetMaxRetries(defaultRetryMaxRetries).
 			SetJitter(defaultRetryJitter),
+		newDirectoryMode: defaultDirectoryMode,
 	}
 }
 
@@ -188,6 +192,7 @@ type options struct {
 	clusters          map[string]Cluster
 	iopts             instrument.Options
 	retryOpts         retry.Options
+	newDirectoryMode  os.FileMode
 }
 
 func (o options) Validate() error {
@@ -297,6 +302,15 @@ func (o options) WatchWithRevision() int64 {
 func (o options) SetWatchWithRevision(rev int64) Options {
 	o.watchWithRevision = rev
 	return o
+}
+
+func (o options) SetNewDirectoryMode(fm os.FileMode) Options {
+	o.newDirectoryMode = fm
+	return o
+}
+
+func (o options) NewDirectoryMode() os.FileMode {
+	return o.newDirectoryMode
 }
 
 // NewCluster creates a Cluster.

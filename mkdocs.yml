@@ -96,13 +96,16 @@ pages:
   - "Operational Guides":
     - "Overview": "operational_guide/index.md"
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
+    - "Replication Between Clusters": "operational_guide/replication_between_clusters.md"
+    - "Repairs": "operational_guide/repairs.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
     - "Namespace Configuration": "operational_guide/namespace_configuration.md"
-    - "Bootstrapping": "operational_guide/bootstrapping.md"
-    - "Kernel Configuration": "operational_guide/kernel_configuration.md"
+    - "Bootstrapping & Crash Recovery": "operational_guide/bootstrapping_crash_recovery.md"
+    - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
+    - "Monitoring": "operational_guide/monitoring.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

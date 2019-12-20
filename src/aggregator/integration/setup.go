@@ -256,6 +256,8 @@ func (ts *testServerSetup) startServer() error {
 		return err
 	}
 
+	instrumentOpts := instrument.NewOptions()
+
 	go func() {
 		if err := serve.Serve(
 			ts.rawTCPAddr,
@@ -266,6 +268,7 @@ func (ts *testServerSetup) startServer() error {
 			ts.m3msgServerOpts,
 			ts.aggregator,
 			ts.doneCh,
+			instrumentOpts,
 		); err != nil {
 			select {
 			case errCh <- err:

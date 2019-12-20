@@ -808,16 +808,39 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
+	// Make sure if we don't register to close the executor later
+	// that we close it before returning.
+	execCloseRegistered := false
+	defer func() {
+		if !execCloseRegistered {
+			b.closeExecutorAsync(exec)
+		}
+	}()
+
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
 	iter, err := exec.Execute(query.Query.SearchQuery())
 	if err != nil {
-		exec.Close()
 		return false, err
 	}
 
+	// Register the executor to close when context closes
+	// so can avoid copying the results into the map and just take
+	// references to it.
+	// NB(r): Needs to still be a valid query otherwise
+	// the context could be invalid because the caller early returned
+	// which means it can't be used for finalization any longer.
+	valid := cancellable.TryCheckout()
+	if !valid {
+		return false, errCancelledQuery
+	}
+	execCloseRegistered = true // Make sure to not locally close it.
+	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		b.closeExecutorAsync(exec)
+	}))
+	cancellable.ReleaseCheckout()
+
 	var (
 		iterCloser = safeCloser{closable: iter}
-		execCloser = safeCloser{closable: exec}
 		size       = results.Size()
 		docsPool   = b.opts.DocumentArrayPool()
 		batch      = docsPool.Get()
@@ -827,9 +850,9 @@ func (b *block) queryWithSpan(
 		batchSize = defaultQueryDocsBatchSize
 	}
 
+	// Register local data structures that need closing.
 	defer func() {
 		iterCloser.Close()
-		execCloser.Close()
 		docsPool.Put(batch)
 	}()
 
@@ -860,17 +883,19 @@ func (b *block) queryWithSpan(
 	if err := iter.Err(); err != nil {
 		return false, err
 	}
-
 	if err := iterCloser.Close(); err != nil {
-		return false, err
-	}
-
-	if err := execCloser.Close(); err != nil {
 		return false, err
 	}
 
 	exhaustive := !opts.LimitExceeded(size)
 	return exhaustive, nil
+}
+
+func (b *block) closeExecutorAsync(exec search.Executor) {
+	// Note: This only happens if closing the readers isn't clean.
+	if err := exec.Close(); err != nil {
+		b.logger.Error("could not close search exec", zap.Error(err))
+	}
 }
 
 func (b *block) addQueryResults(
@@ -1209,9 +1234,9 @@ func (b *block) AddResults(
 	return multiErr.FinalError()
 }
 
-func (b *block) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error) {
-	b.RLock()
-	defer b.RUnlock()
+func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
+	b.Lock()
+	defer b.Unlock()
 	result := BlockTickResult{}
 	if b.state == blockStateClosed {
 		return result, errUnableToTickBlockClosed
@@ -1227,15 +1252,23 @@ func (b *block) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResul
 		result.NumDocs += seg.Segment().Size()
 	}
 
+	multiErr := xerrors.NewMultiError()
+
 	// Any segments covering persisted shard ranges.
 	for _, group := range b.shardRangesSegments {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+				if err := immSeg.FreeMmap(); err != nil {
+					multiErr = multiErr.Add(err)
+				}
+			}
 		}
 	}
 
-	return result, nil
+	return result, multiErr.FinalError()
 }
 
 func (b *block) Seal() error {

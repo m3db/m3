@@ -21,7 +21,7 @@
 package binary
 
 import (
-	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -34,7 +34,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func builderMockWithExpectedValues(ctrl *gomock.Controller, indices []int, values [][]float64) block.Builder {
+var nan = math.NaN()
+
+func builderMockWithExpectedValues(
+	ctrl *gomock.Controller,
+	indices []int,
+	values [][]float64,
+) block.Builder {
 	builder := block.NewMockBuilder(ctrl)
 	for i, val := range values {
 		for _, idx := range indices {
@@ -45,7 +51,11 @@ func builderMockWithExpectedValues(ctrl *gomock.Controller, indices []int, value
 	return builder
 }
 
-func stepIterWithExpectedValues(ctrl *gomock.Controller, _ []int, values [][]float64) block.StepIter {
+func stepIterWithExpectedValues(
+	ctrl *gomock.Controller,
+	_ []int,
+	values [][]float64,
+) block.StepIter {
 	stepIter := block.NewMockStepIter(ctrl)
 	stepIter.EXPECT().Next().Return(true).Times(len(values))
 	for _, val := range values {
@@ -60,77 +70,6 @@ func stepIterWithExpectedValues(ctrl *gomock.Controller, _ []int, values [][]flo
 	return stepIter
 }
 
-var appendAtIndicesTests = []struct {
-	name                          string
-	indices, expectedIndices      []int
-	builderValues, expectedValues [][]float64
-}{
-	{
-		"no indices",
-		[]int{},
-		[]int{},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-	},
-	{
-		"take first",
-		[]int{0},
-		[]int{0},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-	},
-	{
-		"take second",
-		[]int{1},
-		[]int{1},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-	},
-	{
-		"take both",
-		[]int{0, 1},
-		[]int{0, 1},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-		[][]float64{[]float64{1, 2}, []float64{3, 4}},
-	},
-}
-
-func TestAppendAtIndices(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	for _, tt := range appendAtIndicesTests {
-		t.Run(tt.name, func(t *testing.T) {
-			builder := builderMockWithExpectedValues(ctrl, tt.expectedIndices, tt.expectedValues)
-			stepIter := stepIterWithExpectedValues(ctrl, tt.expectedIndices, tt.expectedValues)
-
-			err := appendValuesAtIndices(tt.indices, stepIter, builder)
-			assert.NoError(t, err)
-		})
-	}
-}
-
-func TestAddAtIndicesErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	builder := block.NewMockBuilder(ctrl)
-	builder.EXPECT().AppendValue(gomock.Any(), gomock.Any()).Return(nil)
-	stepIter := block.NewMockStepIter(ctrl)
-
-	msg := "err"
-	stepIter.EXPECT().Next().Return(true).Times(1)
-	bl := block.NewMockStep(ctrl)
-	bl.EXPECT().Values().Return([]float64{0})
-	stepIter.EXPECT().Current().Return(bl)
-
-	stepIter.EXPECT().Next().Return(false).Times(1)
-	stepIter.EXPECT().Err().Return(fmt.Errorf(msg))
-
-	err := appendValuesAtIndices([]int{0}, stepIter, builder)
-	assert.EqualError(t, err, msg)
-}
-
 var combineMetaAndSeriesMetaTests = []struct {
 	name                                        string
 	tags, otherTags, expectedTags               test.StringTags
@@ -139,89 +78,93 @@ var combineMetaAndSeriesMetaTests = []struct {
 }{
 	{
 		"no right tags",
-		test.StringTags{{"a", "b"}},
+		test.StringTags{{N: "a", V: "b"}},
 		test.StringTags{},
 		test.StringTags{},
 
-		test.StringTags{{"c", "d"}},
-		test.StringTags{{"1", "2"}},
-		test.StringTags{{"a", "b"}, {"c", "d"}},
-		test.StringTags{{"1", "2"}},
+		test.StringTags{{N: "c", V: "d"}},
+		test.StringTags{{N: "1", V: "2"}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}},
+		test.StringTags{{N: "1", V: "2"}},
 	},
 	{
 		"no left tags",
 		test.StringTags{},
-		test.StringTags{{"a", "b"}},
+		test.StringTags{{N: "a", V: "b"}},
 		test.StringTags{},
 
 		test.StringTags{},
 		test.StringTags{},
 		test.StringTags{},
-		test.StringTags{{"a", "b"}},
+		test.StringTags{{N: "a", V: "b"}},
 	},
 	{
 		"same tags",
-		test.StringTags{{"a", "b"}},
-		test.StringTags{{"a", "b"}},
-		test.StringTags{{"a", "b"}},
+		test.StringTags{{N: "a", V: "b"}},
+		test.StringTags{{N: "a", V: "b"}},
+		test.StringTags{{N: "a", V: "b"}},
 
-		test.StringTags{{"a", "b"}, {"c", "d"}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}},
 		test.StringTags{},
-		test.StringTags{{"a", "b"}, {"c", "d"}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}},
 		test.StringTags{},
 	},
 	{
 		"different tags",
-		test.StringTags{{"a", "b"}},
-		test.StringTags{{"c", "d"}},
+		test.StringTags{{N: "a", V: "b"}},
+		test.StringTags{{N: "c", V: "d"}},
 		test.StringTags{},
 
-		test.StringTags{{"1", "2"}},
-		test.StringTags{{"3", "4"}},
-		test.StringTags{{"1", "2"}, {"a", "b"}},
-		test.StringTags{{"3", "4"}, {"c", "d"}},
+		test.StringTags{{N: "1", V: "2"}},
+		test.StringTags{{N: "3", V: "4"}},
+		test.StringTags{{N: "1", V: "2"}, {N: "a", V: "b"}},
+		test.StringTags{{N: "3", V: "4"}, {N: "c", V: "d"}},
 	},
 	{
 		"conflicting tags",
-		test.StringTags{{"a", "b"}},
-		test.StringTags{{"a", "*b"}},
+		test.StringTags{{N: "a", V: "b"}},
+		test.StringTags{{N: "a", V: "*b"}},
 		test.StringTags{},
 
-		test.StringTags{{"1", "2"}},
-		test.StringTags{{"3", "4"}},
-		test.StringTags{{"1", "2"}, {"a", "b"}},
-		test.StringTags{{"3", "4"}, {"a", "*b"}},
+		test.StringTags{{N: "1", V: "2"}},
+		test.StringTags{{N: "3", V: "4"}},
+		test.StringTags{{N: "1", V: "2"}, {N: "a", V: "b"}},
+		test.StringTags{{N: "3", V: "4"}, {N: "a", V: "*b"}},
 	},
 	{
 		"mixed tags",
-		test.StringTags{{"a", "b"}, {"c", "d"}, {"e", "f"}},
-		test.StringTags{{"a", "b"}, {"c", "*d"}, {"g", "h"}},
-		test.StringTags{{"a", "b"}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}, {N: "e", V: "f"}},
+		test.StringTags{{N: "a", V: "b"}, {N: "c", V: "*d"}, {N: "g", V: "h"}},
+		test.StringTags{{N: "a", V: "b"}},
 
-		test.StringTags{{"1", "2"}},
-		test.StringTags{{"3", "4"}},
-		test.StringTags{{"1", "2"}, {"c", "d"}, {"e", "f"}},
-		test.StringTags{{"3", "4"}, {"c", "*d"}, {"g", "h"}},
+		test.StringTags{{N: "1", V: "2"}},
+		test.StringTags{{N: "3", V: "4"}},
+		test.StringTags{{N: "1", V: "2"}, {N: "c", V: "d"}, {N: "e", V: "f"}},
+		test.StringTags{{N: "3", V: "4"}, {N: "c", V: "*d"}, {N: "g", V: "h"}},
 	},
 }
 
 func TestCombineMetaAndSeriesMeta(t *testing.T) {
 	for _, tt := range combineMetaAndSeriesMetaTests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := test.StringTagsToTags(tt.tags)
-			otherTags := test.StringTagsToTags(tt.otherTags)
-			seriesTags := test.StringTagsToTags(tt.seriesTags)
-			expectedTags := test.StringTagsToTags(tt.expectedTags)
-			otherSeriesTags := test.StringTagsToTags(tt.otherSeriesTags)
-			expectedSeriesTags := test.StringTagsToTags(tt.expectedSeriesTags)
-			expectedOtherSeriesTags := test.StringTagsToTags(tt.expectedOtherSeriesTags)
+			var (
+				tags               = test.StringTagsToTags(tt.tags)
+				otherTags          = test.StringTagsToTags(tt.otherTags)
+				seriesTags         = test.StringTagsToTags(tt.seriesTags)
+				expectedTags       = test.StringTagsToTags(tt.expectedTags)
+				otherSeriesTags    = test.StringTagsToTags(tt.otherSeriesTags)
+				expectedSeriesTags = test.StringTagsToTags(tt.expectedSeriesTags)
+				expectedOtherTags  = test.StringTagsToTags(tt.expectedOtherSeriesTags)
 
-			meta, otherMeta := block.Metadata{Tags: tags}, block.Metadata{Tags: otherTags}
+				meta      = block.Metadata{Tags: tags}
+				otherMeta = block.Metadata{Tags: otherTags}
 
-			metas := []block.SeriesMeta{{Tags: seriesTags}, {Tags: seriesTags}}
-			otherMetas := []block.SeriesMeta{{Tags: otherSeriesTags}}
+				metas      = []block.SeriesMeta{{Tags: seriesTags}, {Tags: seriesTags}}
+				otherMetas = []block.SeriesMeta{{Tags: otherSeriesTags}}
+			)
 
-			meta, seriesMeta, otherSeriesMeta, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)
+			meta, seriesMeta, otherSeriesMeta, err := combineMetaAndSeriesMeta(meta,
+				otherMeta, metas, otherMetas)
 			require.NoError(t, err)
 			assert.Equal(t, expectedTags, meta.Tags)
 
@@ -232,7 +175,7 @@ func TestCombineMetaAndSeriesMeta(t *testing.T) {
 
 			require.Equal(t, 1, len(otherSeriesMeta))
 			for _, otherMeta := range otherSeriesMeta {
-				assert.Equal(t, expectedOtherSeriesTags, otherMeta.Tags)
+				assert.Equal(t, expectedOtherTags, otherMeta.Tags)
 			}
 		})
 	}

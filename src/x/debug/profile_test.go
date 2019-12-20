@@ -22,6 +22,7 @@ package debug
 
 import (
 	"bytes"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func TestProfileSources(t *testing.T) {
 
 				// Test zip writes
 				buf := bytes.NewBuffer([]byte{})
-				err = goProfSource.Write(buf)
+				err = goProfSource.Write(buf, &http.Request{})
 				require.NoError(t, err)
 				require.NotZero(t, buf.Len())
 			}

@@ -32,20 +32,32 @@ import (
 )
 
 // FetchResultToBlockResult converts a fetch result into coordinator blocks
-func FetchResultToBlockResult(result *FetchResult, query *FetchQuery, lookbackDuration time.Duration, enforcer cost.ChainedEnforcer) (block.Result, error) {
-	multiBlock, err := NewMultiSeriesBlock(result.SeriesList, query, lookbackDuration)
+func FetchResultToBlockResult(
+	result *FetchResult,
+	query *FetchQuery,
+	lookbackDuration time.Duration,
+	enforcer cost.ChainedEnforcer,
+) (block.Result, error) {
+	multiBlock, err := NewMultiSeriesBlock(result, query, lookbackDuration)
 	if err != nil {
-		return block.Result{}, err
+		return block.Result{
+			Metadata: block.NewResultMetadata(),
+		}, err
 	}
 
-	accountedBlock := block.NewAccountedBlock(NewMultiBlockWrapper(multiBlock), enforcer)
+	accountedBlock := block.NewAccountedBlock(
+		NewMultiBlockWrapper(multiBlock), enforcer)
+
 	return block.Result{
-		Blocks: []block.Block{accountedBlock},
+		Blocks:   []block.Block{accountedBlock},
+		Metadata: result.Metadata,
 	}, nil
 }
 
-// NewMultiBlockWrapper returns a block wrapper over an unconsolidated block
-func NewMultiBlockWrapper(unconsolidatedBlock block.UnconsolidatedBlock) block.Block {
+// NewMultiBlockWrapper returns a block wrapper over an unconsolidated block.
+func NewMultiBlockWrapper(
+	unconsolidatedBlock block.UnconsolidatedBlock,
+) block.Block {
 	return &multiBlockWrapper{
 		unconsolidated: unconsolidatedBlock,
 	}
@@ -57,6 +69,14 @@ type multiBlockWrapper struct {
 	mu               sync.RWMutex
 	consolidated     block.Block
 	unconsolidated   block.UnconsolidatedBlock
+}
+
+func (m *multiBlockWrapper) Meta() block.Metadata {
+	return m.unconsolidated.Meta()
+}
+
+func (m *multiBlockWrapper) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockMultiSeries)
 }
 
 func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
@@ -96,44 +116,6 @@ func (m *multiBlockWrapper) SeriesIter() (block.SeriesIter, error) {
 	return m.consolidated.SeriesIter()
 }
 
-func (m *multiBlockWrapper) WithMetadata(
-	meta block.Metadata,
-	seriesMetas []block.SeriesMeta,
-) (block.Block, error) {
-	var (
-		consolidated   block.Block
-		unconsolidated block.UnconsolidatedBlock
-		err            error
-	)
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if m.consolidated != nil {
-		consolidated, err = m.consolidated.WithMetadata(meta, seriesMetas)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if m.unconsolidated != nil {
-		unconsolidated, err = m.unconsolidated.WithMetadata(
-			meta,
-			seriesMetas,
-		)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &multiBlockWrapper{
-		unconsolidated:   unconsolidated,
-		consolidated:     consolidated,
-		consolidateError: m.consolidateError,
-	}, nil
-}
-
 func (m *multiBlockWrapper) Close() error {
 	return m.unconsolidated.Close()
 }
@@ -145,41 +127,31 @@ type multiSeriesBlock struct {
 	seriesList       ts.SeriesList
 }
 
-// NewMultiSeriesBlock returns a new unconsolidated block
-func NewMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery, lookbackDuration time.Duration) (block.UnconsolidatedBlock, error) {
+// NewMultiSeriesBlock returns a new unconsolidated block from a fetch result.
+func NewMultiSeriesBlock(
+	fetchResult *FetchResult,
+	query *FetchQuery,
+	lookbackDuration time.Duration,
+) (block.UnconsolidatedBlock, error) {
 	meta := block.Metadata{
 		Bounds: models.Bounds{
 			Start:    query.Start,
 			Duration: query.End.Sub(query.Start),
 			StepSize: query.Interval,
 		},
+
+		ResultMetadata: fetchResult.Metadata,
 	}
 
-	return multiSeriesBlock{seriesList: seriesList, meta: meta, lookbackDuration: lookbackDuration}, nil
+	return multiSeriesBlock{
+		seriesList:       fetchResult.SeriesList,
+		meta:             meta,
+		lookbackDuration: lookbackDuration,
+	}, nil
 }
 
 func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
-}
-
-func (m multiSeriesBlock) WithMetadata(
-	meta block.Metadata,
-	seriesMeta []block.SeriesMeta,
-) (block.UnconsolidatedBlock, error) {
-	if len(seriesMeta) != len(m.seriesList) {
-		return nil, errors.New("mismatched meta size")
-	}
-
-	block := multiSeriesBlock{
-		meta:       meta,
-		seriesList: m.seriesList,
-	}
-
-	for i, meta := range seriesMeta {
-		block.seriesList[i].Tags = meta.Tags
-	}
-
-	return block, nil
 }
 
 func (m multiSeriesBlock) StepCount() int {
@@ -193,6 +165,12 @@ func (m multiSeriesBlock) StepIter() (block.UnconsolidatedStepIter, error) {
 
 func (m multiSeriesBlock) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
 	return newMultiSeriesBlockSeriesIter(m), nil
+}
+
+func (m multiSeriesBlock) MultiSeriesIter(
+	concurrency int,
+) ([]block.UnconsolidatedSeriesIterBatch, error) {
+	return nil, errors.New("batched iterator is not supported by multiSeriesBlock")
 }
 
 func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
@@ -213,22 +191,8 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 	}, nil
 }
 
-func (c *consolidatedBlock) WithMetadata(
-	meta block.Metadata,
-	seriesMeta []block.SeriesMeta,
-) (block.Block, error) {
-	unconsolidated, err := c.unconsolidated.WithMetadata(
-		meta,
-		seriesMeta,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &consolidatedBlock{
-		unconsolidated:    unconsolidated,
-		consolidationFunc: c.consolidationFunc,
-	}, nil
+func (c *consolidatedBlock) Meta() block.Metadata {
+	return c.unconsolidated.Meta()
 }
 
 // TODO: Actually free up resources
@@ -242,14 +206,17 @@ type multiSeriesBlockStepIter struct {
 	values [][]ts.Datapoints
 }
 
-func newMultiSeriesBlockStepIter(b multiSeriesBlock) block.UnconsolidatedStepIter {
+func newMultiSeriesBlockStepIter(
+	b multiSeriesBlock,
+) block.UnconsolidatedStepIter {
 	values := make([][]ts.Datapoints, len(b.seriesList))
 	bounds := b.meta.Bounds
 	for i, s := range b.seriesList {
 		if b.consolidated {
-			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration)
+			values[i] = s.Values().AlignToBounds(bounds, b.lookbackDuration, nil)
 		} else {
-			values[i] = s.Values().AlignToBoundsNoWriteForward(bounds, b.lookbackDuration)
+			values[i] = s.Values().AlignToBoundsNoWriteForward(bounds,
+				b.lookbackDuration, nil)
 		}
 	}
 
@@ -262,10 +229,6 @@ func newMultiSeriesBlockStepIter(b multiSeriesBlock) block.UnconsolidatedStepIte
 
 func (m *multiSeriesBlockStepIter) SeriesMeta() []block.SeriesMeta {
 	return m.block.SeriesMeta()
-}
-
-func (m *multiSeriesBlockStepIter) Meta() block.Metadata {
-	return m.block.Meta()
 }
 
 func (m *multiSeriesBlockStepIter) Next() bool {
@@ -307,10 +270,6 @@ type multiSeriesBlockSeriesIter struct {
 	consolidated bool
 }
 
-func (m *multiSeriesBlockSeriesIter) Meta() block.Metadata {
-	return m.block.Meta()
-}
-
 func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return m.block.SeriesMeta()
 }
@@ -336,25 +295,7 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 
 func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
 	s := m.block.seriesList[m.index]
-	values := make([]ts.Datapoints, m.block.StepCount())
-	lookback := m.block.lookbackDuration
-	var seriesValues []ts.Datapoints
-	if m.consolidated {
-		seriesValues = s.Values().AlignToBounds(m.block.meta.Bounds, lookback)
-	} else {
-		seriesValues = s.Values().AlignToBoundsNoWriteForward(m.block.meta.Bounds, lookback)
-	}
-
-	seriesLen := len(seriesValues)
-	for i := 0; i < m.block.StepCount(); i++ {
-		if i < seriesLen {
-			values[i] = seriesValues[i]
-		} else {
-			values[i] = nil
-		}
-	}
-
-	return block.NewUnconsolidatedSeries(values, block.SeriesMeta{
+	return block.NewUnconsolidatedSeries(s.Values().Datapoints(), block.SeriesMeta{
 		Tags: s.Tags,
 		Name: s.Name(),
 	})

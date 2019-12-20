@@ -257,7 +257,8 @@ func makeTestWriteTagged(
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
+		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()
@@ -304,7 +305,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	require.Equal(t, nsCtx.ID.String(), results.Namespace().String())
 	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
 	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
-		"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
+		"foo", "bar", "boo", "baz")).Matches(tags)
 
 	if !idxFound {
 		return false

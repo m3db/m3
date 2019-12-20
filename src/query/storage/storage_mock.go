@@ -85,6 +85,20 @@ func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTags", reflect.TypeOf((*MockStorage)(nil).CompleteTags), arg0, arg1, arg2)
 }
 
+// ErrorBehavior mocks base method
+func (m *MockStorage) ErrorBehavior() ErrorBehavior {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ErrorBehavior")
+	ret0, _ := ret[0].(ErrorBehavior)
+	return ret0
+}
+
+// ErrorBehavior indicates an expected call of ErrorBehavior
+func (mr *MockStorageMockRecorder) ErrorBehavior() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorBehavior", reflect.TypeOf((*MockStorage)(nil).ErrorBehavior))
+}
+
 // Fetch mocks base method
 func (m *MockStorage) Fetch(arg0 context.Context, arg1 *FetchQuery, arg2 *FetchOptions) (*FetchResult, error) {
 	m.ctrl.T.Helper()
@@ -113,6 +127,35 @@ func (m *MockStorage) FetchBlocks(arg0 context.Context, arg1 *FetchQuery, arg2 *
 func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockStorage)(nil).FetchBlocks), arg0, arg1, arg2)
+}
+
+// FetchProm mocks base method
+func (m *MockStorage) FetchProm(arg0 context.Context, arg1 *FetchQuery, arg2 *FetchOptions) (PromResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchProm", arg0, arg1, arg2)
+	ret0, _ := ret[0].(PromResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchProm indicates an expected call of FetchProm
+func (mr *MockStorageMockRecorder) FetchProm(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchProm", reflect.TypeOf((*MockStorage)(nil).FetchProm), arg0, arg1, arg2)
+}
+
+// Name mocks base method
+func (m *MockStorage) Name() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Name")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Name indicates an expected call of Name
+func (mr *MockStorageMockRecorder) Name() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockStorage)(nil).Name))
 }
 
 // SearchSeries mocks base method

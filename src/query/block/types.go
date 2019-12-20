@@ -21,13 +21,41 @@
 package block
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+)
+
+// BlockType describes a block type.
+type BlockType uint8
+
+const (
+	// BlockM3TSZCompressed is an M3TSZ compressed block.
+	BlockM3TSZCompressed BlockType = iota
+	// BlockDecompressed is a decompressed raw data block.
+	BlockDecompressed
+	// BlockScalar is a scalar block with a single value throughout its range.
+	BlockScalar
+	// BlockTime is a block with datapoint values given by a function of their
+	// timestamps.
+	BlockTime
+	// BlockLazy is a wrapper for an inner block that lazily applies transforms.
+	BlockLazy
+	// BlockContainer is a block that contains multiple inner blocks that share
+	// common metadata.
+	BlockContainer
+	// BlockEmpty is a block with metadata but no series or values.
+	BlockEmpty
+	// BlockMultiSeries is a block containing series with common metadata.
+	//
+	// TODO: (arnikola) do some refactoring to remove the blocks and types below,
+	// as they can be better handled by the above block types.
+	BlockMultiSeries
+	// BlockConsolidated is a consolidated block.
+	BlockConsolidated
 )
 
 // Block represents a group of series across a time bound.
@@ -41,17 +69,22 @@ type Block interface {
 	// SeriesIter returns a series-wise block iterator, giving consolidated values
 	// by series.
 	SeriesIter() (SeriesIter, error)
-	// WithMetadata returns a block with updated meta and series metadata.
-	WithMetadata(Metadata, []SeriesMeta) (Block, error)
+	// Meta returns the metadata for the block.
+	Meta() Metadata
+	// Info returns information about the block.
+	Info() BlockInfo
 }
 
+// AccumulatorBlock accumulates incoming blocks and presents them as a single
+// Block.
 type AccumulatorBlock interface {
 	Block
 	// AddBlock adds a block to this accumulator.
 	AddBlock(bl Block) error
 }
 
-// UnconsolidatedBlock represents a group of unconsolidated series across a time bound
+// UnconsolidatedBlock represents a group of unconsolidated series across
+// a time bound.
 type UnconsolidatedBlock interface {
 	io.Closer
 	// StepIter returns a step-wise block iterator, giving unconsolidated values
@@ -62,8 +95,11 @@ type UnconsolidatedBlock interface {
 	SeriesIter() (UnconsolidatedSeriesIter, error)
 	// Consolidate attempts to consolidate the unconsolidated block.
 	Consolidate() (Block, error)
-	// WithMetadata returns a block with updated meta and series metadata.
-	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
+	// Meta returns the metadata for the block.
+	Meta() Metadata
+	// MultiSeriesIter returns batched series iterators for the block based on
+	// given concurrency.
+	MultiSeriesIter(concurrency int) ([]UnconsolidatedSeriesIterBatch, error)
 }
 
 // SeriesMeta is metadata data for the series.
@@ -86,17 +122,10 @@ type Iterator interface {
 	Close()
 }
 
-// MetaIter is implemented by iterators which provide meta information.
-type MetaIter interface {
-	// SeriesMeta returns the metadata for each series in the block.
-	SeriesMeta() []SeriesMeta
-	// Meta returns the metadata for the block.
-	Meta() Metadata
-}
-
 // SeriesMetaIter is implemented by series iterators which provide meta information.
 type SeriesMetaIter interface {
-	MetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
 	// SeriesCount returns the number of series.
 	SeriesCount() int
 }
@@ -109,6 +138,14 @@ type SeriesIter interface {
 	Current() Series
 }
 
+// UnconsolidatedSeriesIterBatch is a batch of UnconsolidatedSeriesIterators.
+type UnconsolidatedSeriesIterBatch struct {
+	// Iter is the series iterator.
+	Iter UnconsolidatedSeriesIter
+	// Size is the batch size.
+	Size int
+}
+
 // UnconsolidatedSeriesIter iterates through a block horizontally.
 type UnconsolidatedSeriesIter interface {
 	Iterator
@@ -119,7 +156,8 @@ type UnconsolidatedSeriesIter interface {
 
 // StepMetaIter is implemented by step iterators which provide meta information.
 type StepMetaIter interface {
-	MetaIter
+	// SeriesMeta returns the metadata for each series in the block.
+	SeriesMeta() []SeriesMeta
 	// StepCount returns the number of steps.
 	StepCount() int
 }
@@ -152,28 +190,33 @@ type UnconsolidatedStep interface {
 	Values() []ts.Datapoints
 }
 
-// Metadata is metadata for a block.
-type Metadata struct {
-	Bounds models.Bounds
-	Tags   models.Tags // Common tags across different series
-}
-
-// String returns a string representation of metadata.
-func (m Metadata) String() string {
-	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
-}
-
-// Builder builds a new block.
+// Builder builds Blocks.
 type Builder interface {
-	AppendValue(idx int, value float64) error
-	AppendValues(idx int, values []float64) error
-	Build() Block
+	// AddCols adds the given number of columns to the block.
 	AddCols(num int) error
+	// SetRow sets a given block row to the given values and metadata.
+	SetRow(idx int, values []float64, meta SeriesMeta) error
+	// PopulateColumns sets all columns to the given size.
+	PopulateColumns(size int)
+	// AppendValue adds a single value to the column at the given index.
+	AppendValue(idx int, value float64) error
+	// AppendValues adds a slice of values to the column at the given index.
+	AppendValues(idx int, values []float64) error
+	// Build builds the block.
+	Build() Block
+	// BuildAsType builds the block, forcing it to the given BlockType.
+	BuildAsType(blockType BlockType) Block
 }
 
-// Result is the result from a block query.
+// Result is a fetch result containing multiple blocks optionally split across
+// time boundaries.
 type Result struct {
+	// Blocks is a list of blocks, optionally split across time boundaries.
 	Blocks []Block
+	// Metadata contains information on fetch status.
+	Metadata ResultMetadata
+	// Resolutions contains a slice representing resolution for graphite queries.
+	Resolutions []int
 }
 
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value.
@@ -196,6 +239,9 @@ type TimeTransform func(time.Time) time.Time
 // MetaTransform transforms meta data.
 type MetaTransform func(meta Metadata) Metadata
 
+// SeriesMetaTransform transforms series meta data.
+type SeriesMetaTransform func(meta []SeriesMeta) []SeriesMeta
+
 // ValueTransform transform a float64.
 type ValueTransform func(float64) float64
 
@@ -205,12 +251,16 @@ type LazyOptions interface {
 	SetTimeTransform(TimeTransform) LazyOptions
 	// TimeTransform returns the time transform function.
 	TimeTransform() TimeTransform
-	// SetMetaTransform sets the meta transform function.
-	SetMetaTransform(MetaTransform) LazyOptions
-	// MetaTransform returns the meta transform function.
-	MetaTransform() MetaTransform
 	// SetValueTransform sets the value transform function.
 	SetValueTransform(ValueTransform) LazyOptions
 	// ValueTransform returns the value transform function.
 	ValueTransform() ValueTransform
+	// SetMetaTransform sets the meta transform function.
+	SetMetaTransform(MetaTransform) LazyOptions
+	// MetaTransform returns the meta transform function.
+	MetaTransform() MetaTransform
+	// SetSeriesMetaTransform sets the series meta transform function.
+	SetSeriesMetaTransform(SeriesMetaTransform) LazyOptions
+	// SeriesMetaTransform returns the series meta transform function.
+	SeriesMetaTransform() SeriesMetaTransform
 }

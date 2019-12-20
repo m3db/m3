@@ -20,6 +20,13 @@
 
 package handler
 
+import (
+	"net/http"
+	"strings"
+
+	"github.com/m3db/m3/src/query/block"
+)
+
 const (
 	// WarningsHeader is the M3 warnings header when to display a warning to a user.
 	WarningsHeader = "M3-Warnings"
@@ -49,6 +56,10 @@ const (
 	// metrics type.
 	MetricsStoragePolicyHeader = "M3-Storage-Policy"
 
+	// RestrictByTagsJSONHeader provides tag options to enforces on queries,
+	// in JSON format. See `handler.stringTagOptions` for definitions.`
+	RestrictByTagsJSONHeader = "M3-Restrict-By-Tags-JSON"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 
@@ -67,4 +78,36 @@ const (
 	HeaderDryRun = "Dry-Run"
 	// HeaderForce is the header used to specify whether this should be a forced operation.
 	HeaderForce = "Force"
+
+	// LimitHeader is the header added when returned series are limited.
+	LimitHeader = "M3-Results-Limited"
+
+	// LimitHeaderSeriesLimitApplied is the header applied when fetch results are
+	// maxed.
+	LimitHeaderSeriesLimitApplied = "max_fetch_series_limit_applied"
 )
+
+// AddWarningHeaders adds any warning headers present in the result's metadata.
+// No-op if no warnings encountered.
+func AddWarningHeaders(w http.ResponseWriter, meta block.ResultMetadata) {
+	ex := meta.Exhaustive
+	warns := len(meta.Warnings)
+	if !ex {
+		warns++
+	}
+
+	if warns == 0 {
+		return
+	}
+
+	warnings := make([]string, 0, warns)
+	if !ex {
+		warnings = append(warnings, LimitHeaderSeriesLimitApplied)
+	}
+
+	for _, warn := range meta.Warnings {
+		warnings = append(warnings, warn.Header())
+	}
+
+	w.Header().Set(LimitHeader, strings.Join(warnings, ","))
+}

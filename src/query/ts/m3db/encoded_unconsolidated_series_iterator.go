@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	xts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 type encodedSeriesIterUnconsolidated struct {
@@ -33,6 +33,8 @@ type encodedSeriesIterUnconsolidated struct {
 	lookbackDuration time.Duration
 	err              error
 	meta             block.Metadata
+	datapoints       ts.Datapoints
+	alignedValues    []ts.Datapoints
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator
@@ -47,7 +49,7 @@ func (b *encodedBlockUnconsolidated) SeriesIter() (
 		meta:             b.meta,
 		seriesMeta:       b.seriesMetas,
 		seriesIters:      b.seriesBlockIterators,
-		lookbackDuration: b.lookback,
+		lookbackDuration: b.options.LookbackDuration(),
 	}, nil
 }
 
@@ -71,11 +73,16 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 	}
 
 	iter := it.seriesIters[it.idx]
-	values := make(xts.Datapoints, 0, initBlockReplicaLength)
+	if it.datapoints == nil {
+		it.datapoints = make(ts.Datapoints, 0, initBlockReplicaLength)
+	} else {
+		it.datapoints = it.datapoints[:0]
+	}
+
 	for iter.Next() {
 		dp, _, _ := iter.Current()
-		values = append(values,
-			xts.Datapoint{
+		it.datapoints = append(it.datapoints,
+			ts.Datapoint{
 				Timestamp: dp.Timestamp,
 				Value:     dp.Value,
 			})
@@ -85,8 +92,10 @@ func (it *encodedSeriesIterUnconsolidated) Next() bool {
 		return false
 	}
 
-	alignedValues := values.AlignToBoundsNoWriteForward(it.meta.Bounds, it.lookbackDuration)
-	it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
+	it.series = block.NewUnconsolidatedSeries(
+		it.datapoints,
+		it.seriesMeta[it.idx],
+	)
 
 	return next
 }
@@ -97,10 +106,6 @@ func (it *encodedSeriesIterUnconsolidated) SeriesCount() int {
 
 func (it *encodedSeriesIterUnconsolidated) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
-}
-
-func (it *encodedSeriesIterUnconsolidated) Meta() block.Metadata {
-	return it.meta
 }
 
 func (it *encodedSeriesIterUnconsolidated) Close() {

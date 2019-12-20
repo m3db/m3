@@ -22,6 +22,24 @@ package storage
 
 import "fmt"
 
+var (
+	validMetricsTypes = []MetricsType{
+		UnaggregatedMetricsType,
+		AggregatedMetricsType,
+	}
+)
+
+func (t MetricsType) String() string {
+	switch t {
+	case UnaggregatedMetricsType:
+		return "unaggregated"
+	case AggregatedMetricsType:
+		return "aggregated"
+	default:
+		return "unknown"
+	}
+}
+
 // ParseMetricsType parses a metric type.
 func ParseMetricsType(str string) (MetricsType, error) {
 	for _, valid := range validMetricsTypes {
@@ -29,6 +47,7 @@ func ParseMetricsType(str string) (MetricsType, error) {
 			return valid, nil
 		}
 	}
+
 	return 0, fmt.Errorf("unrecognized metrics type: %v", str)
 }
 
@@ -39,20 +58,23 @@ func ValidateMetricsType(v MetricsType) error {
 			return nil
 		}
 	}
+
 	return fmt.Errorf("invalid stored metrics type '%v': should be one of %v",
 		v, validMetricsTypes)
 }
 
 // UnmarshalYAML unmarshals a stored merics type.
-func (v *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (t *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
+
 	if value, err := ParseMetricsType(str); err == nil {
-		*v = value
+		*t = value
 		return nil
 	}
+
 	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
 		str, validMetricsTypes)
 }

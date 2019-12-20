@@ -39,6 +39,10 @@ else
     echo "Running single node"
 fi
 
+echo "Wait for coordinator API to be up"
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  'curl -vvvsSf localhost:7201/health'
+
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     echo "Running aggregator pipeline"
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
@@ -46,7 +50,7 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
         "replication_factor": 1,
         "instances": [
             {
-                "id": "m3aggregator01:6000",
+                "id": "m3aggregator01",
                 "isolation_group": "rack-a",
                 "zone": "embedded",
                 "weight": 1024,
@@ -67,10 +71,6 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
 else
     echo "Not running aggregator pipeline"
 fi
-
-echo "Wait for coordinator API to be up"
-ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  'curl -vvvsSf localhost:7201/health'
 
 echo "Initializing namespaces"
 curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{

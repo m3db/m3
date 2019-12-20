@@ -23,11 +23,13 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/query/util/writer"
+
+	"github.com/cespare/xxhash"
 )
 
 // NewTags builds a tags with the given size and tag options.
@@ -384,6 +386,29 @@ func (t Tags) AddOrUpdateTag(tag Tag) Tags {
 	return t.AddTag(tag)
 }
 
+// AddTagsIfNotExists is used to add a list of tags with unique names
+// and maintain sorted order.
+func (t Tags) AddTagsIfNotExists(tags []Tag) Tags {
+	for _, tt := range tags {
+		t = t.addIfMissingTag(tt)
+	}
+
+	return t.Normalize()
+}
+
+// addIfMissingTag is used to add a single tag and maintain sorted order,
+// or to replace the value of an existing tag.
+func (t Tags) addIfMissingTag(tag Tag) Tags {
+	tags := t.Tags
+	for _, tt := range tags {
+		if bytes.Equal(tag.Name, tt.Name) {
+			return t
+		}
+	}
+
+	return t.AddTag(tag)
+}
+
 // Add is used to add two tag structures and maintain sorted order.
 func (t Tags) Add(other Tags) Tags {
 	t.Tags = append(t.Tags, other.Tags...)
@@ -430,14 +455,62 @@ func (t Tags) Normalize() Tags {
 }
 
 // HashedID returns the hashed ID for the tags.
-func (t Tags) HashedID() uint64 {
-	h := fnv.New64a()
-	h.Write(t.ID())
-	return h.Sum64()
+func (t Tags) Reset() Tags {
+	t.Tags = t.Tags[:0]
+	return t
 }
 
+// HashedID returns the hashed ID for the tags.
+func (t Tags) HashedID() uint64 {
+	return xxhash.Sum64(t.ID())
+}
+
+// Equals returns a boolean reporting whether the compared tags have the same
+// values.
+//
+// NB: does not check that compared tags have the same underlying bytes.
+func (t Tags) Equals(other Tags) bool {
+	if t.Len() != other.Len() {
+		return false
+	}
+
+	if !t.Opts.Equals(other.Opts) {
+		return false
+	}
+
+	for i, t := range t.Tags {
+		if !t.Equals(other.Tags[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+var tagSeperator = []byte(", ")
+
+// String returns the string representation of the tags.
+func (t Tags) String() string {
+	var sb strings.Builder
+	for i, tt := range t.Tags {
+		if i != 0 {
+			sb.Write(tagSeperator)
+		}
+		sb.WriteString(tt.String())
+	}
+	return sb.String()
+}
+
+// String returns the string representation of the tag.
 func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
+}
+
+// Equals returns a boolean indicating whether the provided tags are equal.
+//
+// NB: does not check that compared tags have the same underlying bytes.
+func (t Tag) Equals(other Tag) bool {
+	return bytes.Equal(t.Name, other.Name) && bytes.Equal(t.Value, other.Value)
 }
 
 // Clone returns a copy of the tag.

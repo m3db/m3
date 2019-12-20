@@ -23,44 +23,71 @@ package m3db
 import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedStepIterUnconsolidated struct {
-	accumulator *consolidators.StepLookbackAccumulator
+	collectors []*consolidators.StepLookbackAccumulator
 	encodedStepIterWithCollector
+	points []ts.Datapoints
 }
 
 func (b *encodedBlockUnconsolidated) StepIter() (
 	block.UnconsolidatedStepIter,
 	error,
 ) {
-	cs := b.consolidation
-	iters := b.seriesBlockIterators
-	accumulator := consolidators.NewStepLookbackAccumulator(
-		b.lookback,
-		cs.bounds.StepSize,
-		cs.currentTime,
-		len(b.seriesBlockIterators),
+	var (
+		cs       = b.consolidation
+		iters    = b.seriesBlockIterators
+		lookback = b.options.LookbackDuration()
+
+		collectors       = make([]*consolidators.StepLookbackAccumulator, len(iters))
+		seriesCollectors = make([]consolidators.StepCollector, len(iters))
 	)
 
-	return &encodedStepIterUnconsolidated{
-		accumulator: accumulator,
+	for i := range iters {
+		collectors[i] = consolidators.NewStepLookbackAccumulator(
+			lookback,
+			cs.bounds.StepSize,
+			cs.currentTime,
+		)
+	}
+
+	for i := range collectors {
+		seriesCollectors[i] = collectors[i]
+	}
+
+	iter := &encodedStepIterUnconsolidated{
+		collectors: collectors,
+		points:     make([]ts.Datapoints, 0, len(iters)),
 		encodedStepIterWithCollector: encodedStepIterWithCollector{
 			lastBlock: b.lastBlock,
 
 			stepTime:   cs.currentTime,
+			blockEnd:   b.meta.Bounds.End(),
 			meta:       b.meta,
 			seriesMeta: b.seriesMetas,
 
-			collector:   accumulator,
-			seriesPeek:  make([]peekValue, len(iters)),
-			seriesIters: iters,
+			seriesPeek:       make([]peekValue, len(iters)),
+			seriesIters:      iters,
+			seriesCollectors: seriesCollectors,
+
+			workerPool: b.options.ReadWorkerPool(),
 		},
-	}, nil
+	}
+
+	iter.encodedStepIterWithCollector.updateFn = iter.update
+	return iter, nil
+}
+
+func (it *encodedStepIterUnconsolidated) update() {
+	it.points = it.points[:0]
+	for _, consolidator := range it.collectors {
+		it.points = append(it.points, consolidator.AccumulateAndMoveToNext())
+	}
 }
 
 func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
-	points := it.accumulator.AccumulateAndMoveToNext()
-	return storage.NewUnconsolidatedStep(it.stepTime, points)
+	return storage.NewUnconsolidatedStep(it.stepTime, it.points)
 }

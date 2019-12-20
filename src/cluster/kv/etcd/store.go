@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
@@ -102,7 +103,7 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 	store.wm = wm
 
 	if store.cacheFile != "" {
-		if err := store.initCache(); err != nil {
+		if err := store.initCache(opts.NewDirectoryMode()); err != nil {
 			store.logger.Warn("could not load cache from file", zap.String("file", store.cacheFile), zap.Error(err))
 		} else {
 			store.logger.Info("successfully loaded cache from file", zap.String("file", store.cacheFile))
@@ -111,7 +112,7 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 		go func() {
 			for range store.cacheUpdatedCh {
 				if err := store.writeCacheToFile(); err != nil {
-					store.logger.Error("failed to write cache to file", zap.Error(err))
+					store.logger.Warn("failed to write cache to file", zap.Error(err))
 				}
 			}
 		}()
@@ -616,7 +617,30 @@ func (c *client) writeCacheToFile() error {
 	return nil
 }
 
-func (c *client) initCache() error {
+func (c *client) createCacheDir(fm os.FileMode) error {
+	path := path.Dir(c.opts.CacheFileFn()(c.opts.Prefix()))
+	if err := os.MkdirAll(path, fm); err != nil {
+		c.m.diskWriteError.Inc(1)
+		c.logger.Warn("error creating cache directory",
+			zap.String("path", path),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	c.logger.Info("successfully created new cache dir",
+		zap.String("path", path),
+		zap.Int("mode", int(fm)),
+	)
+
+	return nil
+}
+
+func (c *client) initCache(fm os.FileMode) error {
+	if err := c.createCacheDir(fm); err != nil {
+		c.m.diskWriteError.Inc(1)
+		return fmt.Errorf("error creating cache directory: %s", err)
+	}
 	file, err := os.Open(c.cacheFile)
 	if err != nil {
 		c.m.diskReadError.Inc(1)

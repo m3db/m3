@@ -70,6 +70,34 @@ func (mr *MockBlockMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBlock)(nil).Close))
 }
 
+// Info mocks base method
+func (m *MockBlock) Info() BlockInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Info")
+	ret0, _ := ret[0].(BlockInfo)
+	return ret0
+}
+
+// Info indicates an expected call of Info
+func (mr *MockBlockMockRecorder) Info() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Info", reflect.TypeOf((*MockBlock)(nil).Info))
+}
+
+// Meta mocks base method
+func (m *MockBlock) Meta() Metadata {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Meta")
+	ret0, _ := ret[0].(Metadata)
+	return ret0
+}
+
+// Meta indicates an expected call of Meta
+func (mr *MockBlockMockRecorder) Meta() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockBlock)(nil).Meta))
+}
+
 // SeriesIter mocks base method
 func (m *MockBlock) SeriesIter() (SeriesIter, error) {
 	m.ctrl.T.Helper()
@@ -113,21 +141,6 @@ func (m *MockBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 func (mr *MockBlockMockRecorder) Unconsolidated() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unconsolidated", reflect.TypeOf((*MockBlock)(nil).Unconsolidated))
-}
-
-// WithMetadata mocks base method
-func (m *MockBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (Block, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithMetadata", arg0, arg1)
-	ret0, _ := ret[0].(Block)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WithMetadata indicates an expected call of WithMetadata
-func (mr *MockBlockMockRecorder) WithMetadata(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockBlock)(nil).WithMetadata), arg0, arg1)
 }
 
 // MockStepIter is a mock of StepIter interface
@@ -191,20 +204,6 @@ func (m *MockStepIter) Err() error {
 func (mr *MockStepIterMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockStepIter)(nil).Err))
-}
-
-// Meta mocks base method
-func (m *MockStepIter) Meta() Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Meta")
-	ret0, _ := ret[0].(Metadata)
-	return ret0
-}
-
-// Meta indicates an expected call of Meta
-func (mr *MockStepIterMockRecorder) Meta() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockStepIter)(nil).Meta))
 }
 
 // Next mocks base method
@@ -310,20 +309,6 @@ func (m *MockSeriesIter) Err() error {
 func (mr *MockSeriesIterMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSeriesIter)(nil).Err))
-}
-
-// Meta mocks base method
-func (m *MockSeriesIter) Meta() Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Meta")
-	ret0, _ := ret[0].(Metadata)
-	return ret0
-}
-
-// Meta indicates an expected call of Meta
-func (mr *MockSeriesIterMockRecorder) Meta() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockSeriesIter)(nil).Meta))
 }
 
 // Next mocks base method
@@ -447,6 +432,46 @@ func (mr *MockBuilderMockRecorder) Build() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockBuilder)(nil).Build))
 }
 
+// BuildAsType mocks base method
+func (m *MockBuilder) BuildAsType(arg0 BlockType) Block {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BuildAsType", arg0)
+	ret0, _ := ret[0].(Block)
+	return ret0
+}
+
+// BuildAsType indicates an expected call of BuildAsType
+func (mr *MockBuilderMockRecorder) BuildAsType(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildAsType", reflect.TypeOf((*MockBuilder)(nil).BuildAsType), arg0)
+}
+
+// PopulateColumns mocks base method
+func (m *MockBuilder) PopulateColumns(arg0 int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "PopulateColumns", arg0)
+}
+
+// PopulateColumns indicates an expected call of PopulateColumns
+func (mr *MockBuilderMockRecorder) PopulateColumns(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopulateColumns", reflect.TypeOf((*MockBuilder)(nil).PopulateColumns), arg0)
+}
+
+// SetRow mocks base method
+func (m *MockBuilder) SetRow(arg0 int, arg1 []float64, arg2 SeriesMeta) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRow", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetRow indicates an expected call of SetRow
+func (mr *MockBuilderMockRecorder) SetRow(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRow", reflect.TypeOf((*MockBuilder)(nil).SetRow), arg0, arg1, arg2)
+}
+
 // MockStep is a mock of Step interface
 type MockStep struct {
 	ctrl     *gomock.Controller
@@ -550,6 +575,35 @@ func (mr *MockUnconsolidatedBlockMockRecorder) Consolidate() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Consolidate", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).Consolidate))
 }
 
+// Meta mocks base method
+func (m *MockUnconsolidatedBlock) Meta() Metadata {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Meta")
+	ret0, _ := ret[0].(Metadata)
+	return ret0
+}
+
+// Meta indicates an expected call of Meta
+func (mr *MockUnconsolidatedBlockMockRecorder) Meta() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).Meta))
+}
+
+// MultiSeriesIter mocks base method
+func (m *MockUnconsolidatedBlock) MultiSeriesIter(arg0 int) ([]UnconsolidatedSeriesIterBatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MultiSeriesIter", arg0)
+	ret0, _ := ret[0].([]UnconsolidatedSeriesIterBatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MultiSeriesIter indicates an expected call of MultiSeriesIter
+func (mr *MockUnconsolidatedBlockMockRecorder) MultiSeriesIter(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiSeriesIter", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).MultiSeriesIter), arg0)
+}
+
 // SeriesIter mocks base method
 func (m *MockUnconsolidatedBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
 	m.ctrl.T.Helper()
@@ -578,21 +632,6 @@ func (m *MockUnconsolidatedBlock) StepIter() (UnconsolidatedStepIter, error) {
 func (mr *MockUnconsolidatedBlockMockRecorder) StepIter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StepIter", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).StepIter))
-}
-
-// WithMetadata mocks base method
-func (m *MockUnconsolidatedBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (UnconsolidatedBlock, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithMetadata", arg0, arg1)
-	ret0, _ := ret[0].(UnconsolidatedBlock)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// WithMetadata indicates an expected call of WithMetadata
-func (mr *MockUnconsolidatedBlockMockRecorder) WithMetadata(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockUnconsolidatedBlock)(nil).WithMetadata), arg0, arg1)
 }
 
 // MockUnconsolidatedStepIter is a mock of UnconsolidatedStepIter interface
@@ -656,20 +695,6 @@ func (m *MockUnconsolidatedStepIter) Err() error {
 func (mr *MockUnconsolidatedStepIterMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockUnconsolidatedStepIter)(nil).Err))
-}
-
-// Meta mocks base method
-func (m *MockUnconsolidatedStepIter) Meta() Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Meta")
-	ret0, _ := ret[0].(Metadata)
-	return ret0
-}
-
-// Meta indicates an expected call of Meta
-func (mr *MockUnconsolidatedStepIterMockRecorder) Meta() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockUnconsolidatedStepIter)(nil).Meta))
 }
 
 // Next mocks base method
@@ -775,20 +800,6 @@ func (m *MockUnconsolidatedSeriesIter) Err() error {
 func (mr *MockUnconsolidatedSeriesIterMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockUnconsolidatedSeriesIter)(nil).Err))
-}
-
-// Meta mocks base method
-func (m *MockUnconsolidatedSeriesIter) Meta() Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Meta")
-	ret0, _ := ret[0].(Metadata)
-	return ret0
-}
-
-// Meta indicates an expected call of Meta
-func (mr *MockUnconsolidatedSeriesIterMockRecorder) Meta() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockUnconsolidatedSeriesIter)(nil).Meta))
 }
 
 // Next mocks base method

@@ -49,8 +49,12 @@ type DatabaseSeries interface {
 	// Tags return the tags of the series.
 	Tags() ident.Tags
 
+	// UniqueIndex is the unique index for the series (for this current
+	// process, unless the time series expires).
+	UniqueIndex() uint64
+
 	// Tick executes async updates
-	Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error)
+	Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error)
 
 	// Write writes a new value.
 	Write(
@@ -99,11 +103,11 @@ type DatabaseSeries interface {
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
-	// IsBootstrapped returns whether the series is bootstrapped or not.
-	IsBootstrapped() bool
-
-	// Bootstrap merges the raw series bootstrapped along with any buffered data.
-	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
+	/// LoadBlock loads a single block into the series.
+	LoadBlock(
+		block block.DatabaseBlock,
+		writeType WriteType,
+	) error
 
 	// WarmFlush flushes the WarmWrites of this series for a given start time.
 	WarmFlush(
@@ -123,7 +127,7 @@ type DatabaseSeries interface {
 	) error
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
-	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
+	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -132,6 +136,7 @@ type DatabaseSeries interface {
 	Reset(
 		id ident.ID,
 		tags ident.Tags,
+		uniqueIndex uint64,
 		blockRetriever QueryableBlockRetriever,
 		onRetrieveBlock block.OnRetrieveBlock,
 		onEvictedFromWiredList block.OnEvictedFromWiredList,
@@ -143,10 +148,6 @@ type DatabaseSeries interface {
 // and specifies a few series specific options too.
 type FetchBlocksMetadataOptions struct {
 	block.FetchBlocksMetadataOptions
-
-	// IncludeCachedBlocks specifies whether to also include cached blocks
-	// when returning series metadata.
-	IncludeCachedBlocks bool
 }
 
 // QueryableBlockRetriever is a block retriever that can tell if a block
@@ -156,11 +157,11 @@ type QueryableBlockRetriever interface {
 
 	// IsBlockRetrievable returns whether a block is retrievable
 	// for a given block start time.
-	IsBlockRetrievable(blockStart time.Time) bool
+	IsBlockRetrievable(blockStart time.Time) (bool, error)
 
 	// RetrievableBlockColdVersion returns the cold version that was
 	// successfully persisted.
-	RetrievableBlockColdVersion(blockStart time.Time) int
+	RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 
 	// BlockStatesSnapshot returns a snapshot of the whether blocks are
 	// retrievable and their flush versions for each block start. This is used
@@ -169,7 +170,36 @@ type QueryableBlockRetriever interface {
 	// Flushes may occur and change the actual block state while iterating
 	// through this snapshot, so any logic using this function should take this
 	// into account.
-	BlockStatesSnapshot() map[xtime.UnixNano]BlockState
+	BlockStatesSnapshot() ShardBlockStateSnapshot
+}
+
+// ShardBlockStateSnapshot represents a snapshot of a shard's block state at
+// a moment in time.
+type ShardBlockStateSnapshot struct {
+	bootstrapped bool
+	snapshot     BootstrappedBlockStateSnapshot
+}
+
+// NewShardBlockStateSnapshot constructs a new NewShardBlockStateSnapshot.
+func NewShardBlockStateSnapshot(
+	bootstrapped bool,
+	snapshot BootstrappedBlockStateSnapshot,
+) ShardBlockStateSnapshot {
+	return ShardBlockStateSnapshot{
+		bootstrapped: bootstrapped,
+		snapshot:     snapshot,
+	}
+}
+
+// UnwrapValue returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
+// snapshot is bootstrapped or not.
+func (s ShardBlockStateSnapshot) UnwrapValue() (BootstrappedBlockStateSnapshot, bool) {
+	return s.snapshot, s.bootstrapped
+}
+
+// BootstrappedBlockStateSnapshot represents a bootstrapped shard block state snapshot.
+type BootstrappedBlockStateSnapshot struct {
+	Snapshot map[xtime.UnixNano]BlockState
 }
 
 // BlockState contains the state of a block.
@@ -230,15 +260,6 @@ const (
 	// to disk successfully.
 	FlushOutcomeFlushedToDisk
 )
-
-// BootstrapResult contains information about the result of bootstrapping a series.
-// It is returned from the series Bootstrap method primarily so the caller can aggregate
-// and emit metrics instead of the series itself having to store additional fields (which
-// would be costly because we have millions of them.)
-type BootstrapResult struct {
-	NumBlocksMovedToBuffer int64
-	NumBlocksMerged        int64
-}
 
 // Options represents the options for series
 type Options interface {
@@ -333,6 +354,7 @@ type Options interface {
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
 	encoderCreated tally.Counter
+	coldWrites     tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
@@ -340,12 +362,18 @@ func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
 	return Stats{
 		encoderCreated: subScope.Counter("encoder-created"),
+		coldWrites:     subScope.Counter("cold-writes"),
 	}
 }
 
 // IncCreatedEncoders incs the EncoderCreated stat.
 func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
+}
+
+// IncColdWrites incs the ColdWrites stat.
+func (s Stats) IncColdWrites() {
+	s.coldWrites.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.
@@ -358,14 +386,6 @@ const (
 	// ColdWrite represents cold writes (outside the buffer past/future window).
 	ColdWrite
 )
-
-// BootstrapWriteType is the write type assigned for bootstraps.
-//
-// TODO(juchan): We can't know from a bootstrapped block whether data was
-// originally written as a ColdWrite or a WarmWrite. After implementing
-// persistence logic including ColdWrites, we need to revisit this to figure out
-// what write type makes sense for bootstraps.
-const BootstrapWriteType = WarmWrite
 
 // WriteTransformOptions describes transforms to run on incoming writes.
 type WriteTransformOptions struct {
@@ -384,4 +404,17 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
+	// MatchUniqueIndex specifies whether the series unique index
+	// must match the unique index value specified (to ensure the series
+	// being written is the same series as previously referenced).
+	MatchUniqueIndex bool
+	// MatchUniqueIndexValue is the series unique index value that
+	// must match the current series unique index value (to ensure series
+	// being written is the same series as previously referenced).
+	MatchUniqueIndexValue uint64
+	// BootstrapWrite allows a warm write outside the time window as long as the
+	// block hasn't already been flushed to disk. This is useful for
+	// bootstrappers filling data that they know has not yet been flushed to
+	// disk.
+	BootstrapWrite bool
 }

@@ -100,7 +100,12 @@ func main() {
 
 func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.NewSessionFn {
 	return m3nsch.NewSessionFn(func(zone, env string) (client.Session, error) {
-		svc := conf.DBClient.EnvironmentConfig.Service
+		cluster, err := conf.DBClient.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			return nil, err
+		}
+
+		svc := cluster.Service
 		svc.Env = env
 		svc.Zone = zone
 		cl, err := conf.DBClient.NewClient(client.ConfigurationParameters{

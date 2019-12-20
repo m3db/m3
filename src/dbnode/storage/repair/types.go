@@ -25,25 +25,19 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// HostBlockMetadata contains a host along with block metadata from that host
-type HostBlockMetadata struct {
-	Host     topology.Host
-	Size     int64
-	Checksum *uint32
-}
-
-// HostBlockMetadataSlice captures a slice of hostBlockMetadata
-type HostBlockMetadataSlice interface {
+// ReplicaMetadataSlice captures a slice of block.ReplicaMetadata
+type ReplicaMetadataSlice interface {
 	// Add adds the metadata to the slice
-	Add(metadata HostBlockMetadata)
+	Add(metadata block.ReplicaMetadata)
 
 	// Metadata returns the metadata slice
-	Metadata() []HostBlockMetadata
+	Metadata() []block.ReplicaMetadata
 
 	// Reset resets the metadata slice
 	Reset()
@@ -52,13 +46,13 @@ type HostBlockMetadataSlice interface {
 	Close()
 }
 
-// HostBlockMetadataSlicePool provides a pool for hostBlockMetadata slices
-type HostBlockMetadataSlicePool interface {
-	// Get returns a hostBlockMetadata slice
-	Get() HostBlockMetadataSlice
+// ReplicaMetadataSlicePool provides a pool for block.ReplicaMetadata slices
+type ReplicaMetadataSlicePool interface {
+	// Get returns a ReplicaMetadata slice
+	Get() ReplicaMetadataSlice
 
-	// Put puts a hostBlockMetadata slice back to pool
-	Put(m HostBlockMetadataSlice)
+	// Put puts a ReplicaMetadata slice back to pool
+	Put(m ReplicaMetadataSlice)
 }
 
 // ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set
@@ -67,10 +61,10 @@ type ReplicaBlockMetadata interface {
 	Start() time.Time
 
 	// Metadata returns the metadata from all hosts
-	Metadata() []HostBlockMetadata
+	Metadata() []block.ReplicaMetadata
 
 	// Add adds a metadata from a host
-	Add(metadata HostBlockMetadata)
+	Add(metadata block.ReplicaMetadata)
 
 	// Close performs cleanup
 	Close()
@@ -88,7 +82,7 @@ type ReplicaBlocksMetadata interface {
 	Add(block ReplicaBlockMetadata)
 
 	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist
-	GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata
+	GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata
 
 	// Close performs cleanup
 	Close()
@@ -121,7 +115,7 @@ type ReplicaSeriesBlocksMetadata struct {
 // ReplicaMetadataComparer compares metadata from hosts in a replica set
 type ReplicaMetadataComparer interface {
 	// AddLocalMetadata adds metadata from local host
-	AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) error
+	AddLocalMetadata(localIter block.FilteredBlocksMetadataIter) error
 
 	// AddPeerMetadata adds metadata from peers
 	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error
@@ -150,68 +144,62 @@ type MetadataComparisonResult struct {
 
 // Options are the repair options
 type Options interface {
-	// SetAdminClient sets the admin client
-	SetAdminClient(value client.AdminClient) Options
+	// SetAdminClient sets the admin client.
+	SetAdminClients(value []client.AdminClient) Options
 
-	// AdminClient returns the admin client
-	AdminClient() client.AdminClient
+	// AdminClient returns the admin client.
+	AdminClients() []client.AdminClient
 
 	// SetRepairConsistencyLevel sets the repair read level consistency
-	// for which to repair shards with
+	// for which to repair shards with.
 	SetRepairConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
 	// RepairConsistencyLevel returns the repair read level consistency
-	// for which to repair shards with
+	// for which to repair shards with.
 	RepairConsistencyLevel() topology.ReadConsistencyLevel
 
-	// SetRepairShardConcurrency sets the concurrency in which to repair shards with
+	// SetRepairShardConcurrency sets the concurrency in which to repair shards with.
 	SetRepairShardConcurrency(value int) Options
 
-	// RepairShardConcurrency returns the concurrency in which to repair shards with
+	// RepairShardConcurrency returns the concurrency in which to repair shards with.
 	RepairShardConcurrency() int
 
-	// SetRepairInterval sets the repair interval
-	SetRepairInterval(value time.Duration) Options
-
-	// RepairInterval returns the repair interval
-	RepairInterval() time.Duration
-
-	// SetRepairTimeOffset sets the repair time offset
-	SetRepairTimeOffset(value time.Duration) Options
-
-	// RepairTimeOffset returns the repair time offset
-	RepairTimeOffset() time.Duration
-
-	// SetRepairJitter sets the repair time jitter
-	SetRepairTimeJitter(value time.Duration) Options
-
-	// RepairTimeJitter returns the repair time jitter
-	RepairTimeJitter() time.Duration
-
-	// SetRepairCheckInterval sets the repair check interval
+	// SetRepairCheckInterval sets the repair check interval.
 	SetRepairCheckInterval(value time.Duration) Options
 
-	// RepairCheckInterval returns the repair check interval
+	// RepairCheckInterval returns the repair check interval.
 	RepairCheckInterval() time.Duration
 
-	// SetRepairThrottle sets the repair throttle
+	// SetRepairThrottle sets the repair throttle.
 	SetRepairThrottle(value time.Duration) Options
 
-	// RepairThrottle returns the repair throttle
+	// RepairThrottle returns the repair throttle.
 	RepairThrottle() time.Duration
 
-	// SetRepairMaxRetries sets the max number of retries for a block start
-	SetRepairMaxRetries(value int) Options
+	// SetReplicaMetadataSlicePool sets the replicaMetadataSlice pool.
+	SetReplicaMetadataSlicePool(value ReplicaMetadataSlicePool) Options
 
-	// MaxRepairRetries returns the max number of retries for a block start
-	RepairMaxRetries() int
+	// ReplicaMetadataSlicePool returns the replicaMetadataSlice pool.
+	ReplicaMetadataSlicePool() ReplicaMetadataSlicePool
 
-	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool
-	SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options
+	// SetResultOptions sets the result options.
+	SetResultOptions(value result.Options) Options
 
-	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool
-	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
+	// ResultOptions returns the result options.
+	ResultOptions() result.Options
 
-	// Validate checks if the options are valid
+	// SetDebugShadowComparisonsEnabled sets whether debug shadow comparisons are enabled.
+	SetDebugShadowComparisonsEnabled(value bool) Options
+
+	// DebugShadowComparisonsEnabled returns whether debug shadow comparisons are enabled.
+	DebugShadowComparisonsEnabled() bool
+
+	// SetDebugShadowComparisonsPercentage sets the debug shadow comparisons percentage.
+	SetDebugShadowComparisonsPercentage(value float64) Options
+
+	// DebugShadowComparisonsPercentage returns the debug shadow comparisons percentage.
+	DebugShadowComparisonsPercentage() float64
+
+	// Validate checks if the options are valid.
 	Validate() error
 }

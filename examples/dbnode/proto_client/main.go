@@ -57,6 +57,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to create new M3DB session: %v", err)
 	}
+	defer session.Close()
 
 	schemaConfig, ok := cfg.Client.Proto.SchemaRegistry[namespace]
 	if !ok {
@@ -102,9 +103,12 @@ func runUntaggedExample(session client.Session, schema *desc.MessageDescriptor) 
 		m = dynamic.NewMessage(schema)
 		dp, _, marshaledProto := seriesIter.Current()
 		if err := m.Unmarshal(marshaledProto); err != nil {
-			log.Fatalf("error unamrshaling protobuf message: %v", err)
+			log.Fatalf("error unmarshaling protobuf message: %v", err)
 		}
 		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
+	}
+	if err := seriesIter.Err(); err != nil {
+		log.Fatalf("error in series iterator: %v", err)
 	}
 }
 
@@ -146,6 +150,9 @@ func runTaggedExample(session client.Session, schema *desc.MessageDescriptor) {
 			log.Fatalf("error unamrshaling protobuf message: %v", err)
 		}
 		log.Printf("%s: %s", dp.Timestamp.String(), m.String())
+	}
+	if err := seriesIter.Err(); err != nil {
+		log.Fatalf("error in series iterator: %v", err)
 	}
 
 	// TODO(rartoul): Show an example of how to execute a FetchTagged() call with an index query.

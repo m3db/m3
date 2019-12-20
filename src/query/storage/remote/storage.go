@@ -22,6 +22,7 @@ package remote
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -29,13 +30,22 @@ import (
 	"github.com/m3db/m3/src/query/tsdb/remote"
 )
 
+// Options contains options for remote clients.
+type Options struct {
+	// ErrorBehavior determines the error behavior for this remote storage.
+	ErrorBehavior storage.ErrorBehavior
+	// Name is this storage's name.
+	Name string
+}
+
 type remoteStorage struct {
 	client remote.Client
+	opts   Options
 }
 
 // NewStorage creates a new remote Storage instance.
-func NewStorage(c remote.Client) storage.Storage {
-	return &remoteStorage{client: c}
+func NewStorage(c remote.Client, opts Options) storage.Storage {
+	return &remoteStorage{client: c, opts: opts}
 }
 
 func (s *remoteStorage) Fetch(
@@ -44,6 +54,14 @@ func (s *remoteStorage) Fetch(
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return s.client.Fetch(ctx, query, options)
+}
+
+func (s *remoteStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return s.client.FetchProm(ctx, query, options)
 }
 
 func (s *remoteStorage) FetchBlocks(
@@ -74,8 +92,16 @@ func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 	return errors.ErrRemoteWriteQuery
 }
 
+func (s *remoteStorage) ErrorBehavior() storage.ErrorBehavior {
+	return s.opts.ErrorBehavior
+}
+
 func (s *remoteStorage) Type() storage.Type {
 	return storage.TypeRemoteDC
+}
+
+func (s *remoteStorage) Name() string {
+	return fmt.Sprintf("remote_store_%s", s.opts.Name)
 }
 
 func (s *remoteStorage) Close() error {

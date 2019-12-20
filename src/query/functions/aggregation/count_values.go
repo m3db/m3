@@ -33,11 +33,11 @@ import (
 )
 
 const (
-	// CountValuesType counts the number of non nan elements with the same value
+	// CountValuesType counts the number of non nan elements with the same value.
 	CountValuesType = "count_values"
 )
 
-// NewCountValuesOp creates a new count values operation
+// NewCountValuesOp creates a new count values operation.
 func NewCountValuesOp(
 	opType string,
 	params NodeParams,
@@ -49,23 +49,20 @@ func NewCountValuesOp(
 	return newCountValuesOp(params, opType), nil
 }
 
-// countValuesOp stores required properties for count values ops
+// countValuesOp stores required properties for count values ops.
 type countValuesOp struct {
 	params NodeParams
 	opType string
 }
 
-// OpType for the operator
 func (o countValuesOp) OpType() string {
 	return o.opType
 }
 
-// String representation
 func (o countValuesOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
-// Node creates an execution node
 func (o countValuesOp) Node(
 	controller *transform.Controller,
 	_ transform.Options,
@@ -144,18 +141,26 @@ func processBlockBucketAtColumn(
 }
 
 // Process the block
-func (n *countValuesNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func (n *countValuesNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func (n *countValuesNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+func (n *countValuesNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
+	meta := b.Meta()
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
 	params := n.op.params
-	meta := stepIter.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
@@ -215,7 +220,7 @@ func (n *countValuesNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.
 	}
 
 	// Dedupe common metadatas
-	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas)
+	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas, meta.Tags.Opts)
 	meta.Tags = metaTags
 
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, flattenedMeta)

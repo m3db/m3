@@ -26,7 +26,8 @@ import (
 )
 
 var (
-	writeTaggedBatchRawRequestZeroed rpc.WriteTaggedBatchRawRequest
+	writeTaggedBatchRawRequestZeroed   rpc.WriteTaggedBatchRawRequest
+	writeTaggedBatchRawV2RequestZeroed rpc.WriteTaggedBatchRawV2Request
 )
 
 type writeTaggedBatchRawRequestPool interface {
@@ -61,5 +62,40 @@ func (p *poolOfWriteTaggedBatchRawRequest) Get() *rpc.WriteTaggedBatchRawRequest
 
 func (p *poolOfWriteTaggedBatchRawRequest) Put(w *rpc.WriteTaggedBatchRawRequest) {
 	*w = writeTaggedBatchRawRequestZeroed
+	p.pool.Put(w)
+}
+
+type writeTaggedBatchRawV2RequestPool interface {
+	// Init pool.
+	Init()
+
+	// Get a write batch request.
+	Get() *rpc.WriteTaggedBatchRawV2Request
+
+	// Put a write batch request.
+	Put(w *rpc.WriteTaggedBatchRawV2Request)
+}
+
+type poolOfWriteTaggedBatchRawV2Request struct {
+	pool pool.ObjectPool
+}
+
+func newWriteTaggedBatchRawV2RequestPool(opts pool.ObjectPoolOptions) writeTaggedBatchRawV2RequestPool {
+	p := pool.NewObjectPool(opts)
+	return &poolOfWriteTaggedBatchRawV2Request{p}
+}
+
+func (p *poolOfWriteTaggedBatchRawV2Request) Init() {
+	p.pool.Init(func() interface{} {
+		return &rpc.WriteTaggedBatchRawV2Request{}
+	})
+}
+
+func (p *poolOfWriteTaggedBatchRawV2Request) Get() *rpc.WriteTaggedBatchRawV2Request {
+	return p.pool.Get().(*rpc.WriteTaggedBatchRawV2Request)
+}
+
+func (p *poolOfWriteTaggedBatchRawV2Request) Put(w *rpc.WriteTaggedBatchRawV2Request) {
+	*w = writeTaggedBatchRawV2RequestZeroed
 	p.pool.Put(w)
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
@@ -80,7 +81,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
-	nsCtx := namespace.NewContextFrom(nsMeta)
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
 		func(input propTestInput) (bool, error) {
@@ -187,7 +187,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 					}
 
-					reader, ok := encoder.Stream(encoding.StreamOptions{})
+					ctx := context.NewContext()
+					reader, ok := encoder.Stream(ctx)
 					if ok {
 						seg, err := reader.Segment()
 						if err != nil {
@@ -201,6 +202,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 						encodersBySeries[seriesID] = bytes
 					}
+					ctx.Close()
+
 					compressedWritesByShards[shard] = encodersBySeries
 				}
 
@@ -277,6 +280,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					if err != nil {
 						return false, err
 					}
+
 					writesCh <- struct{}{}
 				}
 				close(writesCh)
@@ -366,16 +370,21 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					tu.SelfID: tu.Shards(allShardsSlice, shard.Available),
 				})
 			}
+
 			runOpts := testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
-			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
+			tester := bootstrap.BuildNamespacesTester(t, runOpts, shardTimeRanges, nsMeta)
+
+			bootstrapResults, err := source.Bootstrap(tester.Namespaces)
 			if err != nil {
 				return false, err
 			}
 
 			// Create testValues for each datapoint for comparison
-			values := []testValue{}
+			values := testValues{}
 			for _, write := range input.writes {
-				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
+				values = append(values, testValue{
+					write.series, write.datapoint.Timestamp,
+					write.datapoint.Value, write.unit, write.annotation})
 			}
 
 			commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
@@ -398,6 +407,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					!shardTimeRanges.IsEmpty()
 			)
 
+			nsResult, found := bootstrapResults.Results.Get(nsMeta.ID())
+			if !found {
+				return false, fmt.Errorf("could not find id: %s", nsMeta.ID().String())
+			}
+
+			dataResult := nsResult.DataResult
 			if shouldReturnUnfulfilled {
 				if dataResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -410,23 +425,13 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						dataResult.Unfulfilled().String())
 				}
 			}
-			err = verifyShardResultsAreCorrect(nsCtx, values, blockSize, dataResult.ShardResults(), bootstrapOpts)
+
+			written, err := tester.EnsureDumpAllForNamespace(nsMeta)
 			if err != nil {
 				return false, err
 			}
 
-			indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, runOpts)
-			if err != nil {
-				return false, err
-			}
-
-			indexBlockSize := nsMeta.Options().IndexOptions().BlockSize()
-			err = verifyIndexResultsAreCorrect(
-				values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
-			if err != nil {
-				return false, err
-			}
-
+			indexResult := nsResult.IndexResult
 			if shouldReturnUnfulfilled {
 				if indexResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -438,6 +443,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						"index result unfulfilled in single node cluster should be empty but was: %s",
 						indexResult.Unfulfilled().String())
 				}
+			}
+
+			err = verifyValuesAreCorrect(values, written)
+			if err != nil {
+				return false, err
 			}
 
 			return true, nil

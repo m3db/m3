@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -204,4 +205,41 @@ func TestBlockIsNotEmpty(t *testing.T) {
 		SegmentReader: reader,
 	}.IsNotEmpty())
 	assert.True(t, block.IsNotEmpty())
+}
+
+func TestFilterEmptyBlockReadersSliceOfSlicesInPlace(t *testing.T) {
+	var (
+		head          = checked.NewBytes([]byte("some-data"), checked.NewBytesOptions())
+		segment       = ts.NewSegment(head, nil, 0)
+		segmentReader = NewSegmentReader(segment)
+	)
+	notEmpty := BlockReader{
+		SegmentReader: segmentReader,
+	}
+
+	noneEmpty := []BlockReader{notEmpty}
+	someEmpty := []BlockReader{notEmpty, EmptyBlockReader}
+	allEmpty := []BlockReader{EmptyBlockReader}
+	unfiltered := [][]BlockReader{noneEmpty, someEmpty, allEmpty}
+	filtered, err := FilterEmptyBlockReadersSliceOfSlicesInPlace(unfiltered)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(filtered))
+	require.Equal(t, 1, len(filtered[0]))
+	require.Equal(t, 1, len(filtered[1]))
+}
+
+func TestFilterEmptyBlockReadersInPlace(t *testing.T) {
+	var (
+		head          = checked.NewBytes([]byte("some-data"), checked.NewBytesOptions())
+		segment       = ts.NewSegment(head, nil, 0)
+		segmentReader = NewSegmentReader(segment)
+	)
+	notEmpty := BlockReader{
+		SegmentReader: segmentReader,
+	}
+
+	unfiltered := []BlockReader{notEmpty, EmptyBlockReader}
+	filtered, err := FilterEmptyBlockReadersInPlace(unfiltered)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(filtered))
 }

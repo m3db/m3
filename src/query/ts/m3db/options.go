@@ -28,11 +28,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (
@@ -53,6 +54,14 @@ type encodedBlockOptions struct {
 	iterAlloc        encoding.ReaderIteratorAllocate
 	pools            encoding.IteratorPools
 	checkedPools     pool.CheckedBytesPool
+	readWorkerPools  xsync.PooledWorkerPool
+	writeWorkerPools xsync.PooledWorkerPool
+}
+
+type nextDetails struct {
+	peek      peekValue
+	iter      encoding.SeriesIterator
+	collector consolidators.StepCollector
 }
 
 // NewOptions creates a default encoded block options which dictates how
@@ -65,6 +74,12 @@ func NewOptions() Options {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
+
+	opts := pool.NewObjectPoolOptions().SetSize(1024)
+	batchPool := pool.NewObjectPool(opts)
+	batchPool.Init(func() interface{} {
+		return nextDetails{}
+	})
 
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
@@ -144,6 +159,26 @@ func (o *encodedBlockOptions) SetCheckedBytesPool(p pool.CheckedBytesPool) Optio
 
 func (o *encodedBlockOptions) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.checkedPools
+}
+
+func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.readWorkerPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
+	return o.readWorkerPools
+}
+
+func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.writeWorkerPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
+	return o.writeWorkerPools
 }
 
 func (o *encodedBlockOptions) Validate() error {

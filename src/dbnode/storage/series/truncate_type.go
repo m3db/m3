@@ -28,15 +28,16 @@ import (
 type TruncateType uint8
 
 const (
+	// TypeNone indicates that no truncation occurs.
 	TypeNone TruncateType = iota
+
+	// TypeBlock truncates incoming writes to the block boundary immediately
+	// preceding this point's timestamp.
 	TypeBlock
 )
 
 var validTruncationTypes = []TruncateType{
-	// TypeNone indicates that no truncation occurs.
 	TypeNone,
-	// TypeBlock truncates incoming writes to the block boundary immediately
-	// preceding this point's timestamp.
 	TypeBlock,
 }
 

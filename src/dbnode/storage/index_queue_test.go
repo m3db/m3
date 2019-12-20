@@ -55,7 +55,7 @@ func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceInde
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	return idx, q
 }
@@ -72,7 +72,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -91,7 +91,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 }
@@ -108,7 +108,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -187,7 +187,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 
 	opts := testNamespaceIndexOptions().SetInsertMode(index.InsertSync)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
-	dbIdx, err := newNamespaceIndex(md, DefaultTestOptions().SetIndexOptions(opts))
+	dbIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions().SetIndexOptions(opts))
 	assert.NoError(t, err)
 
 	idx, ok := dbIdx.(*nsIndex)
@@ -285,7 +285,7 @@ func setupIndex(t *testing.T,
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, DefaultTestOptions().
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions().
 		SetIndexOptions(testNamespaceIndexOptions().SetInsertMode(index.InsertSync)))
 	assert.NoError(t, err)
 
@@ -315,6 +315,8 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	now := time.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()
@@ -335,7 +337,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
-		ident.NewTagsIterator(tags)))
+		tags))
 }
 
 func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
@@ -344,6 +346,8 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	now := time.Now()
 	idx := setupIndex(t, ctrl, now)
 	defer idx.Close()

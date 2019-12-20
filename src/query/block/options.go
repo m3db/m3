@@ -25,29 +25,32 @@ import (
 )
 
 var (
-	defaultTimeTransform  = func(t time.Time) time.Time { return t }
-	defaultMetaTransform  = func(meta Metadata) Metadata { return meta }
-	defaultValueTransform = func(val float64) float64 { return val }
+	defaultTimeTransform       = func(t time.Time) time.Time { return t }
+	defaultValueTransform      = func(v float64) float64 { return v }
+	defaultMetaTransform       = func(m Metadata) Metadata { return m }
+	defaultSeriesMetaTransform = func(m []SeriesMeta) []SeriesMeta { return m }
 )
 
 type lazyOpts struct {
-	timeTransform  TimeTransform
-	metaTransform  MetaTransform
-	valueTransform ValueTransform
+	timeTransform       TimeTransform
+	valueTransform      ValueTransform
+	metaTransform       MetaTransform
+	seriesMetaTransform SeriesMetaTransform
 }
 
-// NewLazyOpts creates LazyOpts with default values.
-func NewLazyOpts() LazyOptions {
+// NewLazyOptions creates LazyOpts with default values.
+func NewLazyOptions() LazyOptions {
 	return &lazyOpts{
-		timeTransform:  defaultTimeTransform,
-		metaTransform:  defaultMetaTransform,
-		valueTransform: defaultValueTransform,
+		timeTransform:       defaultTimeTransform,
+		valueTransform:      defaultValueTransform,
+		metaTransform:       defaultMetaTransform,
+		seriesMetaTransform: defaultSeriesMetaTransform,
 	}
 }
 
-func (o *lazyOpts) SetTimeTransform(tt TimeTransform) LazyOptions {
+func (o *lazyOpts) SetTimeTransform(t TimeTransform) LazyOptions {
 	opts := *o
-	opts.timeTransform = tt
+	opts.timeTransform = t
 	return &opts
 }
 
@@ -55,9 +58,19 @@ func (o *lazyOpts) TimeTransform() TimeTransform {
 	return o.timeTransform
 }
 
-func (o *lazyOpts) SetMetaTransform(mt MetaTransform) LazyOptions {
+func (o *lazyOpts) SetValueTransform(t ValueTransform) LazyOptions {
 	opts := *o
-	opts.metaTransform = mt
+	opts.valueTransform = t
+	return &opts
+}
+
+func (o *lazyOpts) ValueTransform() ValueTransform {
+	return o.valueTransform
+}
+
+func (o *lazyOpts) SetMetaTransform(t MetaTransform) LazyOptions {
+	opts := *o
+	opts.metaTransform = t
 	return &opts
 }
 
@@ -65,12 +78,12 @@ func (o *lazyOpts) MetaTransform() MetaTransform {
 	return o.metaTransform
 }
 
-func (o *lazyOpts) SetValueTransform(vt ValueTransform) LazyOptions {
+func (o *lazyOpts) SetSeriesMetaTransform(t SeriesMetaTransform) LazyOptions {
 	opts := *o
-	opts.valueTransform = vt
+	opts.seriesMetaTransform = t
 	return &opts
 }
 
-func (o *lazyOpts) ValueTransform() ValueTransform {
-	return o.valueTransform
+func (o *lazyOpts) SeriesMetaTransform() SeriesMetaTransform {
+	return o.seriesMetaTransform
 }

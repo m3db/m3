@@ -1184,3 +1184,68 @@ func (mr *MockDynamicOptionsMockRecorder) NamespaceRegistryKey() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRegistryKey", reflect.TypeOf((*MockDynamicOptions)(nil).NamespaceRegistryKey))
 }
+
+// MockNamespaceWatch is a mock of NamespaceWatch interface
+type MockNamespaceWatch struct {
+	ctrl     *gomock.Controller
+	recorder *MockNamespaceWatchMockRecorder
+}
+
+// MockNamespaceWatchMockRecorder is the mock recorder for MockNamespaceWatch
+type MockNamespaceWatchMockRecorder struct {
+	mock *MockNamespaceWatch
+}
+
+// NewMockNamespaceWatch creates a new mock instance
+func NewMockNamespaceWatch(ctrl *gomock.Controller) *MockNamespaceWatch {
+	mock := &MockNamespaceWatch{ctrl: ctrl}
+	mock.recorder = &MockNamespaceWatchMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockNamespaceWatch) EXPECT() *MockNamespaceWatchMockRecorder {
+	return m.recorder
+}
+
+// Start mocks base method
+func (m *MockNamespaceWatch) Start() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Start")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Start indicates an expected call of Start
+func (mr *MockNamespaceWatchMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockNamespaceWatch)(nil).Start))
+}
+
+// Stop mocks base method
+func (m *MockNamespaceWatch) Stop() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stop")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop
+func (mr *MockNamespaceWatchMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockNamespaceWatch)(nil).Stop))
+}
+
+// Close mocks base method
+func (m *MockNamespaceWatch) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockNamespaceWatchMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockNamespaceWatch)(nil).Close))
+}

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -127,14 +128,12 @@ db:
 
   repair:
       enabled: false
-      interval: 2h
-      offset: 30m
-      jitter: 1h
       throttle: 2m
       checkInterval: 1m
 
   pooling:
       blockAllocSize: 16
+      thriftBytesPoolAllocSize: 2048
       type: simple
       seriesPool:
           size: 5242880
@@ -148,6 +147,10 @@ db:
           size: 25165824
           lowWatermark: 0.01
           highWatermark: 0.02
+      checkedBytesWrapperPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       closersPool:
           size: 104857
           lowWatermark: 0.01
@@ -156,7 +159,6 @@ db:
           size: 524288
           lowWatermark: 0.01
           highWatermark: 0.02
-          maxFinalizerCapacity: 8
       segmentReaderPool:
           size: 16384
           lowWatermark: 0.01
@@ -175,7 +177,7 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
           capacity: 4096
-      hostBlockMetadataSlicePool:
+      replicaMetadataSlicePool:
           size: 131072
           capacity: 3
           lowWatermark: 0.01
@@ -240,6 +242,10 @@ db:
           size: 65536
           lowWatermark: 0.01
           highWatermark: 0.02
+      retrieveRequestPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       bytesPool:
           buckets:
               - capacity: 16
@@ -287,6 +293,7 @@ db:
                     - 1.1.1.1:2379
                     - 1.1.1.2:2379
                     - 1.1.1.3:2379
+
       seedNodes:
           listenPeerUrls:
               - http://0.0.0.0:2380
@@ -395,6 +402,9 @@ func TestConfiguration(t *testing.T) {
     hashing:
       seed: 42
     proto: null
+    asyncWriteWorkerPoolSize: null
+    asyncWriteMaxConcurrency: null
+    useV2BatchAPIs: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -429,6 +439,7 @@ func TestConfiguration(t *testing.T) {
     mmap: null
     force_index_summaries_mmap_memory: true
     force_bloom_filter_mmap_memory: true
+    bloomFilterFalsePositivePercent: null
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
@@ -439,13 +450,14 @@ func TestConfiguration(t *testing.T) {
     blockSize: null
   repair:
     enabled: false
-    interval: 2h0m0s
-    offset: 30m0s
-    jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
+    debugShadowComparisonsEnabled: false
+    debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
+    thriftBytesPoolAllocSize: 2048
     type: simple
     bytesPool:
       buckets:
@@ -481,6 +493,10 @@ func TestConfiguration(t *testing.T) {
         lowWatermark: 0.01
         highWatermark: 0.02
         capacity: 8192
+    checkedBytesWrapperPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -489,7 +505,6 @@ func TestConfiguration(t *testing.T) {
       size: 524288
       lowWatermark: 0.01
       highWatermark: 0.02
-      maxFinalizerCapacity: 8
     seriesPool:
       size: 5242880
       lowWatermark: 0.01
@@ -524,7 +539,7 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
       capacity: 4096
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
       size: 131072
       lowWatermark: 0.01
       highWatermark: 0.02
@@ -581,29 +596,39 @@ func TestConfiguration(t *testing.T) {
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
+    retrieveRequestPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0
       highWatermark: 0
   config:
-    service:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive: null
-        tls: null
-        autoSyncInterval: 0s
-      m3sd:
-        initTimeout: null
-      watchWithRevision: 0
-    static: null
+    services:
+    - async: false
+      clientOverrides:
+        hostQueueFlushInterval: null
+        targetHostQueueFlushSize: null
+      service:
+        zone: embedded
+        env: production
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: embedded
+          endpoints:
+          - 1.1.1.1:2379
+          - 1.1.1.2:2379
+          - 1.1.1.3:2379
+          keepAlive: null
+          tls: null
+          autoSyncInterval: 0s
+        m3sd:
+          initTimeout: null
+        watchWithRevision: 0
+        newDirectoryMode: null
+    statics: []
     seedNodes:
       rootDir: /var/lib/etcd
       initialAdvertisePeerUrls:
@@ -655,6 +680,10 @@ func TestConfiguration(t *testing.T) {
       headers: null
       baggage_restrictions: null
       throttler: null
+  limits:
+    maxOutstandingWriteRequests: 0
+    maxOutstandingReadRequests: 0
+    maxOutstandingRepairedBytes: 0
 coordinator: null
 `
 
@@ -982,6 +1011,6 @@ db:
 	adminClient := client.NewMockAdminClient(ctrl)
 
 	_, err = cfg.DB.Bootstrap.New(validator,
-		storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
 	require.NoError(t, err)
 }

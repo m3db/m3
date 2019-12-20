@@ -21,9 +21,11 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -38,7 +40,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -55,7 +56,7 @@ type readableSeriesTag struct {
 
 type readableSeriesList []readableSeries
 
-func toDatapoints(fetched *rpc.FetchResult_) ([]generate.TestValue) {
+func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
 	converted := make([]generate.TestValue, len(fetched.Datapoints))
 	for i, dp := range fetched.Datapoints {
 		converted[i] = generate.TestValue{
@@ -212,6 +213,17 @@ func verifySeriesMapForRange(
 	return true
 }
 
+func containsSeries(ts *testSetup, namespace, seriesID ident.ID, start, end time.Time) (bool, error) {
+	req := rpc.NewFetchRequest()
+	req.NameSpace = namespace.String()
+	req.ID = seriesID.String()
+	req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
+	req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
+	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
+	fetched, err := ts.fetch(req)
+	return len(fetched) != 0, err
+}
+
 func writeVerifyDebugOutput(
 	t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) bool {
 	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
@@ -307,17 +319,35 @@ func createFileIfPrefixSet(t *testing.T, prefix, suffix string) (string, bool) {
 }
 
 func compareSeriesList(
-	t *testing.T,
 	expected generate.SeriesBlock,
 	actual generate.SeriesBlock,
-) {
+) error {
 	sort.Sort(expected)
 	sort.Sort(actual)
 
-	require.Equal(t, len(expected), len(actual))
+	if len(expected) != len(actual) {
+		return fmt.Errorf(
+			"number of expected series: %d did not match actual: %d",
+			len(expected), len(actual))
+	}
 
 	for i := range expected {
-		require.Equal(t, expected[i].ID.Bytes(), actual[i].ID.Bytes())
-		require.Equal(t, expected[i].Data, expected[i].Data)
+		if !bytes.Equal(expected[i].ID.Bytes(), actual[i].ID.Bytes()) {
+			return fmt.Errorf(
+				"series ID did not match, expected: %s, actual: %s",
+				expected[i].ID.String(), actual[i].ID.String())
+		}
+		if len(expected[i].Data) != len(actual[i].Data) {
+			return fmt.Errorf(
+				"data for series: %s did not match, expected: %d data points, actual: %d",
+				expected[i].ID.String(), len(expected[i].Data), len(actual[i].Data))
+		}
+		if !reflect.DeepEqual(expected[i].Data, actual[i].Data) {
+			return fmt.Errorf(
+				"data for series: %s did not match, expected: %v, actual: %v",
+				expected[i].ID.String(), expected[i].Data, actual[i].Data)
+		}
 	}
+
+	return nil
 }

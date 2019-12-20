@@ -76,12 +76,12 @@ func resolveClusterNamespacesForQuery(
 	now, start, end time.Time,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
-	restrict *storage.RestrictFetchOptions,
+	restrict *storage.RestrictQueryOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
-	if restrict != nil {
+	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
-		return resolveClusterNamespacesForQueryWithRestrictFetchOptions(now,
-			start, clusters, restrict)
+		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
+			start, clusters, *typeRestrict)
 	}
 
 	// First check if the unaggregated cluster can fully satisfy the query range.
@@ -295,18 +295,19 @@ func aggregatedNamespaces(
 	return slices
 }
 
-// resolveClusterNamespacesForQueryWithRestrictFetchOptions returns the cluster
+// resolveClusterNamespacesForQueryWithRestrictQueryOptions returns the cluster
 // namespace referred to by the restrict fetch options or an error if it
 // cannot be found.
-func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
+func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	now, start time.Time,
 	clusters Clusters,
-	restrict *storage.RestrictFetchOptions,
+	restrict storage.RestrictByType,
 ) (queryFanoutType, ClusterNamespaces, error) {
 	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
 		now:        now,
 		queryStart: start,
 	})
+
 	result := func(
 		namespace ClusterNamespace,
 		err error,
@@ -314,10 +315,12 @@ func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
 		if err != nil {
 			return 0, nil, err
 		}
+
 		if coversRangeFilter(namespace) {
 			return namespaceCoversAllQueryRange,
 				ClusterNamespaces{namespace}, nil
 		}
+
 		return namespaceCoversPartialQueryRange,
 			ClusterNamespaces{namespace}, nil
 	}
@@ -335,6 +338,7 @@ func resolveClusterNamespacesForQueryWithRestrictFetchOptions(
 				fmt.Errorf("could not find namespace for storage policy: %v",
 					restrict.StoragePolicy.String()))
 		}
+
 		return result(ns, nil)
 	default:
 		return result(nil,

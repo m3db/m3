@@ -21,362 +21,263 @@
 package temporal
 
 import (
-	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/test/executor"
-	"github.com/m3db/m3/src/query/test/transformtest"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type testRateCase struct {
-	name           string
-	vals           [][]float64
-	opType         string
-	afterBlockOne  [][]float64
-	afterAllBlocks [][]float64
-}
-
-var testRateCases = []testRateCase{
+var rateTestCases = []testCase{
 	{
 		name:   "irate",
 		opType: IRateType,
 		vals: [][]float64{
-			{678758, 680986, 683214, 685442, 687670},
-			{1987036, 1988988, 1990940, 1992892, 1994844},
+			{nan, 680986, 683214, 685442, 687670,
+				678758, 680986, 683214, 685442, 687670},
+			{1987036, 1988988, 1990940, 1992892, 1994844,
+				1987036, 1988988, 1990940, 1992892, 1994844},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 37.1333},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
-		},
-		afterAllBlocks: [][]float64{
-			{11312.6333, 37.1333, 37.1333, 37.1333, 37.1333},
-			{33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
+		expected: [][]float64{
+			{nan, nan, 37.1333, 37.1333, 37.1333,
+				11312.6333, 37.1333, 37.1333, 37.1333, 37.1333},
+			{nan, 32.5333, 32.5333, 32.5333, 32.5333,
+				33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
 		},
 	},
 	{
 		name:   "irate with some NaNs",
 		opType: IRateType,
 		vals: [][]float64{
-			{1987036, 1988988, 1990940, math.NaN(), 1994844},
-			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
+			{nan, 1988988, 1990940, nan, 1994844,
+				1987036, 1988988, 1990940, nan, 1994844},
+			{1987036, 1988988, 1990940, nan, nan,
+				1987036, 1988988, 1990940, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
-		},
-		afterAllBlocks: [][]float64{
-			{33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
-			{11039.0888, 32.5333, 32.5333, 32.5333, 32.5333},
+		expected: [][]float64{
+			{nan, nan, 32.5333, 32.5333, 32.5333,
+				33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
+			{nan, 32.5333, 32.5333, 32.5333, 32.5333,
+				11039.0888, 32.5333, 32.5333, 32.5333, 32.5333},
 		},
 	},
 	{
 		name:   "irate with all NaNs",
 		opType: IRateType,
 		vals: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		expected: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
 	},
 	{
 		name:   "rate",
 		opType: RateType,
 		vals: [][]float64{
-			{61108224, 61943808, 61943808, 61943808, 62205952},
-			{1987036, 1988988, 1990940, 1992892, 1994844},
+			{nan, 61943808, 61943808, 61943808, 62205952,
+				61108224, 61943808, 61943808, 61943808, 62205952},
+			{1987036, 1988988, 1990940, 1992892, 1994844,
+				1987036, 1988988, 1990940, 1992892, 1994844},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1165.0844},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
-		},
-		afterAllBlocks: [][]float64{
-			{255709.8666, 259191.4666, 259191.4666, 258099.2, 4573.8666},
-			{8303.7166, 8303.7166, 8303.7166, 8303.7166, 32.5333},
+		expected: [][]float64{
+			{nan, nan, 0, 0, 1019.44889,
+				255709.8666, 259191.4666, 259191.4666, 258099.2, 4573.8666},
+			{nan, 9.760000, 16.26666, 22.77333, 32.53333,
+				8303.7166, 8303.7166, 8303.7166, 8303.7166, 32.53333},
 		},
 	},
 	{
 		name:   "rate with some NaNs",
 		opType: RateType,
 		vals: [][]float64{
-			{61108224, 61943808, 61943808, 62205952, math.NaN()},
-			{1987036, 1988988, 1990940, math.NaN(), 1994844},
+			{nan, 61943808, 61943808, 62205952, nan,
+				61108224, 61943808, 61943808, 62205952, nan},
+			{1987036, 1988988, 1990940, nan, 1994844,
+				1987036, 1988988, 1990940, nan, 1994844},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1310.72},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
-		},
-		afterAllBlocks: [][]float64{
-			{255709.8666, 259191.4666, 258099.2, 4878.7911, 4878.7911},
-			{8303.7166, 8303.7166, 8848.6222, 8848.6222, 32.5333},
+		expected: [][]float64{
+			{nan, nan, 0, 1092.266673, 1529.17334,
+				255709.8666, 259191.4666, 258099.2, 4268.9422, 6098.48888},
+			{nan, 9.760000, 16.26666, 22.77333, 32.533333,
+				8303.7166, 8303.7166, 7742.5444, 11060.7777, 32.5333},
 		},
 	},
 	{
 		name:   "rate with all NaNs",
 		opType: RateType,
 		vals: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		expected: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
 	},
 }
 
 func TestRate(t *testing.T) {
-	testRate(t, testRateCases)
+	testRate(t, rateTestCases)
 }
 
-var testDeltaCases = []testRateCase{
+var deltaTestCases = []testCase{
 	{
 		name:   "idelta",
 		opType: IDeltaType,
 		vals: [][]float64{
-			{863682, 865910, 868138, 870366, 872594},
-			{1987036, 1988988, 1990940, 1992892, 1994844},
+			{nan, 865910, 868138, 870366, 872594,
+				863682, 865910, 868138, 870366, 872594},
+			{1987036, 1988988, 1990940, 1992892, 1994844,
+				1987036, 1988988, 1990940, 1992892, 1994844},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2228},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
-		},
-		afterAllBlocks: [][]float64{
-			{-8912, 2228, 2228, 2228, 2228},
-			{-7808, 1952, 1952, 1952, 1952},
+		expected: [][]float64{
+			{nan, nan, 2228, 2228, 2228,
+				-8912, 2228, 2228, 2228, 2228},
+			{nan, 1952, 1952, 1952, 1952,
+				-7808, 1952, 1952, 1952, 1952},
 		},
 	},
 	{
 		name:   "idelta with some NaNs",
 		opType: IDeltaType,
 		vals: [][]float64{
-			{1987036, 1988988, 1990940, math.NaN(), 1994844},
-			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
+			{nan, 1988988, 1990940, nan, 1994844,
+				1987036, 1988988, 1990940, nan, 1994844},
+			{1987036, 1988988, 1990940, nan, nan,
+				1987036, 1988988, 1990940, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3904},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
-		},
-		afterAllBlocks: [][]float64{
-			{-7808, 1952, 1952, 1952, 3904},
-			{-3904, 1952, 1952, 1952, 1952},
+		expected: [][]float64{
+			{nan, nan, 1952, 1952, 3904,
+				-7808, 1952, 1952, 1952, 3904},
+			{nan, 1952, 1952, 1952, 1952,
+				-3904, 1952, 1952, 1952, 1952},
 		},
 	},
 	{
 		name:   "idelta with all NaNs",
 		opType: IDeltaType,
 		vals: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		expected: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
 	},
 	{
 		name:   "delta",
 		opType: DeltaType,
 		vals: [][]float64{
-			{678758, 680986, 683214, 685442, 687670},
-			{2299, 2299, 2299, 2787, 2787},
+			{nan, 680986, 683214, 685442, 687670,
+				678758, 680986, 683214, 685442, 687670},
+			{2299, 2299, 2299, 2787, 2787,
+				2299, 2299, 2299, 2787, 2787},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8912},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 610},
-		},
-		afterAllBlocks: [][]float64{
-			{-2785, -2785, -2785, -2785, 11140},
-			{0, 0, -610, 0, 610},
+		expected: [][]float64{
+			{nan, nan, 3342.000037, 5570.000037, 7798.00003,
+				-2785, -2785, -2785, -2785, 11140},
+			{nan, 0, 0, 569.33333, 610,
+				0, 0, -610, 0, 610},
 		},
 	},
 	{
 		name:   "delta with some NaNs",
 		opType: DeltaType,
 		vals: [][]float64{
-			{678758, 680986, 683214, 685442, math.NaN()},
-			{2299, 2299, 2299, math.NaN(), 2787},
+			{nan, 680986, 683214, 685442, nan,
+				678758, 680986, 683214, 685442, nan},
+			{2299, 2299, 2299, nan, 2787,
+				2299, 2299, 2299, nan, 2787},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 6684},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 610},
-		},
-		afterAllBlocks: [][]float64{
-			{-2785, -2785, -2785, 8912, 8912},
-			{0, 0, -650.6666, -650.6666, 610},
+		expected: [][]float64{
+			{nan, nan, 3342.000037, 5570.000037, 7798.00003,
+				-2785, -2785, -2785, 7798.000037, 11140},
+			{nan, 0, 0, 0, 610,
+				0, 0, -569.33333, -813.33333, 610},
 		},
 	},
 	{
 		name:   "delta with all NaNs",
 		opType: DeltaType,
 		vals: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		expected: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
 	},
 }
 
 func TestDelta(t *testing.T) {
-	testRate(t, testDeltaCases)
+	testRate(t, deltaTestCases)
 }
 
-var testIncreaseCases = []testRateCase{
+var increaseTestCases = []testCase{
 	{
 		name:   "increase",
 		opType: IncreaseType,
 		vals: [][]float64{
-			{872594, 865910, 868138, 870366, 872594},
-			{1987036, 1988988, 1990940, 1992892, 1994844},
+			{nan, 865910, 868138, 870366, 872594,
+				872594, 865910, 868138, 870366, 872594},
+			{1987036, 1988988, 1990940, 1992892, 1994844,
+				1987036, 1988988, 1990940, 1992892, 1994844},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8912},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9760},
-		},
-		afterAllBlocks: [][]float64{
-			{8355, 1087957.5, 1087957.5, 1087957.5, 1090742.5},
-			{2491115, 2491115, 2491115, 2491115, 9760},
+		expected: [][]float64{
+			{nan, nan, 3342, 5570, 7798,
+				8355, 1087957.5, 1087957.5, 1087957.5, 1090742.5},
+			{nan, 2928, 4880, 6832, 9760,
+				2491115, 2491115, 2491115, 2491115, 9760},
 		},
 	},
 	{
 		name:   "increase with some NaNs",
 		opType: IncreaseType,
 		vals: [][]float64{
-			{872594, 865910, 868138, 872694, math.NaN()},
-			{1987036, 1988988, 1990940, math.NaN(), 1994844},
+			{nan, 865910, 868138, 872694, nan,
+				872594, 865910, 868138, 872694, nan},
+			{1987036, 1988988, 1990940, nan, 1994844,
+				1987036, 1988988, 1990940, nan, 1994844},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10176},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9760},
-		},
-		afterAllBlocks: [][]float64{
-			{1099222.5, 2178825, 2175915, 1163592, 1163592},
-			{2491115, 2491115, 2654586.6666, 2654586.6666, 9760},
+		expected: [][]float64{
+			{nan, nan, 3342.000037, 8480, 11872,
+				1099222.5, 2178825, 2175915, 1018143.00484, 1454490},
+			{nan, 2928, 4880, 6832, 9760,
+				2491115, 2491115, 2322763.34439, 3318233.3333, 9760},
 		},
 	},
 	{
 		name:   "increase with all NaNs",
 		opType: IncreaseType,
 		vals: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		expected: [][]float64{
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+			{nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
 		},
 	},
 }
 
 func TestIncrease(t *testing.T) {
-	testRate(t, testIncreaseCases)
+	testRate(t, increaseTestCases)
 }
 
-// B1 has NaN in first series, first position
-func testRate(t *testing.T, testCases []testRateCase) {
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
-			boundStart := bounds.Start
-			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
-			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-
-			baseOp, err := NewRateOp([]interface{}{5 * time.Minute}, tt.opType)
-			require.NoError(t, err)
-			node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
-				TimeSpec: transform.TimeSpec{
-					Start: boundStart.Add(-2 * bounds.Duration),
-					End:   bounds.End(),
-					Step:  time.Minute,
-				},
-			}))
-			bNode := node.(*baseNode)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block3)
-			require.NoError(t, err)
-			assert.Len(t, sink.Values, 0, "nothing processed yet")
-			b, exists := bNode.cache.get(boundStart)
-			assert.True(t, exists, "block cached for future")
-			_, err = b.StepIter()
-			assert.NoError(t, err)
-
-			original := values[0][0]
-			values[0][0] = math.NaN()
-			block1 := test.NewUnconsolidatedBlockFromDatapoints(models.Bounds{
-				Start:    bounds.Start.Add(-2 * bounds.Duration),
-				Duration: bounds.Duration,
-				StepSize: bounds.StepSize,
-			}, values)
-
-			values[0][0] = original
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block1)
-			require.NoError(t, err)
-			assert.Len(t, sink.Values, 2, "output from first block only")
-			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[0], sink.Values[0], 0.0001)
-			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[1], sink.Values[1], 0.0001)
-			_, exists = bNode.cache.get(boundStart)
-			assert.True(t, exists, "block still cached")
-			_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
-			assert.False(t, exists, "block cached")
-
-			block2 := test.NewUnconsolidatedBlockFromDatapoints(models.Bounds{
-				Start:    bounds.Start.Add(-1 * bounds.Duration),
-				Duration: bounds.Duration,
-				StepSize: bounds.StepSize,
-			}, values)
-
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block2)
-			require.NoError(t, err)
-			assert.Len(t, sink.Values, 6, "output from all 3 blocks")
-			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[0], sink.Values[0], 0.0001)
-			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[1], sink.Values[1], 0.0001)
-			expectedOne := tt.afterAllBlocks[0]
-			expectedTwo := tt.afterAllBlocks[1]
-			test.EqualsWithNansWithDelta(t, expectedOne, sink.Values[2], 0.0001)
-			test.EqualsWithNansWithDelta(t, expectedTwo, sink.Values[3], 0.0001)
-			_, exists = bNode.cache.get(bounds.Previous(2).Start)
-			assert.False(t, exists, "block removed from cache")
-			_, exists = bNode.cache.get(bounds.Previous(1).Start)
-			assert.False(t, exists, "block not cached")
-			_, exists = bNode.cache.get(bounds.Start)
-			assert.False(t, exists, "block removed from cache")
-			blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
-			require.NoError(t, err)
-			assert.Len(t, blks, 0)
-		})
+func testRate(t *testing.T, testCases []testCase) {
+	opGen := func(t *testing.T, tc testCase) transform.Params {
+		op, err := NewRateOp([]interface{}{5 * time.Minute}, tc.opType)
+		require.NoError(t, err)
+		return op
 	}
+
+	testTemporalFunc(t, opGen, testCases)
 }
 
 func TestUnknownRate(t *testing.T) {

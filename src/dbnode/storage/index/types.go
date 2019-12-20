@@ -143,11 +143,6 @@ type QueryResults interface {
 	// mutates the state of the results after obtaining a reference to the map
 	// with this call.
 	Map() *ResultsMap
-
-	// NoFinalize marks the Results such that a subsequent call to Finalize()
-	// will be a no-op and will not return the object to the pool or release any
-	// of its resources.
-	NoFinalize()
 }
 
 // QueryResultsOptions is a set of options to use for query results.
@@ -155,6 +150,12 @@ type QueryResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
+
+	// FilterID, if provided, can be used to filter out unwanted IDs from
+	// the query results.
+	// NB(r): This is used to filter out results from shards the DB node
+	// node no longer owns but is still included in index segments.
+	FilterID func(id ident.ID) bool
 }
 
 // QueryResultsAllocator allocates QueryResults types.
@@ -327,7 +328,7 @@ type Block interface {
 	AddResults(results result.IndexBlock) error
 
 	// Tick does internal house keeping operations.
-	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
+	Tick(c context.Cancellable) (BlockTickResult, error)
 
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error

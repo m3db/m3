@@ -83,7 +83,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -100,7 +100,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
 	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
@@ -147,7 +147,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 
 	w := httptest.NewRecorder()
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }

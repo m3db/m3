@@ -42,7 +42,7 @@ var (
 )
 
 func generateIterators(
-	t *testing.T,
+	t testing.TB,
 	stepSize time.Duration,
 ) (
 	[]encoding.SeriesIterator,
@@ -114,7 +114,7 @@ func generateIterators(
 }
 
 func buildCustomIterator(
-	t *testing.T,
+	t testing.TB,
 	i int,
 	start time.Time,
 	stepSize time.Duration,
@@ -170,7 +170,7 @@ func verifyMetas(
 // and are put back together at the read step, or at any temporal functions in
 // the execution pipeline.
 func generateBlocks(
-	t *testing.T,
+	t testing.TB,
 	stepSize time.Duration,
 	opts Options,
 ) ([]block.Block, models.Bounds) {
@@ -178,6 +178,7 @@ func generateBlocks(
 	blocks, err := ConvertM3DBSeriesIterators(
 		encoding.NewSeriesIterators(iterators, nil),
 		bounds,
+		block.NewResultMetadata(),
 		opts,
 	)
 	require.NoError(t, err)

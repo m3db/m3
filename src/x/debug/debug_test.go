@@ -24,16 +24,39 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	clusterplacement "github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
+	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
 
 type fakeSource struct {
 	called    bool
@@ -41,7 +64,7 @@ type fakeSource struct {
 	content   string
 }
 
-func (f *fakeSource) Write(w io.Writer) error {
+func (f *fakeSource) Write(w io.Writer, _ *http.Request) error {
 	f.called = true
 	if f.shouldErr {
 		return errors.New("bad write")
@@ -65,7 +88,7 @@ func TestWriteZip(t *testing.T) {
 	zipWriter.RegisterSource("test2", fs2)
 	zipWriter.RegisterSource("test3", fs3)
 	buff := bytes.NewBuffer([]byte{})
-	err := zipWriter.WriteZip(buff)
+	err := zipWriter.WriteZip(buff, &http.Request{})
 
 	bytesReader := bytes.NewReader(buff.Bytes())
 	readerCloser, zerr := zip.NewReader(bytesReader, int64(len(buff.Bytes())))
@@ -103,7 +126,7 @@ func TestWriteZipErr(t *testing.T) {
 	}
 	zipWriter.RegisterSource("test", fs)
 	buff := bytes.NewBuffer([]byte{})
-	err := zipWriter.WriteZip(buff)
+	err := zipWriter.WriteZip(buff, &http.Request{})
 	require.Error(t, err)
 	require.True(t, fs.called)
 }
@@ -119,7 +142,10 @@ func TestRegisterSourceSameName(t *testing.T) {
 
 func TestHTTPEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
-	path := "/debug/dump"
+
+	// Randomizing the path here so we avoid multiple tests
+	// registering the same endpoint.
+	path := fmt.Sprintf("/debug/%s", randStringBytes(10))
 
 	zw := NewZipWriter(instrument.NewOptions())
 	fs1 := &fakeSource{
@@ -189,15 +215,78 @@ func TestHTTPEndpoint(t *testing.T) {
 	})
 }
 
-func TestDefaultSources(t *testing.T) {
-	defaultSources := []string{
-		"cpuSource",
-		"heapSource",
-		"hostSource",
-		"goroutineProfile",
+func newHandlerOptsAndClient(t *testing.T) (placement.HandlerOptions, *clusterclient.MockClient) {
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"host1": &placementpb.Instance{
+				Id:             "host1",
+				IsolationGroup: "rack1",
+				Zone:           "test",
+				Weight:         1,
+				Endpoint:       "http://host1:1234",
+				Hostname:       "host1",
+				Port:           1234,
+			},
+			"host2": &placementpb.Instance{
+				Id:             "host2",
+				IsolationGroup: "rack1",
+				Zone:           "test",
+				Weight:         1,
+				Endpoint:       "http://host2:1234",
+				Hostname:       "host2",
+				Port:           1234,
+			},
+		},
 	}
 
-	zw, err := NewZipWriterWithDefaultSources(1*time.Second, instrument.NewOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := clusterclient.NewMockClient(ctrl)
+	require.NotNil(t, mockClient)
+
+	mockKV := kv.NewMockStore(ctrl)
+	require.NotNil(t, mockKV)
+
+	mockServices := services.NewMockServices(ctrl)
+	require.NotNil(t, mockServices)
+
+	mockPlacement := clusterplacement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Proto().Return(placementProto, nil).AnyTimes()
+	mockPlacement.EXPECT().Version().Return(0).AnyTimes()
+
+	mockPlacementService := clusterplacement.NewMockService(ctrl)
+	require.NotNil(t, mockPlacementService)
+
+	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil).AnyTimes()
+	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil).AnyTimes()
+	mockPlacementService.EXPECT().Placement().Return(mockPlacement, nil).AnyTimes()
+
+	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).AnyTimes()
+
+	handlerOpts, err := placement.NewHandlerOptions(
+		mockClient, config.Configuration{}, nil, instrument.NewOptions())
+	require.NoError(t, err)
+
+	return handlerOpts, mockClient
+}
+
+func TestDefaultSources(t *testing.T) {
+	defaultSources := []string{
+		"cpu.prof",
+		"heap.prof",
+		"host.json",
+		"goroutine.prof",
+		"namespace.json",
+		"placement-m3db.json",
+	}
+
+	handlerOpts, mockClient := newHandlerOptsAndClient(t)
+	svcDefaults := []apihandler.ServiceNameAndDefaults{{
+		ServiceName: "m3db",
+	}}
+	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, mockClient, handlerOpts, svcDefaults, instrument.NewOptions())
 	require.NoError(t, err)
 	require.NotNil(t, zw)
 
@@ -206,14 +295,13 @@ func TestDefaultSources(t *testing.T) {
 		iv := reflect.ValueOf(zw).Elem().Interface()
 		z, ok := iv.(zipWriter)
 		require.True(t, ok)
-
 		_, ok = z.sources[source]
 		require.True(t, ok)
 	}
 
 	// Check writing ZIP is ok
 	buff := bytes.NewBuffer([]byte{})
-	err = zw.WriteZip(buff)
+	err = zw.WriteZip(buff, &http.Request{})
 	require.NoError(t, err)
 	require.NotZero(t, buff.Len())
 

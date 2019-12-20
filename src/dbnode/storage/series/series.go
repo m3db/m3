@@ -38,19 +38,20 @@ import (
 	"go.uber.org/zap"
 )
 
-type bootstrapState int
-
-const (
-	bootstrapNotStarted bootstrapState = iota
-	bootstrapped
-)
-
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
+	// errSeriesMatchUniqueIndexFailed is returned when MatchUniqueIndex is
+	// specified for a write but the value does not match the current series
+	// unique index.
+	errSeriesMatchUniqueIndexFailed = errors.New("series write failed due to unique index not matched")
+	// errSeriesMatchUniqueIndexInvalid is returned when MatchUniqueIndex is
+	// specified for a write but the current series unique index is invalid.
+	errSeriesMatchUniqueIndexInvalid = errors.New("series write failed due to unique index being invalid")
 
-	errSeriesAlreadyBootstrapped = errors.New("series is already bootstrapped")
-	errSeriesNotBootstrapped     = errors.New("series is not yet bootstrapped")
+	errSeriesAlreadyBootstrapped         = errors.New("series is already bootstrapped")
+	errSeriesNotBootstrapped             = errors.New("series is not yet bootstrapped")
+	errBlockStateSnapshotNotBootstrapped = errors.New("block state snapshot is not bootstrapped")
 )
 
 type dbSeries struct {
@@ -61,12 +62,12 @@ type dbSeries struct {
 	// series ID before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
-	id   ident.ID
-	tags ident.Tags
+	id          ident.ID
+	tags        ident.Tags
+	uniqueIndex uint64
 
 	buffer                      databaseBuffer
 	cachedBlocks                block.DatabaseSeriesBlocks
-	bs                          bootstrapState
 	blockRetriever              QueryableBlockRetriever
 	onRetrieveBlock             block.OnRetrieveBlock
 	blockOnEvictedFromWiredList block.OnEvictedFromWiredList
@@ -74,9 +75,9 @@ type dbSeries struct {
 }
 
 // NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ident.ID, tags ident.Tags, opts Options) DatabaseSeries {
+func NewDatabaseSeries(id ident.ID, tags ident.Tags, uniqueIndex uint64, opts Options) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, tags, nil, nil, nil, opts)
+	s.Reset(id, tags, uniqueIndex, nil, nil, nil, opts)
 	return s
 }
 
@@ -92,7 +93,6 @@ func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
 func newDatabaseSeries() *dbSeries {
 	series := &dbSeries{
 		cachedBlocks: block.NewDatabaseSeriesBlocks(0),
-		bs:           bootstrapNotStarted,
 	}
 	series.buffer = newDatabaseBuffer()
 	return series
@@ -117,7 +117,14 @@ func (s *dbSeries) Tags() ident.Tags {
 	return tags
 }
 
-func (s *dbSeries) Tick(blockStates map[xtime.UnixNano]BlockState, nsCtx namespace.Context) (TickResult, error) {
+func (s *dbSeries) UniqueIndex() uint64 {
+	s.RLock()
+	uniqueIndex := s.uniqueIndex
+	s.RUnlock()
+	return uniqueIndex
+}
+
+func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Context) (TickResult, error) {
 	var r TickResult
 
 	s.Lock()
@@ -149,7 +156,7 @@ type updateBlocksResult struct {
 }
 
 func (s *dbSeries) updateBlocksWithLock(
-	blockStates map[xtime.UnixNano]BlockState,
+	blockStates ShardBlockStateSnapshot,
 	evictedBucketTimes OptimizedTimes,
 ) (updateBlocksResult, error) {
 	var (
@@ -204,24 +211,29 @@ func (s *dbSeries) updateBlocksWithLock(
 
 		// Potentially unwire
 		var unwired, shouldUnwire bool
-		// Makes sure that the block has been flushed, which
-		// prevents us from unwiring blocks that haven't been flushed yet which
-		// would cause data loss.
-		if blockState := blockStates[startNano]; blockState.WarmRetrievable {
-			switch cachePolicy {
-			case CacheNone:
-				shouldUnwire = true
-			case CacheRecentlyRead:
-				sinceLastRead := now.Sub(currBlock.LastReadTime())
-				shouldUnwire = sinceLastRead >= wiredTimeout
-			case CacheLRU:
-				// The tick is responsible for managing the lifecycle of blocks that were not
-				// read from disk (not retrieved), and the WiredList will manage those that were
-				// retrieved from disk.
-				shouldUnwire = !currBlock.WasRetrievedFromDisk()
-			default:
-				s.opts.InstrumentOptions().Logger().Fatal(
-					"unhandled cache policy in series tick", zap.Any("policy", cachePolicy))
+		blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
+		// Only use block state snapshot information to make eviction decisions if the block state
+		// has been properly bootstrapped already.
+		if bootstrapped {
+			// Makes sure that the block has been flushed, which
+			// prevents us from unwiring blocks that haven't been flushed yet which
+			// would cause data loss.
+			if blockState := blockStatesSnapshot.Snapshot[startNano]; blockState.WarmRetrievable {
+				switch cachePolicy {
+				case CacheNone:
+					shouldUnwire = true
+				case CacheRecentlyRead:
+					sinceLastRead := now.Sub(currBlock.LastReadTime())
+					shouldUnwire = sinceLastRead >= wiredTimeout
+				case CacheLRU:
+					// The tick is responsible for managing the lifecycle of blocks that were not
+					// read from disk (not retrieved), and the WiredList will manage those that were
+					// retrieved from disk.
+					shouldUnwire = !currBlock.WasRetrievedFromDisk()
+				default:
+					s.opts.InstrumentOptions().Logger().Fatal(
+						"unhandled cache policy in series tick", zap.Any("policy", cachePolicy))
+				}
 			}
 		}
 
@@ -268,13 +280,6 @@ func (s *dbSeries) NumActiveBlocks() int {
 	return value
 }
 
-func (s *dbSeries) IsBootstrapped() bool {
-	s.RLock()
-	state := s.bs
-	s.RUnlock()
-	return state == bootstrapped
-}
-
 func (s *dbSeries) Write(
 	ctx context.Context,
 	timestamp time.Time,
@@ -284,6 +289,21 @@ func (s *dbSeries) Write(
 	wOpts WriteOptions,
 ) (bool, error) {
 	s.Lock()
+	matchUniqueIndex := wOpts.MatchUniqueIndex
+	if matchUniqueIndex {
+		if s.uniqueIndex == 0 {
+			return false, errSeriesMatchUniqueIndexInvalid
+		}
+		if s.uniqueIndex != wOpts.MatchUniqueIndexValue {
+			// NB(r): Match unique index allows for a caller to
+			// reliably take a reference to a series and call Write(...)
+			// later while keeping a direct reference to the series
+			// while the shard and namespace continues to own and manage
+			// the lifecycle of the series.
+			return false, errSeriesMatchUniqueIndexFailed
+		}
+	}
+
 	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
 	s.Unlock()
 	return wasWritten, err
@@ -337,52 +357,10 @@ func (s *dbSeries) FetchBlocksMetadata(
 	start, end time.Time,
 	opts FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResult, error) {
-	blockSize := s.opts.RetentionOptions().BlockSize()
-	res := s.opts.FetchBlockMetadataResultsPool().Get()
-
 	s.RLock()
 	defer s.RUnlock()
 
-	blocks := s.cachedBlocks.AllBlocks()
-
-	for tNano, b := range blocks {
-		t := tNano.ToTime()
-		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
-			continue
-		}
-		if !opts.IncludeCachedBlocks && b.WasRetrievedFromDisk() {
-			// Do not include cached blocks if not specified to, this is
-			// to avoid high amounts of duplication if a significant number of
-			// blocks are cached in memory when returning blocks metadata
-			// from both in-memory and disk structures.
-			continue
-		}
-		var (
-			size     int64
-			checksum *uint32
-			lastRead time.Time
-		)
-		if opts.IncludeSizes {
-			size = int64(b.Len())
-		}
-		if opts.IncludeChecksums {
-			v, err := b.Checksum()
-			if err != nil {
-				return block.FetchBlocksMetadataResult{}, err
-			}
-			checksum = &v
-		}
-		if opts.IncludeLastRead {
-			lastRead = b.LastReadTime()
-		}
-		res.Add(block.FetchBlockMetadataResult{
-			Start:    t,
-			Size:     size,
-			Checksum: checksum,
-			LastRead: lastRead,
-		})
-	}
-
+	res := s.opts.FetchBlockMetadataResultsPool().Get()
 	// Iterate over the encoders in the database buffer
 	if !s.buffer.IsEmpty() {
 		bufferResults, err := s.buffer.FetchBlocksMetadata(ctx, start, end, opts)
@@ -409,29 +387,14 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	s.cachedBlocks.AddBlock(b)
 }
 
-func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
+func (s *dbSeries) LoadBlock(
+	block block.DatabaseBlock,
+	writeType WriteType,
+) error {
 	s.Lock()
-	defer func() {
-		s.bs = bootstrapped
-		s.Unlock()
-	}()
-
-	var result BootstrapResult
-	if s.bs == bootstrapped {
-		return result, errSeriesAlreadyBootstrapped
-	}
-
-	if bootstrappedBlocks == nil {
-		return result, nil
-	}
-
-	for _, block := range bootstrappedBlocks.AllBlocks() {
-		s.buffer.Bootstrap(block)
-		result.NumBlocksMovedToBuffer++
-	}
-
-	s.bs = bootstrapped
-	return result, nil
+	s.buffer.Load(block, writeType)
+	s.Unlock()
+	return nil
 }
 
 func (s *dbSeries) OnRetrieveBlock(
@@ -538,14 +501,12 @@ func (s *dbSeries) WarmFlush(
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
+	// Need a write lock because the buffer WarmFlush method mutates
+	// state (by performing a pro-active merge).
 	s.Lock()
-	defer s.Unlock()
-
-	if s.bs != bootstrapped {
-		return FlushOutcomeErr, errSeriesNotBootstrapped
-	}
-
-	return s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	s.Unlock()
+	return outcome, err
 }
 
 func (s *dbSeries) Snapshot(
@@ -559,27 +520,24 @@ func (s *dbSeries) Snapshot(
 	s.Lock()
 	defer s.Unlock()
 
-	if s.bs != bootstrapped {
-		return errSeriesNotBootstrapped
-	}
-
 	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
 }
 
-func (s *dbSeries) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
+func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.buffer.ColdFlushBlockStarts(blockStates)
+	return s.buffer.ColdFlushBlockStarts(blockStates.Snapshot)
 }
 
 func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
 
-	// See Reset() for why these aren't finalized
+	// See Reset() for why these aren't finalized.
 	s.id = nil
 	s.tags = ident.Tags{}
+	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
@@ -605,15 +563,13 @@ func (s *dbSeries) Close() {
 func (s *dbSeries) Reset(
 	id ident.ID,
 	tags ident.Tags,
+	uniqueIndex uint64,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
 	onEvictedFromWiredList block.OnEvictedFromWiredList,
 	opts Options,
 ) {
-	s.Lock()
-	defer s.Unlock()
-
-	// NB(r): We explicitly do not place this ID back into an
+	// NB(r): We explicitly do not place the ID back into an
 	// existing pool as high frequency users of series IDs such
 	// as the commit log need to use the reference without the
 	// overhead of ownership tracking. In addition, the blocks
@@ -628,14 +584,17 @@ func (s *dbSeries) Reset(
 	// Since series are purged so infrequently the overhead
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
+	//
+	// The same goes for the series tags.
+	s.Lock()
 	s.id = id
 	s.tags = tags
-
+	s.uniqueIndex = uniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(id, opts)
 	s.opts = opts
-	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
 	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
+	s.Unlock()
 }

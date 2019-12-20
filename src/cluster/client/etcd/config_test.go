@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ jitter: 5s
 timeout: 1s
 `
 
-	var cfg keepAliveConfig
+	var cfg KeepAliveConfig
 	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
 
 	opts := cfg.NewOptions()
@@ -95,7 +96,7 @@ m3sd:
 		ClusterConfig{
 			Zone:      "z1",
 			Endpoints: []string{"etcd1:2379", "etcd2:2379"},
-			KeepAlive: &keepAliveConfig{
+			KeepAlive: &KeepAliveConfig{
 				Enabled: true,
 				Period:  10 * time.Second,
 				Jitter:  5 * time.Second,
@@ -140,4 +141,34 @@ m3sd:
 	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriod())
 	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriodMaxJitter())
 	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAliveTimeout())
+
+	t.Run("TestOptionsNewDirectoryMode", func(t *testing.T) {
+		opts := cfg.NewOptions()
+		require.Equal(t, defaultDirectoryMode, opts.NewDirectoryMode())
+
+		const testConfigWithDir = `
+env: env1
+zone: z1
+service: service1
+cacheDir: /tmp/cache.json
+watchWithRevision: 1
+newDirectoryMode: 0744
+etcdClusters:
+  - zone: z1
+    endpoints:
+      - etcd1:2379
+      - etcd2:2379
+    keepAlive:
+      enabled: true
+      period: 10s
+      jitter: 5s
+      timeout: 1s
+    autoSyncInterval: 60s
+m3sd:
+  initTimeout: 10s
+`
+		var cfg2 Configuration
+		require.NoError(t, yaml.Unmarshal([]byte(testConfigWithDir), &cfg2))
+		require.Equal(t, os.FileMode(0744), *cfg2.NewDirectoryMode)
+	})
 }

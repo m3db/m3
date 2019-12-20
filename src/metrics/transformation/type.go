@@ -22,7 +22,6 @@ package transformation
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 )
@@ -120,43 +119,22 @@ func (t *Type) FromProto(pb transformationpb.TransformationType) error {
 	return nil
 }
 
-// MarshalJSON returns the JSON encoding of a transformation type.
-func (t Type) MarshalJSON() ([]byte, error) {
+// UnmarshalText extracts this type from the textual representation
+func (t *Type) UnmarshalText(text []byte) error {
+	parsed, err := ParseType(string(text))
+	if err != nil {
+		return err
+	}
+	*t = parsed
+	return nil
+}
+
+// MarshalText serializes this type to its textual representation.
+func (t Type) MarshalText() (text []byte, err error) {
 	if !t.IsValid() {
 		return nil, fmt.Errorf("invalid aggregation type %s", t.String())
 	}
-	marshalled := strconv.Quote(t.String())
-	return []byte(marshalled), nil
-}
-
-// UnmarshalJSON unmarshals JSON-encoded data into a transformation type.
-func (t *Type) UnmarshalJSON(data []byte) error {
-	str := string(data)
-	unquoted, err := strconv.Unquote(str)
-	if err != nil {
-		return err
-	}
-	parsed, err := ParseType(unquoted)
-	if err != nil {
-		return err
-	}
-	*t = parsed
-	return nil
-}
-
-// UnmarshalYAML unmarshals YAML-encoded data into a transformation type.
-func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	parsed, err := ParseType(str)
-	if err != nil {
-		return err
-	}
-	*t = parsed
-	return nil
+	return []byte(t.String()), nil
 }
 
 // ParseType parses a transformation type.

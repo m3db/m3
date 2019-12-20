@@ -26,9 +26,10 @@ EXPOSE 2379/tcp 2380/tcp 7201/tcp 7203/tcp 9000-9004/tcp
 
 RUN apk add --no-cache curl jq
 
-COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode /bin/
 COPY --from=builder /go/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
-COPY --from=builder /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh /bin/
+COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode \
+  /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh \
+  /bin/
 
 ENTRYPOINT [ "/bin/m3dbnode" ]
 CMD [ "-f", "/etc/m3dbnode/m3dbnode.yml" ]

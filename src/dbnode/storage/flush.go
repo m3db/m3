@@ -75,7 +75,10 @@ type flushManager struct {
 }
 
 func newFlushManager(
-	database database, commitlog commitlog.CommitLog, scope tally.Scope) databaseFlushManager {
+	database database,
+	commitlog commitlog.CommitLog,
+	scope tally.Scope,
+) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
 		database:                        database,
@@ -90,10 +93,7 @@ func newFlushManager(
 	}
 }
 
-func (m *flushManager) Flush(
-	tickStart time.Time,
-	dbBootstrapStateAtTickStart DatabaseBootstrapState,
-) error {
+func (m *flushManager) Flush(startTime time.Time) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
 	if m.state != flushManagerIdle {
@@ -121,12 +121,34 @@ func (m *flushManager) Flush(
 	// as the snapshotting process will attempt to snapshot any unflushed blocks
 	// which would be wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, tickStart, dbBootstrapStateAtTickStart); err != nil {
+	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
 	if err == nil {
+		// The cold flush process will persist any data that has been "loaded" into memory via
+		// the Load() API but has not yet been persisted durably. As a result, if the cold flush
+		// process completes without error, then we want to "decrement" the number of tracked bytes
+		// by however many were outstanding right before the cold flush began.
+		//
+		// For example:
+		// t0: Load 100 bytes --> (numLoadedBytes == 100, numPendingLoadedBytes == 0)
+		// t1: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 100, numPendingLoadedBytes == 100)
+		// t2: Load 200 bytes --> (numLoadedBytes == 300, numPendingLoadedBytes == 100)
+		// t3: ColdFlushStart()
+		// t4: Load 300 bytes --> (numLoadedBytes == 600, numPendingLoadedBytes == 100)
+		// t5: ColdFlushEnd()
+		// t6: memTracker.DecPendingLoadedBytes() --> (numLoadedBytes == 500, numPendingLoadedBytes == 0)
+		// t7: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 500, numPendingLoadedBytes == 500)
+		// t8: ColdFlushStart()
+		// t9: ColdFlushError()
+		// t10: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 500, numPendingLoadedBytes == 500)
+		// t11: ColdFlushStart()
+		// t12: ColdFlushEnd()
+		// t13: memTracker.DecPendingLoadedBytes() --> (numLoadedBytes == 0, numPendingLoadedBytes == 0)
+		memTracker := m.opts.MemoryTracker()
+		memTracker.MarkLoadedAsPending()
 		if err = m.dataColdFlush(namespaces); err != nil {
 			multiErr = multiErr.Add(err)
 			// If cold flush fails, we can't proceed to snapshotting because
@@ -139,8 +161,11 @@ func (m *flushManager) Flush(
 			// the cold writes from its commit log.
 			return multiErr.FinalError()
 		}
+		// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
+		// value by however many bytes had been tracked when the cold flush began.
+		memTracker.DecPendingLoadedBytes()
 
-		if err = m.dataSnapshot(namespaces, tickStart, rotatedCommitlogID); err != nil {
+		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	} else {
@@ -156,8 +181,7 @@ func (m *flushManager) Flush(
 
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
-	tickStart time.Time,
-	dbBootstrapStateAtTickStart DatabaseBootstrapState,
+	startTime time.Time,
 ) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
@@ -167,18 +191,13 @@ func (m *flushManager) dataWarmFlush(
 	m.setState(flushManagerFlushInProgress)
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
-		// Flush first because we will only snapshot if there are no outstanding flushes
-		flushTimes := m.namespaceFlushTimes(ns, tickStart)
-		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-		if !ok {
-			// Could happen if namespaces are added / removed.
-			multiErr = multiErr.Add(fmt.Errorf(
-				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+		// Flush first because we will only snapshot if there are no outstanding flushes.
+		flushTimes, err := m.namespaceFlushTimes(ns, startTime)
+		if err != nil {
+			multiErr = multiErr.Add(err)
 			continue
 		}
-
-		err = m.flushNamespaceWithTimes(
-			ns, shardBootstrapTimes, flushTimes, flushPersist)
+		err = m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -218,7 +237,7 @@ func (m *flushManager) dataColdFlush(
 
 func (m *flushManager) dataSnapshot(
 	namespaces []databaseNamespace,
-	tickStart time.Time,
+	startTime time.Time,
 	rotatedCommitlogID persist.CommitLogFile,
 ) error {
 	snapshotID := uuid.NewUUID()
@@ -234,19 +253,28 @@ func (m *flushManager) dataSnapshot(
 		multiErr                        = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
-		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, tickStart)
+		snapshotBlockStarts, err := m.namespaceSnapshotTimes(ns, startTime)
+		if err != nil {
+			detailedErr := fmt.Errorf(
+				"namespace %s failed to determine snapshot times: %v",
+				ns.ID().String(), err)
+			multiErr = multiErr.Add(detailedErr)
+			continue
+		}
 
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
 		}
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			err := ns.Snapshot(
-				snapshotBlockStart, tickStart, snapshotPersist)
+				snapshotBlockStart, startTime, snapshotPersist)
 
 			if err != nil {
-				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
-					ns.ID().String(), err)
+				detailedErr := fmt.Errorf(
+					"namespace %s failed to snapshot data for blockStart %s: %v",
+					ns.ID().String(), snapshotBlockStart.String(), err)
 				multiErr = multiErr.Add(detailedErr)
+				continue
 			}
 		}
 	}
@@ -257,7 +285,7 @@ func (m *flushManager) dataSnapshot(
 
 	finalErr := multiErr.FinalError()
 	if finalErr == nil {
-		m.lastSuccessfulSnapshotStartTime = tickStart
+		m.lastSuccessfulSnapshotStartTime = startTime
 	}
 	return finalErr
 }
@@ -327,7 +355,7 @@ func (m *flushManager) flushRange(rOpts retention.Options, t time.Time) (time.Ti
 	return retention.FlushTimeStart(rOpts, t), retention.FlushTimeEnd(rOpts, t)
 }
 
-func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) []time.Time {
+func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) ([]time.Time, error) {
 	var (
 		rOpts            = ns.Options().RetentionOptions()
 		blockSize        = rOpts.BlockSize()
@@ -335,12 +363,18 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 	)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
+	var loopErr error
 	return filterTimes(candidateTimes, func(t time.Time) bool {
-		return ns.NeedsFlush(t, t)
-	})
+		needsFlush, err := ns.NeedsFlush(t, t)
+		if err != nil {
+			loopErr = err
+			return false
+		}
+		return needsFlush
+	}), loopErr
 }
 
-func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Time) []time.Time {
+func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Time) ([]time.Time, error) {
 	var (
 		rOpts     = ns.Options().RetentionOptions()
 		blockSize = rOpts.BlockSize()
@@ -356,17 +390,22 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 	)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
+	var loopErr error
 	return filterTimes(candidateTimes, func(t time.Time) bool {
 		// Snapshot anything that is unflushed.
-		return ns.NeedsFlush(t, t)
-	})
+		needsFlush, err := ns.NeedsFlush(t, t)
+		if err != nil {
+			loopErr = err
+			return false
+		}
+		return needsFlush
+	}), loopErr
 }
 
 // flushWithTime flushes in-memory data for a given namespace, at a given
 // time, returning any error encountered during flushing
 func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
-	ShardBootstrapStates ShardBootstrapStates,
 	times []time.Time,
 	flushPreparer persist.FlushPreparer,
 ) error {
@@ -374,7 +413,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := ns.WarmFlush(t, ShardBootstrapStates, flushPreparer); err != nil {
+		if err := ns.WarmFlush(t, flushPreparer); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)

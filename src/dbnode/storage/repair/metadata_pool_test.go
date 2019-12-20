@@ -23,18 +23,19 @@ package repair
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestHostBlockMetadataSlicePoolResetOnPut(t *testing.T) {
+func TestReplicaMetadataSlicePoolResetOnPut(t *testing.T) {
 	opts := pool.NewObjectPoolOptions().SetSize(1)
-	p := NewHostBlockMetadataSlicePool(opts, 64)
+	p := NewReplicaMetadataSlicePool(opts, 64)
 	res := p.Get()
 
 	// Make res non-empty
-	res.Add(HostBlockMetadata{})
+	res.Add(block.ReplicaMetadata{})
 	require.Equal(t, 1, len(res.Metadata()))
 
 	// Return res to pool
