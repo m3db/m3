@@ -26,6 +26,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 )
 
@@ -107,4 +108,10 @@ type Options interface {
 
 	// ContextPool returns the contextPool.
 	ContextPool() context.Pool
+
+	// SetDocumentArrayPool sets the document array pool.
+	SetDocumentArrayPool(value doc.DocumentArrayPool) Options
+
+	// DocumentArrayPool returns the document array pool.
+	DocumentArrayPool() doc.DocumentArrayPool
 }

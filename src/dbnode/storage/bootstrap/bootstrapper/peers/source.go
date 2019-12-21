@@ -32,10 +32,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,9 +48,10 @@ import (
 )
 
 type peersSource struct {
-	opts  Options
-	log   *zap.Logger
-	nowFn clock.NowFn
+	opts           Options
+	log            *zap.Logger
+	nowFn          clock.NowFn
+	persistManager *bootstrapper.SharedPersistManager
 }
 
 type persistenceFlush struct {
@@ -65,6 +68,9 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		opts:  opts,
 		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		persistManager: &bootstrapper.SharedPersistManager{
+			Mgr: opts.PersistManager(),
+		},
 	}, nil
 }
 
@@ -642,72 +648,122 @@ func (s *peersSource) readIndex(
 		zap.Int("concurrency", concurrency),
 	)
 
+	groupFn := bootstrapper.NewShardTimeRangesTimeWindowGroups
+	groupedByBlockSize := groupFn(shardsTimeRanges, dataBlockSize)
+
 	workers := xsync.NewWorkerPool(concurrency)
 	workers.Init()
-	for shard, ranges := range shardsTimeRanges {
-		shard, ranges := shard, ranges
+	for _, group := range groupedByBlockSize {
+		shardsTimeRanges := group.Ranges
 		wg.Add(1)
+		// NB(bodu): This is fetching the data for all shards for a block of time.
 		workers.Go(func() {
-			defer wg.Done()
+			var (
+				docsPool = s.opts.DocumentArrayPool()
+				batch    = docsPool.Get()
+			)
+			defer func() {
+				docsPool.Put(batch)
+			}()
 
-			iter := ranges.Iter()
-			for iter.Next() {
-				target := iter.Value()
-				size := dataBlockSize
-				for blockStart := target.Start; blockStart.Before(target.End); blockStart = blockStart.Add(size) {
-					currRange := xtime.Range{
-						Start: blockStart,
-						End:   blockStart.Add(size),
-					}
+			for shard, ranges := range shardsTimeRanges {
+				iter := ranges.Iter()
+				for iter.Next() {
+					target := iter.Value()
+					size := dataBlockSize
+					for blockStart := target.Start; blockStart.Before(target.End); blockStart = blockStart.Add(size) {
+						currRange := xtime.Range{
+							Start: blockStart,
+							End:   blockStart.Add(size),
+						}
 
-					// Helper lightweight lambda that should get inlined
-					var markedAnyUnfulfilled bool
-					markUnfulfilled := func(err error) {
-						markedAnyUnfulfilled = true
-						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-							shard, currRange)
-					}
+						// Helper lightweight lambda that should get inlined
+						var markedAnyUnfulfilled bool
+						markUnfulfilled := func(err error) {
+							markedAnyUnfulfilled = true
+							s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+								shard, currRange)
+						}
 
-					metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
-						shard, currRange.Start, currRange.End, resultOpts)
-					if err != nil {
-						// Make this period unfulfilled
-						markUnfulfilled(err)
-						continue
-					}
-					for metadata.Next() {
-						_, dataBlock := metadata.Current()
-
-						inserted, err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
-							idxOpts, resultOpts)
+						indexBlockDocumentsBuilder, err := r.IndexResults().GetOrAddDocumentsBuilder(
+							blockStart,
+							idxOpts,
+							resultOpts,
+						)
 						if err != nil {
 							// Make this period unfulfilled
 							markUnfulfilled(err)
+							continue
+						}
+						flushBatch := bootstrapper.CreateFlushBatchFn(resultLock, batch, indexBlockDocumentsBuilder)
+
+						metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
+							shard, currRange.Start, currRange.End, resultOpts)
+						if err != nil {
+							// Make this period unfulfilled
+							markUnfulfilled(err)
+							continue
+						}
+						for metadata.Next() {
+							_, dataBlock := metadata.Current()
+
+							inserted, err := s.readBlockMetadataAndIndex(
+								dataBlock,
+								batch,
+								flushBatch,
+							)
+							if err != nil {
+								// Make this period unfulfilled
+								markUnfulfilled(err)
+							}
+
+							if !inserted {
+								// If the metadata wasn't inserted we finalize the metadata.
+								dataBlock.Finalize()
+							}
+						}
+						if err := metadata.Err(); err != nil {
+							// Make this period unfulfilled
+							markUnfulfilled(err)
+						}
+						if len(batch) > 0 {
+							if err := flushBatch(); err != nil {
+								markUnfulfilled(err)
+							}
 						}
 
-						if !inserted {
-							// If the metadata wasn't inserted we finalize the metadata.
-							dataBlock.Finalize()
+						if markedAnyUnfulfilled {
+							continue // Don't mark index block fulfilled by this range
 						}
-					}
-					if err := metadata.Err(); err != nil {
-						// Make this period unfulfilled
-						markUnfulfilled(err)
-					}
 
-					if markedAnyUnfulfilled {
-						continue // Don't mark index block fulfilled by this range
+						// NB(r): If no unfulfilled then we mark this part of the index
+						// block fulfilled for this shard
+						resultLock.Lock()
+						fulfilled := result.ShardTimeRanges{
+							shard: xtime.NewRanges(currRange),
+						}
+						r.IndexResults().MarkFulfilled(currRange.Start, fulfilled, idxOpts)
+						resultLock.Unlock()
 					}
-
-					// NB(r): If no unfulfilled then we mark this part of the index
-					// block fulfilled for this shard
-					resultLock.Lock()
-					fulfilled := result.ShardTimeRanges{
-						shard: xtime.NewRanges(currRange),
-					}
-					r.IndexResults().MarkFulfilled(currRange.Start, fulfilled, idxOpts)
-					resultLock.Unlock()
 				}
+			}
+
+			// NB(bodu): After we've written out all the index data for the block, we need to persist it to disk.
+			err := bootstrapper.PersistBootstrapIndexSegment(
+				ns,
+				shardsTimeRanges,
+				r.IndexResults(),
+				s.persistManager,
+				s.opts.ResultOptions(),
+			)
+			if err != nil {
+				iopts := s.opts.ResultOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+					l.Error("persist fs index bootstrap failed",
+						zap.Stringer("namespace", ns.ID()),
+						zap.Stringer("requestedRanges", shardsTimeRanges),
+						zap.Error(err))
+				})
 			}
 		})
 	}
@@ -718,37 +774,18 @@ func (s *peersSource) readIndex(
 }
 
 func (s *peersSource) readBlockMetadataAndIndex(
-	r result.IndexBootstrapResult,
-	resultLock *sync.Mutex,
 	dataBlock block.Metadata,
-	idxOpts namespace.IndexOptions,
-	resultOpts result.Options,
+	batch []doc.Document,
+	flushBatch func() error,
 ) (bool, error) {
-	resultLock.Lock()
-	defer resultLock.Unlock()
-
-	segment, err := r.IndexResults().GetOrAddSegment(dataBlock.Start,
-		idxOpts, resultOpts)
-	if err != nil {
-		return false, err
-	}
-
-	exists, err := segment.ContainsID(dataBlock.ID.Bytes())
-	if err != nil {
-		return false, err
-	}
-	if exists {
-		return false, nil
-	}
-
 	d, err := convert.FromMetric(dataBlock.ID, dataBlock.Tags)
 	if err != nil {
 		return false, err
 	}
 
-	_, err = segment.Insert(d)
-	if err != nil {
-		return false, err
+	batch = append(batch, d)
+	if len(batch) >= documentArrayPoolCapacity {
+		return true, flushBatch()
 	}
 
 	return true, nil

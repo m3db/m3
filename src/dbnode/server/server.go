@@ -687,13 +687,13 @@ func Run(runOpts RunOptions) {
 		runOpts.ClientCh <- m3dbClient
 	}
 
-	mutableSegmentAlloc := index.NewBootstrapResultMutableSegmentAllocator(
+	documentsBuilderAlloc := index.NewBootstrapResultMutableSegmentAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-		SetIndexDocumentsBuilderAllocator(mutableSegmentAlloc)
+		SetIndexDocumentsBuilderAllocator(documentsBuilderAlloc)
 
 	var repairClients []client.AdminClient
 	if cfg.Repair != nil && cfg.Repair.Enabled {

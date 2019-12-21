@@ -30,6 +30,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -38,6 +39,13 @@ var (
 	defaultDefaultShardConcurrency     = runtime.NumCPU()
 	defaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultPersistenceMaxQueueSize     = 0
+
+	// documentArrayPool size in general: 256*256*sizeof(doc.Document)
+	// = 256 * 256 * 16
+	// = 1mb (but with Go's heap probably 2mb)
+	documentArrayPoolSize        = 256
+	documentArrayPoolCapacity    = 256
+	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 )
 
 var (
@@ -56,10 +64,18 @@ type options struct {
 	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptionsManager       m3dbruntime.OptionsManager
 	contextPool                 context.Pool
+	docArrayPool                doc.DocumentArrayPool
 }
 
 // NewOptions creates new bootstrap options.
 func NewOptions() Options {
+	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(documentArrayPoolSize),
+		Capacity:    documentArrayPoolCapacity,
+		MaxCapacity: documentArrayPoolMaxCapacity,
+	})
+	docArrayPool.Init()
 	return &options{
 		resultOpts:                  result.NewOptions(),
 		defaultShardConcurrency:     defaultDefaultShardConcurrency,
@@ -69,6 +85,7 @@ func NewOptions() Options {
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
 			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
+		docArrayPool: docArrayPool,
 	}
 }
 
@@ -175,4 +192,14 @@ func (o *options) SetContextPool(value context.Pool) Options {
 
 func (o *options) ContextPool() context.Pool {
 	return o.contextPool
+}
+
+func (o *options) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
+	opts := *o
+	opts.docArrayPool = value
+	return &opts
+}
+
+func (o *options) DocumentArrayPool() doc.DocumentArrayPool {
+	return o.docArrayPool
 }
