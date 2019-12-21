@@ -52,7 +52,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/remote"
-	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdb "github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
@@ -181,7 +180,7 @@ func Run(runOpts RunOptions) {
 	defer buildReporter.Stop()
 
 	var (
-		backendStorage      storage.Storage
+		backendStorage      = storage.NewNoopStorage()
 		clusterClient       clusterclient.Client
 		downsampler         downsample.Downsampler
 		fetchOptsBuilderCfg = cfg.Limits.PerQuery.AsFetchOptionsBuilderOptions()
@@ -224,48 +223,23 @@ func Run(runOpts RunOptions) {
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool)
 
-	if cfg.Backend == config.GRPCStorageType {
-		// For grpc backend, we need to setup only the grpc client and a storage
-		// accompanying that client.
-		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
-		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
-		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
-			tsdbOpts, instrumentOptions)
-		if err != nil {
-			logger.Fatal("unable to setup grpc backend", zap.Error(err))
-		}
-		if !enabled {
-			logger.Fatal("need remote clients for grpc backend")
-		}
-
-		var (
-			r = filter.AllowAll
-			w = filter.AllowAll
-			c = filter.CompleteTagsAllowAll
-		)
-
-		backendStorage = fanout.NewStorage(remotes, r, w, c,
-			instrumentOptions)
-		logger.Info("setup grpc backend")
-	} else {
-		// For m3db backend, we need to make connections to the m3db cluster
-		// which generates a session and use the storage with the session.
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBClient, instrumentOptions)
-		if err != nil {
-			logger.Fatal("unable to init clusters", zap.Error(err))
-		}
-
-		var cleanup cleanupFn
-		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
-			cfg, m3dbClusters, m3dbPoolWrapper,
-			runOpts, queryCtxOpts, tsdbOpts, instrumentOptions)
-
-		if err != nil {
-			logger.Fatal("unable to setup m3db backend", zap.Error(err))
-		}
-		defer cleanup()
+	// For m3db backend, we need to make connections to the m3db cluster
+	// which generates a session and use the storage with the session.
+	m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
+		runOpts.DBClient, instrumentOptions)
+	if err != nil {
+		logger.Fatal("unable to init clusters", zap.Error(err))
 	}
+
+	var cleanup cleanupFn
+	backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
+		cfg, m3dbClusters, m3dbPoolWrapper,
+		runOpts, queryCtxOpts, tsdbOpts, instrumentOptions)
+
+	if err != nil {
+		logger.Fatal("unable to setup m3db backend", zap.Error(err))
+	}
+	defer cleanup()
 
 	perQueryEnforcer, err := newConfiguredChainedEnforcer(&cfg, instrumentOptions)
 	if err != nil {
@@ -608,10 +582,7 @@ func initClusters(
 			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
-		sessionInitChan := make(chan struct{})
-		session := m3db.NewAsyncSession(func() (client.Client, error) {
-			return <-dbClientCh, nil
-		}, sessionInitChan)
+		session := client.NewNoopSession()
 
 		clustersCfg := m3.ClustersStaticConfiguration{
 			m3.ClusterStaticConfiguration{
@@ -629,7 +600,6 @@ func initClusters(
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
 		go func() {
-			<-sessionInitChan
 			poolWrapper.Init(session.IteratorPools())
 		}()
 	}
