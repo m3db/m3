@@ -10,6 +10,8 @@ number of unique tag/value combinations that are being emitted.
 - **Datapoint**: A single timestamp/value. Timeseries are composed of multiple datapoints and a series
 of tag/value pairs. 
 
+- **Labels**: Pairs of descriptive words that give meaning to a metric. `Tags` and `Labels` are interchangeable terms.
+
 - **M3**: Highly scalable, distributed metrics platform that is comprised of a native, distributed time
 series database, a highly-dynamic and performant aggregation service, a query engine, and other
 supporting infrastructure.
@@ -30,6 +32,6 @@ and a set of configuration options, such as data retention and block size.
 - **Shard**: Effectively the same as a "virtual shard" in Cassandra in that it provides an arbitrary
 distribution of time series data via a simple hash of the series ID.
 
-- **Tags**: Pairs of descriptive words that give meaning to a metric. 
+- **Tags**: Pairs of descriptive words that give meaning to a metric. `Tags` and `Labels` are interchangeable terms.
 
 - **Topology**: See *Placement*
