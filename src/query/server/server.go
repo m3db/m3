@@ -232,7 +232,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	var cleanup cleanupFn
-	backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
+	_, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 		cfg, m3dbClusters, m3dbPoolWrapper,
 		runOpts, queryCtxOpts, tsdbOpts, instrumentOptions)
 
