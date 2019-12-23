@@ -12,6 +12,8 @@ of tag/value pairs.
 
 - **Labels**: Pairs of descriptive words that give meaning to a metric. `Tags` and `Labels` are interchangeable terms.
 
+- **Metric**: A collection of uniquely identifiable tags.
+
 - **M3**: Highly scalable, distributed metrics platform that is comprised of a native, distributed time
 series database, a highly-dynamic and performant aggregation service, a query engine, and other
 supporting infrastructure.
