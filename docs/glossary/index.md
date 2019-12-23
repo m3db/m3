@@ -28,10 +28,14 @@ and [Cassandra](http://cassandra.apache.org/) released as open source by Uber Te
 and a set of configuration options, such as data retention and block size.
 
 - **Placement**: Map of the M3DB cluster's shard replicas to nodes. Each M3DB cluster has only one placement.
+`Placement` and `Topology` are interchangeable terms.
 
 - **Shard**: Effectively the same as a "virtual shard" in Cassandra in that it provides an arbitrary
 distribution of time series data via a simple hash of the series ID.
 
 - **Tags**: Pairs of descriptive words that give meaning to a metric. `Tags` and `Labels` are interchangeable terms.
 
-- **Topology**: See *Placement*
+- **Timeseries**: A series of data points tracking a particular metric over time.
+
+- **Topology**: Map of the M3DB cluster's shard replicas to nodes. Each M3DB cluster has only one placement.
+`Placement` and `Topology` are interchangeable terms.
