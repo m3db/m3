@@ -21,6 +21,7 @@
 package native
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http/httptest"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -68,7 +70,7 @@ func TestCompleteTags(t *testing.T) {
 }
 
 func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// setup storage and handler
@@ -109,4 +111,89 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 
 	actual := w.Header().Get(handleroptions.LimitHeader)
 	assert.Equal(t, header, actual)
+}
+
+var _ gomock.Matcher = (*completeTagsMatcher)(nil)
+
+type completeTagsMatcher struct {
+	name string
+}
+
+func (c *completeTagsMatcher) Matches(x interface{}) bool {
+	q, ok := x.(*storage.CompleteTagsQuery)
+	if !ok {
+		return false
+	}
+
+	if q.CompleteNameOnly {
+		return false
+	}
+
+	if len(q.TagMatchers) != 1 {
+		return false
+	}
+
+	return bytes.Equal([]byte(c.name), q.TagMatchers[0].Name)
+}
+
+func (c *completeTagsMatcher) String() string { return "complete tags matcher" }
+
+func TestMultiCompleteTags(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// setup storage and handler
+	store := storage.NewMockStorage(ctrl)
+	fooMeta := block.NewResultMetadata()
+	fooMeta.Exhaustive = false
+	fooResult := &storage.CompleteTagsResult{
+		CompleteNameOnly: false,
+		CompletedTags: []storage.CompletedTag{
+			{Name: b("bar"), Values: [][]byte{b("zulu"), b("quail")}},
+			{Name: b("foo"), Values: [][]byte{b("quail")}},
+		},
+
+		Metadata: fooMeta,
+	}
+
+	barMeta := block.NewResultMetadata()
+	barMeta.AddWarning("abc", "def")
+	barResult := &storage.CompleteTagsResult{
+		CompleteNameOnly: false,
+		CompletedTags: []storage.CompletedTag{
+			{Name: b("bar"), Values: [][]byte{b("qux")}},
+		},
+
+		Metadata: barMeta,
+	}
+
+	fb := handleroptions.
+		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb)
+
+	store.EXPECT().CompleteTags(gomock.Any(), &completeTagsMatcher{name: "foo"},
+		gomock.Any()).Return(fooResult, nil)
+
+	store.EXPECT().CompleteTags(gomock.Any(), &completeTagsMatcher{name: "bar"},
+		gomock.Any()).Return(barResult, nil)
+
+	req := httptest.NewRequest("GET", "/search?query=foo&query=bar", nil)
+	w := httptest.NewRecorder()
+
+	h := NewCompleteTagsHandler(opts)
+	h.ServeHTTP(w, req)
+	body := w.Result().Body
+	defer body.Close()
+
+	r, err := ioutil.ReadAll(body)
+	require.NoError(t, err)
+
+	ex := `{"hits":2,"tags":[{"key":"bar","values":["quail","qux","zulu"]},` +
+		`{"key":"foo","values":["quail"]}]}`
+	require.Equal(t, ex, string(r))
+
+	actual := w.Header().Get(handleroptions.LimitHeader)
+	assert.Equal(t, "max_fetch_series_limit_applied,abc_def", actual)
 }
