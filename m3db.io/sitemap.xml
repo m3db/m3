@@ -269,6 +269,14 @@
 
     
     <url>
+     <loc>/glossary/</loc>
+     <lastmod>2019-12-23</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    
+
+    
+    <url>
      <loc>/misc/writing_docs/</loc>
      <lastmod>2019-12-23</lastmod>
      <changefreq>daily</changefreq>

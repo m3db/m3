@@ -36,7 +36,7 @@
     
     
       
-        <title>Introduction - M3 Documentation</title>
+        <title>Glossary - M3 Documentation</title>
       
     
     
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#performance-configurations-and-settings-for-m3db-and-m3query" tabindex="1" class="md-skip">
+      <a href="#glossary" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Introduction
+                Glossary
               </span>
             
           
@@ -1034,12 +1034,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
     
     <label class="md-nav__link" for="nav-9">
       Performance
@@ -1055,20 +1053,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-    <a href="./" title="Introduction" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../performance/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
-    
   </li>
 
         
@@ -1097,7 +1086,7 @@
 
 
   <li class="md-nav__item">
-    <a href="m3db/" title="M3DB Performance" class="md-nav__link">
+    <a href="../performance/m3db/" title="M3DB Performance" class="md-nav__link">
       M3DB Performance
     </a>
   </li>
@@ -1133,7 +1122,7 @@
 
 
   <li class="md-nav__item">
-    <a href="m3query/" title="m3query Performance" class="md-nav__link">
+    <a href="../performance/m3query/" title="m3query Performance" class="md-nav__link">
       m3query Performance
     </a>
   </li>
@@ -1177,11 +1166,20 @@
       
       
 
+  
 
-  <li class="md-nav__item">
-    <a href="../glossary/" title="Glossary" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+    <a href="./" title="Glossary" class="md-nav__link md-nav__link--active">
       Glossary
     </a>
+    
   </li>
 
     
@@ -1224,11 +1222,69 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/performance/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/glossary/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="performance-configurations-and-settings-for-m3db-and-m3query">Performance configurations and settings for M3DB and m3query</h1>
-<p><strong>Please note:</strong> This documentation is a work in progress and more detail is required.</p>
+                <h1 id="glossary">Glossary</h1>
+<ul>
+<li>
+<p><strong>Bootstrapping</strong>: Process by which an M3DB node is brought up. Bootstrapping consists of determining
+the integrity of data that the node has, replay writes from the commit log, and/or stream missing data
+from its peers.</p>
+</li>
+<li>
+<p><strong>Cardinality</strong>: The number of unique metrics within the M3DB index. Cardinality increases with the
+number of unique tag/value combinations that are being emitted. </p>
+</li>
+<li>
+<p><strong>Datapoint</strong>: A single timestamp/value. Timeseries are composed of multiple datapoints and a series
+of tag/value pairs. </p>
+</li>
+<li>
+<p><strong>Labels</strong>: Pairs of descriptive words that give meaning to a metric. <code>Tags</code> and <code>Labels</code> are interchangeable terms.</p>
+</li>
+<li>
+<p><strong>Metric</strong>: A collection of uniquely identifiable tags.</p>
+</li>
+<li>
+<p><strong>M3</strong>: Highly scalable, distributed metrics platform that is comprised of a native, distributed time
+series database, a highly-dynamic and performant aggregation service, a query engine, and other
+supporting infrastructure.</p>
+</li>
+<li>
+<p><strong>M3Coordinator</strong>: A service within M3 that coordinates reads and writes between upstream systems,
+such as Prometheus, and downstream systems, such as M3DB.</p>
+</li>
+<li>
+<p><strong>M3DB</strong>: Distributed time series database influenced by <a href="http://www.vldb.org/pvldb/vol8/p1816-teller.pdf">Gorilla</a>
+and <a href="http://cassandra.apache.org/">Cassandra</a> released as open source by Uber Technologies.</p>
+</li>
+<li>
+<p><strong>M3Query</strong>: A distributed query engine for M3DB. Unlike M3Coordinator, M3Query only provides supports for reads.</p>
+</li>
+<li>
+<p><strong>Namespace</strong>: Similar to a table in other types of databases, namespaces in M3DB have a unique name
+and a set of configuration options, such as data retention and block size.</p>
+</li>
+<li>
+<p><strong>Placement</strong>: Map of the M3DB cluster's shard replicas to nodes. Each M3DB cluster has only one placement.
+<code>Placement</code> and <code>Topology</code> are interchangeable terms.</p>
+</li>
+<li>
+<p><strong>Shard</strong>: Effectively the same as a "virtual shard" in Cassandra in that it provides an arbitrary
+distribution of time series data via a simple hash of the series ID.</p>
+</li>
+<li>
+<p><strong>Tags</strong>: Pairs of descriptive words that give meaning to a metric. <code>Tags</code> and <code>Labels</code> are interchangeable terms.</p>
+</li>
+<li>
+<p><strong>Timeseries</strong>: A series of data points tracking a particular metric over time.</p>
+</li>
+<li>
+<p><strong>Topology</strong>: Map of the M3DB cluster's shard replicas to nodes. Each M3DB cluster has only one placement.
+<code>Placement</code> and <code>Topology</code> are interchangeable terms.</p>
+</li>
+</ul>
                 
                   
                 
@@ -1249,7 +1305,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../integrations/grafana/" title="Grafana" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../faqs/" title="FAQs" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1258,19 +1314,19 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Grafana
+                FAQs
               </span>
             </div>
           </a>
         
         
-          <a href="m3db/" title="M3DB Performance" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../misc/writing_docs/" title="Tips For Writing Documentation" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                M3DB Performance
+                Tips For Writing Documentation
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
