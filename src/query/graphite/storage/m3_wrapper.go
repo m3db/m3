@@ -144,6 +144,10 @@ func translateTimeseries(
 	result block.Result,
 	start, end time.Time,
 ) ([]*ts.Series, error) {
+	if len(result.Blocks) == 0 {
+		return []*ts.Series{}, nil
+	}
+
 	block := result.Blocks[0]
 	defer block.Close()
 
@@ -159,9 +163,8 @@ func translateTimeseries(
 			"resolutions %d", len(seriesMetas), len(resolutions))
 	}
 
-	idx := 0
 	series := make([]*ts.Series, 0, len(seriesMetas))
-	for iter.Next() {
+	for idx := 0; iter.Next(); idx++ {
 		resolution := time.Duration(resolutions[idx])
 		if resolution <= 0 {
 			return nil, errSeriesNoResolution
@@ -192,7 +195,6 @@ func translateTimeseries(
 
 		name := string(seriesMetas[idx].Name)
 		series = append(series, ts.NewSeries(ctx, name, start, values))
-		idx++
 	}
 
 	if err := iter.Err(); err != nil {

@@ -125,6 +125,8 @@ func (n *timestampNode) ProcessBlock(
 		curr := iter.Current()
 		util.Memset(values, currentStep)
 		for i, dp := range curr.Values() {
+			// NB: If there is no datapoint at this step, there should also not
+			// be a value for the timestamp function.
 			if math.IsNaN(dp) {
 				values[i] = math.NaN()
 			}

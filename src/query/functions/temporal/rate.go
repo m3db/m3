@@ -71,12 +71,14 @@ func (r rateProcessor) initialize(
 // NewRateOp creates a new base temporal transform for rate functions
 func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 	if len(args) != 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
+		return emptyOp,
+			fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
 	}
 
 	duration, ok := args[0].(time.Duration)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		return emptyOp,
+			fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
 	}
 
 	var (
@@ -111,9 +113,12 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 
 type rateFn func(
 	datapoints ts.Datapoints,
-	isRate bool, isCounter bool,
-	rangeStart xtime.UnixNano, rangeEnd xtime.UnixNano,
-	duration time.Duration) float64
+	isRate bool,
+	isCounter bool,
+	rangeStart xtime.UnixNano,
+	rangeEnd xtime.UnixNano,
+	duration time.Duration,
+) float64
 
 type rateNode struct {
 	controller        *transform.Controller
