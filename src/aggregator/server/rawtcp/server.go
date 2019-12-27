@@ -131,7 +131,7 @@ func (s *handler) Handle(conn net.Conn) {
 		connReader = flate.NewReader(connReader)
 	}
 
-	reader := bufio.NewReaderSize(conn, s.readBufferSize)
+	reader := bufio.NewReaderSize(connReader, s.readBufferSize)
 	it := migration.NewUnaggregatedIterator(reader, s.msgpackItOpts, s.protobufItOpts)
 	defer it.Close()
 
