@@ -72,7 +72,9 @@ func (c MessagePoolConfiguration) NewOptions(
 
 // NewOptions creates consumer options.
 func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
-	opts := NewOptions().SetInstrumentOptions(iOpts)
+	opts := NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetCompressType(c.Compress)
 	if c.Encoder != nil {
 		opts = opts.SetEncoderOptions(c.Encoder.NewOptions(iOpts))
 	}
