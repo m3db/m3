@@ -253,6 +253,7 @@ aggregator:
                 initialBackoff: 2s
                 maxBackoff: 10s
               connection:
+                compress: snappy
                 dialTimeout: 5s
                 writeTimeout: 5s
                 retry:

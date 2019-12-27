@@ -23,6 +23,7 @@ package writer
 import (
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
@@ -100,6 +101,12 @@ type ConnectionOptions interface {
 	// SetReadBufferSize sets the buffer size for read.
 	SetReadBufferSize(value int) ConnectionOptions
 
+	// SetCompressType sets the compression type.
+	SetCompressType(value client.CompressType) ConnectionOptions
+
+	// CompressType returns the compression type.
+	CompressType() client.CompressType
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
@@ -116,6 +123,7 @@ type connectionOptions struct {
 	flushInterval   time.Duration
 	writeBufferSize int
 	readBufferSize  int
+	compressType    client.CompressType
 	iOpts           instrument.Options
 }
 
@@ -212,6 +220,16 @@ func (opts *connectionOptions) SetReadBufferSize(value int) ConnectionOptions {
 	o := *opts
 	o.readBufferSize = value
 	return &o
+}
+
+func (opts *connectionOptions) SetCompressType(value client.CompressType) ConnectionOptions {
+	o := *opts
+	o.compressType = value
+	return &o
+}
+
+func (opts *connectionOptions) CompressType() client.CompressType {
+	return opts.compressType
 }
 
 func (opts *connectionOptions) InstrumentOptions() instrument.Options {

@@ -22,17 +22,20 @@ package writer
 
 import (
 	"bufio"
+	"compress/flate"
 	"errors"
 	"io"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
 
+	"github.com/golang/snappy"
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -94,6 +97,40 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 
 type connectFn func(addr string) (io.ReadWriteCloser, error)
 
+type connWriter interface {
+	io.Writer
+	Flush() error
+	Reset(w io.Writer)
+}
+
+type connReader interface {
+	io.Reader
+	Reset(r io.Reader)
+}
+
+type flateReader interface {
+	io.Reader
+	flate.Resetter
+}
+
+type flateConnReader struct {
+	reader flateReader
+}
+
+func newFlateConnReader() connReader {
+	return &flateConnReader{
+		reader: flate.NewReader(nil).(flateReader),
+	}
+}
+
+func (r *flateConnReader) Read(p []byte) (int, error) {
+	return r.reader.Read(p)
+}
+
+func (r *flateConnReader) Reset(reader io.Reader) {
+	r.reader.Reset(reader, nil)
+}
+
 type consumerWriterImpl struct {
 	writeLock   sync.Mutex
 	decodeLock  sync.Mutex
@@ -108,7 +145,8 @@ type consumerWriterImpl struct {
 
 	validConn      *atomic.Bool
 	conn           io.ReadWriteCloser
-	rw             *bufio.ReadWriter
+	reader         connReader
+	writer         connWriter
 	lastResetNanos int64
 	resetCh        chan struct{}
 	ack            msgpb.Ack
@@ -131,15 +169,32 @@ func newConsumerWriter(
 		opts = NewOptions()
 	}
 
-	var (
-		connOpts = opts.ConnectionOptions()
-		rw       = bufio.NewReadWriter(
-			bufio.NewReaderSize(u, connOpts.ReadBufferSize()),
-			bufio.NewWriterSize(u, connOpts.WriteBufferSize()),
-		)
-	)
+	connOpts := opts.ConnectionOptions()
+
+	var reader connReader
+	switch connOpts.CompressType() {
+	case client.SnappyCompressType:
+		reader = snappy.NewReader(u)
+	case client.FlateCompressType:
+		reader = newFlateConnReader()
+	default:
+		reader = bufio.NewReaderSize(u, connOpts.ReadBufferSize())
+	}
+
+	var writer connWriter
+	switch connOpts.CompressType() {
+	case client.SnappyCompressType:
+		writer = snappy.NewBufferedWriter(u)
+	case client.FlateCompressType:
+		// NB(r): Valid level is used so will not return an error.
+		flateWriter, _ := flate.NewWriter(u, flate.DefaultCompression)
+		writer = flateWriter
+	default:
+		writer = bufio.NewWriterSize(u, connOpts.WriteBufferSize())
+	}
+
 	w := &consumerWriterImpl{
-		decoder:        proto.NewDecoder(rw, opts.DecoderOptions()),
+		decoder:        proto.NewDecoder(reader, opts.DecoderOptions()),
 		addr:           addr,
 		router:         router,
 		opts:           opts,
@@ -149,7 +204,8 @@ func newConsumerWriter(
 		logger:         opts.InstrumentOptions().Logger(),
 		validConn:      atomic.NewBool(false),
 		conn:           u,
-		rw:             rw,
+		reader:         reader,
+		writer:         writer,
 		lastResetNanos: 0,
 		resetCh:        make(chan struct{}, 1),
 		closed:         atomic.NewBool(false),
@@ -177,7 +233,7 @@ func (w *consumerWriterImpl) Write(b []byte) error {
 		return errInvalidConnection
 	}
 	w.writeLock.Lock()
-	_, err := w.rw.Write(b)
+	_, err := w.writer.Write(b)
 	w.writeLock.Unlock()
 	if err != nil {
 		w.notifyReset()
@@ -214,7 +270,7 @@ func (w *consumerWriterImpl) flushUntilClose() {
 		select {
 		case <-flushTicker.C:
 			w.writeLock.Lock()
-			w.rw.Flush()
+			w.writer.Flush()
 			w.writeLock.Unlock()
 		case <-w.doneCh:
 			return
@@ -335,8 +391,8 @@ func (w *consumerWriterImpl) reset(conn io.ReadWriteCloser) {
 	defer w.writeLock.Unlock()
 
 	w.conn = conn
-	w.rw.Reader.Reset(conn)
-	w.rw.Writer.Reset(conn)
+	w.reader.Reset(conn)
+	w.writer.Reset(conn)
 	w.lastResetNanos = w.nowFn().UnixNano()
 }
 

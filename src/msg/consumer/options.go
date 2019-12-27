@@ -23,6 +23,7 @@ package consumer
 import (
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -42,6 +43,7 @@ type options struct {
 	ackBufferSize    int
 	writeBufferSize  int
 	readBufferSize   int
+	compressType     client.CompressType
 	iOpts            instrument.Options
 }
 
@@ -127,6 +129,16 @@ func (opts *options) SetConnectionReadBufferSize(value int) Options {
 	o := *opts
 	o.readBufferSize = value
 	return &o
+}
+
+func (opts *options) SetCompressType(value client.CompressType) Options {
+	o := *opts
+	o.compressType = value
+	return &o
+}
+
+func (opts *options) CompressType() client.CompressType {
+	return opts.compressType
 }
 
 func (opts *options) InstrumentOptions() instrument.Options {

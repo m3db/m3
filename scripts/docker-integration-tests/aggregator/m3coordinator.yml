@@ -96,3 +96,5 @@ ingest:
       retry:
         maxBackoff: 10s
         jitter: true
+    consumer:
+      compress: snappy

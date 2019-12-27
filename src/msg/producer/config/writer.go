@@ -23,6 +23,7 @@ package config
 import (
 	"time"
 
+	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
@@ -38,19 +39,24 @@ import (
 
 // ConnectionConfiguration configs the connection options.
 type ConnectionConfiguration struct {
-	DialTimeout     *time.Duration       `yaml:"dialTimeout"`
-	WriteTimeout    *time.Duration       `yaml:"writeTimeout"`
-	KeepAlivePeriod *time.Duration       `yaml:"keepAlivePeriod"`
-	ResetDelay      *time.Duration       `yaml:"resetDelay"`
-	Retry           *retry.Configuration `yaml:"retry"`
-	FlushInterval   *time.Duration       `yaml:"flushInterval"`
-	WriteBufferSize *int                 `yaml:"writeBufferSize"`
-	ReadBufferSize  *int                 `yaml:"readBufferSize"`
+	Compress        aggclient.CompressType `yaml:"compress"`
+	DialTimeout     *time.Duration         `yaml:"dialTimeout"`
+	WriteTimeout    *time.Duration         `yaml:"writeTimeout"`
+	KeepAlivePeriod *time.Duration         `yaml:"keepAlivePeriod"`
+	ResetDelay      *time.Duration         `yaml:"resetDelay"`
+	Retry           *retry.Configuration   `yaml:"retry"`
+	FlushInterval   *time.Duration         `yaml:"flushInterval"`
+	WriteBufferSize *int                   `yaml:"writeBufferSize"`
+	ReadBufferSize  *int                   `yaml:"readBufferSize"`
 }
 
 // NewOptions creates connection options.
-func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.ConnectionOptions {
-	opts := writer.NewConnectionOptions()
+func (c *ConnectionConfiguration) NewOptions(
+	instrumentOpts instrument.Options,
+) writer.ConnectionOptions {
+	opts := writer.NewConnectionOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetCompressType(c.Compress)
 	if c.DialTimeout != nil {
 		opts = opts.SetDialTimeout(*c.DialTimeout)
 	}
@@ -64,7 +70,7 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 		opts = opts.SetResetDelay(*c.ResetDelay)
 	}
 	if c.Retry != nil {
-		opts = opts.SetRetryOptions(c.Retry.NewOptions(iOpts.MetricsScope()))
+		opts = opts.SetRetryOptions(c.Retry.NewOptions(instrumentOpts.MetricsScope()))
 	}
 	if c.FlushInterval != nil {
 		opts = opts.SetFlushInterval(*c.FlushInterval)
@@ -75,7 +81,7 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	if c.ReadBufferSize != nil {
 		opts = opts.SetReadBufferSize(*c.ReadBufferSize)
 	}
-	return opts.SetInstrumentOptions(iOpts)
+	return opts
 }
 
 // WriterConfiguration configs the writer options.
