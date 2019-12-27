@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -43,6 +44,55 @@ const (
 	defaultWriteRetryMaxRetries         = 1
 	defaultWriteRetryJitterEnabled      = true
 )
+
+// CompressType is a compression type.
+type CompressType uint
+
+const (
+	// NoCompressType specifies no compression.
+	NoCompressType CompressType = iota
+	// SnappyCompressType specifies snappy compression.
+	SnappyCompressType
+	// FlateCompressType specifies flate compression.
+	FlateCompressType
+)
+
+var (
+	validCompressTypes = []CompressType{
+		NoCompressType,
+		SnappyCompressType,
+		FlateCompressType,
+	}
+)
+
+func (t CompressType) String() string {
+	switch t {
+	case NoCompressType:
+		return "no"
+	case SnappyCompressType:
+		return "snappy"
+	case FlateCompressType:
+		return "flate"
+	}
+	return "unknown"
+}
+
+// UnmarshalYAML unmarshals CompressType from yaml.
+func (t *CompressType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	for _, validType := range validCompressTypes {
+		if validType.String() == str {
+			*t = validType
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid compress type: %s, valid types are: %v",
+		str, validCompressTypes)
+}
 
 // ConnectionOptions provides a set of options for tcp connections.
 type ConnectionOptions interface {
@@ -105,6 +155,12 @@ type ConnectionOptions interface {
 
 	// WriteRetryOptions returns the retry options for retrying failed writes.
 	WriteRetryOptions() retry.Options
+
+	// SetCompressType sets the compression type.
+	SetCompressType(value CompressType) ConnectionOptions
+
+	// CompressType returns the compression type.
+	CompressType() CompressType
 }
 
 type connectionOptions struct {
@@ -118,6 +174,7 @@ type connectionOptions struct {
 	multiplier     int
 	maxDuration    time.Duration
 	writeRetryOpts retry.Options
+	compressType   CompressType
 }
 
 // NewConnectionOptions create a new set of connection options.
@@ -240,4 +297,14 @@ func (o *connectionOptions) SetWriteRetryOptions(value retry.Options) Connection
 
 func (o *connectionOptions) WriteRetryOptions() retry.Options {
 	return o.writeRetryOpts
+}
+
+func (o *connectionOptions) SetCompressType(value CompressType) ConnectionOptions {
+	opts := *o
+	opts.compressType = value
+	return &opts
+}
+
+func (o *connectionOptions) CompressType() CompressType {
+	return o.compressType
 }

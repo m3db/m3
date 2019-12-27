@@ -18,6 +18,7 @@ http:
 
 rawtcp:
   listenAddress: 0.0.0.0:6000
+  compress: snappy
   keepAliveEnabled: true
   keepAlivePeriod: 1m
   retry:
