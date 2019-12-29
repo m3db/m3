@@ -202,6 +202,7 @@ func NewSnappyTChanNodeServer(
 ) thrift.TChanServer {
 	return &snappyTChanNodeServer{
 		TChanServer: rpc.NewTChanNodeServer(handler),
+		metrics:     newSnappyTChanNodeServerMetrics(instrumentOpts.MetricsScope()),
 	}
 }
 
