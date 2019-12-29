@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -100,8 +100,11 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 
 	// Override the new connection function for connection pools
 	// to be able to mock the entire end to end pipeline
-	prevGlobalNewConn := globalNewConn
-	globalNewConn = func(_ string, addr string, _ Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	prevGlobalNewConnClient := globalNewConnClient
+	defer func() {
+		globalNewConnClient = prevGlobalNewConnClient
+	}()
+	globalNewConnClient = func(_ thrift.TChanClient) rpc.TChanNode {
 		mockClient := rpc.NewMockTChanNode(ctrl)
 		mockClient.EXPECT().Health(gomock.Any()).
 			Return(healthCheckResult, nil).
@@ -109,9 +112,8 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		mockClient.EXPECT().FetchBatchRaw(gomock.Any(), gomock.Any()).
 			Return(respResult, nil).
 			AnyTimes()
-		return noopCloser{}, mockClient, nil
+		return mockClient
 	}
-	defer func() { globalNewConn = prevGlobalNewConn }()
 
 	shards := make([]shard.Shard, numShards)
 	for i := range shards {

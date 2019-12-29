@@ -21,20 +21,21 @@
 package node
 
 import (
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber/tchannel-go"
 )
 
 type server struct {
-	service     Service
-	address     string
-	contextPool context.Pool
-	opts        *tchannel.ChannelOptions
+	service        Service
+	address        string
+	contextPool    context.Pool
+	opts           *tchannel.ChannelOptions
+	instrumentOpts instrument.Options
 }
 
 // NewServer creates a new node TChannel Thrift network service
@@ -43,6 +44,7 @@ func NewServer(
 	address string,
 	contextPool context.Pool,
 	opts *tchannel.ChannelOptions,
+	instrumentOpts instrument.Options,
 ) ns.NetworkService {
 	// Make the opts immutable on the way in
 	if opts != nil {
@@ -63,9 +65,17 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 		return nil, err
 	}
 
-	tchannelthrift.RegisterServer(channel, rpc.NewTChanNodeServer(s.service), s.contextPool)
+	// Use compressed server.
+	s.service.SetSupportsSnappyCompression(true)
+	server := tchannelthrift.NewSnappyTChanNodeServer(s.service, s.instrumentOpts)
 
-	channel.ListenAndServe(s.address)
+	// Register the server with the channel.
+	tchannelthrift.RegisterServer(channel, server, s.contextPool)
+
+	// Begin serving the channel.
+	if err := channel.ListenAndServe(s.address); err != nil {
+		return nil, err
+	}
 
 	return channel.Close, nil
 }

@@ -31,9 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xclose "github.com/m3db/m3/src/x/close"
-	"github.com/stretchr/testify/require"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -83,22 +85,22 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	opts := newConnectionPoolTestOptions()
 	opts = opts.SetMaxConnectionCount(4)
 	conns := newConnectionPool(h, opts).(*connPool)
-	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, thrift.TChanClient, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
 		}
 		return channelNone, nil, nil
 	}
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) (*rpc.NodeHealthResult_, error) {
 		if atomic.LoadInt32(&rounds) == 1 {
 			// If second round then fail health check
-			return fmt.Errorf("a health check error")
+			return nil, fmt.Errorf("a health check error")
 		}
-		return nil
+		return &rpc.NodeHealthResult_{}, nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts Options) error {
-		return nil
+	conns.healthCheck = func(client rpc.TChanNode, opts Options) (*rpc.NodeHealthResult_, error) {
+		return &rpc.NodeHealthResult_{}, nil
 	}
 	conns.sleepConnect = func(t time.Duration) {
 		sleep := int(atomic.AddInt32(&sleeps, 1))
@@ -172,82 +174,50 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		connectRounds  int32
 		healthRounds   int32
 		invokeFail     int32
-		client1        = rpc.TChanNode(rpc.NewMockTChanNode(ctrl))
-		client2        = rpc.TChanNode(rpc.NewMockTChanNode(ctrl))
-		overrides      = []healthCheckFn{}
-		overridesMut   sync.RWMutex
-		pushOverride   = func(fn healthCheckFn, count int) {
-			overridesMut.Lock()
-			defer overridesMut.Unlock()
-			for i := 0; i < count; i++ {
-				overrides = append(overrides, fn)
-			}
-		}
-		popOverride = func() healthCheckFn {
-			overridesMut.Lock()
-			defer overridesMut.Unlock()
-			if len(overrides) == 0 {
-				return nil
-			}
-			next := overrides[0]
-			overrides = overrides[1:]
-			return next
-		}
-		pushFailClientOverride = func(failTargetClient rpc.TChanNode) {
-			var failOverride healthCheckFn
-			failOverride = func(client rpc.TChanNode, opts Options) error {
-				if client == failTargetClient {
-					atomic.AddInt32(&invokeFail, 1)
-					return fmt.Errorf("fail client")
-				}
-				// Not failing this client, re-enqueue
-				pushOverride(failOverride, 1)
-				return nil
-			}
-			pushOverride(failOverride, healthCheckFailLimit)
-		}
-		onNextSleepHealth     []func()
-		onNextSleepHealthMut  sync.RWMutex
-		pushOnNextSleepHealth = func(fn func()) {
-			onNextSleepHealthMut.Lock()
-			defer onNextSleepHealthMut.Unlock()
-			onNextSleepHealth = append(onNextSleepHealth, fn)
-		}
-		popOnNextSleepHealth = func() func() {
-			onNextSleepHealthMut.Lock()
-			defer onNextSleepHealthMut.Unlock()
-			if len(onNextSleepHealth) == 0 {
-				return nil
-			}
-			next := onNextSleepHealth[0]
-			onNextSleepHealth = onNextSleepHealth[1:]
-			return next
-		}
-		failsDoneWg [2]sync.WaitGroup
-		failsDone   [2]int32
+		client1        rpc.TChanNode
+		client2        rpc.TChanNode
+		failsDoneWg    [2]sync.WaitGroup
+		failsDone      [2]int32
 	)
 	for i := range failsDoneWg {
 		failsDoneWg[i].Add(1)
 	}
 
 	conns := newConnectionPool(h, opts).(*connPool)
-	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, thrift.TChanClient, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
-		if attempt == 1 {
-			return channelNone, client1, nil
-		} else if attempt == 2 {
-			return channelNone, client2, nil
+		if attempt <= 2 {
+			return channelNone, &nullThriftClient{}, nil
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
 	}
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
-		return nil
-	}
-	conns.healthCheck = func(client rpc.TChanNode, opts Options) error {
-		if fn := popOverride(); fn != nil {
-			return fn(client, opts)
+	var healthCheckLock sync.Mutex
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) (*rpc.NodeHealthResult_, error) {
+		healthCheckLock.Lock()
+		defer healthCheckLock.Unlock()
+		if client1 == nil {
+			client1 = client
+			return &rpc.NodeHealthResult_{}, nil
 		}
-		return nil
+		if client2 == nil {
+			client2 = client
+			return &rpc.NodeHealthResult_{}, nil
+		}
+		return nil, fmt.Errorf("spawning only 2 connections")
+	}
+	var healthCheckFailClient1, healthCheckFailClient2 bool
+	conns.healthCheck = func(client rpc.TChanNode, opts Options) (*rpc.NodeHealthResult_, error) {
+		healthCheckLock.Lock()
+		defer healthCheckLock.Unlock()
+		if client == client1 && healthCheckFailClient1 {
+			atomic.AddInt32(&invokeFail, 1)
+			return nil, fmt.Errorf("failing client 1")
+		}
+		if client == client2 && healthCheckFailClient2 {
+			atomic.AddInt32(&invokeFail, 1)
+			return nil, fmt.Errorf("failing client 2")
+		}
+		return &rpc.NodeHealthResult_{}, nil
 	}
 	conns.sleepConnect = func(d time.Duration) {
 		atomic.AddInt32(&connectRounds, 1)
@@ -263,9 +233,6 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 			failsDoneWg[1].Done()
 		}
 		time.Sleep(time.Millisecond)
-		if fn := popOnNextSleepHealth(); fn != nil {
-			fn()
-		}
 	}
 	conns.sleepHealthRetry = func(d time.Duration) {
 		expected := healthCheckFailThrottleFactor * float64(opts.HostConnectTimeout())
@@ -284,9 +251,9 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	require.Equal(t, 2, conns.ConnectionCount())
 
 	// Fail client1 health check
-	pushOnNextSleepHealth(func() {
-		pushFailClientOverride(client1)
-	})
+	healthCheckLock.Lock()
+	healthCheckFailClient1 = true
+	healthCheckLock.Unlock()
 
 	// Wait for health check round to take action
 	failsDoneWg[0].Wait()
@@ -298,15 +265,14 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		return conns.ConnectionCount() == 1
 	}, 5*time.Second)
 	for i := 0; i < 2; i++ {
-		nextClient, err := conns.NextClient()
+		_, err := conns.NextClient()
 		require.NoError(t, err)
-		require.Equal(t, client2, nextClient)
 	}
 
 	// Fail client2 health check
-	pushOnNextSleepHealth(func() {
-		pushFailClientOverride(client2)
-	})
+	healthCheckLock.Lock()
+	healthCheckFailClient2 = true
+	healthCheckLock.Unlock()
 
 	// Wait for health check round to take action
 	failsDoneWg[1].Wait()
@@ -315,17 +281,24 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		// and the connection actually being removed.
 		return conns.ConnectionCount() == 0
 	}, 5*time.Second)
-	nextClient, err := conns.NextClient()
-	require.Nil(t, nextClient)
+	_, err := conns.NextClient()
 	require.Equal(t, errConnectionPoolHasNoConnections, err)
 
 	conns.Close()
 
-	nextClient, err = conns.NextClient()
-	require.Nil(t, nextClient)
+	_, err = conns.NextClient()
 	require.Equal(t, errConnectionPoolClosed, err)
 }
 
 type nullChannel struct{}
 
 func (*nullChannel) Close() {}
+
+type nullThriftClient struct{}
+
+func (*nullThriftClient) Call(
+	ctx thrift.Context, serviceName, methodName string,
+	req, resp apachethrift.TStruct,
+) (bool, error) {
+	return false, fmt.Errorf("not implemented")
+}

@@ -4,8 +4,8 @@ imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
 - name: github.com/apache/thrift
-  version: 05b5a2227fe44056ce829fe59583126fd6478a58
-  repo: https://github.com/m3db/thrift
+  version: 9fd128d6e1a4a1888ee875cecaa28f1a0db0a226
+  repo: https://github.com/m3dbx/thrift
   vcs: git
   subpackages:
   - lib/go/thrift

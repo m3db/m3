@@ -28,10 +28,10 @@ import:
     version: ^0.8
 
   - package: github.com/apache/thrift
-    version: 0.9.3-pool-read-binary-3
+    version: r/0.9.3-compress-snappy
     subpackages:
       - lib/go/thrift
-    repo: https://github.com/m3db/thrift
+    repo: https://github.com/m3dbx/thrift
     vcs: git
 
   - package: github.com/golang/mock

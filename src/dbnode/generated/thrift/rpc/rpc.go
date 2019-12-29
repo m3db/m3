@@ -7599,10 +7599,12 @@ func (p *TruncateResult_) String() string {
 //  - Ok
 //  - Status
 //  - Bootstrapped
+//  - ServerMetadata
 type NodeHealthResult_ struct {
-	Ok           bool   `thrift:"ok,1,required" db:"ok" json:"ok"`
-	Status       string `thrift:"status,2,required" db:"status" json:"status"`
-	Bootstrapped bool   `thrift:"bootstrapped,3,required" db:"bootstrapped" json:"bootstrapped"`
+	Ok             bool            `thrift:"ok,1,required" db:"ok" json:"ok"`
+	Status         string          `thrift:"status,2,required" db:"status" json:"status"`
+	Bootstrapped   bool            `thrift:"bootstrapped,3,required" db:"bootstrapped" json:"bootstrapped"`
+	ServerMetadata *ServerMetadata `thrift:"serverMetadata,4" db:"serverMetadata" json:"serverMetadata,omitempty"`
 }
 
 func NewNodeHealthResult_() *NodeHealthResult_ {
@@ -7620,6 +7622,19 @@ func (p *NodeHealthResult_) GetStatus() string {
 func (p *NodeHealthResult_) GetBootstrapped() bool {
 	return p.Bootstrapped
 }
+
+var NodeHealthResult__ServerMetadata_DEFAULT *ServerMetadata
+
+func (p *NodeHealthResult_) GetServerMetadata() *ServerMetadata {
+	if !p.IsSetServerMetadata() {
+		return NodeHealthResult__ServerMetadata_DEFAULT
+	}
+	return p.ServerMetadata
+}
+func (p *NodeHealthResult_) IsSetServerMetadata() bool {
+	return p.ServerMetadata != nil
+}
+
 func (p *NodeHealthResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -7653,6 +7668,10 @@ func (p *NodeHealthResult_) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetBootstrapped = true
+		case 4:
+			if err := p.ReadField4(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -7704,6 +7723,14 @@ func (p *NodeHealthResult_) ReadField3(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *NodeHealthResult_) ReadField4(iprot thrift.TProtocol) error {
+	p.ServerMetadata = &ServerMetadata{}
+	if err := p.ServerMetadata.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.ServerMetadata), err)
+	}
+	return nil
+}
+
 func (p *NodeHealthResult_) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("NodeHealthResult"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -7716,6 +7743,9 @@ func (p *NodeHealthResult_) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField3(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField4(oprot); err != nil {
 			return err
 		}
 	}
@@ -7767,11 +7797,125 @@ func (p *NodeHealthResult_) writeField3(oprot thrift.TProtocol) (err error) {
 	return err
 }
 
+func (p *NodeHealthResult_) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetServerMetadata() {
+		if err := oprot.WriteFieldBegin("serverMetadata", thrift.STRUCT, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:serverMetadata: ", p), err)
+		}
+		if err := p.ServerMetadata.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.ServerMetadata), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:serverMetadata: ", p), err)
+		}
+	}
+	return err
+}
+
 func (p *NodeHealthResult_) String() string {
 	if p == nil {
 		return "<nil>"
 	}
 	return fmt.Sprintf("NodeHealthResult_(%+v)", *p)
+}
+
+// Attributes:
+//  - SupportsCompressSnappy
+type ServerMetadata struct {
+	SupportsCompressSnappy bool `thrift:"supportsCompressSnappy,1,required" db:"supportsCompressSnappy" json:"supportsCompressSnappy"`
+}
+
+func NewServerMetadata() *ServerMetadata {
+	return &ServerMetadata{}
+}
+
+func (p *ServerMetadata) GetSupportsCompressSnappy() bool {
+	return p.SupportsCompressSnappy
+}
+func (p *ServerMetadata) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetSupportsCompressSnappy bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetSupportsCompressSnappy = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetSupportsCompressSnappy {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field SupportsCompressSnappy is not set"))
+	}
+	return nil
+}
+
+func (p *ServerMetadata) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.SupportsCompressSnappy = v
+	}
+	return nil
+}
+
+func (p *ServerMetadata) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("ServerMetadata"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *ServerMetadata) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("supportsCompressSnappy", thrift.BOOL, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:supportsCompressSnappy: ", p), err)
+	}
+	if err := oprot.WriteBool(bool(p.SupportsCompressSnappy)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.supportsCompressSnappy (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:supportsCompressSnappy: ", p), err)
+	}
+	return err
+}
+
+func (p *ServerMetadata) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ServerMetadata(%+v)", *p)
 }
 
 type NodeBootstrappedResult_ struct {

@@ -583,7 +583,7 @@ func Run(runOpts RunOptions) {
 		service = ttnode.NewService(nil, ttopts)
 	)
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
+		cfg.ListenAddress, contextPool, tchannelOpts, opts.InstrumentOptions()).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
 			zap.String("address", cfg.ListenAddress), zap.Error(err))

@@ -246,6 +246,12 @@ type Service interface {
 
 	// Only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
+
+	// SetSupportsSnappyCompression sets whether snappy compression is enabled.
+	SetSupportsSnappyCompression(value bool)
+
+	// SupportsSnappyCompression returns whether snappy compression is enabled.
+	SupportsSnappyCompression() bool
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -290,9 +296,10 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 		state: serviceState{
 			db: db,
 			health: &rpc.NodeHealthResult_{
-				Ok:           true,
-				Status:       "up",
-				Bootstrapped: false,
+				Ok:             true,
+				Status:         "up",
+				Bootstrapped:   false,
+				ServerMetadata: &rpc.ServerMetadata{},
 			},
 			maxOutstandingWriteRPCs: opts.MaxOutstandingWriteRequests(),
 			maxOutstandingReadRPCs:  opts.MaxOutstandingReadRequests(),
@@ -312,6 +319,23 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
 	}
+}
+
+func (s *service) SetSupportsSnappyCompression(value bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// Copy health state and update single value since in flight
+	// requests might hold ref to current health result.
+	newHealth := &rpc.NodeHealthResult_{}
+	*newHealth = *s.state.health
+	newHealth.ServerMetadata.SupportsCompressSnappy = value
+	s.state.health = newHealth
+}
+
+func (s *service) SupportsSnappyCompression() bool {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	return s.state.health.ServerMetadata.SupportsCompressSnappy
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
