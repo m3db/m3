@@ -52,10 +52,11 @@ func NewServer(
 		opts = &immutableOpts
 	}
 	return &server{
-		service:     service,
-		address:     address,
-		contextPool: contextPool,
-		opts:        opts,
+		service:        service,
+		address:        address,
+		contextPool:    contextPool,
+		opts:           opts,
+		instrumentOpts: instrumentOpts,
 	}
 }
 
