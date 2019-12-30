@@ -690,22 +690,24 @@ func (s *m3storage) writeSingle(
 	var (
 		namespace ClusterNamespace
 		err       error
+		exists    bool
 	)
 
 	attributes := query.Attributes
 	switch attributes.MetricsType {
 	case storage.UnaggregatedMetricsType:
-		namespace = s.clusters.UnaggregatedClusterNamespace()
+		namespace, exists = s.clusters.UnaggregatedClusterNamespace()
+		if !exists {
+			err = fmt.Errorf("no unaggregated cluster namespace set up")
+		}
 	case storage.AggregatedMetricsType:
 		attrs := RetentionResolution{
 			Retention:  attributes.Retention,
 			Resolution: attributes.Resolution,
 		}
-		var exists bool
 		namespace, exists = s.clusters.AggregatedClusterNamespace(attrs)
 		if !exists {
-			err = fmt.Errorf("no configured cluster namespace for: retention=%s,"+
-				" resolution=%s", attrs.Retention.String(), attrs.Resolution.String())
+			err = fmt.Errorf("no configured cluster namespace for: %s", attrs)
 		}
 	default:
 		metricsType := attributes.MetricsType

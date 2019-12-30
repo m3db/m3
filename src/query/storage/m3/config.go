@@ -14,14 +14,14 @@
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// LIABILITY, WH`ETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
 package m3
 
 import (
-	goerrors "errors"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -34,8 +34,8 @@ import (
 )
 
 var (
-	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
-	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
+	errNotAggregatedClusterNamespace              = errors.New("not an aggregated cluster namespace")
+	errBothNamespaceTypeNewAndDeprecatedFieldsSet = errors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -233,27 +233,35 @@ func (c ClustersStaticConfiguration) NewClusters(
 		}
 	}
 
-	if numUnaggregatedClusterNamespaces != 1 {
-		return nil, fmt.Errorf("one unaggregated cluster namespace  "+
+	if numUnaggregatedClusterNamespaces > 1 {
+		return nil, fmt.Errorf("at most one unaggregated cluster namespace  "+
 			"must be specified: specified %d", numUnaggregatedClusterNamespaces)
+	}
+
+	if numUnaggregatedClusterNamespaces == 0 &&
+		len(aggregatedClusterNamespacesCfgs) == 0 {
+		return nil, fmt.Errorf("no cluster mainspaces specified")
 	}
 
 	// Connect to all clusters in parallel
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		cfg := unaggregatedClusterNamespaceCfg
-		if opts.ProvidedSession != nil {
-			cfg.result.session = opts.ProvidedSession
-		} else if !opts.AsyncSessions {
-			cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
-		} else {
-			cfg.result.session = m3db.NewAsyncSession(func() (client.Client, error) {
-				return cfg.client, nil
-			}, nil)
-		}
-	}()
+	if unaggregatedClusterNamespaceCfg != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cfg := unaggregatedClusterNamespaceCfg
+			if opts.ProvidedSession != nil {
+				cfg.result.session = opts.ProvidedSession
+			} else if !opts.AsyncSessions {
+				cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
+			} else {
+				cfg.result.session = m3db.NewAsyncSession(func() (client.Client, error) {
+					return cfg.client, nil
+				}, nil)
+			}
+		}()
+	}
+
 	for _, cfg := range aggregatedClusterNamespacesCfgs {
 		cfg := cfg // Capture var
 		wg.Add(1)
@@ -271,19 +279,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 		}()
 	}
 
-	// Wait
 	wg.Wait()
-
-	if unaggregatedClusterNamespaceCfg.result.err != nil {
-		return nil, fmt.Errorf("could not connect to unaggregated cluster: %v",
-			unaggregatedClusterNamespaceCfg.result.err)
-	}
-
-	unaggregatedClusterNamespace = UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID(unaggregatedClusterNamespaceCfg.namespace.Namespace),
-		Session:     unaggregatedClusterNamespaceCfg.result.session,
-		Retention:   unaggregatedClusterNamespaceCfg.namespace.Retention,
-	}
 
 	for i, cfg := range aggregatedClusterNamespacesCfgs {
 		if cfg.result.err != nil {
@@ -294,7 +290,8 @@ func (c ClustersStaticConfiguration) NewClusters(
 		for _, n := range cfg.namespaces {
 			downsampleOpts, err := n.downsampleOptions()
 			if err != nil {
-				return nil, fmt.Errorf("error parse downsample options for cluster #%d namespace %s: %v",
+				return nil, fmt.Errorf(
+					"error parse downsample options for cluster #%d namespace %s: %v",
 					i, n.Namespace, err)
 			}
 
@@ -307,6 +304,21 @@ func (c ClustersStaticConfiguration) NewClusters(
 			}
 			aggregatedClusterNamespaces = append(aggregatedClusterNamespaces, def)
 		}
+	}
+
+	if unaggregatedClusterNamespaceCfg == nil {
+		return NewAggregatedClusters(aggregatedClusterNamespaces...)
+	}
+
+	if unaggregatedClusterNamespaceCfg.result.err != nil {
+		return nil, fmt.Errorf("could not connect to unaggregated cluster: %v",
+			unaggregatedClusterNamespaceCfg.result.err)
+	}
+
+	unaggregatedClusterNamespace = UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID(unaggregatedClusterNamespaceCfg.namespace.Namespace),
+		Session:     unaggregatedClusterNamespaceCfg.result.session,
+		Retention:   unaggregatedClusterNamespaceCfg.namespace.Retention,
 	}
 
 	return NewClusters(unaggregatedClusterNamespace,

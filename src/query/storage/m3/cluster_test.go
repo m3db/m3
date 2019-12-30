@@ -103,7 +103,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes
-	unaggregatedNs := clusters.UnaggregatedClusterNamespace()
+	unaggregatedNs, found := clusters.UnaggregatedClusterNamespace()
+	require.True(t, found)
 	assert.Equal(t, "unaggregated", unaggregatedNs.NamespaceID().String())
 	assert.Equal(t, storage.Attributes{
 		MetricsType: storage.UnaggregatedMetricsType,

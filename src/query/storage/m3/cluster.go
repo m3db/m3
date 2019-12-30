@@ -53,7 +53,7 @@ type Clusters interface {
 
 	// UnaggregatedClusterNamespace returns the valid unaggregated
 	// cluster namespace.
-	UnaggregatedClusterNamespace() ClusterNamespace
+	UnaggregatedClusterNamespace() (ClusterNamespace, bool)
 
 	// AggregatedClusterNamespace returns an aggregated cluster namespace
 	// at a specific retention and resolution.
@@ -65,6 +65,11 @@ type Clusters interface {
 type RetentionResolution struct {
 	Retention  time.Duration
 	Resolution time.Duration
+}
+
+func (r RetentionResolution) String() string {
+	return fmt.Sprintf("retention=%s, resolution=%s",
+		r.Retention.String(), r.Resolution.String())
 }
 
 // ClusterNamespace is a local storage cluster namespace.
@@ -193,34 +198,31 @@ func (def AggregatedClusterNamespaceDefinition) Validate() error {
 	return nil
 }
 
+type aggregatedNamespaceDef map[RetentionResolution]ClusterNamespace
+
 type clusters struct {
 	namespaces            []ClusterNamespace
+	unaggregatedSet       bool
 	unaggregatedNamespace ClusterNamespace
-	aggregatedNamespaces  map[RetentionResolution]ClusterNamespace
+	aggregatedNamespaces  aggregatedNamespaceDef
 }
 
-// NewClusters instantiates a new Clusters instance.
-func NewClusters(
-	unaggregatedClusterNamespace UnaggregatedClusterNamespaceDefinition,
-	aggregatedClusterNamespaces ...AggregatedClusterNamespaceDefinition,
-) (Clusters, error) {
+type aggClusters struct {
+	namespaces []ClusterNamespace
+	defs       aggregatedNamespaceDef
+}
+
+func newAggregatedClusters(
+	namespaces []ClusterNamespace,
+	aggregatedClusterNamespaces []AggregatedClusterNamespaceDefinition,
+) (aggClusters, error) {
 	expectedAggregated := len(aggregatedClusterNamespaces)
-	expectedAll := 1 + expectedAggregated
-	namespaces := make(ClusterNamespaces, 0, expectedAll)
-	aggregatedNamespaces := make(map[RetentionResolution]ClusterNamespace,
-		expectedAggregated)
+	defs := make(map[RetentionResolution]ClusterNamespace, expectedAggregated)
 
-	def := unaggregatedClusterNamespace
-	unaggregatedNamespace, err := newUnaggregatedClusterNamespace(def)
-	if err != nil {
-		return nil, err
-	}
-
-	namespaces = append(namespaces, unaggregatedNamespace)
 	for _, def := range aggregatedClusterNamespaces {
 		namespace, err := newAggregatedClusterNamespace(def)
 		if err != nil {
-			return nil, err
+			return aggClusters{}, err
 		}
 
 		namespaces = append(namespaces, namespace)
@@ -229,20 +231,63 @@ func NewClusters(
 			Resolution: namespace.Options().Attributes().Resolution,
 		}
 
-		_, exists := aggregatedNamespaces[key]
+		_, exists := defs[key]
 		if exists {
-			return nil, fmt.Errorf("duplicate aggregated namespace exists for: "+
-				"retention=%s, resolution=%s",
-				key.Retention.String(), key.Resolution.String())
+			return aggClusters{},
+				fmt.Errorf("duplicate aggregated namespace exists for: %s", key)
 		}
 
-		aggregatedNamespaces[key] = namespace
+		defs[key] = namespace
+	}
+
+	return aggClusters{
+		namespaces: namespaces,
+		defs:       defs,
+	}, nil
+}
+
+// NewAggregatedClusters instantiates a new Clusters instance.
+func NewAggregatedClusters(
+	aggregatedClusterNs ...AggregatedClusterNamespaceDefinition,
+) (Clusters, error) {
+	nsBuffer := make(ClusterNamespaces, 0, len(aggregatedClusterNs))
+	aggClusters, err := newAggregatedClusters(nsBuffer, aggregatedClusterNs)
+	if err != nil {
+		return nil, err
 	}
 
 	return &clusters{
-		namespaces:            namespaces,
+		namespaces:           aggClusters.namespaces,
+		aggregatedNamespaces: aggClusters.defs,
+	}, nil
+}
+
+// NewClusters instantiates a new Clusters instance.
+func NewClusters(
+	unaggregatedClusterNamespace UnaggregatedClusterNamespaceDefinition,
+	aggregatedClusterNs ...AggregatedClusterNamespaceDefinition,
+) (Clusters, error) {
+	expectedAggregated := len(aggregatedClusterNs)
+	expectedAll := 1 + expectedAggregated
+	namespaces := make(ClusterNamespaces, 0, expectedAll)
+
+	def := unaggregatedClusterNamespace
+	unaggregatedNamespace, err := newUnaggregatedClusterNamespace(def)
+	if err != nil {
+		return nil, err
+	}
+
+	namespaces = append(namespaces, unaggregatedNamespace)
+	aggClusters, err := newAggregatedClusters(namespaces, aggregatedClusterNs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &clusters{
+		unaggregatedSet:       true,
 		unaggregatedNamespace: unaggregatedNamespace,
-		aggregatedNamespaces:  aggregatedNamespaces,
+		namespaces:            aggClusters.namespaces,
+		aggregatedNamespaces:  aggClusters.defs,
 	}, nil
 }
 
@@ -250,8 +295,12 @@ func (c *clusters) ClusterNamespaces() ClusterNamespaces {
 	return c.namespaces
 }
 
-func (c *clusters) UnaggregatedClusterNamespace() ClusterNamespace {
-	return c.unaggregatedNamespace
+func (c *clusters) UnaggregatedClusterNamespace() (ClusterNamespace, bool) {
+	if !c.unaggregatedSet {
+		return nil, false
+	}
+
+	return c.unaggregatedNamespace, true
 }
 
 func (c *clusters) AggregatedClusterNamespace(

@@ -45,10 +45,18 @@ type unaggregatedNamespaceDetails struct {
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
 // should be used, and if so, determines if it fully satisfies the query range.
 func resolveUnaggregatedNamespaceForQuery(
-	now, start time.Time,
-	unaggregated ClusterNamespace,
+	now time.Time,
+	start time.Time,
+	cluster Clusters,
 	opts *storage.FanoutOptions,
 ) unaggregatedNamespaceDetails {
+	unaggregated, found := cluster.UnaggregatedClusterNamespace()
+	if !found {
+		return unaggregatedNamespaceDetails{
+			satisfies: disabled,
+		}
+	}
+
 	if opts.FanoutUnaggregated == storage.FanoutForceDisable {
 		return unaggregatedNamespaceDetails{satisfies: disabled}
 	}
@@ -88,7 +96,7 @@ func resolveClusterNamespacesForQuery(
 	// If so, return it and shortcircuit, as unaggregated will necessarily have
 	// every metric.
 	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start,
-		clusters.UnaggregatedClusterNamespace(), opts)
+		clusters, opts)
 	if unaggregated.satisfies == fullySatisfiesRange {
 		return namespaceCoversAllQueryRange,
 			ClusterNamespaces{unaggregated.clusterNamespace},
@@ -327,7 +335,12 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 
 	switch restrict.MetricsType {
 	case storage.UnaggregatedMetricsType:
-		return result(clusters.UnaggregatedClusterNamespace(), nil)
+		ns, found := clusters.UnaggregatedClusterNamespace()
+		if !found {
+			return result(nil, fmt.Errorf("could not find unaggregated namespace"))
+		}
+
+		return result(ns, nil)
 	case storage.AggregatedMetricsType:
 		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
 			Retention:  restrict.StoragePolicy.Retention().Duration(),
