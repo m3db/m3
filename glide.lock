@@ -235,6 +235,15 @@ imports:
   - commands
   - gen
   - prop
+- name: github.com/lightstep/lightstep-tracer-common
+  version: 082dbbf1b51a87f008f51a6203c269395ac3fe54
+  subpackages:
+  - golang/gogo/collectorpb
+  - golang/gogo/lightsteppb
+- name: github.com/lightstep/lightstep-tracer-go
+  version: 95891af43e111d60f0ae6adaa39c2abe8caad401
+  subpackages:
+  - lightstep/rand
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
@@ -525,7 +534,7 @@ imports:
   subpackages:
   - rate
 - name: golang.org/x/tools
-  version: 1e586a538ebbd26e54f3e5420dbc23914a69e16f
+  version: 2aa90c603ae35ab89ce30e45e49d870b7e5e7698
   subpackages:
   - go/analysis
   - go/analysis/passes/inspect
