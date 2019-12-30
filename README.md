@@ -8,7 +8,8 @@ More information:
 
 - [Documentation](https://m3db.github.io/m3/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
-- [Slack (chat channel)](http://bit.ly/m3slack)
+- [Slack (primary chat channel)](http://bit.ly/m3slack)
+- [Gitter (deprecated chat channel)](https://gitter.im/m3db/Lobby)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
