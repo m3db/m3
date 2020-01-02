@@ -547,7 +547,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 	var (
 		storageFlushConcurrency = defaultStorageFlushConcurrency
-		rulesKVStore            = o.RulesKVStore
 		clockOpts               = o.ClockOptions
 		instrumentOpts          = o.InstrumentOptions
 		scope                   = instrumentOpts.MetricsScope()
@@ -576,7 +575,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
-		SetKVStore(rulesKVStore)
+		SetKVStore(o.RulesKVStore)
 
 	// NB(r): If rules are being explicitlly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -584,13 +583,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		logger.Debug("registering downsample rules from config, not using KV")
 		kvTxnMemStore := mem.NewStore()
 
-		// Make sure that other components using rules KV store points to the
-		// in mem store if using config.
-		rulesKVStore = kvTxnMemStore
-		matcherOpts = matcherOpts.SetKVStore(rulesKVStore)
-
 		// Initialize the namespaces
-		_, err := rulesKVStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
+		_, err := kvTxnMemStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
 		if err != nil {
 			return agg{}, err
 		}
@@ -645,6 +639,12 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		if err := rulesStore.WriteAll(ruleNamespaces, rs); err != nil {
 			return agg{}, err
 		}
+
+		// Set the rules KV store to the in-memory one we created to
+		// store the rules we created from config.
+		// This makes sure that other components using rules KV store points to
+		// the in-memory store that has the rules created from config.
+		matcherOpts = matcherOpts.SetKVStore(kvTxnMemStore)
 	}
 
 	matcher, err := o.newAggregatorMatcher(matcherOpts)
