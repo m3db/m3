@@ -428,9 +428,13 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 	agg.byKey[idx].currRefCnt++
 	if agg.byKey[idx].currRefCnt < agg.byKey[idx].totalRefCnt {
 		agg.metrics.onDoneNoWrite.Inc(1)
+		fmt.Printf("inc'd forwarded metric: ref_count=%d, total_refs=%d\n",
+			agg.byKey[idx].currRefCnt, agg.byKey[idx].totalRefCnt)
 		return nil
 	}
 	if agg.byKey[idx].currRefCnt == agg.byKey[idx].totalRefCnt {
+		fmt.Printf("flushing forwarded metric: ref_count=%d, total_refs=%d\n",
+			agg.byKey[idx].currRefCnt, agg.byKey[idx].totalRefCnt)
 		var (
 			multiErr = xerrors.NewMultiError()
 			meta     = metadata.ForwardMetadata{
@@ -442,6 +446,8 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 			}
 		)
 		for _, b := range agg.byKey[idx].buckets {
+			fmt.Printf("flushing forwarded metric bucket: values=%v\n",
+				b.values)
 			if len(b.values) == 0 {
 				continue
 			}
@@ -454,8 +460,10 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
 				agg.metrics.onDoneWriteErrors.Inc(1)
+				fmt.Printf("flushing forwarded metric error: %v\n", err)
 			} else {
 				agg.metrics.onDoneWriteSuccess.Inc(1)
+				fmt.Printf("flushing forwarded metric success\n")
 			}
 		}
 		return multiErr.FinalError()

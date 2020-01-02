@@ -21,9 +21,12 @@
 package aggregator
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -193,6 +196,12 @@ func (e *elemBase) resetSetData(
 	parsed, err := newParsedPipeline(pipeline)
 	if err != nil {
 		return err
+	}
+	if bytes.Contains(id, []byte("http_request")) {
+		parsedJSON, _ := json.Marshal(&parsed)
+		fmt.Printf("reset elem with parse pipeline: input=%s, applied=%s\n",
+			pipeline.String(), parsedJSON)
+		debug.PrintStack()
 	}
 	e.id = id
 	e.sp = sp

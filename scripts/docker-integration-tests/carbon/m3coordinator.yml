@@ -2,7 +2,9 @@ listenAddress:
   value: "0.0.0.0:7201"
 
 logging:
-  level: info
+  # TODO restore to info level
+  # level: info
+  level: debug
 
 metrics:
   scope:
@@ -20,6 +22,8 @@ clusters:
         type: aggregated
         retention: 10h
         resolution: 5s
+        downsample:
+          all: false
       - namespace: unagg
         type: unaggregated
         retention: 10m
@@ -37,26 +41,24 @@ clusters:
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 
-carbon:
-  ingester:
-    listenAddress: "0.0.0.0:7204"
-    rules:
-      - pattern: .*min.aggregate.*
-        aggregation:
-          type: min
-        policies:
-          - resolution: 5s
-            retention: 10h
-      - pattern: .*already-aggregated.*
-        aggregation:
-          enabled: false
-        policies:
-          - resolution: 5s
-            retention: 10h
-      - pattern: .*
-        policies:
-          - resolution: 5s
-            retention: 10h
+downsample:
+  rules:
+    mappingRules:
+      - name: "nginx metrics"
+        filter: "app:nginx*"
+        aggregations: ["Last"]
+        storagePolicies: ["5s:10h"]
+    rollupRules:
+      - name: "requests per second by status code"
+        filter: "__name__:http_requests app:* status_code:* endpoint:*"
+        transforms:
+          - transform:
+              type: "PerSecond"
+          - rollup:
+              metricName: "http_requests_by_status_code"
+              groupBy: ["app", "status_code", "endpoint"]
+              aggregations: ["Sum"]
+        storagePolicies: ["5s:10h"]
 
 tagOptions:
   idScheme: quoted

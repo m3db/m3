@@ -23,9 +23,11 @@ package downsample
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"runtime"
 	"time"
+
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
@@ -57,12 +59,15 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/pborman/uuid"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -302,8 +307,8 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 
 // StoragePolicyConfiguration is the storage policy to apply to a set of metrics.
 type StoragePolicyConfiguration struct {
-	Retention  time.Duration `yaml:"retention"`
 	Resolution time.Duration `yaml:"resolution"`
+	Retention  time.Duration `yaml:"retention"`
 }
 
 // StoragePolicy returns the corresponding storage policy.
@@ -357,7 +362,8 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 	}
 	filter := r.Filter
 
-	storagePolicies, err := StoragePolicyConfigurations(r.StoragePolicies).StoragePolicies()
+	storagePolicies, err := StoragePolicyConfigurations(r.StoragePolicies).
+		StoragePolicies()
 	if err != nil {
 		return view.RollupRule{}, err
 	}
@@ -408,7 +414,7 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 				return view.RollupRule{}, err
 			}
 			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
-				Type: pipelinepb.PipelineOp_AGGREGATION,
+				Type: pipelinepb.PipelineOp_TRANSFORMATION,
 				Transformation: &pipelinepb.TransformationOp{
 					Type: transformType,
 				},
@@ -527,10 +533,10 @@ func (cfg Configuration) NewDownsampler(
 		return nil, err
 	}
 
-	return &downsampler{
+	return newDownsampler(downsamplerOptions{
 		opts: opts,
 		agg:  agg,
-	}, nil
+	})
 }
 
 func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
@@ -545,6 +551,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		clockOpts               = o.ClockOptions
 		instrumentOpts          = o.InstrumentOptions
 		scope                   = instrumentOpts.MetricsScope()
+		logger                  = instrumentOpts.Logger()
 		openTimeout             = defaultOpenTimeout
 		defaultStagedMetadatas  []metadata.StagedMetadatas
 	)
@@ -574,6 +581,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// NB(r): If rules are being explicitlly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
 	if cfg.Rules != nil {
+		logger.Debug("registering downsample rules from config, not using KV")
 		kvTxnMemStore := mem.NewStore()
 
 		// Make sure that other components using rules KV store points to the
@@ -637,6 +645,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		if err := rulesStore.WriteAll(ruleNamespaces, rs); err != nil {
 			return agg{}, err
 		}
+
+		// Attempt to log the protobuf version of the ruleset for debugging.
+		var fields []zapcore.Field
+		ruleSetProto, err := rs.Proto()
+		if err == nil {
+			fields = append(fields, zap.Stringer("ruleSet", ruleSetProto))
+		}
+		logger.Debug("registered downsample ruleset from config", fields...)
 	}
 
 	matcher, err := o.newAggregatorMatcher(matcherOpts)
@@ -666,13 +682,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}, nil
 	}
 
-	aggClient := client.NewClient(client.NewOptions())
-	adminAggClient, ok := aggClient.(client.AdminClient)
-	if !ok {
-		return agg{}, fmt.Errorf(
-			"unable to cast %v to AdminClient", reflect.TypeOf(aggClient))
-	}
-
 	serviceID := services.NewServiceID().
 		SetEnvironment("production").
 		SetName("downsampler").
@@ -680,8 +689,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 	localKVStore := mem.NewStore()
 
-	placementManager, err := o.newAggregatorPlacementManager(serviceID,
-		localKVStore)
+	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
 	if err != nil {
 		return agg{}, err
 	}
@@ -724,7 +732,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetCounterPrefix(nil).
 		SetGaugePrefix(nil).
 		SetTimerPrefix(nil).
-		SetAdminClient(adminAggClient).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
@@ -796,10 +803,16 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		)
 	})
 
+	adminAggClient := newAggregatorLocalAdminClient()
+	aggregatorOpts = aggregatorOpts.SetAdminClient(adminAggClient)
+
 	aggregatorInstance := aggregator.NewAggregator(aggregatorOpts)
 	if err := aggregatorInstance.Open(); err != nil {
 		return agg{}, err
 	}
+
+	// Update the local aggregator client with the active aggregator instance.
+	adminAggClient.SetAggregator(aggregatorInstance)
 
 	// Wait until the aggregator becomes leader so we don't miss datapoints
 	deadline := time.Now().Add(openTimeout)
@@ -880,12 +893,12 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	}
 
 	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,
-		o.TagEncoderPoolOptions)
+		o.TagEncoderPoolOptions, ident.BytesID(nameTag))
 	newRollupIDProviderPool.Init()
 
-	newRollupIDFn := func(name []byte, tagPairs []id.TagPair) []byte {
+	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
 		rollupIDProvider := newRollupIDProviderPool.Get()
-		id, err := rollupIDProvider.provide(tagPairs)
+		id, err := rollupIDProvider.provide(newName, tagPairs)
 		if err != nil {
 			panic(err) // Encoding should never fail
 		}
@@ -993,6 +1006,76 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 		flushWorkers, o.TagOptions, instrumentOpts)
 
 	return flushManager, handler
+}
+
+// Force the local aggregator client to implement client.Client.
+var _ client.AdminClient = (*aggregatorLocalAdminClient)(nil)
+
+type aggregatorLocalAdminClient struct {
+	agg aggregator.Aggregator
+}
+
+func newAggregatorLocalAdminClient() *aggregatorLocalAdminClient {
+	return &aggregatorLocalAdminClient{}
+}
+
+func (c *aggregatorLocalAdminClient) SetAggregator(agg aggregator.Aggregator) {
+	c.agg = agg
+}
+
+// Init initializes the client.
+func (c *aggregatorLocalAdminClient) Init() error {
+	return fmt.Errorf("always initialized")
+}
+
+// WriteUntimedCounter writes untimed counter metrics.
+func (c *aggregatorLocalAdminClient) WriteUntimedCounter(
+	counter unaggregated.Counter,
+	metadatas metadata.StagedMetadatas,
+) error {
+	return c.agg.AddUntimed(counter.ToUnion(), metadatas)
+}
+
+// WriteUntimedBatchTimer writes untimed batch timer metrics.
+func (c *aggregatorLocalAdminClient) WriteUntimedBatchTimer(
+	batchTimer unaggregated.BatchTimer,
+	metadatas metadata.StagedMetadatas,
+) error {
+	return c.agg.AddUntimed(batchTimer.ToUnion(), metadatas)
+}
+
+// WriteUntimedGauge writes untimed gauge metrics.
+func (c *aggregatorLocalAdminClient) WriteUntimedGauge(
+	gauge unaggregated.Gauge,
+	metadatas metadata.StagedMetadatas,
+) error {
+	return c.agg.AddUntimed(gauge.ToUnion(), metadatas)
+}
+
+// WriteTimed writes timed metrics.
+func (c *aggregatorLocalAdminClient) WriteTimed(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	return c.agg.AddTimed(metric, metadata)
+}
+
+// WriteForwarded writes forwarded metrics.
+func (c *aggregatorLocalAdminClient) WriteForwarded(
+	metric aggregated.ForwardedMetric,
+	metadata metadata.ForwardMetadata,
+) error {
+	return c.agg.AddForwarded(metric, metadata)
+}
+
+// Flush flushes any remaining data buffered by the client.
+func (c *aggregatorLocalAdminClient) Flush() error {
+	return nil
+}
+
+// Close closes the client.
+func (c *aggregatorLocalAdminClient) Close() error {
+	return nil
 }
 
 type bufferPastLimit struct {

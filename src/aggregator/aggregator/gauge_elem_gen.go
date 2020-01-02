@@ -434,6 +434,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
+		fmt.Printf("flushing gauge: has_rollup=%v\n", e.parsedPipeline.HasRollup)
 		if !e.parsedPipeline.HasRollup {
 			switch e.idPrefixSuffixType {
 			case NoPrefixNoSuffix:

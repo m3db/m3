@@ -21,16 +21,24 @@
 package downsample
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/serialize"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type metricsAppender struct {
@@ -46,10 +54,21 @@ type metricsAppenderOptions struct {
 	clientRemote client.Client
 
 	defaultStagedMetadatas []metadata.StagedMetadatas
-	clockOpts              clock.Options
 	tagEncoder             serialize.TagEncoder
 	matcher                matcher.Matcher
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
+
+	clockOpts    clock.Options
+	debugLogging bool
+	logger       *zap.Logger
+}
+
+func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
+	return &metricsAppender{
+		metricsAppenderOptions: opts,
+		tags:                   newTags(),
+		multiSamplesAppender:   newMultiSamplesAppender(),
+	}
 }
 
 func (a *metricsAppender) AddTag(name, value []byte) {
@@ -90,6 +109,15 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			if err != nil {
 				return nil, err
 			}
+
+			if a.debugLogging {
+				fields := []zapcore.Field{zap.String("tags", a.tags.String())}
+				if json, err := stagedMetadatasJSON(stagedMetadatas); err != nil {
+					fields = append(fields, zap.Any("stagedMetadatas", json))
+				}
+				a.logger.Debug("downsampler applying override mapping rule", fields...)
+			}
+
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
 				clientRemote:    a.clientRemote,
@@ -100,6 +128,14 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	} else {
 		// Always aggregate any default staged metadats
 		for _, stagedMetadatas := range a.defaultStagedMetadatas {
+			if a.debugLogging {
+				fields := []zapcore.Field{zap.String("tags", a.tags.String())}
+				if json, err := stagedMetadatasJSON(stagedMetadatas); err == nil {
+					fields = append(fields, zap.Any("stagedMetadatas", json))
+				}
+				a.logger.Debug("downsampler applying default mapping rule", fields...)
+			}
+
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
 				clientRemote:    a.clientRemote,
@@ -110,6 +146,14 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 		stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
 		if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
+			if a.debugLogging {
+				fields := []zapcore.Field{zap.String("tags", a.tags.String())}
+				if json, err := stagedMetadatasJSON(stagedMetadatas); err == nil {
+					fields = append(fields, zap.Any("stagedMetadatas", json))
+				}
+				a.logger.Debug("downsampler applying matched mapping rule", fields...)
+			}
+
 			// Only sample if going to actually aggregate
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
@@ -122,6 +166,18 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		numRollups := matchResult.NumNewRollupIDs()
 		for i := 0; i < numRollups; i++ {
 			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
+
+			if a.debugLogging {
+				fields := []zapcore.Field{
+					zap.String("tags", a.tags.String()),
+					zap.ByteString("rollupID", rollup.ID),
+				}
+				if json, err := stagedMetadatasJSON(rollup.Metadatas); err == nil {
+					fields = append(fields, zap.Any("rollupStagedMetadatas", json))
+				}
+				a.logger.Debug("downsampler applying matched rollup rule", fields...)
+			}
+
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
 				clientRemote:    a.clientRemote,
@@ -142,4 +198,20 @@ func (a *metricsAppender) Reset() {
 func (a *metricsAppender) Finalize() {
 	a.tagEncoder.Finalize()
 	a.tagEncoder = nil
+}
+
+func stagedMetadatasJSON(sm metadata.StagedMetadatas) (interface{}, error) {
+	var pb metricpb.StagedMetadatas
+	if err := sm.ToProto(&pb); err != nil {
+		return nil, err
+	}
+	var buff bytes.Buffer
+	if err := (&jsonpb.Marshaler{}).Marshal(&buff, &pb); err != nil {
+		return nil, err
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(buff.Bytes(), &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
