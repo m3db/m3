@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strconv"
 	"sync"
 	"time"
 
@@ -151,6 +152,22 @@ func (q *querier) FetchCompressed(
 				if value == gen.name {
 					actualGens = append(actualGens, gen)
 					break
+				}
+			}
+
+			break
+		} else if "gen" == string(matcher.Name) {
+			cStr := string(matcher.Value)
+			count, err := strconv.Atoi(cStr)
+			if err != nil {
+				return m3.SeriesFetchResult{}, noop, err
+			}
+
+			actualGens = make([]seriesGen, count)
+			for i := 0; i < count; i++ {
+				actualGens[i] = seriesGen{
+					res:  time.Second * 15,
+					name: fmt.Sprintf("foo_%d", i),
 				}
 			}
 

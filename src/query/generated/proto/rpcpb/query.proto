@@ -65,16 +65,16 @@ message FetchOptions {
 }
 
 message RestrictQueryOptions {
-	RestrictFetchType RestrictFetchType = 3;
-	RestrictFetchTags RestrictFetchTags = 4;
+	RestrictQueryType restrictQueryType = 3;
+	RestrictQueryTags restrictQueryTags = 4;
 }
 
-message RestrictFetchType {
+message RestrictQueryType {
 	MetricsType metricsType                     = 1;
 	policypb.StoragePolicy metricsStoragePolicy = 2;
 }
 
-message RestrictFetchTags {
+message RestrictQueryTags {
 	TagMatchers restrict = 1;
 	repeated bytes strip = 2;
 }

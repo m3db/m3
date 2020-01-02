@@ -69,6 +69,10 @@ type Options interface {
 	SetReadWorkerPool(xsync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the read worker pool for the converter.
 	ReadWorkerPool() xsync.PooledWorkerPool
+	// SetReadWorkerPool sets the write worker pool for the converter.
+	SetWriteWorkerPool(xsync.PooledWorkerPool) Options
+	// ReadWorkerPool returns the write worker pool for the converter.
+	WriteWorkerPool() xsync.PooledWorkerPool
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }

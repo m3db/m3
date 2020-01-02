@@ -157,15 +157,15 @@ func TestEncodeFetchMessage(t *testing.T) {
 	require.NotNil(t, grpcQ.Options)
 	assert.Equal(t, int64(42), grpcQ.Options.Limit)
 	require.NotNil(t, grpcQ.Options.Restrict)
-	require.NotNil(t, grpcQ.Options.Restrict.RestrictFetchType)
+	require.NotNil(t, grpcQ.Options.Restrict.RestrictQueryType)
 	assert.Equal(t, rpc.MetricsType_AGGREGATED_METRICS_TYPE,
-		grpcQ.Options.Restrict.RestrictFetchType.MetricsType)
-	require.NotNil(t, grpcQ.Options.Restrict.RestrictFetchType.MetricsStoragePolicy)
+		grpcQ.Options.Restrict.RestrictQueryType.MetricsType)
+	require.NotNil(t, grpcQ.Options.Restrict.RestrictQueryType.MetricsStoragePolicy)
 	expectedStoragePolicyProto, err := fetchOpts.RestrictQueryOptions.
 		RestrictByType.StoragePolicy.Proto()
 	require.NoError(t, err)
 	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.
-		RestrictFetchType.MetricsStoragePolicy)
+		RestrictQueryType.MetricsStoragePolicy)
 	assert.Equal(t, lookback, time.Duration(grpcQ.Options.LookbackDuration))
 }
 
@@ -245,7 +245,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 	}{
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
 				},
 			},
@@ -257,7 +257,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
 						Resolution: &policypb.Resolution{
@@ -269,7 +269,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 						},
 					},
 				},
-				RestrictFetchTags: &rpc.RestrictFetchTags{
+				RestrictQueryTags: &rpc.RestrictQueryTags{
 					Restrict: &rpc.TagMatchers{
 						TagMatchers: []*rpc.TagMatcher{
 							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
@@ -300,7 +300,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_UNKNOWN_METRICS_TYPE,
 				},
 			},
@@ -308,7 +308,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
 						Resolution: &policypb.Resolution{
@@ -325,7 +325,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
 						Resolution: &policypb.Resolution{
@@ -338,7 +338,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
 						Resolution: &policypb.Resolution{
@@ -352,7 +352,7 @@ func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
 		},
 		{
 			value: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
 						Resolution: &policypb.Resolution{
@@ -417,10 +417,10 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 				},
 			},
 			expected: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
 				},
-				RestrictFetchTags: &rpcpb.RestrictFetchTags{
+				RestrictQueryTags: &rpcpb.RestrictQueryTags{
 					Restrict: &rpc.TagMatchers{
 						TagMatchers: []*rpc.TagMatcher{
 							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
@@ -446,7 +446,7 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 				},
 			},
 			expected: &rpcpb.RestrictQueryOptions{
-				RestrictFetchType: &rpcpb.RestrictFetchType{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
 					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
 					MetricsStoragePolicy: &policypb.StoragePolicy{
 						Resolution: &policypb.Resolution{
@@ -458,7 +458,7 @@ func TestRestrictQueryOptionsProto(t *testing.T) {
 						},
 					},
 				},
-				RestrictFetchTags: &rpcpb.RestrictFetchTags{
+				RestrictQueryTags: &rpcpb.RestrictQueryTags{
 					Restrict: &rpc.TagMatchers{
 						TagMatchers: []*rpc.TagMatcher{
 							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),

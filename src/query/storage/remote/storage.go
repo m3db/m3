@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/query/tsdb/remote"
 )
 
-// RemoteOptions contains options for remote  clients.
-type RemoteOptions struct {
+// Options contains options for remote clients.
+type Options struct {
 	// ErrorBehavior determines the error behavior for this remote storage.
 	ErrorBehavior storage.ErrorBehavior
 	// Name is this storage's name.
@@ -40,11 +40,11 @@ type RemoteOptions struct {
 
 type remoteStorage struct {
 	client remote.Client
-	opts   RemoteOptions
+	opts   Options
 }
 
 // NewStorage creates a new remote Storage instance.
-func NewStorage(c remote.Client, opts RemoteOptions) storage.Storage {
+func NewStorage(c remote.Client, opts Options) storage.Storage {
 	return &remoteStorage{client: c, opts: opts}
 }
 
@@ -54,6 +54,14 @@ func (s *remoteStorage) Fetch(
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return s.client.Fetch(ctx, query, options)
+}
+
+func (s *remoteStorage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return s.client.FetchProm(ctx, query, options)
 }
 
 func (s *remoteStorage) FetchBlocks(

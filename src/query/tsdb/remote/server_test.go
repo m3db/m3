@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -164,8 +165,12 @@ func buildClient(t *testing.T, hosts []string) Client {
 		xsync.NewPooledWorkerPoolOptions())
 	readWorkerPool.Init()
 	require.NoError(t, err)
-	client, err := NewGRPCClient(hosts, poolsWrapper, readWorkerPool,
-		models.NewTagOptions(), 0, grpc.WithBlock())
+
+	opts := m3db.NewOptions().
+		SetReadWorkerPool(readWorkerPool).
+		SetTagOptions(models.NewTagOptions())
+
+	client, err := NewGRPCClient(hosts, poolsWrapper, opts, grpc.WithBlock())
 	require.NoError(t, err)
 	return client
 }
@@ -286,14 +291,9 @@ func TestMultipleClientRpc(t *testing.T) {
 }
 
 func TestEmptyAddressListErrors(t *testing.T) {
-	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.NumCPU(),
-		xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	readWorkerPool.Init()
-
 	addresses := []string{}
-	client, err := NewGRPCClient(addresses, poolsWrapper, readWorkerPool,
-		models.NewTagOptions(), 0, grpc.WithBlock())
+	opts := m3db.NewOptions()
+	client, err := NewGRPCClient(addresses, poolsWrapper, opts, grpc.WithBlock())
 	assert.Nil(t, client)
 	assert.Equal(t, m3err.ErrNoClientAddresses, err)
 }

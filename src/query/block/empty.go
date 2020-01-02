@@ -113,3 +113,17 @@ func (it *ucEmptySeriesIter) SeriesCount() int              { return 0 }
 func (it *ucEmptySeriesIter) SeriesMeta() []SeriesMeta      { return []SeriesMeta{} }
 func (it *ucEmptySeriesIter) Next() bool                    { return false }
 func (it *ucEmptySeriesIter) Current() UnconsolidatedSeries { return UnconsolidatedSeries{} }
+
+func (b *ucEmptyBlock) MultiSeriesIter(
+	concurrency int,
+) ([]UnconsolidatedSeriesIterBatch, error) {
+	batch := make([]UnconsolidatedSeriesIterBatch, concurrency)
+	for i := range batch {
+		batch[i] = UnconsolidatedSeriesIterBatch{
+			Size: 1,
+			Iter: &ucEmptySeriesIter{},
+		}
+	}
+
+	return batch, nil
+}

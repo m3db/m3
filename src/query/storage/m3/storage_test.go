@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/sync"
@@ -124,9 +125,12 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 		sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
-	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage, err := NewStorage(clusters, nil, writePool, opts, time.Minute,
-		instrument.NewOptions())
+	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))
+	opts := m3db.NewOptions().
+		SetWriteWorkerPool(writePool).
+		SetLookbackDuration(time.Minute).
+		SetTagOptions(tagOpts)
+	storage, err := NewStorage(clusters, opts, instrument.NewOptions())
 	require.NoError(t, err)
 	return storage
 }

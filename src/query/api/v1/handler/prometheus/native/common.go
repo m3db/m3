@@ -212,9 +212,9 @@ func parseInstantaneousParams(
 	if fetchOpts.Step == 0 {
 		fetchOpts.Step = time.Second
 	}
+
 	r.Form.Set(startParam, nowTimeValue)
 	r.Form.Set(endParam, nowTimeValue)
-
 	params, err := parseParams(r, engineOpts, timeoutOpts,
 		fetchOpts, instrumentOpts)
 	if err != nil {

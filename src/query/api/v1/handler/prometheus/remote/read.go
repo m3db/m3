@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"sync"
@@ -178,8 +179,8 @@ func (h *PromReadHandler) parseRequest(
 }
 
 type readResult struct {
-	result []*prompb.QueryResult
 	meta   block.ResultMetadata
+	result []*prompb.QueryResult
 }
 
 func (h *PromReadHandler) read(
@@ -190,10 +191,11 @@ func (h *PromReadHandler) read(
 	fetchOpts *storage.FetchOptions,
 ) (readResult, error) {
 	var (
-		queryCount  = len(r.Queries)
-		promResults = make([]*prompb.QueryResult, queryCount)
-		cancelFuncs = make([]context.CancelFunc, queryCount)
-		queryOpts   = &executor.QueryOptions{
+		queryCount   = len(r.Queries)
+		cancelFuncs  = make([]context.CancelFunc, queryCount)
+		queryResults = make([]*prompb.QueryResult, queryCount)
+		meta         = block.NewResultMetadata()
+		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
@@ -201,7 +203,6 @@ func (h *PromReadHandler) read(
 		wg       sync.WaitGroup
 		mu       sync.Mutex
 		multiErr xerrors.MultiError
-		meta     = block.NewResultMetadata()
 	)
 
 	wg.Add(queryCount)
@@ -221,7 +222,7 @@ func (h *PromReadHandler) read(
 
 			// Detect clients closing connections
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			result, err := h.engine.Execute(ctx, query, queryOpts, fetchOpts)
+			result, err := h.engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -229,15 +230,12 @@ func (h *PromReadHandler) read(
 				return
 			}
 
+			result.PromResult.Timeseries = filterResults(
+				result.PromResult.GetTimeseries(), fetchOpts)
 			mu.Lock()
+			queryResults[i] = result.PromResult
 			meta = meta.CombineMetadata(result.Metadata)
 			mu.Unlock()
-			result.SeriesList = prometheus.FilterSeriesByOptions(
-				result.SeriesList,
-				fetchOpts,
-			)
-			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
-			promResults[i] = promRes
 		}()
 	}
 
@@ -247,8 +245,57 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return readResult{nil, meta}, err
+		return readResult{result: nil, meta: meta}, err
 	}
 
-	return readResult{promResults, meta}, nil
+	return readResult{result: queryResults, meta: meta}, nil
+}
+
+// filterResults removes series tags based on options.
+func filterResults(
+	series []*prompb.TimeSeries,
+	opts *storage.FetchOptions,
+) []*prompb.TimeSeries {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) == 0 {
+		return series
+	}
+
+	for i, s := range series {
+		series[i].Labels = filterLabels(s.Labels, keys)
+	}
+
+	return series
+}
+
+func filterLabels(
+	labels []prompb.Label,
+	filtering [][]byte,
+) []prompb.Label {
+	if len(filtering) == 0 {
+		return labels
+	}
+
+	filtered := labels[:0]
+	for _, l := range labels {
+		skip := false
+		for _, f := range filtering {
+			if bytes.Equal(l.GetName(), f) {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, l)
+	}
+
+	return filtered
 }

@@ -55,6 +55,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
+	"github.com/prometheus/prometheus/util/httputil"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
@@ -122,9 +123,7 @@ func NewHandler(
 	serviceOptionDefaults []handler.ServiceOptionsDefault,
 ) (*Handler, error) {
 	r := mux.NewRouter()
-
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
-
 	var timeoutOpts = &prometheus.TimeoutOpts{}
 	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
 		timeoutOpts.FetchTimeout = defaultTimeout
@@ -167,13 +166,19 @@ func applyMiddleware(base *mux.Router, tracer opentracing.Tracer) http.Handler {
 		},
 	})
 
-	// apply jaeger middleware, which will start a span
-	// for each incoming request
+	// Apply OpenTracing compatible middleware, which will start a span
+	// for each incoming request.
 	withMiddleware = nethttp.Middleware(tracer, withMiddleware,
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
 		}))
-	return withMiddleware
+
+	// NB: wrap the handler with a `CompressionHandler`; this allows all
+	// routes to support `Accept-Encoding:gzip` and `Accept-Encoding:deflate`
+	// requests with the given compression types.
+	return httputil.CompressionHandler{
+		Handler: withMiddleware,
+	}
 }
 
 // RegisterRoutes registers all http routes.
@@ -183,9 +188,11 @@ func (h *Handler) RegisterRoutes() error {
 		wrapped = func(n http.Handler) http.Handler {
 			return logging.WithResponseTimeAndPanicErrorLogging(n, h.instrumentOpts)
 		}
+
 		panicOnly = func(n http.Handler) http.Handler {
 			return logging.WithPanicErrorResponder(n, h.instrumentOpts)
 		}
+
 		nowFn    = time.Now
 		keepNans = h.config.ResultOptions.KeepNans
 	)
@@ -253,12 +260,10 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(remote.TagValuesHTTPMethod)
 
 	// List tag endpoints
-	for _, method := range native.ListTagsHTTPMethods {
-		h.router.HandleFunc(native.ListTagsURL,
-			wrapped(native.NewListTagsHandler(h.storage, h.fetchOptionsBuilder,
-				nowFn, h.instrumentOpts)).ServeHTTP,
-		).Methods(method)
-	}
+	h.router.HandleFunc(native.ListTagsURL,
+		wrapped(native.NewListTagsHandler(h.storage, h.fetchOptionsBuilder,
+			nowFn, h.instrumentOpts)).ServeHTTP,
+	).Methods(native.ListTagsHTTPMethods...)
 
 	// Query parse endpoints
 	h.router.HandleFunc(native.PromParseURL,
@@ -269,18 +274,16 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(native.PromThresholdHTTPMethod)
 
 	// Series match endpoints
-	for _, method := range remote.PromSeriesMatchHTTPMethods {
-		h.router.HandleFunc(remote.PromSeriesMatchURL,
-			wrapped(remote.NewPromSeriesMatchHandler(h.storage,
-				h.tagOptions, h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
-		).Methods(method)
-	}
+	h.router.HandleFunc(remote.PromSeriesMatchURL,
+		wrapped(remote.NewPromSeriesMatchHandler(h.storage,
+			h.tagOptions, h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
+	).Methods(remote.PromSeriesMatchHTTPMethods...)
 
 	// Debug endpoints
 	h.router.HandleFunc(validator.PromDebugURL,
-		wrapped(validator.NewPromDebugHandler(nativePromReadHandler,
-			h.fetchOptionsBuilder, *h.config.LookbackDuration, h.instrumentOpts)).ServeHTTP,
-	).Methods(validator.PromDebugHTTPMethod)
+		wrapped(validator.NewPromDebugHandler(
+			nativePromReadHandler, h.fetchOptionsBuilder, *h.config.LookbackDuration,
+			h.instrumentOpts)).ServeHTTP).Methods(validator.PromDebugHTTPMethod)
 
 	// Graphite endpoints
 	h.router.HandleFunc(graphite.ReadURL,
@@ -293,35 +296,35 @@ func (h *Handler) RegisterRoutes() error {
 			h.fetchOptionsBuilder, h.instrumentOpts)).ServeHTTP,
 	).Methods(graphite.FindHTTPMethods...)
 
+	placementOpts, err := h.placementOpts()
+	if err != nil {
+		return err
+	}
+
+	var placementServices []handler.ServiceNameAndDefaults
+	for _, serviceName := range h.placementServiceNames {
+		service := handler.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+			Defaults:    h.serviceOptionDefaults,
+		}
+		placementServices = append(placementServices, service)
+	}
+
+	debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+		h.cpuProfileDuration,
+		h.clusterClient,
+		placementOpts,
+		placementServices,
+		h.instrumentOpts)
+	if err != nil {
+		return fmt.Errorf("unable to create debug writer: %v", err)
+	}
+
+	// Register debug dump handler.
+	h.router.HandleFunc(xdebug.DebugURL,
+		wrapped(debugWriter.HTTPHandler()).ServeHTTP)
+
 	if h.clusterClient != nil {
-		placementOpts, err := h.placementOpts()
-		if err != nil {
-			return err
-		}
-
-		var placementServices []handler.ServiceNameAndDefaults
-		for _, serviceName := range h.placementServiceNames {
-			service := handler.ServiceNameAndDefaults{
-				ServiceName: serviceName,
-				Defaults:    h.serviceOptionDefaults,
-			}
-			placementServices = append(placementServices, service)
-		}
-
-		debugWriter, err := xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
-			h.cpuProfileDuration,
-			h.clusterClient,
-			placementOpts,
-			placementServices,
-			h.instrumentOpts)
-		if err != nil {
-			return fmt.Errorf("unable to create debug writer: %v", err)
-		}
-
-		// Register debug dump handler.
-		h.router.HandleFunc(xdebug.DebugURL,
-			wrapped(debugWriter.HTTPHandler()).ServeHTTP)
-
 		err = database.RegisterRoutes(h.router, h.clusterClient,
 			h.config, h.embeddedDbCfg, h.serviceOptionDefaults, h.instrumentOpts)
 		if err != nil {
