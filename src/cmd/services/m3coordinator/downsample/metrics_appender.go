@@ -27,8 +27,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
-
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
@@ -37,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/serialize"
 
+	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
