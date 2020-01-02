@@ -802,7 +802,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		if workerPoolSize < 1 {
 			workerPoolSize = 1
 		}
-		workerPool := sync.NewWorkerPool(workerPoolSize)
+		workerPool := m3sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
 	}
