@@ -35,10 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xsync "github.com/m3db/m3/src/x/sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -72,39 +70,27 @@ func (t queryFanoutType) String() string {
 }
 
 type m3storage struct {
-	clusters        Clusters
-	readWorkerPool  xsync.PooledWorkerPool
-	writeWorkerPool xsync.PooledWorkerPool
-	opts            m3db.Options
-	nowFn           func() time.Time
-	logger          *zap.Logger
+	clusters Clusters
+	opts     m3db.Options
+	nowFn    func() time.Time
+	logger   *zap.Logger
 }
 
 // NewStorage creates a new local m3storage instance.
-// TODO: consider taking in an iterator pools here.
 func NewStorage(
 	clusters Clusters,
-	readWorkerPool xsync.PooledWorkerPool,
-	writeWorkerPool xsync.PooledWorkerPool,
-	tagOptions models.TagOptions,
-	lookbackDuration time.Duration,
+	opts m3db.Options,
 	instrumentOpts instrument.Options,
 ) (Storage, error) {
-	opts := m3db.NewOptions().
-		SetTagOptions(tagOptions).
-		SetLookbackDuration(lookbackDuration).
-		SetConsolidationFunc(consolidators.TakeLast)
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
 	return &m3storage{
-		clusters:        clusters,
-		readWorkerPool:  readWorkerPool,
-		writeWorkerPool: writeWorkerPool,
-		opts:            opts,
-		nowFn:           time.Now,
-		logger:          instrumentOpts.Logger(),
+		clusters: clusters,
+		opts:     opts,
+		nowFn:    time.Now,
+		logger:   instrumentOpts.Logger(),
 	}, nil
 }
 
@@ -114,6 +100,36 @@ func (s *m3storage) ErrorBehavior() storage.ErrorBehavior {
 
 func (s *m3storage) Name() string {
 	return "local_store"
+}
+
+func (s *m3storage) FetchProm(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (storage.PromResult, error) {
+	accumulator, err := s.fetchCompressed(ctx, query, options)
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
+	result, _, err := accumulator.FinalResultWithAttrs()
+	defer accumulator.Close()
+	if err != nil {
+		return storage.PromResult{}, err
+	}
+
+	enforcer := options.Enforcer
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
+	}
+
+	return storage.SeriesIteratorsToPromResult(
+		result.SeriesIterators,
+		s.opts.ReadWorkerPool(),
+		result.Metadata,
+		enforcer,
+		s.opts.TagOptions(),
+	)
 }
 
 func (s *m3storage) Fetch(
@@ -139,8 +155,8 @@ func (s *m3storage) Fetch(
 
 	fetchResult, err := storage.SeriesIteratorsToFetchResult(
 		result.SeriesIterators,
-		s.readWorkerPool,
-		false,
+		s.opts.ReadWorkerPool(),
+		true,
 		result.Metadata,
 		enforcer,
 		s.opts.TagOptions(),
@@ -286,7 +302,7 @@ func (s *m3storage) fetchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +317,7 @@ func (s *m3storage) fetchCompressed(
 		query.End,
 		s.clusters,
 		options.FanoutOptions,
-		options.RestrictFetchOptions,
+		options.RestrictQueryOptions,
 	)
 	if err != nil {
 		return nil, err
@@ -425,7 +441,7 @@ func (s *m3storage) CompleteTags(
 		TagMatchers: query.TagMatchers,
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(fetchQuery)
+	m3query, err := storage.FetchQueryToM3Query(fetchQuery, options)
 	if err != nil {
 		return nil, err
 	}
@@ -552,7 +568,7 @@ func (s *m3storage) SearchCompressed(
 	default:
 	}
 
-	m3query, err := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query, options)
 	if err != nil {
 		return tagResult, noop, err
 	}
@@ -642,7 +658,7 @@ func (s *m3storage) Write(
 		// capture var
 		datapoint := datapoint
 		wg.Add(1)
-		s.writeWorkerPool.Go(func() {
+		s.opts.WriteWorkerPool().Go(func() {
 			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
 				multiErr.add(err)
 			}

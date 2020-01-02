@@ -140,6 +140,14 @@ func (r *ReadThroughSegment) ContainsField(field []byte) (bool, error) {
 	return r.segment.ContainsField(field)
 }
 
+// FreeMmap frees the mmapped data if any.
+func (r *ReadThroughSegment) FreeMmap() error {
+	if immSeg, ok := r.segment.(segment.ImmutableSegment); ok {
+		return immSeg.FreeMmap()
+	}
+	return nil
+}
+
 // Size is a pass through call to the segment, since there's no
 // postings lists to cache for queries.
 func (r *ReadThroughSegment) Size() int64 {

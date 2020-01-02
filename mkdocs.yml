@@ -105,6 +105,7 @@ pages:
     - "Bootstrapping & Crash Recovery": "operational_guide/bootstrapping_crash_recovery.md"
     - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
+    - "Monitoring": "operational_guide/monitoring.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"
@@ -117,4 +118,5 @@ pages:
       - "m3query Performance":  "performance/m3query/index.md"
   - "Troubleshooting": "troubleshooting/index.md"
   - "FAQs": "faqs/index.md"
+  - "Glossary": "glossary/index.md"
   - "Tips For Writing Documentation": "misc/writing_docs.md"

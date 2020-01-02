@@ -208,6 +208,9 @@ type Configuration struct {
 
 	// BufferPastLimits specifies the buffer past limits.
 	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
+
+	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
+	EntryTTL time.Duration `yaml:"entryTTL"`
 }
 
 // RulesConfiguration is a set of rules configuration to use for downsampling.
@@ -729,6 +732,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn).
 		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric).
 		SetVerboseErrors(defaultVerboseErrors)
+
+	if cfg.EntryTTL != 0 {
+		aggregatorOpts = aggregatorOpts.SetEntryTTL(cfg.EntryTTL)
+	}
 
 	if cfg.AggregationTypes != nil {
 		aggTypeOpts, err := cfg.AggregationTypes.NewOptions(instrumentOpts)

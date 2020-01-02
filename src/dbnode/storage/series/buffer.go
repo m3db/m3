@@ -272,6 +272,11 @@ func (b *dbBuffer) Write(
 		writeType   WriteType
 	)
 	switch {
+	case wOpts.BootstrapWrite:
+		writeType = WarmWrite
+		// Bootstrap writes are always warm writes.
+		// TODO(r): Validate that the block doesn't reside on disk by asking
+		// the shard for it's bootstrap flush states.
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
 		if !b.coldWritesEnabled {
@@ -432,6 +437,9 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 }
 
 func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
+	// TODO(r): If warm write then validate that the block doesn't reside on
+	// disk by asking the shard for its bootstrap flush states and verifying
+	// that the block does not exist yet.
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)
@@ -1166,12 +1174,11 @@ func (b *BufferBucket) writeToEncoderIndex(
 
 func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	streams := make([]xio.BlockReader, 0, len(b.loadedBlocks)+len(b.encoders))
-
-	for i := range b.loadedBlocks {
-		if b.loadedBlocks[i].Len() == 0 {
+	for _, bl := range b.loadedBlocks {
+		if bl.Len() == 0 {
 			continue
 		}
-		if s, err := b.loadedBlocks[i].Stream(ctx); err == nil && s.IsNotEmpty() {
+		if s, err := bl.Stream(ctx); err == nil && s.IsNotEmpty() {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
 		}

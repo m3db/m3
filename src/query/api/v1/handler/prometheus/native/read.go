@@ -49,14 +49,17 @@ const (
 	// default URL for the query range endpoint found on a Prometheus server
 	PromReadURL = handler.RoutePrefixV1 + "/query_range"
 
-	// PromReadHTTPMethod is the HTTP method used with this resource.
-	PromReadHTTPMethod = http.MethodGet
-
 	// TODO: Move to config
 	initialBlockAlloc = 10
 )
 
 var (
+	// PromReadHTTPMethods are the HTTP methods for this handler.
+	PromReadHTTPMethods = []string{
+		http.MethodGet,
+		http.MethodPost,
+	}
+
 	emptySeriesList = []*ts.Series{}
 	emptyReqParams  = models.RequestParams{}
 )
@@ -146,7 +149,9 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
-	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
 		restrict := &models.RestrictFetchTypeQueryContextOptions{
 			MetricsType:   uint(restrictOpts.MetricsType),
 			StoragePolicy: restrictOpts.StoragePolicy,

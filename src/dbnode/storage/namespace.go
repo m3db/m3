@@ -415,6 +415,14 @@ func (n *dbNamespace) ID() ident.ID {
 	return n.id
 }
 
+func (n *dbNamespace) Metadata() namespace.Metadata {
+	// NB(r): metadata is updated in SetSchemaHistory so requires an RLock.
+	n.RLock()
+	result := n.metadata
+	n.RUnlock()
+	return result
+}
+
 func (n *dbNamespace) Schema() namespace.SchemaDescr {
 	n.RLock()
 	schema := n.schemaDescr
@@ -660,6 +668,24 @@ func (n *dbNamespace) WriteTagged(
 	return series, wasWritten, err
 }
 
+func (n *dbNamespace) SeriesReadWriteRef(
+	shardID uint32,
+	id ident.ID,
+	tags ident.TagIterator,
+) (SeriesReadWriteRef, error) {
+	n.RLock()
+	shard, err := n.shardAtWithRLock(shardID)
+	n.RUnlock()
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
+
+	opts := ShardSeriesReadWriteRefOptions{
+		ReverseIndex: n.reverseIndex != nil,
+	}
+	return shard.SeriesReadWriteRef(id, tags, opts)
+}
+
 func (n *dbNamespace) QueryIDs(
 	ctx context.Context,
 	query index.Query,
@@ -779,11 +805,12 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	return res, nextPageToken, err
 }
 
-func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
+func (n *dbNamespace) Bootstrap(
+	bootstrapResult bootstrap.NamespaceResult,
+) error {
 	callStart := n.nowFn()
 
 	n.Lock()
-	metadata := n.metadata
 	if n.bootstrapState == Bootstrapping {
 		n.Unlock()
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
@@ -812,63 +839,50 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 		return nil
 	}
 
-	var (
-		owned  = n.GetOwnedShards()
-		shards = make([]databaseShard, 0, len(owned))
-	)
-	for _, shard := range owned {
-		if !shard.IsBootstrapped() {
-			shards = append(shards, shard)
-		}
-	}
-	if len(shards) == 0 {
-		success = true
-		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil
-	}
-
-	shardIDs := make([]uint32, len(shards))
-	for i, shard := range shards {
-		shardIDs[i] = shard.ID()
-	}
-
-	bootstrapResult, err := process.Run(start, metadata, shardIDs)
-	if err != nil {
-		n.log.Error("bootstrap aborted due to error",
-			zap.Stringer("namespace", n.id),
-			zap.Error(err))
-		return err
-	}
-	n.metrics.bootstrap.Success.Inc(1)
-
 	// Bootstrap shards using at least half the CPUs available
 	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
-	numSeries := bootstrapResult.DataResult.ShardResults().NumSeries()
-	n.log.Info("bootstrap data fetched now initializing shards with series blocks",
-		zap.Int("numShards", len(shards)),
-		zap.Int64("numSeries", numSeries),
-	)
-
 	var (
-		multiErr = xerrors.NewMultiError()
-		results  = bootstrapResult.DataResult.ShardResults()
-		mutex    sync.Mutex
-		wg       sync.WaitGroup
+		bootstrappedShards = bootstrapResult.Shards
+		multiErr           = xerrors.NewMultiError()
+		mutex              sync.Mutex
+		wg                 sync.WaitGroup
 	)
-	for _, shard := range shards {
-		shard := shard
-		wg.Add(1)
-		workers.Go(func() {
-			var bootstrapped *result.Map
-			if shardResult, ok := results[shard.ID()]; ok {
-				bootstrapped = shardResult.AllSeries()
-			} else {
-				bootstrapped = result.NewMap(result.MapOptions{})
+	n.log.Info("bootstrap marking all shards as bootstrapped",
+		zap.Stringer("namespace", n.id),
+		zap.Int("numShards", len(bootstrappedShards)))
+	for _, shard := range n.GetOwnedShards() {
+		// Make sure it was bootstrapped during this bootstrap run.
+		shardID := shard.ID()
+		bootstrapped := false
+		for _, elem := range bootstrappedShards {
+			if elem == shardID {
+				bootstrapped = true
+				break
 			}
+		}
+		if !bootstrapped {
+			// NB(r): Not bootstrapped in this bootstrap run.
+			continue
+		}
 
-			err := shard.Bootstrap(bootstrapped)
+		if shard.IsBootstrapped() {
+			// No concurrent bootstraps, this is an invariant since
+			// we only select bootstrapping the shard for a run if it's
+			// not already bootstrapped.
+			err := instrument.InvariantErrorf(
+				"bootstrapper already bootstrapped shard: %d", shardID)
+			mutex.Lock()
+			multiErr = multiErr.Add(err)
+			mutex.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		shard := shard
+		workers.Go(func() {
+			err := shard.Bootstrap()
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)
@@ -880,30 +894,48 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	wg.Wait()
 
 	if n.reverseIndex != nil {
-		err := n.reverseIndex.Bootstrap(bootstrapResult.IndexResult.IndexResults())
+		indexResults := bootstrapResult.IndexResult.IndexResults()
+		n.log.Info("bootstrap index with bootstrapped index segments",
+			zap.Int("numIndexBlocks", len(indexResults)))
+		err := n.reverseIndex.Bootstrap(indexResults)
 		multiErr = multiErr.Add(err)
 	}
 
-	markAnyUnfulfilled := func(label string, unfulfilled result.ShardTimeRanges) {
+	markAnyUnfulfilled := func(
+		bootstrapType string,
+		unfulfilled result.ShardTimeRanges,
+	) error {
 		shardsUnfulfilled := int64(len(unfulfilled))
 		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
-		if shardsUnfulfilled > 0 {
-			str := unfulfilled.SummaryString()
-			err := fmt.Errorf("bootstrap completed with unfulfilled ranges: %s", str)
+		if shardsUnfulfilled == 0 {
+			return nil
+		}
+
+		errStr := unfulfilled.SummaryString()
+		errFmt := "bootstrap completed with unfulfilled ranges"
+		n.log.Error(errFmt,
+			zap.Error(errors.New(errStr)),
+			zap.String("namespace", n.id.String()),
+			zap.String("bootstrapType", bootstrapType))
+		return fmt.Errorf("%s: %s", errFmt, errStr)
+	}
+
+	r := bootstrapResult
+	if err := markAnyUnfulfilled("data", r.DataResult.Unfulfilled()); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if n.reverseIndex != nil {
+		if err := markAnyUnfulfilled("index", r.IndexResult.Unfulfilled()); err != nil {
 			multiErr = multiErr.Add(err)
-			n.log.Error(err.Error(),
-				zap.String("namespace", n.id.String()),
-				zap.String("bootstrap-type", label),
-			)
 		}
 	}
-	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())
-	markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
 
-	err = multiErr.FinalError()
+	err := multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	success = err == nil
 
+	// NB(r): "success" is read by the defer above and depending on if true/false
+	// will set the namespace status as bootstrapped or not.
+	success = err == nil
 	return err
 }
 

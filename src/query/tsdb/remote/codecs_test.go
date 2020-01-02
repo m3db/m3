@@ -22,18 +22,24 @@ package remote
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,9 +132,11 @@ func TestEncodeFetchMessage(t *testing.T) {
 	rQ, start, end := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = 42
-	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
-		MetricsType:   storage.AggregatedMetricsType,
-		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+	fetchOpts.RestrictQueryOptions = &storage.RestrictQueryOptions{
+		RestrictByType: &storage.RestrictByType{
+			MetricsType:   storage.AggregatedMetricsType,
+			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		},
 	}
 	lookback := time.Minute
 	fetchOpts.LookbackDuration = &lookback
@@ -149,11 +157,15 @@ func TestEncodeFetchMessage(t *testing.T) {
 	require.NotNil(t, grpcQ.Options)
 	assert.Equal(t, int64(42), grpcQ.Options.Limit)
 	require.NotNil(t, grpcQ.Options.Restrict)
-	assert.Equal(t, rpc.MetricsType_AGGREGATED_METRICS_TYPE, grpcQ.Options.Restrict.MetricsType)
-	require.NotNil(t, grpcQ.Options.Restrict.MetricsStoragePolicy)
-	expectedStoragePolicyProto, err := fetchOpts.RestrictFetchOptions.StoragePolicy.Proto()
+	require.NotNil(t, grpcQ.Options.Restrict.RestrictQueryType)
+	assert.Equal(t, rpc.MetricsType_AGGREGATED_METRICS_TYPE,
+		grpcQ.Options.Restrict.RestrictQueryType.MetricsType)
+	require.NotNil(t, grpcQ.Options.Restrict.RestrictQueryType.MetricsStoragePolicy)
+	expectedStoragePolicyProto, err := fetchOpts.RestrictQueryOptions.
+		RestrictByType.StoragePolicy.Proto()
 	require.NoError(t, err)
-	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.MetricsStoragePolicy)
+	assert.Equal(t, expectedStoragePolicyProto, grpcQ.Options.Restrict.
+		RestrictQueryType.MetricsStoragePolicy)
 	assert.Equal(t, lookback, time.Duration(grpcQ.Options.LookbackDuration))
 }
 
@@ -161,9 +173,11 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.Limit = 42
-	fetchOpts.RestrictFetchOptions = &storage.RestrictFetchOptions{
-		MetricsType:   storage.AggregatedMetricsType,
-		StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+	fetchOpts.RestrictQueryOptions = &storage.RestrictQueryOptions{
+		RestrictByType: &storage.RestrictByType{
+			MetricsType:   storage.AggregatedMetricsType,
+			StoragePolicy: policy.MustParseStoragePolicy("1m:14d"),
+		},
 	}
 	lookback := time.Minute
 	fetchOpts.LookbackDuration = &lookback
@@ -177,10 +191,12 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, revertedOpts)
 	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
-	require.Equal(t, fetchOpts.RestrictFetchOptions.MetricsType,
-		revertedOpts.RestrictFetchOptions.MetricsType)
-	require.Equal(t, fetchOpts.RestrictFetchOptions.StoragePolicy.String(),
-		revertedOpts.RestrictFetchOptions.StoragePolicy.String())
+	require.Equal(t, fetchOpts.RestrictQueryOptions.
+		RestrictByType.MetricsType,
+		revertedOpts.RestrictQueryOptions.RestrictByType.MetricsType)
+	require.Equal(t, fetchOpts.RestrictQueryOptions.
+		RestrictByType.StoragePolicy.String(),
+		revertedOpts.RestrictQueryOptions.RestrictByType.StoragePolicy.String())
 	require.NotNil(t, revertedOpts.LookbackDuration)
 	require.Equal(t, lookback, *revertedOpts.LookbackDuration)
 
@@ -219,4 +235,270 @@ func TestRetrieveMetadata(t *testing.T) {
 	encodedCtx := retrieveMetadata(ctx, instrument.NewOptions())
 
 	require.Equal(t, requestID, logging.ReadContextID(encodedCtx))
+}
+
+func TestNewRestrictQueryOptionsFromProto(t *testing.T) {
+	tests := []struct {
+		value       *rpcpb.RestrictQueryOptions
+		expected    *storage.RestrictQueryOptions
+		errContains string
+	}{
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+				},
+			},
+			expected: &storage.RestrictQueryOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+				},
+			},
+		},
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(24 * time.Hour),
+						},
+					},
+				},
+				RestrictQueryTags: &rpc.RestrictQueryTags{
+					Restrict: &rpc.TagMatchers{
+						TagMatchers: []*rpc.TagMatcher{
+							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+							newRPCMatcher(rpc.MatcherType_EQUAL, "baz", "qux"),
+						},
+					},
+					Strip: [][]byte{
+						[]byte("foobar"),
+					},
+				},
+			},
+			expected: &storage.RestrictQueryOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.AggregatedMetricsType,
+					StoragePolicy: policy.NewStoragePolicy(time.Minute,
+						xtime.Second, 24*time.Hour),
+				},
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: []models.Matcher{
+						mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+						mustNewMatcher(models.MatchEqual, "baz", "qux"),
+					},
+					Strip: [][]byte{
+						[]byte("foobar"),
+					},
+				},
+			},
+		},
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_UNKNOWN_METRICS_TYPE,
+				},
+			},
+			errContains: "unknown metrics type:",
+		},
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(24 * time.Hour),
+						},
+					},
+				},
+			},
+			errContains: "expected no storage policy for unaggregated metrics",
+		},
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: -1,
+						},
+					},
+				},
+			},
+			errContains: "unable to convert from duration to time unit",
+		},
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(-1),
+						},
+					},
+				},
+			},
+			errContains: "unable to convert from duration to time unit",
+		},
+		{
+			value: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(-1),
+						},
+					},
+				},
+			},
+			errContains: "expected positive retention",
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
+			result, err := decodeRestrictQueryOptions(test.value)
+			if test.errContains == "" {
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, result)
+				return
+			}
+
+			require.Error(t, err)
+			assert.True(t,
+				strings.Contains(err.Error(), test.errContains),
+				fmt.Sprintf("err=%v, want_contains=%v", err.Error(), test.errContains))
+		})
+	}
+}
+
+func mustNewMatcher(t models.MatchType, n, v string) models.Matcher {
+	matcher, err := models.NewMatcher(t, []byte(n), []byte(v))
+	if err != nil {
+		panic(err)
+	}
+
+	return matcher
+}
+
+func newRPCMatcher(t rpc.MatcherType, n, v string) *rpc.TagMatcher {
+	return &rpc.TagMatcher{Name: []byte(n), Value: []byte(v), Type: t}
+}
+
+func TestRestrictQueryOptionsProto(t *testing.T) {
+	tests := []struct {
+		value       storage.RestrictQueryOptions
+		expected    *rpcpb.RestrictQueryOptions
+		errContains string
+	}{
+		{
+			value: storage.RestrictQueryOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+				},
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: []models.Matcher{
+						mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+					},
+					Strip: [][]byte{[]byte("foobar")},
+				},
+			},
+			expected: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_UNAGGREGATED_METRICS_TYPE,
+				},
+				RestrictQueryTags: &rpcpb.RestrictQueryTags{
+					Restrict: &rpc.TagMatchers{
+						TagMatchers: []*rpc.TagMatcher{
+							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+						},
+					},
+					Strip: [][]byte{[]byte("foobar")},
+				},
+			},
+		},
+		{
+			value: storage.RestrictQueryOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.AggregatedMetricsType,
+					StoragePolicy: policy.NewStoragePolicy(time.Minute,
+						xtime.Second, 24*time.Hour),
+				},
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: models.Matchers{
+						mustNewMatcher(models.MatchNotRegexp, "foo", "bar"),
+						mustNewMatcher(models.MatchEqual, "baz", "qux"),
+					},
+					Strip: [][]byte{[]byte("foobar")},
+				},
+			},
+			expected: &rpcpb.RestrictQueryOptions{
+				RestrictQueryType: &rpcpb.RestrictQueryType{
+					MetricsType: rpcpb.MetricsType_AGGREGATED_METRICS_TYPE,
+					MetricsStoragePolicy: &policypb.StoragePolicy{
+						Resolution: &policypb.Resolution{
+							WindowSize: int64(time.Minute),
+							Precision:  int64(time.Second),
+						},
+						Retention: &policypb.Retention{
+							Period: int64(24 * time.Hour),
+						},
+					},
+				},
+				RestrictQueryTags: &rpcpb.RestrictQueryTags{
+					Restrict: &rpc.TagMatchers{
+						TagMatchers: []*rpc.TagMatcher{
+							newRPCMatcher(rpc.MatcherType_NOTREGEXP, "foo", "bar"),
+							newRPCMatcher(rpc.MatcherType_EQUAL, "baz", "qux"),
+						},
+					},
+					Strip: [][]byte{[]byte("foobar")},
+				},
+			},
+		},
+		{
+			value: storage.RestrictQueryOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.MetricsType(uint(math.MaxUint16)),
+				},
+			},
+			errContains: "unknown metrics type:",
+		},
+		{
+			value: storage.RestrictQueryOptions{
+				RestrictByType: &storage.RestrictByType{
+					MetricsType: storage.UnaggregatedMetricsType,
+					StoragePolicy: policy.NewStoragePolicy(time.Minute,
+						xtime.Second, 24*time.Hour),
+				},
+			},
+			errContains: "expected no storage policy for unaggregated metrics",
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%+v", test.value), func(t *testing.T) {
+			result, err := encodeRestrictQueryOptions(&test.value)
+			if test.errContains == "" {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, result)
+				return
+			}
+
+			require.Error(t, err)
+			assert.True(t, strings.Contains(err.Error(), test.errContains))
+		})
+	}
 }

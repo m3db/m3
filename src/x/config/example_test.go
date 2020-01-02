@@ -21,7 +21,6 @@
 package config_test
 
 import (
-	"flag"
 	"fmt"
 	"log"
 
@@ -40,15 +39,4 @@ func ExampleLoadFile() {
 	}
 	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)
 	// Output: listenAddress: 0.0.0.0:8392
-}
-
-// The FlagStringSlice allows for multiple values when used as a flag variable.
-func ExampleFlagStringSlice() {
-	var configFiles config.FlagStringSlice
-	fs := flag.NewFlagSet("config", flag.PanicOnError)
-	fs.Var(&configFiles, "f", "config files")
-	fs.Parse([]string{"-f", "file1.yaml", "-f", "file2.yaml", "-f", "file3.yaml"})
-	fmt.Println("Config files:", configFiles)
-	// Output:
-	// Config files: [file1.yaml file2.yaml file3.yaml]
 }

@@ -152,15 +152,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		blockStart  = opts.Identifier.BlockStart
 		volumeIndex = opts.Identifier.VolumeIndex
 	)
-
-	w.blockSize = opts.BlockSize
-	w.start = blockStart
-	w.volumeIndex = volumeIndex
-	w.snapshotTime = opts.Snapshot.SnapshotTime
-	w.snapshotID = opts.Snapshot.SnapshotID
-	w.currIdx = 0
-	w.currOffset = 0
-	w.err = nil
+	w.reset(opts)
 
 	var (
 		shardDir            string
@@ -227,6 +219,22 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.digestFdWithDigestContents.Reset(digestFd)
 
 	return nil
+}
+
+func (w *writer) reset(opts DataWriterOpenOptions) {
+	w.blockSize = opts.BlockSize
+	w.start = opts.Identifier.BlockStart
+	w.volumeIndex = opts.Identifier.VolumeIndex
+	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.snapshotID = opts.Snapshot.SnapshotID
+	w.currIdx = 0
+	w.currOffset = 0
+	w.err = nil
+	// This happens after writing the previous set of files index files, however, do it
+	// again to ensure they get cleared even if there was a premature error writing out the
+	// previous set of files which would have prevented them from being cleared.
+	w.indexEntries.releaseRefs()
+	w.indexEntries = w.indexEntries[:0]
 }
 
 func (w *writer) writeData(data []byte) error {

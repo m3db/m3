@@ -25,33 +25,21 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
-	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type dataBootstrapResult struct {
-	results     ShardResults
 	unfulfilled ShardTimeRanges
 }
 
 // NewDataBootstrapResult creates a new result.
 func NewDataBootstrapResult() DataBootstrapResult {
 	return &dataBootstrapResult{
-		results:     make(ShardResults),
 		unfulfilled: make(ShardTimeRanges),
 	}
 }
 
-func (r *dataBootstrapResult) ShardResults() ShardResults {
-	return r.results
-}
-
 func (r *dataBootstrapResult) Unfulfilled() ShardTimeRanges {
 	return r.unfulfilled
-}
-
-func (r *dataBootstrapResult) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
-	r.results.AddResults(ShardResults{shard: result})
-	r.unfulfilled.AddRanges(ShardTimeRanges{shard: unfulfilled})
 }
 
 func (r *dataBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
@@ -68,21 +56,8 @@ func MergedDataBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
 	if j == nil {
 		return i
 	}
-	sizeI, sizeJ := 0, 0
-	for _, sr := range i.ShardResults() {
-		sizeI += int(sr.NumSeries())
-	}
-	for _, sr := range j.ShardResults() {
-		sizeJ += int(sr.NumSeries())
-	}
-	if sizeI >= sizeJ {
-		i.ShardResults().AddResults(j.ShardResults())
-		i.Unfulfilled().AddRanges(j.Unfulfilled())
-		return i
-	}
-	j.ShardResults().AddResults(i.ShardResults())
-	j.Unfulfilled().AddRanges(i.Unfulfilled())
-	return j
+	i.Unfulfilled().AddRanges(j.Unfulfilled())
+	return i
 }
 
 type shardResult struct {
