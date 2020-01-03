@@ -23,7 +23,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -62,12 +61,17 @@ func main() {
 
 	var cfg config.Configuration
 	if err := configOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatal(err.Error())
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+		os.Exit(1)
 	}
 
 	rawLogger, err := cfg.Logging.BuildLogger()
 	if err != nil {
-		fmt.Printf("error creating logger: %v\n", err)
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer rawLogger.Sync()
