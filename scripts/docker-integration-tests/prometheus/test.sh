@@ -180,7 +180,7 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
-echo "Running prometehus tests"
+echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
 test_prometheus_remote_write_too_old_returns_400_status_code
