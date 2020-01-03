@@ -133,8 +133,12 @@ function test_query_mapping_rule {
     metrics_type="aggregated" metrics_storage_policy="30s:24h" \
     retry_with_backoff prometheus_query_native
 
+  end=$(expr $(date +"%s") + 3600)
+  jq_path=".data.result[0].values[0] | .[1] | select(. != null)"
+  params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
+
   # Test values can be mapped to 1m:48h resolution namespace (for app="mysql")
-  ATTEMPTS=500 TIMEOUT=2 MAX_TIMEOUT=4 \
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query=foo_metric params="$params_range" \
     jq_path="$jq_path" expected_value="87.84" \
     metrics_type="aggregated" metrics_storage_policy="1m:48h" \
