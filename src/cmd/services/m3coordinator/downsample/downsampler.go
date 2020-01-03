@@ -22,6 +22,9 @@ package downsample
 
 import (
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Downsampler is a downsampler.
@@ -49,7 +52,7 @@ type SampleAppenderOptions struct {
 // use instead of matching against default and dynamic matched rules
 // for an ID.
 type SamplesAppenderOverrideRules struct {
-	MappingRules []MappingRule
+	MappingRules []AutoMappingRule
 }
 
 // SamplesAppender is a downsampling samples appender,
@@ -64,6 +67,33 @@ type SamplesAppender interface {
 type downsampler struct {
 	opts DownsamplerOptions
 	agg  agg
+
+	debugLogging bool
+	logger       *zap.Logger
+}
+
+type downsamplerOptions struct {
+	opts DownsamplerOptions
+	agg  agg
+}
+
+func newDownsampler(opts downsamplerOptions) (*downsampler, error) {
+	if err := opts.opts.validate(); err != nil {
+		return nil, err
+	}
+
+	debugLogging := false
+	logger := opts.opts.InstrumentOptions.Logger()
+	if logger.Check(zapcore.DebugLevel, "debug") != nil {
+		debugLogging = true
+	}
+
+	return &downsampler{
+		opts:         opts.opts,
+		agg:          opts.agg,
+		debugLogging: debugLogging,
+		logger:       logger,
+	}, nil
 }
 
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
@@ -75,13 +105,7 @@ func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),
 		matcher:                d.agg.matcher,
 		metricTagsIteratorPool: d.agg.pools.metricTagsIteratorPool,
+		debugLogging:           d.debugLogging,
+		logger:                 d.logger,
 	}), nil
-}
-
-func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
-	return &metricsAppender{
-		metricsAppenderOptions: opts,
-		tags:                   newTags(),
-		multiSamplesAppender:   newMultiSamplesAppender(),
-	}
 }

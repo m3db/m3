@@ -81,7 +81,7 @@ type BatchError interface {
 // WriteOptions contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
 type WriteOptions struct {
-	DownsampleMappingRules []downsample.MappingRule
+	DownsampleMappingRules []downsample.AutoMappingRule
 	WriteStoragePolicies   []policy.StoragePolicy
 
 	DownsampleOverride bool
@@ -182,7 +182,7 @@ func (d *downsamplerAndWriter) shouldDownsample(
 
 func (d *downsamplerAndWriter) downsampleOverrideRules(
 	overrides WriteOptions,
-) ([]downsample.MappingRule, bool) {
+) ([]downsample.AutoMappingRule, bool) {
 	downsampleOverride := overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
 	if !downsampleOverride {
 		return nil, false
