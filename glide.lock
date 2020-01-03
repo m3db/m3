@@ -1,5 +1,5 @@
-hash: e7b782e3727ce7567e33f7d739f5e84f101b7d0efffca34307663fa49e5dd870
-updated: 2019-12-30T16:42:45.876408-05:00
+hash: 81d69ed68abac97a956579460b95857cb9ad116af3a6433a51a9ff06e2770bf5
+updated: 2020-01-03T13:26:23.935466958-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -24,7 +24,7 @@ imports:
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
-  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
+  version: 2d861f39e9ec31dd9129a8070e8ff6492f859c07
   subpackages:
   - alarm
   - auth
