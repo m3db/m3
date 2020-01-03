@@ -66,7 +66,7 @@ type fileSystemSource struct {
 	log               *zap.Logger
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
-	newReaderPoolOpts newReaderPoolOptions
+	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
 	dataProcessors    xsync.WorkerPool
 	indexProcessors   xsync.WorkerPool
 	persistManager    *bootstrapper.SharedPersistManager
@@ -105,7 +105,7 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
 		},
 	}
-	s.newReaderPoolOpts.alloc = s.newReader
+	s.newReaderPoolOpts.Alloc = s.newReader
 
 	return s
 }
@@ -241,169 +241,13 @@ func (s *fileSystemSource) shardAvailability(
 	return tr
 }
 
-func (s *fileSystemSource) enqueueReaders(
-	run runType,
-	ns namespace.Metadata,
-	runOpts bootstrap.RunOptions,
-	shardsTimeRanges result.ShardTimeRanges,
-	readerPool *readerPool,
-	readersCh chan<- timeWindowReaders,
-) {
-	// Close the readers ch if and only if all readers are enqueued.
-	defer close(readersCh)
-
-	shouldPersistIndexBootstrap := run == bootstrapIndexRunType && s.shouldPersist(runOpts)
-	if !shouldPersistIndexBootstrap {
-		// Normal run, open readers
-		s.enqueueReadersGroupedByBlockSize(run, ns, runOpts,
-			shardsTimeRanges, readerPool, readersCh)
-		return
-	}
-
-	// If the run is an index bootstrap with the persist configuration enabled
-	// then we need to write out the metadata into FSTs that we store on disk,
-	// to avoid creating any one single huge FST at once we bucket the
-	// shards into number of buckets.
-	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
-	numSegmentsPerBlock := runtimeOpts.FlushIndexBlockNumSegments()
-
-	buckets := make([]result.ShardTimeRanges, numSegmentsPerBlock)
-	for i := range buckets {
-		buckets[i] = make(result.ShardTimeRanges)
-	}
-
-	i := 0
-	for shard, timeRanges := range shardsTimeRanges {
-		idx := i % int(numSegmentsPerBlock)
-		buckets[idx][shard] = timeRanges
-		i++
-	}
-
-	for _, bucket := range buckets {
-		if len(bucket) == 0 {
-			// Skip potentially empty buckets if num of segments per block is
-			// greater than the number of shards.
-			continue
-		}
-		s.enqueueReadersGroupedByBlockSize(run, ns, runOpts,
-			bucket, readerPool, readersCh)
-	}
-}
-
-func (s *fileSystemSource) enqueueReadersGroupedByBlockSize(
-	run runType,
-	ns namespace.Metadata,
-	runOpts bootstrap.RunOptions,
-	shardTimeRanges result.ShardTimeRanges,
-	readerPool *readerPool,
-	readersCh chan<- timeWindowReaders,
-) {
-	// First bucket the shard time ranges by block size.
-	var blockSize time.Duration
-	switch run {
-	case bootstrapDataRunType:
-		blockSize = ns.Options().RetentionOptions().BlockSize()
-	case bootstrapIndexRunType:
-		blockSize = ns.Options().IndexOptions().BlockSize()
-	default:
-		panic(fmt.Errorf("unrecognized run type: %d", run))
-	}
-
-	// Group them by block size.
-	groupFn := bootstrapper.NewShardTimeRangesTimeWindowGroups
-	groupedByBlockSize := groupFn(shardTimeRanges, blockSize)
-
-	// Now enqueue across all shards by block size.
-	for _, group := range groupedByBlockSize {
-		readers := make(map[shardID]shardReaders, len(group.Ranges))
-		for shard, tr := range group.Ranges {
-			shardReaders := s.newShardReaders(ns, readerPool, shard, tr)
-			readers[shardID(shard)] = shardReaders
-		}
-		readersCh <- newTimeWindowReaders(group.Ranges, readers)
-	}
-}
-
-func (s *fileSystemSource) newShardReaders(
-	ns namespace.Metadata,
-	readerPool *readerPool,
-	shard uint32,
-	tr xtime.Ranges,
-) shardReaders {
-	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-		ns.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
-	if len(readInfoFilesResults) == 0 {
-		// No readers.
-		return shardReaders{}
-	}
-
-	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
-	for i := 0; i < len(readInfoFilesResults); i++ {
-		result := readInfoFilesResults[i]
-		if err := result.Err.Error(); err != nil {
-			s.log.Error("fs bootstrapper unable to read info file",
-				zap.Uint32("shard", shard),
-				zap.Stringer("namespace", ns.ID()),
-				zap.Error(err),
-				zap.String("timeRange", tr.String()),
-				zap.String("path", result.Err.Filepath()),
-			)
-			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
-			// and will be re-attempted by the next bootstrapper.
-			continue
-		}
-
-		info := result.Info
-		blockStart := xtime.FromNanoseconds(info.BlockStart)
-		if !tr.Overlaps(xtime.Range{
-			Start: blockStart,
-			End:   blockStart.Add(ns.Options().RetentionOptions().BlockSize()),
-		}) {
-			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
-			// and will be re-attempted by the next bootstrapper.
-			continue
-		}
-
-		r, err := readerPool.get()
-		if err != nil {
-			s.log.Error("unable to get reader from pool")
-			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
-			// and will be re-attempted by the next bootstrapper.
-			continue
-		}
-
-		openOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  ns.ID(),
-				Shard:      shard,
-				BlockStart: blockStart,
-			},
-		}
-		if err := r.Open(openOpts); err != nil {
-			s.log.Error("unable to open fileset files",
-				zap.Uint32("shard", shard),
-				zap.Time("blockStart", blockStart),
-				zap.Error(err),
-			)
-			readerPool.put(r)
-			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
-			// and will be re-attempted by the next bootstrapper.
-			continue
-		}
-
-		readers = append(readers, r)
-	}
-
-	return shardReaders{readers: readers}
-}
-
 func (s *fileSystemSource) bootstrapFromReaders(
 	run runType,
 	ns namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
 	runOpts bootstrap.RunOptions,
-	readerPool *readerPool,
-	readersCh <-chan timeWindowReaders,
+	readerPool *bootstrapper.ReaderPool,
+	readersCh <-chan bootstrapper.TimeWindowReaders,
 ) *runResult {
 	var (
 		runResult  = newRunResult()
@@ -480,8 +324,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	runOpts bootstrap.RunOptions,
 	runResult *runResult,
 	ropts result.Options,
-	timeWindowReaders timeWindowReaders,
-	readerPool *readerPool,
+	timeWindowReaders bootstrapper.TimeWindowReaders,
+	readerPool *bootstrapper.ReaderPool,
 ) {
 	var (
 		blockPool                  = ropts.DatabaseBlockOptions().DatabaseBlockPool()
@@ -496,12 +340,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		docsPool.Put(batch)
 	}()
 
-	requestedRanges := timeWindowReaders.ranges
+	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
-	shardReaders := timeWindowReaders.readers
+	shardReaders := timeWindowReaders.Readers
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
-		readers := shardReaders.readers
+		readers := shardReaders.Readers
 
 		for _, r := range readers {
 			var (
@@ -608,9 +452,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 	// Return readers to pool.
 	for _, shardReaders := range shardReaders {
-		for _, r := range shardReaders.readers {
+		for _, r := range shardReaders.Readers {
 			if err := r.Close(); err == nil {
-				readerPool.put(r)
+				readerPool.Put(r)
 			}
 		}
 	}
@@ -754,10 +598,21 @@ func (s *fileSystemSource) read(
 	// Create a reader pool once per bootstrap as we don't really want to
 	// allocate and keep around readers outside of the bootstrapping process,
 	// hence why its created on demand each time.
-	readerPool := newReaderPool(s.newReaderPoolOpts)
-	readersCh := make(chan timeWindowReaders)
-	go s.enqueueReaders(run, md, runOpts, shardsTimeRanges,
-		readerPool, readersCh)
+	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
+	readersCh := make(chan bootstrapper.TimeWindowReaders)
+	shouldPersistIndexBootstrap := run == bootstrapIndexRunType && s.shouldPersist(runOpts)
+	var blockSize time.Duration
+	switch run {
+	case bootstrapDataRunType:
+		blockSize = md.Options().RetentionOptions().BlockSize()
+	case bootstrapIndexRunType:
+		blockSize = md.Options().IndexOptions().BlockSize()
+	default:
+		panic(fmt.Errorf("unrecognized run type: %d", run))
+	}
+	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
+	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
+		readerPool, readersCh, shouldPersistIndexBootstrap, blockSize, s.log)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh)
 
@@ -892,73 +747,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 func (s *fileSystemSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
 	persistConfig := runOpts.PersistConfig()
 	return persistConfig.Enabled && persistConfig.FileSetType == persist.FileSetFlushType
-}
-
-type timeWindowReaders struct {
-	ranges  result.ShardTimeRanges
-	readers map[shardID]shardReaders
-}
-
-type shardID uint32
-
-type shardReaders struct {
-	readers []fs.DataFileSetReader
-}
-
-func newTimeWindowReaders(
-	ranges result.ShardTimeRanges,
-	readers map[shardID]shardReaders,
-) timeWindowReaders {
-	return timeWindowReaders{
-		ranges:  ranges,
-		readers: readers,
-	}
-}
-
-// readerPool is a lean pool that does not allocate
-// instances up front and is used per bootstrap call.
-type readerPool struct {
-	sync.Mutex
-	alloc        readerPoolAllocFn
-	values       []fs.DataFileSetReader
-	disableReuse bool
-}
-
-type readerPoolAllocFn func() (fs.DataFileSetReader, error)
-
-type newReaderPoolOptions struct {
-	alloc        readerPoolAllocFn
-	disableReuse bool
-}
-
-func newReaderPool(
-	opts newReaderPoolOptions,
-) *readerPool {
-	return &readerPool{alloc: opts.alloc, disableReuse: opts.disableReuse}
-}
-
-func (p *readerPool) get() (fs.DataFileSetReader, error) {
-	p.Lock()
-	if len(p.values) == 0 {
-		p.Unlock()
-		return p.alloc()
-	}
-	length := len(p.values)
-	value := p.values[length-1]
-	p.values[length-1] = nil
-	p.values = p.values[:length-1]
-	p.Unlock()
-	return value, nil
-}
-
-func (p *readerPool) put(r fs.DataFileSetReader) {
-	if p.disableReuse {
-		// Useful for tests.
-		return
-	}
-	p.Lock()
-	p.values = append(p.values, r)
-	p.Unlock()
 }
 
 type runResult struct {

@@ -590,7 +590,7 @@ func testReadValidateErrorWithIndexEnabled(
 		}
 		return fs.NewReader(b, opts)
 	}
-	src.newReaderPoolOpts.disableReuse = true
+	src.newReaderPoolOpts.DisableReuse = true
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{

@@ -23,6 +23,7 @@ package peers
 import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -114,4 +115,10 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) Options
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
 }

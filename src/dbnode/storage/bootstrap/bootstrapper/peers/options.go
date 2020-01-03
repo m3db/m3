@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -65,6 +66,7 @@ type options struct {
 	runtimeOptionsManager       m3dbruntime.OptionsManager
 	contextPool                 context.Pool
 	docArrayPool                doc.DocumentArrayPool
+	fsOpts                      fs.Options
 }
 
 // NewOptions creates new bootstrap options.
@@ -86,6 +88,7 @@ func NewOptions() Options {
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
 			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
 		docArrayPool: docArrayPool,
+		fsOpts:       fs.NewOptions(),
 	}
 }
 
@@ -202,4 +205,14 @@ func (o *options) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 
 func (o *options) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
+}
+
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
+	opts := *o
+	opts.fsOpts = value
+	return &opts
+}
+
+func (o *options) FilesystemOptions() fs.Options {
+	return o.fsOpts
 }
