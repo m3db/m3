@@ -687,7 +687,7 @@ func Run(runOpts RunOptions) {
 		runOpts.ClientCh <- m3dbClient
 	}
 
-	documentsBuilderAlloc := index.NewBootstrapResultMutableSegmentAllocator(
+	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
