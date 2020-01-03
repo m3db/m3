@@ -23,7 +23,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 	"os/signal"
@@ -51,11 +50,16 @@ func main() {
 
 	var cfg config.Configuration
 	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatal(err.Error())
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := cfg.InitDefaultsAndValidate(); err != nil {
-		fmt.Fprintf(os.Stderr, "configuration validation failed %v\n", err)
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "erro validating config: %v\n", err)
 		os.Exit(1)
 	}
 

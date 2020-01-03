@@ -129,6 +129,8 @@ func Run(runOpts RunOptions) {
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
@@ -496,7 +498,7 @@ func newDownsampler(
 	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
-	autoMappingRules []downsample.MappingRule,
+	autoMappingRules []downsample.AutoMappingRule,
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
@@ -545,8 +547,8 @@ func newDownsampler(
 
 func newDownsamplerAutoMappingRules(
 	namespaces []m3.ClusterNamespace,
-) ([]downsample.MappingRule, error) {
-	var autoMappingRules []downsample.MappingRule
+) ([]downsample.AutoMappingRule, error) {
+	var autoMappingRules []downsample.AutoMappingRule
 	for _, namespace := range namespaces {
 		opts := namespace.Options()
 		attrs := opts.Attributes()
@@ -559,7 +561,7 @@ func newDownsamplerAutoMappingRules(
 			if downsampleOpts.All {
 				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
 					xtime.Second, attrs.Retention)
-				autoMappingRules = append(autoMappingRules, downsample.MappingRule{
+				autoMappingRules = append(autoMappingRules, downsample.AutoMappingRule{
 					// NB(r): By default we will apply just keep all last values
 					// since coordinator only uses downsampling with Prometheus
 					// remote write endpoint.

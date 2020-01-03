@@ -118,4 +118,5 @@ pages:
       - "m3query Performance":  "performance/m3query/index.md"
   - "Troubleshooting": "troubleshooting/index.md"
   - "FAQs": "faqs/index.md"
+  - "Glossary": "glossary/index.md"
   - "Tips For Writing Documentation": "misc/writing_docs.md"
