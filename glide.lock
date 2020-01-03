@@ -1,5 +1,5 @@
-hash: 81d69ed68abac97a956579460b95857cb9ad116af3a6433a51a9ff06e2770bf5
-updated: 2020-01-03T13:26:23.935466958-05:00
+hash: 6085baceb60bdabb01d6fd1279d5dbbb39717bcb2349c7252c003a5836a66fc9
+updated: 2020-01-07T11:14:16.207047114-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -57,7 +57,6 @@ imports:
   - etcdserver/etcdserverpb/gw
   - etcdserver/membership
   - etcdserver/stats
-  - integration
   - lease
   - lease/leasehttp
   - lease/leasepb
@@ -458,6 +457,13 @@ imports:
   version: e553b05586428962bf7058d1044519d87ca72d74
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
+- name: github.com/coreos/etcd
+  version: 2d861f39e9ec31dd9129a8070e8ff6492f859c07
+  subpackages:
+  - clientv3
+  - clientv3/concurrency
+  - etcdserver/api/v3rpc/rpctypes
+  - integration
 - name: go.uber.org/atomic
   version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: go.uber.org/config

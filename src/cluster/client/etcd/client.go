@@ -39,7 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )

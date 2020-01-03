@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/integration"
 	"github.com/stretchr/testify/require"
 )
 

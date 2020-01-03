@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 
-	"go.etcd.io/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3"
 )
 
 // WatchManager manages etcd watch on a key
