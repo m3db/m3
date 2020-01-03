@@ -208,7 +208,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 
 	// We're overriding the downsampling with mapping rules, so we expect data to be
 	// sent to the downsampler, as well as everything being written to storage.
-	mappingRules := []downsample.MappingRule{
+	mappingRules := []downsample.AutoMappingRule{
 		{
 			Aggregations: []aggregation.Type{aggregation.Mean},
 			Policies: []policy.StoragePolicy{
@@ -397,8 +397,8 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 	var (
 		mockSamplesAppender  = downsample.NewMockSamplesAppender(ctrl)
 		mockMetricsAppender  = downsample.NewMockMetricsAppender(ctrl)
-		overrideMappingRules = []downsample.MappingRule{
-			downsample.MappingRule{
+		overrideMappingRules = []downsample.AutoMappingRule{
+			downsample.AutoMappingRule{
 				Aggregations: []aggregation.Type{
 					aggregation.Sum,
 				},
