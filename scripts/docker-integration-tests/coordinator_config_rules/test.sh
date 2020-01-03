@@ -119,8 +119,8 @@ function test_query_mapping_rule {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
-  start=$(expr $(date +"%s") - 3600)
-  end=$(expr $(date +"%s") + 3600)
+  start=$(expr $now - 3600)
+  end=$(expr $now + 3600)
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
   jq_path=".data.result[0].values[0] | .[1] | select(. != null)"
@@ -186,8 +186,8 @@ function test_query_rollup_rule {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
-  start=$(expr $(date +"%s") - 3600)
-  end=$(expr $(date +"%s"))
+  start=$(expr $now - 3600)
+  end=$(expr $now + 3600)
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
   jq_path=".data.result[0].values | .[][1] | select(. != null)"

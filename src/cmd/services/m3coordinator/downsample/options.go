@@ -185,8 +185,8 @@ type agg struct {
 
 // Configuration configurates a downsampler.
 type Configuration struct {
-	// Rules is a set of downsample rules, if this rules configuration is set
-	// then only these rules will be used and none from the KV store.
+	// Rules is a set of downsample rules. If set, this overrides any rules set
+	// in the KV store (and the rules in KV store are not evaluated at all).
 	Rules *RulesConfiguration `yaml:"rules"`
 
 	// RemoteAggregator specifies that downsampling should be done remotely
@@ -226,7 +226,7 @@ type RulesConfiguration struct {
 
 // MappingRuleConfiguration is a mapping rule configuration.
 type MappingRuleConfiguration struct {
-	// Filter is a string separated filter of labe name to label value
+	// Filter is a string separated filter of label name to label value
 	// glob patterns to filter the mapping rule to.
 	// e.g. "app:*nginx* foo:bar baz:qux*qaz*"
 	Filter string `yaml:"filter"`
@@ -313,8 +313,11 @@ type StoragePolicyConfiguration struct {
 
 // StoragePolicy returns the corresponding storage policy.
 func (p StoragePolicyConfiguration) StoragePolicy() (policy.StoragePolicy, error) {
-	return policy.ParseStoragePolicy(
-		fmt.Sprintf("%s:%s", p.Resolution.String(), p.Retention.String()))
+	return policy.ParseStoragePolicy(p.String())
+}
+
+func (p StoragePolicyConfiguration) String() string {
+	return fmt.Sprintf("%s:%s", p.Resolution.String(), p.Retention.String())
 }
 
 // StoragePolicyConfigurations are a set of storage policy configurations.
@@ -477,7 +480,7 @@ type AggregateOperationConfiguration struct {
 
 // TransformOperationConfiguration is a transform operation.
 type TransformOperationConfiguration struct {
-	// Type is an transformation operation type.
+	// Type is a transformation operation type.
 	Type transformation.Type `yaml:"type"`
 }
 
@@ -577,7 +580,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore)
 
-	// NB(r): If rules are being explicitlly set in config then we are
+	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
 	if cfg.Rules != nil {
 		logger.Debug("registering downsample rules from config, not using KV")
@@ -808,7 +811,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	// Update the local aggregator client with the active aggregator instance.
-	adminAggClient.SetAggregator(aggregatorInstance)
+	// NB: Can't do this at construction time since needs to be passed as an
+	// option to the aggregator constructor.
+	adminAggClient.setAggregator(aggregatorInstance)
 
 	// Wait until the aggregator becomes leader so we don't miss datapoints
 	deadline := time.Now().Add(openTimeout)
@@ -1015,7 +1020,7 @@ func newAggregatorLocalAdminClient() *aggregatorLocalAdminClient {
 	return &aggregatorLocalAdminClient{}
 }
 
-func (c *aggregatorLocalAdminClient) SetAggregator(agg aggregator.Aggregator) {
+func (c *aggregatorLocalAdminClient) setAggregator(agg aggregator.Aggregator) {
 	c.agg = agg
 }
 

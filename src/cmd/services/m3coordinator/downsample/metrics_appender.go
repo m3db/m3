@@ -109,13 +109,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				return nil, err
 			}
 
-			if a.debugLogging {
-				fields := []zapcore.Field{zap.String("tags", a.tags.String())}
-				if json, err := stagedMetadatasJSON(stagedMetadatas); err != nil {
-					fields = append(fields, zap.Any("stagedMetadatas", json))
-				}
-				a.logger.Debug("downsampler applying override mapping rule", fields...)
-			}
+			a.debugLogMatch("downsampler applying override mapping rule",
+				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
@@ -127,13 +122,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	} else {
 		// Always aggregate any default staged metadats
 		for _, stagedMetadatas := range a.defaultStagedMetadatas {
-			if a.debugLogging {
-				fields := []zapcore.Field{zap.String("tags", a.tags.String())}
-				if json, err := stagedMetadatasJSON(stagedMetadatas); err == nil {
-					fields = append(fields, zap.Any("stagedMetadatas", json))
-				}
-				a.logger.Debug("downsampler applying default mapping rule", fields...)
-			}
+			a.debugLogMatch("downsampler applying default mapping rule",
+				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
@@ -145,13 +135,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 		stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
 		if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
-			if a.debugLogging {
-				fields := []zapcore.Field{zap.String("tags", a.tags.String())}
-				if json, err := stagedMetadatasJSON(stagedMetadatas); err == nil {
-					fields = append(fields, zap.Any("stagedMetadatas", json))
-				}
-				a.logger.Debug("downsampler applying matched mapping rule", fields...)
-			}
+			a.debugLogMatch("downsampler applying matched mapping rule",
+				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			// Only sample if going to actually aggregate
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
@@ -166,16 +151,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		for i := 0; i < numRollups; i++ {
 			rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
 
-			if a.debugLogging {
-				fields := []zapcore.Field{
-					zap.String("tags", a.tags.String()),
-					zap.ByteString("rollupID", rollup.ID),
-				}
-				if json, err := stagedMetadatasJSON(rollup.Metadatas); err == nil {
-					fields = append(fields, zap.Any("rollupStagedMetadatas", json))
-				}
-				a.logger.Debug("downsampler applying matched rollup rule", fields...)
-			}
+			a.debugLogMatch("downsampler applying matched rollup rule",
+				debugLogMatchOptions{Meta: stagedMetadatas, RollupID: rollup.ID})
 
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
@@ -189,6 +166,27 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	return a.multiSamplesAppender, nil
 }
 
+type debugLogMatchOptions struct {
+	Meta     metadata.StagedMetadatas
+	RollupID []byte
+}
+
+func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
+	if !a.debugLogging {
+		return
+	}
+	fields := []zapcore.Field{
+		zap.String("tags", a.tags.String()),
+	}
+	if v := opts.RollupID; v != nil {
+		fields = append(fields, zap.ByteString("rollupID", v))
+	}
+	if v := opts.Meta; v != nil {
+		fields = append(fields, stagedMetadatasLogField(v))
+	}
+	a.logger.Debug(str, fields...)
+}
+
 func (a *metricsAppender) Reset() {
 	a.tags.names = a.tags.names[:0]
 	a.tags.values = a.tags.values[:0]
@@ -197,6 +195,14 @@ func (a *metricsAppender) Reset() {
 func (a *metricsAppender) Finalize() {
 	a.tagEncoder.Finalize()
 	a.tagEncoder = nil
+}
+
+func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {
+	json, err := stagedMetadatasJSON(sm)
+	if err != nil {
+		return zap.String("stagedMetadatasDebugErr", err.Error())
+	}
+	return zap.Any("stagedMetadatas", json)
 }
 
 func stagedMetadatasJSON(sm metadata.StagedMetadatas) (interface{}, error) {

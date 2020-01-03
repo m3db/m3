@@ -76,6 +76,8 @@ type rollupIDProvider struct {
 	nameTag                ident.ID
 	nameTagBytes           []byte
 	nameTagBeforeRollupTag bool
+	tagNameID              *ident.ReuseableBytesID
+	tagValueID             *ident.ReuseableBytesID
 }
 
 func newRollupIDProvider(
@@ -91,6 +93,8 @@ func newRollupIDProvider(
 		nameTag:                nameTag,
 		nameTagBytes:           nameTagBytes,
 		nameTagBeforeRollupTag: nameTagBeforeRollupTag,
+		tagNameID:              ident.NewReuseableBytesID(),
+		tagValueID:             ident.NewReuseableBytesID(),
 	}
 }
 
@@ -162,9 +166,10 @@ func (p *rollupIDProvider) CurrentIndex() int {
 func (p *rollupIDProvider) Current() ident.Tag {
 	idx := p.index
 	if idx == p.nameTagIndex {
+		p.tagValueID.Reset(p.newName)
 		return ident.Tag{
 			Name:  p.nameTag,
-			Value: ident.BytesID(p.newName),
+			Value: p.tagValueID,
 		}
 	}
 	if idx == p.rollupTagIndex {
@@ -180,9 +185,11 @@ func (p *rollupIDProvider) Current() ident.Tag {
 		idx--
 	}
 
+	p.tagNameID.Reset(p.tagPairs[idx].Name)
+	p.tagValueID.Reset(p.tagPairs[idx].Value)
 	return ident.Tag{
-		Name:  ident.BytesID(p.tagPairs[idx].Name),
-		Value: ident.BytesID(p.tagPairs[idx].Value),
+		Name:  p.tagNameID,
+		Value: p.tagValueID,
 	}
 }
 
