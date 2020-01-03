@@ -25,7 +25,7 @@ function defer {
 }
 trap defer EXIT
 
-setup_single_m3db_node
+setup_single_m3db_node_long_namespaces
 
 function prometheus_remote_write {
   local metric_name=$1
@@ -95,6 +95,7 @@ function test_query_mapping_rule {
   now_truncated_plus_second=$(expr $now_truncated + 1)
 
   echo "Test write with mapping rule"
+  # nginx metrics
   label0_name="app" label0_value="nginx_edge" \
     prometheus_remote_write \
     foo_metric $now_truncated 42.42 \
@@ -106,18 +107,37 @@ function test_query_mapping_rule {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
+  # mysql metrics
+  label0_name="app" label0_value="mysql_db" \
+    prometheus_remote_write \
+    foo_metric $now_truncated 45.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+  label0_name="app" label0_value="mysql_db" \
+    prometheus_remote_write \
+    foo_metric $now_truncated_plus_second 87.84 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
   start=$(expr $(date +"%s") - 3600)
   end=$(expr $(date +"%s"))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
   jq_path=".data.result[0].values | .[][1] | select(. != null)"
 
-  # Test values can be mapped to 5s:10h resolution namespace (for app="nginx")
+  # Test values can be mapped to 30s:24h resolution namespace (for app="nginx")
   echo "Test query mapping rule"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query_range query=foo_metric params="$params_range" \
     jq_path="$jq_path" expected_value="84.84" \
-    metrics_type="aggregated" metrics_storage_policy="5s:10h" \
+    metrics_type="aggregated" metrics_storage_policy="30s:24h" \
+    retry_with_backoff prometheus_query_native
+
+  # Test values can be mapped to 1m:48h resolution namespace (for app="mysql")
+  ATTEMPTS=500 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query=foo_metric params="$params_range" \
+    jq_path="$jq_path" expected_value="87.84" \
+    metrics_type="aggregated" metrics_storage_policy="1m:48h" \
     retry_with_backoff prometheus_query_native
 }
 

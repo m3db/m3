@@ -18,8 +18,14 @@ clusters:
   - namespaces:
       - namespace: agg
         type: aggregated
-        retention: 10h
-        resolution: 5s
+        retention: 24h
+        resolution: 30s
+        downsample:
+          all: false
+      - namespace: agg2d
+        type: aggregated
+        retention: 48h
+        resolution: 1m
         downsample:
           all: false
       - namespace: unagg
@@ -42,12 +48,18 @@ clusters:
 downsample:
   rules:
     mappingRules:
+      - name: "mysql metrics"
+        filter: "app:mysql*"
+        aggregations: ["Last"]
+        storagePolicies:
+          - resolution: 1m
+            retention: 48h
       - name: "nginx metrics"
         filter: "app:nginx*"
         aggregations: ["Last"]
         storagePolicies:
-          - resolution: 5s
-            retention: 10h
+          - resolution: 30s
+            retention: 24h
     rollupRules:
       - name: "requests per second by status code"
         filter: "__name__:http_requests app:* status_code:* endpoint:*"
@@ -65,7 +77,7 @@ downsample:
   # resolution of 5s which races against the timestamps being ingested.
   bufferPastLimits:
     - resolution: 0s
-      bufferPast: 30s
+      bufferPast: 90s
 
 tagOptions:
   idScheme: quoted
