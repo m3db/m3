@@ -296,7 +296,7 @@ func readEntry(
 
 	for tags.Next() {
 		tag := tags.Current()
-		if err := convert.ValidateMetricTag(tag); err != nil {
+		if err := convert.ValidateSeriesTag(tag); err != nil {
 			return readEntryResult{invalidTags: true},
 				fmt.Errorf("invalid tag: err=%v, "+
 					"name_as_string=%s, name_as_hex=%s"+
@@ -423,7 +423,7 @@ func fixFileSet(
 				// Need to remove invalid tags.
 				tagsBuffer = tagsBuffer[:0]
 				for _, tag := range currTags {
-					if err := convert.ValidateMetricTag(tag); err != nil {
+					if err := convert.ValidateSeriesTag(tag); err != nil {
 						removedTags++
 						continue
 					}
