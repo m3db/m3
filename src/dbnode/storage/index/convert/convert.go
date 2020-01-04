@@ -49,7 +49,8 @@ var (
 // ValidateSeries will validate a metric for use with m3ninx.
 func ValidateSeries(id ident.ID, tags ident.Tags) error {
 	if idBytes := id.Bytes(); !utf8.Valid(idBytes) {
-		return fmt.Errorf("series has invalid ID: %v", idBytes)
+		return fmt.Errorf("series has invalid ID: id=%s, id_hex=%x",
+			idBytes, idBytes)
 	}
 	for _, tag := range tags.Values() {
 		if err := ValidateSeriesTag(tag); err != nil {
@@ -67,10 +68,13 @@ func ValidateSeriesTag(tag ident.Tag) error {
 		return ErrUsingReservedFieldName
 	}
 	if !utf8.Valid(tagName) {
-		return fmt.Errorf("series contains invalid field name: %v", tagName)
+		return fmt.Errorf("series contains invalid field name: "+
+			"field=%s, field_hex=%v", tagName, tagName)
 	}
 	if !utf8.Valid(tagValue) {
-		return fmt.Errorf("series contains invalid field value: %v", tagValue)
+		return fmt.Errorf("series contains invalid field value: "+
+			"field=%s, field_value=%s, field_value_hex=%x",
+			tagName, tagValue, tagValue)
 	}
 	return nil
 }
