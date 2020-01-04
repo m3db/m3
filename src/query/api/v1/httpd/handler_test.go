@@ -212,7 +212,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "POST method not defined")
+	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
 
 func TestJSONWritePost(t *testing.T) {
@@ -299,7 +299,6 @@ func TestCORSMiddleware(t *testing.T) {
 }
 
 func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
-
 	req := httptest.NewRequest("GET", testRoute, nil)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
@@ -315,6 +314,23 @@ func TestTracingMiddleware(t *testing.T) {
 	doTestRequest(handler)
 
 	assert.NotEmpty(t, mtr.FinishedSpans())
+}
+
+func TestCompressionMiddleware(t *testing.T) {
+	mtr := mocktracer.New()
+	router := mux.NewRouter()
+	setupTestRoute(router)
+
+	handler := applyMiddleware(router, mtr)
+	req := httptest.NewRequest("GET", testRoute, nil)
+	req.Header.Add("Accept-Encoding", "gzip")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	enc, found := res.HeaderMap["Content-Encoding"]
+	require.True(t, found)
+	require.Equal(t, 1, len(enc))
+	assert.Equal(t, "gzip", enc[0])
 }
 
 const testRoute = "/foobar"

@@ -85,6 +85,8 @@ type mediator struct {
 	closedCh            chan struct{}
 }
 
+// TODO(r): Consider renaming "databaseMediator" to "databaseCoordinator"
+// when we have time (now is not that time).
 func newMediator(database database, commitlog commitlog.CommitLog, opts Options) (databaseMediator, error) {
 	var (
 		iOpts = opts.InstrumentOptions()

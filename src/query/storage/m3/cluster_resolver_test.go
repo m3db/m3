@@ -163,7 +163,7 @@ var testCases = []struct {
 	name                 string
 	queryLength          time.Duration
 	opts                 *storage.FanoutOptions
-	restrict             *storage.RestrictFetchOptions
+	restrict             *storage.RestrictQueryOptions
 	expectedType         queryFanoutType
 	expectedClusterNames []string
 	expectedErr          error
@@ -311,8 +311,10 @@ var testCases = []struct {
 	{
 		name:        "restrict to unaggregated",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
-			MetricsType: storage.UnaggregatedMetricsType,
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByType: &storage.RestrictByType{
+				MetricsType: storage.UnaggregatedMetricsType,
+			},
 		},
 		expectedType:         namespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
@@ -320,10 +322,12 @@ var testCases = []struct {
 	{
 		name:        "restrict to aggregate filtered",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
-			MetricsType: storage.AggregatedMetricsType,
-			StoragePolicy: policy.MustParseStoragePolicy(
-				genResolution.String() + ":" + genRetentionFiltered.String()),
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByType: &storage.RestrictByType{
+				MetricsType: storage.AggregatedMetricsType,
+				StoragePolicy: policy.MustParseStoragePolicy(
+					genResolution.String() + ":" + genRetentionFiltered.String()),
+			},
 		},
 		expectedType:         namespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_FILTERED"},
@@ -331,10 +335,12 @@ var testCases = []struct {
 	{
 		name:        "restrict to aggregate unfiltered",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
-			MetricsType: storage.AggregatedMetricsType,
-			StoragePolicy: policy.MustParseStoragePolicy(
-				genResolution.String() + ":" + genRetentionUnfiltered.String()),
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByType: &storage.RestrictByType{
+				MetricsType: storage.AggregatedMetricsType,
+				StoragePolicy: policy.MustParseStoragePolicy(
+					genResolution.String() + ":" + genRetentionUnfiltered.String()),
+			},
 		},
 		expectedType:         namespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER"},
@@ -342,17 +348,21 @@ var testCases = []struct {
 	{
 		name:        "restrict with unknown metrics type",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
-			MetricsType: storage.UnknownMetricsType,
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByType: &storage.RestrictByType{
+				MetricsType: storage.UnknownMetricsType,
+			},
 		},
 		expectedErrContains: "unrecognized metrics type:",
 	},
 	{
 		name:        "restrict with unknown storage policy",
 		queryLength: time.Hour * 1000,
-		restrict: &storage.RestrictFetchOptions{
-			MetricsType:   storage.AggregatedMetricsType,
-			StoragePolicy: policy.MustParseStoragePolicy("1s:100d"),
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByType: &storage.RestrictByType{
+				MetricsType:   storage.AggregatedMetricsType,
+				StoragePolicy: policy.MustParseStoragePolicy("1s:100d"),
+			},
 		},
 		expectedErrContains: "could not find namespace for storage policy:",
 	},

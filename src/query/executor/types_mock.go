@@ -102,6 +102,21 @@ func (mr *MockEngineMockRecorder) ExecuteExpr(arg0, arg1, arg2, arg3, arg4 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteExpr", reflect.TypeOf((*MockEngine)(nil).ExecuteExpr), arg0, arg1, arg2, arg3, arg4)
 }
 
+// ExecuteProm mocks base method
+func (m *MockEngine) ExecuteProm(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *QueryOptions, arg3 *storage.FetchOptions) (storage.PromResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExecuteProm", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(storage.PromResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExecuteProm indicates an expected call of ExecuteProm
+func (mr *MockEngineMockRecorder) ExecuteProm(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteProm", reflect.TypeOf((*MockEngine)(nil).ExecuteProm), arg0, arg1, arg2, arg3)
+}
+
 // Options mocks base method
 func (m *MockEngine) Options() EngineOptions {
 	m.ctrl.T.Helper()

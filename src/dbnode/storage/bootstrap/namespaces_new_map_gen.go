@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,7 @@
 // Any changes will be lost if this file is regenerated.
 // see https://github.com/mauricelam/genny
 
-package commitlog
+package bootstrap
 
 import (
 	"github.com/m3db/m3/src/x/ident"
@@ -51,17 +51,17 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// MapOptions provides options used when created the map.
-type MapOptions struct {
+// NamespacesMapOptions provides options used when created the map.
+type NamespacesMapOptions struct {
 	InitialSize int
 	KeyCopyPool pool.BytesPool
 }
 
-// NewMap returns a new byte keyed map.
-func NewMap(opts MapOptions) *Map {
+// NewNamespacesMap returns a new byte keyed map.
+func NewNamespacesMap(opts NamespacesMapOptions) *NamespacesMap {
 	var (
-		copyFn     CopyFn
-		finalizeFn FinalizeFn
+		copyFn     NamespacesMapCopyFn
+		finalizeFn NamespacesMapFinalizeFn
 	)
 	if pool := opts.KeyCopyPool; pool == nil {
 		copyFn = func(k ident.ID) ident.ID {
@@ -81,9 +81,9 @@ func NewMap(opts MapOptions) *Map {
 			}
 		}
 	}
-	return mapAlloc(mapOptions{
-		hash: func(id ident.ID) MapHash {
-			return MapHash(xxhash.Sum64(id.Bytes()))
+	return _NamespacesMapAlloc(_NamespacesMapOptions{
+		hash: func(id ident.ID) NamespacesMapHash {
+			return NamespacesMapHash(xxhash.Sum64(id.Bytes()))
 		},
 		equals: func(x, y ident.ID) bool {
 			return x.Equal(y)

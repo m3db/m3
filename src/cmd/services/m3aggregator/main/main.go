@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/configflag"
 	"github.com/m3db/m3/src/x/etcd"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -42,31 +43,29 @@ const (
 	gracefulShutdownTimeout = 15 * time.Second
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
 func main() {
-	flag.Parse()
+	var cfgOpts configflag.Options
+	cfgOpts.Register()
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
+	flag.Parse()
 
 	// Set globals for etcd related packages.
 	etcd.SetGlobals()
 
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
-		fmt.Printf("error loading config file: %v\n", err)
+	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Create logger and metrics scope.
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
-		fmt.Printf("error creating logger: %v\n", err)
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer logger.Sync()

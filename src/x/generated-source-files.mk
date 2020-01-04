@@ -8,8 +8,8 @@ gorename_package_version := 52c7307cddd221bb98f0a3215216789f3c821b10
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
 test-genny-all: genny-all
-	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
-	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
+	@test "$(shell git --no-pager diff --shortstat 2>/dev/null)" = "" || (git --no-pager diff --no-color && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: genny-all
 genny-all: genny-map-all genny-list-all genny-arraypool-all
@@ -79,25 +79,25 @@ hashmap-gen-rename: install-gorename
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 	echo $(temp_outdir)
-	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
+	@if test -d $(temp_outdir); then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
 	mkdir -p $(temp_outdir)
-	[ ! -f $(out_dir)/new_map_gen.go ] || mv $(out_dir)/new_map_gen.go $(temp_outdir)/new_map_gen.go
+	! test -f $(out_dir)/new_map_gen.go || mv $(out_dir)/new_map_gen.go $(temp_outdir)/new_map_gen.go
 ifeq ($(rename_nogen_key),)
 	# allow users to short circuit the generation of key.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/key.go
 	echo '' >> $(temp_outdir)/key.go
-	[ "$(key_type_alias)" == "" ] || echo "type $(key_type_alias) interface{}" >> $(temp_outdir)/key.go
+	test "$(key_type_alias)" == ""  || echo "type $(key_type_alias) interface{}" >> $(temp_outdir)/key.go
 endif
 ifeq ($(rename_nogen_value),)
 	# Allow users to short circuit the generation of value.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/value.go
 	echo '' >> $(temp_outdir)/value.go
-	[[ $(value_type_alias) = struct* ]] || echo 'type $(value_type_alias) interface{}' >> $(temp_outdir)/value.go
+	test "$(value_type_alias)" = "struct*" || echo 'type $(value_type_alias) interface{}' >> $(temp_outdir)/value.go
 endif
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
 	make hashmap-gen-rename-helper
 	mv $(temp_outdir)/map_gen.go $(out_dir)/map_gen.go
-	[ ! -f $(temp_outdir)/new_map_gen.go ] || mv $(temp_outdir)/new_map_gen.go $(out_dir)/new_map_gen.go
+	! test -f $(temp_outdir)/new_map_gen.go || mv $(temp_outdir)/new_map_gen.go $(out_dir)/new_map_gen.go
 	rm -f $(temp_outdir)/key.go
 	rm -f $(temp_outdir)/value.go
 	rmdir $(temp_outdir)

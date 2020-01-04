@@ -34,14 +34,8 @@ import (
 
 // DataBootstrapResult is the result of a bootstrap of series data.
 type DataBootstrapResult interface {
-	// ShardResults is the results of all shards for the bootstrap.
-	ShardResults() ShardResults
-
 	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
 	Unfulfilled() ShardTimeRanges
-
-	// Add adds a shard result with any unfulfilled time ranges.
-	Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges)
 
 	// SetUnfulfilled sets the current unfulfilled shard time ranges.
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
@@ -60,6 +54,9 @@ type IndexBootstrapResult interface {
 
 	// Add adds an index block result.
 	Add(block IndexBlock, unfulfilled ShardTimeRanges)
+
+	// NumSeries returns the total number of series across all segments.
+	NumSeries() int
 }
 
 // IndexResults is a set of index blocks indexed by block start.

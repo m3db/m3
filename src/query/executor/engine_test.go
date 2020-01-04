@@ -64,7 +64,7 @@ func TestEngine_Execute(t *testing.T) {
 
 	// Results is closed by execute
 	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
-	_, err := engine.Execute(context.TODO(),
+	_, err := engine.ExecuteProm(context.TODO(),
 		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
 	assert.NotNil(t, err)
 }

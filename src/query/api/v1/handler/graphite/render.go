@@ -48,7 +48,7 @@ const (
 )
 
 var (
-	// ReadHTTPMethods is the HTTP methods used with this resource.
+	// ReadHTTPMethods are the HTTP methods used with this resource.
 	ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 

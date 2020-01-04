@@ -27,12 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -131,21 +131,23 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	// Setup the test bootstrapper to only return success when a signal is sent.
 	signalCh := make(chan struct{})
-	bootstrapper, err := commitlogBootstrapperProvider.Provide()
+	bs, err := commitlogBootstrapperProvider.Provide()
 	require.NoError(t, err)
+
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
-		readData: func(
-			_ namespace.Metadata,
-			shardTimeRanges result.ShardTimeRanges,
-			_ bootstrap.RunOptions,
-		) (result.DataBootstrapResult, error) {
+		read: func(
+			namespaces bootstrap.Namespaces,
+		) (bootstrap.NamespaceResults, error) {
 			<-signalCh
-			result := result.NewDataBootstrapResult()
 			// Mark all as unfulfilled so the commitlog bootstrapper will be called after
-			result.SetUnfulfilled(shardTimeRanges)
-			return result, nil
+			noopNone := bootstrapper.NewNoOpNoneBootstrapperProvider()
+			bs, err := noopNone.Provide()
+			if err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+			return bs.Bootstrap(namespaces)
 		},
-	}, bootstrapOpts, bootstrapper)
+	}, bootstrapOpts, bs)
 
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).

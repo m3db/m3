@@ -26,17 +26,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -311,12 +310,15 @@ func TestBootstrapIndex(t *testing.T) {
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
-		testDefaultRunOpts)
-	require.NoError(t, err)
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		times.shardTimeRanges, nsMD)
+	defer tester.Finish()
 
-	indexResults := res.IndexResults()
+	tester.TestReadWith(src)
+	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexWithPersist(t *testing.T) {
@@ -338,9 +340,13 @@ func TestBootstrapIndexWithPersist(t *testing.T) {
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
-	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
-		runOpts)
-	require.NoError(t, err)
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, runOpts,
+		times.shardTimeRanges, nsMD)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
@@ -356,8 +362,6 @@ func TestBootstrapIndexWithPersist(t *testing.T) {
 		require.Equal(t, 1, len(infoFile.Info.Shards))
 		require.Equal(t, testShard, infoFile.Info.Shards[0])
 	}
-
-	indexResults := res.IndexResults()
 
 	// Check that the segment is not a mutable segment for this block
 	block, ok := indexResults[xtime.ToUnixNano(times.start)]
@@ -405,16 +409,18 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 		})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
-	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
-		runOpts)
-	require.NoError(t, err)
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, runOpts,
+		times.shardTimeRanges, nsMD)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 
 	// Check that not segments were written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
 		src.fsopts.InfoReaderBufferSize())
 	require.Equal(t, 0, len(infoFiles))
-
-	indexResults := res.IndexResults()
 
 	// Check that both segments are mutable
 	block, ok := indexResults[xtime.ToUnixNano(times.start)]
@@ -436,6 +442,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
@@ -464,11 +471,13 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
-	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
-		runOpts)
-	require.NoError(t, err)
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, runOpts,
+		times.shardTimeRanges, nsMD)
+	defer tester.Finish()
 
-	indexResults := res.IndexResults()
+	tester.TestReadWith(src)
+	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
 
 	// Check that the segment is not a mutable segment for this block
 	// and came from disk
@@ -493,6 +502,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	tester.EnsureNoWrites()
 }
 
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
@@ -526,9 +536,12 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
 
-	res, err := src.ReadIndex(ns, times.shardTimeRanges,
-		runOpts)
-	require.NoError(t, err)
+	tester := bootstrap.BuildNamespacesTester(t, runOpts,
+		times.shardTimeRanges, ns)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	indexResults := tester.ResultForNamespace(ns.ID()).IndexResult.IndexResults()
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
@@ -559,8 +572,6 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 		require.Equal(t, testShard, infoFile.Info.Shards[0])
 	}
 
-	indexResults := res.IndexResults()
-
 	// Check that the segment is not a mutable segment
 	block, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
 	require.True(t, ok)
@@ -583,4 +594,5 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(2), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+	tester.EnsureNoWrites()
 }

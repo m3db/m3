@@ -69,13 +69,11 @@ func EmitInvariantViolation(opts Options) {
 // with a supplied logger that is pre-configured with an invariant violated field. Optionally panics
 // if the ShouldPanicEnvironmentVariableName is set to "true".
 func EmitAndLogInvariantViolation(opts Options, f func(l *zap.Logger)) {
-	EmitInvariantViolation(opts)
-
 	logger := opts.Logger().With(
 		zap.String(InvariantViolatedLogFieldName, InvariantViolatedLogFieldValue))
 	f(logger)
 
-	panicIfEnvSet()
+	EmitInvariantViolation(opts)
 }
 
 // InvariantErrorf constructs a new error, prefixed with a string indicating that an invariant

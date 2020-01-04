@@ -33,6 +33,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
@@ -89,7 +90,7 @@ TOOLS :=               \
 	clone_fileset        \
 	dtest                \
 	verify_commitlogs    \
-	verify_data_files   \
+	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
@@ -334,7 +335,7 @@ asset-gen-$(SUBDIR): install-tools
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
+		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
 	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
@@ -475,7 +476,7 @@ metalint: install-gometalinter install-linter-badtime install-linter-importorder
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager diff --exit-code --shortstat 2>/dev/null)" = "" || (git --no-pager diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Runs a fossa license report

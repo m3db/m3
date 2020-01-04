@@ -41,9 +41,10 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -89,11 +90,15 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 }
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
+	return testNsMetadataWithIndex(t, true)
+}
+
+func testNsMetadataWithIndex(t *testing.T, indexOn bool) namespace.Metadata {
 	ropts := testRetentionOptions.SetBlockSize(testBlockSize)
 	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
 		SetIndexOptions(testNamespaceIndexOptions.
-			SetEnabled(true).
+			SetEnabled(indexOn).
 			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
 	return md
@@ -105,21 +110,27 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func writeInfoFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
+func writeInfoFile(t *testing.T, prefix string, namespace ident.ID,
+	shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
-	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-0-info.db", xtime.ToNanoseconds(start)))
+	filePath := path.Join(shardDir,
+		fmt.Sprintf("fileset-%d-0-info.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
-func writeDataFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
+func writeDataFile(t *testing.T, prefix string, namespace ident.ID,
+	shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
-	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-0-data.db", xtime.ToNanoseconds(start)))
+	filePath := path.Join(shardDir,
+		fmt.Sprintf("fileset-%d-0-data.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
-func writeDigestFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
+func writeDigestFile(t *testing.T, prefix string, namespace ident.ID,
+	shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
-	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-0-digest.db", xtime.ToNanoseconds(start)))
+	filePath := path.Join(shardDir,
+		fmt.Sprintf("fileset-%d-0-digest.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
@@ -139,6 +150,19 @@ func testTimeRanges() xtime.Ranges {
 
 func testShardTimeRanges() result.ShardTimeRanges {
 	return map[uint32]xtime.Ranges{testShard: testTimeRanges()}
+}
+
+func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
+	// NB: since index files are not corrupted on this run, it's expected that
+	// `testBlockSize` values should be fulfilled in the index block. This is
+	// `testBlockSize` rather than `testIndexSize` since the files generated
+	// by this test use 2 hour (which is `testBlockSize`) reader blocks.
+	return map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testStart.Add(testBlockSize),
+			End:   testStart.Add(11 * time.Hour),
+		}),
+	}
 }
 
 func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) {
@@ -368,22 +392,69 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	validateTimeRanges(t, res[testShard], expected)
 }
 
+// NB: too real :'(
+func unfulfilledAndEmpty(t *testing.T, src bootstrap.Source,
+	md namespace.Metadata, tester bootstrap.NamespacesTester) {
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(md)
+
+	tester.EnsureNoWrites()
+	tester.EnsureNoLoadedBlocks()
+}
+
 func TestReadEmptyRangeErr(t *testing.T) {
 	src := newFileSystemSource(newTestOptions("foo"))
-	res, err := src.ReadData(testNsMetadata(t), nil, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.True(t, res.Unfulfilled().IsEmpty())
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, nil, nsMD)
+	defer tester.Finish()
+	unfulfilledAndEmpty(t, src, nsMD, tester)
 }
 
 func TestReadPatternError(t *testing.T) {
 	src := newFileSystemSource(newTestOptions("[["))
-	res, err := src.ReadData(testNsMetadata(t),
-		map[uint32]xtime.Ranges{testShard: xtime.Ranges{}},
-		testDefaultRunOpts)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.True(t, res.Unfulfilled().IsEmpty())
+	timeRanges := result.ShardTimeRanges{testShard: xtime.Ranges{}}
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		timeRanges, nsMD)
+	defer tester.Finish()
+	unfulfilledAndEmpty(t, src, nsMD, tester)
+}
+
+func validateReadResults(
+	t *testing.T,
+	src bootstrap.Source,
+	dir string,
+	strs result.ShardTimeRanges,
+) {
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, strs, nsMD)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	readers := tester.EnsureDumpReadersForNamespace(nsMD)
+	require.Equal(t, 2, len(readers))
+	ids := []string{"foo", "bar"}
+	data := [][]byte{
+		{1, 2, 3},
+		{4, 5, 6},
+	}
+
+	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
+	for i, id := range ids {
+		seriesReaders, ok := readers[id]
+		require.True(t, ok)
+		require.Equal(t, 1, len(seriesReaders))
+		readerAtTime := seriesReaders[0]
+		assert.Equal(t, times[i], readerAtTime.Start)
+		ctx := context.NewContext()
+		var b [100]byte
+		n, err := readerAtTime.Reader.Read(b[:])
+		ctx.Close()
+		require.NoError(t, err)
+		require.Equal(t, data[i], b[:n])
+	}
+
+	tester.EnsureNoWrites()
 }
 
 func TestReadNilTimeRanges(t *testing.T) {
@@ -394,11 +465,12 @@ func TestReadNilTimeRanges(t *testing.T) {
 	writeGoodFiles(t, dir, testNs1ID, shard)
 
 	src := newFileSystemSource(newTestOptions(dir))
-
-	validateReadResults(t, src, dir, map[uint32]xtime.Ranges{
+	timeRanges := result.ShardTimeRanges{
 		testShard: testTimeRanges(),
 		555:       xtime.Ranges{},
-	})
+	}
+
+	validateReadResults(t, src, dir, timeRanges)
 }
 
 func TestReadOpenFileError(t *testing.T) {
@@ -409,23 +481,38 @@ func TestReadOpenFileError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
 		{"foo", nil, []byte{0x1}},
 	})
+
 	// Intentionally truncate the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
-		testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.NotNil(t, res.Unfulfilled())
-	require.NotNil(t, res.Unfulfilled()[testShard])
+	nsMD := testNsMetadata(t)
+	ranges := testShardTimeRanges()
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		ranges, nsMD)
+	defer tester.Finish()
 
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
-	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
-func TestReadDataCorruptionError(t *testing.T) {
+func TestReadDataCorruptionErrorNoIndex(t *testing.T) {
+	testReadDataCorruptionErrorWithIndexEnabled(t, false, testShardTimeRanges())
+}
+
+func TestReadDataCorruptionErrorWithIndex(t *testing.T) {
+	expectedIndex := testBootstrappingIndexShardTimeRanges()
+	testReadDataCorruptionErrorWithIndexEnabled(t, true, expectedIndex)
+}
+
+func testReadDataCorruptionErrorWithIndexEnabled(
+	t *testing.T,
+	withIndex bool,
+	expectedIndexUnfulfilled result.ShardTimeRanges,
+) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -438,61 +525,14 @@ func TestReadDataCorruptionError(t *testing.T) {
 
 	src := newFileSystemSource(newTestOptions(dir))
 	strs := testShardTimeRanges()
-	res, err := src.ReadData(testNsMetadata(t), strs, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.Equal(t, 1, len(res.Unfulfilled()))
-	validateTimeRanges(t, res.Unfulfilled()[testShard], strs[testShard])
-}
 
-func validateReadResults(
-	t *testing.T,
-	src bootstrap.Source,
-	dir string,
-	strs result.ShardTimeRanges,
-) {
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{
-			Start: testStart.Add(2 * time.Hour),
-			End:   testStart.Add(10 * time.Hour),
-		})
+	nsMD := testNsMetadataWithIndex(t, withIndex)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, strs, nsMD)
+	defer tester.Finish()
 
-	res, err := src.ReadData(testNsMetadata(t), strs, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.NotNil(t, res.ShardResults())
-	require.NotNil(t, res.ShardResults()[testShard])
-	allSeries := res.ShardResults()[testShard].AllSeries()
-	require.Equal(t, 2, allSeries.Len())
-	require.NotNil(t, res.Unfulfilled())
-	require.NotNil(t, res.Unfulfilled()[testShard])
-	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
-
-	require.Equal(t, 2, allSeries.Len())
-
-	ids := []ident.ID{
-		ident.StringID("foo"), ident.StringID("bar")}
-	data := [][]byte{
-		{1, 2, 3},
-		{4, 5, 6},
-	}
-	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
-	for i, id := range ids {
-		series, ok := allSeries.Get(id)
-		require.True(t, ok)
-		allBlocks := series.Blocks.AllBlocks()
-		require.Equal(t, 1, len(allBlocks))
-		block := allBlocks[xtime.ToUnixNano(times[i])]
-		ctx := context.NewContext()
-		stream, err := block.Stream(ctx)
-		require.NoError(t, err)
-		var b [100]byte
-		n, err := stream.Read(b[:])
-		ctx.Close()
-		require.NoError(t, err)
-		require.Equal(t, data[i], b[:n])
-	}
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespace(nsMD, strs, expectedIndexUnfulfilled)
+	tester.EnsureNoWrites()
 }
 
 func TestReadTimeFilter(t *testing.T) {
@@ -517,8 +557,21 @@ func TestReadPartialError(t *testing.T) {
 	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
-func TestReadValidateError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestReadValidateErrorNoIndex(t *testing.T) {
+	testReadValidateErrorWithIndexEnabled(t, false, testShardTimeRanges())
+}
+
+func TestReadValidateErrorWithIndex(t *testing.T) {
+	expectedIndex := testBootstrappingIndexShardTimeRanges()
+	testReadValidateErrorWithIndexEnabled(t, true, expectedIndex)
+}
+
+func testReadValidateErrorWithIndexEnabled(
+	t *testing.T,
+	enabled bool,
+	expectedIndexUnfulfilled result.ShardTimeRanges,
+) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dir := createTempDir(t)
@@ -559,26 +612,37 @@ func TestReadValidateError(t *testing.T) {
 			Start: testStart,
 			End:   testStart.Add(2 * time.Hour),
 		})
-	reader.EXPECT().Entries().Return(0).Times(2)
+	reader.EXPECT().Entries().Return(0).AnyTimes()
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
-	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
-		testDefaultRunOpts)
+	nsMD := testNsMetadataWithIndex(t, enabled)
+	ranges := testShardTimeRanges()
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		ranges, nsMD)
+	defer tester.Finish()
 
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 0, int(res.ShardResults().NumSeries()))
-	require.NotNil(t, res.Unfulfilled())
-	require.NotNil(t, res.Unfulfilled()[testShard])
-
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
-	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
-func TestReadOpenError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestReadOpenErrorNoIndex(t *testing.T) {
+	testReadOpenError(t, false, testShardTimeRanges())
+}
+
+func TestReadOpenErrorWithIndex(t *testing.T) {
+	expectedIndex := testBootstrappingIndexShardTimeRanges()
+	testReadOpenError(t, true, expectedIndex)
+}
+
+func testReadOpenError(
+	t *testing.T,
+	enabled bool,
+	expectedIndexUnfulfilled result.ShardTimeRanges,
+) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dir := createTempDir(t)
@@ -613,21 +677,20 @@ func TestReadOpenError(t *testing.T) {
 		Open(rOpts).
 		Return(errors.New("error"))
 
-	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
-		testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.NotNil(t, res.Unfulfilled())
-	require.NotNil(t, res.Unfulfilled()[testShard])
+	nsMD := testNsMetadataWithIndex(t, enabled)
+	ranges := testShardTimeRanges()
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		ranges, nsMD)
+	defer tester.Finish()
 
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
-	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespace(nsMD, ranges, expectedIndexUnfulfilled)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestReadDeleteOnError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	dir := createTempDir(t)
@@ -654,42 +717,40 @@ func TestReadDeleteOnError(t *testing.T) {
 			BlockStart: testStart,
 		},
 	}
-	gomock.InOrder(
-		reader.EXPECT().Open(rOpts).Return(nil),
-		reader.EXPECT().
-			Range().
-			Return(xtime.Range{
-				Start: testStart,
-				End:   testStart.Add(2 * time.Hour),
-			}).AnyTimes(),
-		reader.EXPECT().Entries().Return(2).AnyTimes(),
-		reader.EXPECT().
-			Range().
-			Return(xtime.Range{
-				Start: testStart,
-				End:   testStart.Add(2 * time.Hour),
-			}).AnyTimes(),
-		reader.EXPECT().Entries().Return(2).AnyTimes(),
-		reader.EXPECT().
-			Read().
-			Return(ident.StringID("foo"), ident.EmptyTagIterator, nil, digest.Checksum(nil), nil),
-		reader.EXPECT().
-			Read().
-			Return(ident.StringID("bar"), ident.EmptyTagIterator, nil, uint32(0), errors.New("foo")),
-		reader.EXPECT().Close().Return(nil),
-	)
 
-	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
-		testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.NotNil(t, res.Unfulfilled())
-	require.NotNil(t, res.Unfulfilled()[testShard])
+	reader.EXPECT().Open(rOpts).Return(nil).AnyTimes()
+	reader.EXPECT().ReadMetadata().Return(ident.StringID("foo"),
+		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), nil)
+	reader.EXPECT().ReadMetadata().Return(ident.StringID("bar"),
+		ident.NewTagsIterator(ident.Tags{}), 0, uint32(0), errors.New("foo"))
 
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
-	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+	reader.EXPECT().
+		Range().
+		Return(xtime.Range{
+			Start: testStart,
+			End:   testStart.Add(2 * time.Hour),
+		}).AnyTimes()
+	reader.EXPECT().Entries().Return(2).AnyTimes()
+	reader.EXPECT().
+		Read().
+		Return(ident.StringID("foo"), ident.EmptyTagIterator,
+			nil, digest.Checksum(nil), nil)
+
+	reader.EXPECT().
+		Read().
+		Return(ident.StringID("bar"), ident.EmptyTagIterator,
+			nil, uint32(0), errors.New("foo"))
+	reader.EXPECT().Close().Return(nil).AnyTimes()
+
+	nsMD := testNsMetadata(t)
+	ranges := testShardTimeRanges()
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		ranges, nsMD)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespace(nsMD, ranges, ranges)
+	tester.EnsureNoWrites()
 }
 
 func TestReadTags(t *testing.T) {
@@ -708,18 +769,19 @@ func TestReadTags(t *testing.T) {
 	})
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
-		testDefaultRunOpts)
-	require.NoError(t, err)
+	nsMD := testNsMetadata(t)
+	ranges := testShardTimeRanges()
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
+		ranges, nsMD)
+	defer tester.Finish()
 
-	require.Equal(t, 1, len(res.ShardResults()))
-	require.NotNil(t, res.ShardResults()[testShard])
-
-	series := res.ShardResults()[testShard]
-	require.Equal(t, int64(1), series.NumSeries())
-
-	fooSeries, ok := series.AllSeries().Get(ident.StringID(id))
-	require.True(t, ok)
-	require.True(t, fooSeries.ID.Equal(ident.StringID(id)))
-	require.True(t, fooSeries.Tags.Equal(sortedTagsFromTagsMap(tags)))
+	tester.TestReadWith(src)
+	readers := tester.EnsureDumpReadersForNamespace(nsMD)
+	require.Equal(t, 1, len(readers))
+	readersForTime, found := readers[id]
+	require.True(t, found)
+	require.Equal(t, 1, len(readersForTime))
+	reader := readersForTime[0]
+	require.Equal(t, tags, reader.Tags)
+	tester.EnsureNoWrites()
 }

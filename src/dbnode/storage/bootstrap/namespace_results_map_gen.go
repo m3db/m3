@@ -22,7 +22,7 @@
 // Any changes will be lost if this file is regenerated.
 // see https://github.com/mauricelam/genny
 
-package commitlog
+package bootstrap
 
 import (
 	"github.com/m3db/m3/src/x/ident"
@@ -72,23 +72,23 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// MapHash is the hash for a given map entry, this is public to support
+// NamespaceResultsMapHash is the hash for a given map entry, this is public to support
 // iterating over the map using a native Go for loop.
-type MapHash uint64
+type NamespaceResultsMapHash uint64
 
-// HashFn is the hash function to execute when hashing a key.
-type HashFn func(ident.ID) MapHash
+// NamespaceResultsMapHashFn is the hash function to execute when hashing a key.
+type NamespaceResultsMapHashFn func(ident.ID) NamespaceResultsMapHash
 
-// EqualsFn is the equals key function to execute when detecting equality of a key.
-type EqualsFn func(ident.ID, ident.ID) bool
+// NamespaceResultsMapEqualsFn is the equals key function to execute when detecting equality of a key.
+type NamespaceResultsMapEqualsFn func(ident.ID, ident.ID) bool
 
-// CopyFn is the copy key function to execute when copying the key.
-type CopyFn func(ident.ID) ident.ID
+// NamespaceResultsMapCopyFn is the copy key function to execute when copying the key.
+type NamespaceResultsMapCopyFn func(ident.ID) ident.ID
 
-// FinalizeFn is the finalize key function to execute when finished with a key.
-type FinalizeFn func(ident.ID)
+// NamespaceResultsMapFinalizeFn is the finalize key function to execute when finished with a key.
+type NamespaceResultsMapFinalizeFn func(ident.ID)
 
-// Map uses the genny package to provide a generic hash map that can be specialized
+// NamespaceResultsMap uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
 // ```
 // make hashmap-gen pkg=outpkg key_type=Type value_type=Type out_dir=/tmp
@@ -102,73 +102,73 @@ type FinalizeFn func(ident.ID)
 // This will output to stdout the generated source file to use for your map.
 // It uses linear probing by incrementing the number of the hash created when
 // hashing the identifier if there is a collision.
-// Map is a value type and not an interface to allow for less painful
+// NamespaceResultsMap is a value type and not an interface to allow for less painful
 // upgrades when adding/removing methods, it is not likely to need mocking so
 // an interface would not be super useful either.
-type Map struct {
-	mapOptions
+type NamespaceResultsMap struct {
+	_NamespaceResultsMapOptions
 
 	// lookup uses hash of the identifier for the key and the MapEntry value
 	// wraps the value type and the key (used to ensure lookup is correct
 	// when dealing with collisions), we use uint64 for the hash partially
 	// because lookups of maps with uint64 keys has a fast path for Go.
-	lookup map[MapHash]MapEntry
+	lookup map[NamespaceResultsMapHash]NamespaceResultsMapEntry
 }
 
-// mapOptions is a set of options used when creating an identifier map, it is kept
+// _NamespaceResultsMapOptions is a set of options used when creating an identifier map, it is kept
 // private so that implementers of the generated map can specify their own options
 // that partially fulfill these options.
-type mapOptions struct {
+type _NamespaceResultsMapOptions struct {
 	// hash is the hash function to execute when hashing a key.
-	hash HashFn
+	hash NamespaceResultsMapHashFn
 	// equals is the equals key function to execute when detecting equality.
-	equals EqualsFn
+	equals NamespaceResultsMapEqualsFn
 	// copy is the copy key function to execute when copying the key.
-	copy CopyFn
+	copy NamespaceResultsMapCopyFn
 	// finalize is the finalize key function to execute when finished with a
 	// key, this is optional to specify.
-	finalize FinalizeFn
+	finalize NamespaceResultsMapFinalizeFn
 	// initialSize is the initial size for the map, use zero to use Go's std map
 	// initial size and consequently is optional to specify.
 	initialSize int
 }
 
-// MapEntry is an entry in the map, this is public to support iterating
+// NamespaceResultsMapEntry is an entry in the map, this is public to support iterating
 // over the map using a native Go for loop.
-type MapEntry struct {
+type NamespaceResultsMapEntry struct {
 	// key is used to check equality on lookups to resolve collisions
-	key mapKey
+	key _NamespaceResultsMapKey
 	// value type stored
-	value metadataAndEncodersByTime
+	value NamespaceResult
 }
 
-type mapKey struct {
+type _NamespaceResultsMapKey struct {
 	key      ident.ID
 	finalize bool
 }
 
 // Key returns the map entry key.
-func (e MapEntry) Key() ident.ID {
+func (e NamespaceResultsMapEntry) Key() ident.ID {
 	return e.key.key
 }
 
 // Value returns the map entry value.
-func (e MapEntry) Value() metadataAndEncodersByTime {
+func (e NamespaceResultsMapEntry) Value() NamespaceResult {
 	return e.value
 }
 
-// mapAlloc is a non-exported function so that when generating the source code
+// _NamespaceResultsMapAlloc is a non-exported function so that when generating the source code
 // for the map you can supply a public constructor that sets the correct
 // hash, equals, copy, finalize options without users of the map needing to
 // implement them themselves.
-func mapAlloc(opts mapOptions) *Map {
-	m := &Map{mapOptions: opts}
+func _NamespaceResultsMapAlloc(opts _NamespaceResultsMapOptions) *NamespaceResultsMap {
+	m := &NamespaceResultsMap{_NamespaceResultsMapOptions: opts}
 	m.Reallocate()
 	return m
 }
 
-func (m *Map) newMapKey(k ident.ID, opts mapKeyOptions) mapKey {
-	key := mapKey{key: k, finalize: opts.finalizeKey}
+func (m *NamespaceResultsMap) newMapKey(k ident.ID, opts _NamespaceResultsMapKeyOptions) _NamespaceResultsMapKey {
+	key := _NamespaceResultsMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
 	}
@@ -177,7 +177,7 @@ func (m *Map) newMapKey(k ident.ID, opts mapKeyOptions) mapKey {
 	return key
 }
 
-func (m *Map) removeMapKey(hash MapHash, key mapKey) {
+func (m *NamespaceResultsMap) removeMapKey(hash NamespaceResultsMapHash, key _NamespaceResultsMapKey) {
 	delete(m.lookup, hash)
 	if key.finalize {
 		m.finalize(key.key)
@@ -185,7 +185,7 @@ func (m *Map) removeMapKey(hash MapHash, key mapKey) {
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *Map) Get(k ident.ID) (metadataAndEncodersByTime, bool) {
+func (m *NamespaceResultsMap) Get(k ident.ID) (NamespaceResult, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -194,44 +194,44 @@ func (m *Map) Get(k ident.ID) (metadataAndEncodersByTime, bool) {
 		// Linear probe to "next" to this entry (really a rehash)
 		hash++
 	}
-	var empty metadataAndEncodersByTime
+	var empty NamespaceResult
 	return empty, false
 }
 
 // Set will set the value for an identifier.
-func (m *Map) Set(k ident.ID, v metadataAndEncodersByTime) {
-	m.set(k, v, mapKeyOptions{
+func (m *NamespaceResultsMap) Set(k ident.ID, v NamespaceResult) {
+	m.set(k, v, _NamespaceResultsMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
 	})
 }
 
-// SetUnsafeOptions is a set of options to use when setting a value with
+// NamespaceResultsMapSetUnsafeOptions is a set of options to use when setting a value with
 // the SetUnsafe method.
-type SetUnsafeOptions struct {
+type NamespaceResultsMapSetUnsafeOptions struct {
 	NoCopyKey     bool
 	NoFinalizeKey bool
 }
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *Map) SetUnsafe(k ident.ID, v metadataAndEncodersByTime, opts SetUnsafeOptions) {
-	m.set(k, v, mapKeyOptions{
+func (m *NamespaceResultsMap) SetUnsafe(k ident.ID, v NamespaceResult, opts NamespaceResultsMapSetUnsafeOptions) {
+	m.set(k, v, _NamespaceResultsMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
 	})
 }
 
-type mapKeyOptions struct {
+type _NamespaceResultsMapKeyOptions struct {
 	copyKey     bool
 	finalizeKey bool
 }
 
-func (m *Map) set(k ident.ID, v metadataAndEncodersByTime, opts mapKeyOptions) {
+func (m *NamespaceResultsMap) set(k ident.ID, v NamespaceResult, opts _NamespaceResultsMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
-			m.lookup[hash] = MapEntry{
+			m.lookup[hash] = NamespaceResultsMapEntry{
 				key:   entry.key,
 				value: v,
 			}
@@ -241,7 +241,7 @@ func (m *Map) set(k ident.ID, v metadataAndEncodersByTime, opts mapKeyOptions) {
 		hash++
 	}
 
-	m.lookup[hash] = MapEntry{
+	m.lookup[hash] = NamespaceResultsMapEntry{
 		key:   m.newMapKey(k, opts),
 		value: v,
 	}
@@ -250,24 +250,24 @@ func (m *Map) set(k ident.ID, v metadataAndEncodersByTime, opts mapKeyOptions) {
 // Iter provides the underlying map to allow for using a native Go for loop
 // to iterate the map, however callers should only ever read and not write
 // the map.
-func (m *Map) Iter() map[MapHash]MapEntry {
+func (m *NamespaceResultsMap) Iter() map[NamespaceResultsMapHash]NamespaceResultsMapEntry {
 	return m.lookup
 }
 
 // Len returns the number of map entries in the map.
-func (m *Map) Len() int {
+func (m *NamespaceResultsMap) Len() int {
 	return len(m.lookup)
 }
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *Map) Contains(k ident.ID) bool {
+func (m *NamespaceResultsMap) Contains(k ident.ID) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *Map) Delete(k ident.ID) {
+func (m *NamespaceResultsMap) Delete(k ident.ID) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -281,7 +281,7 @@ func (m *Map) Delete(k ident.ID) {
 
 // Reset will reset the map by simply deleting all keys to avoid
 // allocating a new map.
-func (m *Map) Reset() {
+func (m *NamespaceResultsMap) Reset() {
 	for hash, entry := range m.lookup {
 		m.removeMapKey(hash, entry.key)
 	}
@@ -290,10 +290,10 @@ func (m *Map) Reset() {
 // Reallocate will avoid deleting all keys and reallocate a new
 // map, this is useful if you believe you have a large map and
 // will not need to grow back to a similar size.
-func (m *Map) Reallocate() {
+func (m *NamespaceResultsMap) Reallocate() {
 	if m.initialSize > 0 {
-		m.lookup = make(map[MapHash]MapEntry, m.initialSize)
+		m.lookup = make(map[NamespaceResultsMapHash]NamespaceResultsMapEntry, m.initialSize)
 	} else {
-		m.lookup = make(map[MapHash]MapEntry)
+		m.lookup = make(map[NamespaceResultsMapHash]NamespaceResultsMapEntry)
 	}
 }

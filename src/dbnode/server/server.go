@@ -139,6 +139,8 @@ func Run(runOpts RunOptions) {
 	if runOpts.ConfigFile != "" {
 		var rootCfg config.Configuration
 		if err := xconfig.LoadFile(&rootCfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
+			// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+			// sending stdlib "log" to black hole. Don't remove unless with good reason.
 			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
 			os.Exit(1)
 		}
@@ -150,12 +152,16 @@ func Run(runOpts RunOptions) {
 
 	err := cfg.InitDefaultsAndValidate()
 	if err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "error initializing config defaults and validating config: %v", err)
 		os.Exit(1)
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}

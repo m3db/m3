@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/ident"
+
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -58,19 +60,12 @@ type persistenceFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
+	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
 		opts:  opts,
-		log:   opts.ResultOptions().InstrumentOptions().Logger(),
+		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
-}
-
-func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapSequential:
-		return true
-	}
-	return false
 }
 
 type shardPeerAvailability struct {
@@ -89,8 +84,89 @@ func (s *peersSource) AvailableData(
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
-func (s *peersSource) ReadData(
+func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
+	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
+}
+
+func (s *peersSource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	results := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
+
+	// NB(r): Perform all data bootstrapping first then index bootstrapping
+	// to more clearly deliniate which process is slower than the other.
+	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
+	start := nowFn()
+	s.log.Info("bootstrapping time series data start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+
+		r, err := s.readData(md, namespace.DataAccumulator,
+			namespace.DataRunOptions.ShardTimeRanges,
+			namespace.DataRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
+			Metadata:   md,
+			Shards:     namespace.Shards,
+			DataResult: r,
+		})
+	}
+	s.log.Info("bootstrapping time series data success",
+		zap.Duration("took", nowFn().Sub(start)))
+
+	start = nowFn()
+	s.log.Info("bootstrapping index metadata start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+		if !md.Options().IndexOptions().Enabled() {
+			s.log.Info("skipping bootstrap for namespace based on options",
+				zap.Stringer("namespace", md.ID()))
+
+			// Not bootstrapping for index.
+			continue
+		}
+
+		r, err := s.readIndex(md,
+			namespace.IndexRunOptions.ShardTimeRanges,
+			namespace.IndexRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result, ok := results.Results.Get(md.ID())
+		if !ok {
+			err = fmt.Errorf("missing expected result for namespace: %s",
+				md.ID().String())
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result.IndexResult = r
+
+		results.Results.Set(md.ID(), result)
+	}
+	s.log.Info("bootstrapping index metadata success",
+		zap.Duration("took", nowFn().Sub(start)))
+
+	return results, nil
+}
+
+func (s *peersSource) readData(
+	nsMetadata namespace.Metadata,
+	accumulator bootstrap.NamespaceDataAccumulator,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
@@ -110,6 +186,7 @@ func (s *peersSource) ReadData(
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
+
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -184,8 +261,8 @@ func (s *peersSource) ReadData(
 		workers.Go(func() {
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
-				resultOpts, result, &resultLock, shouldPersist, persistenceQueue,
-				shardRetrieverMgr, blockSize)
+				accumulator, resultOpts, result, &resultLock, shouldPersist,
+				persistenceQueue, shardRetrieverMgr, blockSize)
 		})
 	}
 
@@ -218,10 +295,6 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 		if err == nil {
-			// Safe to add to the shared bootstrap result now.
-			lock.Lock()
-			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
-			lock.Unlock()
 			continue
 		}
 
@@ -231,7 +304,11 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 
 		// Make unfulfilled.
 		lock.Lock()
-		bootstrapResult.Add(flush.shard, nil, xtime.NewRanges(flush.timeRange))
+		unfulfilled := bootstrapResult.Unfulfilled().Copy()
+		unfulfilled.AddRanges(result.ShardTimeRanges{
+			flush.shard: xtime.NewRanges(flush.timeRange),
+		})
+		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
 	close(doneCh)
@@ -248,6 +325,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	ranges xtime.Ranges,
 	nsMetadata namespace.Metadata,
 	session client.AdminSession,
+	accumulator bootstrap.NamespaceDataAccumulator,
 	bopts result.Options,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
@@ -257,6 +335,13 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	blockSize time.Duration,
 ) {
 	it := ranges.Iter()
+	tagsIter := ident.NewTagsIterator(ident.Tags{})
+	unfulfill := func(r xtime.Range) {
+		lock.Lock()
+		unfulfilled := bootstrapResult.Unfulfilled()
+		unfulfilled.AddRanges(result.ShardTimeRanges{shard: xtime.NewRanges(r)})
+		lock.Unlock()
+	}
 	for it.Next() {
 		currRange := it.Value()
 
@@ -264,14 +349,11 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
 				nsMetadata, shard, blockStart, blockEnd, bopts)
-
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 			if err != nil {
-				// Do not add result at all to the bootstrap result
-				lock.Lock()
-				bootstrapResult.Add(shard, nil, xtime.NewRanges(currRange))
-				lock.Unlock()
+				// No result to add for this bootstrap.
+				unfulfill(currRange)
 				continue
 			}
 
@@ -286,10 +368,28 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			// If not waiting to flush, add straight away to bootstrap result
-			lock.Lock()
-			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-			lock.Unlock()
+			// If not waiting to flush, add straight away to bootstrap result.
+			for _, elem := range shardResult.AllSeries().Iter() {
+				entry := elem.Value()
+				tagsIter.Reset(entry.Tags)
+				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
+				if err != nil {
+					unfulfill(currRange)
+					s.log.Error("could not checkout series", zap.Error(err))
+					continue
+				}
+
+				for _, block := range entry.Blocks.AllBlocks() {
+					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+						unfulfill(currRange)
+						s.log.Error("could not load series block", zap.Error(err))
+					}
+				}
+
+				// Safe to finalize these IDs and Tags, shard result no longer used.
+				entry.ID.Finalize()
+				entry.Tags.Finalize()
+			}
 		}
 	}
 }
@@ -316,7 +416,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 			)
 		}
 	} else {
-		s.log.Error("error fetching bootstrap blocks from peers",
+		s.log.Error("error fetching bootstrap blocks",
 			zap.Uint32("shard", shard),
 			zap.Error(err),
 		)
@@ -505,18 +605,7 @@ func (s *peersSource) flush(
 	return nil
 }
 
-func (s *peersSource) AvailableIndex(
-	nsMetadata namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.ShardTimeRanges, error) {
-	if err := s.validateRunOpts(runOpts); err != nil {
-		return nil, err
-	}
-	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
-}
-
-func (s *peersSource) ReadIndex(
+func (s *peersSource) readIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
@@ -586,7 +675,6 @@ func (s *peersSource) ReadIndex(
 						markUnfulfilled(err)
 						continue
 					}
-
 					for metadata.Next() {
 						_, dataBlock := metadata.Current()
 

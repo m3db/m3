@@ -148,20 +148,6 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
-// IsBootstrapped mocks base method
-func (m *MockDatabaseSeries) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockDatabaseSeriesMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockDatabaseSeries)(nil).IsBootstrapped))
-}
-
 // IsEmpty mocks base method
 func (m *MockDatabaseSeries) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -176,19 +162,18 @@ func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockDatabaseSeries)(nil).IsEmpty))
 }
 
-// Load mocks base method
-func (m *MockDatabaseSeries) Load(arg0 LoadOptions, arg1 block.DatabaseSeriesBlocks, arg2 BootstrappedBlockStateSnapshot) (LoadResult, error) {
+// LoadBlock mocks base method
+func (m *MockDatabaseSeries) LoadBlock(arg0 block.DatabaseBlock, arg1 WriteType) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
-	ret0, _ := ret[0].(LoadResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "LoadBlock", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// Load indicates an expected call of Load
-func (mr *MockDatabaseSeriesMockRecorder) Load(arg0, arg1, arg2 interface{}) *gomock.Call {
+// LoadBlock indicates an expected call of LoadBlock
+func (mr *MockDatabaseSeriesMockRecorder) LoadBlock(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDatabaseSeries)(nil).Load), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).LoadBlock), arg0, arg1)
 }
 
 // NumActiveBlocks mocks base method
@@ -245,15 +230,15 @@ func (mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2, arg3 int
 }
 
 // Reset mocks base method
-func (m *MockDatabaseSeries) Reset(arg0 ident.ID, arg1 ident.Tags, arg2 QueryableBlockRetriever, arg3 block.OnRetrieveBlock, arg4 block.OnEvictedFromWiredList, arg5 Options) {
+func (m *MockDatabaseSeries) Reset(arg0 ident.ID, arg1 ident.Tags, arg2 uint64, arg3 QueryableBlockRetriever, arg4 block.OnRetrieveBlock, arg5 block.OnEvictedFromWiredList, arg6 Options) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", arg0, arg1, arg2, arg3, arg4, arg5)
+	m.ctrl.Call(m, "Reset", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Snapshot mocks base method
@@ -297,6 +282,20 @@ func (m *MockDatabaseSeries) Tick(arg0 ShardBlockStateSnapshot, arg1 namespace.C
 func (mr *MockDatabaseSeriesMockRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockDatabaseSeries)(nil).Tick), arg0, arg1)
+}
+
+// UniqueIndex mocks base method
+func (m *MockDatabaseSeries) UniqueIndex() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UniqueIndex")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// UniqueIndex indicates an expected call of UniqueIndex
+func (mr *MockDatabaseSeriesMockRecorder) UniqueIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UniqueIndex", reflect.TypeOf((*MockDatabaseSeries)(nil).UniqueIndex))
 }
 
 // WarmFlush mocks base method

@@ -199,6 +199,20 @@ func (a Type) Proto() (aggregationpb.AggregationType, error) {
 	return s, nil
 }
 
+// UnmarshalYAML unmarshals text-encoded data into an aggregation type.
+func (a *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	value, err := ParseType(str)
+	if err != nil {
+		return err
+	}
+	*a = value
+	return nil
+}
+
 // MarshalText returns the text encoding of an aggregation type.
 func (a Type) MarshalText() ([]byte, error) {
 	if !a.IsValid() {

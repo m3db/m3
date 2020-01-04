@@ -56,7 +56,7 @@ enum MatcherType {
 
 message FetchOptions {
 	int64 limit                      = 1;
-	RestrictFetchOptions restrict    = 2;
+	RestrictQueryOptions restrict    = 2;
 	int64 lookbackDuration           = 3;
 	FanoutOption unaggregated        = 4;
 	FanoutOption aggregated          = 5;
@@ -64,9 +64,19 @@ message FetchOptions {
 	bool includeResolution           = 7;
 }
 
-message RestrictFetchOptions {
+message RestrictQueryOptions {
+	RestrictQueryType restrictQueryType = 3;
+	RestrictQueryTags restrictQueryTags = 4;
+}
+
+message RestrictQueryType {
 	MetricsType metricsType                     = 1;
 	policypb.StoragePolicy metricsStoragePolicy = 2;
+}
+
+message RestrictQueryTags {
+	TagMatchers restrict = 1;
+	repeated bytes strip = 2;
 }
 
 enum MetricsType {

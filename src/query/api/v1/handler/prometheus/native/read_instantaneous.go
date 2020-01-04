@@ -40,9 +40,14 @@ const (
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server
 	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
+)
 
-	// PromReadInstantHTTPMethod is the HTTP method used with this resource.
-	PromReadInstantHTTPMethod = http.MethodGet
+var (
+	// PromReadInstantHTTPMethods are the HTTP methods for this handler.
+	PromReadInstantHTTPMethods = []string{
+		http.MethodGet,
+		http.MethodPost,
+	}
 )
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
@@ -96,7 +101,9 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		QueryContextOptions: models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOpts.Limit,
 		}}
-	if restrictOpts := fetchOpts.RestrictFetchOptions; restrictOpts != nil {
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
 		restrict := &models.RestrictFetchTypeQueryContextOptions{
 			MetricsType:   uint(restrictOpts.MetricsType),
 			StoragePolicy: restrictOpts.StoragePolicy,

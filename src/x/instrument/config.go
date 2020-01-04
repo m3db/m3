@@ -31,6 +31,7 @@ import (
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/multi"
 	"github.com/uber-go/tally/prometheus"
+	"go.uber.org/zap"
 )
 
 var (
@@ -73,7 +74,8 @@ type MetricsConfiguration struct {
 // NewRootScope creates a new tally.Scope based on a tally.CachedStatsReporter
 // based on the the the config.
 func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
-	scope, closer, _, err := mc.NewRootScopeAndReporters()
+	opts := NewRootScopeAndReportersOptions{}
+	scope, closer, _, err := mc.NewRootScopeAndReporters(opts)
 	return scope, closer, err
 }
 
@@ -95,14 +97,31 @@ type MetricsConfigurationPrometheusReporter struct {
 	Registry *prom.Registry
 }
 
+// NewRootScopeAndReportersOptions is a set of options
+type NewRootScopeAndReportersOptions struct {
+	OnError func(e error)
+}
+
 // NewRootScopeAndReporters creates a new tally.Scope based on a tally.CachedStatsReporter
 // based on the the the config along with the reporters used.
-func (mc *MetricsConfiguration) NewRootScopeAndReporters() (
+func (mc *MetricsConfiguration) NewRootScopeAndReporters(
+	opts NewRootScopeAndReportersOptions,
+) (
 	tally.Scope,
 	io.Closer,
 	MetricsConfigurationReporters,
 	error,
 ) {
+	// Set a default on error method for sane handling when registering metrics
+	// results in an error with the Prometheus reporter.
+	onError := func(e error) {
+		logger := NewOptions().Logger()
+		logger.Error("register metrics error", zap.Error(e))
+	}
+	if opts.OnError != nil {
+		onError = opts.OnError
+	}
+
 	var result MetricsConfigurationReporters
 	if mc.M3Reporter != nil {
 		r, err := mc.M3Reporter.NewReporter()
@@ -134,7 +153,10 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters() (
 		})); err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, fmt.Errorf("could not create process collector: %v", err)
 		}
-		opts := prometheus.ConfigurationOptions{Registry: registry}
+		opts := prometheus.ConfigurationOptions{
+			Registry: registry,
+			OnError:  onError,
+		}
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, err

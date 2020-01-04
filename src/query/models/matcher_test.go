@@ -27,20 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMatcher(t *testing.T, mType MatchType, value string) Matcher {
-	m, err := NewMatcher(mType, []byte{}, []byte(value))
+func TestMatcherString(t *testing.T) {
+	m, err := NewMatcher(MatchEqual, []byte("foo"), []byte("bar"))
 	require.NoError(t, err)
 	require.NotNil(t, m)
-
-	return m
-}
-
-func TestMatcher_String(t *testing.T) {
-	m := newMatcher(t, MatchEqual, "foo")
-	m.Name = []byte(`key`)
-
-	assert.Equal(t, `key="foo"`, m.String())
-	assert.Equal(t, `key="foo"`, (&m).String())
+	assert.Equal(t, `foo="bar"`, m.String())
+	assert.Equal(t, `foo="bar"`, (&m).String())
 }
 
 func TestMatchType(t *testing.T) {
