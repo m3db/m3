@@ -109,14 +109,16 @@ func newMockStorage(
 	return store
 }
 
-func checkRemoteFetch(t *testing.T, r *storage.FetchResult) {
-	require.Equal(t, 1, len(r.SeriesList))
+func checkRemoteFetch(t *testing.T, r storage.PromResult) {
+	res := r.PromResult
+	seriesList := res.GetTimeseries()
+	require.Equal(t, 1, len(seriesList))
 
-	for _, series := range r.SeriesList {
-		datapoints := series.Values().Datapoints()
+	for _, series := range seriesList {
+		datapoints := series.GetSamples()
 		values := make([]float64, 0, len(datapoints))
 		for _, d := range datapoints {
-			values = append(values, d.Value)
+			values = append(values, d.GetValue())
 		}
 
 		require.Equal(t, expectedValues(), values)
@@ -148,15 +150,14 @@ func createCtxReadOpts(t *testing.T) (context.Context,
 
 func checkFetch(ctx context.Context, t *testing.T, client Client,
 	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
-	fetch, err := client.Fetch(ctx, read, readOpts)
+	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
 
 func checkErrorFetch(ctx context.Context, t *testing.T, client Client,
 	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
-	fetch, err := client.Fetch(ctx, read, readOpts)
-	assert.Nil(t, fetch)
+	_, err := client.FetchProm(ctx, read, readOpts)
 	assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
 }
 
@@ -227,7 +228,7 @@ func TestRpcMultipleRead(t *testing.T) {
 		assert.NoError(t, client.Close())
 	}()
 
-	fetch, err := client.Fetch(ctx, read, readOpts)
+	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
@@ -250,8 +251,7 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 	defer cancel()
 
-	fetch, err := client.Fetch(ctx, read, readOpts)
-	require.Nil(t, fetch)
+	_, err := client.FetchProm(ctx, read, readOpts)
 	require.Error(t, err)
 }
 
@@ -342,8 +342,8 @@ func TestRoundRobinClientRpc(t *testing.T) {
 
 	hitHost, hitErrHost := false, false
 	for i := 0; i < attempts; i++ {
-		fetch, err := client.Fetch(ctx, read, readOpts)
-		if fetch == nil {
+		fetch, err := client.FetchProm(ctx, read, readOpts)
+		if err != nil {
 			assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
 			hitErrHost = true
 		} else {
@@ -359,25 +359,20 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	assert.True(t, hitErrHost, "round robin did not fetch from error host")
 }
 
-func validateBlockResult(t *testing.T, r block.Result) {
-	require.Equal(t, 1, len(r.Blocks))
-
-	_, err := r.Blocks[0].SeriesIter()
-	require.NoError(t, err)
-}
-
 func TestBatchedFetch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	ctx, read, readOpts := createCtxReadOpts(t)
+	exNames := []string{"baz", "foo"}
+	exValues := []string{"qux", "bar"}
 	sizes := []int{0, 1, defaultBatch - 1, defaultBatch,
 		defaultBatch + 1, defaultBatch*2 + 1}
+
 	for _, size := range sizes {
 		var (
 			msg     = fmt.Sprintf("batch size: %d", size)
 			iters   = make([]encoding.SeriesIterator, 0, size)
-			ids     = make([]string, 0, size)
 			cleaned = false
 		)
 
@@ -386,7 +381,6 @@ func TestBatchedFetch(t *testing.T) {
 			it, err := test.BuildTestSeriesIterator(id)
 			require.NoError(t, err, msg)
 			iters = append(iters, it)
-			ids = append(ids, id)
 		}
 
 		store := newMockStorage(t, ctrl, mockStorageOptions{
@@ -404,18 +398,23 @@ func TestBatchedFetch(t *testing.T) {
 			assert.NoError(t, client.Close())
 		}()
 
-		fetch, err := client.Fetch(ctx, read, readOpts)
+		fetch, err := client.FetchProm(ctx, read, readOpts)
 		require.NoError(t, err, msg)
-		require.Equal(t, size, len(fetch.SeriesList), msg)
-		for i, series := range fetch.SeriesList {
-			require.Equal(t, ids[i], string(series.Name()), msg)
-			datapoints := series.Values().Datapoints()
-			values := make([]float64, 0, len(datapoints))
-			for _, d := range datapoints {
-				values = append(values, d.Value)
+		seriesList := fetch.PromResult.GetTimeseries()
+		require.Equal(t, size, len(seriesList), msg)
+		for _, series := range seriesList {
+			samples := series.GetSamples()
+			values := make([]float64, 0, len(samples))
+			for _, d := range samples {
+				values = append(values, d.GetValue())
 			}
 
 			require.Equal(t, expectedValues(), values, msg)
+			require.Equal(t, 2, len(series.GetLabels()))
+			for i, l := range series.GetLabels() {
+				assert.Equal(t, exNames[i], string(l.Name))
+				assert.Equal(t, exValues[i], string(l.Value))
+			}
 		}
 
 		require.True(t, cleaned, msg)

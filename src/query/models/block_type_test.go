@@ -27,9 +27,11 @@ import (
 )
 
 func TestFetchedBlockType(t *testing.T) {
-	assert.NoError(t, TypeDecodedBlock.Validate())
 	assert.NoError(t, TypeSingleBlock.Validate())
-	assert.Error(t, TypeMultiBlock.Validate())
-	assert.EqualError(t, FetchedBlockType(3).Validate(), "invalid fetched block "+
-		"type '3': should be one of [0 2]")
+	assert.EqualError(t, TypeDecodedBlock.Validate(),
+		ErrDecodedBlockDeprecated.Error())
+	assert.EqualError(t, TypeMultiBlock.Validate(),
+		ErrMultiBlockDisabled.Error())
+	assert.EqualError(t, FetchedBlockType(3).Validate(),
+		`invalid fetched block type "3"`)
 }

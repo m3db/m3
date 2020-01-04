@@ -36,7 +36,7 @@ import (
 
 func TestTimestamp(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
+	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := newTimestampOp(TimestampType).Node(c, transform.Options{})
 	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
@@ -47,7 +47,9 @@ func TestTimestamp(t *testing.T) {
 	step := bounds.StepSize
 	for _, vals := range sink.Values {
 		for i, val := range vals {
-			assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), val)
+			expected := float64(start.Add(time.Duration(i) * step).Unix())
+			diff := expected - val
+			assert.True(t, diff < 1)
 		}
 	}
 }

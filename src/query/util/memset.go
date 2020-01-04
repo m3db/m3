@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,23 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package block
+package util
 
-import (
-	"github.com/m3db/m3/src/query/models"
-)
+// Memset is a faster way to initialize a float64 array.
+// NB: Inspired from https://github.com/tmthrgd/go-memset, which works
+// directly on the byte interface. The 0 case is optimized due to
+// https://github.com/golang/go/issues/5373 but for non the zero case,
+// we use the copy() optimization.
+// BenchmarkMemsetZeroValues-4    1000000   1344 ns/op
+// BenchmarkLoopZeroValues-4       500000   3217 ns/op
+// BenchmarkMemsetNonZeroValues-4 1000000   1537 ns/op
+// BenchmarkLoopNonZeroValues-4    500000   3236 ns/op
+func Memset(data []float64, value float64) {
+	if value == 0 {
+		for i := range data {
+			data[i] = 0
+		}
+	} else if len(data) != 0 {
+		data[0] = value
 
-// MustMakeMeta returns block metadata or panics (unsafe for use).
-func MustMakeMeta(bounds models.Bounds, tags ...string) Metadata {
-	return Metadata{
-		Tags:   models.MustMakeTags(tags...),
-		Bounds: bounds,
+		for i := 1; i < len(data); i *= 2 {
+			copy(data[i:], data[:i])
+		}
 	}
 }
 
-// MustMakeSeriesMeta returns series metadata or panics (unsafe for use).
-func MustMakeSeriesMeta(tags ...string) SeriesMeta {
-	return SeriesMeta{
-		Tags: models.MustMakeTags(tags...),
+// MemsetInt is a faster way to initialize an int array.
+func MemsetInt(data []int, value int) {
+	if value == 0 {
+		for i := range data {
+			data[i] = 0
+		}
+	} else if len(data) != 0 {
+		data[0] = value
+
+		for i := 1; i < len(data); i *= 2 {
+			copy(data[i:], data[:i])
+		}
 	}
 }
