@@ -576,51 +576,6 @@
             "title": "Sample Call"
         },
         {
-            "location": "/query_engine/roadmap/",
-            "text": "Roadmap\n\n\nQ3-Q4 2019: M3QL support\n\n\n\n\nComplete support for the \nM3 Query Language (M3QL)\n\n\n\n\nQ1-Q2 2019: Graphite and Prometheus feature parity\n\n\n\n\nIngestion and querying support for Graphite (Added in v0.5.0: \n#1308\n)\n\n\nFull support for Prometheus functions (Added in v0.6.0: \n#1367\n and \n#1373\n)\n\n\nTracing support using \nJaeger\n (Added in v0.7.0: \n#1321\n)\n\n\nBasic cost accounting: (Currently in master: \n#1207\n)\n\n\nPerformance improvements: (Ongoing)\n\n\n\n\nQ3-Q4 2018: Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)\n\n\n\n\nWrite a PromQL parser.\n\n\nWrite the current M3QL interfaces to conform to the common DAG structure.\n\n\nSuggest auto aggregation rules.\n\n\nProvide advanced query tracking to figure out bottlenecks.\n\n\n\n\nQ2 2018: M3 Query and optimizations for M3 Coordinator (Q2 2018)\n\n\n\n\nDedicated query engine service, M3 Query.\n\n\nSupport authentication and rate limiting.\n\n\nCost accounting per query and memory management to prevent M3 Query and M3 Coordinator from going OOM.\n\n\nPush computation to storage nodes whenever possible.\n\n\nExecution state manager to keep track of running queries.\n\n\nPort the distributed computation to M3 Query service.\n\n\n\n\nQ1 2018: Launch M3 Coordinator as a bridge for the read/write path of M3DB into open source\n\n\nLate Q1 2018: V2\n\n\n\n\nSupport cross datacenter calls with remote aggregations.\n\n\nBenchmark the performance of the coordinator and M3DB using popular datasets.\n\n\nSupport for multiple M3DB clusters.\n\n\n\n\nEarly Q1 2018: V1\n\n\n\n\nCreate a gRPC/Protobuf service.\n\n\nHandlers for Prometheus remote read/write endpoints.\n\n\nPerform fanout to M3DB nodes.\n\n\nTooling to set up M3 Coordinator alongside Prometheus.",
-            "title": "Roadmap"
-        },
-        {
-            "location": "/query_engine/roadmap/#roadmap",
-            "text": "",
-            "title": "Roadmap"
-        },
-        {
-            "location": "/query_engine/roadmap/#q3-q4-2019-m3ql-support",
-            "text": "Complete support for the  M3 Query Language (M3QL)",
-            "title": "Q3-Q4 2019: M3QL support"
-        },
-        {
-            "location": "/query_engine/roadmap/#q1-q2-2019-graphite-and-prometheus-feature-parity",
-            "text": "Ingestion and querying support for Graphite (Added in v0.5.0:  #1308 )  Full support for Prometheus functions (Added in v0.6.0:  #1367  and  #1373 )  Tracing support using  Jaeger  (Added in v0.7.0:  #1321 )  Basic cost accounting: (Currently in master:  #1207 )  Performance improvements: (Ongoing)",
-            "title": "Q1-Q2 2019: Graphite and Prometheus feature parity"
-        },
-        {
-            "location": "/query_engine/roadmap/#q3-q4-2018-dashboards-can-directly-interact-with-m3-query-or-m3-coordinator-to-get-data-from-m3db-q3-q4-2018",
-            "text": "Write a PromQL parser.  Write the current M3QL interfaces to conform to the common DAG structure.  Suggest auto aggregation rules.  Provide advanced query tracking to figure out bottlenecks.",
-            "title": "Q3-Q4 2018: Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)"
-        },
-        {
-            "location": "/query_engine/roadmap/#q2-2018-m3-query-and-optimizations-for-m3-coordinator-q2-2018",
-            "text": "Dedicated query engine service, M3 Query.  Support authentication and rate limiting.  Cost accounting per query and memory management to prevent M3 Query and M3 Coordinator from going OOM.  Push computation to storage nodes whenever possible.  Execution state manager to keep track of running queries.  Port the distributed computation to M3 Query service.",
-            "title": "Q2 2018: M3 Query and optimizations for M3 Coordinator (Q2 2018)"
-        },
-        {
-            "location": "/query_engine/roadmap/#q1-2018-launch-m3-coordinator-as-a-bridge-for-the-readwrite-path-of-m3db-into-open-source",
-            "text": "",
-            "title": "Q1 2018: Launch M3 Coordinator as a bridge for the read/write path of M3DB into open source"
-        },
-        {
-            "location": "/query_engine/roadmap/#late-q1-2018-v2",
-            "text": "Support cross datacenter calls with remote aggregations.  Benchmark the performance of the coordinator and M3DB using popular datasets.  Support for multiple M3DB clusters.",
-            "title": "Late Q1 2018: V2"
-        },
-        {
-            "location": "/query_engine/roadmap/#early-q1-2018-v1",
-            "text": "Create a gRPC/Protobuf service.  Handlers for Prometheus remote read/write endpoints.  Perform fanout to M3DB nodes.  Tooling to set up M3 Coordinator alongside Prometheus.",
-            "title": "Early Q1 2018: V1"
-        },
-        {
             "location": "/query_engine/architecture/",
             "text": "Architecture\n\n\nPlease note:\n This documentation is a work in progress and more detail is required.\n\n\nOverview\n\n\nM3 Query and M3 Coordinator are written entirely in Go, M3 Query is as a query engine for \nM3DB\n and M3 Coordinator is a remote read/write endpoint for Prometheus and M3DB. To learn more about Prometheus's remote endpoints and storage, \nsee here\n.",
             "title": "Overview"
