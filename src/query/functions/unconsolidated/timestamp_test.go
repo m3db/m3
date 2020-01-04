@@ -47,7 +47,9 @@ func TestTimestamp(t *testing.T) {
 	step := bounds.StepSize
 	for _, vals := range sink.Values {
 		for i, val := range vals {
-			assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), val)
+			expected := float64(start.Add(time.Duration(i) * step).Unix())
+			diff := expected - val
+			assert.True(t, diff < 1)
 		}
 	}
 }
