@@ -40,7 +40,7 @@ func buildBlock(
 	count int,
 	now time.Time,
 	ctrl *gomock.Controller,
-) *encodedBlockUnconsolidated {
+) *encodedBlock {
 	iters := make([]encoding.SeriesIterator, count)
 	seriesMetas := make([]block.SeriesMeta, count)
 	for i := range iters {
@@ -59,7 +59,7 @@ func buildBlock(
 		seriesMetas[i] = block.SeriesMeta{Name: []byte(fmt.Sprint(i))}
 	}
 
-	return &encodedBlockUnconsolidated{
+	return &encodedBlock{
 		seriesBlockIterators: iters,
 		seriesMetas:          seriesMetas,
 		options:              NewOptions(),
@@ -125,7 +125,7 @@ func TestMultiSeriesIter(t *testing.T) {
 }
 
 func TestMultiSeriesIterError(t *testing.T) {
-	b := &encodedBlockUnconsolidated{}
+	b := &encodedBlock{}
 	_, err := b.MultiSeriesIter(0)
 	require.Error(t, err)
 

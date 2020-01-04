@@ -254,17 +254,10 @@ type RestrictQueryOptions struct {
 
 // Querier handles queries against a storage.
 type Querier interface {
-	// Fetch fetches decompressed timeseries data based on a query.
-	// TODO: (arnikola) this is largely deprecated in favor of FetchBlocks;
-	// should be removed.
-	Fetch(
-		ctx context.Context,
-		query *FetchQuery,
-		options *FetchOptions,
-	) (*FetchResult, error)
-
 	// FetchProm fetches decompressed timeseries data based on a query in a
 	// Prometheus-compatible format.
+	// TODO: take in an accumulator of some sort rather than returning
+	// necessarily as a Prom result.
 	FetchProm(
 		ctx context.Context,
 		query *FetchQuery,

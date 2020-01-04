@@ -93,7 +93,7 @@ const (
 	defaultWriteTaggedOpPoolSize = 65536
 
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
-	defaultFetchBatchOpPoolSize = 8192
+	defaultFetchBatchOpPoolSize = 1024
 
 	// defaultFetchBatchSize is the default fetch batch size
 	defaultFetchBatchSize = 128

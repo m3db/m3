@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
-	"github.com/m3db/m3/src/query/tsdb/remote"
+	"github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 

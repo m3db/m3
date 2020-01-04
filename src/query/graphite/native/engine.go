@@ -32,6 +32,8 @@ type Engine struct {
 
 // NewEngine creates a new query engine.
 func NewEngine(store storage.Storage) *Engine {
+	// TODO: take pooling details from config
+	// (https://github.com/m3db/m3/issues/2092)
 	return &Engine{
 		storage: store,
 	}

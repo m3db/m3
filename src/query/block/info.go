@@ -37,10 +37,8 @@ func (t BlockType) String() string {
 		return "container"
 	case BlockEmpty:
 		return "empty"
-	case BlockMultiSeries:
-		return "multiseries"
-	case BlockConsolidated:
-		return "consolidated"
+	case BlockTest:
+		return "test"
 	}
 
 	return "unknown"

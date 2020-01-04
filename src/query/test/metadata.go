@@ -18,46 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package validator
+package test
 
 import (
-	"testing"
-
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestConverter(t *testing.T) {
-	promResult := prometheus.Response{
-		Status: "success",
+// MustMakeMeta returns block metadata or panics (unsafe for use).
+func MustMakeMeta(bounds models.Bounds, tags ...string) block.Metadata {
+	return block.Metadata{
+		Tags:   models.MustMakeTags(tags...),
+		Bounds: bounds,
 	}
+}
 
-	vals := prometheus.Values{
-		{1543434975.200, "10"},
-		{1543434985.200, "12"},
-		{1543434995.200, "14"},
+// MustMakeSeriesMeta returns series metadata or panics (unsafe for use).
+func MustMakeSeriesMeta(tags ...string) block.SeriesMeta {
+	return block.SeriesMeta{
+		Tags: models.MustMakeTags(tags...),
 	}
-
-	metrics := prometheus.Tags{
-		"__name__": "test_name",
-		"tag_one":  "val_one",
-	}
-
-	promResult.Data.ResultType = "matrix"
-	promResult.Data.Result = append(promResult.Data.Result,
-		prometheus.Result{
-			Values: vals,
-			Metric: metrics,
-		},
-	)
-
-	tsList, err := PromResultToSeriesList(promResult, models.NewTagOptions())
-	require.NoError(t, err)
-
-	assert.Equal(t, 3, tsList[0].Len())
-	assert.Equal(t, 10.0, tsList[0].Values().Datapoints()[0].Value)
-	assert.Equal(t, []byte("test_name"), tsList[0].Name())
 }

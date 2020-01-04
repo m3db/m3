@@ -521,7 +521,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 			sm[i] = block.SeriesMeta{}
 		}
 
-		it := encodedSeriesIterUnconsolidated{
+		it := encodedSeriesIter{
 			idx: -1,
 			meta: block.Metadata{
 				Bounds: models.Bounds{
@@ -649,6 +649,6 @@ func BenchmarkNextIteration(b *testing.B) {
 		}
 
 		// NB: this is for clearer groupings.
-		fmt.Println()
+		println()
 	}
 }

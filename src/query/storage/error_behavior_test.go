@@ -25,7 +25,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3/src/x/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -68,7 +69,7 @@ func TestErrorBehaviorUnmarshalYAML(t *testing.T) {
 }
 
 func TestWarnError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	store := NewMockStorage(ctrl)
