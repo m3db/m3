@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package instrument
 
 import (
-	"flag"
-	"fmt"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/server"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	"github.com/m3db/m3/src/x/etcd"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-func main() {
-	var configOpts configflag.Options
-	configOpts.Register()
+// NewTestDebugLogger returns a new debug logger for tests.
+func NewTestDebugLogger(t *testing.T) *zap.Logger {
+	loggerConfig := zap.NewDevelopmentConfig()
+	loggerConfig.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	logger, err := loggerConfig.Build()
+	require.NoError(t, err)
+	return logger
+}
 
-	flag.Parse()
-
-	// Set globals for etcd related packages.
-	etcd.SetGlobals()
-
-	var cfg config.Configuration
-	if err := configOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
-		// sending stdlib "log" to black hole. Don't remove unless with good reason.
-		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		Config: cfg,
-	})
+// NewTestOptions returns a set of instrument options useful for
+// tests. This includes:
+// - Logger built using development config with debug level set.
+func NewTestOptions(t *testing.T) Options {
+	logger := NewTestDebugLogger(t)
+	return NewOptions().SetLogger(logger)
 }

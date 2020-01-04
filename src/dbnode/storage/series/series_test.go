@@ -486,6 +486,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	bl.EXPECT().StartTime().Return(time.Now())
 
 	opts := newSeriesTestOptions()
+	opts = opts.SetCachePolicy(CacheRecentlyRead)
 	ropts := opts.RetentionOptions()
 	curr := time.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {

@@ -27,19 +27,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"reflect"
 	"runtime"
-
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3/src/query/models"
-
-	"github.com/stretchr/testify/require"
+	"sort"
+	"strings"
 )
-
-type tester struct{}
-
-// Ensure tester is a TestingT and set a global `t`.
-var t require.TestingT = &tester{}
 
 var (
 	// name is global and set on startup.
@@ -48,22 +40,12 @@ var (
 	clusters = []string{"coordinator-cluster-a", "coordinator-cluster-b"}
 )
 
-func (t *tester) Errorf(format string, args ...interface{}) {
-	_, fn, line, _ := runtime.Caller(4)
-	args[2] = fmt.Sprintf(" at %s:%d:\n%v", fn, line, args[2])
-	fmt.Printf(format, args...)
-}
-
-func (t *tester) FailNow() {
-	os.Exit(1)
-}
-
 func main() {
 	var ts int
 	flag.IntVar(&ts, "t", -1, "metric name to search")
 	flag.Parse()
 
-	require.True(t, ts > 0, "no timestamp supplied")
+	requireTrue(ts > 0, "no timestamp supplied")
 	name = fmt.Sprintf("foo_%d", ts)
 	instant := fmt.Sprintf("http://0.0.0.0:7201/api/v1/query?query=%s", name)
 	rnge := fmt.Sprintf("http://0.0.0.0:7201/api/v1/query_range?query=%s"+
@@ -78,14 +60,14 @@ func main() {
 	}
 }
 
-func queryWithHeader(url string, h string) (prometheus.Response, error) {
-	var result prometheus.Response
+func queryWithHeader(url string, h string) (response, error) {
+	var result response
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return result, err
 	}
 
-	req.Header.Add(handler.RestrictByTagsJSONHeader, h)
+	req.Header.Add(restrictByTagsJSONHeader, h)
 	client := http.DefaultClient
 	resp, err := client.Do(req)
 	if err != nil {
@@ -106,101 +88,92 @@ func queryWithHeader(url string, h string) (prometheus.Response, error) {
 	return result, err
 }
 
-func mustMatcher(t models.MatchType, n string, v string) models.Matcher {
-	m, err := models.NewMatcher(models.MatchEqual, []byte("val"), []byte("1"))
-	if err != nil {
-		panic(err)
-	}
-
-	return m
-}
-
-func mustParseOpts(o handler.StringTagOptions) string {
+func mustParseOpts(o stringTagOptions) string {
 	m, err := json.Marshal(o)
-	require.NoError(t, err, "cannot marshal to json")
+	requireNoError(err, "cannot marshal to json")
 	return string(m)
 }
 
 func bothClusterDefaultStrip(url string) {
-	m := mustParseOpts(handler.StringTagOptions{
-		Restrict: []handler.StringMatch{
-			handler.StringMatch{Name: "val", Type: "EQUAL", Value: "1"},
+	m := mustParseOpts(stringTagOptions{
+		Restrict: []stringMatch{
+			stringMatch{Name: "val", Type: "EQUAL", Value: "1"},
 		},
 	})
 
 	resp, err := queryWithHeader(url, m)
-	require.NoError(t, err, "failed to query")
+	requireNoError(err, "failed to query")
 
 	data := resp.Data.Result
 	data.Sort()
-	require.Equal(t, len(data), 2)
+	requireEqual(len(data), 2)
 	for i, d := range data {
-		require.Equal(t, 2, len(d.Metric))
-		require.Equal(t, name, d.Metric["__name__"])
-		require.Equal(t, clusters[i], d.Metric["cluster"])
+		requireEqual(2, len(d.Metric))
+		requireEqual(name, d.Metric["__name__"])
+		requireEqual(clusters[i], d.Metric["cluster"])
 	}
 }
 
 func bothClusterCustomStrip(url string) {
-	m := mustParseOpts(handler.StringTagOptions{
-		Restrict: []handler.StringMatch{
-			handler.StringMatch{Name: "val", Type: "EQUAL", Value: "1"},
+	m := mustParseOpts(stringTagOptions{
+		Restrict: []stringMatch{
+			stringMatch{Name: "val", Type: "EQUAL", Value: "1"},
 		},
 		Strip: []string{"__name__"},
 	})
 
 	resp, err := queryWithHeader(url, string(m))
-	require.NoError(t, err, "failed to query")
+	requireNoError(err, "failed to query")
 
 	data := resp.Data.Result
 	data.Sort()
-	require.Equal(t, len(data), 2)
+	requireEqual(len(data), 2)
 	for i, d := range data {
-		require.Equal(t, 2, len(d.Metric))
-		require.Equal(t, clusters[i], d.Metric["cluster"])
-		require.Equal(t, "1", d.Metric["val"])
+		requireEqual(2, len(d.Metric))
+		requireEqual(clusters[i], d.Metric["cluster"])
+		requireEqual("1", d.Metric["val"])
 	}
 }
 
 func bothClusterNoStrip(url string) {
-	m := mustParseOpts(handler.StringTagOptions{
-		Restrict: []handler.StringMatch{
-			handler.StringMatch{Name: "val", Type: "EQUAL", Value: "1"},
+	m := mustParseOpts(stringTagOptions{
+		Restrict: []stringMatch{
+			stringMatch{Name: "val", Type: "EQUAL", Value: "1"},
 		},
 		Strip: []string{},
 	})
 
 	resp, err := queryWithHeader(url, string(m))
-	require.NoError(t, err, "failed to query")
+	requireNoError(err, "failed to query")
 
 	data := resp.Data.Result
 	data.Sort()
-	require.Equal(t, len(data), 2)
+	requireEqual(len(data), 2)
 	for i, d := range data {
-		require.Equal(t, 3, len(d.Metric))
-		require.Equal(t, name, d.Metric["__name__"])
-		require.Equal(t, clusters[i], d.Metric["cluster"])
-		require.Equal(t, "1", d.Metric["val"])
+		requireEqual(3, len(d.Metric))
+		requireEqual(name, d.Metric["__name__"])
+		requireEqual(clusters[i], d.Metric["cluster"])
+		requireEqual("1", d.Metric["val"])
 	}
 }
 
 func bothClusterMultiStrip(url string) {
-	m := mustParseOpts(handler.StringTagOptions{
-		Restrict: []handler.StringMatch{
-			handler.StringMatch{Name: "val", Type: "EQUAL", Value: "1"},
+	m := mustParseOpts(stringTagOptions{
+		Restrict: []stringMatch{
+			stringMatch{Name: "val", Type: "EQUAL", Value: "1"},
 		},
 		Strip: []string{"val", "__name__"},
 	})
 
 	resp, err := queryWithHeader(url, string(m))
-	require.NoError(t, err, "failed to query")
+	requireNoError(err, "failed to query")
 
 	data := resp.Data.Result
 	data.Sort()
-	require.Equal(t, len(data), 2)
+	requireEqual(len(data), 2)
 	for i, d := range data {
-		require.Equal(t, 1, len(d.Metric))
-		require.Equal(t, clusters[i], d.Metric["cluster"])
+		requireEqual(1, len(d.Metric))
+		requireEqual(clusters[i], d.Metric["cluster"])
 	}
 }
 
@@ -208,18 +181,163 @@ func bothClusterMultiStrip(url string) {
 // and cluster 2 is expected to have metrics with vals in range: [1,10]
 // so setting the value to be in (5..10] should hit only a single metric.
 func singleClusterDefaultStrip(url string) {
-	m := mustParseOpts(handler.StringTagOptions{
-		Restrict: []handler.StringMatch{
-			handler.StringMatch{Name: "val", Type: "EQUAL", Value: "9"},
+	m := mustParseOpts(stringTagOptions{
+		Restrict: []stringMatch{
+			stringMatch{Name: "val", Type: "EQUAL", Value: "9"},
 		},
 	})
 
 	resp, err := queryWithHeader(url, string(m))
-	require.NoError(t, err, "failed to query")
+	requireNoError(err, "failed to query")
 
 	data := resp.Data.Result
-	require.Equal(t, len(data), 1, url)
-	require.Equal(t, 2, len(data[0].Metric))
-	require.Equal(t, name, data[0].Metric["__name__"], "single")
-	require.Equal(t, "coordinator-cluster-b", data[0].Metric["cluster"])
+	requireEqual(len(data), 1, url)
+	requireEqual(2, len(data[0].Metric))
+	requireEqual(name, data[0].Metric["__name__"], "single")
+	requireEqual("coordinator-cluster-b", data[0].Metric["cluster"])
+}
+
+/*
+
+Helper functions below. This allows the test file to avoid importing any non
+standard libraries.
+
+*/
+
+const restrictByTagsJSONHeader = "M3-Restrict-By-Tags-JSON"
+
+// StringMatch is an easy to use JSON representation of models.Matcher that
+// allows plaintext fields rather than forcing base64 encoded values.
+type stringMatch struct {
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+// stringTagOptions is an easy to use JSON representation of
+// storage.RestrictByTag that allows plaintext string fields rather than
+// forcing base64 encoded values.
+type stringTagOptions struct {
+	Restrict []stringMatch `json:"match"`
+	Strip    []string      `json:"strip"`
+}
+
+func printMessage(msg ...interface{}) {
+	fmt.Println(msg...)
+
+	_, fn, line, _ := runtime.Caller(4)
+	fmt.Printf("\tin func: %v, line: %v\n", fn, line)
+
+	os.Exit(1)
+}
+
+func testEqual(ex interface{}, ac interface{}) bool {
+	if ex == nil || ac == nil {
+		return ex == ac
+	}
+
+	return reflect.DeepEqual(ex, ac)
+}
+
+func requireEqual(ex interface{}, ac interface{}, msg ...interface{}) {
+	if testEqual(ex, ac) {
+		return
+	}
+
+	fmt.Printf(""+
+		"Not equal: %#v (expected)\n"+
+		"           %#v (actual)\n", ex, ac)
+	printMessage(msg...)
+}
+
+func requireNoError(err error, msg ...interface{}) {
+	if err == nil {
+		return
+	}
+
+	fmt.Printf("Received unexpected error %q\n", err)
+	printMessage(msg...)
+}
+
+func requireTrue(b bool, msg ...interface{}) {
+	if b {
+		return
+	}
+
+	fmt.Println("Expected true, got false")
+	printMessage(msg...)
+}
+
+// response represents Prometheus's query response.
+type response struct {
+	// Status is the response status.
+	Status string `json:"status"`
+	// Data is the response data.
+	Data data `json:"data"`
+}
+
+type data struct {
+	// ResultType is the result type for the response.
+	ResultType string `json:"resultType"`
+	// Result is the list of results for the response.
+	Result results `json:"result"`
+}
+
+type results []result
+
+// Len is the number of elements in the collection.
+func (r results) Len() int { return len(r) }
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (r results) Less(i, j int) bool {
+	return r[i].id < r[j].id
+}
+
+// Swap swaps the elements with indexes i and j.
+func (r results) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+
+// Sort sorts the results.
+func (r results) Sort() {
+	for i, result := range r {
+		r[i] = result.genID()
+	}
+
+	sort.Sort(r)
+}
+
+// result is the result itself.
+type result struct {
+	// Metric is the tags for the result.
+	Metric tags `json:"metric"`
+	// Values is the set of values for the result.
+	Values values `json:"values"`
+	id     string
+}
+
+// tags is a simple representation of Prometheus tags.
+type tags map[string]string
+
+// Values is a list of values for the Prometheus result.
+type values []value
+
+// Value is a single value for Prometheus result.
+type value []interface{}
+
+func (r *result) genID() result {
+	tags := make(sort.StringSlice, len(r.Metric))
+	for k, v := range r.Metric {
+		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
+	}
+
+	sort.Sort(tags)
+	var sb strings.Builder
+	// NB: this may clash but exact tag values are also checked, and this is a
+	// validation endpoint so there's less concern over correctness.
+	for _, t := range tags {
+		sb.WriteString(t)
+	}
+
+	r.id = sb.String()
+	return *r
 }
