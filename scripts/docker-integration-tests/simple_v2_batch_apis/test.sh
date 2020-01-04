@@ -85,7 +85,8 @@ function prometheus_remote_write {
 function test_prometheus_remote_write_too_old_returns_400_status_code {
   # Test writing too far into the past returns an HTTP 400 status code
   echo "Test write into the past returns HTTP 400"
-  hour_ago=$(expr $(date +"%s") - 3600) 
+  now=$(date +"%s")
+  hour_ago=$(( now - 3600 ))
   prometheus_remote_write \
     $METRIC_NAME_TEST_TOO_OLD $hour_ago 3.142 \
     false "Expected request to fail" \
@@ -147,7 +148,8 @@ function prometheus_query_native {
 
 function test_query_restrict_metrics_type {
   now=$(date +"%s")
-  hour_ago=$(expr $now - 3600) 
+  hour_ago=$(( now - 3600 ))
+
   step="30s"
   params_instant=""
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
