@@ -1,7 +1,7 @@
 common: &common
   timeout_in_minutes: 20
   agents:
-    queue: monorepo
+    queue: workers
   retry:
     # Automatically retry failures one time.
     automatic:
