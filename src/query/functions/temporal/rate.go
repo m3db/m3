@@ -140,7 +140,8 @@ func (r *rateNode) process(datapoints ts.Datapoints, bounds iterationBounds) flo
 
 func standardRateFunc(
 	datapoints ts.Datapoints,
-	isRate, isCounter bool,
+	isRate bool,
+	isCounter bool,
 	rangeStart xtime.UnixNano,
 	rangeEnd xtime.UnixNano,
 	timeWindow time.Duration,
