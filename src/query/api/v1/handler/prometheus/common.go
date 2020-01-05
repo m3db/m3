@@ -129,20 +129,29 @@ func ParseRequestTimeout(
 	return duration, nil
 }
 
+// TagCompletionQueries are tag completion queries.
+type TagCompletionQueries struct {
+	// Queries are the tag completion queries.
+	Queries []*storage.CompleteTagsQuery
+	// NameOnly indicates name only
+	NameOnly bool
+}
+
 // ParseTagCompletionParamsToQueries parses all params from the GET request.
 // Returns queries, a boolean indicating if the query completes names only, and
 // any errors.
 func ParseTagCompletionParamsToQueries(
 	r *http.Request,
-) ([]*storage.CompleteTagsQuery, bool, *xhttp.ParseError) {
+) (TagCompletionQueries, *xhttp.ParseError) {
+	tagCompletionQueries := TagCompletionQueries{}
 	start, err := parseTimeWithDefault(r, "start", time.Time{})
 	if err != nil {
-		return nil, false, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	end, err := parseTimeWithDefault(r, "end", time.Now())
 	if err != nil {
-		return nil, false, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	// If there is a result type field present, parse it and set
@@ -156,14 +165,15 @@ func ParseTagCompletionParamsToQueries(
 		case "tagNamesOnly":
 			nameOnly = true
 		default:
-			return nil, false, xhttp.NewParseError(
+			return tagCompletionQueries, xhttp.NewParseError(
 				errors.ErrInvalidResultParamError, http.StatusBadRequest)
 		}
 	}
 
+	tagCompletionQueries.NameOnly = nameOnly
 	queries, err := parseTagCompletionQueries(r)
 	if err != nil {
-		return nil, nameOnly, xhttp.NewParseError(
+		return tagCompletionQueries, xhttp.NewParseError(
 			fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
 	}
 
@@ -177,7 +187,7 @@ func ParseTagCompletionParamsToQueries(
 
 		matchers, err := models.MatchersFromString(query)
 		if err != nil {
-			return nil, nameOnly, xhttp.NewParseError(err, http.StatusBadRequest)
+			return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
 		tagQuery.TagMatchers = matchers
@@ -190,7 +200,8 @@ func ParseTagCompletionParamsToQueries(
 		tagQueries = append(tagQueries, tagQuery)
 	}
 
-	return tagQueries, nameOnly, nil
+	tagCompletionQueries.Queries = tagQueries
+	return tagCompletionQueries, nil
 }
 
 func parseTagCompletionQueries(r *http.Request) ([]string, error) {

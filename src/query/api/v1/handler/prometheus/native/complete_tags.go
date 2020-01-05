@@ -68,7 +68,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 
-	queries, nameOnly, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
+	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -85,11 +85,12 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		wg       sync.WaitGroup
 		multiErr xerrors.MultiError
 
+		nameOnly      = tagCompletionQueries.NameOnly
 		resultBuilder = storage.NewCompleteTagsResultBuilder(nameOnly)
 		meta          = block.NewResultMetadata()
 	)
 
-	for _, query := range queries {
+	for _, query := range tagCompletionQueries.Queries {
 		wg.Add(1)
 		// Capture variables.
 		query := query
