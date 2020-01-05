@@ -79,7 +79,8 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 	mockParent := cost.NewMockChainedEnforcer(ctrl)
 	mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
 
-	parser, err := promql.Parse("foo", time.Second, models.NewTagOptions())
+	parser, err := promql.Parse("foo", time.Second,
+		models.NewTagOptions(), promql.NewParseOptions())
 	require.NoError(t, err)
 
 	engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,

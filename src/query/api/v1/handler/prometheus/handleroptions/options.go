@@ -18,29 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package handleroptions
 
 import (
-	"bytes"
-	"net/http"
-	"testing"
-
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
+	"time"
 )
 
-func TestPlacementSource(t *testing.T) {
-	handlerOpts, _ := newHandlerOptsAndClient(t)
-	iOpts := instrument.NewOptions()
-	svcDefaults := handleroptions.ServiceNameAndDefaults{
-		ServiceName: "m3db",
-	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
-	require.NoError(t, err)
+// PromWriteHandlerForwardingOptions is the forwarding
+// options for prometheus write handler.
+type PromWriteHandlerForwardingOptions struct {
+	// MaxConcurrency is the max parallel forwarding and if zero will be unlimited.
+	MaxConcurrency int                                    `yaml:"maxConcurrency"`
+	Timeout        time.Duration                          `yaml:"timeout"`
+	Targets        []PromWriteHandlerForwardTargetOptions `yaml:"targets"`
+}
 
-	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
-	require.NotZero(t, buff.Len())
+// PromWriteHandlerForwardTargetOptions is a prometheus write
+// handler forwarder target.
+type PromWriteHandlerForwardTargetOptions struct {
+	// URL of the target to send to.
+	URL string `yaml:"url"`
+	// Method defaults to POST if not set.
+	Method string `yaml:"method"`
 }

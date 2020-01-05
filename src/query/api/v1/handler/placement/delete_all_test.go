@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -47,7 +47,7 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		require.NoError(t, err)
 		handler := NewDeleteAllHandler(handlerOpts)
 
-		svcDefaults := apihandler.ServiceNameAndDefaults{
+		svcDefaults := handleroptions.ServiceNameAndDefaults{
 			ServiceName: serviceName,
 		}
 

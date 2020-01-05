@@ -18,29 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package handleroptions
 
 import (
-	"bytes"
-	"net/http"
+	"fmt"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/query/block"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestPlacementSource(t *testing.T) {
-	handlerOpts, _ := newHandlerOptsAndClient(t)
-	iOpts := instrument.NewOptions()
-	svcDefaults := handleroptions.ServiceNameAndDefaults{
-		ServiceName: "m3db",
-	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
-	require.NoError(t, err)
+func TestAddWarningHeaders(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 0, len(recorder.Header()))
 
-	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
-	require.NotZero(t, buff.Len())
+	recorder = httptest.NewRecorder()
+	meta.Exhaustive = false
+	ex := LimitHeaderSeriesLimitApplied
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+
+	recorder = httptest.NewRecorder()
+	meta.AddWarning("foo", "bar")
+	ex = fmt.Sprintf("%s,%s_%s", LimitHeaderSeriesLimitApplied, "foo", "bar")
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+
+	recorder = httptest.NewRecorder()
+	meta.Exhaustive = true
+	ex = "foo_bar"
+	AddWarningHeaders(recorder, meta)
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
 }

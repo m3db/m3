@@ -28,14 +28,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -82,8 +82,11 @@ func makeBlockResult(
 
 func TestParseNoQuery(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
-	handler := NewRenderHandler(mockStorage,
-		models.QueryContextOptions{}, nil, instrument.NewOptions())
+
+	opts := options.EmptyHandlerOptions().
+		SetStorage(mockStorage).
+		SetQueryContextOptions(models.QueryContextOptions{})
+	handler := NewRenderHandler(opts)
 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, newGraphiteReadHTTPRequest(t))
@@ -101,8 +104,10 @@ func TestParseQueryNoResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	handler := NewRenderHandler(store,
-		models.QueryContextOptions{}, nil, instrument.NewOptions())
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetQueryContextOptions(models.QueryContextOptions{})
+	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = "target=foo.bar&from=-2h&until=now"
@@ -144,8 +149,10 @@ func TestParseQueryResults(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	handler := NewRenderHandler(store,
-		models.QueryContextOptions{}, nil, instrument.NewOptions())
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetQueryContextOptions(models.QueryContextOptions{})
+	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf("target=foo.bar&from=%d&until=%d",
@@ -196,8 +203,10 @@ func TestParseQueryResultsMaxDatapoints(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(blockResult, nil)
 
-	handler := NewRenderHandler(store,
-		models.QueryContextOptions{}, nil, instrument.NewOptions())
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetQueryContextOptions(models.QueryContextOptions{})
+	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf(
@@ -250,8 +259,10 @@ func TestParseQueryResultsMultiTarget(t *testing.T) {
 	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(makeBlockResult(ctrl, fr), nil)
 
-	handler := NewRenderHandler(store,
-		models.QueryContextOptions{}, nil, instrument.NewOptions())
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetQueryContextOptions(models.QueryContextOptions{})
+	handler := NewRenderHandler(opts)
 
 	req := newGraphiteReadHTTPRequest(t)
 	req.URL.RawQuery = fmt.Sprintf(
@@ -311,8 +322,10 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(makeBlockResult(ctrl, frTwo), nil)
 
-			h := NewRenderHandler(store,
-				models.QueryContextOptions{}, nil, instrument.NewOptions())
+			opts := options.EmptyHandlerOptions().
+				SetStorage(store).
+				SetQueryContextOptions(models.QueryContextOptions{})
+			handler := NewRenderHandler(opts)
 
 			req := newGraphiteReadHTTPRequest(t)
 			req.URL.RawQuery = fmt.Sprintf(
@@ -320,9 +333,9 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 				start.Unix(), start.Unix()+30,
 			)
 			recorder := httptest.NewRecorder()
-			h.ServeHTTP(recorder, req)
+			handler.ServeHTTP(recorder, req)
 
-			actual := recorder.Header().Get(handler.LimitHeader)
+			actual := recorder.Header().Get(handleroptions.LimitHeader)
 			assert.Equal(t, tt.header, actual)
 		})
 	}

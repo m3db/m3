@@ -29,9 +29,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
@@ -87,14 +89,14 @@ func setupServer(t *testing.T) *httptest.Server {
 }
 
 func readHandler(store storage.Storage, timeoutOpts *prometheus.TimeoutOpts) *PromReadHandler {
-	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	opts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	engine := newEngine(store, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 	return &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     promReadTestMetrics,
 		timeoutOpts:         timeoutOpts,
-		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
+		fetchOptionsBuilder: handleroptions.NewFetchOptionsBuilder(opts),
 		instrumentOpts:      instrument.NewOptions(),
 	}
 }
@@ -102,16 +104,16 @@ func readHandler(store storage.Storage, timeoutOpts *prometheus.TimeoutOpts) *Pr
 func TestPromReadParsing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	opts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 	promRead := &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     promReadTestMetrics,
-		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
+		fetchOptionsBuilder: handleroptions.NewFetchOptionsBuilder(opts),
 	}
-	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
+	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	r, err := promRead.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Queries), 1)
@@ -120,7 +122,7 @@ func TestPromReadParsing(t *testing.T) {
 func TestPromFetchTimeoutParsing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	opts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 	promRead := &PromReadHandler{
@@ -129,7 +131,7 @@ func TestPromFetchTimeoutParsing(t *testing.T) {
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: 2 * time.Minute,
 		},
-		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
+		fetchOptionsBuilder: handleroptions.NewFetchOptionsBuilder(opts),
 	}
 
 	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
@@ -160,7 +162,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	res, err := promRead.read(context.TODO(), recorder,
 		req, time.Hour, storage.NewFetchOptions())
 	require.Error(t, err, "unable to read from storage")
-	header := recorder.Header().Get(handler.LimitHeader)
+	header := recorder.Header().Get(handleroptions.LimitHeader)
 	assert.Equal(t, 0, len(header))
 
 	meta := res.meta
@@ -216,14 +218,14 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
-	opts := handler.FetchOptionsBuilderOptions{Limit: 100}
+	opts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 	promRead := &PromReadHandler{
 		engine:              engine,
 		promReadMetrics:     readMetrics,
 		timeoutOpts:         timeoutOpts,
-		fetchOptionsBuilder: handler.NewFetchOptionsBuilder(opts),
+		fetchOptionsBuilder: handleroptions.NewFetchOptionsBuilder(opts),
 		instrumentOpts:      instrument.NewOptions(),
 	}
 
@@ -295,7 +297,14 @@ func TestMultipleRead(t *testing.T) {
 		ExecuteProm(gomock.Any(), qTwo, gomock.Any(), gomock.Any()).
 		Return(rTwo, nil)
 
-	h := NewPromReadHandler(engine, nil, nil, true, instrument.NewOptions()).(*PromReadHandler)
+	handlerOpts := options.EmptyHandlerOptions().SetEngine(engine).
+		SetConfig(config.Configuration{
+			ResultOptions: config.ResultOptions{
+				KeepNans: true,
+			},
+		})
+
+	h := NewPromReadHandler(handlerOpts).(*PromReadHandler)
 	res, err := h.read(context.TODO(), nil, req, 0, storage.NewFetchOptions())
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{
@@ -363,8 +372,14 @@ func TestReadWithOptions(t *testing.T) {
 		},
 	}
 
-	h := NewPromReadHandler(engine, nil, nil, true,
-		instrument.NewOptions()).(*PromReadHandler)
+	handlerOpts := options.EmptyHandlerOptions().SetEngine(engine).
+		SetConfig(config.Configuration{
+			ResultOptions: config.ResultOptions{
+				KeepNans: true,
+			},
+		})
+
+	h := NewPromReadHandler(handlerOpts).(*PromReadHandler)
 	res, err := h.read(context.TODO(), nil, req, 0, opts)
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{

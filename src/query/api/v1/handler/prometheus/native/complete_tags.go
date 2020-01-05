@@ -26,6 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -45,20 +47,16 @@ const (
 // CompleteTagsHandler represents a handler for search tags endpoint.
 type CompleteTagsHandler struct {
 	storage             storage.Storage
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
 
 // NewCompleteTagsHandler returns a new instance of handler.
-func NewCompleteTagsHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &CompleteTagsHandler{
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		instrumentOpts:      instrumentOpts,
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -86,7 +84,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	handler.AddWarningHeaders(w, result.Metadata)
+	handleroptions.AddWarningHeaders(w, result.Metadata)
 	if err = prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 	}
