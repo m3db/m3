@@ -53,10 +53,6 @@ const (
 	TagValuesHTTPMethod = http.MethodGet
 )
 
-var (
-	matchValues = []byte(".*")
-)
-
 // TagValuesHandler represents a handler for search tags endpoint.
 type TagValuesHandler struct {
 	storage             storage.Storage

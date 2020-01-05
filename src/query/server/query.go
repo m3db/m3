@@ -125,8 +125,8 @@ type RunOptions struct {
 	// CustomHandlers is a list of custom 3rd party handlers.
 	CustomHandlers []options.CustomHandler
 
-	// CustomParseFunction is a custom parsing function.
-	CustomParseFunction promql.ParseFn
+	// CustomPromQLParseFunction is a custom PromQL parsing function.
+	CustomPromQLParseFunction promql.ParseFn
 }
 
 // Run runs the server programmatically given a filename for the configuration file.
@@ -288,7 +288,7 @@ func Run(runOpts RunOptions) {
 		SetGlobalEnforcer(perQueryEnforcer).
 		SetInstrumentOptions(instrumentOptions.
 			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
-	if fn := runOpts.CustomParseFunction; fn != nil {
+	if fn := runOpts.CustomPromQLParseFunction; fn != nil {
 		engineOpts = engineOpts.
 			SetParseOptions(engineOpts.ParseOptions().SetParseFn(fn))
 	}
