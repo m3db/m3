@@ -49,12 +49,13 @@ const flushType = "flush"
 
 func main() {
 	var (
-		optPathPrefix     = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
-		optFailFast       = getopt.BoolLong("fail-fast", 'f', "Fail fast will bail on first failure")
-		optFixDir         = getopt.StringLong("fix-path-prefix", 'o', "/tmp/m3db", "Fix output path file prefix for fixed files [e.g. /tmp/m3db]")
-		optFixInvalidIDs  = getopt.BoolLong("fix-invalid-ids", 'i', "Fix invalid IDs will remove entries with IDs that have non-UTF8 chars")
-		optFixInvalidTags = getopt.BoolLong("fix-invalid-tags", 't', "Fix invalid tags will remove tags with name/values non-UTF8 chars")
-		optDebugLog       = getopt.BoolLong("debug", 'd', "Enable debug log level")
+		optPathPrefix          = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
+		optFailFast            = getopt.BoolLong("fail-fast", 'f', "Fail fast will bail on first failure")
+		optFixDir              = getopt.StringLong("fix-path-prefix", 'o', "/tmp/m3db", "Fix output path file prefix for fixed files [e.g. /tmp/m3db]")
+		optFixInvalidIDs       = getopt.BoolLong("fix-invalid-ids", 'i', "Fix invalid IDs will remove entries with IDs that have non-UTF8 chars")
+		optFixInvalidTags      = getopt.BoolLong("fix-invalid-tags", 't', "Fix invalid tags will remove entries with tags that have name/values non-UTF8 chars")
+		optFixInvalidChecksums = getopt.BoolLong("fix-invalid-checksums", 'c', "Fix invalid checksums will remove entries with bad checksums")
+		optDebugLog            = getopt.BoolLong("debug", 'd', "Enable debug log level")
 	)
 	getopt.Parse()
 
@@ -76,22 +77,24 @@ func main() {
 	}
 
 	run(runOptions{
-		filePathPrefix: *optPathPrefix,
-		failFast:       *optFailFast,
-		fixDir:         *optFixDir,
-		fixInvalidIDs:  *optFixInvalidIDs,
-		fixInvalidTags: *optFixInvalidTags,
-		log:            log,
+		filePathPrefix:      *optPathPrefix,
+		failFast:            *optFailFast,
+		fixDir:              *optFixDir,
+		fixInvalidIDs:       *optFixInvalidIDs,
+		fixInvalidTags:      *optFixInvalidTags,
+		fixInvalidChecksums: *optFixInvalidChecksums,
+		log:                 log,
 	})
 }
 
 type runOptions struct {
-	filePathPrefix string
-	failFast       bool
-	fixDir         string
-	fixInvalidIDs  bool
-	fixInvalidTags bool
-	log            *zap.Logger
+	filePathPrefix      string
+	failFast            bool
+	fixDir              string
+	fixInvalidIDs       bool
+	fixInvalidTags      bool
+	fixInvalidChecksums bool
+	log                 *zap.Logger
 }
 
 func run(opts runOptions) {
@@ -161,12 +164,13 @@ func run(opts runOptions) {
 	for _, fileSet := range fileSetFiles {
 		log.Info("verifying file set file", zap.Any("fileSet", fileSet))
 		if err := verifyFileSet(verifyFileSetOptions{
-			filePathPrefix: filePathPrefix,
-			bytesPool:      bytesPool,
-			fileSet:        fileSet,
-			fixDir:         opts.fixDir,
-			fixInvalidIDs:  opts.fixInvalidIDs,
-			fixInvalidTags: opts.fixInvalidTags,
+			filePathPrefix:      filePathPrefix,
+			bytesPool:           bytesPool,
+			fileSet:             fileSet,
+			fixDir:              opts.fixDir,
+			fixInvalidIDs:       opts.fixInvalidIDs,
+			fixInvalidTags:      opts.fixInvalidTags,
+			fixInvalidChecksums: opts.fixInvalidChecksums,
 		}, log); err != nil {
 			log.Error("file set file failed verification",
 				zap.Error(err),
@@ -200,7 +204,7 @@ func dirFiles(dirPath string) ([]string, error) {
 		return nil, fmt.Errorf("could not read dir names: %v", err)
 	}
 
-	results := make([]string, 0, len(entries))
+	results := entries[:0]
 	for _, p := range entries {
 		if p == "." || p == ".." || p == "./.." || p == "./" || p == "../" || p == "./../" {
 			continue
@@ -215,9 +219,10 @@ type verifyFileSetOptions struct {
 	bytesPool      pool.CheckedBytesPool
 	fileSet        fs.FileSetFile
 
-	fixDir         string
-	fixInvalidIDs  bool
-	fixInvalidTags bool
+	fixDir              string
+	fixInvalidIDs       bool
+	fixInvalidTags      bool
+	fixInvalidChecksums bool
 }
 
 func verifyFileSet(
@@ -255,22 +260,27 @@ func verifyFileSet(
 
 		check, err := readEntry(id, tags, data, checksum)
 		data.Finalize() // Always finalize data.
-		if err != nil {
-			shouldFixInvalidID := check.invalidID && opts.fixInvalidIDs
-			shouldFixInvalidTags := check.invalidTags && opts.fixInvalidTags
-			if shouldFixInvalidID || shouldFixInvalidTags {
-				log.Info("starting to fix file set", zap.Any("fileSet", fileSet))
-				fixErr := fixFileSet(opts, log)
-				if fixErr == nil {
-					log.Info("fixed file set", zap.Any("fileSet", fileSet))
-					return err
-				}
+		if err == nil {
+			continue
+		}
 
-				log.Error("could not fix file set",
-					zap.Any("fileSet", fileSet), zap.Error(fixErr))
-			}
+		shouldFixInvalidID := check.invalidID && opts.fixInvalidIDs
+		shouldFixInvalidTags := check.invalidTags && opts.fixInvalidTags
+		shouldFixInvalidChecksum := check.invalidChecksum && opts.fixInvalidChecksums
+		if !shouldFixInvalidID && !shouldFixInvalidTags && !shouldFixInvalidChecksum {
 			return err
 		}
+
+		log.Info("starting to fix file set", zap.Any("fileSet", fileSet))
+		fixErr := fixFileSet(opts, log)
+		if fixErr != nil {
+			log.Error("could not fix file set",
+				zap.Any("fileSet", fileSet), zap.Error(fixErr))
+			return err
+		}
+
+		log.Info("fixed file set", zap.Any("fileSet", fileSet))
+		return err
 	}
 
 	return nil
@@ -360,10 +370,16 @@ func fixFileSet(
 		return err
 	}
 
+	success := false
+	defer func() {
+		if !success {
+			writer.Close()
+		}
+	}()
+
 	var (
 		currTags     []ident.Tag
 		currTagsIter = ident.NewTagsIterator(ident.Tags{})
-		tagsBuffer   []ident.Tag
 		removedIDs   int
 		removedTags  int
 		copies       []checked.Bytes
@@ -412,35 +428,20 @@ func fixFileSet(
 		check, err := readEntry(id, currTagsIter, data, checksum)
 		if err != nil {
 			shouldFixInvalidID := check.invalidID && opts.fixInvalidIDs
-			if shouldFixInvalidID {
+			shouldFixInvalidTags := check.invalidTags && opts.fixInvalidTags
+			shouldFixInvalidChecksum := check.invalidChecksum && opts.fixInvalidChecksums
+			log.Info("read entry for fix",
+				zap.Bool("shouldFixInvalidID", shouldFixInvalidID),
+				zap.Bool("shouldFixInvalidTags", shouldFixInvalidTags),
+				zap.Bool("shouldFixInvalidChecksum", shouldFixInvalidChecksum))
+
+			if shouldFixInvalidID || shouldFixInvalidTags || shouldFixInvalidChecksum {
 				// Skip this entry being written to the target volume.
 				removedIDs++
 				continue
 			}
 
-			shouldFixInvalidTags := check.invalidTags && opts.fixInvalidTags
-			if shouldFixInvalidTags {
-				// Need to remove invalid tags.
-				tagsBuffer = tagsBuffer[:0]
-				for _, tag := range currTags {
-					if err := convert.ValidateSeriesTag(tag); err != nil {
-						removedTags++
-						continue
-					}
-					tagsBuffer = append(tagsBuffer, tag)
-				}
-
-				// Make sure we write out the modified tags.
-				writeTags = tagsBuffer
-			}
-			log.Info("read entry for fix",
-				zap.Bool("shouldFixInvalidID", shouldFixInvalidID),
-				zap.Bool("shouldFixInvalidTags", shouldFixInvalidTags))
-
-			if check.invalidChecksum {
-				// Can't fix an invalid checksum.
-				return fmt.Errorf("encountered an invalid checksum while fixing file set: %v", err)
-			}
+			return fmt.Errorf("encountered an error not enabled to fix: %v", err)
 		}
 
 		var writeIdentTags ident.Tags
@@ -469,5 +470,6 @@ func fixFileSet(
 		zap.Int("removedIDs", removedIDs),
 		zap.Int("removedTags", removedTags))
 
+	success = true
 	return writer.Close()
 }
