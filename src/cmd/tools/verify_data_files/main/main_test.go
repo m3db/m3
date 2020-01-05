@@ -1,5 +1,3 @@
-// +build big
-//
 // Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,10 +33,23 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
-
+	"github.com/m3db/m3/src/x/pool"
+  
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+var (
+	testBytesPool pool.CheckedBytesPool
+)
+
+func init() {
+	testBytesPool = pool.NewCheckedBytesPool(nil, pool.NewObjectPoolOptions(),
+		func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, pool.NewObjectPoolOptions())
+		})
+	testBytesPool.Init()
+}
 
 func newInvalidUTF8Bytes(t *testing.T) []byte {
 	bytes, err := hex.DecodeString("bf")
@@ -126,6 +137,7 @@ func TestFixFileSetInvalidID(t *testing.T) {
 		filePathPrefix: testWriter.testDir,
 		fixDir:         fixDir,
 		fixInvalidIDs:  true,
+		bytesPool:      testBytesPool,
 		log:            zap.NewExample(),
 	})
 
@@ -208,6 +220,7 @@ func TestFixFileSetInvalidTags(t *testing.T) {
 		filePathPrefix: testWriter.testDir,
 		fixDir:         fixDir,
 		fixInvalidTags: true,
+		bytesPool:      testBytesPool,
 		log:            zap.NewExample(),
 	})
 
@@ -299,6 +312,7 @@ func TestFixFileSetInvalidChecksum(t *testing.T) {
 		filePathPrefix:      testWriter.testDir,
 		fixDir:              fixDir,
 		fixInvalidChecksums: true,
+		bytesPool:           testBytesPool,
 		log:                 zap.NewExample(),
 	})
 

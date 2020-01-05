@@ -76,6 +76,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Info("creating bytes pool")
+	bytesPool := tools.NewCheckedBytesPool()
+	bytesPool.Init()
+
 	run(runOptions{
 		filePathPrefix:      *optPathPrefix,
 		failFast:            *optFailFast,
@@ -83,6 +87,7 @@ func main() {
 		fixInvalidIDs:       *optFixInvalidIDs,
 		fixInvalidTags:      *optFixInvalidTags,
 		fixInvalidChecksums: *optFixInvalidChecksums,
+		bytesPool:           bytesPool,
 		log:                 log,
 	})
 }
@@ -94,16 +99,14 @@ type runOptions struct {
 	fixInvalidIDs       bool
 	fixInvalidTags      bool
 	fixInvalidChecksums bool
+	bytesPool           pool.CheckedBytesPool
 	log                 *zap.Logger
 }
 
 func run(opts runOptions) {
 	filePathPrefix := opts.filePathPrefix
+	bytesPool := opts.bytesPool
 	log := opts.log
-
-	log.Info("creating bytes pool")
-	bytesPool := tools.NewCheckedBytesPool()
-	bytesPool.Init()
 
 	dataDirPath := fs.DataDirPath(filePathPrefix)
 
