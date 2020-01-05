@@ -36,13 +36,14 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/prometheus/prometheus/promql"
+	pql "github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDAGWithCountOp(t *testing.T) {
 	q := "count(http_requests_total{method=\"GET\"}) by (service)"
-	p, err := Parse(q, time.Second, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -60,7 +61,7 @@ func TestDAGWithCountOp(t *testing.T) {
 
 func TestDAGWithOffset(t *testing.T) {
 	q := "up offset 2m"
-	p, err := Parse(q, time.Second, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -78,13 +79,13 @@ func TestDAGWithOffset(t *testing.T) {
 
 func TestInvalidOffset(t *testing.T) {
 	q := "up offset -2m"
-	_, err := Parse(q, time.Second, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
 func TestNegativeUnary(t *testing.T) {
 	q := "-up"
-	p, err := Parse(q, time.Second, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -100,7 +101,7 @@ func TestNegativeUnary(t *testing.T) {
 
 func TestPositiveUnary(t *testing.T) {
 	q := "+up"
-	p, err := Parse(q, time.Second, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestPositiveUnary(t *testing.T) {
 
 func TestInvalidUnary(t *testing.T) {
 	q := "*up"
-	_, err := Parse(q, time.Second, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
@@ -127,13 +128,13 @@ func TestGetUnaryOpType(t *testing.T) {
 
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
-	_, err := Parse(q, time.Second, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
 func TestDAGWithFakeOp(t *testing.T) {
 	q := "fake(http_requests_total{method=\"GET\"})"
-	_, err := Parse(q, time.Second, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
@@ -161,7 +162,7 @@ func TestAggregateParses(t *testing.T) {
 	for _, tt := range aggregateParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -211,7 +212,7 @@ func TestLinearParses(t *testing.T) {
 	for _, tt := range linearParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -246,7 +247,7 @@ func TestVariadicParses(t *testing.T) {
 	for _, tt := range variadicTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, _, err := p.DAG()
 			require.NoError(t, err)
@@ -269,7 +270,7 @@ func TestSort(t *testing.T) {
 	for _, tt := range sortTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -282,7 +283,8 @@ func TestSort(t *testing.T) {
 }
 
 func TestScalar(t *testing.T) {
-	p, err := Parse("scalar(up)", time.Second, models.NewTagOptions())
+	p, err := Parse("scalar(up)", time.Second,
+		models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -301,7 +303,8 @@ func TestVector(t *testing.T) {
 
 	for _, expr := range vectorExprs {
 		t.Run(expr, func(t *testing.T) {
-			p, err := Parse(expr, time.Second, models.NewTagOptions())
+			p, err := Parse(expr, time.Second,
+				models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -315,7 +318,7 @@ func TestVector(t *testing.T) {
 
 func TestTimeTypeParse(t *testing.T) {
 	q := "time()"
-	p, err := Parse(q, time.Second, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -355,7 +358,8 @@ var binaryParseTests = []struct {
 func TestBinaryParses(t *testing.T) {
 	for _, tt := range binaryParseTests {
 		t.Run(tt.q, func(t *testing.T) {
-			p, err := Parse(tt.q, time.Second, models.NewTagOptions())
+			p, err := Parse(tt.q, time.Second,
+				models.NewTagOptions(), NewParseOptions())
 
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
@@ -377,7 +381,8 @@ func TestBinaryParses(t *testing.T) {
 }
 
 func TestParenPrecedenceParses(t *testing.T) {
-	p, err := Parse("(5^(up-6))", time.Second, models.NewTagOptions())
+	p, err := Parse("(5^(up-6))", time.Second,
+		models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -441,7 +446,7 @@ func TestTemporalParses(t *testing.T) {
 	for _, tt := range temporalParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -469,7 +474,7 @@ func TestTagParses(t *testing.T) {
 	for _, tt := range tagParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -487,13 +492,35 @@ func TestTagParses(t *testing.T) {
 
 func TestFailedTemporalParse(t *testing.T) {
 	q := "unknown_over_time(http_requests_total[5m])"
-	_, err := Parse(q, time.Second, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
 func TestMissingTagsDoNotPanic(t *testing.T) {
 	q := `label_join(up, "foo", ",")`
-	p, err := Parse(q, time.Second, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	assert.NotPanics(t, func() { _, _, _ = p.DAG() })
+}
+
+func TestCustomParseOptions(t *testing.T) {
+	q := "query"
+	v := "foo"
+	called := 0
+	fn := func(query string) (pql.Expr, error) {
+		assert.Equal(t, q, query)
+		called++
+		return &pql.StringLiteral{Val: v}, nil
+	}
+
+	opts := NewParseOptions().SetParseFn(fn)
+	ex, err := Parse(q, time.Second, models.NewTagOptions(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, 1, called)
+	parse, ok := ex.(*promParser)
+	require.True(t, ok)
+	assert.Equal(t, pql.ValueTypeString, string(parse.expr.Type()))
+	str, ok := parse.expr.(*pql.StringLiteral)
+	require.True(t, ok)
+	assert.Equal(t, v, str.Val)
 }

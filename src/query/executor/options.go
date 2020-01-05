@@ -24,6 +24,7 @@ import (
 	"time"
 
 	qcost "github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -32,12 +33,15 @@ type engineOptions struct {
 	instrumentOpts   instrument.Options
 	globalEnforcer   qcost.ChainedEnforcer
 	store            storage.Storage
+	parseOptions     promql.ParseOptions
 	lookbackDuration time.Duration
 }
 
 // NewEngineOptions returns a new instance of options used to create an engine.
 func NewEngineOptions() EngineOptions {
-	return &engineOptions{}
+	return &engineOptions{
+		parseOptions: promql.NewParseOptions(),
+	}
 }
 
 func (o *engineOptions) InstrumentOptions() instrument.Options {
@@ -77,5 +81,15 @@ func (o *engineOptions) LookbackDuration() time.Duration {
 func (o *engineOptions) SetLookbackDuration(v time.Duration) EngineOptions {
 	opts := *o
 	opts.lookbackDuration = v
+	return &opts
+}
+
+func (o *engineOptions) ParseOptions() promql.ParseOptions {
+	return o.parseOptions
+}
+
+func (o *engineOptions) SetParseOptions(p promql.ParseOptions) EngineOptions {
+	opts := *o
+	opts.parseOptions = p
 	return &opts
 }

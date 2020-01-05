@@ -29,6 +29,8 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -58,28 +60,22 @@ type PromReadHandler struct {
 	engine              executor.Engine
 	promReadMetrics     promReadMetrics
 	timeoutOpts         *prometheus.TimeoutOpts
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	keepEmpty           bool
 	instrumentOpts      instrument.Options
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(
-	engine executor.Engine,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	timeoutOpts *prometheus.TimeoutOpts,
-	keepEmpty bool,
-	instrumentOpts instrument.Options,
-) http.Handler {
-	taggedScope := instrumentOpts.MetricsScope().
+func NewPromReadHandler(opts options.HandlerOptions) http.Handler {
+	taggedScope := opts.InstrumentOpts().MetricsScope().
 		Tagged(map[string]string{"handler": "remote-read"})
 	return &PromReadHandler{
-		engine:              engine,
+		engine:              opts.Engine(),
 		promReadMetrics:     newPromReadMetrics(taggedScope),
-		timeoutOpts:         timeoutOpts,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		keepEmpty:           keepEmpty,
-		instrumentOpts:      instrumentOpts,
+		timeoutOpts:         opts.TimeoutOpts(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		keepEmpty:           opts.Config().ResultOptions.KeepNans,
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -147,7 +143,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
-	handler.AddWarningHeaders(w, readResult.meta)
+	handleroptions.AddWarningHeaders(w, readResult.meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {

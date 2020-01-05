@@ -39,9 +39,9 @@ import (
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -283,7 +283,7 @@ func TestDefaultSources(t *testing.T) {
 	}
 
 	handlerOpts, mockClient := newHandlerOptsAndClient(t)
-	svcDefaults := []apihandler.ServiceNameAndDefaults{{
+	svcDefaults := []handleroptions.ServiceNameAndDefaults{{
 		ServiceName: "m3db",
 	}}
 	zw, err := NewPlacementAndNamespaceZipWriterWithDefaultSources(1*time.Second, mockClient, handlerOpts, svcDefaults, instrument.NewOptions())

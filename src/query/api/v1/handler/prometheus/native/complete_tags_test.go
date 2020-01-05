@@ -25,10 +25,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +50,7 @@ var tests = []struct {
 	{
 		"non-exhaustive",
 		block.ResultMetadata{Exhaustive: false},
-		handler.LimitHeaderSeriesLimitApplied,
+		handleroptions.LimitHeaderSeriesLimitApplied,
 	},
 	{
 		"warnings",
@@ -84,9 +84,12 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 		Metadata: meta,
 	}
 
-	h := NewCompleteTagsHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		instrument.NewOptions())
+	fb := handleroptions.
+		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb)
+	h := NewCompleteTagsHandler(opts)
 	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(storeResult, nil)
 
@@ -104,6 +107,6 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 		`{"key":"baz","values":[]},{"key":"foo","values":[]}]}`
 	require.Equal(t, ex, string(r))
 
-	actual := w.Header().Get(handler.LimitHeader)
+	actual := w.Header().Get(handleroptions.LimitHeader)
 	assert.Equal(t, header, actual)
 }

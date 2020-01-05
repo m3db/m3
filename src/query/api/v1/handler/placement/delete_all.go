@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -66,14 +67,14 @@ func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
 }
 
 func (h *DeleteAllHandler) ServeHTTP(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOptions)
-		opts   = handler.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
+		opts   = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
