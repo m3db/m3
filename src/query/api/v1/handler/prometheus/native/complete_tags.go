@@ -99,6 +99,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			mu.Lock()
 			if err != nil {
 				multiErr = multiErr.Add(err)
+				return
 			}
 
 			meta = meta.CombineMetadata(result.Metadata)
