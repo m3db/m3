@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -99,19 +99,20 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 func RegisterRoutes(
 	r *mux.Router,
 	client clusterclient.Client,
-	defaults []handler.ServiceOptionsDefault,
+	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) {
 	wrapped := func(n http.Handler) http.Handler {
 		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
 	}
 	applyMiddleware := func(
-		f func(svc handler.ServiceNameAndDefaults, w http.ResponseWriter, r *http.Request),
-		defaults []handler.ServiceOptionsDefault,
+		f func(svc handleroptions.ServiceNameAndDefaults,
+			w http.ResponseWriter, r *http.Request),
+		defaults []handleroptions.ServiceOptionsDefault,
 	) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			svc := handler.ServiceNameAndDefaults{
-				ServiceName: handler.M3DBServiceName,
+			svc := handleroptions.ServiceNameAndDefaults{
+				ServiceName: handleroptions.M3DBServiceName,
 				Defaults:    defaults,
 			}
 			f(svc, w, r)

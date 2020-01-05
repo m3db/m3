@@ -24,6 +24,8 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -42,15 +44,15 @@ const (
 
 // PromThresholdHandler represents a handler for prometheus threshold endpoint.
 type promThresholdHandler struct {
+	engine         executor.Engine
 	instrumentOpts instrument.Options
 }
 
 // NewPromThresholdHandler returns a new instance of handler.
-func NewPromThresholdHandler(
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewPromThresholdHandler(opts options.HandlerOptions) http.Handler {
 	return &promThresholdHandler{
-		instrumentOpts: instrumentOpts,
+		engine:         opts.Engine(),
+		instrumentOpts: opts.InstrumentOpts(),
 	}
 }
 
@@ -167,7 +169,7 @@ func (n FunctionNode) QueryRepresentation() (QueryRepresentation, error) {
 
 func (h *promThresholdHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.instrumentOpts.Logger()
-	root, err := parseRootNode(r, logger)
+	root, err := parseRootNode(r, h.engine, logger)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return

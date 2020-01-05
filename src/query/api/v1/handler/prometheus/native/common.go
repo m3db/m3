@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -125,7 +125,7 @@ func parseParams(
 	if step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
 		return params, xhttp.NewParseError(
-			fmt.Errorf(formatErrStr, handler.StepParam, err), http.StatusBadRequest)
+			fmt.Errorf(formatErrStr, handleroptions.StepParam, err), http.StatusBadRequest)
 	}
 
 	params.Step = fetchOpts.Step

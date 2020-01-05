@@ -18,28 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package promql
 
 import (
-	"sort"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	pql "github.com/prometheus/prometheus/promql"
 )
 
-func TestIsAllowedService(t *testing.T) {
-	assert.True(t, IsAllowedService("m3db"))
-	assert.False(t, IsAllowedService("foo"))
+// ParseFn is a function that parses a query to a Prometheus expression.
+type ParseFn func(query string) (pql.Expr, error)
+
+func defaultParseFn(query string) (pql.Expr, error) {
+	return pql.ParseExpr(query)
 }
 
-func TestAllowedServices(t *testing.T) {
-	exp := []string{
-		"m3aggregator",
-		"m3coordinator",
-		"m3db",
-	}
+// ParseOptions are options for the Prometheus parser.
+type ParseOptions interface {
+	// ParseFn gets the parse function.
+	ParseFn() ParseFn
+	// SetParseFn sets the parse function.
+	SetParseFn(e ParseFn) ParseOptions
+}
 
-	svcs := AllowedServices()
-	sort.Strings(svcs)
-	assert.Equal(t, exp, svcs)
+type parseOptions struct {
+	fn ParseFn
+}
+
+// NewParseOptions creates a new parse options.
+func NewParseOptions() ParseOptions {
+	return &parseOptions{fn: defaultParseFn}
+}
+
+func (o *parseOptions) ParseFn() ParseFn {
+	return o.fn
+}
+
+func (o *parseOptions) SetParseFn(f ParseFn) ParseOptions {
+	opts := *o
+	opts.fn = f
+	return &opts
 }

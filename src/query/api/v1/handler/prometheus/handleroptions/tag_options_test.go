@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package handleroptions
 
 import (
 	"encoding/json"
@@ -124,7 +124,6 @@ func TestParse(t *testing.T) {
 		{`{"match":[{}]}`, nil, true},
 		{`{"match":[{"type":"ALL"}]}`, nil, true},
 		{`{"match":[{"type":"invalid"}]}`, nil, true},
-		{`{"match":[{"name":"a","type":"EQUAL"}]}`, nil, true},
 	}
 
 	for _, tt := range tests {

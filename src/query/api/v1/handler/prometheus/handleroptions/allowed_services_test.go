@@ -18,42 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package handleroptions
 
 import (
-	"fmt"
-	"net/http/httptest"
+	"sort"
 	"testing"
-
-	"github.com/m3db/m3/src/query/block"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAddWarningHeaders(t *testing.T) {
-	recorder := httptest.NewRecorder()
-	meta := block.NewResultMetadata()
-	AddWarningHeaders(recorder, meta)
-	assert.Equal(t, 0, len(recorder.Header()))
+func TestIsAllowedService(t *testing.T) {
+	assert.True(t, IsAllowedService("m3db"))
+	assert.False(t, IsAllowedService("foo"))
+}
 
-	recorder = httptest.NewRecorder()
-	meta.Exhaustive = false
-	ex := LimitHeaderSeriesLimitApplied
-	AddWarningHeaders(recorder, meta)
-	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+func TestAllowedServices(t *testing.T) {
+	exp := []string{
+		"m3aggregator",
+		"m3coordinator",
+		"m3db",
+	}
 
-	recorder = httptest.NewRecorder()
-	meta.AddWarning("foo", "bar")
-	ex = fmt.Sprintf("%s,%s_%s", LimitHeaderSeriesLimitApplied, "foo", "bar")
-	AddWarningHeaders(recorder, meta)
-	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
-
-	recorder = httptest.NewRecorder()
-	meta.Exhaustive = true
-	ex = "foo_bar"
-	AddWarningHeaders(recorder, meta)
-	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, ex, recorder.Header().Get(LimitHeader))
+	svcs := AllowedServices()
+	sort.Strings(svcs)
+	assert.Equal(t, exp, svcs)
 }

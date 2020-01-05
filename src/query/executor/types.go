@@ -27,6 +27,7 @@ import (
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -81,4 +82,9 @@ type EngineOptions interface {
 	LookbackDuration() time.Duration
 	// SetLookbackDuration sets the query lookback duration.
 	SetLookbackDuration(time.Duration) EngineOptions
+
+	// ParseOptions returns the parse options.
+	ParseOptions() promql.ParseOptions
+	// SetParseOptions sets the parse options.
+	SetParseOptions(p promql.ParseOptions) EngineOptions
 }
