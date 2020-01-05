@@ -241,6 +241,11 @@ func NewTags(values ...Tag) Tags {
 	return Tags{values: values}
 }
 
+// Reset resets the tags for reuse.
+func (t *Tags) Reset(values []Tag) {
+	t.values = values
+}
+
 // Values returns the tags values.
 func (t Tags) Values() []Tag {
 	return t.values

@@ -1164,7 +1164,7 @@ func (s *dbShard) newShardEntry(
 			return nil, err
 		}
 
-		if err := convert.ValidateMetric(seriesID, seriesTags); err != nil {
+		if err := convert.ValidateSeries(seriesID, seriesTags); err != nil {
 			return nil, err
 		}
 

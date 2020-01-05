@@ -108,6 +108,7 @@ type DataFileSetReaderStatus struct {
 	Shard      uint32
 	Volume     int
 	Open       bool
+	BlockSize  time.Duration
 }
 
 // DataReaderOpenOptions is options struct for the reader open method.
