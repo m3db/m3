@@ -97,6 +97,11 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		go func() {
 			result, err := h.storage.CompleteTags(ctx, query, opts)
 			mu.Lock()
+			defer func() {
+				mu.Unlock()
+				wg.Done()
+			}()
+
 			if err != nil {
 				multiErr = multiErr.Add(err)
 				return
@@ -107,9 +112,6 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				multiErr = multiErr.Add(err)
 			}
-
-			mu.Unlock()
-			wg.Done()
 		}()
 	}
 
