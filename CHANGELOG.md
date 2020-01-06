@@ -1,6 +1,32 @@
 # Changelog
 
-# 0.15
+# 0.15.0
+
+## Bug Fixes
+
+- **M3DB**: Fixed memory leak causing index blocks to remain in memory after flushing ([#2037](https://github.com/m3db/m3/pull/2037))
+- **M3DB**: Validate indexable metrics for valid utf-8 prior to insert, also includes a utility for fixing corrupted index data ([#2046](https://github.com/m3db/m3/pull/2046))
+- **M3Query**: Fix some issues with cross-zonal query fanout and add verifier utility to ensure compatibility with Prometheus queries ([#1993](https://github.com/m3db/m3/pull/1993))
+
+## Performance
+
+- **M3DB**: Use references to index segment data instead of allocating segments per request ([#1839](https://github.com/m3db/m3/pull/1839))
+- **M3DB**: Greatly improve bootstrapping performance by allowing bootstrapping to be performed in a single pass ([#1989](https://github.com/m3db/m3/pull/1989))
+- **M3DB**: Further improve peer bootstrapping performance by using a document builder rather than raw memory segments ([#2078](https://github.com/m3db/m3/pull/2078))
+- **M3Query**: Greatly improve performance for temporal functions ([#2049](https://github.com/m3db/m3/pull/2049))
+- **General**: Add compression to cross-node TChannel network traffic ([#2079](https://github.com/m3db/m3/pull/2079)) ([#2082](https://github.com/m3db/m3/pull/2082))
+
+## Features
+
+- **M3Coordinator**: Add support for mapping rules, allowing metrics to be stored at different resolutions ([#2036](https://github.com/m3db/m3/pull/2036))
+- **M3Coordinator**: Add graphite mapping rule support ([#2060](https://github.com/m3db/m3/pull/2060)) ([#2063](https://github.com/m3db/m3/pull/2063))
+- **M3Query**: Return headers indicating incomplete results when hitting a limit or failing fanout ([#2053](https://github.com/m3db/m3/pull/2053))
+- **M3Query**: Optionally force all queries to include a given tag ([#2053](https://github.com/m3db/m3/pull/2053))
+- **M3Query**: Refactor query server to allow for custom handlers ([#2073](https://github.com/m3db/m3/pull/2073))
+
+## Misc
+
+- **All**: Add a utility for comparing performance and correctness across different versions of M3DB, allowing for performance improvement diffs ([#2044](https://github.com/m3db/m3/pull/2044))
 
 # 0.14.2
 

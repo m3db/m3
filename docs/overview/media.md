@@ -8,6 +8,8 @@
 
 ## Recorded Talks
 
+- [Deep Linking Metrics and Traces with OpenTelemetry, OpenMetrics and M3](https://www.youtube.com/watch?v=TzNZIEvhAdA) By Rob Skillington - Nov 22, 2019 [Slides](https://static.sched.com/hosted_files/kccncna19/2e/Deep%20Linking%20Metrics%20and%20Traces%20with%20OpenTelemetry%2C%20OpenMetrics%2C%20Prometheus%20and%20M3%20%281%29.pdf)
+
 - [OSCON 2019: Large-Scale Automated Storage on Kubernetes](https://youtu.be/N9A7xSE9n-c) By Matt Schallert - Jul 18, 2019. [Slides](https://schallert.io/OSCON%20Large-Scale%20Automated%20Storage%20on%20Kubernetes.pdf)
 
 - [How to get the 30,000 ft view, 1 ft view and everything in between without breaking the bank](https://vimeo.com/341146220) By Martin Mao - June 5, 2019. [Slides](https://www.slideshare.net/MartinMao/monitorama-2019-pdx-martin-mao)
