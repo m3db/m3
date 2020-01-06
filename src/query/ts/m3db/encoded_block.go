@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -28,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3/src/query/util"
 )
 
 type consolidationSettings struct {
@@ -92,17 +94,6 @@ func newEncodedBlock(
 	}
 }
 
-func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
-	return &encodedBlockUnconsolidated{
-		lastBlock:            b.lastBlock,
-		meta:                 b.meta,
-		consolidation:        b.consolidation,
-		seriesMetas:          b.seriesMetas,
-		seriesBlockIterators: b.seriesBlockIterators,
-		options:              b.options,
-	}, nil
-}
-
 func (b *encodedBlock) Close() error {
 	for _, bl := range b.seriesBlockIterators {
 		bl.Close()
@@ -153,4 +144,53 @@ func (b *encodedBlock) generateMetas() error {
 
 func (b *encodedBlock) Info() block.BlockInfo {
 	return block.NewBlockInfo(block.BlockM3TSZCompressed)
+}
+
+// MultiSeriesIter returns batched series iterators for the block based on
+// given concurrency.
+func (b *encodedBlock) MultiSeriesIter(
+	concurrency int,
+) ([]block.SeriesIterBatch, error) {
+	if concurrency < 1 {
+		return nil, fmt.Errorf("batch size %d must be greater than 0", concurrency)
+	}
+
+	var (
+		iterCount  = len(b.seriesBlockIterators)
+		iters      = make([]block.SeriesIterBatch, 0, concurrency)
+		chunkSize  = iterCount / concurrency
+		remainder  = iterCount % concurrency
+		chunkSizes = make([]int, concurrency)
+	)
+
+	util.MemsetInt(chunkSizes, chunkSize)
+	for i := 0; i < remainder; i++ {
+		chunkSizes[i] = chunkSizes[i] + 1
+	}
+
+	start := 0
+	for _, chunkSize := range chunkSizes {
+		end := start + chunkSize
+
+		if end > iterCount {
+			end = iterCount
+		}
+
+		iter := &encodedSeriesIter{
+			idx:              -1,
+			meta:             b.meta,
+			seriesMeta:       b.seriesMetas[start:end],
+			seriesIters:      b.seriesBlockIterators[start:end],
+			lookbackDuration: b.options.LookbackDuration(),
+		}
+
+		iters = append(iters, block.SeriesIterBatch{
+			Iter: iter,
+			Size: end - start,
+		})
+
+		start = end
+	}
+
+	return iters, nil
 }

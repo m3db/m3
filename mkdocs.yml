@@ -79,7 +79,6 @@ pages:
     - "Introduction": "query_engine/index.md"
     - "API":
       - "Query": "query_engine/api/index.md"
-    - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
       - "Blocks": "query_engine/architecture/blocks.md"

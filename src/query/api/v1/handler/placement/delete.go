@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -73,7 +74,7 @@ func NewDeleteHandler(opts HandlerOptions) *DeleteHandler {
 }
 
 func (h *DeleteHandler) ServeHTTP(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -91,7 +92,7 @@ func (h *DeleteHandler) ServeHTTP(
 
 	var (
 		force = r.FormValue(placementForceVar) == "true"
-		opts  = handler.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
+		opts  = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
 	service, algo, err := ServiceWithAlgo(h.clusterClient, opts, h.nowFn(), nil)

@@ -45,8 +45,10 @@ func Parse(
 	q string,
 	stepSize time.Duration,
 	tagOpts models.TagOptions,
+	parseOptions ParseOptions,
 ) (parser.Parser, error) {
-	expr, err := pql.ParseExpr(q)
+	fn := parseOptions.ParseFn()
+	expr, err := fn(q)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +65,7 @@ func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
 		stepSize: p.stepSize,
 		tagOpts:  p.tagOpts,
 	}
+
 	err := state.walk(p.expr)
 	if err != nil {
 		return nil, nil, err

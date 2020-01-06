@@ -33,13 +33,14 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/opentracing"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var emptyOp = baseOp{}
 
 type iterationBounds struct {
-	start int64
-	end   int64
+	start xtime.UnixNano
+	end   xtime.UnixNano
 }
 
 // makeProcessor is a way to create a transform.
@@ -116,23 +117,13 @@ func (c *baseNode) Process(
 	sp, _ := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
-	unconsolidatedBlock, err := b.Unconsolidated()
-	if err != nil {
-		return err
-	}
-
-	if unconsolidatedBlock == nil {
-		return fmt.Errorf(
-			"block needs to be unconsolidated for temporal operations: %s", c.op)
-	}
-
 	meta := b.Meta()
 	bounds := meta.Bounds
 	if bounds.Duration == 0 {
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
 
-	seriesIter, err := unconsolidatedBlock.SeriesIter()
+	seriesIter, err := b.SeriesIter()
 	if err != nil {
 		return err
 	}
@@ -158,15 +149,15 @@ func (c *baseNode) Process(
 	}
 
 	m := blockMeta{
-		end:         bounds.Start.UnixNano(),
+		end:         xtime.ToUnixNano(bounds.Start),
 		seriesMeta:  resultSeriesMeta,
-		aggDuration: int64(c.op.duration),
-		stepSize:    int64(bounds.StepSize),
+		aggDuration: xtime.UnixNano(c.op.duration),
+		stepSize:    xtime.UnixNano(bounds.StepSize),
 		steps:       steps,
 	}
 
 	concurrency := runtime.NumCPU()
-	batches, err := unconsolidatedBlock.MultiSeriesIter(concurrency)
+	batches, err := b.MultiSeriesIter(concurrency)
 	if err != nil {
 		// NB: If the unconsolidated block does not support multi series iteration,
 		// fallback to processing series one by one.
@@ -186,15 +177,15 @@ func (c *baseNode) Process(
 }
 
 type blockMeta struct {
-	end         int64
-	aggDuration int64
-	stepSize    int64
+	end         xtime.UnixNano
+	aggDuration xtime.UnixNano
+	stepSize    xtime.UnixNano
 	steps       int
 	seriesMeta  []block.SeriesMeta
 }
 
 func batchProcess(
-	iterBatches []block.UnconsolidatedSeriesIterBatch,
+	iterBatches []block.SeriesIterBatch,
 	builder block.Builder,
 	m blockMeta,
 	p processor,
@@ -216,11 +207,14 @@ func batchProcess(
 		batch := batch
 		idx = idx + batch.Size
 		go func() {
-			err := buildBlockBatch(loopIndex, batch.Iter, builder, m, p, &mu)
-			mu.Lock()
-			// NB: this no-ops if the error is nil.
-			multiErr = multiErr.Add(err)
-			mu.Unlock()
+			if err := buildBlockBatch(loopIndex, batch.Iter,
+				builder, m, p, &mu); err != nil {
+				mu.Lock()
+				// NB: this no-ops if the error is nil.
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+			}
+
 			wg.Done()
 		}()
 	}
@@ -231,7 +225,7 @@ func batchProcess(
 
 func buildBlockBatch(
 	idx int,
-	iter block.UnconsolidatedSeriesIter,
+	iter block.SeriesIter,
 	builder block.Builder,
 	blockMeta blockMeta,
 	processor processor,
@@ -285,7 +279,7 @@ func buildBlockBatch(
 }
 
 func singleProcess(
-	seriesIter block.UnconsolidatedSeriesIter,
+	seriesIter block.SeriesIter,
 	builder block.Builder,
 	m blockMeta,
 	p processor,
@@ -337,8 +331,8 @@ func singleProcess(
 // the datapoint list.
 func getIndices(
 	dps []ts.Datapoint,
-	lBound int64,
-	rBound int64,
+	lBound xtime.UnixNano,
+	rBound xtime.UnixNano,
 	init int,
 ) (int, int, bool) {
 	if init >= len(dps) || init < 0 {
@@ -351,7 +345,7 @@ func getIndices(
 	)
 
 	for i, dp := range dps[init:] {
-		ts := dp.Timestamp.UnixNano()
+		ts := xtime.ToUnixNano(dp.Timestamp)
 		if !leftBound {
 			// Trying to set left bound.
 			if ts < lBound {
@@ -364,7 +358,6 @@ func getIndices(
 		}
 
 		if ts <= rBound {
-			// if !ts.After(rBound) {
 			continue
 		}
 

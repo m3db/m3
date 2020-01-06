@@ -23,21 +23,22 @@ package unconsolidated
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
-	// TimestampType returns the timestamp of each of the samples of the given time series
-	// as the number of seconds since January 1, 1970 UTC.
+	// TimestampType returns the timestamp of each of the samples of the given
+	// time series as the number of seconds since January 1, 1970 UTC.
 	TimestampType = "timestamp"
 )
 
-// NewTimestampOp creates a new timestamp operation
+// NewTimestampOp creates a new timestamp operation.
 func NewTimestampOp(opType string) (parser.Params, error) {
 	if opType != TimestampType {
 		return timestampOp{}, fmt.Errorf("operator not supported: %s", opType)
@@ -46,17 +47,16 @@ func NewTimestampOp(opType string) (parser.Params, error) {
 	return newTimestampOp(opType), nil
 }
 
-// timestampOp stores required properties for timestamp ops
 type timestampOp struct {
 	opType string
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o timestampOp) OpType() string {
 	return o.opType
 }
 
-// String representation
+// String representation.
 func (o timestampOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
@@ -88,17 +88,20 @@ func (n *timestampNode) Params() parser.Params {
 }
 
 // Process the block
-func (n *timestampNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func (n *timestampNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
-	unconsolidatedBlock, err := b.Unconsolidated()
-	if err != nil {
-		return nil, err
-	}
-
-	iter, err := unconsolidatedBlock.StepIter()
+func (n *timestampNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
+	iter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
@@ -108,27 +111,29 @@ func (n *timestampNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.No
 		return nil, err
 	}
 
-	if err = builder.AddCols(iter.StepCount()); err != nil {
+	count := iter.StepCount()
+	seriesCount := len(iter.SeriesMeta())
+	if err = builder.AddCols(count); err != nil {
 		return nil, err
 	}
 
+	bounds := b.Meta().Bounds
+	currentStep := float64(bounds.Start.UnixNano()) / float64(time.Second)
+	step := float64(bounds.StepSize) / float64(time.Second)
+	values := make([]float64, seriesCount)
 	for index := 0; iter.Next(); index++ {
-		step := iter.Current()
-		values := make([]float64, len(step.Values()))
-		ts.Memset(values, math.NaN())
-		for i, dps := range step.Values() {
-			if len(dps) == 0 {
-				continue
-			}
-
-			values[i] = float64(dps[len(dps)-1].Timestamp.Unix())
-		}
-
-		for _, value := range values {
-			if err := builder.AppendValue(index, value); err != nil {
-				return nil, err
+		curr := iter.Current()
+		util.Memset(values, currentStep)
+		for i, dp := range curr.Values() {
+			// NB: If there is no datapoint at this step, there should also not
+			// be a value for the timestamp function.
+			if math.IsNaN(dp) {
+				values[i] = math.NaN()
 			}
 		}
+
+		builder.AppendValues(index, values)
+		currentStep = currentStep + step
 	}
 
 	if err = iter.Err(); err != nil {

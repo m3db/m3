@@ -32,13 +32,14 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 )
+
+const initMetricMapSize = 10
 
 type fanoutStorage struct {
 	stores             []storage.Storage
@@ -63,26 +64,6 @@ func NewStorage(
 		completeTagsFilter: completeTagsFilter,
 		instrumentOpts:     instrumentOpts,
 	}
-}
-
-func (s *fanoutStorage) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	stores := filterStores(s.stores, s.fetchFilter, query)
-	requests := make([]execution.Request, 0, len(stores))
-	logger := s.instrumentOpts.Logger()
-	for _, store := range stores {
-		requests = append(requests, newFetchRequest(store, query, logger, options))
-	}
-
-	err := execution.ExecuteParallel(ctx, requests)
-	if err != nil {
-		return nil, err
-	}
-
-	return handleFetchResponses(requests)
 }
 
 func (s *fanoutStorage) FetchProm(
@@ -153,7 +134,7 @@ func (s *fanoutStorage) FetchProm(
 	}
 
 	// If there were no successful results at all, return a normal error.
-	if numWarning == len(stores) {
+	if numWarning > 0 && numWarning == len(stores) {
 		return storage.PromResult{}, errors.ErrNoValidResults
 	}
 
@@ -261,7 +242,7 @@ func (s *fanoutStorage) FetchBlocks(
 	}
 
 	// If there were no successful results at all, return a normal error.
-	if numWarning == len(stores) {
+	if numWarning > 0 && numWarning == len(stores) {
 		return block.Result{}, errors.ErrNoValidResults
 	}
 
@@ -287,35 +268,6 @@ func (s *fanoutStorage) FetchBlocks(
 		Metadata: resultMeta,
 	}, nil
 }
-
-func handleFetchResponses(
-	requests []execution.Request,
-) (*storage.FetchResult, error) {
-	seriesList := make([]*ts.Series, 0, len(requests))
-	meta := block.NewResultMetadata()
-	for _, req := range requests {
-		fetchreq, ok := req.(*fetchRequest)
-		if !ok {
-			return nil, errors.ErrFetchRequestType
-		}
-
-		if fetchreq.result == nil {
-			return nil, errors.ErrInvalidFetchResult
-		}
-
-		// NB: even if series list is empty, result metadata must be combined for
-		// warning propagation.
-		meta = meta.CombineMetadata(fetchreq.result.Metadata)
-		seriesList = append(seriesList, fetchreq.result.SeriesList...)
-	}
-
-	return &storage.FetchResult{
-		Metadata:   meta,
-		SeriesList: seriesList,
-	}, nil
-}
-
-const initMetricMapSize = 10
 
 func (s *fanoutStorage) SearchSeries(
 	ctx context.Context,
@@ -529,60 +481,6 @@ func filterCompleteTagsStores(
 	}
 
 	return filtered
-}
-
-type fetchRequest struct {
-	store   storage.Storage
-	query   *storage.FetchQuery
-	options *storage.FetchOptions
-	result  *storage.FetchResult
-	logger  *zap.Logger
-}
-
-func newFetchRequest(
-	store storage.Storage,
-	query *storage.FetchQuery,
-	logger *zap.Logger,
-	options *storage.FetchOptions,
-) execution.Request {
-	return &fetchRequest{
-		store:   store,
-		query:   query,
-		options: options,
-		logger:  logger,
-	}
-}
-
-func (f *fetchRequest) Process(ctx context.Context) error {
-	result, err := f.store.Fetch(ctx, f.query, f.options)
-	if err != nil {
-		metadata := block.NewResultMetadata()
-		if warning, err := storage.IsWarning(f.store, err); warning {
-			metadata.AddWarning(f.store.Name(), "fetch_warning")
-			f.logger.Warn(
-				"partial results: fanout to store returned warning",
-				zap.Error(err),
-				zap.String("store", f.store.Name()),
-				zap.String("function", "Fetch"))
-
-			f.result = &storage.FetchResult{
-				Metadata: metadata,
-			}
-
-			return nil
-		}
-
-		f.logger.Error(
-			"fanout to store returned error",
-			zap.Error(err),
-			zap.String("store", f.store.Name()),
-			zap.String("function", "Fetch"))
-
-		return err
-	}
-
-	f.result = result
-	return nil
 }
 
 type writeRequest struct {

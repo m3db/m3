@@ -30,8 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -51,30 +50,36 @@ func TestPlacementService(t *testing.T) {
 		require.NotNil(t, mockPlacementService)
 
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
-		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
+		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
+			Return(mockPlacementService, nil)
 
-		svcDefaults := apihandler.ServiceNameAndDefaults{
+		svcDefaults := handleroptions.ServiceNameAndDefaults{
 			ServiceName: serviceName,
 		}
 
 		placementService, algo, err := ServiceWithAlgo(
-			mockClient, handler.NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
+			mockClient, handleroptions.
+				NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
 		assert.NoError(t, err)
 		assert.NotNil(t, placementService)
 		assert.NotNil(t, algo)
 
 		// Test Services returns error
-		mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
+		mockClient.EXPECT().Services(gomock.Not(nil)).
+			Return(nil, errors.New("dummy service error"))
 		placementService, err = Service(
-			mockClient, handler.NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
+			mockClient, handleroptions.
+				NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy service error")
 
 		// Test PlacementService returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
-		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
+		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
+			Return(nil, errors.New("dummy placement error"))
 		placementService, err = Service(
-			mockClient, handler.NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
+			mockClient, handleroptions.
+				NewServiceOptions(svcDefaults, nil, nil), time.Time{}, nil)
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy placement error")
 	})
@@ -105,14 +110,15 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 			})
 
 		var (
-			serviceValue = handler.M3DBServiceName
-			svcDefaults  = apihandler.ServiceNameAndDefaults{
-				ServiceName: handler.M3DBServiceName,
+			serviceValue = handleroptions.M3DBServiceName
+			svcDefaults  = handleroptions.ServiceNameAndDefaults{
+				ServiceName: handleroptions.M3DBServiceName,
 			}
 			environmentValue = "bar_env"
 			zoneValue        = "baz_zone"
-			opts             = handler.NewServiceOptions(svcDefaults, nil, nil)
+			opts             = handleroptions.NewServiceOptions(svcDefaults, nil, nil)
 		)
+
 		opts.ServiceEnvironment = environmentValue
 		opts.ServiceZone = zoneValue
 
@@ -289,21 +295,21 @@ func TestValidateAllAvailable(t *testing.T) {
 }
 
 func runForAllAllowedServices(f func(service string)) {
-	for _, service := range handler.AllowedServices() {
+	for _, service := range handleroptions.AllowedServices() {
 		f(service)
 	}
 }
 
 func TestIsStateless(t *testing.T) {
 	for _, s := range []string{
-		handler.M3CoordinatorServiceName,
+		handleroptions.M3CoordinatorServiceName,
 	} {
 		assert.True(t, isStateless(s))
 	}
 
 	for _, s := range []string{
-		handler.M3AggregatorServiceName,
-		handler.M3DBServiceName,
+		handleroptions.M3AggregatorServiceName,
+		handleroptions.M3DBServiceName,
 	} {
 		assert.False(t, isStateless(s))
 	}

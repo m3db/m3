@@ -73,13 +73,3 @@ func (s UnconsolidatedSeries) Datapoints() ts.Datapoints {
 func (s UnconsolidatedSeries) Len() int {
 	return len(s.datapoints)
 }
-
-// Consolidated consolidates the series.
-func (s UnconsolidatedSeries) Consolidated(consolidationFunc ConsolidationFunc) Series {
-	values := make([]float64, len(s.datapoints))
-	for i, v := range s.datapoints {
-		values[i] = v.Value
-	}
-
-	return NewSeries(values, s.Meta)
-}

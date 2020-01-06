@@ -115,21 +115,6 @@ func (mr *MockStorageMockRecorder) ErrorBehavior() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorBehavior", reflect.TypeOf((*MockStorage)(nil).ErrorBehavior))
 }
 
-// Fetch mocks base method
-func (m *MockStorage) Fetch(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (*storage.FetchResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fetch", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*storage.FetchResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Fetch indicates an expected call of Fetch
-func (mr *MockStorageMockRecorder) Fetch(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fetch", reflect.TypeOf((*MockStorage)(nil).Fetch), arg0, arg1, arg2)
-}
-
 // FetchBlocks mocks base method
 func (m *MockStorage) FetchBlocks(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (block.Result, error) {
 	m.ctrl.T.Helper()
