@@ -48,9 +48,9 @@ Usage of %s:
 
 
 `, os.Args[0], strings.Join([]string{
-			database.DatabaseFlags.Name(),
-			placements.GetFlags.Name(),
-			namespaces.GetFlags.Name(),
+			database.CmdFlags.Name(),
+			placements.CmdFlags.Name(),
+			namespaces.CmdFlags.Name(),
 		}, ", "))
 
 		flag.PrintDefaults()
@@ -71,17 +71,17 @@ Usage of %s:
 	log := rawLogger.Sugar()
 
 	switch flag.Arg(0) {
-	case database.DatabaseFlags.Name():
+	case database.CmdFlags.Name():
 
 		database.Cmd(log)
 
-	case namespaces.GetFlags.Name():
+	case namespaces.CmdFlags.Name():
 
-		namespaces.Get(log)
+		namespaces.Cmd(log)
 
-	case placements.GetFlags.Name():
+	case placements.CmdFlags.Name():
 
-		placements.Get(log)
+		placements.Cmd(log)
 
 	default:
 		flag.Usage()

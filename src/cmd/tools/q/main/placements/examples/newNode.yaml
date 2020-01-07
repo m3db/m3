@@ -1,0 +1,10 @@
+---
+instances:
+  - id: node1
+    isolationGroup: isoGroup1
+    zone: etcdZone1
+    weight: 100
+    endpoint: targetHostname1:9000
+    hostname: newNodeHostname1
+    port: 9000
+
