@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -333,17 +332,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	readerPool *bootstrapper.ReaderPool,
 ) {
 	var (
-		blockPool                  = ropts.DatabaseBlockOptions().DatabaseBlockPool()
-		seriesCachePolicy          = ropts.SeriesCachePolicy()
-		indexBlockDocumentsBuilder segment.DocumentsBuilder
-		timesWithErrors            []time.Time
-		nsCtx                      = namespace.NewContextFrom(ns)
-		docsPool                   = s.opts.IndexOptions().DocumentArrayPool()
-		batch                      = docsPool.Get()
+		blockPool         = ropts.DatabaseBlockOptions().DatabaseBlockPool()
+		seriesCachePolicy = ropts.SeriesCachePolicy()
+		indexBuilder      *result.IndexBuilder
+		timesWithErrors   []time.Time
+		nsCtx             = namespace.NewContextFrom(ns)
+		docsPool          = s.opts.IndexOptions().DocumentArrayPool()
+		batch             = docsPool.Get()
 	)
-	defer func() {
-		docsPool.Put(batch)
-	}()
+	defer docsPool.Put(batch)
 
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
@@ -364,13 +361,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				// Pass, since nothing to do.
 			case bootstrapIndexRunType:
 				// NB(bodu): This should be the same documents builder for every shard.
-				indexBlockDocumentsBuilder, err = runResult.getOrAddDocumentsBuilder(start, ns, ropts)
+				indexBuilder, err = runResult.getOrAddIndexBuilder(start, ns, ropts)
 			default:
 				// Unreachable unless an internal method calls with a run type casted from int.
 				panic(fmt.Errorf("invalid run type: %d", run))
 			}
 
-			flushBatch := bootstrapper.CreateFlushBatchFn(&runResult.RWMutex, indexBlockDocumentsBuilder)
 			numEntries := r.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
 				switch run {
@@ -379,7 +375,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						runResult, start, blockSize, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
-					batch, err = s.readNextEntryAndMaybeIndex(r, batch, flushBatch)
+					batch, err = s.readNextEntryAndMaybeIndex(r, batch, indexBuilder)
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
@@ -387,7 +383,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 			// NB(bodu): Only flush if we've experienced no errors up to this point.
 			if err == nil && len(batch) > 0 {
-				batch, err = flushBatch(batch)
+				batch, err = indexBuilder.FlushBatch(batch)
 			}
 
 			if err == nil {
@@ -543,7 +539,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Document,
-	flushBatch func([]doc.Document) ([]doc.Document, error),
+	builder *result.IndexBuilder,
 ) ([]doc.Document, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
@@ -562,7 +558,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	batch = append(batch, d)
 
 	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return flushBatch(batch)
+		return builder.FlushBatch(batch)
 	}
 
 	return batch, nil
@@ -788,18 +784,18 @@ func newRunResult() *runResult {
 	}
 }
 
-func (r *runResult) getOrAddDocumentsBuilder(
+func (r *runResult) getOrAddIndexBuilder(
 	start time.Time,
 	ns namespace.Metadata,
 	ropts result.Options,
-) (segment.DocumentsBuilder, error) {
+) (*result.IndexBuilder, error) {
 	// Only called once per shard so ok to acquire write lock immediately.
 	r.Lock()
 	defer r.Unlock()
 
-	indexBlockDocumentsBuilder, err := r.builders.GetOrAddDocumentsBuilder(start,
+	builder, err := r.builders.GetOrAddIndexBuilder(start,
 		ns.Options().IndexOptions(), ropts)
-	return indexBlockDocumentsBuilder, err
+	return builder, err
 }
 
 func (r *runResult) mergedResult(other *runResult) *runResult {

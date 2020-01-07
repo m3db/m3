@@ -3,16 +3,24 @@ package bootstrapper
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	xtime "github.com/m3db/m3/src/x/time"
+)
+
+var (
+	errIndexBlockNotFound = func(blockStart time.Time) error {
+		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
+	}
+	errIndexBuilderNotFound = func(blockStart time.Time) error {
+		return fmt.Errorf("did not find index builder for blocksStart: %d", blockStart.Unix())
+	}
 )
 
 // SharedPersistManager is a lockable persist manager that's safe to be shared across threads.
@@ -79,14 +87,13 @@ func PersistBootstrapIndexSegment(
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
+		return errIndexBlockNotFound(blockStart)
 	}
-	builder, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
+	b, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		// No-op if there are no index builders for this time block (nothing to persist).
-		return nil
+		return errIndexBuilderNotFound(blockStart)
 	}
-	if len(builder.Docs()) == 0 {
+	if len(b.Builder().Docs()) == 0 {
 		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
 		return nil
 	}
@@ -161,7 +168,7 @@ func PersistBootstrapIndexSegment(
 		}
 	}()
 
-	if err := preparedPersist.Persist(builder); err != nil {
+	if err := preparedPersist.Persist(b.Builder()); err != nil {
 		return err
 	}
 
@@ -231,21 +238,20 @@ func BuildBootstrapIndexSegment(
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
+		return errIndexBlockNotFound(blockStart)
 	}
-	builder, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
+	b, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		// No-op if there are is no index builder for this time block (nothing to persist).
-		return nil
+		return errIndexBuilderNotFound(blockStart)
 	}
-	if len(builder.Docs()) == 0 {
+	if len(b.Builder().Docs()) == 0 {
 		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
 		return nil
 	}
 
 	compactor.Lock()
 	defer compactor.Unlock()
-	seg, err := compactor.Compactor.CompactUsingBuilder(builder, nil)
+	seg, err := compactor.Compactor.CompactUsingBuilder(b.Builder(), nil)
 	if err != nil {
 		return err
 	}
@@ -267,48 +273,4 @@ func BuildBootstrapIndexSegment(
 type writeLock interface {
 	Lock()
 	Unlock()
-}
-
-// CreateFlushBatchFn creates a batch flushing fn for code reuse.
-func CreateFlushBatchFn(
-	mu writeLock,
-	builder segment.DocumentsBuilder,
-) func([]doc.Document) ([]doc.Document, error) {
-	return func(batch []doc.Document) ([]doc.Document, error) {
-		if len(batch) == 0 {
-			// Last flush might not have any docs enqueued
-			return batch, nil
-		}
-
-		// NB(bodu): Prevent concurrent writes.
-		// Although it seems like there's no need to lock on writes since
-		// each block should ONLY be getting built in a single thread.
-		mu.Lock()
-		err := builder.InsertBatch(index.Batch{
-			Docs:                batch,
-			AllowPartialUpdates: true,
-		})
-		mu.Unlock()
-		if err != nil && index.IsBatchPartialError(err) {
-			// If after filtering out duplicate ID errors
-			// there are no errors, then this was a successful
-			// insertion.
-			batchErr := err.(*index.BatchPartialError)
-			// NB(r): FilterDuplicateIDErrors returns nil
-			// if no errors remain after filtering duplicate ID
-			// errors, this case is covered in unit tests.
-			err = batchErr.FilterDuplicateIDErrors()
-		}
-		if err != nil {
-			return batch, err
-		}
-
-		// Reset docs batch for reuse
-		var empty doc.Document
-		for i := range batch {
-			batch[i] = empty
-		}
-		batch = batch[:0]
-		return batch, nil
-	}
 }

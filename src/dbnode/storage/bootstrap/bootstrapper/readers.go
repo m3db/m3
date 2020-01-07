@@ -218,15 +218,14 @@ func NewReaderPool(
 // Get gets a fileset reader from the pool in synchronized fashion.
 func (p *ReaderPool) Get() (fs.DataFileSetReader, error) {
 	p.Lock()
+	defer p.Unlock()
 	if len(p.values) == 0 {
-		p.Unlock()
 		return p.alloc()
 	}
 	length := len(p.values)
 	value := p.values[length-1]
 	p.values[length-1] = nil
 	p.values = p.values[:length-1]
-	p.Unlock()
 	return value, nil
 }
 
@@ -237,6 +236,6 @@ func (p *ReaderPool) Put(r fs.DataFileSetReader) {
 		return
 	}
 	p.Lock()
+	defer p.Unlock()
 	p.values = append(p.values, r)
-	p.Unlock()
 }

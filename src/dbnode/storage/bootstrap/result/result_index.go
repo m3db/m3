@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -78,12 +80,12 @@ func (r *indexBootstrapResult) NumSeries() int {
 	return int(size)
 }
 
-// GetOrAddDocumentsBuilder get or create a new documents builder.
-func (b IndexBuilders) GetOrAddDocumentsBuilder(
+// GetOrAddIndexBuilder get or create a new documents builder.
+func (b IndexBuilders) GetOrAddIndexBuilder(
 	t time.Time,
 	idxopts namespace.IndexOptions,
 	opts Options,
-) (segment.DocumentsBuilder, error) {
+) (*IndexBuilder, error) {
 	// NB(r): The reason we can align by the retention block size and guarantee
 	// there is only one entry for this time is because index blocks must be a
 	// positive multiple of the data block size, making it easy to map a data
@@ -91,17 +93,63 @@ func (b IndexBuilders) GetOrAddDocumentsBuilder(
 	blockStart := t.Truncate(idxopts.BlockSize())
 	blockStartNanos := xtime.ToUnixNano(blockStart)
 
-	var err error
 	builder, exists := b[blockStartNanos]
 	if !exists {
 		alloc := opts.IndexDocumentsBuilderAllocator()
-		builder, err = alloc()
+		segBuilder, err := alloc()
 		if err != nil {
 			return nil, err
+		}
+		builder = &IndexBuilder{
+			builder: segBuilder,
 		}
 		b[blockStartNanos] = builder
 	}
 	return builder, nil
+}
+
+// FlushBatch flushes a batch of documents to the underlying segment builder.
+func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) {
+	if len(batch) == 0 {
+		// Last flush might not have any docs enqueued
+		return batch, nil
+	}
+
+	// NB(bodu): Prevent concurrent writes.
+	// Although it seems like there's no need to lock on writes since
+	// each block should ONLY be getting built in a single thread.
+	b.Lock()
+	err := b.builder.InsertBatch(index.Batch{
+		Docs:                batch,
+		AllowPartialUpdates: true,
+	})
+	b.Unlock()
+	if err != nil && index.IsBatchPartialError(err) {
+		// If after filtering out duplicate ID errors
+		// there are no errors, then this was a successful
+		// insertion.
+		batchErr := err.(*index.BatchPartialError)
+		// NB(r): FilterDuplicateIDErrors returns nil
+		// if no errors remain after filtering duplicate ID
+		// errors, this case is covered in unit tests.
+		err = batchErr.FilterDuplicateIDErrors()
+	}
+	if err != nil {
+		return batch, err
+	}
+
+	// Reset docs batch for reuse
+	var empty doc.Document
+	for i := range batch {
+		batch[i] = empty
+	}
+	batch = batch[:0]
+	return batch, nil
+}
+
+// Builder returns the underlying index segment docs builder.
+func (b *IndexBuilder) Builder() segment.DocumentsBuilder {
+	return b.builder
 }
 
 // Add will add an index block to the collection, merging if one already
