@@ -21,6 +21,7 @@
 package promql
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -523,4 +524,45 @@ func TestCustomParseOptions(t *testing.T) {
 	str, ok := parse.expr.(*pql.StringLiteral)
 	require.True(t, ok)
 	assert.Equal(t, v, str.Val)
+}
+
+type customParam struct {
+	prefix string
+}
+
+func (c customParam) String() string {
+	return fmt.Sprintf("%s_custom", c.prefix)
+}
+
+func (c customParam) OpType() string {
+	return fmt.Sprintf("%s_customOpType", c.prefix)
+}
+
+func TestCustomSort(t *testing.T) {
+	tests := []struct {
+		q  string
+		ex string
+	}{
+		{"sort(up)", "sort_customOpType"},
+		{"clamp_max(up, 0.3)", "clamp_max_customOpType"},
+	}
+
+	fn := func(s string, _ []interface{}, _ []string,
+		_ bool, _ models.TagOptions) (parser.Params, bool, error) {
+		return customParam{s}, true, nil
+	}
+
+	opts := NewParseOptions().SetFunctionParseExpr(fn)
+	for _, tt := range tests {
+		p, err := Parse(tt.q, time.Second, models.NewTagOptions(), opts)
+		require.NoError(t, err)
+		transforms, edges, err := p.DAG()
+		require.NoError(t, err)
+		require.Len(t, transforms, 2)
+		assert.Equal(t, functions.FetchType, transforms[0].Op.OpType())
+		assert.Equal(t, parser.NodeID("0"), transforms[0].ID)
+		assert.Len(t, edges, 1)
+		assert.Equal(t, tt.ex, transforms[1].Op.OpType())
+		assert.Equal(t, parser.NodeID("1"), transforms[1].ID)
+	}
 }

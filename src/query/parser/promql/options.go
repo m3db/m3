@@ -21,8 +21,21 @@
 package promql
 
 import (
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
 	pql "github.com/prometheus/prometheus/promql"
 )
+
+// ParseFunctionExpr parses arguments to a function expression, returning
+// a function, a bool indicating whether the function is a noop,
+// and any errors during execution.
+type ParseFunctionExpr func(
+	name string,
+	argValues []interface{},
+	stringValues []string,
+	hasArgValue bool,
+	tagOptions models.TagOptions,
+) (parser.Params, bool, error)
 
 // ParseFn is a function that parses a query to a Prometheus expression.
 type ParseFn func(query string) (pql.Expr, error)
@@ -36,16 +49,25 @@ type ParseOptions interface {
 	// ParseFn gets the parse function.
 	ParseFn() ParseFn
 	// SetParseFn sets the parse function.
-	SetParseFn(e ParseFn) ParseOptions
+	SetParseFn(f ParseFn) ParseOptions
+
+	// FunctionParseExpr gets the parsing function.
+	FunctionParseExpr() ParseFunctionExpr
+	// SetFunctionParseExpr sets the parsing function.
+	SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions
 }
 
 type parseOptions struct {
-	fn ParseFn
+	fn          ParseFn
+	fnParseExpr ParseFunctionExpr
 }
 
 // NewParseOptions creates a new parse options.
 func NewParseOptions() ParseOptions {
-	return &parseOptions{fn: defaultParseFn}
+	return &parseOptions{
+		fn:          defaultParseFn,
+		fnParseExpr: NewFunctionExpr,
+	}
 }
 
 func (o *parseOptions) ParseFn() ParseFn {
@@ -55,5 +77,15 @@ func (o *parseOptions) ParseFn() ParseFn {
 func (o *parseOptions) SetParseFn(f ParseFn) ParseOptions {
 	opts := *o
 	opts.fn = f
+	return &opts
+}
+
+func (o *parseOptions) FunctionParseExpr() ParseFunctionExpr {
+	return o.fnParseExpr
+}
+
+func (o *parseOptions) SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions {
+	opts := *o
+	opts.fnParseExpr = f
 	return &opts
 }
