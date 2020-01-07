@@ -371,6 +371,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 // ingestion rule.
 type CarbonIngesterRuleConfiguration struct {
 	Pattern     string                                     `yaml:"pattern"`
+	Continue    bool                                       `yaml:"continue"`
 	Aggregation CarbonIngesterAggregationConfiguration     `yaml:"aggregation"`
 	Policies    []CarbonIngesterStoragePolicyConfiguration `yaml:"policies"`
 }
