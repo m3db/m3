@@ -24,39 +24,12 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
-	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	xcost "github.com/m3db/m3/src/x/cost"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
 )
-
-const (
-	xTimeUnit             = xtime.Millisecond
-	initRawFetchAllocSize = 32
-)
-
-// PromWriteTSToM3 converts a prometheus write query to an M3 one
-func PromWriteTSToM3(
-	timeseries *prompb.TimeSeries,
-	opts models.TagOptions,
-) *WriteQuery {
-	tags := PromLabelsToM3Tags(timeseries.Labels, opts)
-	datapoints := PromSamplesToM3Datapoints(timeseries.Samples)
-
-	return &WriteQuery{
-		Tags:       tags,
-		Datapoints: datapoints,
-		Unit:       xTimeUnit,
-		Annotation: nil,
-	}
-}
 
 // The default name for the name and bucket tags in Prometheus metrics.
 // This can be overwritten by setting tagOptions in the config.
@@ -67,7 +40,7 @@ var (
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
 func PromLabelsToM3Tags(
-	labels []*prompb.Label,
+	labels []prompb.Label,
 	tagOptions models.TagOptions,
 ) models.Tags {
 	tags := models.NewTags(len(labels), tagOptions)
@@ -92,10 +65,10 @@ func PromLabelsToM3Tags(
 }
 
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
-func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
+func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
-		timestamp := TimestampToTime(sample.Timestamp)
+		timestamp := PromTimestampToTime(sample.Timestamp)
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
 	}
 
@@ -111,8 +84,8 @@ func PromReadQueryToM3(query *prompb.Query) (*FetchQuery, error) {
 
 	return &FetchQuery{
 		TagMatchers: tagMatchers,
-		Start:       TimestampToTime(query.StartTimestampMs),
-		End:         TimestampToTime(query.EndTimestampMs),
+		Start:       PromTimestampToTime(query.StartTimestampMs),
+		End:         PromTimestampToTime(query.EndTimestampMs),
 	}, nil
 }
 
@@ -157,27 +130,31 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 	}
 }
 
-// TimestampToTime converts a prometheus timestamp to time.Time
-func TimestampToTime(timestampMS int64) time.Time {
+// PromTimestampToTime converts a prometheus timestamp to time.Time.
+func PromTimestampToTime(timestampMS int64) time.Time {
 	return time.Unix(0, timestampMS*int64(time.Millisecond))
 }
 
-// TimeToTimestamp converts a time.Time to prometheus timestamp
-func TimeToTimestamp(timestamp time.Time) int64 {
+// TimeToPromTimestamp converts a time.Time to prometheus timestamp.
+func TimeToPromTimestamp(timestamp time.Time) int64 {
 	// Significantly faster than time.Truncate()
 	return timestamp.UnixNano() / int64(time.Millisecond)
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
-// TODO(rartoul): We should pool all of these intermediary datastructures, or
-// at least the []*prompb.Sample (as thats the most heavily allocated object)
-// since we have full control over the lifecycle.
-func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
+func FetchResultToPromResult(
+	result *FetchResult,
+	keepEmpty bool,
+) *prompb.QueryResult {
 	// Perform bulk allocation upfront then convert to pointers afterwards
 	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
 	// if modifying.
 	timeseries := make([]prompb.TimeSeries, 0, len(result.SeriesList))
 	for _, series := range result.SeriesList {
+		if !keepEmpty && series.Len() == 0 {
+			continue
+		}
+
 		promTs := SeriesToPromTS(series)
 		timeseries = append(timeseries, promTs)
 	}
@@ -208,10 +185,7 @@ func (t sortableLabels) Less(i, j int) bool {
 }
 
 // TagsToPromLabels converts tags to prometheus labels.
-func TagsToPromLabels(tags models.Tags) []*prompb.Label {
-	// Perform bulk allocation upfront then convert to pointers afterwards
-	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-	// if modifying.
+func TagsToPromLabels(tags models.Tags) []prompb.Label {
 	l := tags.Len()
 	labels := make([]prompb.Label, 0, l)
 
@@ -232,163 +206,24 @@ func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// Sort here since name and label may be added in a different order in tags
 	// if default metric name or bucket names are overridden.
 	sort.Sort(sortableLabels(labels))
-	labelsPointers := make([]*prompb.Label, 0, l)
-	for i := range labels {
-		labelsPointers = append(labelsPointers, &labels[i])
-	}
 
-	return labelsPointers
+	return labels
 }
 
 // SeriesToPromSamples series datapoints to prometheus samples.SeriesToPromSamples.
-func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
+func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	var (
 		seriesLen  = series.Len()
 		values     = series.Values()
 		datapoints = values.Datapoints()
-		// Perform bulk allocation upfront then convert to pointers afterwards
-		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
-		// if modifying.
-		samples = make([]prompb.Sample, 0, seriesLen)
+		samples    = make([]prompb.Sample, 0, seriesLen)
 	)
 	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
-			Timestamp: TimeToTimestamp(dp.Timestamp),
+			Timestamp: TimeToPromTimestamp(dp.Timestamp),
 			Value:     dp.Value,
 		})
 	}
 
-	samplesPointers := make([]*prompb.Sample, 0, len(samples))
-	for i := range samples {
-		samplesPointers = append(samplesPointers, &samples[i])
-	}
-
-	return samplesPointers
-}
-
-func iteratorToTsSeries(
-	iter encoding.SeriesIterator,
-	enforcer cost.ChainedEnforcer,
-	tagOptions models.TagOptions,
-) (*ts.Series, error) {
-	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	r := enforcer.Add(xcost.Cost(len(datapoints)))
-	if r.Error != nil {
-		return nil, r.Error
-	}
-
-	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
-}
-
-// Fall back to sequential decompression if unable to decompress concurrently
-func decompressSequentially(
-	iterLength int,
-	iters []encoding.SeriesIterator,
-	enforcer cost.ChainedEnforcer,
-	tagOptions models.TagOptions,
-) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, 0, len(iters))
-	for _, iter := range iters {
-		series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
-		if err != nil {
-			return nil, err
-		}
-		seriesList = append(seriesList, series)
-	}
-
-	return &FetchResult{
-		SeriesList: seriesList,
-	}, nil
-}
-
-func decompressConcurrently(
-	iterLength int,
-	iters []encoding.SeriesIterator,
-	readWorkerPool xsync.PooledWorkerPool,
-	enforcer cost.ChainedEnforcer,
-	tagOptions models.TagOptions,
-) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, iterLength)
-	var wg sync.WaitGroup
-	errorCh := make(chan error, 1)
-	done := make(chan struct{})
-	stopped := func() bool {
-		select {
-		case <-done:
-			return true
-		default:
-			return false
-		}
-	}
-
-	wg.Add(iterLength)
-
-	for i, iter := range iters {
-		i := i
-		iter := iter
-		readWorkerPool.Go(func() {
-			defer wg.Done()
-			if stopped() {
-				return
-			}
-
-			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
-			if err != nil {
-				// Return the first error that is encountered.
-				select {
-				case errorCh <- err:
-					close(done)
-				default:
-				}
-				return
-			}
-			seriesList[i] = series
-		})
-	}
-
-	wg.Wait()
-	close(errorCh)
-	if err := <-errorCh; err != nil {
-		return nil, err
-	}
-
-	return &FetchResult{
-		SeriesList: seriesList,
-	}, nil
-}
-
-// SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
-func SeriesIteratorsToFetchResult(
-	seriesIterators encoding.SeriesIterators,
-	readWorkerPool xsync.PooledWorkerPool,
-	cleanupSeriesIters bool,
-	enforcer cost.ChainedEnforcer,
-	tagOptions models.TagOptions,
-) (*FetchResult, error) {
-	if cleanupSeriesIters {
-		defer seriesIterators.Close()
-	}
-
-	iters := seriesIterators.Iters()
-	iterLength := seriesIterators.Len()
-	if readWorkerPool == nil {
-		return decompressSequentially(iterLength, iters, enforcer, tagOptions)
-	}
-
-	return decompressConcurrently(iterLength, iters, readWorkerPool,
-		enforcer, tagOptions)
+	return samples
 }

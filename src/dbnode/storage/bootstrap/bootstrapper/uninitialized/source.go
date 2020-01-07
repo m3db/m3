@@ -24,9 +24,9 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
 
@@ -48,15 +48,6 @@ func newTopologyUninitializedSource(opts Options) bootstrap.Source {
 	return &uninitializedTopologySource{
 		opts: opts,
 	}
-}
-
-func (s *uninitializedTopologySource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapSequential:
-		return true
-	}
-
-	return false
 }
 
 func (s *uninitializedTopologySource) AvailableData(
@@ -142,42 +133,45 @@ func (s *uninitializedTopologySource) availability(
 	return availableShardTimeRanges, nil
 }
 
-func (s *uninitializedTopologySource) ReadData(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	availability, err := s.availability(ns, shardsTimeRanges, runOpts)
-	if err != nil {
-		return nil, err
+func (s *uninitializedTopologySource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	results := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
+	for _, elem := range namespaces.Namespaces.Iter() {
+		ns := elem.Value()
+
+		namespaceResult := bootstrap.NamespaceResult{
+			Metadata: ns.Metadata,
+			Shards:   ns.Shards,
+		}
+
+		availability, err := s.availability(ns.Metadata,
+			ns.DataRunOptions.ShardTimeRanges, ns.DataRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		missing := ns.DataRunOptions.ShardTimeRanges.Copy()
+		missing.Subtract(availability)
+
+		if missing.IsEmpty() {
+			namespaceResult.DataResult = result.NewDataBootstrapResult()
+		} else {
+			namespaceResult.DataResult = missing.ToUnfulfilledDataResult()
+		}
+
+		if ns.Metadata.Options().IndexOptions().Enabled() {
+			if missing.IsEmpty() {
+				namespaceResult.IndexResult = result.NewIndexBootstrapResult()
+			} else {
+				namespaceResult.IndexResult = missing.ToUnfulfilledIndexResult()
+			}
+		}
+
+		results.Results.Set(ns.Metadata.ID(), namespaceResult)
 	}
 
-	missing := shardsTimeRanges.Copy()
-	missing.Subtract(availability)
-
-	if missing.IsEmpty() {
-		return result.NewDataBootstrapResult(), nil
-	}
-
-	return missing.ToUnfulfilledDataResult(), nil
-}
-
-func (s *uninitializedTopologySource) ReadIndex(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.IndexBootstrapResult, error) {
-	availability, err := s.availability(ns, shardsTimeRanges, runOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	missing := shardsTimeRanges.Copy()
-	missing.Subtract(availability)
-
-	if missing.IsEmpty() {
-		return result.NewIndexBootstrapResult(), nil
-	}
-
-	return missing.ToUnfulfilledIndexResult(), nil
+	return results, nil
 }

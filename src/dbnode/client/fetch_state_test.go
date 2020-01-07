@@ -23,7 +23,7 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +36,7 @@ func TestFetchStatePoolInvalidInteraction(t *testing.T) {
 	testPool := &testFetchStatePool{t, s, false}
 	s.pool = testPool
 
-	s.op = newFetchTaggedOp(nil)
+	s.fetchTaggedOp = newFetchTaggedOp(nil)
 	s.incRef()
 	require.Panics(t, func() {
 		s.decRef()
@@ -51,12 +51,12 @@ func TestFetchStatePoolValidInteraction(t *testing.T) {
 	testPool := &testFetchStatePool{t, s, false}
 	s.pool = testPool
 
-	s.op = newFetchTaggedOp(nil)
-	s.op.incRef()
+	s.fetchTaggedOp = newFetchTaggedOp(nil)
+	s.fetchTaggedOp.incRef()
 	s.incRef()
 	s.decRef()
 	require.True(t, testPool.called)
-	require.Nil(t, s.op)
+	require.Nil(t, s.fetchTaggedOp)
 }
 
 type testFetchStatePool struct {

@@ -20,25 +20,52 @@
 
 package client
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 var (
-	smallPoolOptions            = pool.NewObjectPoolOptions().SetSize(1)
-	testWriteBatchRawPool       writeBatchRawRequestPool
-	testWriteArrayPool          writeBatchRawRequestElementArrayPool
-	testWriteTaggedBatchRawPool writeTaggedBatchRawRequestPool
-	testWriteTaggedArrayPool    writeTaggedBatchRawRequestElementArrayPool
+	smallPoolOptions = pool.NewObjectPoolOptions().SetSize(1)
+
+	testWriteBatchRawPool   writeBatchRawRequestPool
+	testWriteBatchRawV2Pool writeBatchRawV2RequestPool
+
+	testWriteArrayPool   writeBatchRawRequestElementArrayPool
+	testWriteV2ArrayPool writeBatchRawV2RequestElementArrayPool
+
+	testWriteTaggedBatchRawPool   writeTaggedBatchRawRequestPool
+	testWriteTaggedBatchRawV2Pool writeTaggedBatchRawV2RequestPool
+
+	testWriteTaggedArrayPool   writeTaggedBatchRawRequestElementArrayPool
+	testWriteTaggedV2ArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+
+	testFetchBatchRawV2Pool      fetchBatchRawV2RequestPool
+	testFetchBatchRawV2ArrayPool fetchBatchRawV2RequestElementArrayPool
 )
 
 func init() {
 	testWriteBatchRawPool = newWriteBatchRawRequestPool(smallPoolOptions)
 	testWriteBatchRawPool.Init()
+	testWriteBatchRawV2Pool = newWriteBatchRawV2RequestPool(smallPoolOptions)
+	testWriteBatchRawV2Pool.Init()
+
 	testWriteArrayPool = newWriteBatchRawRequestElementArrayPool(smallPoolOptions, 0)
 	testWriteArrayPool.Init()
+	testWriteV2ArrayPool = newWriteBatchRawV2RequestElementArrayPool(smallPoolOptions, 0)
+	testWriteV2ArrayPool.Init()
+
 	testWriteTaggedBatchRawPool = newWriteTaggedBatchRawRequestPool(smallPoolOptions)
 	testWriteTaggedBatchRawPool.Init()
+	testWriteTaggedBatchRawV2Pool = newWriteTaggedBatchRawV2RequestPool(smallPoolOptions)
+	testWriteTaggedBatchRawV2Pool.Init()
+
 	testWriteTaggedArrayPool = newWriteTaggedBatchRawRequestElementArrayPool(smallPoolOptions, 0)
 	testWriteTaggedArrayPool.Init()
+	testWriteTaggedV2ArrayPool = newWriteTaggedBatchRawV2RequestElementArrayPool(smallPoolOptions, 0)
+	testWriteTaggedV2ArrayPool.Init()
+
+	testFetchBatchRawV2Pool = newFetchBatchRawV2RequestPool(smallPoolOptions)
+	testFetchBatchRawV2Pool.Init()
+	testFetchBatchRawV2ArrayPool = newFetchBatchRawV2RequestElementArrayPool(smallPoolOptions, 0)
+	testFetchBatchRawV2ArrayPool.Init()
 }
 
 type hostQueueResult struct {

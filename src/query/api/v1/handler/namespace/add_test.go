@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -62,8 +63,11 @@ const testAddJSON = `
 `
 
 func TestNamespaceAddHandler(t *testing.T) {
-	mockClient, mockKV, _ := SetupNamespaceTest(t)
-	addHandler := NewAddHandler(mockClient)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
@@ -79,9 +83,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -98,17 +100,20 @@ func TestNamespaceAddHandler(t *testing.T) {
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
 	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":true,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"}}}}}", string(body))
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":true,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
 }
 
 func TestNamespaceAddHandler_Conflict(t *testing.T) {
-	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
-	addHandler := NewAddHandler(mockClient)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV := setupNamespaceTest(t, ctrl)
+	addHandler := NewAddHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Ensure adding an existing namespace returns 409
@@ -142,7 +147,7 @@ func TestNamespaceAddHandler_Conflict(t *testing.T) {
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 
 	w := httptest.NewRecorder()
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }

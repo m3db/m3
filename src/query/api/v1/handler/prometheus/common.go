@@ -21,72 +21,95 @@
 package prometheus
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 )
 
 const (
-	// NameReplace is the parameter that gets replaced
-	NameReplace         = "name"
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
-
-	maxTimeout = 5 * time.Minute
+	maxTimeout          = 5 * time.Minute
+	tolerance           = 0.0000001
 )
 
 var (
-	matchValues = []byte(".*")
+	roleName = []byte("role")
 )
 
-// TimeoutOpts stores options related to various timeout configurations
+// TimeoutOpts stores options related to various timeout configurations.
 type TimeoutOpts struct {
 	FetchTimeout time.Duration
 }
 
-// ParsePromCompressedRequest parses a snappy compressed request from Prometheus
-func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
+// ParsePromCompressedRequestResult is the result of a
+// ParsePromCompressedRequest call.
+type ParsePromCompressedRequestResult struct {
+	CompressedBody   []byte
+	UncompressedBody []byte
+}
+
+// ParsePromCompressedRequest parses a snappy compressed request from Prometheus.
+func ParsePromCompressedRequest(
+	r *http.Request,
+) (ParsePromCompressedRequestResult, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	defer body.Close()
 	compressed, err := ioutil.ReadAll(body)
 
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
 	if len(compressed) == 0 {
-		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(fmt.Errorf("empty request body"),
+				http.StatusBadRequest)
 	}
 
 	reqBuf, err := snappy.Decode(nil, compressed)
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return ParsePromCompressedRequestResult{},
+			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return reqBuf, nil
+	return ParsePromCompressedRequestResult{
+		CompressedBody:   compressed,
+		UncompressedBody: reqBuf,
+	}, nil
 }
 
-// ParseRequestTimeout parses the input request timeout with a default
-func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (time.Duration, error) {
+// ParseRequestTimeout parses the input request timeout with a default.
+func ParseRequestTimeout(
+	r *http.Request,
+	configFetchTimeout time.Duration,
+) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
 	if timeout == "" {
 		return configFetchTimeout, nil
@@ -94,68 +117,100 @@ func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (tim
 
 	duration, err := time.ParseDuration(timeout)
 	if err != nil {
-		return 0, fmt.Errorf("%s: invalid 'timeout': %v", xhttp.ErrInvalidParams, err)
+		return 0, fmt.Errorf("%s: invalid 'timeout': %v",
+			xhttp.ErrInvalidParams, err)
 	}
 
 	if duration > maxTimeout {
-		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v", xhttp.ErrInvalidParams, maxTimeout)
+		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v",
+			xhttp.ErrInvalidParams, maxTimeout)
 	}
 
 	return duration, nil
 }
 
-// ParseTagCompletionParamsToQuery parses all params from the GET request
-func ParseTagCompletionParamsToQuery(
+// TagCompletionQueries are tag completion queries.
+type TagCompletionQueries struct {
+	// Queries are the tag completion queries.
+	Queries []*storage.CompleteTagsQuery
+	// NameOnly indicates name only
+	NameOnly bool
+}
+
+// ParseTagCompletionParamsToQueries parses all params from the GET request.
+// Returns queries, a boolean indicating if the query completes names only, and
+// any errors.
+func ParseTagCompletionParamsToQueries(
 	r *http.Request,
-) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
-	tagQuery := storage.CompleteTagsQuery{}
-
-	query, err := parseTagCompletionQuery(r)
+) (TagCompletionQueries, *xhttp.ParseError) {
+	tagCompletionQueries := TagCompletionQueries{}
+	start, err := parseTimeWithDefault(r, "start", time.Time{})
 	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
+		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	matchers, err := models.MatchersFromString(query)
+	end, err := parseTimeWithDefault(r, "end", time.Now())
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	tagQuery.TagMatchers = matchers
 	// If there is a result type field present, parse it and set
 	// complete name only parameter appropriately. Otherwise, default
 	// to returning both completed tag names and values
+	nameOnly := false
 	if result := r.FormValue("result"); result != "" {
 		switch result {
 		case "default":
-			tagQuery.CompleteNameOnly = false
+			// no-op
 		case "tagNamesOnly":
-			tagQuery.CompleteNameOnly = true
+			nameOnly = true
 		default:
-			return nil, xhttp.NewParseError(errors.ErrInvalidResultParamError, http.StatusBadRequest)
+			return tagCompletionQueries, xhttp.NewParseError(
+				errors.ErrInvalidResultParamError, http.StatusBadRequest)
 		}
 	}
 
-	filterNameTags := r.Form[filterNameTagsParam]
-	tagQuery.FilterNameTags = make([][]byte, len(filterNameTags))
-	for i, f := range filterNameTags {
-		tagQuery.FilterNameTags[i] = []byte(f)
+	tagCompletionQueries.NameOnly = nameOnly
+	queries, err := parseTagCompletionQueries(r)
+	if err != nil {
+		return tagCompletionQueries, xhttp.NewParseError(
+			fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
 	}
 
-	return &tagQuery, nil
+	tagQueries := make([]*storage.CompleteTagsQuery, 0, len(queries))
+	for _, query := range queries {
+		tagQuery := &storage.CompleteTagsQuery{
+			Start:            start,
+			End:              end,
+			CompleteNameOnly: nameOnly,
+		}
+
+		matchers, err := models.MatchersFromString(query)
+		if err != nil {
+			return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		tagQuery.TagMatchers = matchers
+		filterNameTags := r.Form[filterNameTagsParam]
+		tagQuery.FilterNameTags = make([][]byte, len(filterNameTags))
+		for i, f := range filterNameTags {
+			tagQuery.FilterNameTags[i] = []byte(f)
+		}
+
+		tagQueries = append(tagQueries, tagQuery)
+	}
+
+	tagCompletionQueries.Queries = tagQueries
+	return tagCompletionQueries, nil
 }
 
-func parseTagCompletionQuery(r *http.Request) (string, error) {
+func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	queries, ok := r.URL.Query()[queryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
-		return "", errors.ErrNoQueryFound
+		return nil, errors.ErrNoQueryFound
 	}
 
-	// TODO: currently, we only support one target at a time
-	if len(queries) > 1 {
-		return "", errors.ErrBatchQuery
-	}
-
-	return queries[0], nil
+	return queries, nil
 }
 
 func parseTimeWithDefault(
@@ -170,18 +225,18 @@ func parseTimeWithDefault(
 	return defaultTime, nil
 }
 
-// ParseSeriesMatchQuery parses all params from the GET request
+// ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
 	tagOptions models.TagOptions,
-) (*storage.SeriesMatchQuery, *xhttp.ParseError) {
+) ([]*storage.FetchQuery, *xhttp.ParseError) {
 	r.ParseForm()
 	matcherValues := r.Form["match[]"]
 	if len(matcherValues) == 0 {
 		return nil, xhttp.NewParseError(errors.ErrInvalidMatchers, http.StatusBadRequest)
 	}
 
-	start, err := parseTimeWithDefault(r, "start", time.Now().Add(time.Hour*24*-40))
+	start, err := parseTimeWithDefault(r, "start", time.Time{})
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -191,7 +246,7 @@ func ParseSeriesMatchQuery(
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	tagMatchers := make([]models.Matchers, len(matcherValues))
+	queries := make([]*storage.FetchQuery, len(matcherValues))
 	for i, s := range matcherValues {
 		promMatchers, err := promql.ParseMetricSelector(s)
 		if err != nil {
@@ -203,38 +258,15 @@ func ParseSeriesMatchQuery(
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
-		tagMatchers[i] = matchers
+		queries[i] = &storage.FetchQuery{
+			Raw:         fmt.Sprintf("match[]=%s", s),
+			TagMatchers: matchers,
+			Start:       start,
+			End:         end,
+		}
 	}
 
-	return &storage.SeriesMatchQuery{
-		TagMatchers: tagMatchers,
-		Start:       start,
-		End:         end,
-	}, nil
-}
-
-// ParseTagValuesToQuery parses a tag values request to a complete tags query
-func ParseTagValuesToQuery(
-	r *http.Request,
-) (*storage.CompleteTagsQuery, error) {
-	vars := mux.Vars(r)
-	name, ok := vars[NameReplace]
-	if !ok || len(name) == 0 {
-		return nil, errors.ErrNoName
-	}
-
-	nameBytes := []byte(name)
-	return &storage.CompleteTagsQuery{
-		CompleteNameOnly: false,
-		FilterNameTags:   [][]byte{nameBytes},
-		TagMatchers: models.Matchers{
-			models.Matcher{
-				Type:  models.MatchRegexp,
-				Name:  nameBytes,
-				Value: matchValues,
-			},
-		},
-	}, nil
+	return queries, nil
 }
 
 func renderNameOnlyTagCompletionResultsJSON(
@@ -288,11 +320,38 @@ func renderDefaultTagCompletionResultsJSON(
 	return jw.Close()
 }
 
-// RenderTagCompletionResultsJSON renders tag completion results to json format
-func RenderTagCompletionResultsJSON(
+// RenderListTagResultsJSON renders list tag results to json format.
+func RenderListTagResultsJSON(
 	w io.Writer,
 	result *storage.CompleteTagsResult,
 ) error {
+	if !result.CompleteNameOnly {
+		return errors.ErrWithNames
+	}
+
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginArray()
+
+	for _, t := range result.CompletedTags {
+		jw.WriteString(string(t.Name))
+	}
+
+	jw.EndArray()
+
+	jw.EndObject()
+
+	return jw.Close()
+}
+
+// RenderTagCompletionResultsJSON renders tag completion results to json format.
+func RenderTagCompletionResultsJSON(
+	w io.Writer, result storage.CompleteTagsResult) error {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
 		return renderNameOnlyTagCompletionResultsJSON(w, results)
@@ -301,7 +360,7 @@ func RenderTagCompletionResultsJSON(
 	return renderDefaultTagCompletionResultsJSON(w, results)
 }
 
-// RenderTagValuesResultsJSON renders tag values results to json format
+// RenderTagValuesResultsJSON renders tag values results to json format.
 func RenderTagValuesResultsJSON(
 	w io.Writer,
 	result *storage.CompleteTagsResult,
@@ -346,56 +405,11 @@ func RenderTagValuesResultsJSON(
 	return jw.Close()
 }
 
-type tag struct {
-	name  string
-	value string
-}
-
-func writeTagsHelper(
-	jw *json.Writer,
-	completedTags []storage.CompletedTag,
-	tags []tag,
-) {
-	if len(completedTags) == 0 {
-		jw.BeginObject()
-		for _, tag := range tags {
-			jw.BeginObjectField(tag.name)
-			jw.WriteString(tag.value)
-		}
-
-		jw.EndObject()
-		return
-	}
-
-	firstResult := completedTags[0]
-	name := string(firstResult.Name)
-
-	copiedTags := make([]tag, len(tags)+1)
-	copy(copiedTags, tags)
-	for _, value := range firstResult.Values {
-		copiedTags[len(tags)] = tag{name: name, value: string(value)}
-		writeTagsHelper(jw, completedTags[1:], copiedTags)
-	}
-}
-
-func writeTags(
-	jw *json.Writer,
-	results []*storage.CompleteTagsResult,
-) {
-	for _, result := range results {
-		jw.BeginArray()
-		tags := result.CompletedTags
-		if len(tags) > 0 {
-			writeTagsHelper(jw, result.CompletedTags, nil)
-		}
-		jw.EndArray()
-	}
-}
-
-// RenderSeriesMatchResultsJSON renders series match results to json format
+// RenderSeriesMatchResultsJSON renders series match results to json format.
 func RenderSeriesMatchResultsJSON(
 	w io.Writer,
-	results []*storage.CompleteTagsResult,
+	results []models.Metrics,
+	dropRole bool,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -404,28 +418,263 @@ func RenderSeriesMatchResultsJSON(
 	jw.WriteString("success")
 
 	jw.BeginObjectField("data")
-	writeTags(jw, results)
+	jw.BeginArray()
+
+	for _, result := range results {
+		for _, tags := range result {
+			jw.BeginObject()
+			for _, tag := range tags.Tags.Tags {
+				if bytes.Equal(tag.Name, roleName) && dropRole {
+					// NB: When data is written from Prometheus remote write, additional
+					// `"role":"remote"` tag is added, which should not be included in the
+					// results.
+					continue
+				}
+				jw.BeginObjectField(string(tag.Name))
+				jw.WriteString(string(tag.Value))
+			}
+
+			jw.EndObject()
+		}
+	}
+
+	jw.EndArray()
 	jw.EndObject()
 
 	return jw.Close()
 }
 
-// PromResp represents Prometheus's query response
-type PromResp struct {
+// Response represents Prometheus's query response.
+type Response struct {
+	// Status is the response status.
 	Status string `json:"status"`
-	Data   struct {
-		ResultType string `json:"resultType"`
-		Result     []struct {
-			Metric map[string]string `json:"metric"`
-			// todo(braskin): use `Datapoints` instead of interface{} in values
-			// Values is [float, string]
-			Values [][]interface{} `json:"values"`
-		} `json:"result"`
-	} `json:"data"`
+	// Data is the response data.
+	Data data `json:"data"`
 }
 
-// PromDebug represents the input and output that are used in the debug endpoint
+type data struct {
+	// ResultType is the result type for the response.
+	ResultType string `json:"resultType"`
+	// Result is the list of results for the response.
+	Result results `json:"result"`
+}
+
+type results []Result
+
+// Len is the number of elements in the collection.
+func (r results) Len() int { return len(r) }
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (r results) Less(i, j int) bool {
+	return r[i].id < r[j].id
+}
+
+// Swap swaps the elements with indexes i and j.
+func (r results) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+
+// Sort sorts the results.
+func (r results) Sort() {
+	for i, result := range r {
+		r[i] = result.genID()
+	}
+
+	sort.Sort(r)
+}
+
+// Result is the result itself.
+type Result struct {
+	// Metric is the tags for the result.
+	Metric Tags `json:"metric"`
+	// Values is the set of values for the result.
+	Values Values `json:"values"`
+	id     string
+}
+
+// Tags is a simple representation of Prometheus tags.
+type Tags map[string]string
+
+// Values is a list of values for the Prometheus result.
+type Values []Value
+
+// Value is a single value for Prometheus result.
+type Value []interface{}
+
+func (r *Result) genID() Result {
+	tags := make(sort.StringSlice, len(r.Metric))
+	for k, v := range r.Metric {
+		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
+	}
+
+	sort.Sort(tags)
+	var sb strings.Builder
+	// NB: this may clash but exact tag values are also checked, and this is a
+	// validation endpoint so there's less concern over correctness.
+	for _, t := range tags {
+		sb.WriteString(t)
+	}
+
+	r.id = sb.String()
+	return *r
+}
+
+// MatchInformation describes how well two responses match.
+type MatchInformation struct {
+	// FullMatch indicates a full match.
+	FullMatch bool
+	// NoMatch indicates that the responses do not match sufficiently.
+	NoMatch bool
+}
+
+// Matches compares two responses and determines how closely they match.
+func (p Response) Matches(other Response) (MatchInformation, error) {
+	if p.Status != other.Status {
+		err := fmt.Errorf("status %s does not match other status %s",
+			p.Status, other.Status)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return p.Data.matches(other.Data)
+}
+
+func (d data) matches(other data) (MatchInformation, error) {
+	if d.ResultType != other.ResultType {
+		err := fmt.Errorf("result type %s does not match other result type %s",
+			d.ResultType, other.ResultType)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return d.Result.matches(other.Result)
+}
+
+func (r results) matches(other results) (MatchInformation, error) {
+	if len(r) != len(other) {
+		err := fmt.Errorf("result length %d does not match other result length %d",
+			len(r), len(other))
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	r.Sort()
+	other.Sort()
+	for i, result := range r {
+		if err := result.matches(other[i]); err != nil {
+			return MatchInformation{
+				NoMatch: true,
+			}, err
+		}
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r Result) matches(other Result) error {
+	// NB: tags should match by here so this is more of a sanity check.
+	if err := r.Metric.matches(other.Metric); err != nil {
+		return err
+	}
+
+	return r.Values.matches(other.Values)
+}
+
+func (t Tags) matches(other Tags) error {
+	if len(t) != len(other) {
+		return fmt.Errorf("tag length %d does not match other tag length %d",
+			len(t), len(other))
+	}
+
+	for k, v := range t {
+		if vv, ok := other[k]; ok {
+			if v != vv {
+				return fmt.Errorf("tag %s does not match other tag length %s", v, vv)
+			}
+		} else {
+			return fmt.Errorf("tag %s not found in other tagset", v)
+		}
+	}
+
+	return nil
+}
+
+func (v Values) matches(other Values) error {
+	if len(v) != len(other) {
+		return fmt.Errorf("values length %d does not match other values length %d",
+			len(v), len(other))
+	}
+
+	for i, val := range v {
+		if err := val.matches(other[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v Value) matches(other Value) error {
+	if len(v) != 2 {
+		return fmt.Errorf("value length %d must be 2", len(v))
+	}
+
+	if len(other) != 2 {
+		return fmt.Errorf("other value length %d must be 2", len(other))
+	}
+
+	tsV := fmt.Sprint(v[0])
+	tsOther := fmt.Sprint(v[0])
+	if tsV != tsOther {
+		return fmt.Errorf("ts %s does not match other ts %s", tsV, tsOther)
+	}
+
+	valV, err := strconv.ParseFloat(fmt.Sprint(v[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	valOther, err := strconv.ParseFloat(fmt.Sprint(other[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	if math.Abs(valV-valOther) > tolerance {
+		return fmt.Errorf("point %f does not match other point %f", valV, valOther)
+	}
+
+	for i, val := range v {
+		otherVal := other[i]
+		if val != otherVal {
+		}
+	}
+
+	return nil
+}
+
+// PromDebug represents the input and output that are used in the debug endpoint.
 type PromDebug struct {
-	Input   PromResp `json:"input"`
-	Results PromResp `json:"results"`
+	Input   Response `json:"input"`
+	Results Response `json:"results"`
+}
+
+// FilterSeriesByOptions removes series tags based on options.
+func FilterSeriesByOptions(
+	series []*ts.Series,
+	opts *storage.FetchOptions,
+) []*ts.Series {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) > 0 {
+		for i, s := range series {
+			series[i].Tags = s.Tags.TagsWithoutKeys(keys)
+		}
+	}
+
+	return series
 }

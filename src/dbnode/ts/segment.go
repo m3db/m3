@@ -23,8 +23,8 @@ package ts
 import (
 	"bytes"
 
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // Segment represents a binary blob consisting of two byte slices and
@@ -129,10 +129,13 @@ func (s *Segment) Finalize() {
 func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 	var (
 		checkedHead, checkedTail checked.Bytes
+		tail                     []byte
 	)
 
 	head := s.Head.Bytes()
-	tail := s.Tail.Bytes()
+	if s.Tail != nil {
+		tail = s.Tail.Bytes()
+	}
 
 	if pool != nil {
 		checkedHead = pool.Get(len(head))
@@ -140,18 +143,22 @@ func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 		checkedHead.AppendAll(head)
 		checkedHead.DecRef()
 
-		checkedTail = pool.Get(len(tail))
-		checkedTail.IncRef()
-		checkedTail.AppendAll(tail)
-		checkedTail.DecRef()
+		if tail != nil {
+			checkedTail = pool.Get(len(tail))
+			checkedTail.IncRef()
+			checkedTail.AppendAll(tail)
+			checkedTail.DecRef()
+		}
 	} else {
 		ch := make([]byte, len(head))
 		copy(ch, head)
-		ct := make([]byte, len(tail))
-		copy(ct, tail)
-
 		checkedHead = checked.NewBytes(ch, nil)
-		checkedTail = checked.NewBytes(ct, nil)
+
+		if tail != nil {
+			ct := make([]byte, len(tail))
+			copy(ct, tail)
+			checkedTail = checked.NewBytes(ct, nil)
+		}
 	}
 
 	// NB: new segment is always finalizeable.

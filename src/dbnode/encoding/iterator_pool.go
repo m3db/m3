@@ -20,7 +20,9 @@
 
 package encoding
 
-import "github.com/m3db/m3x/pool"
+import (
+	"github.com/m3db/m3/src/x/pool"
+)
 
 type readerIteratorPool struct {
 	pool pool.ObjectPool
@@ -33,7 +35,7 @@ func NewReaderIteratorPool(opts pool.ObjectPoolOptions) ReaderIteratorPool {
 
 func (p *readerIteratorPool) Init(alloc ReaderIteratorAllocate) {
 	p.pool.Init(func() interface{} {
-		return alloc(nil)
+		return alloc(nil, nil)
 	})
 }
 

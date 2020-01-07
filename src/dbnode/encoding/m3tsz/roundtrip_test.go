@@ -28,7 +28,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding/testgen"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -107,6 +108,9 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 }
 
 func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := NewEncoder(testStartTime, nil, intOpt, nil)
 	for j, v := range input {
 		if j == 0 {
@@ -118,7 +122,11 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		}
 	}
 	decoder := NewDecoder(intOpt, nil)
-	it := decoder.Decode(encoder.Stream())
+	stream, ok := encoder.Stream(ctx)
+	require.True(t, ok)
+
+	it := decoder.Decode(stream)
+	require.True(t, ok)
 	defer it.Close()
 	var decompressed []ts.Datapoint
 	j := 0
@@ -143,7 +151,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		require.Equal(t, input[i].Timestamp, decompressed[i].Timestamp)
 		require.Equal(t, input[i].Value, decompressed[i].Value)
 	}
-	it.Reset(nil)
+	it.Reset(nil, nil)
 	it.Close()
 }
 

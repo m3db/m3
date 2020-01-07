@@ -24,67 +24,58 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/lazy"
+	"github.com/m3db/m3/src/query/parser"
 )
 
-// RoundType rounds each value in the timeseries to the nearest integer.
+// RoundType rounds each datapoint in the series.
 // Ties are resolved by rounding up. The optional to_nearest argument allows
-// specifying the nearest multiple to which the timeseries values should be rounded (default=1).
-// This multiple may also be a fraction.
+// specifying the nearest multiple to which the timeseries values should be
+// rounded (default=1). This variable may be a fraction.
+// Special cases are: round(_, 0) = NaN
 const RoundType = "round"
 
 type roundOp struct {
 	toNearest float64
 }
 
-// NewRoundOp creates a new round op based on the type and arguments
-func NewRoundOp(args []interface{}) (BaseOp, error) {
+func parseArgs(args []interface{}) (float64, error) {
+	// NB: if no args passed; this should use default value of `1`.
+	if len(args) == 0 {
+		return 1, nil
+	}
+
 	if len(args) > 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for round: %d", len(args))
+		return 0, fmt.Errorf("invalid number of args for round: %d", len(args))
 	}
 
-	var (
-		toNearest = 1.0
-		ok        bool
-	)
-	if len(args) > 0 {
-		toNearest, ok = args[0].(float64)
-		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to to_nearest argument: %v", args[0])
-		}
+	// Attempt to parse a single arg.
+	if nearest, ok := args[0].(float64); ok {
+		return nearest, nil
 	}
 
-	spec := roundOp{
-		toNearest: toNearest,
-	}
-
-	return BaseOp{
-		operatorType: RoundType,
-		processorFn:  makeRoundProcessor(spec),
-	}, nil
-
+	return 0, fmt.Errorf("unable to cast to to_nearest argument: %v", args[0])
 }
 
-func makeRoundProcessor(spec roundOp) makeProcessor {
-	roundOp := spec
-	return func(op BaseOp, controller *transform.Controller) Processor {
-		return &roundNode{op: roundOp, controller: controller, toNearest: roundOp.toNearest}
+func roundFn(roundTo float64) block.ValueTransform {
+	if roundTo == 0 {
+		return func(float64) float64 { return math.NaN() }
+	}
+
+	roundToInverse := 1.0 / roundTo
+	return func(v float64) float64 {
+		return math.Floor(v*roundToInverse+0.5) / roundToInverse
 	}
 }
 
-type roundNode struct {
-	op         roundOp
-	toNearest  float64
-	controller *transform.Controller
-}
-
-func (r *roundNode) Process(values []float64) []float64 {
-	// Invert as it seems to cause fewer floating point accuracy issues.
-	toNearestInverse := 1.0 / r.toNearest
-
-	for i := range values {
-		v := math.Floor(values[i]*toNearestInverse+0.5) / toNearestInverse
-		values[i] = v
+// NewRoundOp creates a new round op based on the type and arguments.
+func NewRoundOp(args []interface{}) (parser.Params, error) {
+	toNearest, err := parseArgs(args)
+	if err != nil {
+		return nil, err
 	}
-	return values
+
+	lazyOpts := block.NewLazyOptions().SetValueTransform(roundFn(toNearest))
+	return lazy.NewLazyOp(RoundType, lazyOpts)
 }

@@ -26,20 +26,22 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // FileSetFileIdentifier contains all the information required to identify a FileSetFile
@@ -49,7 +51,7 @@ type FileSetFileIdentifier struct {
 	BlockStart         time.Time
 	// Only required for data content files
 	Shard uint32
-	// Required for snapshot files (index yes, data yes) and flush files (index yes, data no)
+	// Required for snapshot files (index yes, data yes) and flush files (index yes, data yes)
 	VolumeIndex int
 }
 
@@ -103,9 +105,10 @@ type SnapshotMetadataFileReader interface {
 type DataFileSetReaderStatus struct {
 	Namespace  ident.ID
 	BlockStart time.Time
-
-	Shard uint32
-	Open  bool
+	Shard      uint32
+	Volume     int
+	Open       bool
+	BlockSize  time.Duration
 }
 
 // DataReaderOpenOptions is options struct for the reader open method.
@@ -167,28 +170,31 @@ type DataFileSetSeeker interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ident.ID, shard uint32, start time.Time) error
+	Open(
+		namespace ident.ID,
+		shard uint32,
+		start time.Time,
+		volume int,
+		resources ReusableSeekerResources,
+	) error
 
 	// SeekByID returns the data for specified ID provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or ID cannot be found.
-	SeekByID(id ident.ID) (data checked.Bytes, err error)
+	SeekByID(id ident.ID, resources ReusableSeekerResources) (data checked.Bytes, err error)
 
 	// SeekByIndexEntry is similar to Seek, but uses an IndexEntry instead of
 	// looking it up on its own. Useful in cases where you've already obtained an
 	// entry and don't want to waste resources looking it up again.
-	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
+	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
 	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
 	// ahead of issuing a number of seek requests so that the seek requests can be
 	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
 	// to prevent duplicate index lookups.
-	SeekIndexEntry(id ident.ID) (IndexEntry, error)
+	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
-
-	// Entries returns the count of entries in the volume
-	Entries() int
 
 	// ConcurrentIDBloomFilter returns a concurrency-safe bloom filter that can
 	// be used to quickly disqualify ID's that definitely do not exist. I.E if the
@@ -203,20 +209,24 @@ type DataFileSetSeeker interface {
 	ConcurrentClone() (ConcurrentDataFileSetSeeker, error)
 }
 
-// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on DataFileSetSeeker.
-// The clones can be used together concurrently and share underlying resources. Clones are no
-// longer usable once the original has been closed.
+// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called
+// on DataFileSetSeeker. A seeker is essentially  a wrapper around file
+// descriptors around a set of files, allowing for interaction with them.
+// We can ask a seeker for a specific time series, which will then be streamed
+// out from the according data file.
+// The clones can be used together concurrently and share underlying resources.
+// Clones are no longer usable once the original has been closed.
 type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
 	// SeekByID is the same as in DataFileSetSeeker
-	SeekByID(id ident.ID) (data checked.Bytes, err error)
+	SeekByID(id ident.ID, resources ReusableSeekerResources) (data checked.Bytes, err error)
 
 	// SeekByIndexEntry is the same as in DataFileSetSeeker
-	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
+	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
 	// SeekIndexEntry is the same as in DataFileSetSeeker
-	SeekIndexEntry(id ident.ID) (IndexEntry, error)
+	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
@@ -233,15 +243,17 @@ type DataFileSetSeekerManager interface {
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
 
-	// Borrow returns an open seeker for a given shard and block start time.
+	// Borrow returns an open seeker for a given shard, block start time, and
+	// volume.
 	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
 
-	// Return returns an open seeker for a given shard and block start time.
+	// Return returns (closes) an open seeker for a given shard, block start
+	// time, and volume.
 	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
 
-	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
-	// shard and block start time
-	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
+	// Test checks if an ID exists in a concurrent ID bloom filter for a
+	// given shard, block, start time and volume.
+	Test(id ident.ID, shard uint32, start time.Time) (bool, error)
 }
 
 // DataBlockRetriever provides a block retriever for TSDB file sets
@@ -457,33 +469,85 @@ type Options interface {
 
 // BlockRetrieverOptions represents the options for block retrieval
 type BlockRetrieverOptions interface {
-	// SetRequestPoolOptions sets the request pool options
-	SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions
+	// Validate validates the options.
+	Validate() error
 
-	// RequestPoolOptions returns the request pool options
-	RequestPoolOptions() pool.ObjectPoolOptions
+	// SetRetrieveRequestPool sets the retrieve request pool.
+	SetRetrieveRequestPool(value RetrieveRequestPool) BlockRetrieverOptions
 
-	// SetBytesPool sets the bytes pool
+	// RetrieveRequestPool returns the retrieve request pool.
+	RetrieveRequestPool() RetrieveRequestPool
+
+	// SetBytesPool sets the bytes pool.
 	SetBytesPool(value pool.CheckedBytesPool) BlockRetrieverOptions
 
-	// BytesPool returns the bytes pool
+	// BytesPool returns the bytes pool.
 	BytesPool() pool.CheckedBytesPool
 
-	// SetSegmentReaderPool sets the segment reader pool
-	SetSegmentReaderPool(value xio.SegmentReaderPool) BlockRetrieverOptions
-
-	// SegmentReaderPool returns the segment reader pool
-	SegmentReaderPool() xio.SegmentReaderPool
-
-	// SetFetchConcurrency sets the fetch concurrency
+	// SetFetchConcurrency sets the fetch concurrency.
 	SetFetchConcurrency(value int) BlockRetrieverOptions
 
-	// FetchConcurrency returns the fetch concurrency
+	// FetchConcurrency returns the fetch concurrency.
 	FetchConcurrency() int
 
-	// SetIdentifierPool sets the identifierPool
+	// SetIdentifierPool sets the identifierPool.
 	SetIdentifierPool(value ident.Pool) BlockRetrieverOptions
 
-	// IdentifierPool returns the identifierPool
+	// IdentifierPool returns the identifierPool.
 	IdentifierPool() ident.Pool
+
+	// SetBlockLeaseManager sets the block leaser.
+	SetBlockLeaseManager(leaseMgr block.LeaseManager) BlockRetrieverOptions
+
+	// BlockLeaseManager returns the block leaser.
+	BlockLeaseManager() block.LeaseManager
 }
+
+// ForEachRemainingFn is the function that is run on each of the remaining
+// series of the merge target that did not intersect with the fileset.
+type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error
+
+// MergeWith is an interface that the fs merger uses to merge data with.
+type MergeWith interface {
+	// Read returns the data for the given block start and series ID, whether
+	// any data was found, and the error encountered (if any).
+	Read(
+		ctx context.Context,
+		seriesID ident.ID,
+		blockStart xtime.UnixNano,
+		nsCtx namespace.Context,
+	) ([]xio.BlockReader, bool, error)
+
+	// ForEachRemaining loops through each seriesID/blockStart combination that
+	// was not already handled by a call to Read().
+	ForEachRemaining(
+		ctx context.Context,
+		blockStart xtime.UnixNano,
+		fn ForEachRemainingFn,
+		nsCtx namespace.Context,
+	) error
+}
+
+// Merger is in charge of merging filesets with some target MergeWith interface.
+type Merger interface {
+	// Merge merges the specified fileset file with a merge target.
+	Merge(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		nextVolumeIndex int,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+	) error
+}
+
+// NewMergerFn is the function to call to get a new Merger.
+type NewMergerFn func(
+	reader DataFileSetReader,
+	blockAllocSize int,
+	srPool xio.SegmentReaderPool,
+	multiIterPool encoding.MultiReaderIteratorPool,
+	identPool ident.Pool,
+	encoderPool encoding.EncoderPool,
+	contextPool context.Pool,
+	nsOpts namespace.Options,
+) Merger

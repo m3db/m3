@@ -42,13 +42,13 @@ func NewSlowStorage(
 	return &slowStorage{storage: storage, delay: delay}
 }
 
-func (s *slowStorage) Fetch(
+func (s *slowStorage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
+) (storage.PromResult, error) {
 	time.Sleep(s.delay)
-	return s.storage.Fetch(ctx, query, options)
+	return s.storage.FetchProm(ctx, query, options)
 }
 
 func (s *slowStorage) FetchBlocks(
@@ -60,13 +60,13 @@ func (s *slowStorage) FetchBlocks(
 	return s.storage.FetchBlocks(ctx, query, options)
 }
 
-func (s *slowStorage) FetchTags(
+func (s *slowStorage) SearchSeries(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
 	time.Sleep(s.delay)
-	return s.storage.FetchTags(ctx, query, options)
+	return s.storage.SearchSeries(ctx, query, options)
 }
 
 func (s *slowStorage) CompleteTags(
@@ -88,6 +88,14 @@ func (s *slowStorage) Write(
 
 func (s *slowStorage) Type() storage.Type {
 	return storage.TypeMultiDC
+}
+
+func (s *slowStorage) Name() string {
+	return "slow"
+}
+
+func (s *slowStorage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorFail
 }
 
 func (s *slowStorage) Close() error {

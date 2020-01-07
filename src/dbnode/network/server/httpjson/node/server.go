@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
-	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3/src/x/context"
 )
 
 type server struct {

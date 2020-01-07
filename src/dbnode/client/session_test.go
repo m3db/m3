@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -126,11 +126,17 @@ func applySessionTestOptions(opts Options) Options {
 
 func newTestHostQueue(opts Options) *queue {
 	hq, err := newHostQueue(h, hostQueueOpts{
-		writeBatchRawRequestPool:                   testWriteBatchRawPool,
-		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
-		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
-		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
-		opts: opts,
+		writeBatchRawRequestPool:                     testWriteBatchRawPool,
+		writeBatchRawV2RequestPool:                   testWriteBatchRawV2Pool,
+		writeBatchRawRequestElementArrayPool:         testWriteArrayPool,
+		writeBatchRawV2RequestElementArrayPool:       testWriteV2ArrayPool,
+		writeTaggedBatchRawRequestPool:               testWriteTaggedBatchRawPool,
+		writeTaggedBatchRawV2RequestPool:             testWriteTaggedBatchRawV2Pool,
+		writeTaggedBatchRawRequestElementArrayPool:   testWriteTaggedArrayPool,
+		writeTaggedBatchRawV2RequestElementArrayPool: testWriteTaggedV2ArrayPool,
+		fetchBatchRawV2RequestPool:                   testFetchBatchRawV2Pool,
+		fetchBatchRawV2RequestElementArrayPool:       testFetchBatchRawV2ArrayPool,
+		opts:                                         opts,
 	})
 	if err != nil {
 		panic(err)

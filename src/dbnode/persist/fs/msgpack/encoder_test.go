@@ -81,6 +81,7 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 		indexInfo.SnapshotTime,
 		int64(indexInfo.FileType),
 		indexInfo.SnapshotID,
+		int64(indexInfo.VolumeIndex),
 	}
 }
 

@@ -30,10 +30,12 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -58,22 +60,32 @@ var (
 type AddHandler Handler
 
 // NewAddHandler returns a new instance of AddHandler.
-func NewAddHandler(client clusterclient.Client) *AddHandler {
-	return &AddHandler{client: client}
+func NewAddHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *AddHandler {
+	return &AddHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
-func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	nsRegistry, err := h.Add(md, opts)
 	if err != nil {
 		if err == errNamespaceExists {
@@ -82,7 +94,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.Error("unable to get namespace", zap.Any("error", err))
+		logger.Error("unable to get namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
@@ -110,7 +122,10 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, 
 }
 
 // Add adds a namespace.
-func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest, opts handler.ServiceOptions) (nsproto.Registry, error) {
+func (h *AddHandler) Add(
+	addReq *admin.NamespaceAddRequest,
+	opts handleroptions.ServiceOptions,
+) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
 	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)

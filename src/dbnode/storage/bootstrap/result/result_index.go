@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // NewDefaultMutableSegmentAllocator returns a default mutable segment
@@ -66,6 +66,16 @@ func (r *indexBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 func (r *indexBootstrapResult) Add(block IndexBlock, unfulfilled ShardTimeRanges) {
 	r.results.Add(block)
 	r.unfulfilled.AddRanges(unfulfilled)
+}
+
+func (r *indexBootstrapResult) NumSeries() int {
+	var size int64
+	for _, b := range r.results {
+		for _, s := range b.segments {
+			size += s.Size()
+		}
+	}
+	return int(size)
 }
 
 // Add will add an index block to the collection, merging if one already

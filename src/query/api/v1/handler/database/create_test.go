@@ -39,7 +39,8 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -51,14 +52,18 @@ var (
 	testDBCfg = &dbconfig.DBConfiguration{
 		ListenAddress: "0.0.0.0:9000",
 	}
+
+	svcDefaultOptions = []handleroptions.ServiceOptionsDefault{
+		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
+			return o
+		},
+	}
 )
 
 func SetupDatabaseTest(
 	t *testing.T,
 	ctrl *gomock.Controller,
 ) (*client.MockClient, *kv.MockStore, *placement.MockService) {
-	logging.InitWithCores(nil)
-
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 	mockKV := kv.NewMockStore(ctrl)
@@ -93,7 +98,9 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := fmt.Sprintf(`
@@ -156,13 +163,16 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -202,7 +212,9 @@ func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -247,7 +259,10 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
+
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -306,13 +321,16 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -352,7 +370,9 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -411,13 +431,16 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -458,7 +481,9 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	min := minRecommendCalculateBlockSize
@@ -520,13 +545,16 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "%d"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -576,7 +604,9 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -630,7 +660,9 @@ func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -675,7 +707,9 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	var jsonInput string
@@ -759,13 +793,16 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -818,7 +855,9 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -886,13 +925,16 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"schemaOptions": null,
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -944,7 +986,9 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -973,7 +1017,9 @@ func TestBadType(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		nil, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	jsonInput := `

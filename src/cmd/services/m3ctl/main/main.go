@@ -34,9 +34,11 @@ import (
 	"github.com/m3db/m3/src/ctl/server/http"
 	"github.com/m3db/m3/src/ctl/service/health"
 	"github.com/m3db/m3/src/ctl/service/r2"
-	"github.com/m3db/m3x/clock"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/configflag"
+	"github.com/m3db/m3/src/x/etcd"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -46,26 +48,37 @@ const (
 )
 
 func main() {
-	configFile := flag.String("f", "m3ctl.yml", "configuration file")
+	configOpts := configflag.Options{
+		ConfigFiles: configflag.FlagStringSlice{Value: []string{"m3ctl.yml"}},
+	}
+
+	configOpts.Register()
+
 	flag.Parse()
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
+	// Set globals for etcd related packages.
+	etcd.SetGlobals()
 
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
-		fmt.Printf("error loading config file: %v\n", err)
+	if err := configOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
 		os.Exit(1)
 	}
 
-	logger, err := cfg.Logging.BuildLogger()
+	rawLogger, err := cfg.Logging.BuildLogger()
 	if err != nil {
-		fmt.Printf("error creating logger: %v\n", err)
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
 		os.Exit(1)
 	}
+	defer rawLogger.Sync()
 
+	xconfig.WarnOnDeprecation(cfg, rawLogger)
+
+	logger := rawLogger.Sugar()
 	envPort := os.Getenv(portEnvVar)
 	if envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
@@ -87,7 +100,7 @@ func main() {
 	defer closer.Close()
 
 	instrumentOpts := instrument.NewOptions().
-		SetLogger(logger).
+		SetLogger(rawLogger).
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())

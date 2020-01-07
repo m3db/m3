@@ -26,16 +26,16 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/prometheus/common/model"
 )
 
 var (
 	defaultMetricNameTagName = []byte(model.MetricNameLabel)
-	rollupTagName            = []byte("m3_rollup")
+	rollupTagName            = []byte("__rollup__")
 	rollupTagValue           = []byte("true")
 	rollupTag                = ident.Tag{
 		Name:  ident.BytesID(rollupTagName),
@@ -66,27 +66,43 @@ func isRollupID(
 // when progressing through the existing tags.
 type rollupIDProvider struct {
 	index          int
+	newName        []byte
 	tagPairs       []id.TagPair
+	nameTagIndex   int
 	rollupTagIndex int
 
-	tagEncoder serialize.TagEncoder
-	pool       *rollupIDProviderPool
+	tagEncoder             serialize.TagEncoder
+	pool                   *rollupIDProviderPool
+	nameTag                ident.ID
+	nameTagBytes           []byte
+	nameTagBeforeRollupTag bool
+	tagNameID              *ident.ReuseableBytesID
+	tagValueID             *ident.ReuseableBytesID
 }
 
 func newRollupIDProvider(
 	tagEncoder serialize.TagEncoder,
 	pool *rollupIDProviderPool,
+	nameTag ident.ID,
 ) *rollupIDProvider {
+	nameTagBytes := nameTag.Bytes()
+	nameTagBeforeRollupTag := bytes.Compare(nameTagBytes, rollupTagName) < 0
 	return &rollupIDProvider{
-		tagEncoder: tagEncoder,
-		pool:       pool,
+		tagEncoder:             tagEncoder,
+		pool:                   pool,
+		nameTag:                nameTag,
+		nameTagBytes:           nameTagBytes,
+		nameTagBeforeRollupTag: nameTagBeforeRollupTag,
+		tagNameID:              ident.NewReuseableBytesID(),
+		tagValueID:             ident.NewReuseableBytesID(),
 	}
 }
 
 func (p *rollupIDProvider) provide(
+	newName []byte,
 	tagPairs []id.TagPair,
 ) ([]byte, error) {
-	p.reset(tagPairs)
+	p.reset(newName, tagPairs)
 	p.tagEncoder.Reset()
 	if err := p.tagEncoder.Encode(p); err != nil {
 		return nil, err
@@ -98,24 +114,34 @@ func (p *rollupIDProvider) provide(
 	// Need to return a copy
 	id := append([]byte(nil), data.Bytes()...)
 	// Reset after computing
-	p.reset(nil)
+	p.reset(nil, nil)
 	return id, nil
 }
 
 func (p *rollupIDProvider) reset(
+	newName []byte,
 	tagPairs []id.TagPair,
 ) {
 	p.index = -1
+	p.newName = newName
 	p.tagPairs = tagPairs
+	p.nameTagIndex = -1
 	p.rollupTagIndex = -1
 	for idx, pair := range tagPairs {
-		if bytes.Compare(rollupTagName, pair.Name) < 0 {
+		if p.nameTagIndex == -1 && bytes.Compare(p.nameTagBytes, pair.Name) < 0 {
+			p.nameTagIndex = idx
+		}
+		if p.rollupTagIndex == -1 && bytes.Compare(rollupTagName, pair.Name) < 0 {
 			p.rollupTagIndex = idx
-			break
 		}
 	}
-	if p.rollupTagIndex == -1 {
-		p.rollupTagIndex = len(p.tagPairs)
+
+	if p.nameTagIndex == p.rollupTagIndex {
+		if p.nameTagBeforeRollupTag {
+			p.rollupTagIndex++
+		} else {
+			p.nameTagIndex++
+		}
 	}
 }
 
@@ -139,18 +165,31 @@ func (p *rollupIDProvider) CurrentIndex() int {
 
 func (p *rollupIDProvider) Current() ident.Tag {
 	idx := p.index
+	if idx == p.nameTagIndex {
+		p.tagValueID.Reset(p.newName)
+		return ident.Tag{
+			Name:  p.nameTag,
+			Value: p.tagValueID,
+		}
+	}
 	if idx == p.rollupTagIndex {
 		return rollupTag
 	}
 
-	if idx > p.rollupTagIndex {
+	if p.index > p.nameTagIndex {
+		// Effective index is subtracted by 1
+		idx--
+	}
+	if p.index > p.rollupTagIndex {
 		// Effective index is subtracted by 1
 		idx--
 	}
 
+	p.tagNameID.Reset(p.tagPairs[idx].Name)
+	p.tagValueID.Reset(p.tagPairs[idx].Value)
 	return ident.Tag{
-		Name:  ident.BytesID(p.tagPairs[idx].Name),
-		Value: ident.BytesID(p.tagPairs[idx].Value),
+		Name:  p.tagNameID,
+		Value: p.tagValueID,
 	}
 }
 
@@ -163,7 +202,7 @@ func (p *rollupIDProvider) Close() {
 }
 
 func (p *rollupIDProvider) Len() int {
-	return len(p.tagPairs) + 1
+	return len(p.tagPairs) + 2
 }
 
 func (p *rollupIDProvider) Remaining() int {
@@ -172,28 +211,31 @@ func (p *rollupIDProvider) Remaining() int {
 
 func (p *rollupIDProvider) Duplicate() ident.TagIterator {
 	duplicate := p.pool.Get()
-	duplicate.reset(p.tagPairs)
+	duplicate.reset(p.newName, p.tagPairs)
 	return duplicate
 }
 
 type rollupIDProviderPool struct {
 	tagEncoderPool serialize.TagEncoderPool
 	pool           pool.ObjectPool
+	nameTag        ident.ID
 }
 
 func newRollupIDProviderPool(
 	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
+	nameTag ident.ID,
 ) *rollupIDProviderPool {
 	return &rollupIDProviderPool{
 		tagEncoderPool: tagEncoderPool,
 		pool:           pool.NewObjectPool(opts),
+		nameTag:        nameTag,
 	}
 }
 
 func (p *rollupIDProviderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newRollupIDProvider(p.tagEncoderPool.Get(), p)
+		return newRollupIDProvider(p.tagEncoderPool.Get(), p, p.nameTag)
 	})
 }
 

@@ -27,10 +27,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type testMultiReader struct {
@@ -314,8 +315,8 @@ func assertTestMultiReaderIterator(
 	}
 
 	var testIterators []*testIterator
-	var iteratorAlloc func(reader io.Reader) ReaderIterator
-	iteratorAlloc = func(reader io.Reader) ReaderIterator {
+	var iteratorAlloc func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
+	iteratorAlloc = func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator {
 		for i := range entriesByReader {
 			if reader != entriesByReader[i].reader {
 				continue
@@ -330,8 +331,8 @@ func assertTestMultiReaderIterator(
 					}
 				}
 			}
-			it.onReset = func(r io.Reader) {
-				newIt := iteratorAlloc(r).(*testIterator)
+			it.onReset = func(r io.Reader, descr namespace.SchemaDescr) {
+				newIt := iteratorAlloc(r, descr).(*testIterator)
 				*it = *newIt
 				// We close this here as we never actually use this iterator
 				// and we test at the end of the test to ensure all iterators were closed
@@ -347,7 +348,7 @@ func assertTestMultiReaderIterator(
 
 	iter := NewMultiReaderIterator(iteratorAlloc, nil)
 	slicesIter := newTestReaderSliceOfSlicesIterator(blocks)
-	iter.ResetSliceOfSlices(slicesIter)
+	iter.ResetSliceOfSlices(slicesIter, nil)
 
 	for i := 0; i < len(test.expected); i++ {
 		next := iter.Next()

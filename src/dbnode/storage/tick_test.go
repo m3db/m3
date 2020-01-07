@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
@@ -58,7 +58,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	var wg sync.WaitGroup
 	ch1 := make(chan struct{})
 	ch2 := make(chan struct{})
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
@@ -91,7 +91,7 @@ func TestTickManagerTickErrorFlow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	c := context.NewCancellable()
 
 	fakeErr := errors.New("fake error")
@@ -116,7 +116,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	var wg sync.WaitGroup
 	ch1 := make(chan struct{})
 	ch2 := make(chan struct{})
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
@@ -154,7 +154,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	var wg sync.WaitGroup
 	ch1 := make(chan struct{})
 	ch2 := make(chan struct{})
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)

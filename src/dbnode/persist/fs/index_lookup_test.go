@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -78,6 +78,7 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 		summariesFdWithDigest,
 		expectedDigest,
 		msgpack.NewDecoder(nil),
+		msgpack.NewByteDecoderStream(nil),
 		len(outOfOrderSummaries),
 		false,
 	)
@@ -86,7 +87,7 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 }
 
 func TestCloneCannotBeCloned(t *testing.T) {
-	indexLookup := newNearestIndexOffsetLookup(nil, nil, nil)
+	indexLookup := newNearestIndexOffsetLookup(nil, nil)
 	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 
@@ -117,7 +118,7 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 	for _, summary := range indexSummaries {
 		id := ident.StringID(string(summary.ID))
 		require.NoError(t, err)
-		offset, err := clone.getNearestIndexFileOffset(id)
+		offset, err := clone.getNearestIndexFileOffset(id, newTestReusableSeekerResources())
 		require.NoError(t, err)
 		require.Equal(t, summary.IndexEntryOffset, offset)
 		id.Finalize()
@@ -170,7 +171,7 @@ func testParentAndClonesSafeForConcurrentUse(t *testing.T, forceMmapMemory bool)
 		startWg.Wait()
 		for _, summary := range indexSummaries {
 			id := ident.StringID(string(summary.ID))
-			offset, err := clone.getNearestIndexFileOffset(id)
+			offset, err := clone.getNearestIndexFileOffset(id, newTestReusableSeekerResources())
 			require.NoError(t, err)
 			require.Equal(t, summary.IndexEntryOffset, offset)
 			id.Finalize()
@@ -220,6 +221,7 @@ func newIndexLookupWithSummaries(
 		summariesFdWithDigest,
 		expectedDigest,
 		msgpack.NewDecoder(nil),
+		msgpack.NewByteDecoderStream(nil),
 		len(indexSummaries),
 		forceMmapMemory,
 	)

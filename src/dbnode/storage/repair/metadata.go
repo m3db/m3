@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -35,36 +35,36 @@ const (
 	defaultReplicaSeriesMetadataCapacity = 4096
 )
 
-type hostBlockMetadataSlice struct {
-	metadata []HostBlockMetadata
-	pool     HostBlockMetadataSlicePool
+type replicaMetadataSlice struct {
+	metadata []block.ReplicaMetadata
+	pool     ReplicaMetadataSlicePool
 }
 
-func newHostBlockMetadataSlice() HostBlockMetadataSlice {
-	return &hostBlockMetadataSlice{}
+func newReplicaMetadataSlice() ReplicaMetadataSlice {
+	return &replicaMetadataSlice{}
 }
 
-func newPooledHostBlockMetadataSlice(metadata []HostBlockMetadata, pool HostBlockMetadataSlicePool) HostBlockMetadataSlice {
-	return &hostBlockMetadataSlice{metadata: metadata, pool: pool}
+func newPooledReplicaMetadataSlice(metadata []block.ReplicaMetadata, pool ReplicaMetadataSlicePool) ReplicaMetadataSlice {
+	return &replicaMetadataSlice{metadata: metadata, pool: pool}
 }
 
-func (s *hostBlockMetadataSlice) Add(metadata HostBlockMetadata) {
+func (s *replicaMetadataSlice) Add(metadata block.ReplicaMetadata) {
 	s.metadata = append(s.metadata, metadata)
 }
 
-func (s *hostBlockMetadataSlice) Metadata() []HostBlockMetadata {
+func (s *replicaMetadataSlice) Metadata() []block.ReplicaMetadata {
 	return s.metadata
 }
 
-func (s *hostBlockMetadataSlice) Reset() {
-	var zeroed HostBlockMetadata
+func (s *replicaMetadataSlice) Reset() {
+	var zeroed block.ReplicaMetadata
 	for i := range s.metadata {
 		s.metadata[i] = zeroed
 	}
 	s.metadata = s.metadata[:0]
 }
 
-func (s *hostBlockMetadataSlice) Close() {
+func (s *replicaMetadataSlice) Close() {
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
@@ -72,18 +72,18 @@ func (s *hostBlockMetadataSlice) Close() {
 
 type replicaBlockMetadata struct {
 	start    time.Time
-	metadata HostBlockMetadataSlice
+	metadata ReplicaMetadataSlice
 }
 
 // NewReplicaBlockMetadata creates a new replica block metadata
-func NewReplicaBlockMetadata(start time.Time, p HostBlockMetadataSlice) ReplicaBlockMetadata {
+func NewReplicaBlockMetadata(start time.Time, p ReplicaMetadataSlice) ReplicaBlockMetadata {
 	return replicaBlockMetadata{start: start, metadata: p}
 }
 
-func (m replicaBlockMetadata) Start() time.Time               { return m.start }
-func (m replicaBlockMetadata) Metadata() []HostBlockMetadata  { return m.metadata.Metadata() }
-func (m replicaBlockMetadata) Add(metadata HostBlockMetadata) { m.metadata.Add(metadata) }
-func (m replicaBlockMetadata) Close()                         { m.metadata.Close() }
+func (m replicaBlockMetadata) Start() time.Time                   { return m.start }
+func (m replicaBlockMetadata) Metadata() []block.ReplicaMetadata  { return m.metadata.Metadata() }
+func (m replicaBlockMetadata) Add(metadata block.ReplicaMetadata) { m.metadata.Add(metadata) }
+func (m replicaBlockMetadata) Close()                             { m.metadata.Close() }
 
 type replicaBlocksMetadata map[xtime.UnixNano]ReplicaBlockMetadata
 
@@ -98,7 +98,7 @@ func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata) {
 	m[xtime.ToUnixNano(block.Start())] = block
 }
 
-func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata {
+func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata {
 	startNano := xtime.ToUnixNano(start)
 	block, exists := m[startNano]
 	if exists {
@@ -160,28 +160,27 @@ func (m replicaSeriesMetadata) Close() {
 }
 
 type replicaMetadataComparer struct {
-	replicas                   int
-	metadata                   ReplicaSeriesMetadata
-	hostBlockMetadataSlicePool HostBlockMetadataSlicePool
+	origin                   topology.Host
+	metadata                 ReplicaSeriesMetadata
+	replicaMetadataSlicePool ReplicaMetadataSlicePool
 }
 
 // NewReplicaMetadataComparer creates a new replica metadata comparer
-func NewReplicaMetadataComparer(replicas int, opts Options) ReplicaMetadataComparer {
+func NewReplicaMetadataComparer(origin topology.Host, opts Options) ReplicaMetadataComparer {
 	return replicaMetadataComparer{
-		replicas:                   replicas,
-		metadata:                   NewReplicaSeriesMetadata(),
-		hostBlockMetadataSlicePool: opts.HostBlockMetadataSlicePool(),
+		origin:                   origin,
+		metadata:                 NewReplicaSeriesMetadata(),
+		replicaMetadataSlicePool: opts.ReplicaMetadataSlicePool(),
 	}
 }
 
-func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) error {
+func (m replicaMetadataComparer) AddLocalMetadata(localIter block.FilteredBlocksMetadataIter) error {
 	for localIter.Next() {
-		id, block := localIter.Current()
+		id, localBlock := localIter.Current()
 		blocks := m.metadata.GetOrAdd(id)
-		blocks.GetOrAdd(block.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
-			Host:     origin,
-			Size:     block.Size,
-			Checksum: block.Checksum,
+		blocks.GetOrAdd(localBlock.Start, m.replicaMetadataSlicePool).Add(block.ReplicaMetadata{
+			Host:     m.origin,
+			Metadata: localBlock,
 		})
 	}
 
@@ -192,10 +191,9 @@ func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlockMetada
 	for peerIter.Next() {
 		peer, peerBlock := peerIter.Current()
 		blocks := m.metadata.GetOrAdd(peerBlock.ID)
-		blocks.GetOrAdd(peerBlock.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
+		blocks.GetOrAdd(peerBlock.Start, m.replicaMetadataSlicePool).Add(block.ReplicaMetadata{
 			Host:     peer,
-			Size:     peerBlock.Size,
-			Checksum: peerBlock.Checksum,
+			Metadata: peerBlock,
 		})
 	}
 
@@ -214,35 +212,57 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 			bm := b.Metadata()
 
 			var (
-				numHostsWithSize     int
-				sizeVal              int64
-				sameSize             = true
-				firstSize            = true
-				numHostsWithChecksum int
-				checksumVal          uint32
-				sameChecksum         = true
-				firstChecksum        = true
+				originContainsBlock = false
+				sizeVal             int64
+				sameSize            = true
+				firstSize           = true
+				checksumVal         uint32
+				sameChecksum        = true
+				firstChecksum       = true
 			)
 
 			for _, hm := range bm {
-				// Check size
-				if hm.Size != 0 {
-					numHostsWithSize++
-					if firstSize {
-						sizeVal = hm.Size
-						firstSize = false
-					} else if hm.Size != sizeVal {
-						sameSize = false
+				if !originContainsBlock {
+					if hm.Host.ID() == m.origin.ID() {
+						originContainsBlock = true
 					}
 				}
 
-				// Check checksum
-				if hm.Checksum != nil {
-					numHostsWithChecksum++
+				if hm.Metadata.Checksum == nil {
+					// Skip metadata that doesn't have a checksum. This usually means that the
+					// metadata represents unmerged or pending data. Better to skip for now and
+					// repair it once it has been merged as opposed to repairing it now and
+					// ping-ponging the same data back and forth between all the repairing nodes.
+					//
+					// The impact of this is that recently modified data may take longer to be
+					// repaired, but it saves a ton of work by preventing nodes from repairing
+					// from each other unnecessarily even when they have identical data.
+					//
+					// TODO(rartoul): Consider skipping series with duplicate metadata as well?
+					continue
+				}
+
+				// Check size.
+				if firstSize {
+					sizeVal = hm.Metadata.Size
+					firstSize = false
+				} else if hm.Metadata.Size != sizeVal {
+					sameSize = false
+				}
+
+				// If a previous metadata had a checksum and this one does not
+				// then assume the checksums mismatch.
+				if hm.Metadata.Checksum == nil && !firstChecksum {
+					sameChecksum = false
+					continue
+				}
+
+				// Check checksum.
+				if hm.Metadata.Checksum != nil {
 					if firstChecksum {
-						checksumVal = *hm.Checksum
+						checksumVal = *hm.Metadata.Checksum
 						firstChecksum = false
-					} else if *hm.Checksum != checksumVal {
+					} else if *hm.Metadata.Checksum != checksumVal {
 						sameChecksum = false
 					}
 				}
@@ -250,13 +270,13 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 
 			// If only a subset of hosts in the replica set have sizes, or the sizes differ,
 			// we record this block
-			if !(numHostsWithSize == m.replicas && sameSize) {
+			if !originContainsBlock || !sameSize {
 				sizeDiff.GetOrAdd(series.ID).Add(b)
 			}
 
 			// If only a subset of hosts in the replica set have checksums, or the checksums
 			// differ, we record this block
-			if !(numHostsWithChecksum == m.replicas && sameChecksum) {
+			if !originContainsBlock || !sameChecksum {
 				checkSumDiff.GetOrAdd(series.ID).Add(b)
 			}
 		}

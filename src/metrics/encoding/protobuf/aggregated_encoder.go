@@ -23,7 +23,7 @@ package protobuf
 import (
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // AggregatedEncoder is an encoder for encoding aggregated metrics.

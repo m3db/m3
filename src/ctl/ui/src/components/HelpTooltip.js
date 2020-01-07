@@ -1,6 +1,6 @@
 import React from 'react';
 import {Popover, Icon} from 'antd';
-import {getHelpText} from 'utils/helpText';
+import {getHelpText} from '../utils/helpText';
 
 export default function HelpTooltip({helpTextKey, title, ...rest}) {
   return (

@@ -24,6 +24,7 @@ package main_test
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"sync"
 	"testing"
@@ -37,14 +38,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/server"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestConfig tests booting a server using file based configuration.
@@ -102,8 +103,10 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
-		SetLogger(xlog.NullLogger))
+	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	require.NoError(t, err)
+	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
+		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 
 	svcs, err := configSvcClient.Services(services.NewOverrideOptions())
@@ -127,16 +130,20 @@ func TestConfig(t *testing.T) {
 	placementSvc, err := svcs.PlacementService(serviceID, placementOpts)
 	require.NoError(t, err)
 
-	instance := placement.NewInstance().
-		SetID(hostID).
-		SetEndpoint(endpoint("127.0.0.1", servicePort)).
-		SetPort(servicePort).
-		SetIsolationGroup("local").
-		SetWeight(1).
-		SetZone(serviceZone)
-	instances := []placement.Instance{instance}
-	shards := 256
-	replicas := 1
+	var (
+		instance = placement.NewInstance().
+				SetID(hostID).
+				SetEndpoint(endpoint("127.0.0.1", servicePort)).
+				SetPort(servicePort).
+				SetIsolationGroup("local").
+				SetWeight(1).
+				SetZone(serviceZone)
+		instances = []placement.Instance{instance}
+		// Reduce number of shards to avoid having to tune F.D limits.
+		shards   = 4
+		replicas = 1
+	)
+
 	_, err = placementSvc.BuildInitialPlacement(instances, shards, replicas)
 	require.NoError(t, err)
 
@@ -164,6 +171,11 @@ func TestConfig(t *testing.T) {
 			InterruptCh: interruptCh,
 		})
 		serverWg.Done()
+	}()
+	defer func() {
+		// Resetting DefaultServeMux to prevent multiple assignments
+		// to /debug/dump in Server.Run()
+		http.DefaultServeMux = http.NewServeMux()
 	}()
 
 	// Wait for bootstrap
@@ -308,6 +320,11 @@ func TestEmbeddedConfig(t *testing.T) {
 		})
 		serverWg.Done()
 	}()
+	defer func() {
+		// Resetting DefaultServeMux to prevent multiple assignments
+		// to /debug/dump in Server.Run()
+		http.DefaultServeMux = http.NewServeMux()
+	}()
 
 	// Wait for embedded KV to be up.
 	<-embeddedKVCh
@@ -317,8 +334,10 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
-		SetLogger(xlog.NullLogger))
+	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	require.NoError(t, err)
+	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
+		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 
 	svcs, err := configSvcClient.Services(services.NewOverrideOptions())
@@ -342,16 +361,20 @@ func TestEmbeddedConfig(t *testing.T) {
 	placementSvc, err := svcs.PlacementService(serviceID, placementOpts)
 	require.NoError(t, err)
 
-	instance := placement.NewInstance().
-		SetID(hostID).
-		SetEndpoint(endpoint("127.0.0.1", servicePort)).
-		SetPort(servicePort).
-		SetIsolationGroup("local").
-		SetWeight(1).
-		SetZone(serviceZone)
-	instances := []placement.Instance{instance}
-	shards := 256
-	replicas := 1
+	var (
+		instance = placement.NewInstance().
+				SetID(hostID).
+				SetEndpoint(endpoint("127.0.0.1", servicePort)).
+				SetPort(servicePort).
+				SetIsolationGroup("local").
+				SetWeight(1).
+				SetZone(serviceZone)
+		instances = []placement.Instance{instance}
+		// Use a low number of shards to avoid having to tune F.D limits.
+		shards   = 4
+		replicas = 1
+	)
+
 	_, err = placementSvc.BuildInitialPlacement(instances, shards, replicas)
 	require.NoError(t, err)
 
@@ -489,8 +512,6 @@ db:
             - commitlog
             - peers
             - uninitialized_topology
-        fs:
-            numProcessorsPerCPU: 0.125
 
     commitlog:
         flushMaxBytes: 524288
@@ -510,9 +531,6 @@ db:
 
     repair:
         enabled: false
-        interval: 2h
-        offset: 30m
-        jitter: 1h
         throttle: 2m
         checkInterval: 1m
 
@@ -557,7 +575,7 @@ db:
             capacity: 128
             lowWatermark: 0.01
             highWatermark: 0.02
-        hostBlockMetadataSlicePool:
+        replicaMetadataSlicePool:
             size: 128
             capacity: 3
             lowWatermark: 0.01
@@ -581,6 +599,14 @@ db:
             lowWatermark: 0.01
             highWatermark: 0.02
         identifierPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        bufferBucketPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        bufferBucketVersionsPool:
             size: 128
             lowWatermark: 0.01
             highWatermark: 0.02

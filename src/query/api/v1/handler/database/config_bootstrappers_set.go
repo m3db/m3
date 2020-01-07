@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -45,38 +46,41 @@ const (
 )
 
 type configSetBootstrappersHandler struct {
-	client clusterclient.Client
+	client         clusterclient.Client
+	instrumentOpts instrument.Options
 }
 
 // NewConfigSetBootstrappersHandler returns a new instance of a database create handler.
 func NewConfigSetBootstrappersHandler(
 	client clusterclient.Client,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &configSetBootstrappersHandler{
-		client: client,
+		client:         client,
+		instrumentOpts: instrumentOpts,
 	}
 }
 
 func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	value, rErr := h.parseRequest(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	store, err := h.client.KV()
 	if err != nil {
-		logger.Error("unable to get kv store", zap.Any("error", err))
+		logger.Error("unable to get kv store", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := store.Set(kvconfig.BootstrapperKey, value); err != nil {
-		logger.Error("unable to set kv key", zap.Any("error", err))
+		logger.Error("unable to set kv key", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -99,7 +103,8 @@ func (h *configSetBootstrappersHandler) parseRequest(
 		return nil, xhttp.NewParseError(fmt.Errorf("no values"), http.StatusBadRequest)
 	}
 
-	if err := dbconfig.ValidateBootstrappersOrder(array.Values); err != nil {
+	validator := dbconfig.NewBootstrapConfigurationValidator()
+	if err := validator.ValidateBootstrappersOrder(array.Values); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 

@@ -54,8 +54,11 @@ func TestAbsWithAllValues(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(AbsType)
+	mathOp, err := NewMathOp(AbsType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -73,8 +76,12 @@ func TestAbsWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(AbsType)
+	mathOp, err := NewMathOp(AbsType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -88,8 +95,12 @@ func TestLn(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(LnType)
+	mathOp, err := NewMathOp(LnType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -107,8 +118,12 @@ func TestLog10WithNoValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(Log10Type)
+	mathOp, err := NewMathOp(Log10Type)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -126,8 +141,12 @@ func TestLog2WithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(Log2Type)
+	mathOp, err := NewMathOp(Log2Type)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -145,8 +164,12 @@ func TestFloorWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(FloorType)
+	mathOp, err := NewMathOp(FloorType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -164,8 +187,12 @@ func TestCeilWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(CeilType)
+	mathOp, err := NewMathOp(CeilType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -182,8 +209,12 @@ func TestExpWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(ExpType)
+	mathOp, err := NewMathOp(ExpType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -201,8 +232,12 @@ func TestSqrtWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMathOp(SqrtType)
+	mathOp, err := NewMathOp(SqrtType)
 	require.NoError(t, err)
+
+	op, ok := mathOp.(transform.Params)
+	require.True(t, ok)
+
 	node := op.Node(c, transform.Options{})
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
 	require.NoError(t, err)

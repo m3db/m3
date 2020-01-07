@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/x/cost"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
 )

@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Message carries the data that needs to be processed.

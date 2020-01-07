@@ -21,12 +21,20 @@
 package http
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3x/pprof"
-	xserver "github.com/m3db/m3x/server"
+	xdebug "github.com/m3db/m3/src/x/debug"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pprof"
+	xserver "github.com/m3db/m3/src/x/server"
+)
+
+const (
+	defaultCPUProfileDuration = 5 * time.Second
 )
 
 // server is an http server.
@@ -35,14 +43,21 @@ type server struct {
 	address    string
 	listener   net.Listener
 	aggregator aggregator.Aggregator
+	iOpts      instrument.Options
 }
 
 // NewServer creates a new http server.
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
+func NewServer(
+	address string,
+	aggregator aggregator.Aggregator,
+	opts Options,
+	iOpts instrument.Options,
+) xserver.Server {
 	return &server{
 		opts:       opts,
 		address:    address,
 		aggregator: aggregator,
+		iOpts:      iOpts,
 	}
 }
 
@@ -59,6 +74,20 @@ func (s *server) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
 	registerHandlers(mux, s.aggregator)
 	pprof.RegisterHandler(mux)
+
+	// create and register debug handler
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
+		defaultCPUProfileDuration,
+		s.iOpts,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create debug writer: %v", err)
+	}
+
+	if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
+		return fmt.Errorf("unable to register debug writer endpoint: %v", err)
+	}
+
 	server := http.Server{
 		Handler:      mux,
 		ReadTimeout:  s.opts.ReadTimeout(),

@@ -26,6 +26,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/x/context"
 )
 
 // Options represents the options for bootstrapping from peers
@@ -100,4 +101,10 @@ type Options interface {
 
 	// RuntimeOptionsManagers returns the RuntimeOptionsManager.
 	RuntimeOptionsManager() m3dbruntime.OptionsManager
+
+	// SetContextPool sets the contextPool.
+	SetContextPool(value context.Pool) Options
+
+	// ContextPool returns the contextPool.
+	ContextPool() context.Pool
 }

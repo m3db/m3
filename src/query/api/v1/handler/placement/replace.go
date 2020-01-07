@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -44,15 +45,18 @@ const (
 
 var (
 	// M3DBReplaceURL is the url for the m3db replace handler (method POST).
-	M3DBReplaceURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, replacePathName)
+	M3DBReplaceURL = path.Join(handler.RoutePrefixV1,
+		M3DBServicePlacementPathName, replacePathName)
 
 	// M3AggReplaceURL is the url for the m3aggregator replace handler (method
 	// POST).
-	M3AggReplaceURL = path.Join(handler.RoutePrefixV1, handler.M3AggregatorServiceName, replacePathName)
+	M3AggReplaceURL = path.Join(handler.RoutePrefixV1,
+		handleroptions.M3AggregatorServiceName, replacePathName)
 
 	// M3CoordinatorReplaceURL is the url for the m3coordinator replace handler
 	// (method POST).
-	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1, handler.M3CoordinatorServiceName, replacePathName)
+	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1,
+		handleroptions.M3CoordinatorServiceName, replacePathName)
 )
 
 // ReplaceHandler is the type for placement replaces.
@@ -63,9 +67,13 @@ func NewReplaceHandler(opts HandlerOptions) *ReplaceHandler {
 	return &ReplaceHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *ReplaceHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOptions)
 
 	req, pErr := h.parseRequest(r)
 	if pErr != nil {
@@ -73,7 +81,7 @@ func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r 
 		return
 	}
 
-	placement, err := h.Replace(serviceName, r, req)
+	placement, err := h.Replace(svc, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
@@ -112,7 +120,7 @@ func (h *ReplaceHandler) parseRequest(r *http.Request) (*admin.PlacementReplaceR
 
 // Replace replaces instances.
 func (h *ReplaceHandler) Replace(
-	serviceName string,
+	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
 	req *admin.PlacementReplaceRequest,
 ) (placement.Placement, error) {
@@ -121,8 +129,10 @@ func (h *ReplaceHandler) Replace(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), nil)
+	serviceOpts := handleroptions.NewServiceOptions(svc,
+		httpReq.Header, h.m3AggServiceOptions)
+	service, algo, err := ServiceWithAlgo(h.clusterClient,
+		serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +148,7 @@ func (h *ReplaceHandler) Replace(
 	}
 
 	// M3Coordinator isn't sharded, can't check if its shards are available.
-	if !isStateless(serviceName) {
+	if !isStateless(svc.ServiceName) {
 		if err := validateAllAvailable(curPlacement); err != nil {
 			return nil, err
 		}

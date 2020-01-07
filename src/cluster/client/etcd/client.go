@@ -36,12 +36,12 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	etcdheartbeat "github.com/m3db/m3/src/cluster/services/heartbeat/etcd"
 	"github.com/m3db/m3/src/cluster/services/leader"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -92,7 +92,7 @@ type csclient struct {
 	kvScope tally.Scope
 	sdScope tally.Scope
 	hbScope tally.Scope
-	logger  log.Logger
+	logger  *zap.Logger
 	newFn   newClientFn
 	retrier retry.Retrier
 
@@ -169,7 +169,8 @@ func (c *csclient) newkvOptions(
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
 		SetCacheFileFn(cacheFileFn(opts.Zone())).
-		SetWatchWithRevision(c.opts.WatchWithRevision())
+		SetWatchWithRevision(c.opts.WatchWithRevision()).
+		SetNewDirectoryMode(c.opts.NewDirectoryMode())
 
 	if ns := opts.Namespace(); ns != "" {
 		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(ns))
@@ -259,7 +260,7 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 
 	cluster, ok := c.opts.ClusterForZone(zone)
 	if !ok {
-		return nil, fmt.Errorf("no etcd cluster found for zone %s", zone)
+		return nil, fmt.Errorf("no etcd cluster found for zone: %s", zone)
 	}
 
 	err := c.retrier.Attempt(func() error {
@@ -281,8 +282,9 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		return nil, err
 	}
 	cfg := clientv3.Config{
-		Endpoints: cluster.Endpoints(),
-		TLS:       tls,
+		Endpoints:        cluster.Endpoints(),
+		TLS:              tls,
+		AutoSyncInterval: cluster.AutoSyncInterval(),
 	}
 
 	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {

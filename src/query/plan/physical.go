@@ -27,10 +27,9 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/storage"
 )
 
-// PhysicalPlan represents the physical plan
+// PhysicalPlan represents the physical plan.
 type PhysicalPlan struct {
 	steps            map[parser.NodeID]LogicalStep
 	pipeline         []parser.NodeID // Ordered list of steps to be performed
@@ -41,16 +40,26 @@ type PhysicalPlan struct {
 	LookbackDuration time.Duration
 }
 
-// ResultOp is resonsible for delivering results to the clients
+// ResultOp is responsible for delivering results to the clients.
 type ResultOp struct {
 	Parent parser.NodeID
 }
 
-// NewPhysicalPlan is used to generate a physical plan. Its responsibilities include creating consolidation nodes, result nodes,
-// pushing down predicates, changing the ordering for nodes
+// NewPhysicalPlan is used to generate a physical plan.
+// Its responsibilities include creating consolidation nodes, result nodes,
+// pushing down predicates, and changing the ordering for nodes.
 // nolint: unparam
-func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.RequestParams, lookbackDuration time.Duration) (PhysicalPlan, error) {
-	// generate a new physical plan after cloning the logical plan so that any changes here do not update the logical plan
+func NewPhysicalPlan(
+	lp LogicalPlan,
+	params models.RequestParams,
+) (PhysicalPlan, error) {
+	if params.Step <= 0 {
+		return PhysicalPlan{}, fmt.Errorf("expected non-zero step size, got %d",
+			params.Step)
+	}
+
+	// generate a new physical plan after cloning the logical plan so that any
+	// changes here do not update the logical plan.
 	cloned := lp.Clone()
 	p := PhysicalPlan{
 		steps:    cloned.Steps,
@@ -63,7 +72,7 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 		},
 		Debug:            params.Debug,
 		BlockType:        params.BlockType,
-		LookbackDuration: lookbackDuration,
+		LookbackDuration: params.LookbackDuration,
 	}
 
 	pl, err := p.createResultNode()
@@ -98,8 +107,15 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 	}
 
 	startShift := maxOffset + maxRange
-	// keeping end the same for now, might optimize later
-	p.TimeSpec.Start = p.TimeSpec.Start.Add(-1 * startShift)
+	shift := startShift % p.TimeSpec.Step
+	extraStep := p.TimeSpec.Step
+	if shift == 0 {
+		// NB: if the start is divisible by offset, no need to take an extra step.
+		extraStep = 0
+	}
+
+	alignedShift := startShift - extraStep - shift
+	p.TimeSpec.Start = p.TimeSpec.Start.Add(-1 * alignedShift)
 	return p
 }
 
@@ -135,14 +151,15 @@ func (p PhysicalPlan) leafNode() (LogicalStep, error) {
 	return leaf, nil
 }
 
-// Step gets the logical step using its unique ID in the DAG
+// Step gets the logical step using its unique ID in the DAG.
 func (p PhysicalPlan) Step(ID parser.NodeID) (LogicalStep, bool) {
 	// Editor complains when inlining the map get
 	step, ok := p.steps[ID]
 	return step, ok
 }
 
-// String representation of the physical plan
+// String representation of the physical plan.
 func (p PhysicalPlan) String() string {
-	return fmt.Sprintf("StepCount: %s, Pipeline: %s, Result: %s, TimeSpec: %v", p.steps, p.pipeline, p.ResultStep, p.TimeSpec)
+	return fmt.Sprintf("StepCount: %s, Pipeline: %s, Result: %s, TimeSpec: %v",
+		p.steps, p.pipeline, p.ResultStep, p.TimeSpec)
 }

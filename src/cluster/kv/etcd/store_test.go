@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/mocks"
-	xclock "github.com/m3db/m3x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
@@ -122,6 +122,35 @@ func TestNoCache(t *testing.T) {
 
 	_, err = store.Get("foo")
 	require.Error(t, err)
+	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+}
+
+func TestCacheDirCreation(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	tdir, err := ioutil.TempDir("", "m3tests")
+	require.NoError(t, err)
+	defer os.RemoveAll(tdir)
+
+	cdir := path.Join(tdir, "testCache")
+	opts = opts.SetCacheFileFn(func(string) string {
+		return path.Join(cdir, opts.Prefix())
+	})
+
+	store, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
+
+	info, err := os.Stat(cdir)
+	require.NoError(t, err)
+	require.Equal(t, info.IsDir(), true)
+
+	_, err = store.Set("foo", genProto("bar"))
+	require.NoError(t, err)
+
+	value, err := store.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, value, "bar", 1)
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 }
 

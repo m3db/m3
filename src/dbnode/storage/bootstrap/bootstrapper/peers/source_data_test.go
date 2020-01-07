@@ -21,25 +21,26 @@
 package peers
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -53,6 +54,8 @@ var (
 		for _, opt := range opts {
 			namespaceOpts = opt(namespaceOpts)
 		}
+		idxOpts := namespaceOpts.IndexOptions()
+		namespaceOpts = namespaceOpts.SetIndexOptions(idxOpts.SetEnabled(true))
 		ns, err := namespace.NewMetadata(testNamespace, namespaceOpts)
 		require.NoError(t, err)
 		return ns
@@ -105,17 +108,6 @@ func newValidMockRuntimeOptionsManager(t *testing.T, ctrl *gomock.Controller) m3
 
 type namespaceOption func(namespace.Options) namespace.Options
 
-func TestPeersSourceCan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	src, err := newPeersSource(newTestDefaultOpts(t, ctrl))
-	require.NoError(t, err)
-
-	assert.True(t, src.Can(bootstrap.BootstrapSequential))
-	assert.False(t, src.Can(bootstrap.BootstrapParallel))
-}
-
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -127,18 +119,20 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		nsMetdata = testNamespaceMetadata(t)
-		target    = result.ShardTimeRanges{}
-		runOpts   = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
+		nsMetadata = testNamespaceMetadata(t)
+		target     = result.ShardTimeRanges{}
+		runOpts    = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
-	available, err := src.AvailableData(nsMetdata, target, runOpts)
+	available, err := src.AvailableData(nsMetadata, target, runOpts)
 	require.NoError(t, err)
 	require.Equal(t, target, available)
 
-	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(r.ShardResults()))
-	require.True(t, r.Unfulfilled().IsEmpty())
+	tester := bootstrap.BuildNamespacesTester(t, runOpts, target, nsMetadata)
+	defer tester.Finish()
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
@@ -148,7 +142,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
-	expectedErr := fmt.Errorf("an error")
+	expectedErr := errors.New("an error")
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
@@ -165,12 +159,16 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 	}
 
-	_, err = src.ReadData(nsMetadata, target, testDefaultRunOpts)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
+	defer tester.Finish()
+	_, err = src.Read(tester.Namespaces)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
-func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
+func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -182,22 +180,26 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	end := start.Add(ropts.BlockSize())
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts)
-	goodResult.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
-	badErr := fmt.Errorf("an error")
+	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
+	goodID := ident.StringID("foo")
+	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
 			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
+
+	peerMetaIter := client.NewMockPeerBlockMetadataIter(ctrl)
+	peerMetaIter.EXPECT().Next().Return(false).AnyTimes()
+	peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(1), start, end, gomock.Any()).
-		Return(nil, badErr)
+		FetchBootstrapBlocksMetadataFromPeers(gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(peerMetaIter, nil).AnyTimes()
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
@@ -206,28 +208,22 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	target := result.ShardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 	}
 
-	r, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
-	assert.NoError(t, err)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
+	defer tester.Finish()
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	vals := tester.DumpLoadedBlocks()
+	assert.Equal(t, 1, len(vals))
+	series, found := vals[nsMetadata.ID().String()]
+	require.True(t, found)
 
-	assert.Equal(t, 1, len(r.ShardResults()))
-	require.NotNil(t, r.ShardResults()[0])
-	require.Nil(t, r.ShardResults()[1])
-
-	require.True(t, r.Unfulfilled()[0].IsEmpty())
-	require.False(t, r.Unfulfilled()[1].IsEmpty())
-	require.Equal(t, 1, r.Unfulfilled()[1].Len())
-
-	block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
-	require.True(t, ok)
-	require.Equal(t, fooBlock, block)
-
-	rangeIter := r.Unfulfilled()[1].Iter()
-	require.True(t, rangeIter.Next())
-	require.Equal(t, xtime.Range{Start: start, End: end}, rangeIter.Value())
-	require.Equal(t, ropts.BlockSize(), block.BlockSize())
+	assert.Equal(t, 1, len(series))
+	points, found := series[goodID.String()]
+	require.True(t, found)
+	assert.Equal(t, 0, len(points))
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
@@ -242,6 +238,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
 		opts := testDefaultOpts.SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
+		testNsMd.Options()
 		blockSize := ropts.BlockSize()
 
 		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -251,10 +248,10 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
-			testBlockOpts)
+			testBlockOpts, namespace.Context{})
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()), ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
-			testBlockOpts)
+			testBlockOpts, namespace.Context{})
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "rab")), barBlock)
 
@@ -262,7 +259,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
-			testBlockOpts)
+			testBlockOpts, namespace.Context{})
 		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.NewTags(ident.StringTag("baz", "zab")), bazBlock)
 
 		mockAdminSession := client.NewMockAdminSession(ctrl)
@@ -283,16 +280,20 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any()).
 			Return(shard1ResultBlock2, nil)
 
+		peerMetaIter := client.NewMockPeerBlockMetadataIter(ctrl)
+		peerMetaIter.EXPECT().Next().Return(false).AnyTimes()
+		peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksMetadataFromPeers(gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(peerMetaIter, nil).AnyTimes()
+
 		mockAdminClient := client.NewMockAdminClient(ctrl)
-		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 		opts = opts.SetAdminClient(mockAdminClient)
 
 		mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-		// The shard indices are computed from iterating over a map, they can
-		// come in any order
-		mockRetriever.EXPECT().CacheShardIndices([]uint32{0, 1}).AnyTimes()
-		mockRetriever.EXPECT().CacheShardIndices([]uint32{1, 0}).AnyTimes()
 
 		mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 		mockRetrieverMgr.EXPECT().
@@ -400,16 +401,10 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 		}
 
-		r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
-		assert.NoError(t, err)
-
-		require.True(t, r.Unfulfilled()[0].IsEmpty())
-		require.True(t, r.Unfulfilled()[1].IsEmpty())
-
-		assert.Equal(t, 0, len(r.ShardResults()))
-		require.Nil(t, r.ShardResults()[0])
-		require.Nil(t, r.ShardResults()[1])
-
+		tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
+		defer tester.Finish()
+		tester.TestReadWith(src)
+		tester.TestUnfulfilledForNamespaceIsEmpty(testNsMd)
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1,
 		}, persists)
@@ -417,6 +412,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1, "empty": 1,
 		}, closes)
+
+		tester.EnsureNoLoadedBlocks()
+		tester.EnsureNoWrites()
 	}
 }
 
@@ -437,35 +435,39 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	end := start.Add(2 * ropts.BlockSize())
 
 	type resultsKey struct {
-		shard uint32
-		start int64
-		end   int64
+		shard       uint32
+		start       int64
+		end         int64
+		expectedErr bool
 	}
 
 	results := make(map[resultsKey]result.ShardResult)
-	addResult := func(shard uint32, id string, b block.DatabaseBlock) {
+	addResult := func(shard uint32, id string, b block.DatabaseBlock, expectedErr bool) {
 		r := result.NewShardResult(0, opts.ResultOptions())
 		r.AddBlock(ident.StringID(id), ident.NewTags(ident.StringTag(id, id)), b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())
-		results[resultsKey{shard, start.UnixNano(), end.UnixNano()}] = r
+		results[resultsKey{shard, start.UnixNano(), end.UnixNano(), expectedErr}] = r
 	}
+
+	segmentError := errors.New("segment err")
 
 	// foo results
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, fmt.Errorf("stream err"))
-	addResult(0, "foo", fooBlocks[0])
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().
+		Stream(gomock.Any()).Return(xio.EmptyBlockReader, errors.New("stream err"))
+	addResult(0, "foo", fooBlocks[0], true)
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
-		testBlockOpts)
-	addResult(0, "foo", fooBlocks[1])
+		testBlockOpts, namespace.Context{})
+	addResult(0, "foo", fooBlocks[1], false)
 
 	// bar results
 	mockStream := xio.NewMockSegmentReader(ctrl)
-	mockStream.EXPECT().Segment().Return(ts.Segment{}, fmt.Errorf("segment err"))
+	mockStream.EXPECT().Segment().Return(ts.Segment{}, segmentError)
 
 	b := xio.BlockReader{
 		SegmentReader: mockStream,
@@ -475,36 +477,36 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	barBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
-	addResult(1, "bar", barBlocks[0])
+	addResult(1, "bar", barBlocks[0], false)
 
 	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
-		testBlockOpts)
-	addResult(1, "bar", barBlocks[1])
+		testBlockOpts, namespace.Context{})
+	addResult(1, "bar", barBlocks[1], false)
 
 	// baz results
 	var bazBlocks [2]block.DatabaseBlock
 	bazBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
-		testBlockOpts)
-	addResult(2, "baz", bazBlocks[0])
+		testBlockOpts, namespace.Context{})
+	addResult(2, "baz", bazBlocks[0], false)
 
 	bazBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
-		testBlockOpts)
-	addResult(2, "baz", bazBlocks[1])
+		testBlockOpts, namespace.Context{})
+	addResult(2, "baz", bazBlocks[1], false)
 
 	// qux results
 	var quxBlocks [2]block.DatabaseBlock
 	quxBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, ts.FinalizeNone),
-		testBlockOpts)
-	addResult(3, "qux", quxBlocks[0])
+		testBlockOpts, namespace.Context{})
+	addResult(3, "qux", quxBlocks[0], false)
 
 	quxBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, ts.FinalizeNone),
-		testBlockOpts)
-	addResult(3, "qux", quxBlocks[1])
+		testBlockOpts, namespace.Context{})
+	addResult(3, "qux", quxBlocks[1], false)
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 
@@ -514,16 +516,28 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 				key.shard, time.Unix(0, key.start), time.Unix(0, key.end),
 				gomock.Any()).
 			Return(result, nil)
+
+		peerError := segmentError
+		if !key.expectedErr {
+			peerError = nil
+		}
+
+		peerMetaIter := client.NewMockPeerBlockMetadataIter(ctrl)
+		peerMetaIter.EXPECT().Next().Return(false).AnyTimes()
+		peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksMetadataFromPeers(testNsMd.ID(),
+				key.shard, time.Unix(0, key.start), time.Unix(0, key.end), gomock.Any()).
+			Return(peerMetaIter, peerError).AnyTimes()
 	}
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+	mockAdminClient.EXPECT().DefaultAdminSession().
+		Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	mockRetriever.EXPECT().CacheShardIndices(gomock.Any()).AnyTimes()
-
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().
 		Retriever(namespace.NewMetadataMatcher(testNsMd)).
@@ -712,18 +726,22 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 			AddRange(xtime.Range{Start: midway, End: end}),
 	}
 
-	r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
-	assert.NoError(t, err)
+	tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
+	defer tester.Finish()
+	tester.TestReadWith(src)
 
-	assert.Equal(t, 0, len(r.ShardResults()))
-	for i := uint32(0); i < uint32(len(target)); i++ {
-		require.False(t, r.Unfulfilled()[i].IsEmpty())
-		require.Equal(t, xtime.NewRanges(xtime.Range{
-			Start: start,
-			End:   midway,
-		}).String(), r.Unfulfilled()[i].String())
+	expectedRanges := result.ShardTimeRanges{
+		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
+		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
+		2: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
+		3: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
 	}
 
+	expectedIndexRanges := result.ShardTimeRanges{
+		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
+	}
+
+	tester.TestUnfulfilledForNamespace(testNsMd, expectedRanges, expectedIndexRanges)
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 2, "qux": 2,
 	}, persists)
@@ -731,6 +749,9 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"foo": 2, "bar": 2, "baz": 2, "qux": 2,
 	}, closes)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func assertBlockChecksum(t *testing.T, expectedChecksum uint32, block block.DatabaseBlock) {

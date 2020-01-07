@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -33,10 +34,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	m3test "github.com/m3db/m3/src/x/test"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		shard              = uint32(0)
 		blockStart         = time.Unix(1000, 0)
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
 		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
 	)
 	createFile(t, checkpointFilePath, checkpointFileBuf)
@@ -101,7 +102,7 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 
 	var (
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
 		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
 	)
 	createFile(t, checkpointFilePath, checkpointFileBuf)
@@ -327,9 +328,12 @@ func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	indexDir := createIndexDataDir(t, pm.filePathPrefix, testNs1ID)
 	checkpointFilePath := filesetPathFromTimeAndIndex(indexDir, blockStart, 0, checkpointFileSuffix)
-	f, err := os.Create(checkpointFilePath)
+
+	digestBuf := digest.NewBuffer()
+	digestBuf.WriteDigest(digest.Checksum([]byte("foo")))
+
+	err := ioutil.WriteFile(checkpointFilePath, digestBuf, defaultNewFileMode)
 	require.NoError(t, err)
-	f.Close()
 
 	flush, err := pm.StartIndexPersist()
 	require.NoError(t, err)

@@ -21,26 +21,28 @@
 package commitlog
 
 import (
-	"context"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
 	"os"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/uber-go/atomic"
 )
 
 var (
+	commitLogFileReadCounter = atomic.NewUint64(0)
+
 	// var instead of const so we can modify them in tests.
 	defaultDecodeEntryBufSize = 1024
 	decoderInBufChanSize      = 1000
@@ -56,111 +58,65 @@ var (
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
 
-// ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
-// that want a convenient way to read all series in the commitlogs
-func ReadAllSeriesPredicate() SeriesFilterPredicate {
-	return func(id ident.ID, namespace ident.ID) bool { return true }
-}
-
-type seriesMetadata struct {
-	ts.Series
-	passedPredicate bool
-}
-
 type commitLogReader interface {
 	// Open opens the commit log for reading
 	Open(filePath string) (int64, error)
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
-	Read() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
+	Read() (LogEntry, error)
 
 	// Close the reader
 	Close() error
 }
 
-type readResponse struct {
-	series     ts.Series
-	datapoint  ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
-	resultErr  error
-}
-
-type decoderArg struct {
-	bytes                []byte
-	err                  error
-	decodeRemainingToken msgpack.DecodeLogEntryRemainingToken
-	uniqueIndex          uint64
-	offset               int
-	bufPool              chan []byte
-}
-
-type readerMetadata struct {
-	sync.RWMutex
-	numBlockedOrFinishedDecoders int64
-}
-
 type reader struct {
-	opts                 Options
-	numConc              int64
-	checkedBytesPool     pool.CheckedBytesPool
-	chunkReader          *chunkReader
-	infoDecoder          *msgpack.Decoder
-	infoDecoderStream    msgpack.DecoderStream
-	decoderQueues        []chan decoderArg
-	decoderBufPools      []chan []byte
-	outChan              chan readResponse
-	cancelCtx            context.Context
-	cancelFunc           context.CancelFunc
-	shutdownCh           chan error
-	metadata             readerMetadata
-	nextIndex            int64
-	hasBeenOpened        bool
-	bgWorkersInitialized int64
-	seriesPredicate      SeriesFilterPredicate
+	opts commitLogReaderOptions
+
+	logEntryBytes          []byte
+	tagDecoder             serialize.TagDecoder
+	tagDecoderCheckedBytes checked.Bytes
+	checkedBytesPool       pool.CheckedBytesPool
+	chunkReader            *chunkReader
+	infoDecoder            *msgpack.Decoder
+	infoDecoderStream      msgpack.ByteDecoderStream
+	hasBeenOpened          bool
+	fileReadID             uint64
+
+	metadataLookup map[uint64]ts.Series
+	namespacesRead []namespaceRead
+	seriesIDReused *ident.ReuseableBytesID
 }
 
-func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) commitLogReader {
-	decodingOpts := opts.FilesystemOptions().DecodingOptions()
-	cancelCtx, cancelFunc := context.WithCancel(context.Background())
+type namespaceRead struct {
+	namespaceIDBytes []byte
+	namespaceIDRef   ident.ID
+}
 
-	numConc := opts.ReadConcurrency()
-	decoderQueues := make([]chan decoderArg, 0, numConc)
-	decoderBufs := make([]chan []byte, 0, numConc)
-	for i := 0; i < numConc; i++ {
-		decoderQueues = append(decoderQueues, make(chan decoderArg, decoderInBufChanSize))
+type commitLogReaderOptions struct {
+	commitLogOptions Options
+	// returnMetadataAsRef indicates to not allocate metadata results.
+	returnMetadataAsRef bool
+}
 
-		chanBufs := make(chan []byte, decoderInBufChanSize+1)
-		for i := 0; i < decoderInBufChanSize+1; i++ {
-			// Bufs will be resized as needed, so its ok if our default isn't big enough
-			chanBufs <- make([]byte, defaultDecodeEntryBufSize)
-		}
-		decoderBufs = append(decoderBufs, chanBufs)
+func newCommitLogReader(opts commitLogReaderOptions) commitLogReader {
+	tagDecoderCheckedBytes := checked.NewBytes(nil, nil)
+	tagDecoderCheckedBytes.IncRef()
+	return &reader{
+		opts:                   opts,
+		logEntryBytes:          make([]byte, 0, opts.commitLogOptions.FlushSize()),
+		metadataLookup:         make(map[uint64]ts.Series),
+		tagDecoder:             opts.commitLogOptions.FilesystemOptions().TagDecoderPool().Get(),
+		tagDecoderCheckedBytes: tagDecoderCheckedBytes,
+		checkedBytesPool:       opts.commitLogOptions.BytesPool(),
+		chunkReader:            newChunkReader(opts.commitLogOptions.FlushSize()),
+		infoDecoder:            msgpack.NewDecoder(opts.commitLogOptions.FilesystemOptions().DecodingOptions()),
+		infoDecoderStream:      msgpack.NewByteDecoderStream(nil),
+		seriesIDReused:         ident.NewReuseableBytesID(),
 	}
-	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
-
-	reader := &reader{
-		opts:              opts,
-		numConc:           int64(numConc),
-		checkedBytesPool:  opts.BytesPool(),
-		chunkReader:       newChunkReader(opts.FlushSize()),
-		infoDecoder:       msgpack.NewDecoder(decodingOpts),
-		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		decoderQueues:     decoderQueues,
-		decoderBufPools:   decoderBufs,
-		outChan:           outBuf,
-		cancelCtx:         cancelCtx,
-		cancelFunc:        cancelFunc,
-		shutdownCh:        make(chan error),
-		metadata:          readerMetadata{},
-		nextIndex:         0,
-		seriesPredicate:   seriesPredicate,
-	}
-	return reader
 }
 
 func (r *reader) Open(filePath string) (int64, error) {
-	// Commitlog reader does not currently support being reused
+	// Commitlog reader does not currently support being reused.
 	if r.hasBeenOpened {
 		return 0, errCommitLogReaderIsNotReusable
 	}
@@ -177,352 +133,215 @@ func (r *reader) Open(filePath string) (int64, error) {
 		r.Close()
 		return 0, err
 	}
-	index := info.Index
 
+	r.fileReadID = commitLogFileReadCounter.Inc()
+
+	index := info.Index
 	return index, nil
 }
 
-// Read guarantees that the datapoints it returns will be in the same order as they are on disk
-// for a given series, but they will not be in the same order they are on disk across series.
-// I.E, if the commit log looked like this (letters are series and numbers are writes):
-// A1, B1, B2, A2, C1, D1, D2, A3, B3, D2
-// Then the caller is guaranteed to receive A1 before A2 and A2 before A3, and they are guaranteed
-// to see B1 before B2, but they may see B1 before A1 and D2 before B3.
-func (r *reader) Read() (
-	series ts.Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-	resultErr error,
-) {
-	if r.nextIndex == 0 {
-		err := r.startBackgroundWorkers()
-		if err != nil {
-			return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
-		}
+func (r *reader) readInfo() (schema.LogInfo, error) {
+	err := r.readLogEntry()
+	if err != nil {
+		return emptyLogInfo, err
 	}
-	rr, ok := <-r.outChan
-	if !ok {
-		return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
-	}
-	r.nextIndex++
-	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
+	r.infoDecoderStream.Reset(r.logEntryBytes)
+	r.infoDecoder.Reset(r.infoDecoderStream)
+	return r.infoDecoder.DecodeLogInfo()
 }
 
-func (r *reader) startBackgroundWorkers() error {
-	// Make sure background workers are never setup more than once
-	set := atomic.CompareAndSwapInt64(&r.bgWorkersInitialized, 0, 1)
-	if !set {
-		return errCommitLogReaderMultipleReadloops
+// Read reads the next log entry in order.
+func (r *reader) Read() (LogEntry, error) {
+	err := r.readLogEntry()
+	if err != nil {
+		return LogEntry{}, err
 	}
 
-	// Start background worker goroutines
-	go r.readLoop()
-	for _, decoderQueue := range r.decoderQueues {
-		localDecoderQueue := decoderQueue
-		go r.decoderLoop(localDecoderQueue, r.outChan)
+	entry, err := msgpack.DecodeLogEntryFast(r.logEntryBytes)
+	if err != nil {
+		return LogEntry{}, err
+	}
+
+	metadata, err := r.seriesMetadataForEntry(entry)
+	if err != nil {
+		return LogEntry{}, err
+	}
+
+	result := LogEntry{
+		Series: metadata,
+		Datapoint: ts.Datapoint{
+			Timestamp: time.Unix(0, entry.Timestamp),
+			Value:     entry.Value,
+		},
+		Unit: xtime.Unit(entry.Unit),
+		Metadata: LogEntryMetadata{
+			FileReadID:        r.fileReadID,
+			SeriesUniqueIndex: entry.Index,
+		},
+	}
+
+	if len(entry.Annotation) > 0 {
+		// Copy annotation to prevent reference to pooled byte slice
+		result.Annotation = append(ts.Annotation(nil), ts.Annotation(entry.Annotation)...)
+	}
+
+	return result, nil
+}
+
+func (r *reader) readLogEntry() error {
+	// Read size of message
+	size, err := binary.ReadUvarint(r.chunkReader)
+	if err != nil {
+		return err
+	}
+
+	// Extend buffer as necessary
+	r.logEntryBytes = resizeBufferOrGrowIfNeeded(r.logEntryBytes, int(size))
+
+	// Read message
+	if _, err := io.ReadFull(r.chunkReader, r.logEntryBytes); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (r *reader) readLoop() {
-	defer func() {
-		for _, decoderQueue := range r.decoderQueues {
-			close(decoderQueue)
-		}
-	}()
-
-	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
-	decoder := msgpack.NewDecoder(decodingOpts)
-	decoderStream := msgpack.NewDecoderStream(nil)
-
-	reusedBytes := make([]byte, 0, r.opts.FlushSize())
-
-	for {
-		select {
-		case <-r.cancelCtx.Done():
-			return
-		default:
-			data, err := r.readChunk(reusedBytes)
-			if err != nil {
-				if err == io.EOF {
-					return
-				}
-
-				r.decoderQueues[0] <- decoderArg{
-					bytes: nil,
-					err:   err,
-				}
-				continue
-			}
-
-			decoderStream.Reset(data)
-			decoder.Reset(decoderStream)
-			decodeRemainingToken, uniqueIndex, err := decoder.DecodeLogEntryUniqueIndex()
-
-			// Grab a buffer from a pool specific to the decoder loop we're gonna send it to
-			shardedIdx := uniqueIndex % uint64(r.numConc)
-			bufPool := r.decoderBufPools[shardedIdx]
-			buf := <-bufPool
-
-			// Resize the buffer as necessary
-			bufCap := len(buf)
-			dataLen := len(data)
-			if bufCap < dataLen {
-				diff := dataLen - bufCap
-				for i := 0; i < diff; i++ {
-					buf = append(buf, 0)
-				}
-			}
-			buf = buf[:dataLen]
-
-			// Copy into the buffer
-			copy(buf, data)
-
-			// Distribute work by the uniqueIndex so that each decoder loop is receiving
-			// all datapoints for a given series within relative order.
-			r.decoderQueues[shardedIdx] <- decoderArg{
-				bytes:                buf,
-				err:                  err,
-				decodeRemainingToken: decodeRemainingToken,
-				uniqueIndex:          uniqueIndex,
-				offset:               decoderStream.Offset(),
-				bufPool:              bufPool,
-			}
+func (r *reader) namespaceIDReused(id []byte) ident.ID {
+	var namespaceID ident.ID
+	for _, ns := range r.namespacesRead {
+		if bytes.Equal(ns.namespaceIDBytes, id) {
+			namespaceID = ns.namespaceIDRef
+			break
 		}
 	}
+	if namespaceID == nil {
+		// Take a copy and keep around to reuse later.
+		namespaceBytes := append(make([]byte, 0, len(id)), id...)
+		namespaceID = ident.BytesID(namespaceBytes)
+		r.namespacesRead = append(r.namespacesRead, namespaceRead{
+			namespaceIDBytes: namespaceBytes,
+			namespaceIDRef:   namespaceID,
+		})
+	}
+	return namespaceID
 }
 
-func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
-	var (
-		decodingOpts           = r.opts.FilesystemOptions().DecodingOptions()
-		decoder                = msgpack.NewDecoder(decodingOpts)
-		decoderStream          = msgpack.NewDecoderStream(nil)
-		metadataDecoder        = msgpack.NewDecoder(decodingOpts)
-		metadataDecoderStream  = msgpack.NewDecoderStream(nil)
-		metadataLookup         = make(map[uint64]seriesMetadata)
-		tagDecoder             = r.opts.FilesystemOptions().TagDecoderPool().Get()
-		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
-	)
-	tagDecoderCheckedBytes.IncRef()
-	defer func() {
-		tagDecoderCheckedBytes.DecRef()
-		tagDecoderCheckedBytes.Finalize()
-		tagDecoder.Close()
-	}()
-
-	for arg := range inBuf {
-		response := readResponse{}
-		// If there is a pre-existing error, just pipe it through
-		if arg.err != nil {
-			r.handleDecoderLoopIterationEnd(arg, outBuf, response, arg.err)
-			continue
-		}
-
-		// Decode the log entry
-		decoderStream.Reset(arg.bytes[arg.offset:])
-		decoder.Reset(decoderStream)
-		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
-		if err != nil {
-			r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
-			continue
-		}
-
-		// If the log entry has associated metadata, decode that as well
-		if len(entry.Metadata) != 0 {
-			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream,
-				tagDecoder, tagDecoderCheckedBytes, entry)
-			if err != nil {
-				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
-				continue
-			}
-		}
-
-		metadata, hasMetadata := metadataLookup[entry.Index]
-		if !hasMetadata {
-			// In this case we know the commit log is corrupt because the commit log writer guarantees
-			// that the first entry for a series in the commit log includes its metadata. In addition,
-			// even though we are performing parallel decoding, the work is distributed to the workers
-			// based on the series unique index which means that all commit log entries for a given
-			// series are decoded in-order by a single decoder loop.
-			r.handleDecoderLoopIterationEnd(arg, outBuf, response, errCommitLogReaderMissingMetadata)
-			continue
-		}
-
-		if !metadata.passedPredicate {
-			// Pass nil for outBuf because we don't want to send a readResponse along since this
-			// was just a series that the caller didn't want us to read.
-			r.handleDecoderLoopIterationEnd(arg, nil, readResponse{}, nil)
-			continue
-		}
-
-		response.series = metadata.Series
-
-		response.datapoint = ts.Datapoint{
-			Timestamp: time.Unix(0, entry.Timestamp),
-			Value:     entry.Value,
-		}
-		response.unit = xtime.Unit(byte(entry.Unit))
-		// Copy annotation to prevent reference to pooled byte slice
-		if len(entry.Annotation) > 0 {
-			response.annotation = append([]byte(nil), entry.Annotation...)
-		}
-		r.handleDecoderLoopIterationEnd(arg, outBuf, response, nil)
-	}
-
-	r.metadata.Lock()
-	r.metadata.numBlockedOrFinishedDecoders++
-	// If all of the decoders are either finished or blocked then we need to free
-	// any pending waiters. This also guarantees that the last decoderLoop to
-	// finish will free up any pending waiters (and by then any still-pending
-	// metadata is definitely missing from the commitlog)
-	if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
-		close(outBuf)
-	}
-	r.metadata.Unlock()
-}
-
-func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
-	if arg.bytes != nil {
-		arg.bufPool <- arg.bytes
-	}
-	if outBuf != nil {
-		response.resultErr = err
-		outBuf <- response
-	}
-}
-
-func (r *reader) decodeAndHandleMetadata(
-	metadataLookup map[uint64]seriesMetadata,
-	metadataDecoder *msgpack.Decoder,
-	metadataDecoderStream msgpack.DecoderStream,
-	tagDecoder serialize.TagDecoder,
-	tagDecoderCheckedBytes checked.Bytes,
+func (r *reader) seriesMetadataForEntry(
 	entry schema.LogEntry,
-) error {
-	metadataDecoderStream.Reset(entry.Metadata)
-	metadataDecoder.Reset(metadataDecoderStream)
-	decoded, err := metadataDecoder.DecodeLogMetadata()
-	if err != nil {
-		return err
+) (ts.Series, error) {
+	if r.opts.returnMetadataAsRef {
+		// NB(r): This is a fast path for callers where nothing
+		// is cached locally in terms of metadata lookup and the
+		// caller is returned just references to all the bytes in
+		// the backing commit log file the first and only time
+		// we encounter the series metadata, and then the refs are
+		// invalid on the next call to metadata.
+		if len(entry.Metadata) == 0 {
+			// Valid, nothing to return here and caller will already
+			// have processed metadata for this entry (based on the
+			// FileReadID and the SeriesUniqueIndex returned).
+			return ts.Series{}, nil
+		}
+
+		decoded, err := msgpack.DecodeLogMetadataFast(entry.Metadata)
+		if err != nil {
+			return ts.Series{}, err
+		}
+
+		// Reset the series ID being returned.
+		r.seriesIDReused.Reset(decoded.ID)
+		// Find or allocate the namespace ID.
+		namespaceID := r.namespaceIDReused(decoded.Namespace)
+		metadata := ts.Series{
+			UniqueIndex: entry.Index,
+			ID:          r.seriesIDReused,
+			Namespace:   namespaceID,
+			Shard:       decoded.Shard,
+			EncodedTags: ts.EncodedTags(decoded.EncodedTags),
+		}
+		return metadata, nil
 	}
 
-	_, ok := metadataLookup[entry.Index]
+	// We only check for previously returned metadata
+	// if we're allocating results and can hold onto them.
+	metadata, ok := r.metadataLookup[entry.Index]
 	if ok {
-		// If the metadata already exists, we can skip this step
-		return nil
+		// If the metadata already exists, we can skip this step.
+		return metadata, nil
+	}
+
+	if len(entry.Metadata) == 0 {
+		// Expected metadata but not encoded.
+		return ts.Series{}, errCommitLogReaderMissingMetadata
+	}
+
+	decoded, err := msgpack.DecodeLogMetadataFast(entry.Metadata)
+	if err != nil {
+		return ts.Series{}, err
 	}
 
 	id := r.checkedBytesPool.Get(len(decoded.ID))
 	id.IncRef()
 	id.AppendAll(decoded.ID)
 
-	namespace := r.checkedBytesPool.Get(len(decoded.Namespace))
-	namespace.IncRef()
-	namespace.AppendAll(decoded.Namespace)
+	// Find or allocate the namespace ID.
+	namespaceID := r.namespaceIDReused(decoded.Namespace)
 
 	var (
+		idPool      = r.opts.commitLogOptions.IdentifierPool()
 		tags        ident.Tags
 		tagBytesLen = len(decoded.EncodedTags)
 	)
 	if tagBytesLen != 0 {
-		tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
-		tagDecoder.Reset(tagDecoderCheckedBytes)
+		r.tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
+		r.tagDecoder.Reset(r.tagDecoderCheckedBytes)
 
-		idPool := r.opts.IdentifierPool()
 		tags = idPool.Tags()
-		for tagDecoder.Next() {
-			curr := tagDecoder.Current()
+		for r.tagDecoder.Next() {
+			curr := r.tagDecoder.Current()
 			tags.Append(idPool.CloneTag(curr))
 		}
-		err = tagDecoder.Err()
+		err = r.tagDecoder.Err()
 		if err != nil {
-			return err
+			return ts.Series{}, err
 		}
 	}
 
-	metadata := ts.Series{
+	seriesID := idPool.BinaryID(id)
+	metadata = ts.Series{
 		UniqueIndex: entry.Index,
-		ID:          ident.BinaryID(id),
-		Namespace:   ident.BinaryID(namespace),
+		ID:          seriesID,
+		Namespace:   namespaceID,
 		Shard:       decoded.Shard,
 		Tags:        tags,
 	}
 
-	metadataLookup[entry.Index] = seriesMetadata{
-		Series:          metadata,
-		passedPredicate: r.seriesPredicate(metadata.ID, metadata.Namespace),
-	}
+	r.metadataLookup[entry.Index] = metadata
 
-	namespace.DecRef()
 	id.DecRef()
-	return nil
-}
 
-func (r *reader) readChunk(buf []byte) ([]byte, error) {
-	// Read size of message
-	size, err := binary.ReadUvarint(r.chunkReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extend buffer as necessary
-	if len(buf) < int(size) {
-		diff := int(size) - len(buf)
-		for i := 0; i < diff; i++ {
-			buf = append(buf, 0)
-		}
-	}
-
-	// Size target buffer for reading
-	buf = buf[:size]
-
-	// Read message
-	if _, err := r.chunkReader.Read(buf); err != nil {
-		return nil, err
-	}
-
-	return buf, nil
-}
-
-func (r *reader) readInfo() (schema.LogInfo, error) {
-	data, err := r.readChunk([]byte{})
-	if err != nil {
-		return emptyLogInfo, err
-	}
-	r.infoDecoderStream.Reset(data)
-	r.infoDecoder.Reset(r.infoDecoderStream)
-	logInfo, err := r.infoDecoder.DecodeLogInfo()
-	return logInfo, err
+	return metadata, nil
 }
 
 func (r *reader) Close() error {
-	// Background goroutines were never started, safe to close immediately.
-	if r.nextIndex == 0 {
-		return r.close()
-	}
-
-	// Shutdown the readLoop goroutine which will shut down the decoderLoops
-	// and close the fd
-	r.cancelFunc()
-	// Drain any unread data from the outBuffers to free any decoderLoops curently
-	// in a blocking write
-	for {
-		_, ok := <-r.outChan
-		r.nextIndex++
-		if !ok {
-			break
-		}
-	}
-
-	return r.close()
+	err := r.chunkReader.fd.Close()
+	// NB(r): Reset to free resources, but explicitly do
+	// not support reopening for now.
+	*r = reader{}
+	r.hasBeenOpened = true
+	return err
 }
 
-func (r *reader) close() error {
-	if r.chunkReader.fd == nil {
-		return nil
+func resizeBufferOrGrowIfNeeded(buf []byte, length int) []byte {
+	if cap(buf) >= length {
+		return buf[:length]
 	}
 
-	return r.chunkReader.fd.Close()
+	// If double is less than length requested, return that.
+	var newCap int
+	for newCap = 2 * cap(buf); newCap < length; newCap *= 2 {
+		// Double it again.
+	}
+
+	return make([]byte, length, newCap)
 }

@@ -38,9 +38,9 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3x/retry"
-	xserver "github.com/m3db/m3x/server"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/retry"
+	xserver "github.com/m3db/m3/src/x/server"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"

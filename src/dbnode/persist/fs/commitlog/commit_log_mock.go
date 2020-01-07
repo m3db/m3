@@ -32,11 +32,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -202,14 +202,11 @@ func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockIterator) Current() (ts.Series, ts.Datapoint, time0.Unit, ts.Annotation) {
+func (m *MockIterator) Current() LogEntry {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(ts.Series)
-	ret1, _ := ret[1].(ts.Datapoint)
-	ret2, _ := ret[2].(time0.Unit)
-	ret3, _ := ret[3].(ts.Annotation)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(LogEntry)
+	return ret0
 }
 
 // Current indicates an expected call of Current

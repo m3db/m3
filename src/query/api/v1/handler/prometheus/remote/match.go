@@ -26,10 +26,14 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -37,65 +41,70 @@ import (
 const (
 	// PromSeriesMatchURL is the url for remote prom series matcher handler.
 	PromSeriesMatchURL = handler.RoutePrefixV1 + "/series"
-
-	// PromSeriesMatchHTTPMethod is the HTTP method used with this resource.
-	PromSeriesMatchHTTPMethod = http.MethodGet
 )
 
-// PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
+var (
+	// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
+	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
+)
+
+// PromSeriesMatchHandler represents a handler for
+// the prometheus series matcher endpoint.
 type PromSeriesMatchHandler struct {
-	tagOptions models.TagOptions
-	storage    storage.Storage
+	storage             storage.Storage
+	tagOptions          models.TagOptions
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	instrumentOpts      instrument.Options
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
-func NewPromSeriesMatchHandler(
-	storage storage.Storage,
-	tagOptions models.TagOptions,
-) http.Handler {
+func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 	return &PromSeriesMatchHandler{
-		tagOptions: tagOptions,
-		storage:    storage,
+		tagOptions:          opts.TagOptions(),
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
 func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	query, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
+	queries, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
 	if err != nil {
 		logger.Error("unable to parse series match values to query", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	opts := storage.NewFetchOptions()
-	matchers := query.TagMatchers
-	results := make([]*storage.CompleteTagsResult, len(matchers))
-	// TODO: parallel execution
-	for i, matcher := range matchers {
-		completeTagsQuery := &storage.CompleteTagsQuery{
-			CompleteNameOnly: false,
-			TagMatchers:      matcher,
-		}
+	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
 
-		result, err := h.storage.CompleteTags(ctx, completeTagsQuery, opts)
+	results := make([]models.Metrics, len(queries))
+	meta := block.NewResultMetadata()
+	for i, query := range queries {
+		result, err := h.storage.SearchSeries(ctx, query, opts)
 		if err != nil {
 			logger.Error("unable to get matched series", zap.Error(err))
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
 
-		results[i] = result
+		results[i] = result.Metrics
+		meta = meta.CombineMetadata(result.Metadata)
 	}
 
+	handleroptions.AddWarningHeaders(w, meta)
 	// TODO: Support multiple result types
-	if renderErr := prometheus.RenderSeriesMatchResultsJSON(w, results); renderErr != nil {
-		logger.Error("unable to write matched series", zap.Error(renderErr))
-		xhttp.Error(w, renderErr, http.StatusBadRequest)
+	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
+		logger.Error("unable to write matched series", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 }

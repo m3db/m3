@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/util"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -47,27 +48,34 @@ type Values interface {
 	Datapoints() []Datapoint
 
 	// AlignToBounds returns values aligned to given bounds. To belong to a step,
-	// values should be <= stepTime and not stale.
+	// values should be <= stepTime and not stale. Takes an optional buffer to
+	// allow for memory re-use.
 	AlignToBounds(
 		bounds models.Bounds,
 		lookbackDuration time.Duration,
-	) []Datapoints
+		buffer AlignedDatapoints,
+	) AlignedDatapoints
 
 	// AlignToBoundsNoWriteForward returns values aligned to the start time
 	// and duration, but does not write points forward after aligning them. This
 	// differs from AlignToBounds which will write points forwards if no
 	// additional values are found in the values, adding an empty point instead.
+	// Takes an optional buffer to allow for memory re-use.
 	AlignToBoundsNoWriteForward(
 		bounds models.Bounds,
 		lookbackDuration time.Duration,
-	) []Datapoints
+		buffer AlignedDatapoints,
+	) AlignedDatapoints
 }
 
-// A Datapoint is a single data value reported at a given time
+// A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
 	Timestamp time.Time
 	Value     float64
 }
+
+// AlignedDatapoints is a list of aligned datapoints.
+type AlignedDatapoints []Datapoints
 
 // Datapoints is a list of datapoints.
 type Datapoints []Datapoint
@@ -94,43 +102,70 @@ func (d Datapoints) Values() []float64 {
 	return values
 }
 
+// Reset resets the passed in value slice with the current value representation.
+func (d Datapoints) Reset(values []float64) []float64 {
+	if values == nil {
+		values = make([]float64, 0, len(d))
+	} else {
+		values = values[:0]
+	}
+
+	for _, dp := range d {
+		values = append(values, dp.Value)
+	}
+
+	return values
+}
+
 func (d Datapoints) alignToBounds(
 	bounds models.Bounds,
 	lookbackDuration time.Duration,
+	stepValues AlignedDatapoints,
 	writeForward bool,
-) []Datapoints {
+) AlignedDatapoints {
 	numDatapoints := d.Len()
 	steps := bounds.Steps()
-	stepValues := make([]Datapoints, steps)
+	if stepValues == nil {
+		stepValues = make(AlignedDatapoints, steps)
+	}
+
 	dpIdx := 0
 	stepSize := bounds.StepSize
 	t := bounds.Start
 	for i := 0; i < steps; i++ {
-		singleStepValues := make(Datapoints, 0)
+		if stepValues[i] == nil {
+			stepValues[i] = make(Datapoints, 0, 10)
+		} else {
+			stepValues[i] = stepValues[i][:0]
+		}
+
+		staleThreshold := lookbackDuration
+		if stepSize > lookbackDuration {
+			staleThreshold = stepSize
+		}
 
 		for dpIdx < numDatapoints && !d[dpIdx].Timestamp.After(t) {
 			point := d[dpIdx]
 			dpIdx++
 			// Skip stale values
-			if t.Sub(point.Timestamp) > lookbackDuration {
+			if t.Sub(point.Timestamp) > staleThreshold {
 				continue
 			}
 
-			singleStepValues = append(singleStepValues, point)
+			stepValues[i] = append(stepValues[i], point)
 		}
 
 		// If writeForward is enabled and there is no point found for this
 		// interval, reuse the last point as long as its not stale
 		if writeForward {
-			if len(singleStepValues) == 0 && dpIdx > 0 {
+			if len(stepValues[i]) == 0 && dpIdx > 0 {
 				prevPoint := d[dpIdx-1]
-				if t.Sub(prevPoint.Timestamp) <= lookbackDuration {
-					singleStepValues = Datapoints{prevPoint}
+				if t.Sub(prevPoint.Timestamp) <= staleThreshold {
+					stepValues[i] = Datapoints{prevPoint}
 				}
 			}
 		}
 
-		stepValues[i] = singleStepValues
 		t = t.Add(stepSize)
 	}
 
@@ -144,8 +179,9 @@ func (d Datapoints) alignToBounds(
 func (d Datapoints) AlignToBoundsNoWriteForward(
 	bounds models.Bounds,
 	lookbackDuration time.Duration,
-) []Datapoints {
-	return d.alignToBounds(bounds, lookbackDuration, false)
+	buffer AlignedDatapoints,
+) AlignedDatapoints {
+	return d.alignToBounds(bounds, lookbackDuration, buffer, false)
 }
 
 // AlignToBounds returns values aligned to given bounds. To belong to a step,
@@ -153,8 +189,9 @@ func (d Datapoints) AlignToBoundsNoWriteForward(
 func (d Datapoints) AlignToBounds(
 	bounds models.Bounds,
 	lookbackDuration time.Duration,
-) []Datapoints {
-	return d.alignToBounds(bounds, lookbackDuration, true)
+	buffer AlignedDatapoints,
+) AlignedDatapoints {
+	return d.alignToBounds(bounds, lookbackDuration, buffer, true)
 }
 
 // MutableValues is the interface for values that can be updated
@@ -201,10 +238,16 @@ func (b *fixedResolutionValues) Datapoints() []Datapoint {
 func (b *fixedResolutionValues) AlignToBounds(
 	_ models.Bounds,
 	_ time.Duration,
-) []Datapoints {
-	values := make([]Datapoints, len(b.values))
+	values AlignedDatapoints,
+) AlignedDatapoints {
+	if values == nil {
+		values = make(AlignedDatapoints, 0, len(b.values))
+	} else {
+		values = values[:0]
+	}
+
 	for i := 0; i < b.Len(); i++ {
-		values[i] = Datapoints{b.DatapointAt(i)}
+		values = append(values, Datapoints{b.DatapointAt(i)})
 	}
 
 	return values
@@ -213,8 +256,9 @@ func (b *fixedResolutionValues) AlignToBounds(
 func (b *fixedResolutionValues) AlignToBoundsNoWriteForward(
 	bb models.Bounds,
 	d time.Duration,
-) []Datapoints {
-	return b.AlignToBounds(bb, d)
+	buffer AlignedDatapoints,
+) AlignedDatapoints {
+	return b.AlignToBounds(bb, d, buffer)
 }
 
 // StartTime returns the time the values start
@@ -243,6 +287,7 @@ func (b *fixedResolutionValues) SetValueAt(n int, v float64) {
 }
 
 // NewFixedStepValues returns mutable values with fixed resolution
+// TODO: remove this.
 func NewFixedStepValues(
 	resolution time.Duration,
 	numSteps int,
@@ -260,7 +305,7 @@ func newFixedStepValues(
 ) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
-	Memset(values, initialValue)
+	util.Memset(values, initialValue)
 	return &fixedResolutionValues{
 		resolution: resolution,
 		numSteps:   numSteps,

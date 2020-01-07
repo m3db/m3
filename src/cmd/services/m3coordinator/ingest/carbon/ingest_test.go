@@ -42,9 +42,9 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/instrument"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/instrument"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -156,7 +156,7 @@ var (
 	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
 		"match-regex1": ingest.WriteOptions{
 			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.MappingRule{
+			DownsampleMappingRules: []downsample.AutoMappingRule{
 				{
 					Aggregations: []aggregation.Type{aggregation.Mean},
 					Policies: []policy.StoragePolicy{
@@ -169,7 +169,7 @@ var (
 		},
 		"match-regex2": ingest.WriteOptions{
 			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.MappingRule{
+			DownsampleMappingRules: []downsample.AutoMappingRule{
 				{
 					Aggregations: []aggregation.Type{aggregation.Last},
 					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
@@ -198,11 +198,12 @@ func TestIngesterHandleConn(t *testing.T) {
 		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		annotation []byte,
 		overrides ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()
@@ -238,11 +239,12 @@ func TestIngesterHonorsPatterns(t *testing.T) {
 		found = []testMetric{}
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any()).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
+		annotation []byte,
 		writeOpts ingest.WriteOptions,
 	) interface{} {
 		lock.Lock()

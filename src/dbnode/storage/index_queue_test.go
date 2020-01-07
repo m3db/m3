@@ -27,14 +27,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -44,7 +44,7 @@ import (
 )
 
 func testNamespaceIndexOptions() index.Options {
-	return testDatabaseOptions().IndexOptions()
+	return DefaultTestOptions().IndexOptions()
 }
 
 func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceIndex, *MocknamespaceIndexInsertQueue) {
@@ -55,7 +55,7 @@ func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceInde
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	return idx, q
 }
@@ -72,7 +72,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -91,7 +91,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 }
@@ -108,7 +108,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -187,7 +187,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 
 	opts := testNamespaceIndexOptions().SetInsertMode(index.InsertSync)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
-	dbIdx, err := newNamespaceIndex(md, testDatabaseOptions().SetIndexOptions(opts))
+	dbIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions().SetIndexOptions(opts))
 	assert.NoError(t, err)
 
 	idx, ok := dbIdx.(*nsIndex)
@@ -269,32 +269,33 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 		tags, now, lifecycle))))
 }
 
-func TestNamespaceIndexInsertQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
-
-	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+func setupIndex(t *testing.T,
+	ctrl *gomock.Controller,
+	now time.Time,
+) namespaceIndex {
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
 		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, DefaultTestOptions().
 		SetIndexOptions(testNamespaceIndexOptions().SetInsertMode(index.InsertSync)))
 	assert.NoError(t, err)
-	defer idx.Close()
 
 	var (
 		blockSize = idx.(*nsIndex).blockSize
 		ts        = idx.(*nsIndex).state.latestBlock.StartTime()
-		now       = time.Now()
 		id        = ident.StringID("foo")
 		tags      = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
-		ctx          = context.NewContext()
 		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
 	)
 
@@ -304,6 +305,21 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycleFns)
 	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
 	assert.NoError(t, idx.WriteBatch(batch))
+
+	return idx
+}
+
+func TestNamespaceIndexInsertQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	idx := setupIndex(t, ctrl, now)
+	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
@@ -316,9 +332,48 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, res.Exhaustive)
 	results := res.Results
 	assert.Equal(t, "testns1", results.Namespace().String())
+
 	tags, ok := results.Map().Get(ident.StringID("foo"))
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
-		ident.NewTagsIterator(tags)))
+		tags))
+}
+
+func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	now := time.Now()
+	idx := setupIndex(t, ctrl, now)
+	defer idx.Close()
+
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
+	res, err := idx.AggregateQuery(ctx, index.Query{Query: reQuery},
+		index.AggregationOptions{
+			QueryOptions: index.QueryOptions{
+				StartInclusive: now.Add(-1 * time.Minute),
+				EndExclusive:   now.Add(1 * time.Minute),
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	assert.True(t, res.Exhaustive)
+	results := res.Results
+	assert.Equal(t, "testns1", results.Namespace().String())
+
+	rMap := results.Map()
+	require.Equal(t, 1, rMap.Len())
+	seenIters, found := rMap.Get(ident.StringID("name"))
+	require.True(t, found)
+
+	vMap := seenIters.Map()
+	require.Equal(t, 1, vMap.Len())
+	assert.True(t, vMap.Contains(ident.StringID("value")))
 }

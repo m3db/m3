@@ -33,6 +33,8 @@ type funcTest struct {
 	expected []float64
 }
 
+var nan = math.NaN()
+
 var fnTest = []struct {
 	name      string
 	values    []float64
@@ -110,7 +112,7 @@ var fnTest = []struct {
 	},
 	{
 		"many values, one index, with nans",
-		[]float64{10, math.NaN(), 10, math.NaN(), 8, 4},
+		[]float64{10, nan, 10, nan, 8, 4},
 		[][]int{{0, 1, 2, 3, 4, 5}}, []funcTest{
 			{SumType, sumFn, []float64{32}},
 			{MinType, minFn, []float64{4}},
@@ -119,19 +121,21 @@ var fnTest = []struct {
 			{StandardDeviationType, stddevFn, []float64{2.44949}},
 			{StandardVarianceType, varianceFn, []float64{6}},
 			{CountType, countFn, []float64{4}},
+			{AbsentType, absentFn, []float64{nan}},
 		},
 	},
 	{
 		"only nans",
-		[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		[]float64{nan, nan, nan, nan},
 		[][]int{{0, 1, 2, 3}}, []funcTest{
-			{SumType, sumFn, []float64{math.NaN()}},
-			{MinType, minFn, []float64{math.NaN()}},
-			{MaxType, maxFn, []float64{math.NaN()}},
-			{AverageType, averageFn, []float64{math.NaN()}},
-			{StandardDeviationType, stddevFn, []float64{math.NaN()}},
-			{StandardVarianceType, varianceFn, []float64{math.NaN()}},
+			{SumType, sumFn, []float64{nan}},
+			{MinType, minFn, []float64{nan}},
+			{MaxType, maxFn, []float64{nan}},
+			{AverageType, averageFn, []float64{nan}},
+			{StandardDeviationType, stddevFn, []float64{nan}},
+			{StandardVarianceType, varianceFn, []float64{nan}},
 			{CountType, countFn, []float64{0}},
+			{AbsentType, absentFn, []float64{1}},
 		},
 	},
 	{

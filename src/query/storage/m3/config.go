@@ -29,14 +29,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/stores/m3db"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
 	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
 	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
-
-	defaultNewClientConfigurationParams = client.ConfigurationParameters{}
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -95,24 +94,24 @@ type ClusterStaticNamespaceConfiguration struct {
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storage.MetricsType, error) {
-	result := storage.DefaultMetricsType
-	if c.Type != storage.DefaultMetricsType && c.StorageMetricsType != storage.DefaultMetricsType {
+	unset := storage.MetricsType(0)
+	if c.Type != unset && c.StorageMetricsType != unset {
 		// Don't allow both to not be default
-		return result, errBothNamespaceTypeNewAndDeprecatedFieldsSet
+		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
 	}
 
-	if c.Type != storage.DefaultMetricsType {
+	if c.Type != unset {
 		// New field value set
 		return c.Type, nil
 	}
 
-	if c.StorageMetricsType != storage.DefaultMetricsType {
+	if c.StorageMetricsType != unset {
 		// Deprecated field value set
 		return c.StorageMetricsType, nil
 	}
 
-	// Both are default
-	return result, nil
+	// Both are unset
+	return storage.DefaultMetricsType, nil
 }
 
 func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
@@ -169,6 +168,7 @@ type ClustersStaticConfigurationOptions struct {
 
 // NewClusters instantiates a new Clusters instance.
 func (c ClustersStaticConfiguration) NewClusters(
+	instrumentOpts instrument.Options,
 	opts ClustersStaticConfigurationOptions,
 ) (Clusters, error) {
 	var (
@@ -181,20 +181,22 @@ func (c ClustersStaticConfiguration) NewClusters(
 	)
 	for _, clusterCfg := range c {
 		var (
-			client client.Client
+			result client.Client
 			err    error
 		)
 
 		if opts.ProvidedSession == nil {
-			// NB(r): If session is already provided, do not create a client
-			client, err = clusterCfg.newClient(defaultNewClientConfigurationParams)
+			// NB(r): Only create client session if not already provided.
+			result, err = clusterCfg.newClient(client.ConfigurationParameters{
+				InstrumentOptions: instrumentOpts,
+			})
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		aggregatedClusterNamespacesCfg := &aggregatedClusterNamespacesConfiguration{
-			client: client,
+			client: result,
 		}
 
 		for _, n := range clusterCfg.Namespaces {
@@ -211,7 +213,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 						"can be specified: specified %d", numUnaggregatedClusterNamespaces)
 				}
 
-				unaggregatedClusterNamespaceCfg.client = client
+				unaggregatedClusterNamespaceCfg.client = result
 				unaggregatedClusterNamespaceCfg.namespace = n
 
 			case storage.AggregatedMetricsType:

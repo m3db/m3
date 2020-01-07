@@ -24,34 +24,22 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type dataBootstrapResult struct {
-	results     ShardResults
 	unfulfilled ShardTimeRanges
 }
 
 // NewDataBootstrapResult creates a new result.
 func NewDataBootstrapResult() DataBootstrapResult {
 	return &dataBootstrapResult{
-		results:     make(ShardResults),
 		unfulfilled: make(ShardTimeRanges),
 	}
 }
 
-func (r *dataBootstrapResult) ShardResults() ShardResults {
-	return r.results
-}
-
 func (r *dataBootstrapResult) Unfulfilled() ShardTimeRanges {
 	return r.unfulfilled
-}
-
-func (r *dataBootstrapResult) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
-	r.results.AddResults(ShardResults{shard: result})
-	r.unfulfilled.AddRanges(ShardTimeRanges{shard: unfulfilled})
 }
 
 func (r *dataBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
@@ -68,21 +56,8 @@ func MergedDataBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
 	if j == nil {
 		return i
 	}
-	sizeI, sizeJ := 0, 0
-	for _, sr := range i.ShardResults() {
-		sizeI += int(sr.NumSeries())
-	}
-	for _, sr := range j.ShardResults() {
-		sizeJ += int(sr.NumSeries())
-	}
-	if sizeI >= sizeJ {
-		i.ShardResults().AddResults(j.ShardResults())
-		i.Unfulfilled().AddRanges(j.Unfulfilled())
-		return i
-	}
-	j.ShardResults().AddResults(i.ShardResults())
-	j.Unfulfilled().AddRanges(i.Unfulfilled())
-	return j
+	i.Unfulfilled().AddRanges(j.Unfulfilled())
+	return i
 }
 
 type shardResult struct {
@@ -249,4 +224,35 @@ func (r ShardResults) Equal(other ShardResults) bool {
 		}
 	}
 	return true
+}
+
+// EstimateMapBytesSize estimates the size (in bytes) of the results map. It's only an
+// estimate because its impossible to know if some of the references like the series
+// name as well as tags are exclusive to this object or shared with other structures in
+// memory.
+func EstimateMapBytesSize(m *Map) int64 {
+	if m == nil {
+		return 0
+	}
+
+	var sum int64
+	for _, elem := range m.Iter() {
+		id := elem.Key()
+		sum += int64(len(id.Bytes()))
+
+		blocks := elem.Value()
+		for _, tag := range blocks.Tags.Values() {
+			// Name/Value should never be nil but be precautious.
+			if tag.Name != nil {
+				sum += int64(len(tag.Name.Bytes()))
+			}
+			if tag.Value != nil {
+				sum += int64(len(tag.Value.Bytes()))
+			}
+		}
+		for _, block := range blocks.Blocks.AllBlocks() {
+			sum += int64(block.Len())
+		}
+	}
+	return sum
 }

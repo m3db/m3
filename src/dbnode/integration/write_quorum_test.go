@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -244,7 +244,8 @@ func makeTestWrite(
 		SetTopologyInitializer(topoInit)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
+		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

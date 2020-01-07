@@ -9,7 +9,11 @@ ExecStart=/usr/bin/m3dbnode -f /etc/m3db/m3dbnode.yaml
 Restart=on-failure
 RestartSec=10s
 SuccessExitStatus=0
-LimitNOFILE=500000
+
+# May not be honored if higher than kernel limit (sysctl fs.file-max) or process
+# limit (sysctl fs.nr_open). Also may not be honored if lower than systemd limit
+# (system.conf) or systemd user limit (user.conf).
+LimitNOFILE=3000000
 
 [Install]
 WantedBy=multi-user.target

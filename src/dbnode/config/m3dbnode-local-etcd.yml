@@ -1,6 +1,5 @@
 coordinator:
   listenAddress:
-    type: "config"
     value: "0.0.0.0:7201"
 
   local:
@@ -8,6 +7,9 @@ coordinator:
       - namespace: default
         type: unaggregated
         retention: 48h
+
+  logging:
+    level: info
 
   metrics:
     scope:
@@ -63,8 +65,8 @@ db:
         - commitlog
         - peers
         - uninitialized_topology
-    fs:
-        numProcessorsPerCPU: 0.125
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
     series:
@@ -76,8 +78,8 @@ db:
     flushMaxBytes: 524288
     flushEvery: 1s
     queue:
-        calculationType: fixed
-        size: 2097152
+      calculationType: fixed
+      size: 2097152
 
   fs:
     filePathPrefix: /var/lib/m3db
@@ -96,3 +98,9 @@ db:
           initialCluster:
               - hostID: m3db_local
                 endpoint: http://127.0.0.1:2380
+
+  # un-comment the lines below to enable Jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
+  # for quick local setup (which this config will send data to).
+
+  # tracing:
+  #  backend: jaeger

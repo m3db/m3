@@ -35,79 +35,94 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func m(i int) indexMatcher {
+	return mm(i, i)
+}
+
+func mm(l, r int) indexMatcher {
+	return indexMatcher{lhsIndex: l, rhsIndex: r}
+}
+
 var distinctLeftTests = []struct {
-	name      string
-	lhs, rhs  []block.SeriesMeta
-	expectedL []int
+	name     string
+	lhs, rhs []block.SeriesMeta
+	expected []indexMatcher
 }{
 	{
 		"equal tags",
-		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(0, 5),
-		[]int{},
+		generateMetaDataWithTagsInRange(0, 5),
+		generateMetaDataWithTagsInRange(0, 5),
+		[]indexMatcher{m(0), m(1), m(2), m(3), m(4)},
 	},
 	{
 		"empty rhs",
-		generateMetaDataWithTagsInRange(0, 5), []block.SeriesMeta{},
-		[]int{0, 1, 2, 3, 4},
+		generateMetaDataWithTagsInRange(0, 5),
+		[]block.SeriesMeta{},
+		[]indexMatcher{},
 	},
 	{
 		"empty lhs",
-		[]block.SeriesMeta{}, generateMetaDataWithTagsInRange(0, 5),
-		[]int{},
+		[]block.SeriesMeta{},
+		generateMetaDataWithTagsInRange(0, 5),
+		[]indexMatcher{},
 	},
 	{
 		"longer lhs",
-		generateMetaDataWithTagsInRange(-1, 6), generateMetaDataWithTagsInRange(0, 5),
-		[]int{0, 6},
+		generateMetaDataWithTagsInRange(-1, 6),
+		generateMetaDataWithTagsInRange(0, 5),
+		[]indexMatcher{mm(1, 0), mm(2, 1), mm(3, 2), mm(4, 3), mm(5, 4)},
 	},
 	{
 		"longer rhs",
-		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(-1, 6),
-		[]int{},
+		generateMetaDataWithTagsInRange(0, 5),
+		generateMetaDataWithTagsInRange(-1, 6),
+		[]indexMatcher{mm(0, 1), mm(1, 2), mm(2, 3), mm(3, 4), mm(4, 5)},
 	},
 	{
 		"shorter lhs",
-		generateMetaDataWithTagsInRange(1, 4), generateMetaDataWithTagsInRange(0, 5),
-		[]int{},
+		generateMetaDataWithTagsInRange(1, 4),
+		generateMetaDataWithTagsInRange(0, 5),
+		[]indexMatcher{mm(0, 1), mm(1, 2), mm(2, 3)},
 	},
 	{
 		"shorter rhs",
-		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(1, 4),
-		[]int{0, 4},
+		generateMetaDataWithTagsInRange(0, 5),
+		generateMetaDataWithTagsInRange(1, 4),
+		[]indexMatcher{mm(1, 0), mm(2, 1), mm(3, 2)},
 	},
 	{
 		"partial overlap",
-		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(1, 6),
-		[]int{0},
+		generateMetaDataWithTagsInRange(0, 5),
+		generateMetaDataWithTagsInRange(1, 6),
+		[]indexMatcher{mm(1, 0), mm(2, 1), mm(3, 2), mm(4, 3)},
 	},
 	{
 		"no overlap",
-		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(6, 9),
-		[]int{0, 1, 2, 3, 4},
+		generateMetaDataWithTagsInRange(0, 5),
+		generateMetaDataWithTagsInRange(6, 9),
+		[]indexMatcher{},
 	},
 }
 
-func TestDistinctLeft(t *testing.T) {
-	matching := &VectorMatching{}
-
+func TestMatchingIndices(t *testing.T) {
+	matching := VectorMatching{}
 	for _, tt := range distinctLeftTests {
 		t.Run(tt.name, func(t *testing.T) {
-			excluded := distinctLeft(matching, tt.lhs, tt.rhs)
-			assert.Equal(t, tt.expectedL, excluded)
+			excluded := matchingIndices(matching, tt.lhs, tt.rhs)
+			assert.Equal(t, tt.expected, excluded)
 		})
 	}
 }
 
 var unlessTests = []struct {
-	name           string
-	lhsMeta        []block.SeriesMeta
-	lhs            [][]float64
-	rhsMeta        []block.SeriesMeta
-	rhs            [][]float64
-	expectedShared models.Tags
-	expectedMetas  []block.SeriesMeta
-	expected       [][]float64
-	err            error
+	name          string
+	lhsMeta       []block.SeriesMeta
+	lhs           [][]float64
+	rhsMeta       []block.SeriesMeta
+	rhs           [][]float64
+	expectedMetas []block.SeriesMeta
+	expected      [][]float64
+	err           error
 }{
 	{
 		"valid, equal tags",
@@ -115,20 +130,18 @@ var unlessTests = []struct {
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("a", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.EmptyTags(),
-		[]block.SeriesMeta{},
-		[][]float64{},
+		test.NewSeriesMetaWithoutName("a", 2),
+		[][]float64{{nan, nan}, {nan, nan}},
 		nil,
 	},
 	{
 		"valid, some overlap right",
 		test.NewSeriesMeta("a", 2),
-		[][]float64{{1, 2}, {10, 20}},
+		[][]float64{{nan, 2}, {10, 20}},
 		test.NewSeriesMeta("a", 3),
-		[][]float64{{3, 4}, {30, 40}, {50, 60}},
-		models.EmptyTags(),
-		[]block.SeriesMeta{},
-		[][]float64{},
+		[][]float64{{3, nan}, {30, 40}, {50, 60}},
+		test.NewSeriesMetaWithoutName("a", 2),
+		[][]float64{{nan, 2}, {nan, nan}},
 		nil,
 	},
 	{
@@ -136,10 +149,9 @@ var unlessTests = []struct {
 		test.NewSeriesMeta("a", 3),
 		[][]float64{{1, 2}, {10, 20}, {100, 200}},
 		test.NewSeriesMeta("a", 3)[1:],
-		[][]float64{{3, 4}, {30, 40}},
-		test.NewSeriesMeta("a", 1)[0].Tags,
-		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: []byte("a0")}},
-		[][]float64{{1, 2}},
+		[][]float64{{3, 4}, {nan, 40}},
+		test.NewSeriesMetaWithoutName("a", 3),
+		[][]float64{{1, 2}, {nan, nan}, {100, nan}},
 		nil,
 	},
 	{
@@ -147,42 +159,38 @@ var unlessTests = []struct {
 		test.NewSeriesMeta("a", 3),
 		[][]float64{{1, 2}, {10, 20}, {100, 200}},
 		test.NewSeriesMeta("a", 4)[1:],
-		[][]float64{{3, 4}, {30, 40}, {300, 400}},
-		test.NewSeriesMeta("a", 1)[0].Tags,
-		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: []byte("a0")}},
-		[][]float64{{1, 2}},
+		[][]float64{{3, nan}, {nan, 40}, {300, 400}},
+		test.NewSeriesMetaWithoutName("a", 3),
+		[][]float64{{1, 2}, {nan, 20}, {100, nan}},
 		nil,
 	},
 	{
-		"valid, equal size",
+		"valid, different tags",
 		test.NewSeriesMeta("a", 2),
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("b", 2),
-		[][]float64{{3, 4}, {30, 40}},
-		models.EmptyTags(),
-		test.NewSeriesMeta("a", 2),
+		[][]float64{{nan, 4}, {30, 40}},
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2}, {10, 20}},
 		nil,
 	},
 	{
-		"valid, longer rhs",
+		"valid, different tags, longer rhs",
 		test.NewSeriesMeta("a", 2),
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("b", 3),
 		[][]float64{{3, 4}, {30, 40}, {300, 400}},
-		models.EmptyTags(),
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2}, {10, 20}},
 		nil,
 	},
 	{
-		"valid, longer lhs",
+		"valid, different tags, longer lhs",
 		test.NewSeriesMeta("a", 3),
 		[][]float64{{1, 2}, {10, 20}, {100, 200}},
 		test.NewSeriesMeta("b", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.EmptyTags(),
-		test.NewSeriesMeta("a", 3),
+		test.NewSeriesMetaWithoutName("a", 3),
 		[][]float64{{1, 2}, {10, 20}, {100, 200}},
 		nil,
 	},
@@ -192,8 +200,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2, 3}, {10, 20, 30}},
 		test.NewSeriesMeta("b", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.EmptyTags(),
-		[]block.SeriesMeta{},
+		test.NewSeriesMetaWithoutName("a", 0),
 		[][]float64{},
 		errMismatchedStepCounts,
 	},
@@ -206,9 +213,9 @@ func TestUnless(t *testing.T) {
 			op, err := NewOp(
 				UnlessType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -240,7 +247,7 @@ func TestUnless(t *testing.T) {
 			require.NoError(t, err)
 			test.EqualsWithNans(t, tt.expected, sink.Values)
 			meta := sink.Meta
-			assert.Equal(t, tt.expectedShared.Tags, meta.Tags.Tags)
+			assert.Equal(t, 0, meta.Tags.Len())
 			assert.True(t, meta.Bounds.Equals(bounds))
 			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})

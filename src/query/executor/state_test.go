@@ -29,7 +29,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +40,14 @@ import (
 var (
 	defaultLookbackDuration = time.Minute
 )
+
+func testRequestParams() models.RequestParams {
+	return models.RequestParams{
+		Now:              time.Now(),
+		LookbackDuration: defaultLookbackDuration,
+		Step:             time.Second,
+	}
+}
 
 func TestValidState(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
@@ -55,9 +65,10 @@ func TestValidState(t *testing.T) {
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
 	store := mock.NewMockStorage()
-	p, err := plan.NewPhysicalPlan(lp, store, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
+	p, err := plan.NewPhysicalPlan(lp, testRequestParams())
 	require.NoError(t, err)
-	state, err := GenerateExecutionState(p, store)
+	state, err := GenerateExecutionState(p, store, storage.NewFetchOptions(),
+		instrument.NewOptions())
 	require.NoError(t, err)
 	require.Len(t, state.sources, 1)
 	err = state.Execute(models.NoopQueryContext())
@@ -72,9 +83,9 @@ func TestWithoutSources(t *testing.T) {
 	edges := parser.Edges{}
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
+	p, err := plan.NewPhysicalPlan(lp, testRequestParams())
 	require.NoError(t, err)
-	_, err = GenerateExecutionState(p, nil)
+	_, err = GenerateExecutionState(p, nil, storage.NewFetchOptions(), instrument.NewOptions())
 	assert.Error(t, err)
 }
 
@@ -84,9 +95,10 @@ func TestOnlySources(t *testing.T) {
 	edges := parser.Edges{}
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
+	p, err := plan.NewPhysicalPlan(lp, testRequestParams())
 	require.NoError(t, err)
-	state, err := GenerateExecutionState(p, nil)
+	state, err := GenerateExecutionState(p, nil, storage.NewFetchOptions(),
+		instrument.NewOptions())
 	assert.NoError(t, err)
 	require.Len(t, state.sources, 1)
 }
@@ -111,9 +123,10 @@ func TestMultipleSources(t *testing.T) {
 
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
+	p, err := plan.NewPhysicalPlan(lp, testRequestParams())
 	require.NoError(t, err)
-	state, err := GenerateExecutionState(p, nil)
+	state, err := GenerateExecutionState(p, nil, storage.NewFetchOptions(),
+		instrument.NewOptions())
 	assert.NoError(t, err)
 	require.Len(t, state.sources, 2)
 	assert.Contains(t, state.String(), "sources")

@@ -27,10 +27,12 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3x/log"
+
+	"go.uber.org/zap"
 )
 
 var (
+	noopLogger  = zap.NewNop()
 	errNilStore = errors.New("kv store is nil")
 )
 
@@ -209,6 +211,15 @@ func getTime(v kv.Value) (interface{}, error) {
 	return time.Unix(int64Proto.Value, 0), nil
 }
 
+func getDuration(v kv.Value) (interface{}, error) {
+	var int64Proto commonpb.Int64Proto
+	if err := v.Unmarshal(&int64Proto); err != nil {
+		return nil, err
+	}
+
+	return time.Duration(int64Proto.Value), nil
+}
+
 func watchAndUpdate(
 	store kv.Store,
 	key string,
@@ -216,7 +227,7 @@ func watchAndUpdate(
 	update updateFn,
 	validate ValidateFn,
 	defaultValue interface{},
-	logger log.Logger,
+	logger *zap.Logger,
 ) (kv.ValueWatch, error) {
 	if store == nil {
 		return nil, errNilStore
@@ -238,7 +249,7 @@ func watchAndUpdate(
 		}
 		// The channel for a ValueWatch should never close.
 		getLogger(logger).
-			WithFields(log.NewField("key", key)).
+			With(zap.String("key", key)).
 			Error("watch unexpectedly closed")
 	}()
 
@@ -252,7 +263,7 @@ func updateWithKV(
 	key string,
 	v kv.Value,
 	defaultValue interface{},
-	logger log.Logger,
+	logger *zap.Logger,
 ) error {
 	if v == nil {
 		// The key is deleted from kv, use the default value.
@@ -279,42 +290,42 @@ func updateWithKV(
 	return nil
 }
 
-func logNilUpdate(logger log.Logger, k string, v interface{}) {
-	getLogger(logger).WithFields(
-		log.NewField("key", k),
-		log.NewField("default-value", v),
-	).Warn("nil value from kv store, applying default value")
+func logNilUpdate(logger *zap.Logger, k string, v interface{}) {
+	getLogger(logger).Warn("nil value from kv store, applying default value",
+		zap.String("key", k),
+		zap.Any("defaultValue", v),
+	)
 }
 
-func logMalformedUpdate(logger log.Logger, k string, ver int, v interface{}, err error) {
-	getLogger(logger).WithFields(
-		log.NewField("key", k),
-		log.NewField("malformed-value", v),
-		log.NewField("version", ver),
-		log.NewField("error", err),
-	).Warn("malformed value from kv store, not applying update")
+func logMalformedUpdate(logger *zap.Logger, k string, ver int, v interface{}, err error) {
+	getLogger(logger).Warn("malformed value from kv store, not applying update",
+		zap.String("key", k),
+		zap.Any("malformedValue", v),
+		zap.Int("version", ver),
+		zap.Error(err),
+	)
 }
 
-func logInvalidUpdate(logger log.Logger, k string, ver int, v interface{}, err error) {
-	getLogger(logger).WithFields(
-		log.NewField("key", k),
-		log.NewField("invalid-value", v),
-		log.NewField("version", ver),
-		log.NewField("error", err),
-	).Warn("invalid value from kv store, not applying update")
+func logInvalidUpdate(logger *zap.Logger, k string, ver int, v interface{}, err error) {
+	getLogger(logger).Warn("invalid value from kv store, not applying update",
+		zap.String("key", k),
+		zap.Any("invalidValue", v),
+		zap.Int("version", ver),
+		zap.Error(err),
+	)
 }
 
-func logUpdateSuccess(logger log.Logger, k string, ver int, v interface{}) {
-	getLogger(logger).WithFields(
-		log.NewField("key", k),
-		log.NewField("value", v),
-		log.NewField("version", ver),
-	).Info("value update success")
+func logUpdateSuccess(logger *zap.Logger, k string, ver int, v interface{}) {
+	getLogger(logger).Info("value update success",
+		zap.String("key", k),
+		zap.Any("value", v),
+		zap.Int("version", ver),
+	)
 }
 
-func getLogger(logger log.Logger) log.Logger {
+func getLogger(logger *zap.Logger) *zap.Logger {
 	if logger == nil {
-		return log.NullLogger
+		return noopLogger
 	}
 	return logger
 }

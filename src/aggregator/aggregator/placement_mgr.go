@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/uber-go/tally"
 )
@@ -43,6 +43,9 @@ var (
 type PlacementManager interface {
 	// Open opens the placement manager.
 	Open() error
+
+	// InstanceID returns the configured instance ID.
+	InstanceID() string
 
 	// Placement returns the active staged placement and the active placement.
 	Placement() (placement.ActiveStagedPlacement, placement.Placement, error)
@@ -120,6 +123,13 @@ func (mgr *placementManager) Open() error {
 	}
 	mgr.state = placementManagerOpen
 	return nil
+}
+
+func (mgr *placementManager) InstanceID() string {
+	mgr.RLock()
+	value := mgr.instanceID
+	mgr.RUnlock()
+	return value
 }
 
 func (mgr *placementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {

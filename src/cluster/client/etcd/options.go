@@ -27,11 +27,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 const (
@@ -45,6 +46,8 @@ const (
 	defaultRetryMaxRetries     = 3
 	defaultRetryMaxBackoff     = time.Duration(math.MaxInt64)
 	defaultRetryJitter         = true
+
+	defaultDirectoryMode = os.FileMode(0755)
 )
 
 type keepAliveOptions struct {
@@ -175,6 +178,7 @@ func NewOptions() Options {
 			SetMaxBackoff(defaultRetryMaxBackoff).
 			SetMaxRetries(defaultRetryMaxRetries).
 			SetJitter(defaultRetryJitter),
+		newDirectoryMode: defaultDirectoryMode,
 	}
 }
 
@@ -188,6 +192,7 @@ type options struct {
 	clusters          map[string]Cluster
 	iopts             instrument.Options
 	retryOpts         retry.Options
+	newDirectoryMode  os.FileMode
 }
 
 func (o options) Validate() error {
@@ -299,6 +304,15 @@ func (o options) SetWatchWithRevision(rev int64) Options {
 	return o
 }
 
+func (o options) SetNewDirectoryMode(fm os.FileMode) Options {
+	o.newDirectoryMode = fm
+	return o
+}
+
+func (o options) NewDirectoryMode() os.FileMode {
+	return o.newDirectoryMode
+}
+
 // NewCluster creates a Cluster.
 func NewCluster() Cluster {
 	return cluster{
@@ -308,10 +322,11 @@ func NewCluster() Cluster {
 }
 
 type cluster struct {
-	zone          string
-	endpoints     []string
-	keepAliveOpts KeepAliveOptions
-	tlsOpts       TLSOptions
+	zone             string
+	endpoints        []string
+	keepAliveOpts    KeepAliveOptions
+	tlsOpts          TLSOptions
+	autoSyncInterval time.Duration
 }
 
 func (c cluster) Zone() string {
@@ -347,5 +362,14 @@ func (c cluster) TLSOptions() TLSOptions {
 
 func (c cluster) SetTLSOptions(opts TLSOptions) Cluster {
 	c.tlsOpts = opts
+	return c
+}
+
+func (c cluster) AutoSyncInterval() time.Duration {
+	return c.autoSyncInterval
+}
+
+func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {
+	c.autoSyncInterval = autoSyncInterval
 	return c
 }

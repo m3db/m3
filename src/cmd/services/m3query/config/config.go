@@ -30,15 +30,18 @@ import (
 	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
 	xdocs "github.com/m3db/m3/src/x/docs"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/config/listenaddress"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
+	"github.com/m3db/m3/src/x/opentracing"
 )
 
 // BackendStorageType is an enum for different backends.
@@ -54,8 +57,6 @@ const (
 	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
-
-	defaultQueryConversionCacheSize = 4096
 )
 
 var (
@@ -63,6 +64,8 @@ var (
 	defaultLookbackDuration = 5 * time.Minute
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
+
+	defaultStorageQueryLimit = 10000
 )
 
 // Configuration is the configuration for the query service.
@@ -70,8 +73,11 @@ type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
+	// Logging configuration.
+	Logging xlog.Configuration `yaml:"logging"`
+
 	// Tracing configures opentracing. If not provided, tracing is disabled.
-	Tracing instrument.TracingConfiguration `yaml:"tracing"`
+	Tracing opentracing.TracingConfiguration `yaml:"tracing"`
 
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
@@ -106,6 +112,9 @@ type Configuration struct {
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
+	// WriteForwarding is the write forwarding options.
+	WriteForwarding WriteForwardingConfiguration `yaml:"writeForwarding"`
+
 	// Downsample configurates how the metrics should be downsampled.
 	Downsample downsample.Configuration `yaml:"downsample"`
 
@@ -121,11 +130,25 @@ type Configuration struct {
 	// LookbackDuration determines the lookback duration for queries
 	LookbackDuration *time.Duration `yaml:"lookbackDuration"`
 
-	// Cache configurations.
-	Cache CacheConfiguration `yaml:"cache"`
-
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
+
+	// Experimental is the configuration for the experimental API group.
+	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+
+	// Cache configurations.
+	//
+	// Deprecated: cache configurations are no longer supported. Remove from file
+	// when we can make breaking changes.
+	// (If/when removed it will make existing configurations with the cache
+	// stanza not able to startup the binary since we parse YAML in strict mode
+	// by default).
+	DeprecatedCache CacheConfiguration `yaml:"cache"`
+}
+
+// WriteForwardingConfiguration is the write forwarding configuration.
+type WriteForwardingConfiguration struct {
+	PromRemoteWrite handleroptions.PromWriteHandlerForwardingOptions `yaml:"promRemoteWrite"`
 }
 
 // Filter is a query filter type.
@@ -149,6 +172,17 @@ type FilterConfiguration struct {
 	CompleteTags Filter `yaml:"completeTags"`
 }
 
+// CacheConfiguration contains the cache configurations.
+type CacheConfiguration struct {
+	// Deprecated: remove from config.
+	DeprecatedQueryConversion *DeprecatedQueryConversionCacheConfiguration `yaml:"queryConversion"`
+}
+
+// DeprecatedQueryConversionCacheConfiguration is deprecated: remove from config.
+type DeprecatedQueryConversionCacheConfiguration struct {
+	Size *int `yaml:"size"`
+}
+
 // ResultOptions are the result options for query.
 type ResultOptions struct {
 	// KeepNans keeps NaNs before returning query results.
@@ -156,48 +190,8 @@ type ResultOptions struct {
 	KeepNans bool `yaml:"keepNans"`
 }
 
-// CacheConfiguration is the cache configurations.
-type CacheConfiguration struct {
-	// QueryConversion cache policy.
-	QueryConversion *QueryConversionCacheConfiguration `yaml:"queryConversion"`
-}
-
-// QueryConversionCacheConfiguration is the query conversion cache configuration.
-type QueryConversionCacheConfiguration struct {
-	Size *int `yaml:"size"`
-}
-
-// QueryConversionCacheConfiguration returns the query conversion cache configuration
-// or default if none is specified.
-func (c CacheConfiguration) QueryConversionCacheConfiguration() QueryConversionCacheConfiguration {
-	if c.QueryConversion == nil {
-		return QueryConversionCacheConfiguration{}
-	}
-
-	return *c.QueryConversion
-}
-
-// SizeOrDefault returns the provided size or the default value is none is
-// provided.
-func (q *QueryConversionCacheConfiguration) SizeOrDefault() int {
-	if q.Size == nil {
-		return defaultQueryConversionCacheSize
-	}
-
-	return *q.Size
-}
-
-// Validate validates the QueryConversionCacheConfiguration settings.
-func (q *QueryConversionCacheConfiguration) Validate() error {
-	if q.Size != nil && *q.Size <= 0 {
-		return fmt.Errorf("must provide a positive size for query conversion config, instead got: %d", *q.Size)
-	}
-
-	return nil
-}
-
-// LimitsConfiguration represents limitations on resource usage in the query instance. Limits are split between per-query
-// and global limits.
+// LimitsConfiguration represents limitations on resource usage in the query
+// instance. Limits are split between per-query and global limits.
 type LimitsConfiguration struct {
 	// deprecated: use PerQuery.MaxComputedDatapoints instead.
 	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
@@ -223,18 +217,22 @@ func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
 	return lc.DeprecatedMaxComputedDatapoints
 }
 
-// GlobalLimitsConfiguration represents limits on resource usage across a query instance. Zero or negative values imply no limit.
+// GlobalLimitsConfiguration represents limits on resource usage across a query
+// instance. Zero or negative values imply no limit.
 type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the total number of datapoints actually fetched by all queries at any given time.
+	// MaxFetchedDatapoints limits the total number of datapoints actually
+	// fetched by all queries at any given time.
 	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
 }
 
-// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+// AsLimitManagerOptions converts this configuration to
+// cost.LimitManagerOptions for MaxFetchedDatapoints.
 func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
 	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
-// PerQueryLimitsConfiguration represents limits on resource usage within a single query. Zero or negative values imply no limit.
+// PerQueryLimitsConfiguration represents limits on resource usage within a
+// single query. Zero or negative values imply no limit.
 type PerQueryLimitsConfiguration struct {
 	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
 	// returned by a query. It's determined purely
@@ -245,13 +243,32 @@ type PerQueryLimitsConfiguration struct {
 	// this field directly.
 	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
 
-	// MaxFetchedDatapoints limits the number of datapoints actually used by a given query.
+	// MaxFetchedDatapoints limits the number of datapoints actually used by a
+	// given query.
 	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+
+	// MaxFetchedSeries limits the number of time series returned by a storage node.
+	MaxFetchedSeries int64 `yaml:"maxFetchedSeries"`
 }
 
-// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+// AsLimitManagerOptions converts this configuration to
+// cost.LimitManagerOptions for MaxFetchedDatapoints.
 func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
 	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+// AsFetchOptionsBuilderOptions converts this configuration to
+// handler.FetchOptionsBuilderOptions.
+func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
+	if l.MaxFetchedSeries <= 0 {
+		return handleroptions.FetchOptionsBuilderOptions{
+			Limit: defaultStorageQueryLimit,
+		}
+	}
+
+	return handleroptions.FetchOptionsBuilderOptions{
+		Limit: int(l.MaxFetchedSeries),
+	}
 }
 
 func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
@@ -277,10 +294,12 @@ type CarbonConfiguration struct {
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
 type CarbonIngesterConfiguration struct {
-	Debug          bool                              `yaml:"debug"`
-	ListenAddress  string                            `yaml:"listenAddress"`
-	MaxConcurrency int                               `yaml:"maxConcurrency"`
-	Rules          []CarbonIngesterRuleConfiguration `yaml:"rules"`
+	// Deprecated: simply use the logger debug level, this has been deprecated
+	// in favor of setting the log level to debug.
+	DeprecatedDebug bool                              `yaml:"debug"`
+	ListenAddress   string                            `yaml:"listenAddress"`
+	MaxConcurrency  int                               `yaml:"maxConcurrency"`
+	Rules           []CarbonIngesterRuleConfiguration `yaml:"rules"`
 }
 
 // LookbackDurationOrDefault validates the LookbackDuration
@@ -404,18 +423,53 @@ type ClusterManagementConfiguration struct {
 	Etcd etcdclient.Configuration `yaml:"etcd"`
 }
 
+// RemoteConfigurations is a set of remote host configurations.
+type RemoteConfigurations []RemoteConfiguration
+
+// RemoteConfiguration is the configuration for a single remote host.
+type RemoteConfiguration struct {
+	// Name is the name for the remote zone.
+	Name string `yaml:"name"`
+	// RemoteListenAddresses is the remote listen addresses to call for remote
+	// coordinator calls in the remote zone.
+	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+	// ErrorBehavior overrides the default error behavior for this host.
+	//
+	// NB: defaults to warning on error.
+	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
+}
+
 // RPCConfiguration is the RPC configuration for the coordinator for
 // the GRPC server used for remote coordinator to coordinator calls.
 type RPCConfiguration struct {
 	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
+	//
+	// NB: this is no longer necessary to set to true if RPC is desired; enabled
+	// status is inferred based on which other options are provided;
+	// this remains for back-compat, and for disabling any existing RPC options.
+	Enabled *bool `yaml:"enabled"`
 
 	// ListenAddress is the RPC server listen address.
 	ListenAddress string `yaml:"listenAddress"`
 
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
+	// Remotes are the configuration settings for remote coordinator zones.
+	Remotes RemoteConfigurations `yaml:"remotes"`
+
+	// RemoteListenAddresses is the remote listen addresses to call for
+	// remote coordinator calls.
+	//
+	// NB: this is deprecated in favor of using RemoteZones, as setting
+	// RemoteListenAddresses will only allow for a single remote zone to be used.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+
+	// ErrorBehavior overrides the default error behavior for all rpc hosts.
+	//
+	// NB: defaults to warning on error.
+	ErrorBehavior *storage.ErrorBehavior `yaml:"errorBehavior"`
+
+	// ReflectionEnabled will enable reflection on the GRPC server, useful
+	// for testing connectivity with grpcurl, etc.
+	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
 // TagOptionsConfiguration is the configuration for shared tag options
@@ -459,4 +513,9 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	}
 
 	return opts, nil
+}
+
+// ExperimentalAPIConfiguration is the configuration for the experimental API group.
+type ExperimentalAPIConfiguration struct {
+	Enabled bool `yaml:"enabled"`
 }

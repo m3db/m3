@@ -63,3 +63,35 @@ func TestSliceWithControlCharactersNeedsToEscape(t *testing.T) {
 	unescaped = append(unescaped, highByte)
 	assert.True(t, NeedToEscape(unescaped))
 }
+
+func TestIsAlphaNumeric(t *testing.T) {
+	alphaStr := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	assert.True(t, IsAlphaNumeric(alphaStr))
+
+	// Ensure each rune is alpha numeric
+	for _, r := range alphaStr {
+		assert.True(t, IsRuneAlphaNumeric(r))
+	}
+}
+
+func TestEachNonAlphaNumeric(t *testing.T) {
+	// NB: generate every character then remove any alphanumeric
+	charMap := make(map[int]string, 256)
+	for i := 0; i < 256; i++ {
+		charMap[i] = string(byte(i))
+	}
+
+	alphaStr := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	for _, c := range alphaStr {
+		delete(charMap, int(c))
+	}
+
+	for _, invalid := range charMap {
+		assert.False(t, IsAlphaNumeric(invalid))
+
+		// Ensure each rune is alpha numeric
+		for _, r := range invalid {
+			assert.False(t, IsRuneAlphaNumeric(r))
+		}
+	}
+}

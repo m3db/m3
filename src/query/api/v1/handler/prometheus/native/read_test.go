@@ -31,36 +31,59 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
-func TestPromReadHandler_Read(t *testing.T) {
-	logging.InitWithCores(nil)
+func TestPromReadHandlerRead(t *testing.T) {
+	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
+		handleroptions.LimitHeaderSeriesLimitApplied)
+}
 
+func testPromReadHandlerRead(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
-	promRead := setup.Handler
+	promRead := setup.Handlers.Read
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	m := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(m, seriesMeta, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, parseErr := parseParams(req, timeoutOpts)
+	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	seriesList, err := read(context.TODO(), promRead.engine, promRead.tagOpts, httptest.NewRecorder(), r)
+	result, err := read(context.TODO(), promRead.engine,
+		setup.QueryOpts, setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(),
+		r, instrument.NewOptions())
+
+	seriesList := result.series
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
@@ -78,15 +101,31 @@ type M3QLResp []struct {
 	StepSizeMs int               `json:"step_size_ms"`
 }
 
-func TestPromReadHandler_ReadM3QL(t *testing.T) {
-	logging.InitWithCores(nil)
+func TestM3PromReadHandlerRead(t *testing.T) {
+	testM3PromReadHandlerRead(t, block.NewResultMetadata(), "")
+	testM3PromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testM3PromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
+		handleroptions.LimitHeaderSeriesLimitApplied)
+}
 
+func testM3PromReadHandlerRead(
+	t *testing.T,
+	resultMeta block.ResultMetadata,
+	ex string,
+) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
-	promRead := setup.Handler
+	promRead := setup.Handlers.Read
 
-	b := test.NewBlockFromValues(bounds, values)
+	seriesMeta := test.NewSeriesMeta("dummy", len(values))
+	meta := block.Metadata{
+		Bounds:         bounds,
+		Tags:           models.NewTags(0, models.NewTagOptions()),
+		ResultMetadata: resultMeta,
+	}
+
+	b := test.NewBlockFromValuesWithMetaAndSeriesMeta(meta, seriesMeta, values)
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
@@ -96,16 +135,22 @@ func TestPromReadHandler_ReadM3QL(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	promRead.ServeHTTP(recorder, req)
 
+	header := recorder.Header().Get(handleroptions.LimitHeader)
+	assert.Equal(t, ex, header)
+
 	var m3qlResp M3QLResp
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
 
 	assert.Len(t, m3qlResp, 2)
 	assert.Equal(t, "dummy0", m3qlResp[0].Target)
-	assert.Equal(t, map[string]string{"__name__": "dummy0", "dummy0": "dummy0"}, m3qlResp[0].Tags)
+	assert.Equal(t, map[string]string{"__name__": "dummy0", "dummy0": "dummy0"},
+		m3qlResp[0].Tags)
 	assert.Equal(t, 10000, m3qlResp[0].StepSizeMs)
 	assert.Equal(t, "dummy1", m3qlResp[1].Target)
-	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"}, m3qlResp[1].Tags)
+	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"},
+		m3qlResp[1].Tags)
 	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
+
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {
@@ -116,42 +161,80 @@ func newReadRequest(t *testing.T, params url.Values) *http.Request {
 }
 
 type testSetup struct {
-	Storage mock.Storage
-	Handler *PromReadHandler
+	Storage     mock.Storage
+	Handlers    testSetupHandlers
+	QueryOpts   *executor.QueryOptions
+	FetchOpts   *storage.FetchOptions
+	TimeoutOpts *prometheus.TimeoutOpts
+}
+
+type testSetupHandlers struct {
+	Read        *PromReadHandler
+	InstantRead *PromReadInstantHandler
 }
 
 func newTestSetup() *testSetup {
 	mockStorage := mock.NewMockStorage()
 
+	instrumentOpts := instrument.NewOptions()
+	engineOpts := executor.NewEngineOptions().
+		SetStore(mockStorage).
+		SetLookbackDuration(time.Minute).
+		SetGlobalEnforcer(nil).
+		SetInstrumentOptions(instrumentOpts)
+	engine := executor.NewEngine(engineOpts)
+	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{}
+	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	tagOpts := models.NewTagOptions()
+	limitsConfig := config.LimitsConfiguration{}
+	keepNans := false
+
+	opts := options.EmptyHandlerOptions().
+		SetEngine(engine).
+		SetFetchOptionsBuilder(fetchOptsBuilder).
+		SetTagOptions(tagOpts).
+		SetTimeoutOpts(timeoutOpts).
+		SetInstrumentOpts(instrumentOpts).
+		SetConfig(config.Configuration{
+			Limits: limitsConfig,
+			ResultOptions: config.ResultOptions{
+				KeepNans: keepNans,
+			},
+		})
+
+	read := NewPromReadHandler(opts)
+	instantRead := NewPromReadInstantHandler(opts)
+
 	return &testSetup{
 		Storage: mockStorage,
-		Handler: NewPromReadHandler(
-			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil), time.Minute, nil),
-			models.NewTagOptions(),
-			&config.LimitsConfiguration{},
-			tally.NewTestScope("", nil),
-			timeoutOpts,
-			false,
-		),
+		Handlers: testSetupHandlers{
+			Read:        read,
+			InstantRead: instantRead,
+		},
+		QueryOpts:   &executor.QueryOptions{},
+		FetchOpts:   storage.NewFetchOptions(),
+		TimeoutOpts: timeoutOpts,
 	}
 }
 
 func TestPromReadHandler_ServeHTTP_maxComputedDatapoints(t *testing.T) {
 	setup := newTestSetup()
-	setup.Handler.limitsCfg = &config.LimitsConfiguration{
+	setup.Handlers.Read.limitsCfg = &config.LimitsConfiguration{
 		PerQuery: config.PerQueryLimitsConfiguration{
 			PrivateMaxComputedDatapoints: 3599,
 		},
 	}
 
 	params := defaultParams()
-	params.Set(startParam, time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano))
-	params.Set(endParam, time.Date(2018, 1, 1, 1, 0, 0, 0, time.UTC).Format(time.RFC3339Nano))
-	params.Set(stepParam, (time.Second).String())
+	params.Set(startParam, time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC).
+		Format(time.RFC3339Nano))
+	params.Set(endParam, time.Date(2018, 1, 1, 1, 0, 0, 0, time.UTC).
+		Format(time.RFC3339Nano))
+	params.Set(handleroptions.StepParam, (time.Second).String())
 	req := newReadRequest(t, params)
 
 	recorder := httptest.NewRecorder()
-	setup.Handler.ServeHTTP(recorder, req)
+	setup.Handlers.Read.ServeHTTP(recorder, req)
 	resp := recorder.Result()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -249,13 +332,13 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			setup := newTestSetup()
-			setup.Handler.limitsCfg = &config.LimitsConfiguration{
+			setup.Handlers.Read.limitsCfg = &config.LimitsConfiguration{
 				PerQuery: config.PerQueryLimitsConfiguration{
 					PrivateMaxComputedDatapoints: tc.Max,
 				},
 			}
 
-			err := setup.Handler.validateRequest(tc.Params)
+			err := setup.Handlers.Read.validateRequest(tc.Params)
 
 			if tc.ErrorExpected {
 				require.Error(t, err)

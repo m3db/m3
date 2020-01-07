@@ -5,11 +5,11 @@
 # modify host sysctl values. This is designed for managed Kubernetes platforms
 # that may have restrictions like read-only root FS, inability to set startup
 # scripts, etc. In very rare circumstances should you use this, and should
-# intead opt to use your usual host provisioning tooling to set these values.
+# instead opt to use your usual host provisioning tooling to set these values.
 #
 # This daemonset pins to a specific SHA digest in the event that the M3DB Quay
 # repo is ever compromised. The manifest of this image can be verified here:
-# https://quay.io/repository/m3db/sysctl-setter/manifest/sha256:a4dbce681a9162e83a780fd647e7efabda1a4e720f4f62fc75494d9f2510abf5
+# https://quay.io/repository/m3/sysctl-setter/manifest/sha256:e003ee817fa573c38507667ca2e22634a1cb039fdb849f8ac0da98cc254a674e
 
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -31,7 +31,7 @@ spec:
     spec:
       terminationGracePeriodSeconds: 5
       containers:
-      - image: quay.io/m3db/sysctl-setter@sha256:a4dbce681a9162e83a780fd647e7efabda1a4e720f4f62fc75494d9f2510abf5
+      - image: quay.io/m3/sysctl-setter@sha256:e003ee817fa573c38507667ca2e22634a1cb039fdb849f8ac0da98cc254a674e
         imagePullPolicy: Always
         name: sysctl-setter
         securityContext:

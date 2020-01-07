@@ -26,7 +26,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	assets "github.com/m3db/m3/src/query/generated/assets/openapi"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -47,17 +48,28 @@ var (
 )
 
 // DocHandler handles serving the OpenAPI doc.
-type DocHandler struct{}
+type DocHandler struct {
+	instrumentOpts instrument.Options
+}
+
+// NewDocHandler returns a new doc handler.
+func NewDocHandler(
+	instrumentOpts instrument.Options,
+) http.Handler {
+	return &DocHandler{
+		instrumentOpts: instrumentOpts,
+	}
+}
 
 // ServeHTTP serves the OpenAPI doc.
 func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	doc, err := assets.FSByte(false, docPath)
 
 	if err != nil {
-		logger.Error("unable to load doc", zap.Any("error", err))
+		logger.Error("unable to load doc", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

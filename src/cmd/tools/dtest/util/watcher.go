@@ -28,21 +28,22 @@ import (
 	"time"
 
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
-	xclock "github.com/m3db/m3x/clock"
-	xlog "github.com/m3db/m3x/log"
+	xclock "github.com/m3db/m3/src/x/clock"
+
+	"go.uber.org/zap"
 )
 
 type nodesWatcher struct {
 	sync.Mutex
 	pending           map[string]m3emnode.Node
-	logger            xlog.Logger
+	logger            *zap.Logger
 	reportingInterval time.Duration
 }
 
 // NewNodesWatcher creates a new NodeWatcher
 func NewNodesWatcher(
 	nodes []m3emnode.Node,
-	logger xlog.Logger,
+	logger *zap.Logger,
 	reportingInterval time.Duration,
 ) NodesWatcher {
 	watcher := &nodesWatcher{
@@ -119,7 +120,7 @@ func (nw *nodesWatcher) WaitUntilAll(p NodePredicate, timeout time.Duration) boo
 		go func(node m3emnode.Node) {
 			defer wg.Done()
 			if cond := xclock.WaitUntil(func() bool { return p(node) }, timeout); cond {
-				nw.logger.Infof("%s finished bootstrapping", node.ID())
+				nw.logger.Info("finished bootstrapping", zap.String("nodeID", node.ID()))
 				nw.removeInstance(node.ID())
 			}
 		}(n)
@@ -142,7 +143,7 @@ func (nw *nodesWatcher) WaitUntilAll(p NodePredicate, timeout time.Duration) boo
 				return
 			case <-reporter.C:
 				numPending, pendingString := nw.pendingStatus()
-				nw.logger.Infof("%d instances remaining: [%v]", numPending, pendingString)
+				nw.logger.Info("numPending", zap.Int("num", numPending), zap.String("instances", pendingString))
 				if numPending == 0 {
 					doneCh <- struct{}{}
 					return

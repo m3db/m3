@@ -33,10 +33,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -256,7 +257,8 @@ func makeTestWriteTagged(
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
+		clientopts = clientopts.SetWriteConsistencyLevel(cLevel)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()
@@ -288,21 +290,22 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
+	nsCtx := namespace.NewContextFor(testNamespaces[0], s.schemaReg)
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
 	now := s.getNowFn()
-	res, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{
+	res, err := s.db.QueryIDs(ctx, nsCtx.ID, index.Query{Query: reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-2 * time.Minute),
 		EndExclusive:   now.Add(2 * time.Minute),
 	})
 	require.NoError(t, err)
 	results := res.Results
-	require.Equal(t, testNamespaces[0].String(), results.Namespace().String())
+	require.Equal(t, nsCtx.ID.String(), results.Namespace().String())
 	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
 	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
-		"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
+		"foo", "bar", "boo", "baz")).Matches(tags)
 
 	if !idxFound {
 		return false
@@ -314,11 +317,11 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	id := ident.StringID("quorumTest")
 	start := s.getNowFn()
 	end := s.getNowFn().Add(5 * time.Minute)
-	readers, err := s.db.ReadEncoded(ctx, testNamespaces[0], id, start, end)
+	readers, err := s.db.ReadEncoded(ctx, nsCtx.ID, id, start, end)
 	require.NoError(t, err)
 
 	mIter := s.db.Options().MultiReaderIteratorPool().Get()
-	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers))
+	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers), nsCtx.Schema)
 	defer mIter.Close()
 	for mIter.Next() {
 		dp, _, _ := mIter.Current()

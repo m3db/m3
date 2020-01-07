@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -72,26 +73,29 @@ func NewDeleteHandler(opts HandlerOptions) *DeleteHandler {
 	return &DeleteHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *DeleteHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
 		id     = mux.Vars(r)[placementIDVar]
 	)
 
 	if id == "" {
-		logger.Error("no placement ID provided to delete", zap.Any("error", errEmptyID))
+		logger.Error("no placement ID provided to delete", zap.Error(errEmptyID))
 		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
 
 	var (
 		force = r.FormValue(placementForceVar) == "true"
-		opts  = handler.NewServiceOptions(
-			serviceName, r.Header, h.M3AggServiceOptions)
+		opts  = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn(), nil)
+	service, algo, err := ServiceWithAlgo(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
@@ -100,7 +104,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	toRemove := []string{id}
 
 	// There are no unsafe placement changes because M3Coordinator is stateless
-	if isStateless(serviceName) {
+	if isStateless(svc.ServiceName) {
 		force = true
 	}
 
@@ -108,7 +112,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	if force {
 		newPlacement, err = service.RemoveInstances(toRemove)
 		if err != nil {
-			logger.Error("unable to delete instances", zap.Any("error", err))
+			logger.Error("unable to delete instances", zap.Error(err))
 			xhttp.Error(w, err, http.StatusNotFound)
 			return
 		}
@@ -151,7 +155,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	placementProto, err := newPlacement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

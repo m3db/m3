@@ -21,21 +21,25 @@
 package fs
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/x/mmap"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 var (
@@ -45,42 +49,34 @@ var (
 	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
 	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
 
-	// errInvalidDataFileOffset returned when the provided offset into the data file is not valid
-	errInvalidDataFileOffset = errors.New("invalid data file offset")
-
-	// errNotEnoughBytes returned when the data file doesn't have enough bytes to satisfy a read
-	errNotEnoughBytes = errors.New("invalid data file, not enough bytes to satisfy read")
-
 	// errClonesShouldNotBeOpened returned when Open() is called on a clone
 	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 )
 
+const (
+	maxSimpleBytesPoolSliceSize = 4096
+	// One for the ID and one for the tags.
+	maxSimpleBytesPoolSize = 2
+)
+
 type seeker struct {
-	opts           seekerOpts
-	filePathPrefix string
+	opts seekerOpts
 
-	// Data read from the indexInfo file
-	start           time.Time
-	blockSize       time.Duration
-	entries         int
-	bloomFilterInfo schema.IndexBloomFilterInfo
-	summariesInfo   schema.IndexSummariesInfo
+	// Data read from the indexInfo file. Note that we use xtime.UnixNano
+	// instead of time.Time to avoid keeping an extra pointer around.
+	start     xtime.UnixNano
+	blockSize time.Duration
 
-	dataMmap  []byte
-	indexMmap []byte
+	dataFd        *os.File
+	indexFd       *os.File
+	indexFileSize int64
 
 	unreadBuf []byte
-
-	decoder      *msgpack.Decoder
-	decodingOpts msgpack.DecodingOptions
-	bytesPool    pool.CheckedBytesPool
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
 	indexLookup *nearestIndexOffsetLookup
-
-	keepUnreadBuf bool
 
 	isClone bool
 }
@@ -91,7 +87,7 @@ type IndexEntry struct {
 	Size        uint32
 	Checksum    uint32
 	Offset      int64
-	EncodedTags []byte
+	EncodedTags checked.Bytes
 }
 
 // NewSeeker returns a new seeker.
@@ -99,20 +95,16 @@ func NewSeeker(
 	filePathPrefix string,
 	dataBufferSize int,
 	infoBufferSize int,
-	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	keepUnreadBuf bool,
-	decodingOpts msgpack.DecodingOptions,
 	opts Options,
 ) DataFileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
 		dataBufferSize: dataBufferSize,
 		infoBufferSize: infoBufferSize,
-		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
 		keepUnreadBuf:  keepUnreadBuf,
-		decodingOpts:   decodingOpts,
 		opts:           opts,
 	})
 }
@@ -121,10 +113,8 @@ type seekerOpts struct {
 	filePathPrefix string
 	infoBufferSize int
 	dataBufferSize int
-	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
 	keepUnreadBuf  bool
-	decodingOpts   msgpack.DecodingOptions
 	opts           Options
 }
 
@@ -143,12 +133,7 @@ type fileSetSeeker interface {
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
-		filePathPrefix: opts.filePathPrefix,
-		keepUnreadBuf:  opts.keepUnreadBuf,
-		bytesPool:      opts.bytesPool,
-		decoder:        msgpack.NewDecoder(opts.decodingOpts),
-		decodingOpts:   opts.decodingOpts,
-		opts:           opts,
+		opts: opts,
 	}
 }
 
@@ -156,78 +141,62 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 	return s.bloomFilter
 }
 
-func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) error {
+func (s *seeker) Open(
+	namespace ident.ID,
+	shard uint32,
+	blockStart time.Time,
+	volumeIndex int,
+	resources ReusableSeekerResources,
+) error {
 	if s.isClone {
 		return errClonesShouldNotBeOpened
 	}
 
-	shardDir := ShardDataDirPath(s.filePathPrefix, namespace, shard)
-	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
+	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
+	var (
+		infoFd, digestFd, bloomFilterFd, summariesFd *os.File
+		err                                          error
+		isLegacy                                     bool
+	)
+
+	if volumeIndex == 0 {
+		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy):        &infoFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy):       &s.indexFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy):        &s.dataFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy):      &digestFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy): &bloomFilterFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, isLegacy):   &summariesFd,
 	}); err != nil {
 		return err
 	}
 
-	// Setup digest readers
 	var (
-		infoFdWithDigest           = digest.NewFdWithDigestReader(s.opts.infoBufferSize)
-		indexFdWithDigest          = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		bloomFilterFdWithDigest    = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		summariesFdWithDigest      = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		digestFdWithDigestContents = digest.NewFdWithDigestContentsReader(s.opts.infoBufferSize)
+		infoFdWithDigest           = resources.seekerOpenResources.infoFDDigestReader
+		indexFdWithDigest          = resources.seekerOpenResources.indexFDDigestReader
+		bloomFilterFdWithDigest    = resources.seekerOpenResources.bloomFilterFDDigestReader
+		summariesFdWithDigest      = resources.seekerOpenResources.summariesFDDigestReader
+		digestFdWithDigestContents = resources.seekerOpenResources.digestFDDigestContentsReader
 	)
 	defer func() {
-		// NB(rartoul): We don't need to keep these FDs open as we use these up front
+		// NB(rartoul): We don't need to keep these FDs open as we use them up front.
 		infoFdWithDigest.Close()
-		indexFdWithDigest.Close()
 		bloomFilterFdWithDigest.Close()
 		summariesFdWithDigest.Close()
 		digestFdWithDigestContents.Close()
-		dataFd.Close()
 	}()
 
 	infoFdWithDigest.Reset(infoFd)
-	indexFdWithDigest.Reset(indexFd)
+	indexFdWithDigest.Reset(s.indexFd)
 	summariesFdWithDigest.Reset(summariesFd)
 	digestFdWithDigestContents.Reset(digestFd)
-
-	// Mmap necessary files
-	mmapOptions := mmap.Options{
-		Read: true,
-		HugeTLB: mmap.HugeTLBOptions{
-			Enabled:   s.opts.opts.MmapEnableHugeTLB(),
-			Threshold: s.opts.opts.MmapHugeTLBThreshold(),
-		},
-	}
-	mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
-			File:    &indexFd,
-			Bytes:   &s.indexMmap,
-			Options: mmapOptions,
-		},
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
-			File:    &dataFd,
-			Bytes:   &s.dataMmap,
-			Options: mmapOptions,
-		},
-	})
-	if err != nil {
-		s.Close()
-		return err
-	}
-	if warning := mmapResult.Warning; warning != nil {
-		logger := s.opts.opts.InstrumentOptions().Logger()
-		logger.Warnf("warning while mmaping files in seeker: %s",
-			warning.Error())
-	}
 
 	expectedDigests, err := readFileSetDigests(digestFdWithDigestContents)
 	if err != nil {
@@ -241,25 +210,43 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		s.Close()
 		return err
 	}
-	if err := s.readInfo(int(infoStat.Size()), infoFdWithDigest, expectedDigests.infoDigest); err != nil {
+
+	info, err := s.readInfo(
+		int(infoStat.Size()),
+		infoFdWithDigest,
+		expectedDigests.infoDigest,
+		resources,
+	)
+	if err != nil {
 		s.Close()
 		return err
 	}
+	s.start = xtime.UnixNano(info.BlockStart)
+	s.blockSize = time.Duration(info.BlockSize)
 
-	if digest.Checksum(s.indexMmap) != expectedDigests.indexDigest {
+	err = s.validateIndexFileDigest(
+		indexFdWithDigest, expectedDigests.indexDigest)
+	if err != nil {
 		s.Close()
 		return fmt.Errorf(
-			"index file digest for file: %s does not match the expected digest",
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix),
+			"index file digest for file: %s does not match the expected digest: %c",
+			filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
+
+	indexFdStat, err := s.indexFd.Stat()
+	if err != nil {
+		s.Close()
+		return err
+	}
+	s.indexFileSize = indexFdStat.Size()
 
 	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
 		bloomFilterFd,
 		bloomFilterFdWithDigest,
 		expectedDigests.bloomFilterDigest,
-		uint(s.bloomFilterInfo.NumElementsM),
-		uint(s.bloomFilterInfo.NumHashesK),
+		uint(info.BloomFilter.NumElementsM),
+		uint(info.BloomFilter.NumHashesK),
 		s.opts.opts.ForceBloomFilterMmapMemory(),
 	)
 	if err != nil {
@@ -271,8 +258,9 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	s.indexLookup, err = newNearestIndexOffsetLookupFromSummariesFile(
 		summariesFdWithDigest,
 		expectedDigests.summariesDigest,
-		s.decoder,
-		int(s.summariesInfo.Summaries),
+		resources.xmsgpackDecoder,
+		resources.byteDecoderStream,
+		int(info.Summaries.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
 	)
 	if err != nil {
@@ -280,11 +268,10 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 
-	if !s.keepUnreadBuf {
+	if !s.opts.keepUnreadBuf {
 		// NB(r): Free the unread buffer and reset the decoder as unless
-		// using this seeker in the seeker manager we never use this buffer again
+		// using this seeker in the seeker manager we never use this buffer again.
 		s.unreadBuf = nil
-		s.decoder.Reset(nil)
 	}
 
 	return err
@@ -305,62 +292,46 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 	s.unreadBuf = buf
 }
 
-func (s *seeker) readInfo(size int, infoDigestReader digest.FdWithDigestReader, expectedInfoDigest uint32) error {
+func (s *seeker) readInfo(
+	size int,
+	infoDigestReader digest.FdWithDigestReader,
+	expectedInfoDigest uint32,
+	resources ReusableSeekerResources,
+) (schema.IndexInfo, error) {
 	s.prepareUnreadBuf(size)
 	n, err := infoDigestReader.ReadAllAndValidate(s.unreadBuf[:size], expectedInfoDigest)
 	if err != nil {
-		return err
+		return schema.IndexInfo{}, err
 	}
 
-	s.decoder.Reset(msgpack.NewDecoderStream(s.unreadBuf[:n]))
-	info, err := s.decoder.DecodeIndexInfo()
-	if err != nil {
-		return err
-	}
-
-	s.start = xtime.FromNanoseconds(info.BlockStart)
-	s.blockSize = time.Duration(info.BlockSize)
-	s.entries = int(info.Entries)
-	s.bloomFilterInfo = info.BloomFilter
-	s.summariesInfo = info.Summaries
-
-	return nil
+	resources.xmsgpackDecoder.Reset(xmsgpack.NewByteDecoderStream(s.unreadBuf[:n]))
+	return resources.xmsgpackDecoder.DecodeIndexInfo()
 }
 
 // SeekByID returns the data for the specified ID. An error will be returned if the
 // ID cannot be found.
-func (s *seeker) SeekByID(id ident.ID) (checked.Bytes, error) {
-	entry, err := s.SeekIndexEntry(id)
+func (s *seeker) SeekByID(id ident.ID, resources ReusableSeekerResources) (checked.Bytes, error) {
+	entry, err := s.SeekIndexEntry(id, resources)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.SeekByIndexEntry(entry)
+	return s.SeekByIndexEntry(entry, resources)
 }
 
 // SeekByIndexEntry is similar to Seek, but uses the provided IndexEntry
 // instead of looking it up on its own. Useful in cases where you've already
 // obtained an entry and don't want to waste resources looking it up again.
-func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
-	// Should never happen, but prevent panics if somehow we're provided an index entry
-	// with a negative or too large offset
-	if int(entry.Offset) > len(s.dataMmap)-1 {
-		return nil, errInvalidDataFileOffset
-	}
+func (s *seeker) SeekByIndexEntry(
+	entry IndexEntry,
+	resources ReusableSeekerResources,
+) (checked.Bytes, error) {
+	resources.offsetFileReader.reset(s.dataFd, entry.Offset)
 
-	// We'll treat "data" similar to a reader interface, I.E after every read we'll
-	// reslice it such that the first byte is the next byte we want to read.
-	data := s.dataMmap[entry.Offset:]
-
-	// Should never happen, but prevents panics in the case of malformed data
-	if len(data) < int(entry.Size) {
-		return nil, errNotEnoughBytes
-	}
-
-	// Obtain an appropriately sized buffer
+	// Obtain an appropriately sized buffer.
 	var buffer checked.Bytes
-	if s.bytesPool != nil {
-		buffer = s.bytesPool.Get(int(entry.Size))
+	if s.opts.bytesPool != nil {
+		buffer = s.opts.bytesPool.Get(int(entry.Size))
 		buffer.IncRef()
 		defer buffer.DecRef()
 		buffer.Resize(int(entry.Size))
@@ -370,9 +341,18 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 		defer buffer.DecRef()
 	}
 
-	// Copy the actual data into the underlying buffer
+	// Copy the actual data into the underlying buffer.
 	underlyingBuf := buffer.Bytes()
-	copy(underlyingBuf, data[:entry.Size])
+	n, err := io.ReadFull(resources.offsetFileReader, underlyingBuf)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(entry.Size) {
+		// This check is redundant because io.ReadFull will return an error if
+		// its not able to read the specified number of bytes, but we keep it
+		// in for posterity.
+		return nil, fmt.Errorf("tried to read: %d bytes but read: %d", entry.Size, n)
+	}
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
@@ -383,35 +363,87 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	return buffer, nil
 }
 
-func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
-	offset, err := s.indexLookup.getNearestIndexFileOffset(id)
+// SeekIndexEntry performs the following steps:
+//
+//     1. Go to the indexLookup and it will give us an offset that is a good starting
+//        point for scanning the index file.
+//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
+//        begin at the offset provided by the offset lookup).
+//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
+//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
+//        far we know it does not exist.
+func (s *seeker) SeekIndexEntry(
+	id ident.ID,
+	resources ReusableSeekerResources,
+) (IndexEntry, error) {
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
-	// the file on disk was corrupted
+	// the file on disk was corrupted.
 	if err != nil {
 		return IndexEntry{}, err
 	}
 
-	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
-	s.decoder.Reset(stream)
+	resources.offsetFileReader.reset(s.indexFd, offset)
+	resources.fileDecoderStream.Reset(resources.offsetFileReader)
+	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
 
 	idBytes := id.Bytes()
-	// Prevent panic's when we're scanning to the end of the buffer
-	for stream.Remaining() != 0 {
-		entry, err := s.decoder.DecodeIndexEntry()
-		// Should never happen, either something is really wrong with the code or
-		// the file on disk was corrupted
-		if err != nil {
-			return IndexEntry{}, err
+	for {
+		// Use the bytesPool on resources here because its designed for this express purpose
+		// and is much faster / cheaper than the checked bytes pool which has a lot of
+		// synchronization and is prone to allocation (due to being shared). Basically because
+		// this is a tight loop (scanning linearly through the index file) we want to use a
+		// very cheap pool until we find what we're looking for, and then we can perform a single
+		// copy into checked.Bytes from the more expensive pool.
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
+			resources.decodeIndexEntryBytesPool)
+		if err == io.EOF {
+			// We reached the end of the file without finding it.
+			return IndexEntry{}, errSeekIDNotFound
 		}
+		if err != nil {
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return IndexEntry{}, instrument.InvariantErrorf(err.Error())
+		}
+		if entry.ID == nil {
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return IndexEntry{},
+				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
+		}
+
 		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
-			return IndexEntry{
+			// If it's a match, we need to copy the tags into a checked bytes
+			// so they can be passed along. We use the "real" bytes pool here
+			// because we're passing ownership of the bytes to the entry / caller.
+			var checkedEncodedTags checked.Bytes
+			if len(entry.EncodedTags) > 0 {
+				checkedEncodedTags = s.opts.bytesPool.Get(len(entry.EncodedTags))
+				checkedEncodedTags.IncRef()
+				checkedEncodedTags.AppendAll(entry.EncodedTags)
+			}
+
+			indexEntry := IndexEntry{
 				Size:        uint32(entry.Size),
 				Checksum:    uint32(entry.Checksum),
 				Offset:      entry.Offset,
-				EncodedTags: entry.EncodedTags,
-			}, nil
+				EncodedTags: checkedEncodedTags,
+			}
+
+			// Safe to return resources to the pool because ID will not be
+			// passed along and tags have been copied.
+			resources.decodeIndexEntryBytesPool.Put(entry.ID)
+			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
+
+			return indexEntry, nil
 		}
+
+		// No longer being used so we can return to the pool.
+		resources.decodeIndexEntryBytesPool.Put(entry.ID)
+		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
@@ -419,19 +451,10 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 			return IndexEntry{}, errSeekIDNotFound
 		}
 	}
-
-	// Similar to the case above where comparison == 1, except in this case we're
-	// sure that the ID we're looking for doesn't exist because we reached the end
-	// of the index file.
-	return IndexEntry{}, errSeekIDNotFound
 }
 
 func (s *seeker) Range() xtime.Range {
-	return xtime.Range{Start: s.start, End: s.start.Add(s.blockSize)}
-}
-
-func (s *seeker) Entries() int {
-	return s.entries
+	return xtime.Range{Start: s.start.ToTime(), End: s.start.ToTime().Add(s.blockSize)}
 }
 
 func (s *seeker) Close() error {
@@ -439,6 +462,7 @@ func (s *seeker) Close() error {
 	if s.isClone {
 		return nil
 	}
+
 	multiErr := xerrors.NewMultiError()
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
@@ -448,36 +472,186 @@ func (s *seeker) Close() error {
 		multiErr = multiErr.Add(s.indexLookup.close())
 		s.indexLookup = nil
 	}
-	if s.indexMmap != nil {
-		multiErr = multiErr.Add(mmap.Munmap(s.indexMmap))
-		s.indexMmap = nil
+	if s.indexFd != nil {
+		multiErr = multiErr.Add(s.indexFd.Close())
+		s.indexFd = nil
 	}
-	if s.dataMmap != nil {
-		multiErr = multiErr.Add(mmap.Munmap(s.dataMmap))
-		s.dataMmap = nil
+	if s.dataFd != nil {
+		multiErr = multiErr.Add(s.dataFd.Close())
+		s.dataFd = nil
 	}
 	return multiErr.FinalError()
 }
 
 func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
-	// indexLookup is not concurrency safe, but a parent and its clone can be used
+	// IndexLookup is not concurrency safe, but a parent and its clone can be used
 	// concurrently safely.
 	indexLookupClone, err := s.indexLookup.concurrentClone()
 	if err != nil {
 		return nil, err
 	}
 
-	return &seeker{
-		// Bare-minimum required fields for a clone to function properly
-		bytesPool: s.bytesPool,
-		decoder:   msgpack.NewDecoder(s.decodingOpts),
-		opts:      s.opts,
-		// Mmaps are read-only so they're concurrency safe
-		dataMmap:  s.dataMmap,
-		indexMmap: s.indexMmap,
-		// bloomFilter is concurrency safe
+	seeker := &seeker{
+		opts:          s.opts,
+		indexFileSize: s.indexFileSize,
+		// BloomFilter is concurrency safe.
 		bloomFilter: s.bloomFilter,
 		indexLookup: indexLookupClone,
 		isClone:     true,
-	}, nil
+
+		// Index and data fd's are always accessed via the ReadAt() / pread APIs so
+		// they are concurrency safe and can be shared among clones.
+		indexFd: s.indexFd,
+		dataFd:  s.dataFd,
+	}
+
+	return seeker, nil
+}
+
+func (s *seeker) validateIndexFileDigest(
+	indexFdWithDigest digest.FdWithDigestReader,
+	expectedDigest uint32,
+) error {
+	buf := make([]byte, s.opts.dataBufferSize)
+	for {
+		n, err := indexFdWithDigest.Read(buf)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("error reading index file: %v", err)
+		}
+		if n == 0 || err == io.EOF {
+			break
+		}
+	}
+	return indexFdWithDigest.Validate(expectedDigest)
+}
+
+// ReusableSeekerResources is a collection of reusable resources
+// that the seeker requires for seeking. It can be pooled by callers
+// using the seeker so that expensive resources don't need to be
+// maintained for each seeker, especially when only a few are generally
+// being used at a time due to the FetchConcurrency.
+type ReusableSeekerResources struct {
+	msgpackDecoder    *msgpack.Decoder
+	xmsgpackDecoder   *xmsgpack.Decoder
+	fileDecoderStream *bufio.Reader
+	byteDecoderStream xmsgpack.ByteDecoderStream
+	offsetFileReader  *offsetFileReader
+	// This pool should only be used for calling DecodeIndexEntry. We use a
+	// special pool here to avoid the overhead of channel synchronization, as
+	// well as ref counting that comes with the checked bytes pool. In addition,
+	// since the ReusableSeekerResources is only ever used by a single seeker at
+	// a time, we can size this pool such that it almost never has to allocate.
+	decodeIndexEntryBytesPool pool.BytesPool
+
+	seekerOpenResources reusableSeekerOpenResources
+}
+
+// reusableSeekerOpenResources contains resources used for the Open() method of the seeker.
+type reusableSeekerOpenResources struct {
+	infoFDDigestReader           digest.FdWithDigestReader
+	indexFDDigestReader          digest.FdWithDigestReader
+	bloomFilterFDDigestReader    digest.FdWithDigestReader
+	summariesFDDigestReader      digest.FdWithDigestReader
+	digestFDDigestContentsReader digest.FdWithDigestContentsReader
+}
+
+func newReusableSeekerOpenResources(opts Options) reusableSeekerOpenResources {
+	return reusableSeekerOpenResources{
+		infoFDDigestReader:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		indexFDDigestReader:          digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		bloomFilterFDDigestReader:    digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		summariesFDDigestReader:      digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		digestFDDigestContentsReader: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+	}
+}
+
+// NewReusableSeekerResources creates a new ReusableSeekerResources.
+func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
+	seekReaderSize := opts.SeekReaderBufferSize()
+	return ReusableSeekerResources{
+		msgpackDecoder:            msgpack.NewDecoder(nil),
+		xmsgpackDecoder:           xmsgpack.NewDecoder(opts.DecodingOptions()),
+		fileDecoderStream:         bufio.NewReaderSize(nil, seekReaderSize),
+		byteDecoderStream:         xmsgpack.NewByteDecoderStream(nil),
+		offsetFileReader:          newOffsetFileReader(),
+		decodeIndexEntryBytesPool: newSimpleBytesPool(),
+		seekerOpenResources:       newReusableSeekerOpenResources(opts),
+	}
+}
+
+type simpleBytesPool struct {
+	pool             [][]byte
+	maxByteSliceSize int
+	maxPoolSize      int
+}
+
+func newSimpleBytesPool() pool.BytesPool {
+	s := &simpleBytesPool{
+		maxByteSliceSize: maxSimpleBytesPoolSliceSize,
+		maxPoolSize:      maxSimpleBytesPoolSize,
+	}
+	s.Init()
+	return s
+}
+
+func (s *simpleBytesPool) Init() {
+	for i := 0; i < s.maxPoolSize; i++ {
+		s.pool = append(s.pool, make([]byte, 0, s.maxByteSliceSize))
+	}
+}
+
+func (s *simpleBytesPool) Get(capacity int) []byte {
+	if len(s.pool) == 0 {
+		return make([]byte, 0, capacity)
+	}
+
+	lastIdx := len(s.pool) - 1
+	b := s.pool[lastIdx]
+
+	if cap(b) >= capacity {
+		// If the slice has enough capacity, remove it from the
+		// pool and return it to the caller.
+		s.pool = s.pool[:lastIdx]
+		return b
+	}
+
+	return make([]byte, 0, capacity)
+}
+
+func (s *simpleBytesPool) Put(b []byte) {
+	if b == nil ||
+		len(s.pool) >= s.maxPoolSize ||
+		cap(b) > s.maxByteSliceSize {
+		return
+	}
+
+	s.pool = append(s.pool, b[:])
+}
+
+var _ io.Reader = &offsetFileReader{}
+
+// offsetFileReader implements io.Reader() and allows an *os.File to be wrapped
+// such that any calls to Read() are issued at the provided offset. This is used
+// to issue reads to specific portions of the index and data files without having
+// to first call Seek(). This reduces the number of syscalls that need to be made
+// and also allows the fds to be shared among concurrent goroutines since the
+// internal F.D offset managed by the kernel is not being used.
+type offsetFileReader struct {
+	fd     *os.File
+	offset int64
+}
+
+func newOffsetFileReader() *offsetFileReader {
+	return &offsetFileReader{}
+}
+
+func (p *offsetFileReader) Read(b []byte) (n int, err error) {
+	n, err = p.fd.ReadAt(b, p.offset)
+	p.offset += int64(n)
+	return n, err
+}
+
+func (p *offsetFileReader) reset(fd *os.File, offset int64) {
+	p.fd = fd
+	p.offset = offset
 }

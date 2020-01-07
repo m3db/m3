@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -277,6 +277,147 @@ func ToRPCFetchTaggedRequest(
 	return request, nil
 }
 
+// FromRPCAggregateQueryRequest converts the rpc request type for AggregateRawQueryRequest into corresponding Go API types.
+func FromRPCAggregateQueryRequest(
+	req *rpc.AggregateQueryRequest,
+) (ident.ID, index.Query, index.AggregationOptions, error) {
+	start, rangeStartErr := ToTime(req.RangeStart, fetchTaggedTimeType)
+	if rangeStartErr != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, rangeStartErr
+	}
+
+	end, rangeEndErr := ToTime(req.RangeEnd, fetchTaggedTimeType)
+	if rangeEndErr != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, rangeEndErr
+	}
+
+	opts := index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		},
+	}
+	if l := req.Limit; l != nil {
+		opts.Limit = int(*l)
+	}
+
+	query, err := FromRPCQuery(req.Query)
+	if err != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, err
+	}
+
+	opts.FieldFilter = make(index.AggregateFieldFilter, 0, len(req.TagNameFilter))
+	for _, f := range req.TagNameFilter {
+		opts.FieldFilter = append(opts.FieldFilter, []byte(f))
+	}
+
+	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
+		opts.Type = index.AggregateTagNamesAndValues
+	} else {
+		opts.Type = index.AggregateTagNames
+	}
+
+	ns := ident.StringID(req.NameSpace)
+	return ns, index.Query{Query: query}, opts, nil
+}
+
+// FromRPCAggregateQueryRawRequest converts the rpc request type for AggregateRawQueryRequest into corresponding Go API types.
+func FromRPCAggregateQueryRawRequest(
+	req *rpc.AggregateQueryRawRequest,
+	pools FetchTaggedConversionPools,
+) (ident.ID, index.Query, index.AggregationOptions, error) {
+	start, rangeStartErr := ToTime(req.RangeStart, fetchTaggedTimeType)
+	if rangeStartErr != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, rangeStartErr
+	}
+
+	end, rangeEndErr := ToTime(req.RangeEnd, fetchTaggedTimeType)
+	if rangeEndErr != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, rangeEndErr
+	}
+
+	opts := index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+		},
+	}
+	if l := req.Limit; l != nil {
+		opts.Limit = int(*l)
+	}
+
+	query, err := idx.Unmarshal(req.Query)
+	if err != nil {
+		return nil, index.Query{}, index.AggregationOptions{}, err
+	}
+
+	opts.FieldFilter = index.AggregateFieldFilter(req.TagNameFilter)
+	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
+		opts.Type = index.AggregateTagNamesAndValues
+	} else {
+		opts.Type = index.AggregateTagNames
+	}
+
+	var ns ident.ID
+	if pools != nil {
+		nsBytes := pools.CheckedBytesWrapper().Get(req.NameSpace)
+		ns = pools.ID().BinaryID(nsBytes)
+	} else {
+		ns = ident.StringID(string(req.NameSpace))
+	}
+	return ns, index.Query{Query: query}, opts, nil
+}
+
+// ToRPCAggregateQueryRawRequest converts the Go `client/` types into rpc request type for AggregateQueryRawRequest.
+func ToRPCAggregateQueryRawRequest(
+	ns ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
+) (rpc.AggregateQueryRawRequest, error) {
+	rangeStart, tsErr := ToValue(opts.StartInclusive, fetchTaggedTimeType)
+	if tsErr != nil {
+		return rpc.AggregateQueryRawRequest{}, tsErr
+	}
+
+	rangeEnd, tsErr := ToValue(opts.EndExclusive, fetchTaggedTimeType)
+	if tsErr != nil {
+		return rpc.AggregateQueryRawRequest{}, tsErr
+	}
+
+	request := rpc.AggregateQueryRawRequest{
+		NameSpace:  ns.Bytes(),
+		RangeStart: rangeStart,
+		RangeEnd:   rangeEnd,
+	}
+
+	if opts.Limit > 0 {
+		l := int64(opts.Limit)
+		request.Limit = &l
+	}
+
+	query, queryErr := idx.Marshal(q.Query)
+	if queryErr != nil {
+		return rpc.AggregateQueryRawRequest{}, queryErr
+	}
+	request.Query = query
+
+	if opts.Type == index.AggregateTagNamesAndValues {
+		request.AggregateQueryType = rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE
+	} else {
+		request.AggregateQueryType = rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME
+	}
+
+	// TODO(prateek): pool the []byte underlying opts.FieldFilter
+	filters := make([][]byte, 0, len(opts.FieldFilter))
+	for _, f := range opts.FieldFilter {
+		copied := append([]byte(nil), f...)
+		filters = append(filters, copied)
+	}
+	request.TagNameFilter = filters
+
+	return request, nil
+}
+
 // ToTagsIter returns a tag iterator over the given request.
 func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
 	if r == nil {
@@ -357,8 +498,13 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 	}
 }
 
-// FromRPCQuery will create a m3ninx index query from an RPC query
+// FromRPCQuery will create a m3ninx index query from an RPC query.
+// NB: a nil query is considered equivalent to an `All` query.
 func FromRPCQuery(query *rpc.Query) (idx.Query, error) {
+	if query == nil {
+		return idx.NewAllQuery(), nil
+	}
+
 	queryProto, err := parseQuery(query)
 	if err != nil {
 		return idx.Query{}, err
@@ -376,6 +522,18 @@ func parseQuery(query *rpc.Query) (*querypb.Query, error) {
 	result := new(querypb.Query)
 	if query == nil {
 		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("no query specified"))
+	}
+	if query.All != nil {
+		result.Query = &querypb.Query_All{
+			All: &querypb.AllQuery{},
+		}
+	}
+	if query.Field != nil {
+		result.Query = &querypb.Query_Field{
+			Field: &querypb.FieldQuery{
+				Field: []byte(query.Field.Field),
+			},
+		}
 	}
 	if query.Term != nil {
 		result.Query = &querypb.Query_Term{

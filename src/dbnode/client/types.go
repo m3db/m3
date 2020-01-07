@@ -26,50 +26,51 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
-	xtime "github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	tchannel "github.com/uber/tchannel-go"
 )
 
-// Client can create sessions to write and read to a cluster
+// Client can create sessions to write and read to a cluster.
 type Client interface {
 	// Options returns the Client Options.
 	Options() Options
 
-	// NewSession creates a new session
+	// NewSession creates a new session.
 	NewSession() (Session, error)
 
-	// DefaultSession creates a default session that gets reused
+	// DefaultSession creates a default session that gets reused.
 	DefaultSession() (Session, error)
 
-	// DefaultSessionActive returns whether the default session is active
+	// DefaultSessionActive returns whether the default session is active.
 	DefaultSessionActive() bool
 }
 
-// Session can write and read to a cluster
+// Session can write and read to a cluster.
 type Session interface {
-	// Write value to the database for an ID
+	// Write value to the database for an ID.
 	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// WriteTagged value to the database for an ID and given tags.
 	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
-	// Fetch values from the database for an ID
+	// Fetch values from the database for an ID.
 	Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
-	// FetchIDs values from the database for a set of IDs
+	// FetchIDs values from the database for a set of IDs.
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
@@ -78,16 +79,39 @@ type Session interface {
 	// FetchTaggedIDs resolves the provided query to known IDs.
 	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (iter TaggedIDsIterator, exhaustive bool, err error)
 
+	// Aggregate aggregates values from the database for the given set of constraints.
+	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (iter AggregatedTagsIterator, exhaustive bool, err error)
+
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
-	// for given IDs begin failing
+	// for given IDs begin failing.
 	ShardID(id ident.ID) (uint32, error)
 
-	// IteratorPools exposes the internal iterator pools used by the session to clients
+	// IteratorPools exposes the internal iterator pools used by the session to clients.
 	IteratorPools() (encoding.IteratorPools, error)
 
 	// Close the session
 	Close() error
+}
+
+// AggregatedTagsIterator iterates over a collection of tag names with optionally
+// associated values.
+type AggregatedTagsIterator interface {
+	// Next returns whether there are more items in the collection.
+	Next() bool
+
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
+
+	// Current returns the current tagName, and associated tagValues iterator.
+	// These remain valid until Next() is called again.
+	Current() (tagName ident.ID, tagValues ident.Iterator)
+
+	// Err returns any error encountered.
+	Err() error
+
+	// Finalize releases any held resources.
+	Finalize()
 }
 
 // TaggedIDsIterator iterates over a collection of IDs with associated tags and namespace.
@@ -106,45 +130,45 @@ type TaggedIDsIterator interface {
 	Finalize()
 }
 
-// AdminClient can create administration sessions
+// AdminClient can create administration sessions.
 type AdminClient interface {
 	Client
 
-	// NewSession creates a new session
+	// NewSession creates a new session.
 	NewAdminSession() (AdminSession, error)
 
-	// DefaultAdminSession creates a default admin session that gets reused
+	// DefaultAdminSession creates a default admin session that gets reused.
 	DefaultAdminSession() (AdminSession, error)
 }
 
 // PeerBlockMetadataIter iterates over a collection of
-// blocks metadata from peers
+// blocks metadata from peers.
 type PeerBlockMetadataIter interface {
-	// Next returns whether there are more items in the collection
+	// Next returns whether there are more items in the collection.
 	Next() bool
 
 	// Current returns the host and block metadata, which remain
-	// valid until Next() is called again
+	// valid until Next() is called again.
 	Current() (topology.Host, block.Metadata)
 
 	// Err returns any error encountered
 	Err() error
 }
 
-// PeerBlocksIter iterates over a collection of blocks from peers
+// PeerBlocksIter iterates over a collection of blocks from peers.
 type PeerBlocksIter interface {
-	// Next returns whether there are more items in the collection
+	// Next returns whether there are more items in the collection.
 	Next() bool
 
 	// Current returns the metadata, and block data for a single block replica.
-	// These remain valid until Next() is called again
+	// These remain valid until Next() is called again.
 	Current() (topology.Host, ident.ID, block.DatabaseBlock)
 
-	// Err returns any error encountered
+	// Err returns any error encountered.
 	Err() error
 }
 
-// AdminSession can perform administrative and node-to-node operations
+// AdminSession can perform administrative and node-to-node operations.
 type AdminSession interface {
 	Session
 
@@ -202,114 +226,120 @@ type AdminSession interface {
 	) (PeerBlocksIter, error)
 }
 
-// Options is a set of client options
+// Options is a set of client options.
 type Options interface {
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 
-	// SetEncodingM3TSZ sets m3tsz encoding
+	// SetEncodingM3TSZ sets M3TSZ encoding.
 	SetEncodingM3TSZ() Options
+
+	// SetEncodingProto sets proto encoding.
+	SetEncodingProto(encodingOpts encoding.Options) Options
+
+	// IsSetEncodingProto returns whether proto encoding is set.
+	IsSetEncodingProto() bool
 
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
-	// RuntimeOptionsManager returns the runtime options manager, it is optional
+	// RuntimeOptionsManager returns the runtime options manager, it is optional.
 	RuntimeOptionsManager() runtime.OptionsManager
 
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetTopologyInitializer sets the TopologyInitializer
+	// SetTopologyInitializer sets the TopologyInitializer.
 	SetTopologyInitializer(value topology.Initializer) Options
 
-	// TopologyInitializer returns the TopologyInitializer
+	// TopologyInitializer returns the TopologyInitializer.
 	TopologyInitializer() topology.Initializer
 
-	// SetReadConsistencyLevel sets the read consistency level
+	// SetReadConsistencyLevel sets the read consistency level.
 	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
-	// topology.ReadConsistencyLevel returns the read consistency level
+	// topology.ReadConsistencyLevel returns the read consistency level.
 	ReadConsistencyLevel() topology.ReadConsistencyLevel
 
-	// SetWriteConsistencyLevel sets the write consistency level
+	// SetWriteConsistencyLevel sets the write consistency level.
 	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
 
-	// WriteConsistencyLevel returns the write consistency level
+	// WriteConsistencyLevel returns the write consistency level.
 	WriteConsistencyLevel() topology.ConsistencyLevel
 
-	// SetChannelOptions sets the channelOptions
+	// SetChannelOptions sets the channelOptions.
 	SetChannelOptions(value *tchannel.ChannelOptions) Options
 
-	// ChannelOptions returns the channelOptions
+	// ChannelOptions returns the channelOptions.
 	ChannelOptions() *tchannel.ChannelOptions
 
-	// SetMaxConnectionCount sets the maxConnectionCount
+	// SetMaxConnectionCount sets the maxConnectionCount.
 	SetMaxConnectionCount(value int) Options
 
-	// MaxConnectionCount returns the maxConnectionCount
+	// MaxConnectionCount returns the maxConnectionCount.
 	MaxConnectionCount() int
 
-	// SetMinConnectionCount sets the minConnectionCount
+	// SetMinConnectionCount sets the minConnectionCount.
 	SetMinConnectionCount(value int) Options
 
-	// MinConnectionCount returns the minConnectionCount
+	// MinConnectionCount returns the minConnectionCount.
 	MinConnectionCount() int
 
-	// SetHostConnectTimeout sets the hostConnectTimeout
+	// SetHostConnectTimeout sets the hostConnectTimeout.
 	SetHostConnectTimeout(value time.Duration) Options
 
-	// HostConnectTimeout returns the hostConnectTimeout
+	// HostConnectTimeout returns the hostConnectTimeout.
 	HostConnectTimeout() time.Duration
 
-	// SetClusterConnectTimeout sets the clusterConnectTimeout
+	// SetClusterConnectTimeout sets the clusterConnectTimeout.
 	SetClusterConnectTimeout(value time.Duration) Options
 
-	// ClusterConnectTimeout returns the clusterConnectTimeout
+	// ClusterConnectTimeout returns the clusterConnectTimeout.
 	ClusterConnectTimeout() time.Duration
 
-	// SetClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel
+	// SetClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel.
 	SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options
 
-	// ClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
+	// ClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel.
 	ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel
 
-	// SetWriteRequestTimeout sets the writeRequestTimeout
+	// SetWriteRequestTimeout sets the writeRequestTimeout.
 	SetWriteRequestTimeout(value time.Duration) Options
 
-	// WriteRequestTimeout returns the writeRequestTimeout
+	// WriteRequestTimeout returns the writeRequestTimeout.
 	WriteRequestTimeout() time.Duration
 
-	// SetFetchRequestTimeout sets the fetchRequestTimeout
+	// SetFetchRequestTimeout sets the fetchRequestTimeout.
 	SetFetchRequestTimeout(value time.Duration) Options
 
-	// FetchRequestTimeout returns the fetchRequestTimeout
+	// FetchRequestTimeout returns the fetchRequestTimeout.
 	FetchRequestTimeout() time.Duration
 
-	// SetTruncateRequestTimeout sets the truncateRequestTimeout
+	// SetTruncateRequestTimeout sets the truncateRequestTimeout.
 	SetTruncateRequestTimeout(value time.Duration) Options
 
-	// TruncateRequestTimeout returns the truncateRequestTimeout
+	// TruncateRequestTimeout returns the truncateRequestTimeout.
 	TruncateRequestTimeout() time.Duration
 
-	// SetBackgroundConnectInterval sets the backgroundConnectInterval
+	// SetBackgroundConnectInterval sets the backgroundConnectInterval.
 	SetBackgroundConnectInterval(value time.Duration) Options
 
-	// BackgroundConnectInterval returns the backgroundConnectInterval
+	// BackgroundConnectInterval returns the backgroundConnectInterval.
 	BackgroundConnectInterval() time.Duration
 
-	// SetBackgroundConnectStutter sets the backgroundConnectStutter
+	// SetBackgroundConnectStutter sets the backgroundConnectStutter.
 	SetBackgroundConnectStutter(value time.Duration) Options
 
-	// BackgroundConnectStutter returns the backgroundConnectStutter
+	// BackgroundConnectStutter returns the backgroundConnectStutter.
 	BackgroundConnectStutter() time.Duration
 
 	// SetBackgroundHealthCheckInterval sets the background health check interval
@@ -390,7 +420,7 @@ type Options interface {
 	// fit the entire flushed write ops into a single batch.
 	SetWriteBatchSize(value int) Options
 
-	// WriteBatchSize returns the writeBatchSize
+	// WriteBatchSize returns the writeBatchSize.
 	WriteBatchSize() int
 
 	// SetFetchBatchSize sets the fetchBatchSize
@@ -399,132 +429,162 @@ type Options interface {
 	// fit the entire flushed fetch ops into a single batch.
 	SetFetchBatchSize(value int) Options
 
-	// FetchBatchSize returns the fetchBatchSize
+	// FetchBatchSize returns the fetchBatchSize.
 	FetchBatchSize() int
 
-	// SetWriteOpPoolSize sets the writeOperationPoolSize
+	// SetWriteOpPoolSize sets the writeOperationPoolSize.
 	SetWriteOpPoolSize(value int) Options
 
-	// WriteOpPoolSize returns the writeOperationPoolSize
+	// WriteOpPoolSize returns the writeOperationPoolSize.
 	WriteOpPoolSize() int
 
-	// SetWriteTaggedOpPoolSize sets the writeTaggedOperationPoolSize
+	// SetWriteTaggedOpPoolSize sets the writeTaggedOperationPoolSize.
 	SetWriteTaggedOpPoolSize(value int) Options
 
-	// WriteTaggedOpPoolSize returns the writeTaggedOperationPoolSize
+	// WriteTaggedOpPoolSize returns the writeTaggedOperationPoolSize.
 	WriteTaggedOpPoolSize() int
 
-	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize
+	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize.
 	SetFetchBatchOpPoolSize(value int) Options
 
-	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
+	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize.
 	FetchBatchOpPoolSize() int
 
-	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize
+	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize.
 	SetCheckedBytesWrapperPoolSize(value int) Options
 
-	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize
+	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize.
 	CheckedBytesWrapperPoolSize() int
 
-	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize
+	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize.
 	SetHostQueueOpsFlushSize(value int) Options
 
-	// HostQueueOpsFlushSize returns the hostQueueOpsFlushSize
+	// HostQueueOpsFlushSize returns the hostQueueOpsFlushSize.
 	HostQueueOpsFlushSize() int
 
-	// SetHostQueueOpsFlushInterval sets the hostQueueOpsFlushInterval
+	// SetHostQueueOpsFlushInterval sets the hostQueueOpsFlushInterval.
 	SetHostQueueOpsFlushInterval(value time.Duration) Options
 
-	// HostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
+	// HostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval.
 	HostQueueOpsFlushInterval() time.Duration
 
-	// SetContextPool sets the contextPool
+	// SetContextPool sets the contextPool.
 	SetContextPool(value context.Pool) Options
 
-	// ContextPool returns the contextPool
+	// ContextPool returns the contextPool.
 	ContextPool() context.Pool
 
-	// SetIdentifierPool sets the identifier pool
+	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options
 
-	// IdentifierPool returns the identifier pool
+	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
 
-	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize
+	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize.
 	SetHostQueueOpsArrayPoolSize(value int) Options
 
-	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
+	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
 	HostQueueOpsArrayPoolSize() int
 
-	// SetSeriesIteratorPoolSize sets the seriesIteratorPoolSize
+	// SetSeriesIteratorPoolSize sets the seriesIteratorPoolSize.
 	SetSeriesIteratorPoolSize(value int) Options
 
-	// SeriesIteratorPoolSize returns the seriesIteratorPoolSize
+	// SeriesIteratorPoolSize returns the seriesIteratorPoolSize.
 	SeriesIteratorPoolSize() int
 
-	// SetSeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets
+	// SetSeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets.
 	SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options
 
-	// SeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
+	// SeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets.
 	SeriesIteratorArrayPoolBuckets() []pool.Bucket
 
-	// SetReaderIteratorAllocate sets the readerIteratorAllocate
+	// SetReaderIteratorAllocate sets the readerIteratorAllocate.
 	SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options
 
-	// ReaderIteratorAllocate returns the readerIteratorAllocate
+	// ReaderIteratorAllocate returns the readerIteratorAllocate.
 	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
+
+	// SetSchemaRegistry sets the schema registry.
+	SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions
+
+	// SchemaRegistry returns the schema registry.
+	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetAsyncTopologyInitializers sets the AsyncTopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
+
+	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
+	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+
+	// AsyncWriteWorkerPool returns the worker pool for async writes.
+	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+
+	// SetAsyncWriteMaxConcurrency sets the async writes maximum concurrency.
+	SetAsyncWriteMaxConcurrency(value int) Options
+
+	// AsyncWriteMaxConcurrency returns the async writes maximum concurrency.
+	AsyncWriteMaxConcurrency() int
+
+	// SetUseV2BatchAPIs sets whether the V2 batch APIs should be used.
+	SetUseV2BatchAPIs(value bool) Options
+
+	// UseV2BatchAPIs returns whether the V2 batch APIs should be used.
+	UseV2BatchAPIs() bool
 }
 
-// AdminOptions is a set of administration client options
+// AdminOptions is a set of administration client options.
 type AdminOptions interface {
 	Options
 
-	// SetOrigin sets the current host originating requests from
+	// SetOrigin sets the current host originating requests from.
 	SetOrigin(value topology.Host) AdminOptions
 
-	// Origin gets the current host originating requests from
+	// Origin gets the current host originating requests from.
 	Origin() topology.Host
 
-	// SetBootstrapConsistencyLevel sets the bootstrap consistency level
+	// SetBootstrapConsistencyLevel sets the bootstrap consistency level.
 	SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions
 
-	// BootstrapConsistencyLevel returns the bootstrap consistency level
+	// BootstrapConsistencyLevel returns the bootstrap consistency level.
 	BootstrapConsistencyLevel() topology.ReadConsistencyLevel
 
-	// SetFetchSeriesBlocksMaxBlockRetries sets the max retries for fetching series blocks
+	// SetFetchSeriesBlocksMaxBlockRetries sets the max retries for fetching series blocks.
 	SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions
 
-	// FetchSeriesBlocksMaxBlockRetries gets the max retries for fetching series blocks
+	// FetchSeriesBlocksMaxBlockRetries gets the max retries for fetching series blocks.
 	FetchSeriesBlocksMaxBlockRetries() int
 
-	// SetFetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch
+	// SetFetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch.
 	SetFetchSeriesBlocksBatchSize(value int) AdminOptions
 
-	// FetchSeriesBlocksBatchSize gets the batch size for fetching series blocks in batch
+	// FetchSeriesBlocksBatchSize gets the batch size for fetching series blocks in batch.
 	FetchSeriesBlocksBatchSize() int
 
-	// SetFetchSeriesBlocksMetadataBatchTimeout sets the timeout for fetching series blocks metadata in batch
+	// SetFetchSeriesBlocksMetadataBatchTimeout sets the timeout for fetching series blocks metadata in batch.
 	SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions
 
-	// FetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch
+	// FetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch.
 	FetchSeriesBlocksMetadataBatchTimeout() time.Duration
 
-	// SetFetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch
+	// SetFetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch.
 	SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions
 
-	// FetchSeriesBlocksBatchTimeout gets the timeout for fetching series blocks in batch
+	// FetchSeriesBlocksBatchTimeout gets the timeout for fetching series blocks in batch.
 	FetchSeriesBlocksBatchTimeout() time.Duration
 
-	// SetFetchSeriesBlocksBatchConcurrency sets the concurrency for fetching series blocks in batch
+	// SetFetchSeriesBlocksBatchConcurrency sets the concurrency for fetching series blocks in batch.
 	SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions
 
-	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
+	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch.
 	FetchSeriesBlocksBatchConcurrency() int
 
-	// SetStreamBlocksRetrier sets the retrier for streaming blocks
+	// SetStreamBlocksRetrier sets the retrier for streaming blocks.
 	SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions
 
-	// StreamBlocksRetrier returns the retrier for streaming blocks
+	// StreamBlocksRetrier returns the retrier for streaming blocks.
 	StreamBlocksRetrier() xretry.Retrier
 }
 
@@ -536,62 +596,62 @@ type AdminOptions interface {
 type clientSession interface {
 	AdminSession
 
-	// Open the client session
+	// Open the client session.
 	Open() error
 }
 
 type hostQueue interface {
-	// Open the host queue
+	// Open the host queue.
 	Open()
 
-	// Len returns the length of the queue
+	// Len returns the length of the queue.
 	Len() int
 
-	// Enqueue an operation
+	// Enqueue an operation.
 	Enqueue(op op) error
 
-	// Host gets the host
+	// Host gets the host.
 	Host() topology.Host
 
-	// ConnectionCount gets the current open connection count
+	// ConnectionCount gets the current open connection count.
 	ConnectionCount() int
 
-	// ConnectionPool gets the connection pool
+	// ConnectionPool gets the connection pool.
 	ConnectionPool() connectionPool
 
-	// BorrowConnection will borrow a connection and execute a user function
+	// BorrowConnection will borrow a connection and execute a user function.
 	BorrowConnection(fn withConnectionFn) error
 
-	// Close the host queue, will flush any operations still pending
+	// Close the host queue, will flush any operations still pending.
 	Close()
 }
 
 type withConnectionFn func(c rpc.TChanNode)
 
 type connectionPool interface {
-	// Open starts the connection pool connecting and health checking
+	// Open starts the connection pool connecting and health checking.
 	Open()
 
-	// ConnectionCount gets the current open connection count
+	// ConnectionCount gets the current open connection count.
 	ConnectionCount() int
 
-	// NextClient gets the next client for use by the connection pool
+	// NextClient gets the next client for use by the connection pool.
 	NextClient() (rpc.TChanNode, error)
 
-	// Close the connection pool
+	// Close the connection pool.
 	Close()
 }
 
 type peerSource interface {
-	// BorrowConnection will borrow a connection and execute a user function
+	// BorrowConnection will borrow a connection and execute a user function.
 	BorrowConnection(hostID string, fn withConnectionFn) error
 }
 
 type peer interface {
-	// Host gets the host
+	// Host gets the host.
 	Host() topology.Host
 
-	// BorrowConnection will borrow a connection and execute a user function
+	// BorrowConnection will borrow a connection and execute a user function.
 	BorrowConnection(fn withConnectionFn) error
 }
 
@@ -604,17 +664,23 @@ const (
 )
 
 type op interface {
-	// Size returns the effective size of inner operations
+	// Size returns the effective size of inner operations.
 	Size() int
 
-	// CompletionFn gets the completion function for the operation
+	// CompletionFn gets the completion function for the operation.
 	CompletionFn() completionFn
 }
 
+type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+type enqueueDelayedDoneFn func()
+
 type enqueueChannel interface {
-	enqueue(peersMetadata []receivedBlockMetadata)
-	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
-	get() <-chan []receivedBlockMetadata
+	enqueue(peersMetadata []receivedBlockMetadata) error
+	enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error)
+	// read is always safe to call since you can safely range
+	// over a closed channel, and/or do a checked read in case
+	// it is closed (unlike when publishing to a channel).
+	read() <-chan []receivedBlockMetadata
 	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int

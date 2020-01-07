@@ -38,10 +38,10 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3x/log"
-	xserver "github.com/m3db/m3x/server"
+	xserver "github.com/m3db/m3/src/x/server"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -82,7 +82,7 @@ type handler struct {
 	sync.Mutex
 
 	aggregator     aggregator.Aggregator
-	log            log.Logger
+	log            *zap.Logger
 	readBufferSize int
 	msgpackItOpts  msgpack.UnaggregatedIteratorOptions
 	protobufItOpts protobuf.UnaggregatedOptions
@@ -172,53 +172,53 @@ func (s *handler) Handle(conn net.Conn) {
 		switch err.(type) {
 		case unknownMessageTypeError:
 			s.metrics.unknownMessageTypeErrors.Inc(1)
-			s.log.WithFields(
-				log.NewField("remoteAddress", remoteAddress),
-				log.NewErrField(err),
-			).Error("unexpected message type")
+			s.log.Error("unexpected message type",
+				zap.String("remoteAddress", remoteAddress),
+				zap.Error(err),
+			)
 		case addUntimedError:
 			s.metrics.addUntimedErrors.Inc(1)
-			s.log.WithFields(
-				log.NewField("remoteAddress", remoteAddress),
-				log.NewField("type", untimedMetric.Type.String()),
-				log.NewField("id", untimedMetric.ID.String()),
-				log.NewField("metadatas", stagedMetadatas),
-				log.NewErrField(err),
-			).Error("error adding untimed metric")
+			s.log.Error("error adding untimed metric",
+				zap.String("remoteAddress", remoteAddress),
+				zap.Stringer("type", untimedMetric.Type),
+				zap.Stringer("id", untimedMetric.ID),
+				zap.Any("metadatas", stagedMetadatas),
+				zap.Error(err),
+			)
 		case addForwardedError:
 			s.metrics.addForwardedErrors.Inc(1)
-			s.log.WithFields(
-				log.NewField("remoteAddress", remoteAddress),
-				log.NewField("id", forwardedMetric.ID.String()),
-				log.NewField("timestamp", time.Unix(0, forwardedMetric.TimeNanos).String()),
-				log.NewField("values", forwardedMetric.Values),
-				log.NewErrField(err),
-			).Error("error adding forwarded metric")
+			s.log.Error("error adding forwarded metric",
+				zap.String("remoteAddress", remoteAddress),
+				zap.Stringer("id", forwardedMetric.ID),
+				zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
+				zap.Float64s("values", forwardedMetric.Values),
+				zap.Error(err),
+			)
 		case addTimedError:
 			s.metrics.addTimedErrors.Inc(1)
-			s.log.WithFields(
-				log.NewField("remoteAddress", remoteAddress),
-				log.NewField("id", timedMetric.ID.String()),
-				log.NewField("timestamp", time.Unix(0, timedMetric.TimeNanos).String()),
-				log.NewField("value", timedMetric.Value),
-				log.NewErrField(err),
-			).Error("error adding timed metric")
+			s.log.Error("error adding timed metric",
+				zap.String("remoteAddress", remoteAddress),
+				zap.Stringer("id", timedMetric.ID),
+				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
+				zap.Float64("value", timedMetric.Value),
+				zap.Error(err),
+			)
 		default:
 			s.metrics.unknownErrorTypeErrors.Inc(1)
-			s.log.WithFields(
-				log.NewField("errorType", fmt.Sprintf("%T", err)),
-				log.NewErrField(err),
-			).Errorf("unknown error type")
+			s.log.Error("unknown error type",
+				zap.String("errorType", fmt.Sprintf("%T", err)),
+				zap.Error(err),
+			)
 		}
 	}
 
 	// If there is an error during decoding, it's likely due to a broken connection
 	// and therefore we ignore the EOF error.
 	if err := it.Err(); err != nil && err != io.EOF {
-		s.log.WithFields(
-			log.NewField("remoteAddress", remoteAddress),
-			log.NewErrField(err),
-		).Error("decode error")
+		s.log.Error("decode error",
+			zap.String("remoteAddress", remoteAddress),
+			zap.Error(err),
+		)
 		s.metrics.decodeErrors.Inc(1)
 	}
 }

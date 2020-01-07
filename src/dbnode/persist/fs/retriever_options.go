@@ -21,22 +21,28 @@
 package fs
 
 import (
+	"errors"
+
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
-	defaultRequestPoolSize  = 16384
 	defaultFetchConcurrency = 2
 )
 
+var (
+	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")
+)
+
 type blockRetrieverOptions struct {
-	requestPoolOpts   pool.ObjectPoolOptions
+	requestPool       RetrieveRequestPool
 	bytesPool         pool.CheckedBytesPool
-	segmentReaderPool xio.SegmentReaderPool
 	fetchConcurrency  int
 	identifierPool    ident.Pool
+	blockLeaseManager block.LeaseManager
 }
 
 // NewBlockRetrieverOptions creates a new set of block retriever options
@@ -47,26 +53,38 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
+
+	segmentReaderPool := xio.NewSegmentReaderPool(nil)
+	segmentReaderPool.Init()
+
+	requestPool := NewRetrieveRequestPool(segmentReaderPool, nil)
+	requestPool.Init()
+
 	o := &blockRetrieverOptions{
-		requestPoolOpts: pool.NewObjectPoolOptions().
-			SetSize(defaultRequestPoolSize),
-		bytesPool:         bytesPool,
-		segmentReaderPool: xio.NewSegmentReaderPool(nil),
-		fetchConcurrency:  defaultFetchConcurrency,
-		identifierPool:    ident.NewPool(bytesPool, ident.PoolOptions{}),
+		requestPool:      requestPool,
+		bytesPool:        bytesPool,
+		fetchConcurrency: defaultFetchConcurrency,
+		identifierPool:   ident.NewPool(bytesPool, ident.PoolOptions{}),
 	}
-	o.segmentReaderPool.Init()
+
 	return o
 }
 
-func (o *blockRetrieverOptions) SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions {
+func (o *blockRetrieverOptions) Validate() error {
+	if o.blockLeaseManager == nil {
+		return errBlockLeaseManagerNotSet
+	}
+	return nil
+}
+
+func (o *blockRetrieverOptions) SetRetrieveRequestPool(value RetrieveRequestPool) BlockRetrieverOptions {
 	opts := *o
-	opts.requestPoolOpts = value
+	opts.requestPool = value
 	return &opts
 }
 
-func (o *blockRetrieverOptions) RequestPoolOptions() pool.ObjectPoolOptions {
-	return o.requestPoolOpts
+func (o *blockRetrieverOptions) RetrieveRequestPool() RetrieveRequestPool {
+	return o.requestPool
 }
 
 func (o *blockRetrieverOptions) SetBytesPool(value pool.CheckedBytesPool) BlockRetrieverOptions {
@@ -77,16 +95,6 @@ func (o *blockRetrieverOptions) SetBytesPool(value pool.CheckedBytesPool) BlockR
 
 func (o *blockRetrieverOptions) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
-}
-
-func (o *blockRetrieverOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) BlockRetrieverOptions {
-	opts := *o
-	opts.segmentReaderPool = value
-	return &opts
-}
-
-func (o *blockRetrieverOptions) SegmentReaderPool() xio.SegmentReaderPool {
-	return o.segmentReaderPool
 }
 
 func (o *blockRetrieverOptions) SetFetchConcurrency(value int) BlockRetrieverOptions {
@@ -107,4 +115,14 @@ func (o *blockRetrieverOptions) SetIdentifierPool(value ident.Pool) BlockRetriev
 
 func (o *blockRetrieverOptions) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *blockRetrieverOptions) SetBlockLeaseManager(leaseMgr block.LeaseManager) BlockRetrieverOptions {
+	opts := *o
+	opts.blockLeaseManager = leaseMgr
+	return &opts
+}
+
+func (o *blockRetrieverOptions) BlockLeaseManager() block.LeaseManager {
+	return o.blockLeaseManager
 }

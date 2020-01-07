@@ -34,7 +34,7 @@ import (
 func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logger) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		logger.Error("unable to marshal json", zap.Any("error", err))
+		logger.Error("unable to marshal json", zap.Error(err))
 		Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -51,7 +51,7 @@ func WriteProtoMsgJSONResponse(w http.ResponseWriter, data proto.Message, logger
 	w.Header().Set("Content-Type", "application/json")
 	err := marshaler.Marshal(w, data)
 	if err != nil {
-		logger.Error("unable to marshal json", zap.Any("error", err))
+		logger.Error("unable to marshal json", zap.Error(err))
 		Error(w, err, http.StatusInternalServerError)
 	}
 }

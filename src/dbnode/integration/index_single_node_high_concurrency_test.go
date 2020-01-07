@@ -29,13 +29,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclock "github.com/m3db/m3x/clock"
-	xtime "github.com/m3db/m3x/time"
+	xclock "github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestIndexSingleNodeHighConcurrency(t *testing.T) {
@@ -117,8 +118,8 @@ func TestIndexSingleNodeHighConcurrency(t *testing.T) {
 
 				insertWg.Wait()
 				require.Zero(t, numTotalErrors)
-				log.Infof("test data written in %v", time.Since(start))
-				log.Infof("waiting to see if data is indexed")
+				log.Info("test data written", zap.Duration("took", time.Since(start)))
+				log.Info("waiting to see if data is indexed")
 
 				var (
 					fetchWg sync.WaitGroup
@@ -137,7 +138,7 @@ func TestIndexSingleNodeHighConcurrency(t *testing.T) {
 					}()
 				}
 				fetchWg.Wait()
-				log.Infof("data is indexed in %v", time.Since(start))
+				log.Info("data is indexed", zap.Duration("took", time.Since(start)))
 			})
 	}
 }

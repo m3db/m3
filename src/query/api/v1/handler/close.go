@@ -25,11 +25,17 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
-func CloseWatcher(ctx context.Context, cancel context.CancelFunc, w http.ResponseWriter) {
-	logger := logging.WithContext(ctx)
+func CloseWatcher(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	w http.ResponseWriter,
+	instrumentOpts instrument.Options,
+) {
+	logger := logging.WithContext(ctx, instrumentOpts)
 	if notifier, ok := w.(http.CloseNotifier); ok {
 		notify := notifier.CloseNotify()
 		go func() {

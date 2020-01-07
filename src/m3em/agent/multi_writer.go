@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // non-thread safe multi-writer

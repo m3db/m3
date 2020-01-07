@@ -23,13 +23,13 @@ package server
 import (
 	"fmt"
 
+	xerror "github.com/m3db/m3/src/x/errors"
 	xos "github.com/m3db/m3/src/x/os"
-	xerror "github.com/m3db/m3x/errors"
 )
 
 const (
 	// TODO: determine these values based on topology/namespace configuration.
-	minNoFile = 500000
+	minNoFile = 3000000
 	// NB(schallert): If updating these values, be sure to update the associated
 	// Dockerfile and kube daemonset (see https://github.com/m3db/m3/pull/1436 for
 	// example).

@@ -22,26 +22,25 @@ package series
 
 import (
 	"errors"
-	"fmt"
 	"io"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,13 +54,18 @@ func newSeriesTestOptions() Options {
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
+	bufferBucketPool := NewBufferBucketPool(nil)
+	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)
+
 	opts := NewOptions().
 		SetEncoderPool(encoderPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetBufferBucketPool(bufferBucketPool).
+		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
 	opts = opts.
 		SetRetentionOptions(opts.
 			RetentionOptions().
@@ -78,16 +82,15 @@ func newSeriesTestOptions() Options {
 
 func TestSeriesEmpty(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 	assert.True(t, series.IsEmpty())
 }
 
 // Writes to series, verifying no error and that further writes should happen.
-func verifyWriteToSeries(t *testing.T, series *dbSeries, v value) {
+func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
 	ctx := context.NewContext()
-	wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+	wasWritten, err := series.Write(ctx, v.Timestamp, v.Value,
+		v.Unit, v.Annotation, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 	ctx.Close()
@@ -100,11 +103,20 @@ func TestSeriesWriteFlush(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(curr)
+	bl.EXPECT().Stream(gomock.Any()).Return(xio.BlockReader{}, nil)
+	bl.EXPECT().Close()
+
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr.Add(mins(1)), 2, xtime.Second, nil},
 		{curr.Add(mins(2)), 3, xtime.Second, nil},
@@ -112,32 +124,19 @@ func TestSeriesWriteFlush(t *testing.T) {
 	}
 
 	for _, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToSeries(t, series, v)
 	}
-
-	assert.Equal(t, true, series.buffer.NeedsDrain())
-
-	// Tick the series which should cause a drain
-	_, err = series.Tick()
-	assert.NoError(t, err)
-
-	assert.Equal(t, false, series.buffer.NeedsDrain())
-
-	blocks := series.blocks.AllBlocks()
-	assert.Len(t, blocks, 1)
-
-	block, ok := series.blocks.BlockAt(start)
-	assert.Equal(t, true, ok)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	stream, err := block.Stream(ctx)
+	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
+	require.True(t, exists)
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
-		stream,
-	}}, opts)
+	require.Len(t, streams, 1)
+	requireSegmentValuesEqual(t, data[:2], streams, opts, namespace.Context{})
 }
 
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
@@ -148,11 +147,20 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(curr)
+	bl.EXPECT().Stream(gomock.Any()).Return(xio.BlockReader{}, nil)
+	bl.EXPECT().Close()
+
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
 		{curr, 1, xtime.Second, nil},
 		{curr, 1, xtime.Second, nil},
@@ -161,9 +169,9 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	}
 
 	for i, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		ctx := context.NewContext()
-		wasWritten, err := series.Write(ctx, v.timestamp, v.value, v.unit, v.annotation)
+		wasWritten, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
 			require.True(t, wasWritten)
@@ -173,28 +181,15 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 		ctx.Close()
 	}
 
-	assert.Equal(t, true, series.buffer.NeedsDrain())
-
-	// Tick the series which should cause a drain
-	_, err = series.Tick()
-	assert.NoError(t, err)
-
-	assert.Equal(t, false, series.buffer.NeedsDrain())
-
-	blocks := series.blocks.AllBlocks()
-	require.Len(t, blocks, 1)
-
-	block, ok := series.blocks.BlockAt(start)
-	assert.Equal(t, true, ok)
-
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	stream, err := block.Stream(ctx)
+	buckets, exists := series.buffer.(*dbBuffer).bucketVersionsAt(start)
+	require.True(t, exists)
+	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false})
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:1], [][]xio.BlockReader{[]xio.BlockReader{
-		stream,
-	}}, opts)
+	require.Len(t, streams, 1)
+	requireSegmentValuesEqual(t, data[:1], streams, opts, namespace.Context{})
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
@@ -204,61 +199,214 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(curr)
+	bl.EXPECT().Len().Return(0).Times(2)
+
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
-	data := []value{
+	data := []DecodedTestValue{
 		{curr.Add(mins(1)), 2, xtime.Second, nil},
 		{curr.Add(mins(3)), 3, xtime.Second, nil},
 		{curr.Add(mins(5)), 4, xtime.Second, nil},
-		{curr.Add(mins(7)), 4, xtime.Second, nil},
-		{curr.Add(mins(9)), 4, xtime.Second, nil},
+		{curr.Add(mins(7)), 5, xtime.Second, nil},
+		{curr.Add(mins(9)), 6, xtime.Second, nil},
 	}
 
 	for _, v := range data {
-		curr = v.timestamp
+		curr = v.Timestamp
 		verifyWriteToSeries(t, series, v)
 	}
 
 	ctx := context.NewContext()
 	defer ctx.Close()
+	nsCtx := namespace.Context{}
 
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)))
+	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), nsCtx)
 	assert.NoError(t, err)
 
-	assertValuesEqual(t, data, results, opts)
+	requireReaderValuesEqual(t, data, results, opts, nsCtx)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
 	assert.NoError(t, err)
 
-	assertValuesEqual(t, data, results, opts)
+	requireReaderValuesEqual(t, data, results, opts, nsCtx)
+}
+
+// TestSeriesLoad tests the behavior the Bootstrap()/Load()s method by ensuring that they actually load
+// data into the series and that the data (merged with any existing data) can be retrieved.
+//
+// It also ensures that blocks for the bootstrap path blockStarts that have not been warm flushed yet
+// are loaded as warm writes and block for blockStarts that have already been warm flushed are loaded as
+// cold writes and that for the load path everything is loaded as cold writes.
+func TestSeriesBootstrapAndLoad(t *testing.T) {
+	testCases := []struct {
+		title         string
+		bootstrapping bool
+	}{
+		{
+			title:         "load",
+			bootstrapping: false,
+		},
+		{
+			title:         "bootstrap",
+			bootstrapping: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			var (
+				opts      = newSeriesTestOptions()
+				blockSize = opts.RetentionOptions().BlockSize()
+				curr      = time.Now().Truncate(blockSize)
+				start     = curr
+			)
+			opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+				return curr
+			}))
+			series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+
+			rawWrites := []DecodedTestValue{
+				{curr.Add(mins(1)), 2, xtime.Second, nil},
+				{curr.Add(mins(3)), 3, xtime.Second, nil},
+				{curr.Add(mins(5)), 4, xtime.Second, nil},
+			}
+
+			for _, v := range rawWrites {
+				curr = v.Timestamp
+				verifyWriteToSeries(t, series, v)
+			}
+
+			var (
+				loadWrites = []DecodedTestValue{
+					// Ensure each value is in a separate block so since block.DatabaseSeriesBlocks
+					// can only store a single block per block start).
+					{curr.Add(blockSize), 5, xtime.Second, nil},
+					{curr.Add(2 * blockSize), 6, xtime.Second, nil},
+				}
+				nsCtx                        = namespace.Context{}
+				blockOpts                    = opts.DatabaseBlockOptions()
+				alreadyWarmFlushedBlockStart = curr.Add(blockSize).Truncate(blockSize)
+				notYetWarmFlushedBlockStart  = curr.Add(2 * blockSize).Truncate(blockSize)
+				blockStates                  = BootstrappedBlockStateSnapshot{
+					Snapshot: map[xtime.UnixNano]BlockState{
+						// Exercise both code paths.
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart): BlockState{
+							WarmRetrievable: true,
+						},
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart): BlockState{
+							WarmRetrievable: false,
+						},
+					},
+				}
+			)
+			for _, v := range loadWrites {
+				curr = v.Timestamp
+				enc := opts.EncoderPool().Get()
+				blockStart := v.Timestamp.Truncate(blockSize)
+				enc.Reset(blockStart, 0, nil)
+				dp := ts.Datapoint{Timestamp: v.Timestamp, Value: v.Value}
+				require.NoError(t, enc.Encode(dp, v.Unit, nil))
+
+				dbBlock := block.NewDatabaseBlock(blockStart, blockSize, enc.Discard(), blockOpts, nsCtx)
+
+				writeType := ColdWrite
+				if tc.bootstrapping {
+					if blockStart.Equal(notYetWarmFlushedBlockStart) {
+						writeType = WarmWrite
+					}
+				}
+
+				series.LoadBlock(dbBlock, writeType)
+			}
+
+			t.Run("Data can be read", func(t *testing.T) {
+				ctx := context.NewContext()
+				defer ctx.Close()
+
+				results, err := series.ReadEncoded(ctx, start, start.Add(10*blockSize), nsCtx)
+				require.NoError(t, err)
+
+				expectedData := append(rawWrites, loadWrites...)
+				requireReaderValuesEqual(t, expectedData, results, opts, nsCtx)
+			})
+
+			t.Run("blocks loaded as warm/cold writes correctly", func(t *testing.T) {
+				optimizedTimes := series.ColdFlushBlockStarts(blockStates)
+				coldFlushBlockStarts := []xtime.UnixNano{}
+				optimizedTimes.ForEach(func(blockStart xtime.UnixNano) {
+					coldFlushBlockStarts = append(coldFlushBlockStarts, blockStart)
+				})
+				// Cold flush block starts don't come back in any particular order so
+				// sort them for easier comparisons.
+				sort.Slice(coldFlushBlockStarts, func(i, j int) bool {
+					return coldFlushBlockStarts[i] < coldFlushBlockStarts[j]
+				})
+
+				if tc.bootstrapping {
+					// If its a bootstrap then we need to make sure that everything gets loaded as warm/cold writes
+					// correctly based on the flush state.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{xtime.ToUnixNano(alreadyWarmFlushedBlockStart)}
+					assert.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				} else {
+					// If its just a regular load then everything should be loaded as cold writes for correctness
+					// since flushes and loads can happen concurrently.
+					expectedColdFlushBlockStarts := []xtime.UnixNano{
+						xtime.ToUnixNano(alreadyWarmFlushedBlockStart),
+						xtime.ToUnixNano(notYetWarmFlushedBlockStart),
+					}
+					assert.Equal(t, expectedColdFlushBlockStarts, coldFlushBlockStarts)
+				}
+			})
+		})
+	}
 }
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
+
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
+	nsCtx := namespace.Context{}
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second))
+	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), nsCtx)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 	assert.Nil(t, results)
 }
 
 func TestSeriesFlushNoBlock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
+
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.Flush(nil, flushTime, nil)
+	outcome, err := series.WarmFlush(nil, flushTime, nil, namespace.Context{})
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -267,17 +415,22 @@ func TestSeriesFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
-	flushTime := time.Unix(7200, 0)
-	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
-	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
 
-	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(flushTime, time.Hour, ts.NewSegment(head, tail, ts.FinalizeNone))
-	series.blocks.AddBlock(block)
+	curr := time.Unix(7200, 0)
+	opts := newSeriesTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
+	assert.NoError(t, err)
+
+	ctx := context.NewContext()
+	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil, WriteOptions{})
+	ctx.BlockingClose()
 
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
@@ -285,7 +438,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.Flush(ctx, flushTime, persistFn)
+		outcome, err := series.WarmFlush(ctx, curr, persistFn, namespace.Context{})
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
@@ -298,10 +451,8 @@ func TestSeriesFlush(t *testing.T) {
 
 func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
-	_, err = series.Tick()
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	_, err := series.Tick(NewShardBlockStateSnapshot(true, BootstrappedBlockStateSnapshot{}), namespace.Context{})
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -309,64 +460,85 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
+
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick().Return(bufferTickResult{})
-	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
-	r, err := series.Tick()
+	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
+	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
+	r, err := series.Tick(NewShardBlockStateSnapshot(true, BootstrappedBlockStateSnapshot{}), namespace.Context{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
 	assert.Equal(t, 0, r.UnwiredBlocks)
-	assert.Equal(t, 1, r.OpenBlocks)
 }
 
 func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
+
 	opts := newSeriesTestOptions()
+	opts = opts.SetCachePolicy(CacheRecentlyRead)
 	ropts := opts.RetentionOptions()
 	curr := time.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().Close()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	series.blocks.AddBlock(b)
-	require.Equal(t, blockStart, series.blocks.MinTime())
-	require.Equal(t, 2, series.blocks.Len())
+	b.EXPECT().HasMergeTarget().Return(false)
+	series.cachedBlocks.AddBlock(b)
+	require.Equal(t, blockStart, series.cachedBlocks.MinTime())
+	require.Equal(t, 2, series.cachedBlocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Tick().Return(bufferTickResult{})
-	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
-	r, err := series.Tick()
+	buffer.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(bufferTickResult{})
+	buffer.EXPECT().Stats().Return(bufferStats{wiredBlocks: 1})
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(blockStart): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
+	}
+	r, err := series.Tick(NewShardBlockStateSnapshot(true, blockStates), namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
-	require.Equal(t, 1, r.OpenBlocks)
 	require.Equal(t, 1, r.MadeExpiredBlocks)
-	require.Equal(t, 1, series.blocks.Len())
-	require.Equal(t, curr, series.blocks.MinTime())
-	_, exists := series.blocks.AllBlocks()[xtime.ToUnixNano(curr)]
+	require.Equal(t, 1, series.cachedBlocks.Len())
+	require.Equal(t, curr, series.cachedBlocks.MinTime())
+	_, exists := series.cachedBlocks.AllBlocks()[xtime.ToUnixNano(curr)]
 	require.True(t, exists)
 }
 
 func TestSeriesTickRecentlyRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
 
 	opts := newSeriesTestOptions()
 	opts = opts.
@@ -377,10 +549,10 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
 	// Test case where block has been read within expiry period - won't be removed
@@ -389,11 +561,18 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
+	}
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -404,11 +583,9 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -417,10 +594,18 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick()
+	blockStates = BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
+	}
+	shardBlockStates = NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -429,6 +614,9 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 func TestSeriesTickCacheLRU(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
 
 	retentionPeriod := time.Hour
 	opts := newSeriesTestOptions()
@@ -440,10 +628,10 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
 	// Test case where block was not retrieved from disk - Will be removed
@@ -451,11 +639,18 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().WasRetrievedFromDisk().Return(false)
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
+	}
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -465,11 +660,9 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
@@ -478,28 +671,39 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+	series.cachedBlocks.AddBlock(b)
 
 	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr.Add(-2 * retentionPeriod))
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
-	series.blocks.AddBlock(b)
-	_, expiredBlockExists := series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	series.cachedBlocks.AddBlock(b)
+	_, expiredBlockExists := series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, true, expiredBlockExists)
 
-	tickResult, err = series.Tick()
+	blockStates = BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
+	}
+	shardBlockStates = NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
-	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	_, expiredBlockExists = series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, false, expiredBlockExists)
 }
 
 func TestSeriesTickCacheNone(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
 
 	opts := newSeriesTestOptions()
 	opts = opts.
@@ -510,20 +714,28 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
 	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
 	// Retrievable blocks should be removed
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err := series.Tick()
+	blockStates := BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: true,
+				ColdVersion:     1,
+			},
+		},
+	}
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err := series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
 	require.Equal(t, 0, tickResult.PendingMergeBlocks)
@@ -532,58 +744,76 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+	series.cachedBlocks.AddBlock(b)
 
-	tickResult, err = series.Tick()
+	blockStates = BootstrappedBlockStateSnapshot{
+		Snapshot: map[xtime.UnixNano]BlockState{
+			xtime.ToUnixNano(curr): BlockState{
+				WarmRetrievable: false,
+				ColdVersion:     0,
+			},
+		},
+	}
+	shardBlockStates = NewShardBlockStateSnapshot(true, blockStates)
+	tickResult, err = series.Tick(shardBlockStates, namespace.Context{})
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 }
 
-func TestSeriesBootstrapWithError(t *testing.T) {
+func TestSeriesTickCachedBlockRemove(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	now := time.Now()
-	blockSize := 2 * time.Hour
+	opts = opts.SetCachePolicy(CacheAll)
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	// Add current block
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	series.cachedBlocks.AddBlock(b)
+	// Add (current - 1) block
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr.Add(-ropts.BlockSize()))
+	b.EXPECT().Close().Return()
+	series.cachedBlocks.AddBlock(b)
+	// Add (current - 2) block
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr.Add(-2 * ropts.BlockSize()))
+	b.EXPECT().Close().Return()
+	series.cachedBlocks.AddBlock(b)
 
-	bufferMin := now.Truncate(blockSize).Add(-blockSize)
-	bufferMax := now.Truncate(blockSize).Add(2 * blockSize)
-
+	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
-	buffer.EXPECT().DrainAndReset()
-	buffer.EXPECT().MinMax().Return(bufferMin, bufferMax, nil)
+	buffer.EXPECT().
+		Stats().
+		Return(bufferStats{
+			wiredBlocks: 0,
+		})
+	buffer.EXPECT().
+		Tick(gomock.Any(), gomock.Any()).
+		Return(bufferTickResult{
+			// This means that (curr - 1 block) and (curr - 2 blocks) should
+			// be removed after the tick.
+			evictedBucketTimes: OptimizedTimes{
+				arrIdx: 2,
+				arr: [optimizedTimesArraySize]xtime.UnixNano{
+					xtime.ToUnixNano(curr.Add(-ropts.BlockSize())),
+					xtime.ToUnixNano(curr.Add(-2 * ropts.BlockSize())),
+				},
+			},
+		})
 	series.buffer = buffer
 
-	errBlockStart := bufferMin
-	blocks := block.NewDatabaseSeriesBlocks(0)
-
-	// Add block that buffer will fail to bootstrap
-	bl := block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(errBlockStart).AnyTimes()
-	blocks.AddBlock(bl)
-
-	// Add block that will succeed
-	bl = block.NewMockDatabaseBlock(ctrl)
-	bl.EXPECT().StartTime().Return(bufferMin.Add(-blockSize)).AnyTimes()
-	bl.EXPECT().SetOnEvictedFromWiredList(nil)
-	blocks.AddBlock(bl)
-
-	// Expect to fail the bootstrap for block destined for buffer
-	buffer.EXPECT().Bootstrap(bl).Return(fmt.Errorf("bar"))
-
-	_, err := series.Bootstrap(blocks)
-	assert.Error(t, err)
-
-	str := fmt.Sprintf("bootstrap series error occurred for %s block at %s: %s",
-		series.ID().String(), errBlockStart.String(), "bar")
-	require.Equal(t, str, err.Error())
-	require.Equal(t, bootstrapped, series.bs)
-	require.Equal(t, 1, series.blocks.Len())
+	assert.Equal(t, 3, series.cachedBlocks.Len())
+	blockStates := BootstrappedBlockStateSnapshot{}
+	shardBlockStates := NewShardBlockStateSnapshot(true, blockStates)
+	_, err := series.Tick(shardBlockStates, namespace.Context{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, series.cachedBlocks.Len())
 }
 
 func TestSeriesFetchBlocks(t *testing.T) {
@@ -604,25 +834,28 @@ func TestSeriesFetchBlocks(t *testing.T) {
 		SegmentReader: xio.NewSegmentReader(ts.Segment{}),
 	}, nil)
 	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
+
 	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(starts[1])
 	b.EXPECT().Stream(ctx).Return(xio.EmptyBlockReader, errors.New("bar"))
 	blocks.EXPECT().BlockAt(starts[1]).Return(b, true)
+
 	blocks.EXPECT().BlockAt(starts[2]).Return(nil, false)
 
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().
-		FetchBlocks(ctx, starts).
+		FetchBlocks(ctx, starts, namespace.Context{}).
 		Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(b, WarmWrite)
 	assert.NoError(t, err)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.buffer = buffer
-	res, err := series.FetchBlocks(ctx, starts)
+	res, err := series.FetchBlocks(ctx, starts, namespace.Context{})
 	require.NoError(t, err)
 
 	expectedTimes := []time.Time{starts[2], starts[0], starts[1]}
@@ -650,25 +883,12 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	now := time.Now()
-	start := now.Add(-time.Hour)
-	end := now.Add(time.Hour)
-	starts := []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
-
-	blocks := map[xtime.UnixNano]block.DatabaseBlock{}
-	b := block.NewMockDatabaseBlock(ctrl)
-	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
-	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
-	expectedSegment := ts.NewSegment(head, tail, ts.FinalizeNone)
-	b.EXPECT().Len().Return(expectedSegment.Len())
-	expectedChecksum := digest.SegmentChecksum(expectedSegment)
-	b.EXPECT().Checksum().Return(expectedChecksum, nil)
-	expectedLastRead := time.Now()
-	b.EXPECT().LastReadTime().Return(expectedLastRead)
-	b.EXPECT().WasRetrievedFromDisk().Return(false)
-	blocks[xtime.ToUnixNano(starts[0])] = b
-	blocks[xtime.ToUnixNano(starts[3])] = nil
-
+	var (
+		now    = time.Now()
+		start  = now.Add(-time.Hour)
+		end    = now.Add(time.Hour)
+		starts = []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
+	)
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	expectedResults := block.NewFetchBlockMetadataResults()
@@ -684,14 +904,14 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().
 		FetchBlocksMetadata(ctx, start, end, fetchOpts).
-		Return(expectedResults)
+		Return(expectedResults, nil)
 
-	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(start)
+
+	series := NewDatabaseSeries(ident.StringID("bar"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
-	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	mockBlocks.EXPECT().AllBlocks().Return(blocks)
-	series.blocks = mockBlocks
 	series.buffer = buffer
 
 	res, err := series.FetchBlocksMetadata(ctx, start, end, fetchOpts)
@@ -699,7 +919,6 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	require.Equal(t, "bar", res.ID.String())
 
 	metadata := res.Blocks.Results()
-	expectedSize := int64(4)
 	expected := []struct {
 		start    time.Time
 		size     int64
@@ -707,7 +926,6 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		lastRead time.Time
 		hasError bool
 	}{
-		{starts[0], expectedSize, &expectedChecksum, expectedLastRead, false},
 		{starts[2], 0, nil, time.Time{}, false},
 	}
 	require.Equal(t, len(expected), len(metadata))
@@ -751,15 +969,15 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		expected   []ts.Datapoint
 	)
 
-	series := NewDatabaseSeries(id, tags, opts).(*dbSeries)
-	series.Reset(id, tags, nil, nil, nil, opts)
+	series := NewDatabaseSeries(id, tags, 1, opts).(*dbSeries)
+	series.Reset(id, tags, 1, nil, nil, nil, opts)
 
 	for iter := 0; iter < numBlocks; iter++ {
 		start := now
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil)
+			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
@@ -771,7 +989,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil)
+			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			start = start.Add(10 * time.Second)
@@ -781,12 +999,12 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd)
+	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, namespace.Context{})
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
 
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded), nil)
 	it := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 		ID:             id,
 		Namespace:      nsID,
@@ -808,15 +1026,24 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 }
 
 func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := block.NewMockDatabaseBlock(ctrl)
+	bl.EXPECT().StartTime().Return(time.Now())
+	bl.EXPECT().Len().Return(0).AnyTimes()
+
 	opts := newSeriesTestOptions()
 	opts = opts.SetRetentionOptions(opts.RetentionOptions().
 		SetRetentionPeriod(40 * 24 * time.Hour).
-		// A block size of 5 days is not equally as divisible as seconds from time zero and seconds from time epoch.
+		// A block size of 5 days is not equally as divisible as seconds from time
+		// zero and seconds from time epoch.
 		// now := time.Now()
 		// blockSize := 5 * 24 * time.Hour
 		// fmt.Println(now) -> 2018-01-24 14:29:31.624265 -0500 EST m=+0.003810489
 		// fmt.Println(now.Truncate(blockSize)) -> 2018-01-21 19:00:00 -0500 EST
-		// fmt.Println(time.Unix(0, now.UnixNano()/int64(blockSize)*int64(blockSize))) -> 2018-01-23 19:00:00 -0500 EST
+		// fmt.Println(time.Unix(0, now.UnixNano()/int64(blockSize)*int64(blockSize)))
+		//                                       -> 2018-01-23 19:00:00 -0500 EST
 		SetBlockSize(5 * 24 * time.Hour).
 		SetBufferFuture(10 * time.Minute).
 		SetBufferPast(20 * time.Minute))
@@ -824,26 +1051,30 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	_, err := series.Bootstrap(nil)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+	err := series.LoadBlock(bl, WarmWrite)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil)
+	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute),
+		1, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil)
+	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute),
+		2, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil)
+	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute),
+		3, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
+	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute),
+		curr.Add(time.Minute), namespace.Context{})
 	require.NoError(t, err)
-	values, err := decodedValues(results, opts)
+	values, err := decodedReaderValues(results, opts, namespace.Context{})
 	require.NoError(t, err)
 
 	require.Equal(t, 3, len(values))
@@ -855,7 +1086,7 @@ func TestSeriesCloseNonCacheLRUPolicy(t *testing.T) {
 
 	opts := newSeriesTestOptions().
 		SetCachePolicy(CacheRecentlyRead)
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 
 	start := time.Now()
 	blocks := block.NewDatabaseSeriesBlocks(0)
@@ -864,7 +1095,7 @@ func TestSeriesCloseNonCacheLRUPolicy(t *testing.T) {
 	diskBlock.EXPECT().Close()
 	blocks.AddBlock(diskBlock)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.Close()
 }
 
@@ -874,23 +1105,21 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 
 	opts := newSeriesTestOptions().
 		SetCachePolicy(CacheLRU)
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
 
 	start := time.Now()
 	blocks := block.NewDatabaseSeriesBlocks(0)
 	// Add a block that was retrieved from disk
 	diskBlock := block.NewMockDatabaseBlock(ctrl)
 	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
-	diskBlock.EXPECT().WasRetrievedFromDisk().Return(true)
 	blocks.AddBlock(diskBlock)
 
 	// Add block that was not retrieved from disk
 	nonDiskBlock := block.NewMockDatabaseBlock(ctrl)
-	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
-	nonDiskBlock.EXPECT().WasRetrievedFromDisk().Return(false)
-	nonDiskBlock.EXPECT().Close()
+	nonDiskBlock.EXPECT().StartTime().
+		Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
 	blocks.AddBlock(nonDiskBlock)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.Close()
 }

@@ -27,10 +27,10 @@ import (
 	"github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
-	xserver "github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/retry"
+	xserver "github.com/m3db/m3/src/x/server"
 )
 
 // RawTCPServerConfiguration contains raw TCP server configuration.

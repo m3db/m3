@@ -7,6 +7,7 @@ $(SELF_DIR)/.ci/common.mk:
 include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
+GOPATH=$(shell eval $$(go env | grep GOPATH) && echo $$GOPATH)
 
 auto_gen             := scripts/auto-gen.sh
 process_coverfile    := scripts/process-cover.sh
@@ -16,6 +17,7 @@ m3_package           := github.com/m3db/m3
 m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
 retool_bin_path      := $(m3_package_path)/_tools/bin
+combined_bin_paths   := $(retool_bin_path):$(gopath_bin_path)
 retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
@@ -31,24 +33,24 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
-GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3_package)
-GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
+GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.117.2
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
-# LD Flags
-GIT_REVISION              := $(shell git rev-parse --short HEAD)
-GIT_BRANCH                := $(shell git rev-parse --abbrev-ref HEAD)
-GIT_VERSION               := $(shell git describe --tags --abbrev=0 2>/dev/null || echo unknown)
-BUILD_DATE                := $(shell date '+%F-%T') # outputs something in this format 2017-08-21-18:58:45
-BUILD_TS_UNIX             := $(shell date '+%s') # second since epoch
-BASE_PACKAGE              := ${m3_package}/vendor/github.com/m3db/m3x/instrument
+# Retool will look for tools.json in the nearest parent git directory if not
+# explicitly told the current dir. Allow setting the base dir so that tools can
+# be built inside of other external repos.
+ifdef RETOOL_BASE_DIR
+	retool_base_args := -base-dir $(RETOOL_BASE_DIR)
+endif
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
@@ -62,6 +64,7 @@ SERVICES :=     \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
+	m3comparator  \
 
 SUBDIRS :=    \
 	x           \
@@ -86,9 +89,10 @@ TOOLS :=               \
 	read_index_files     \
 	clone_fileset        \
 	dtest                \
-	verify_commitlogs    \
+	verify_data_files    \
 	verify_index_files   \
-	carbon_load
+	carbon_load          \
+	docs_test            \
 
 .PHONY: setup
 setup:
@@ -109,6 +113,22 @@ endif
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
+
+.PHONY: $(SERVICE)-docker-dev
+$(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
+	mkdir -p ./bin/config
+	
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+
+	# Build development docker image
+	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+
+.PHONY: $(SERVICE)-docker-dev-push
+$(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
+	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
+	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
 
 endef
 
@@ -150,8 +170,8 @@ install-retool:
 .PHONY: install-tools
 install-tools: install-retool
 	@echo "Installing retool dependencies"
-	retool sync
-	retool build
+	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) sync
+	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) build
 
 	@# NB(r): to ensure correct version of mock-gen is present we match the version
 	@# of the retool installed mockgen, and if not a match in binary contents, then
@@ -186,7 +206,8 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -e "GIT_REVISION=$(GIT_REVISION)" -e "GIT_BRANCH=$(GIT_BRANCH)" -e "GIT_VERSION=$(GIT_VERSION)" -e "BUILD_DATE=$(BUILD_DATE)" -e "BUILD_TS_UNIX=$(BUILD_TS_UNIX)" -e "BASE_PACKAGE=$(BASE_PACKAGE)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
+	$(GO_BUILD_LDFLAGS_CMD) ECHO > $(BUILD)/release-vars.env
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
@@ -196,8 +217,12 @@ release-snapshot: check-for-goreleaser-github-token
 .PHONY: docs-container
 docs-container:
 	docker run --rm hello-world >/dev/null
-	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
+	docker build -t m3db-docs docs
 
+# NB(schallert): if updating this target, be sure to update the commands used in
+# the .buildkite/docs_push.sh. We can't share the make targets because our
+# Makefile assumes its running under bash and the container is alpine (ash
+# shell).
 .PHONY: docs-build
 docs-build: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
@@ -210,27 +235,48 @@ docs-serve: docs-container
 docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --force --dirty"
 
+.PHONY: docs-validate
+docs-validate: docs_test
+	./bin/docs_test
+
+.PHONY: docs-test
+docs-test:
+	@echo "--- Documentation validate test"
+	make docs-validate
+	@echo "--- Documentation build test"
+	make docs-build
+
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
-	@./scripts/docker-integration-tests/setup.sh
-	@./scripts/docker-integration-tests/simple/test.sh
-	@./scripts/docker-integration-tests/prometheus/test.sh
-	@./scripts/docker-integration-tests/carbon/test.sh
+	./scripts/docker-integration-tests/run.sh
+
+
+.PHONY: docker-compatibility-test
+docker-compatibility-test:
+	@echo "--- Running Prometheus compatibility test"
+	./scripts/comparator/run.sh
 
 .PHONY: site-build
 site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
 
-SUBDIR_TARGETS :=     \
-	mock-gen            \
-	thrift-gen          \
-	proto-gen           \
-	asset-gen           \
-	genny-gen           \
-	license-gen         \
-	all-gen             \
+# Generate configs in config/
+.PHONY: config-gen
+config-gen: install-tools
+	@echo "--- Generating configs"
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
+
+SUBDIR_TARGETS := \
+	mock-gen        \
+	thrift-gen      \
+	proto-gen       \
+	asset-gen       \
+	genny-gen       \
+	license-gen     \
+	all-gen         \
 	metalint
 
 .PHONY: test-ci-unit
@@ -256,7 +302,7 @@ ifeq ($(SUBDIR), kube)
 all-gen-kube: install-tools
 	@echo "--- Generating kube bundle"
 	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(retool_bin_path):$(PATH) xargs -0 kubeval -v=1.12.0
+	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
 
 else
 
@@ -264,37 +310,37 @@ else
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
+		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
 thrift-gen-$(SUBDIR): install-tools
 	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
+		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
 proto-gen-$(SUBDIR): install-tools
 	@echo "--- Generating protobuf files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
+		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
 asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
-		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
+		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
-	@PATH=$(retool_bin_path):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
 	@echo "--- Updating license in files $(SUBDIR)"
-	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(retool_bin_path):$(PATH) xargs -I{} update-license {}
+	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(combined_bin_paths):$(PATH) xargs -I{} update-license {}
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be after proto/thrift because we sometimes
@@ -345,14 +391,14 @@ test-ci-big-unit-$(SUBDIR):
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=false INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: metalint-$(SUBDIR)
 metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
 	@echo "--- metalinting $(SUBDIR)"
-	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
 endif
@@ -381,7 +427,10 @@ ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
 	@echo "Building UI components, if npm install or build fails try: npm cache clean"
 	make node-yarn-run \
 		node_version="6" \
-		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && npm run build"
+		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && yarn build"
+	# If we've installed nvm locally, remove it due to some cleanup permissions
+	# issue we run into in CI.
+	rm -rf .nvm
 else
 	@echo "Skip building UI components, already built, to rebuild first make clean"
 endif
@@ -396,57 +445,56 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(retool_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
 	make node-run \
 		node_version="$(node_version)" \
-		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn) && $(node_cmd)"
+		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn@^1.17.0) && $(node_cmd)"
 
 .PHONY: node-run
 node-run:
-ifneq ($(shell brew --prefix nvm 2>/dev/null),)
-	@echo "Using nvm from brew to select node version $(node_version)"
-	source $(shell brew --prefix nvm)/nvm.sh && nvm use $(node_version) && bash -c "$(node_cmd)"
-else ifneq ($(shell type nvm 2>/dev/null),)
+ifneq ($(shell command -v nvm 2>/dev/null),)
 	@echo "Using nvm to select node version $(node_version)"
 	nvm use $(node_version) && bash -c "$(node_cmd)"
 else
-	node --version 2>&1 >/dev/null || \
-		(echo "Trying apt install" && which apt-get && (curl -sL https://deb.nodesource.com/setup_$(node_version).x | bash) && apt-get install -y nodejs) || \
-		(echo "Trying apk install" && which apk && apk add --update nodejs nodejs-npm) || \
-		(echo "No node install or known package manager" && exit 1)
-	@echo "Not using nvm, using node version $(shell node --version)"
-	bash -c "$(node_cmd)"
+	mkdir .nvm
+	# Install nvm locally
+	NVM_DIR=$(SELF_DIR)/.nvm PROFILE=/dev/null scripts/install_nvm.sh
+	bash -c "source $(SELF_DIR)/.nvm/nvm.sh; nvm install 6"
+	bash -c "source $(SELF_DIR)/.nvm/nvm.sh && nvm use 6 && $(node_cmd)"
 endif
 
 .PHONY: metalint
 metalint: install-gometalinter install-linter-badtime install-linter-importorder
 	@echo "--- metalinting src/"
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) src/)
+		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager diff --exit-code --shortstat 2>/dev/null)" = "" || (git --no-pager diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(retool_bin_path):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
-	PATH=$(retool_bin_path):$(PATH) fossa test
+	PATH=$(combined_bin_paths):$(PATH) fossa test
+
+.PHONY: clean-build
+clean-build:
+	@rm -rf $(BUILD)
 
 .PHONY: clean
-clean:
+clean: clean-build
 	@rm -f *.html *.xml *.out *.test
-	@rm -rf $(BUILD)
 	@rm -rf $(VENDOR)
 	@rm -rf ./src/ctl/ui/build
 

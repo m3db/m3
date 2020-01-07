@@ -8,13 +8,28 @@ More information:
 
 - [Documentation](https://m3db.github.io/m3/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
-- [Gitter (chat channel)](https://gitter.im/m3db/Lobby)
+- [Slack (primary chat channel)](http://bit.ly/m3slack)
+- [Gitter (deprecated chat channel)](https://gitter.im/m3db/Lobby)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
+## Community meetings
+
+M3 contributors and maintainers have monthly (every four weeks) meetings at 11:00 AM (USA Pacific) on Tuesday.
+
+An initial agenda is posted to the [community meeting shared Google doc](https://docs.google.com/document/d/1eGAd2A8FVtiip5wHxHnmSkz7e_qHc9k_4hGI0vUGdHM/edit?usp=sharing) a day before each meeting, and everyone is welcome to suggest additional topics or other agendas.
+
+You can add the following public Google Calendar if you're using Google Calendar (so that any changes are reflected in your own calendar when the invite is updated):
+[https://calendar.google.com/calendar?cid=aWc5YWFxZWw0azFmMnRoZDA2dHBtZzZva2tAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ](https://calendar.google.com/calendar?cid=aWc5YWFxZWw0azFmMnRoZDA2dHBtZzZva2tAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ)
+
+For those not using Google Calendar, please download and import the following iCalendar (.ics) files to calendar system for the monthly invite:
+[https://calendar.google.com/calendar/ical/ig9aaqel4k1f2thd06tpmg6okk%40group.calendar.google.com/public/basic.ics](https://calendar.google.com/calendar/ical/ig9aaqel4k1f2thd06tpmg6okk%40group.calendar.google.com/public/basic.ics)
+
+Join Zoom Meeting: [us04web.zoom.us/j/519434268](https://us04web.zoom.us/j/519434268)
+
 ## Test it out
 
-(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/)).
+The easiest way to testing out M3 is to follow one of the guides from the documentation. For a fully comprehensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/).
 
 ### Starting a node
 
@@ -51,6 +66,10 @@ curl http://localhost:9003/writetagged -s -X POST -d '{
   "namespace": "default",
   "id": "foo",
   "tags": [
+    {
+      "name": "__name__",
+      "value": "user_login"
+    },
     {
       "name": "city",
       "value": "new_york"

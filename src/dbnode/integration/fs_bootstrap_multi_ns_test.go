@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -103,8 +103,8 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-ns2BlockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	})
-	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps, 0))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps, 0))
 	log.Info("generated data")
 
 	// Start the server with filesystem bootstrapper

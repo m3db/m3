@@ -36,18 +36,19 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -186,8 +187,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 					}
 
-					reader := encoder.Stream()
-					if reader != nil {
+					ctx := context.NewContext()
+					reader, ok := encoder.Stream(ctx)
+					if ok {
 						seg, err := reader.Segment()
 						if err != nil {
 							return false, err
@@ -200,6 +202,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 						encodersBySeries[seriesID] = bytes
 					}
+					ctx.Close()
+
 					compressedWritesByShards[shard] = encodersBySeries
 				}
 
@@ -276,6 +280,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					if err != nil {
 						return false, err
 					}
+
 					writesCh <- struct{}{}
 				}
 				close(writesCh)
@@ -365,16 +370,21 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					tu.SelfID: tu.Shards(allShardsSlice, shard.Available),
 				})
 			}
+
 			runOpts := testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
-			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
+			tester := bootstrap.BuildNamespacesTester(t, runOpts, shardTimeRanges, nsMeta)
+
+			bootstrapResults, err := source.Bootstrap(tester.Namespaces)
 			if err != nil {
 				return false, err
 			}
 
 			// Create testValues for each datapoint for comparison
-			values := []testValue{}
+			values := testValues{}
 			for _, write := range input.writes {
-				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
+				values = append(values, testValue{
+					write.series, write.datapoint.Timestamp,
+					write.datapoint.Value, write.unit, write.annotation})
 			}
 
 			commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
@@ -397,6 +407,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					!shardTimeRanges.IsEmpty()
 			)
 
+			nsResult, found := bootstrapResults.Results.Get(nsMeta.ID())
+			if !found {
+				return false, fmt.Errorf("could not find id: %s", nsMeta.ID().String())
+			}
+
+			dataResult := nsResult.DataResult
 			if shouldReturnUnfulfilled {
 				if dataResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -409,23 +425,13 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						dataResult.Unfulfilled().String())
 				}
 			}
-			err = verifyShardResultsAreCorrect(values, blockSize, dataResult.ShardResults(), bootstrapOpts)
+
+			written, err := tester.EnsureDumpAllForNamespace(nsMeta)
 			if err != nil {
 				return false, err
 			}
 
-			indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, runOpts)
-			if err != nil {
-				return false, err
-			}
-
-			indexBlockSize := nsMeta.Options().IndexOptions().BlockSize()
-			err = verifyIndexResultsAreCorrect(
-				values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
-			if err != nil {
-				return false, err
-			}
-
+			indexResult := nsResult.IndexResult
 			if shouldReturnUnfulfilled {
 				if indexResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -437,6 +443,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						"index result unfulfilled in single node cluster should be empty but was: %s",
 						indexResult.Unfulfilled().String())
 				}
+			}
+
+			err = verifyValuesAreCorrect(values, written)
+			if err != nil {
+				return false, err
 			}
 
 			return true, nil
@@ -533,13 +544,13 @@ func genPropTestInput(
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
 			return propTestInput{
-				currentTime:     start,
-				bufferFuture:    bufferFuture,
-				bufferPast:      bufferPast,
-				snapshotTime:    snapshotTime,
-				snapshotExists:  snapshotExists,
-				commitLogExists: commitLogExists,
-				writes:          val,
+				currentTime:                   start,
+				bufferFuture:                  bufferFuture,
+				bufferPast:                    bufferPast,
+				snapshotTime:                  snapshotTime,
+				snapshotExists:                snapshotExists,
+				commitLogExists:               commitLogExists,
+				writes:                        val,
 				includeCorruptedCommitlogFile: includeCorruptedCommitlogFile,
 				multiNodeCluster:              multiNodeCluster,
 			}

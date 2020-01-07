@@ -23,6 +23,7 @@ package promql
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
@@ -73,7 +74,8 @@ var scalarResolverTests = []struct {
 func TestScalarResolver(t *testing.T) {
 	for _, tt := range scalarResolverTests {
 		t.Run(tt.funcString, func(t *testing.T) {
-			parsed, err := Parse(tt.funcString, models.NewTagOptions())
+			parsed, err := Parse(tt.funcString, time.Second,
+				models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			expr := parsed.(*promParser).expr
 			actual, err := resolveScalarArgument(expr)

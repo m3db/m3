@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3x/checked"
-	xtest "github.com/m3db/m3x/test"
+	"github.com/m3db/m3/src/x/checked"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

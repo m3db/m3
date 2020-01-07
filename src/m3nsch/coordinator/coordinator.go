@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/generated/convert"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -402,7 +402,7 @@ type newM3nschClientFn func(string, instrument.Options, time.Duration) (*m3nschC
 
 type m3nschClient struct {
 	endpoint string
-	logger   xlog.Logger
+	logger   *zap.Logger
 	conn     *grpc.ClientConn
 	client   proto.MenschClient
 }
@@ -413,7 +413,7 @@ func newM3nschClient(
 	timeout time.Duration,
 ) (*m3nschClient, error) {
 	var (
-		logger    = iopts.Logger().WithFields(xlog.NewField("client", endpoint))
+		logger    = iopts.Logger().With(zap.String("client", endpoint))
 		conn, err = grpc.Dial(endpoint, grpc.WithTimeout(timeout), grpc.WithInsecure())
 	)
 	if err != nil {

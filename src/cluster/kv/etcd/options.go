@@ -23,10 +23,11 @@ package etcd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 	defaultWatchChanInitTimeout   = 10 * time.Second
 	defaultRetryOptions           = retry.NewOptions().SetMaxRetries(5)
 	defaultCacheFileFn            = func(string) string { return "" }
+	defaultNewDirectoryMode       = os.FileMode(0755)
 )
 
 // CacheFileFn is a function to generate cache file path
@@ -93,6 +95,9 @@ type Options interface {
 	// SetCacheFileDir sets the CacheFileDir
 	SetCacheFileFn(fn CacheFileFn) Options
 
+	SetNewDirectoryMode(fm os.FileMode) Options
+	NewDirectoryMode() os.FileMode
+
 	// Validate validates the Options
 	Validate() error
 }
@@ -107,6 +112,7 @@ type options struct {
 	watchChanInitTimeout   time.Duration
 	watchWithRevision      int64
 	cacheFileFn            CacheFileFn
+	newDirectoryMode       os.FileMode
 }
 
 // NewOptions creates a sane default Option
@@ -118,7 +124,8 @@ func NewOptions() Options {
 		SetWatchChanCheckInterval(defaultWatchChanCheckInterval).
 		SetWatchChanResetInterval(defaultWatchChanResetInterval).
 		SetWatchChanInitTimeout(defaultWatchChanInitTimeout).
-		SetCacheFileFn(defaultCacheFileFn)
+		SetCacheFileFn(defaultCacheFileFn).
+		SetNewDirectoryMode(defaultNewDirectoryMode)
 }
 
 func (o options) Validate() error {
@@ -223,4 +230,13 @@ func (o options) ApplyPrefix(key string) string {
 		return key
 	}
 	return fmt.Sprintf("%s/%s", o.prefix, key)
+}
+
+func (o options) SetNewDirectoryMode(fm os.FileMode) Options {
+	o.newDirectoryMode = fm
+	return o
+}
+
+func (o options) NewDirectoryMode() os.FileMode {
+	return o.newDirectoryMode
 }

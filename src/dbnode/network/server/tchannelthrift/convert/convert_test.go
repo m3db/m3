@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -42,6 +42,20 @@ func mustToRpcTime(t *testing.T, ts time.Time) int64 {
 	r, err := convert.ToValue(ts, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	return r
+}
+
+func allQueryTestCase(t *testing.T) (idx.Query, []byte) {
+	q := idx.NewAllQuery()
+	d, err := idx.Marshal(q)
+	require.NoError(t, err)
+	return q, d
+}
+
+func fieldQueryTestCase(t *testing.T) (idx.Query, []byte) {
+	q1 := idx.NewFieldQuery([]byte("dat"))
+	data, err := idx.Marshal(q1)
+	require.NoError(t, err)
+	return q1, data
 }
 
 func termQueryTestCase(t *testing.T) (idx.Query, []byte) {
@@ -120,6 +134,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 			name string
 			fn   inputFn
 		}{
+			{"Field Query", fieldQueryTestCase},
 			{"Term Query", termQueryTestCase},
 			{"Regexp Query", regexpQueryTestCase},
 			{"Negate Term Query", negateTermQueryTestCase},
@@ -144,6 +159,81 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 				require.Equal(t, ns.String(), id.String())
 				require.True(t, index.NewQueryMatcher(index.Query{Query: expectedQuery}).Matches(observedQuery))
 				requireEqual(fetchData, fetch)
+				requireEqual(opts, observedOpts)
+			})
+		}
+	}
+}
+
+func TestConvertAggregateRawQueryRequest(t *testing.T) {
+	ns := ident.StringID("abc")
+	opts := index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: time.Now().Add(-900 * time.Hour),
+			EndExclusive:   time.Now(),
+			Limit:          10,
+		},
+		Type: index.AggregateTagNamesAndValues,
+		FieldFilter: index.AggregateFieldFilter{
+			[]byte("some"),
+			[]byte("string"),
+		},
+	}
+	var limit int64 = 10
+	requestSkeleton := &rpc.AggregateQueryRawRequest{
+		NameSpace:  ns.Bytes(),
+		RangeStart: mustToRpcTime(t, opts.StartInclusive),
+		RangeEnd:   mustToRpcTime(t, opts.EndExclusive),
+		Limit:      &limit,
+		TagNameFilter: [][]byte{
+			[]byte("some"),
+			[]byte("string"),
+		},
+		AggregateQueryType: rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE,
+	}
+	requireEqual := func(a, b interface{}) {
+		d := cmp.Diff(a, b)
+		assert.Equal(t, "", d, d)
+	}
+
+	type inputFn func(t *testing.T) (idx.Query, []byte)
+
+	for _, pools := range []struct {
+		name string
+		pool convert.FetchTaggedConversionPools
+	}{
+		{"nil pools", nil},
+		{"valid pools", newTestPools()},
+	} {
+		testCases := []struct {
+			name string
+			fn   inputFn
+		}{
+			{"All Query", allQueryTestCase},
+			{"Field Query", fieldQueryTestCase},
+			{"Term Query", termQueryTestCase},
+			{"Regexp Query", regexpQueryTestCase},
+			{"Negate Term Query", negateTermQueryTestCase},
+			{"Negate Regexp Query", negateRegexpQueryTestCase},
+			{"Conjunction Query A", conjunctionQueryATestCase},
+		}
+		for _, tc := range testCases {
+			t.Run(fmt.Sprintf("%s forward %s", pools.name, tc.name), func(t *testing.T) {
+				q, rpcQ := tc.fn(t)
+				expectedReq := &(*requestSkeleton)
+				expectedReq.Query = rpcQ
+				observedReq, err := convert.ToRPCAggregateQueryRawRequest(ns, index.Query{Query: q}, opts)
+				require.NoError(t, err)
+				requireEqual(expectedReq, &observedReq)
+			})
+			t.Run(fmt.Sprintf("%s backward %s", pools.name, tc.name), func(t *testing.T) {
+				expectedQuery, rpcQ := tc.fn(t)
+				rpcRequest := &(*requestSkeleton)
+				rpcRequest.Query = rpcQ
+				id, observedQuery, observedOpts, err := convert.FromRPCAggregateQueryRawRequest(rpcRequest, pools.pool)
+				require.NoError(t, err)
+				require.Equal(t, ns.String(), id.String())
+				require.True(t, index.NewQueryMatcher(index.Query{Query: expectedQuery}).Matches(observedQuery))
 				requireEqual(opts, observedOpts)
 			})
 		}

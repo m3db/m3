@@ -29,9 +29,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -83,7 +83,7 @@ func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*t = defaultDropType
 		return nil
 	}
-	strs := make([]string, len(validDropTypes))
+	strs := make([]string, 0, len(validDropTypes))
 	for _, valid := range validDropTypes {
 		if str == valid.String() {
 			*t = valid
@@ -110,15 +110,18 @@ type writeFn func([]byte) error
 type queue struct {
 	sync.RWMutex
 
-	log      log.Logger
-	metrics  queueMetrics
-	dropType DropType
-	instance placement.Instance
-	conn     *connection
-	bufCh    chan protobuf.Buffer
-	doneCh   chan struct{}
-	closed   bool
-	wg       sync.WaitGroup
+	log                *zap.Logger
+	metrics            queueMetrics
+	dropType           DropType
+	instance           placement.Instance
+	conn               *connection
+	bufCh              chan protobuf.Buffer
+	doneCh             chan struct{}
+	closed             bool
+	buf                []byte
+	maxBatchSize       int
+	batchFlushDeadline time.Duration
+	wg                 sync.WaitGroup
 
 	writeFn writeFn
 }
@@ -132,15 +135,20 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		conn               = newConnection(instance.Endpoint(), connOpts)
 		iOpts              = opts.InstrumentOptions()
 		queueSize          = opts.InstanceQueueSize()
+		maxBatchSize       = opts.MaxBatchSize()
+		writeInterval      = opts.BatchFlushDeadline()
 	)
 	q := &queue{
-		dropType: opts.QueueDropType(),
-		log:      iOpts.Logger(),
-		metrics:  newQueueMetrics(iOpts.MetricsScope(), queueSize),
-		instance: instance,
-		conn:     conn,
-		bufCh:    make(chan protobuf.Buffer, queueSize),
-		doneCh:   make(chan struct{}),
+		dropType:           opts.QueueDropType(),
+		log:                iOpts.Logger(),
+		metrics:            newQueueMetrics(iOpts.MetricsScope(), queueSize),
+		instance:           instance,
+		conn:               conn,
+		bufCh:              make(chan protobuf.Buffer, queueSize),
+		doneCh:             make(chan struct{}),
+		maxBatchSize:       maxBatchSize,
+		batchFlushDeadline: writeInterval,
+		buf:                make([]byte, 0, maxBatchSize),
 	}
 	q.writeFn = q.conn.Write
 
@@ -159,9 +167,6 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 		return errInstanceQueueClosed
 	}
 	for {
-		// NB(xichen): the buffer already batches multiple metric buf points
-		// to maximize per packet utilization so there should be no need to perform
-		// additional batching here.
 		select {
 		case q.bufCh <- buf:
 			q.RUnlock()
@@ -204,22 +209,63 @@ func (q *queue) Close() error {
 	return nil
 }
 
+func (q *queue) writeAndReset() {
+	if len(q.buf) == 0 {
+		return
+	}
+	if err := q.writeFn(q.buf); err != nil {
+		q.log.Error("error writing data",
+			zap.Int("buffer_size", len(q.buf)),
+			zap.String("target_instance", q.instance.Endpoint()),
+			zap.Error(err),
+		)
+		q.metrics.connWriteErrors.Inc(1)
+	} else {
+		q.metrics.connWriteSuccesses.Inc(1)
+	}
+	q.buf = q.buf[:0]
+}
+
 func (q *queue) drain() {
 	defer q.wg.Done()
-
-	for buf := range q.bufCh {
-		if err := q.writeFn(buf.Bytes()); err != nil {
-			q.log.WithFields(
-				log.NewField("instance", q.instance.Endpoint()),
-				log.NewErrField(err),
-			).Error("write data error")
-			q.metrics.connWriteErrors.Inc(1)
-		} else {
-			q.metrics.connWriteSuccesses.Inc(1)
-		}
-		buf.Close()
+	defer q.conn.Close()
+	timer := time.NewTimer(q.batchFlushDeadline)
+	lastDrain := time.Now()
+	write := func() {
+		q.writeAndReset()
+		lastDrain = time.Now()
 	}
-	q.conn.Close()
+
+	for {
+		select {
+		case qitem := <-q.bufCh:
+			drained := false
+			msg := qitem.Bytes()
+			if len(q.buf)+len(msg) > q.maxBatchSize {
+				write()
+				drained = true
+			}
+			q.buf = append(q.buf, msg...)
+			qitem.Close()
+
+			if drained || (len(q.buf) < q.maxBatchSize &&
+				time.Since(lastDrain) < q.batchFlushDeadline) {
+				continue
+			}
+
+			write()
+		case ts := <-timer.C:
+			delta := ts.Sub(lastDrain)
+			if delta < q.batchFlushDeadline {
+				timer.Reset(q.batchFlushDeadline - delta)
+				continue
+			}
+			write()
+			timer.Reset(q.batchFlushDeadline)
+		case <-q.doneCh:
+			return
+		}
+	}
 }
 
 func (q *queue) reportQueueSize(reportInterval time.Duration) {

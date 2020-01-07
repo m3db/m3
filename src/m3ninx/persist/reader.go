@@ -66,9 +66,11 @@ func NewSegment(fileset IndexSegmentFileSet, opts fst.Options) (fst.Segment, err
 func filesetToSegmentData(fileset IndexSegmentFileSet) (fst.SegmentData, error) {
 	var (
 		sd = fst.SegmentData{
-			MajorVersion: fileset.MajorVersion(),
-			MinorVersion: fileset.MinorVersion(),
-			Metadata:     fileset.SegmentMetadata(),
+			Version: fst.Version{
+				Major: fileset.MajorVersion(),
+				Minor: fileset.MinorVersion(),
+			},
+			Metadata: fileset.SegmentMetadata(),
 		}
 		err error
 	)

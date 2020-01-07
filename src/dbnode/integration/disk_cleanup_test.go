@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -84,17 +84,8 @@ func TestDiskCleanup(t *testing.T) {
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted
-	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
+	newNow := testSetup.getNowFn().Add(retentionPeriod).Add(2 * blockSize)
 	testSetup.setNowFn(newNow)
-	// This isn't great, but right now the commitlog will only ever rotate when writes
-	// are received, so we need to issue a write after changing the time to force the
-	// commitlog rotation. This won't be required once we tie commitlog rotation into
-	// the snapshotting process.
-	testSetup.writeBatch(testNamespaces[0], generate.Block(generate.BlockConfig{
-		IDs:       []string{"foo"},
-		NumPoints: 1,
-		Start:     newNow,
-	}))
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second

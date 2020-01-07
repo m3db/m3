@@ -35,12 +35,14 @@ import (
 	clusterplacement "github.com/m3db/m3/src/cluster/placement"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	dbnamespace "github.com/m3db/m3/src/dbnode/storage/namespace"
+	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -134,6 +136,8 @@ type createHandler struct {
 	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
 	embeddedDbCfg          *dbconfig.DBConfiguration
+	defaults               []handleroptions.ServiceOptionsDefault
+	instrumentOpts         instrument.Options
 }
 
 // NewCreateHandler returns a new instance of a database create handler.
@@ -141,28 +145,40 @@ func NewCreateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
-) http.Handler {
-	placementHandlerOptions := placement.HandlerOptions{
-		ClusterClient: client,
-		Config:        cfg,
+	defaults []handleroptions.ServiceOptionsDefault,
+	instrumentOpts instrument.Options,
+) (http.Handler, error) {
+	placementHandlerOptions, err := placement.NewHandlerOptions(client,
+		cfg, nil, instrumentOpts)
+	if err != nil {
+		return nil, err
 	}
 	return &createHandler{
 		placementInitHandler:   placement.NewInitHandler(placementHandlerOptions),
 		placementGetHandler:    placement.NewGetHandler(placementHandlerOptions),
-		namespaceAddHandler:    namespace.NewAddHandler(client),
-		namespaceGetHandler:    namespace.NewGetHandler(client),
-		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
+		namespaceAddHandler:    namespace.NewAddHandler(client, instrumentOpts),
+		namespaceGetHandler:    namespace.NewGetHandler(client, instrumentOpts),
+		namespaceDeleteHandler: namespace.NewDeleteHandler(client, instrumentOpts),
 		embeddedDbCfg:          embeddedDbCfg,
+		defaults:               defaults,
+		instrumentOpts:         instrumentOpts,
+	}, nil
+}
+
+func (h *createHandler) serviceNameAndDefaults() handleroptions.ServiceNameAndDefaults {
+	return handleroptions.ServiceNameAndDefaults{
+		ServiceName: handleroptions.M3DBServiceName,
+		Defaults:    h.defaults,
 	}
 }
 
 func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
-
-	currPlacement, _, err := h.placementGetHandler.Get(handler.M3DBServiceName, nil)
+	currPlacement, _, err := h.placementGetHandler.Get(
+		h.serviceNameAndDefaults(), nil)
 	if err != nil {
 		logger.Error("unable to get placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -171,7 +187,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	parsedReq, namespaceRequest, placementRequest, rErr := h.parseAndValidateRequest(r, currPlacement)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
@@ -205,7 +221,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions(handler.M3DBServiceName, r.Header, nil)
+	opts := handleroptions.NewServiceOptions(h.serviceNameAndDefaults(),
+		r.Header, nil)
 	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Error(err))
@@ -215,7 +232,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placementProto, err := currPlacement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -242,7 +259,8 @@ func (h *createHandler) maybeInitPlacement(
 		// If we're here then there is no existing placement, so just create it. This is safe because in
 		// the case where a placement did not already exist, the parse function above validated that we
 		// have all the required information to create a placement.
-		newPlacement, err := h.placementInitHandler.Init(handler.M3DBServiceName, r, placementRequest)
+		newPlacement, err := h.placementInitHandler.Init(h.serviceNameAndDefaults(),
+			r, placementRequest)
 		if err != nil {
 			return nil, false, err
 		}

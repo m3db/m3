@@ -21,7 +21,7 @@
 package consumer
 
 import (
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // MessagePoolOptions are options to use when creating the

@@ -32,11 +32,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
@@ -63,6 +62,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 				Datapoint: &rpc.Datapoint{
 					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:             dp.Value,
+					Annotation:        dp.Annotation,
 					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
 				},
 			}
@@ -79,13 +79,14 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 }
 
 // tchannelClientFetch fulfills a fetch request using a tchannel client.
-func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.FetchRequest) ([]ts.Datapoint, error) {
+func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.FetchRequest) ([]generate.TestValue, error) {
 	ctx, _ := thrift.NewContext(timeout)
 	fetched, err := client.Fetch(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return toDatapoints(fetched), nil
+	dp := toDatapoints(fetched)
+	return dp, nil
 }
 
 // tchannelClientTruncate fulfills a namespace truncation request using a tchannel client.
@@ -127,7 +128,7 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 				defer wg.Done()
 
 				if err := session.Write(
-					namespace, id, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
+					namespace, id, d.Timestamp, d.Value, xtime.Second, d.Annotation); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -144,7 +145,7 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 }
 
 // m3dbClientFetch fulfills a fetch request using an m3db client.
-func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoint, error) {
+func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]generate.TestValue, error) {
 	session, err := client.DefaultSession()
 	if err != nil {
 		return nil, err
@@ -161,10 +162,10 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 	}
 	defer iter.Close()
 
-	var datapoints []ts.Datapoint
+	var datapoints []generate.TestValue
 	for iter.Next() {
-		dp, _, _ := iter.Current()
-		datapoints = append(datapoints, dp)
+		dp, _, annotation := iter.Current()
+		datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: annotation})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err

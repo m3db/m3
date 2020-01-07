@@ -23,7 +23,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -34,18 +34,18 @@ func TestOptionsValidateDefaults(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockInit := namespace.NewMockInitializer(ctrl)
-	dbOpts := testDatabaseOptions().
+	dbOpts := DefaultTestOptions().
 		SetNamespaceInitializer(mockInit)
 	require.NoError(t, dbOpts.Validate())
 }
 
 func TestOptionsValidateNilRegistry(t *testing.T) {
-	dbOpts := testDatabaseOptions().
+	dbOpts := DefaultTestOptions().
 		SetNamespaceInitializer(nil)
 	require.Error(t, dbOpts.Validate())
 }
 
 func TestOptionsValidateIndexOptions(t *testing.T) {
-	opts := testDatabaseOptions().SetIndexOptions(nil)
+	opts := DefaultTestOptions().SetIndexOptions(nil)
 	require.Error(t, opts.Validate())
 }

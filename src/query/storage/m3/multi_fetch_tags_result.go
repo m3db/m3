@@ -24,23 +24,25 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3/src/query/block"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 const initSize = 10
 
 type multiSearchResult struct {
 	sync.Mutex
+	meta      block.ResultMetadata
+	err       xerrors.MultiError
 	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
 	dedupeMap map[string]MultiTagResult
-	err       xerrors.MultiError
 }
 
 // NewMultiFetchTagsResult builds a new multi fetch tags result
 func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
 		dedupeMap: make(map[string]MultiTagResult, initSize),
-		seenIters: make([]client.TaggedIDsIterator, 0, initSize),
+		meta:      block.NewResultMetadata(),
 	}
 }
 
@@ -58,13 +60,13 @@ func (r *multiSearchResult) Close() error {
 	return nil
 }
 
-func (r *multiSearchResult) FinalResult() ([]MultiTagResult, error) {
+func (r *multiSearchResult) FinalResult() (TagResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
 	err := r.err.FinalError()
 	if err != nil {
-		return nil, err
+		return TagResult{Metadata: r.meta}, err
 	}
 
 	result := make([]MultiTagResult, 0, len(r.dedupeMap))
@@ -72,11 +74,15 @@ func (r *multiSearchResult) FinalResult() ([]MultiTagResult, error) {
 		result = append(result, it)
 	}
 
-	return result, nil
+	return TagResult{
+		Tags:     result,
+		Metadata: r.meta,
+	}, nil
 }
 
 func (r *multiSearchResult) Add(
 	newIterator client.TaggedIDsIterator,
+	meta block.ResultMetadata,
 	err error,
 ) {
 	r.Lock()
@@ -85,6 +91,13 @@ func (r *multiSearchResult) Add(
 	if err != nil {
 		r.err = r.err.Add(err)
 		return
+	}
+
+	if r.seenIters == nil {
+		r.seenIters = make([]client.TaggedIDsIterator, 0, initSize)
+		r.meta = meta
+	} else {
+		r.meta = r.meta.CombineMetadata(meta)
 	}
 
 	r.seenIters = append(r.seenIters, newIterator)

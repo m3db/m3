@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -172,6 +172,9 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		log.Info("waiting for old snapshot files to be deleted")
 		for _, shard := range shardSet.All() {
 			waitUntil(func() bool {
+				// Increase the time each check to ensure that the filesystem processes are able to progress (some
+				// of them throttle themselves based on time elapsed since the previous time.)
+				testSetup.setNowFn(testSetup.getNowFn().Add(10 * time.Second))
 				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
 				require.NoError(t, err)
 				return !exists

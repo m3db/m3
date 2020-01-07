@@ -23,7 +23,7 @@ package id
 import (
 	"bytes"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // TagPair contains a tag name and a tag value.

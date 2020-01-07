@@ -23,12 +23,12 @@ import {Breadcrumb, Card, Tabs, Button, Modal, Input} from 'antd';
 import {Link} from 'react-router-dom';
 import _ from 'lodash';
 import {compose, withProps, withReducer} from 'recompose';
-import {connectR2API, withPromiseStateChangeCallback, withFilter} from 'hocs';
-import MappingRuleEditor from 'components/MappingRuleEditor';
-import MappingRulesTable from 'components/MappingRulesTable';
-import RollupRuleEditor from 'components/RollupRuleEditor';
-import RollupRulesTable from 'components/RollupRulesTable';
-import {getHelpText} from 'utils/helpText';
+import {connectR2API, withPromiseStateChangeCallback, withFilter} from '../hocs';
+import MappingRuleEditor from '../components/MappingRuleEditor';
+import MappingRulesTable from '../components/MappingRulesTable';
+import RollupRuleEditor from '../components/RollupRuleEditor';
+import RollupRulesTable from '../components/RollupRulesTable';
+import {getHelpText} from '../utils/helpText';
 
 const TabPane = Tabs.TabPane;
 

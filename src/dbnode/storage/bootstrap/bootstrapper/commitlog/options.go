@@ -22,6 +22,8 @@ package commitlog
 
 import (
 	"errors"
+	"math"
+	goruntime "runtime"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -29,22 +31,24 @@ import (
 )
 
 const (
-	defaultEncodingConcurrency                       = 4
-	defaultMergeShardConcurrency                     = 4
-	defaultReturnUnfulfilledForCorruptCommitLogFiles = true
+	// DefaultReturnUnfulfilledForCorruptCommitLogFiles is the default
+	// value for whether to return unfulfilled when encountering corrupt
+	// commit log files.
+	DefaultReturnUnfulfilledForCorruptCommitLogFiles = true
 )
 
 var (
-	errEncodingConcurrencyPositive   = errors.New("encoding concurrency must be positive")
-	errMergeShardConcurrencyPositive = errors.New("merge shard concurrency must be positive")
+	errAccumulateConcurrencyPositive = errors.New("accumulate concurrency must be positive")
 	errRuntimeOptsMgrNotSet          = errors.New("runtime options manager is not set")
+
+	// defaultAccumulateConcurrency determines how fast to accumulate results.
+	defaultAccumulateConcurrency = int(math.Max(float64(goruntime.NumCPU())*0.75, 1))
 )
 
 type options struct {
 	resultOpts                                result.Options
 	commitLogOpts                             commitlog.Options
-	encodingConcurrency                       int
-	mergeShardConcurrency                     int
+	accumulateConcurrency                     int
 	runtimeOptsMgr                            runtime.OptionsManager
 	returnUnfulfilledForCorruptCommitLogFiles bool
 }
@@ -52,20 +56,16 @@ type options struct {
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:                                result.NewOptions(),
-		commitLogOpts:                             commitlog.NewOptions(),
-		encodingConcurrency:                       defaultEncodingConcurrency,
-		mergeShardConcurrency:                     defaultMergeShardConcurrency,
-		returnUnfulfilledForCorruptCommitLogFiles: defaultReturnUnfulfilledForCorruptCommitLogFiles,
+		resultOpts:            result.NewOptions(),
+		commitLogOpts:         commitlog.NewOptions(),
+		accumulateConcurrency: defaultAccumulateConcurrency,
+		returnUnfulfilledForCorruptCommitLogFiles: DefaultReturnUnfulfilledForCorruptCommitLogFiles,
 	}
 }
 
 func (o *options) Validate() error {
-	if o.encodingConcurrency <= 0 {
-		return errEncodingConcurrencyPositive
-	}
-	if o.mergeShardConcurrency <= 0 {
-		return errMergeShardConcurrencyPositive
+	if o.accumulateConcurrency <= 0 {
+		return errAccumulateConcurrencyPositive
 	}
 	if o.runtimeOptsMgr == nil {
 		return errRuntimeOptsMgrNotSet
@@ -93,24 +93,14 @@ func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
 }
 
-func (o *options) SetEncodingConcurrency(value int) Options {
+func (o *options) SetAccumulateConcurrency(value int) Options {
 	opts := *o
-	opts.encodingConcurrency = value
+	opts.accumulateConcurrency = value
 	return &opts
 }
 
-func (o *options) EncodingConcurrency() int {
-	return o.encodingConcurrency
-}
-
-func (o *options) SetMergeShardsConcurrency(value int) Options {
-	opts := *o
-	opts.mergeShardConcurrency = value
-	return &opts
-}
-
-func (o *options) MergeShardsConcurrency() int {
-	return o.mergeShardConcurrency
+func (o *options) AccumulateConcurrency() int {
+	return o.accumulateConcurrency
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

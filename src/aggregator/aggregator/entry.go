@@ -23,6 +23,7 @@ package aggregator
 import (
 	"container/list"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,7 +38,7 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
 )
@@ -54,9 +55,10 @@ var (
 	errEmptyMetadatas              = errors.New("empty metadata list")
 	errNoApplicableMetadata        = errors.New("no applicable metadata")
 	errNoPipelinesInMetadata       = errors.New("no pipelines in metadata")
-	errTooFarInTheFuture           = errors.New("too far in the future")
-	errTooFarInThePast             = errors.New("too far in the past")
-	errArrivedTooLate              = errors.New("arrived too late")
+	errTooFarInTheFuture           = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
+	errTooFarInThePast             = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
+	errArrivedTooLate              = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
+	errTimestampFormat             = time.RFC822Z
 )
 
 type rateLimitEntryMetrics struct {
@@ -640,8 +642,8 @@ func (e *Entry) addTimed(
 
 	// Reject datapoints that arrive too late or too early.
 	if err := e.checkTimestampForTimedMetric(
+		metric,
 		currTime.UnixNano(),
-		metric.TimeNanos,
 		metadata.StoragePolicy.Resolution().Window,
 	); err != nil {
 		e.RUnlock()
@@ -691,19 +693,47 @@ func (e *Entry) addTimed(
 }
 
 func (e *Entry) checkTimestampForTimedMetric(
-	currNanos, metricTimeNanos int64,
+	metric aggregated.Metric,
+	currNanos int64,
 	resolution time.Duration,
 ) error {
+	metricTimeNanos := metric.TimeNanos
 	timedBufferFuture := e.opts.BufferForFutureTimedMetric()
 	if metricTimeNanos-currNanos > timedBufferFuture.Nanoseconds() {
 		e.metrics.timed.tooFarInTheFuture.Inc(1)
-		return errTooFarInTheFuture
+		if !e.opts.VerboseErrors() {
+			// Don't return verbose errors if not enabled.
+			return errTooFarInTheFuture
+		}
+		timestamp := time.Unix(0, metricTimeNanos)
+		futureLimit := time.Unix(0, currNanos+timedBufferFuture.Nanoseconds())
+		err := fmt.Errorf("datapoint for aggregation too far in future: "+
+			"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
+			"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
+			metric.ID, timestamp.Sub(futureLimit).String(),
+			timestamp.Format(errTimestampFormat),
+			futureLimit.Format(errTimestampFormat),
+			timestamp.UnixNano(), futureLimit.UnixNano())
+		return xerrors.NewRenamedError(errTooFarInTheFuture, err)
 	}
 	bufferPastFn := e.opts.BufferForPastTimedMetricFn()
 	timedBufferPast := bufferPastFn(resolution)
 	if currNanos-metricTimeNanos > timedBufferPast.Nanoseconds() {
 		e.metrics.timed.tooFarInThePast.Inc(1)
-		return errTooFarInThePast
+		if !e.opts.VerboseErrors() {
+			// Don't return verbose errors if not enabled.
+			return errTooFarInThePast
+		}
+		timestamp := time.Unix(0, metricTimeNanos)
+		pastLimit := time.Unix(0, currNanos-timedBufferPast.Nanoseconds())
+		err := fmt.Errorf("datapoint for aggregation too far in past: "+
+			"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
+			"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
+			metric.ID, pastLimit.Sub(timestamp).String(),
+			timestamp.Format(errTimestampFormat),
+			pastLimit.Format(errTimestampFormat),
+			timestamp.UnixNano(), pastLimit.UnixNano())
+		return xerrors.NewRenamedError(errTooFarInThePast, err)
 	}
 	return nil
 }
@@ -769,8 +799,8 @@ func (e *Entry) addForwarded(
 
 	// Reject datapoints that arrive too late.
 	if err := e.checkLatenessForForwardedMetric(
+		metric,
 		currTime.UnixNano(),
-		metric.TimeNanos,
 		metadata.StoragePolicy.Resolution().Window,
 		metadata.NumForwardedTimes,
 	); err != nil {
@@ -823,17 +853,35 @@ func (e *Entry) addForwarded(
 }
 
 func (e *Entry) checkLatenessForForwardedMetric(
-	currNanos, metricTimeNanos int64,
+	metric aggregated.ForwardedMetric,
+	currNanos int64,
 	resolution time.Duration,
 	numForwardedTimes int,
 ) error {
+	metricTimeNanos := metric.TimeNanos
 	maxAllowedForwardingDelayFn := e.opts.MaxAllowedForwardingDelayFn()
 	maxLatenessAllowed := maxAllowedForwardingDelayFn(resolution, numForwardedTimes)
 	if currNanos-metricTimeNanos <= maxLatenessAllowed.Nanoseconds() {
 		return nil
 	}
+
 	e.metrics.forwarded.arrivedTooLate.Inc(1)
-	return errArrivedTooLate
+
+	if !e.opts.VerboseErrors() {
+		// Don't return verbose errors if not enabled.
+		return errArrivedTooLate
+	}
+
+	timestamp := time.Unix(0, metricTimeNanos)
+	pastLimit := time.Unix(0, currNanos-maxLatenessAllowed.Nanoseconds())
+	err := fmt.Errorf("datapoint for aggregation forwarded too late: "+
+		"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
+		"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
+		metric.ID, maxLatenessAllowed.String(),
+		timestamp.Format(errTimestampFormat),
+		pastLimit.Format(errTimestampFormat),
+		timestamp.UnixNano(), pastLimit.UnixNano())
+	return xerrors.NewRenamedError(errArrivedTooLate, err)
 }
 
 func (e *Entry) updateForwardMetadataWithLock(

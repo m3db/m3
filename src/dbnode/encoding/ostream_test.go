@@ -23,7 +23,7 @@ package encoding
 import (
 	"testing"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -86,9 +86,9 @@ func testWriteBytes(t *testing.T, o OStream) {
 
 	require.Equal(t, rawBytes, os.rawBuffer)
 
-	b, _ := os.Rawbytes()
+	b, pos := os.Rawbytes()
 	require.Equal(t, rawBytes, b)
-
+	require.Equal(t, 8, pos)
 	require.Equal(t, 8, os.pos)
 }
 

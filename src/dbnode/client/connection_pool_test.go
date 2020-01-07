@@ -29,10 +29,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xclose "github.com/m3db/m3x/close"
+	xclock "github.com/m3db/m3/src/x/clock"
+	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -117,37 +118,37 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	assert.Equal(t, 0, conns.ConnectionCount())
+	require.Equal(t, 0, conns.ConnectionCount())
 
 	conns.Open()
 
 	// Wait for first round, should've created all conns except first
 	sleepWgs[0].Wait()
-	assert.Equal(t, 3, conns.ConnectionCount())
+	require.Equal(t, 3, conns.ConnectionCount())
 	proceedSleepWgs[0].Done()
 
 	// Wait for second round, all attempts should succeed but all fail health checks
 	sleepWgs[1].Wait()
-	assert.Equal(t, 3, conns.ConnectionCount())
+	require.Equal(t, 3, conns.ConnectionCount())
 	proceedSleepWgs[1].Done()
 
 	// Wait for third round, now should succeed and all connections accounted for
 	sleepWgs[2].Wait()
-	assert.Equal(t, 4, conns.ConnectionCount())
+	require.Equal(t, 4, conns.ConnectionCount())
 	doneAll := attempts
 	proceedSleepWgs[2].Done()
 
 	// Wait for fourth roundm, now should not involve attempting to spawn connections
 	sleepWgs[3].Wait()
 	// Ensure no more attempts done in fnal round
-	assert.Equal(t, doneAll, attempts)
+	require.Equal(t, doneAll, attempts)
 
 	conns.Close()
 	doneWg.Done()
 
 	nextClient, err := conns.NextClient()
-	assert.Nil(t, nextClient)
-	assert.Equal(t, errConnectionPoolClosed, err)
+	require.Nil(t, nextClient)
+	require.Equal(t, errConnectionPoolClosed, err)
 }
 
 func TestConnectionPoolHealthChecks(t *testing.T) {
@@ -268,10 +269,10 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	}
 	conns.sleepHealthRetry = func(d time.Duration) {
 		expected := healthCheckFailThrottleFactor * float64(opts.HostConnectTimeout())
-		assert.Equal(t, time.Duration(expected), d)
+		require.Equal(t, time.Duration(expected), d)
 	}
 
-	assert.Equal(t, 0, conns.ConnectionCount())
+	require.Equal(t, 0, conns.ConnectionCount())
 
 	conns.Open()
 
@@ -280,7 +281,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	assert.Equal(t, 2, conns.ConnectionCount())
+	require.Equal(t, 2, conns.ConnectionCount())
 
 	// Fail client1 health check
 	pushOnNextSleepHealth(func() {
@@ -291,11 +292,15 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	failsDoneWg[0].Wait()
 
 	// Verify only 1 connection and its client2
-	assert.Equal(t, 1, conns.ConnectionCount())
+	xclock.WaitUntil(func() bool {
+		// Need WaitUntil() because there is a delay between the health check failing
+		// and the connection actually being removed.
+		return conns.ConnectionCount() == 1
+	}, 5*time.Second)
 	for i := 0; i < 2; i++ {
 		nextClient, err := conns.NextClient()
-		assert.NoError(t, err)
-		assert.Equal(t, client2, nextClient)
+		require.NoError(t, err)
+		require.Equal(t, client2, nextClient)
 	}
 
 	// Fail client2 health check
@@ -305,16 +310,20 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	// Wait for health check round to take action
 	failsDoneWg[1].Wait()
-	assert.Equal(t, 0, conns.ConnectionCount())
+	xclock.WaitUntil(func() bool {
+		// Need WaitUntil() because there is a delay between the health check failing
+		// and the connection actually being removed.
+		return conns.ConnectionCount() == 0
+	}, 5*time.Second)
 	nextClient, err := conns.NextClient()
-	assert.Nil(t, nextClient)
-	assert.Equal(t, errConnectionPoolHasNoConnections, err)
+	require.Nil(t, nextClient)
+	require.Equal(t, errConnectionPoolHasNoConnections, err)
 
 	conns.Close()
 
 	nextClient, err = conns.NextClient()
-	assert.Nil(t, nextClient)
-	assert.Equal(t, errConnectionPoolClosed, err)
+	require.Nil(t, nextClient)
+	require.Equal(t, errConnectionPoolClosed, err)
 }
 
 type nullChannel struct{}

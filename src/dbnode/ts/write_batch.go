@@ -21,15 +21,24 @@
 package ts
 
 import (
+	"errors"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
+)
+
+var (
+	errTagsAndEncodedTagsRequired = errors.New("tags iterator and encoded tags must be provided")
 )
 
 type writeBatch struct {
 	writes []BatchWrite
 	ns     ident.ID
+	// Enables callers to pool encoded tags by allowing them to
+	// provide a function to finalize all encoded tags once the
+	// writeBatch itself gets finalized.
+	finalizeEncodedTagsFn FinalizeEncodedTagsFn
 	// Enables callers to pool annotations by allowing them to
 	// provide a function to finalize all annotations once the
 	// writeBatch itself gets finalized.
@@ -57,24 +66,33 @@ func (b *writeBatch) Add(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) {
-	write := newBatchWriterWrite(
-		originalIndex, b.ns, id, nil, timestamp, value, unit, annotation)
+) error {
+	write, err := newBatchWriterWrite(
+		originalIndex, b.ns, id, nil, nil, timestamp, value, unit, annotation)
+	if err != nil {
+		return err
+	}
 	b.writes = append(b.writes, write)
+	return nil
 }
 
 func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
 	tagIter ident.TagIterator,
+	encodedTags EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) {
-	write := newBatchWriterWrite(
-		originalIndex, b.ns, id, tagIter, timestamp, value, unit, annotation)
+) error {
+	write, err := newBatchWriterWrite(
+		originalIndex, b.ns, id, tagIter, encodedTags, timestamp, value, unit, annotation)
+	if err != nil {
+		return err
+	}
 	b.writes = append(b.writes, write)
+	return nil
 }
 
 func (b *writeBatch) Reset(
@@ -90,6 +108,7 @@ func (b *writeBatch) Reset(
 
 	b.writes = writes
 	b.ns = ns
+	b.finalizeEncodedTagsFn = nil
 	b.finalizeAnnotationFn = nil
 }
 
@@ -100,6 +119,8 @@ func (b *writeBatch) Iter() []BatchWrite {
 func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
 	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
+	// Make sure that the EncodedTags does not get clobbered
+	b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags
 	b.writes[idx].Err = err
 }
 
@@ -109,11 +130,29 @@ func (b *writeBatch) SetSkipWrite(idx int) {
 
 // Set the function that will be called to finalize annotations when a WriteBatch
 // is finalized, allowing the caller to pool them.
+func (b *writeBatch) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
+	b.finalizeEncodedTagsFn = f
+}
+
+// Set the function that will be called to finalize annotations when a WriteBatch
+// is finalized, allowing the caller to pool them.
 func (b *writeBatch) SetFinalizeAnnotationFn(f FinalizeAnnotationFn) {
 	b.finalizeAnnotationFn = f
 }
 
 func (b *writeBatch) Finalize() {
+	if b.finalizeEncodedTagsFn != nil {
+		for _, write := range b.writes {
+			encodedTags := write.EncodedTags
+			if encodedTags == nil {
+				continue
+			}
+
+			b.finalizeEncodedTagsFn(encodedTags)
+		}
+	}
+	b.finalizeEncodedTagsFn = nil
+
 	if b.finalizeAnnotationFn != nil {
 		for _, write := range b.writes {
 			annotation := write.Write.Annotation
@@ -146,17 +185,24 @@ func newBatchWriterWrite(
 	originalIndex int,
 	namespace ident.ID,
 	id ident.ID,
-	tagsIter ident.TagIterator,
+	tagIter ident.TagIterator,
+	encodedTags EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) BatchWrite {
+) (BatchWrite, error) {
+	write := tagIter == nil && encodedTags == nil
+	writeTagged := tagIter != nil && encodedTags != nil
+	if !write && !writeTagged {
+		return BatchWrite{}, errTagsAndEncodedTagsRequired
+	}
 	return BatchWrite{
 		Write: Write{
 			Series: Series{
-				ID:        id,
-				Namespace: namespace,
+				ID:          id,
+				EncodedTags: encodedTags,
+				Namespace:   namespace,
 			},
 			Datapoint: Datapoint{
 				Timestamp: timestamp,
@@ -165,7 +211,8 @@ func newBatchWriterWrite(
 			Unit:       unit,
 			Annotation: annotation,
 		},
-		TagIter:       tagsIter,
+		TagIter:       tagIter,
+		EncodedTags:   encodedTags,
 		OriginalIndex: originalIndex,
-	}
+	}, nil
 }

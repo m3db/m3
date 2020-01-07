@@ -27,11 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -44,6 +45,7 @@ var (
 type dbBlock struct {
 	sync.RWMutex
 
+	nsCtx          namespace.Context
 	opts           Options
 	startUnixNanos int64
 	segment        ts.Segment
@@ -83,8 +85,10 @@ func NewDatabaseBlock(
 	blockSize time.Duration,
 	segment ts.Segment,
 	opts Options,
+	nsCtx namespace.Context,
 ) DatabaseBlock {
 	b := &dbBlock{
+		nsCtx:          nsCtx,
 		opts:           opts,
 		startUnixNanos: start.UnixNano(),
 		blockSize:      blockSize,
@@ -251,20 +255,22 @@ func (b *dbBlock) Merge(other DatabaseBlock) error {
 	return nil
 }
 
-func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment) {
+func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
 	b.resetSegmentWithLock(segment)
+	b.nsCtx = nsCtx
 }
 
-func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID) {
+func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID, nsCtx namespace.Context) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
 	// resetSegmentWithLock sets seriesID to nil
 	b.resetSegmentWithLock(segment)
 	b.seriesID = id
+	b.nsCtx = nsCtx
 	b.wasRetrievedFromDisk = true
 }
 
@@ -300,7 +306,7 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 		return err
 	}
 	start := b.startWithRLock()
-	mergedBlockReader := newDatabaseMergedBlockReader(start, b.blockSize,
+	mergedBlockReader := newDatabaseMergedBlockReader(b.nsCtx, start, b.blockSize,
 		mergeableStream{stream: stream, finalize: false},       // Should have been marked for finalization by the caller
 		mergeableStream{stream: targetStream, finalize: false}, // Already marked for finalization by the Stream() call above
 		b.opts)

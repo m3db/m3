@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
@@ -33,6 +33,12 @@ var (
 
 	// ErrTooPast is returned for a write which is too far in the past.
 	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
+
+	// ErrColdWritesNotEnabled is returned when cold writes are disabled
+	// and a write is too far in the past or future. Note, the error intentionally
+	// excludes anything regarding the cold writes feature until its release.
+	ErrColdWritesNotEnabled = xerrors.NewInvalidParamsError(errors.New(
+		"datapoint is too far in the past or future"))
 )
 
 // NewUnknownNamespaceError returns a new error indicating an unknown namespace parameter.

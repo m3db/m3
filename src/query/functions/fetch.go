@@ -30,7 +30,8 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/query/util/opentracing"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/opentracing"
 
 	"go.uber.org/zap"
 )
@@ -47,23 +48,25 @@ type FetchOp struct {
 	Matchers models.Matchers
 }
 
-// FetchNode is the execution node
+// FetchNode is a fetch execution node.
 // TODO: Make FetchNode private
 type FetchNode struct {
-	debug      bool
-	blockType  models.FetchedBlockType
-	op         FetchOp
-	controller *transform.Controller
-	storage    storage.Storage
-	timespec   transform.TimeSpec
+	debug          bool
+	blockType      models.FetchedBlockType
+	op             FetchOp
+	controller     *transform.Controller
+	storage        storage.Storage
+	timespec       transform.TimeSpec
+	fetchOpts      *storage.FetchOptions
+	instrumentOpts instrument.Options
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o FetchOp) OpType() string {
 	return FetchType
 }
 
-// Bounds returns the bounds for the spec
+// Bounds returns the bounds for this operation.
 func (o FetchOp) Bounds() transform.BoundSpec {
 	return transform.BoundSpec{
 		Range:  o.Range,
@@ -71,41 +74,50 @@ func (o FetchOp) Bounds() transform.BoundSpec {
 	}
 }
 
-// String representation
+// String is the string representation for this operation.
 func (o FetchOp) String() string {
-	return fmt.Sprintf("type: %s. name: %s, range: %v, offset: %v, matchers: %v", o.OpType(), o.Name, o.Range, o.Offset, o.Matchers)
+	return fmt.Sprintf("type: %s. name: %s, range: %v, offset: %v, matchers: %v",
+		o.OpType(), o.Name, o.Range, o.Offset, o.Matchers)
 }
 
-// Node creates an execution node
-func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
+// Node creates the fetch execution node for this operation.
+func (o FetchOp) Node(
+	controller *transform.Controller,
+	storage storage.Storage,
+	options transform.Options,
+) parser.Source {
 	return &FetchNode{
-		op:         o,
-		controller: controller,
-		storage:    storage,
-		timespec:   options.TimeSpec,
-		debug:      options.Debug,
-		blockType:  options.BlockType,
+		op:             o,
+		controller:     controller,
+		storage:        storage,
+		fetchOpts:      options.FetchOptions(),
+		timespec:       options.TimeSpec(),
+		debug:          options.Debug(),
+		blockType:      options.BlockType(),
+		instrumentOpts: options.InstrumentOptions(),
 	}
 }
 
 func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	ctx := queryCtx.Ctx
-	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "fetch")
+	sp, ctx := opentracing.StartSpanFromContext(ctx, "fetch")
 	defer sp.Finish()
 
 	timeSpec := n.timespec
-	// No need to adjust start and ends since physical plan already considers the offset, range
+	// No need to adjust start and ends since physical plan
+	// already considers the offset, range
 	startTime := timeSpec.Start
 	endTime := timeSpec.End
 
-	opts := storage.NewFetchOptions()
-	opts.BlockType = n.blockType
-	opts.Scope = queryCtx.Scope
-	opts.Enforcer = queryCtx.Enforcer
+	opts, err := n.fetchOpts.QueryFetchOptions(queryCtx, n.blockType)
+	if err != nil {
+		return block.Result{}, err
+	}
 
+	offset := n.op.Offset
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
-		Start:       startTime,
-		End:         endTime,
+		Start:       startTime.Add(-1 * offset),
+		End:         endTime.Add(-1 * offset),
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
 	}, opts)
@@ -124,7 +136,8 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 			// Ignore any errors
 			iter, _ := block.StepIter()
 			if iter != nil {
-				logging.WithContext(ctx).Info("fetch node", zap.Any("meta", iter.Meta()))
+				logging.WithContext(ctx, n.instrumentOpts).
+					Info("fetch node", zap.Any("meta", block.Meta()))
 			}
 		}
 

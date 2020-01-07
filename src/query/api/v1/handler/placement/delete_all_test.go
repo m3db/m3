@@ -26,7 +26,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -38,19 +41,22 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	runForAllAllowedServices(func(serviceName string) {
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
-			handler = NewDeleteAllHandler(handlerOpts)
-		)
+		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+		handlerOpts, err := NewHandlerOptions(
+			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+		require.NoError(t, err)
+		handler := NewDeleteAllHandler(handlerOpts)
+
+		svcDefaults := handleroptions.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
 
 		// Test delete success
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().Delete()
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -60,9 +66,19 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
 		mockPlacementService.EXPECT().Delete().Return(errors.New("error"))
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+		// Test delete not found error
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Delete().Return(kv.ErrNotFound)
+		handler.ServeHTTP(svcDefaults, w, req)
+
+		resp = w.Result()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }

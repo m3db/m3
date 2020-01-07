@@ -33,10 +33,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -53,8 +54,8 @@ func TestGenerator(t *testing.T) {
 		SetBlockSize(time.Hour).
 		SetWriteEmptyShards(false)
 
-	logger := xlog.NewLogger(os.Stderr)
-	iopts := instrument.NewOptions().SetLogger(logger)
+	rawLogger := xtest.NewLogger(t)
+	iopts := instrument.NewOptions().SetLogger(rawLogger)
 
 	opts := NewOptions().
 		SetInstrumentOptions(iopts).
@@ -69,7 +70,7 @@ func TestGenerator(t *testing.T) {
 	defer ctrl.Finish()
 
 	shard := uint32(123)
-	require.NoError(t, generator.Generate(ident.StringID("testmetrics"), shard))
+	require.NoError(t, generator.Generate(namespace.Context{ID: ident.StringID("testmetrics")}, shard))
 
 	te := newFileInfoExtractor()
 	require.NoError(t, filepath.Walk(dir, te.visit))
@@ -127,18 +128,12 @@ func (t *fileInfoExtractor) visit(fPath string, f os.FileInfo, err error) error 
 	t.shards[uint32(shardNum)] = struct{}{}
 
 	name := f.Name()
-	first := strings.Index(name, "-")
-	if first == -1 {
-		return fmt.Errorf("unable to find '-' in %v", name)
+	nameSplit := strings.Split(name, "-")
+	if len(nameSplit) < 2 {
+		return fmt.Errorf("unable to parse time from %v", name)
 	}
-	last := strings.LastIndex(name, "-")
-	if last == -1 {
-		return fmt.Errorf("unable to find '-' in %v", name)
-	}
-	if first == last {
-		return fmt.Errorf("found only single '-' in %v", name)
-	}
-	num, parseErr := strconv.ParseInt(name[first+1:last], 10, 64)
+
+	num, parseErr := strconv.ParseInt(nameSplit[1], 10, 64)
 	if parseErr != nil {
 		return err
 	}

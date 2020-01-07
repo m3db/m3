@@ -35,7 +35,7 @@ import (
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/willf/bitset"
 )

@@ -32,6 +32,20 @@ import (
 	"github.com/leanovate/gopter/gen"
 )
 
+// GenAllQuery generates an all query.
+func GenAllQuery(docs []doc.Document) gopter.Gen {
+	return gen.Const(query.NewAllQuery())
+}
+
+// GenFieldQuery generates a field query.
+func GenFieldQuery(docs []doc.Document) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		fieldName, _ := fieldNameAndValue(genParams, docs)
+		q := query.NewFieldQuery(fieldName)
+		return gopter.NewGenResult(q, gopter.NoShrinker)
+	}
+}
+
 // GenTermQuery generates a term query.
 func GenTermQuery(docs []doc.Document) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
@@ -125,6 +139,7 @@ func GenRegexpQuery(docs []doc.Document) gopter.Gen {
 // GenNegationQuery generates a negation query.
 func GenNegationQuery(docs []doc.Document) gopter.Gen {
 	return gen.OneGenOf(
+		GenFieldQuery(docs),
 		GenTermQuery(docs),
 		GenRegexpQuery(docs),
 	).
@@ -137,6 +152,7 @@ func GenNegationQuery(docs []doc.Document) gopter.Gen {
 func GenConjunctionQuery(docs []doc.Document) gopter.Gen {
 	return gen.SliceOf(
 		gen.OneGenOf(
+			GenFieldQuery(docs),
 			GenTermQuery(docs),
 			GenRegexpQuery(docs),
 			GenNegationQuery(docs)),
@@ -150,6 +166,7 @@ func GenConjunctionQuery(docs []doc.Document) gopter.Gen {
 func GenDisjunctionQuery(docs []doc.Document) gopter.Gen {
 	return gen.SliceOf(
 		gen.OneGenOf(
+			GenFieldQuery(docs),
 			GenTermQuery(docs),
 			GenRegexpQuery(docs),
 			GenNegationQuery(docs)),
@@ -162,11 +179,11 @@ func GenDisjunctionQuery(docs []doc.Document) gopter.Gen {
 // GenQuery generates a query.
 func GenQuery(docs []doc.Document) gopter.Gen {
 	return gen.OneGenOf(
+		GenAllQuery(docs),
+		GenFieldQuery(docs),
 		GenTermQuery(docs),
 		GenRegexpQuery(docs),
 		GenNegationQuery(docs),
 		GenConjunctionQuery(docs),
 		GenDisjunctionQuery(docs))
 }
-
-// Ge

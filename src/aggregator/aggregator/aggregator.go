@@ -39,10 +39,12 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -113,6 +115,7 @@ type aggregator struct {
 	sleepFn             sleepFn
 	shardsPendingClose  int32
 	metrics             aggregatorMetrics
+	logger              *zap.Logger
 }
 
 // NewAggregator creates a new aggregator.
@@ -133,9 +136,10 @@ func NewAggregator(opts Options) Aggregator {
 		flushHandler:      opts.FlushHandler(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
-		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
 		doneCh:            make(chan struct{}),
 		sleepFn:           time.Sleep,
+		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
+		logger:            iOpts.Logger(),
 	}
 }
 
@@ -317,14 +321,30 @@ func (agg *aggregator) processPlacementWithLock(
 	if err == nil {
 		newShardSet = instance.Shards()
 	} else if err == ErrInstanceNotFoundInPlacement {
+		// NB(r): Without this log message it's hard for operators to debug
+		// logs about receiving metrics that the aggregator does not own.
+		placementInstances := newPlacement.Instances()
+		placementInstanceIDs := make([]string, 0, len(placementInstances))
+		for _, instance := range placementInstances {
+			placementInstanceIDs = append(placementInstanceIDs, instance.ID())
+		}
+
+		msg := "aggregator instance ID must appear in placement: " +
+			"no shards assigned since not found with current instance ID"
+		agg.logger.Error(msg,
+			zap.String("currInstanceID", agg.placementManager.InstanceID()),
+			zap.Strings("placementInstanceIDs", placementInstanceIDs))
+
 		newShardSet = shard.NewShards(nil)
 	} else {
 		return err
 	}
+
 	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
 	if err := agg.updateShardSetIDWithLock(instance); err != nil {
 		return err
 	}
+
 	agg.metrics.placement.updated.Inc(1)
 	return nil
 }
@@ -706,10 +726,12 @@ func newAggregatorAddTimedMetrics(
 }
 
 func (m *aggregatorAddTimedMetrics) ReportError(err error) {
-	switch err {
-	case errTooFarInTheFuture:
+	switch {
+	case err == errTooFarInTheFuture ||
+		xerrors.InnerError(err) == errTooFarInTheFuture:
 		m.tooFarInTheFuture.Inc(1)
-	case errTooFarInThePast:
+	case err == errTooFarInThePast ||
+		xerrors.InnerError(err) == errTooFarInThePast:
 		m.tooFarInThePast.Inc(1)
 	default:
 		m.aggregatorAddMetricMetrics.ReportError(err)
@@ -736,8 +758,8 @@ func newAggregatorAddForwardedMetrics(
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
 	return aggregatorAddForwardedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		scope: scope,
+		aggregatorAddMetricMetrics:  newAggregatorAddMetricMetrics(scope, samplingRate),
+		scope:                       scope,
 		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
 		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
 	}

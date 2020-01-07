@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type seriesIterator struct {
@@ -146,6 +146,10 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 
 	for _, replica := range opts.Replicas {
 		if !replica.Next() || !it.iters.push(replica) {
+			if replica.Err() != nil {
+				it.err = replica.Err()
+			}
+
 			replica.Close()
 			continue
 		}

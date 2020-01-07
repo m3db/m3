@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,6 +38,77 @@ const (
 var (
 	errDurationType = errors.New("invalid duration type")
 )
+
+// NanosToDurationBytes transforms a json byte slice with Nano keys into Duration keys.
+func NanosToDurationBytes(r io.Reader) (map[string]interface{}, error) {
+	var dict map[string]interface{}
+	d := json.NewDecoder(r)
+	d.UseNumber()
+	if err := d.Decode(&dict); err != nil {
+		return nil, fmt.Errorf("error decoding JSON: %s", err.Error())
+	}
+
+	ret, err := NanosToDurationMap(dict)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+// NanosToDurationMap transforms keys with Nanos into Duration.
+func NanosToDurationMap(input map[string]interface{}) (map[string]interface{}, error) {
+	dictTranslated := make(map[string]interface{}, len(input))
+
+	for k, v := range input {
+		if strings.HasSuffix(k, nanosSuffix) {
+			newKey := strings.Replace(k, nanosSuffix, durationSuffix, 1)
+
+			switch vv := v.(type) {
+			case string:
+				i, err := strconv.ParseInt(vv, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+
+				dur := time.Duration(i) * time.Nanosecond
+				dictTranslated[newKey] = dur.String()
+			case json.Number:
+				// json.Number when using a json decoder with UseNumber()
+				// Assume given number is in nanos
+				vvNum, err := vv.Int64()
+				if err != nil {
+					return nil, err
+				}
+
+				dur := time.Duration(vvNum) * time.Nanosecond
+				dictTranslated[newKey] = dur.String()
+			case float64:
+				// float64 when unmarshaling without UseNumber()
+				// Assume given number is in nanos
+				dur := time.Duration(int64(vv)) * time.Nanosecond
+				dictTranslated[newKey] = dur.String()
+			default:
+				// Has Nano suffix, but is not string or number.
+				return nil, errDurationType
+			}
+		} else {
+			switch vv := v.(type) {
+			case map[string]interface{}:
+				durMap, err := NanosToDurationMap(vv)
+				if err != nil {
+					return nil, err
+				}
+
+				dictTranslated[k] = durMap
+			default:
+				dictTranslated[k] = vv
+			}
+		}
+	}
+
+	return dictTranslated, nil
+}
 
 // DurationToNanosBytes transforms a json byte slice with Duration keys into Nanos
 func DurationToNanosBytes(r io.Reader) ([]byte, error) {

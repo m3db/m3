@@ -27,7 +27,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 // Options describes the options for encoded block converters.
@@ -64,7 +65,14 @@ type Options interface {
 	SetCheckedBytesPool(pool.CheckedBytesPool) Options
 	// CheckedBytesPool returns the checked bytes pools for the converter.
 	CheckedBytesPool() pool.CheckedBytesPool
-
+	// SetReadWorkerPool sets the read worker pool for the converter.
+	SetReadWorkerPool(xsync.PooledWorkerPool) Options
+	// ReadWorkerPool returns the read worker pool for the converter.
+	ReadWorkerPool() xsync.PooledWorkerPool
+	// SetReadWorkerPool sets the write worker pool for the converter.
+	SetWriteWorkerPool(xsync.PooledWorkerPool) Options
+	// ReadWorkerPool returns the write worker pool for the converter.
+	WriteWorkerPool() xsync.PooledWorkerPool
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }

@@ -22,14 +22,17 @@
 
 package xos
 
-import "errors"
+import (
+	"errors"
+)
 
 const (
 	nonLinuxWarning = "unable to determine process limits on non-linux os"
 )
 
 var (
-	errUnableToDetermineProcessLimits = errors.New(nonLinuxWarning)
+	errUnableToDetermineProcessLimits     = errors.New(nonLinuxWarning)
+	errUnableToRaiseProcessNoFileNonLinux = errors.New("unable to raise no file limits on non-linux os")
 )
 
 // CanGetProcessLimits returns a boolean to signify if it can return limits,
@@ -41,4 +44,10 @@ func CanGetProcessLimits() (bool, string) {
 // GetProcessLimits returns the known process limits.
 func GetProcessLimits() (ProcessLimits, error) {
 	return ProcessLimits{}, errUnableToDetermineProcessLimits
+}
+
+// RaiseProcessNoFileToNROpen attempts to raise the process num files
+// open limit to the nr_open system value.
+func RaiseProcessNoFileToNROpen() (RaiseProcessNoFileToNROpenResult, error) {
+	return RaiseProcessNoFileToNROpenResult{}, errUnableToRaiseProcessNoFileNonLinux
 }

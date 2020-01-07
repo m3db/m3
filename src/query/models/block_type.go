@@ -24,20 +24,16 @@ import (
 	"fmt"
 )
 
-var (
-	validBlockTypes = []FetchedBlockType{
-		TypeSingleBlock,
-		TypeMultiBlock,
-		TypeDecodedBlock,
-	}
-)
-
 // Validate validates the fetched block type.
 func (t FetchedBlockType) Validate() error {
-	if t >= TypeSingleBlock && t <= TypeDecodedBlock {
+	switch t {
+	case TypeSingleBlock:
 		return nil
+	case TypeMultiBlock:
+		return ErrMultiBlockDisabled
+	case TypeDecodedBlock:
+		return ErrDecodedBlockDeprecated
+	default:
+		return fmt.Errorf(`invalid fetched block type "%v"`, t)
 	}
-
-	return fmt.Errorf("invalid fetched block type '%v': should be one of %v",
-		t, validBlockTypes)
 }

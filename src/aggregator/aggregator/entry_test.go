@@ -38,9 +38,10 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -245,7 +246,7 @@ func TestEntryResetSetData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, lists, now := testEntry(ctrl)
+	e, lists, now := testEntry(ctrl, testEntryOptions{})
 
 	require.False(t, e.closed)
 	require.Nil(t, e.rateLimiter)
@@ -265,7 +266,7 @@ func TestEntryBatchTimerRateLimiting(t *testing.T) {
 		ID:            testBatchTimerID,
 		BatchTimerVal: make([]float64, 1000),
 	}
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
@@ -296,7 +297,7 @@ func TestEntryCounterRateLimiting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
@@ -344,7 +345,7 @@ func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
 		BatchTimerVal: input,
 		TimerValPool:  timerValPool,
 	}
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	require.NoError(t, e.AddUntimed(bt, testDefaultStagedMetadatas))
 
 	// Assert the timer values have been returned to pool.
@@ -356,7 +357,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 	*now = time.Unix(105, 0)
 	e.opts = e.opts.
 		SetMaxTimerBatchSizePerWrite(2).
@@ -384,7 +385,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimitError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	e.opts = e.opts.SetMaxTimerBatchSizePerWrite(2)
 	e.closed = true
 
@@ -400,7 +401,7 @@ func TestEntryAddUntimedEmptyMetadatasError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	inputMetadatas := metadata.StagedMetadatas{}
 	require.Equal(t, errEmptyMetadatas, e.AddUntimed(testCounter, inputMetadatas))
 }
@@ -417,7 +418,7 @@ func TestEntryAddUntimedFutureMetadata(t *testing.T) {
 			Metadata:     metadata.Metadata{Pipelines: testPipelines},
 		},
 	}
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 	*now = time.Unix(0, nowNanos)
 	require.Equal(t, errNoApplicableMetadata, e.AddUntimed(testCounter, inputMetadatas))
 }
@@ -433,7 +434,7 @@ func TestEntryAddUntimedNoPipelinesInMetadata(t *testing.T) {
 			Tombstoned:   false,
 		},
 	}
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 	*now = time.Unix(0, nowNanos)
 	require.Equal(t, errNoPipelinesInMetadata, e.AddUntimed(testCounter, inputMetadatas))
 }
@@ -442,7 +443,7 @@ func TestEntryAddUntimedInvalidMetricError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	require.Error(t, e.AddUntimed(testInvalidMetric, metadata.DefaultStagedMetadatas))
 }
 
@@ -450,7 +451,7 @@ func TestEntryAddUntimedClosedEntryError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	e.closed = true
 	require.Equal(t, errEntryClosed, e.AddUntimed(testCounter, metadata.DefaultStagedMetadatas))
 }
@@ -459,7 +460,7 @@ func TestEntryAddUntimedClosedListError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, lists, _ := testEntry(ctrl)
+	e, lists, _ := testEntry(ctrl, testEntryOptions{})
 	e.closed = false
 	lists.closed = true
 	require.Error(t, e.AddUntimed(testCounter, metadata.DefaultStagedMetadatas))
@@ -978,7 +979,7 @@ func TestEntryAddUntimedWithInvalidAggregationType(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		e, _, _ := testEntry(ctrl)
+		e, _, _ := testEntry(ctrl, testEntryOptions{})
 		metadatas := metadata.StagedMetadatas{
 			{
 				Metadata: metadata.Metadata{
@@ -1010,7 +1011,7 @@ func TestEntryAddUntimedWithInvalidPipeline(t *testing.T) {
 			},
 		}),
 	}
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	metadatas := metadata.StagedMetadatas{
 		{Metadata: metadata.Metadata{Pipelines: []metadata.PipelineMetadata{invalidPipeline}}},
 	}
@@ -1152,7 +1153,7 @@ func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		e, _, _ := testEntry(ctrl)
+		e, _, _ := testEntry(ctrl, testEntryOptions{})
 		e.cutoverNanos = input.cutoverNanos
 		populateTestUntimedAggregations(t, e, input.aggregationKeys, metric.CounterType)
 		e.Lock()
@@ -1187,7 +1188,7 @@ func TestEntryStoragePolicies(t *testing.T) {
 		},
 	}
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	for _, input := range inputs {
 		require.Equal(t, input.expected, e.storagePolicies(input.policies))
 	}
@@ -1197,7 +1198,7 @@ func TestEntryTimedRateLimiting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
@@ -1231,7 +1232,7 @@ func TestEntryAddTimedEntryClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	e.closed = true
 	require.Equal(t, errEntryClosed, e.AddTimed(testTimedMetric, testTimedMetadata))
 }
@@ -1245,7 +1246,9 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	) time.Duration {
 		return resolution + time.Second
 	}
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
 	e.opts = e.opts.SetBufferForPastTimedMetricFn(timedAggregationBufferPastFn)
 
 	inputs := []struct {
@@ -1265,7 +1268,13 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	for _, input := range inputs {
 		metric := testTimedMetric
 		metric.TimeNanos = input.timeNanos
-		require.Equal(t, errTooFarInThePast, e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy}))
+		err := e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy})
+		require.True(t, xerrors.IsInvalidParams(err))
+		require.Equal(t, errTooFarInThePast, xerrors.InnerError(err))
+		require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in past"))
+		require.True(t, strings.Contains(err.Error(), "id="+string(metric.ID)))
+		require.True(t, strings.Contains(err.Error(), "timestamp="))
+		require.True(t, strings.Contains(err.Error(), "past_limit="))
 	}
 }
 
@@ -1273,7 +1282,9 @@ func TestEntryAddTimedMetricTooEarly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
 	e.opts = e.opts.SetBufferForFutureTimedMetric(time.Second)
 
 	inputs := []struct {
@@ -1293,7 +1304,13 @@ func TestEntryAddTimedMetricTooEarly(t *testing.T) {
 	for _, input := range inputs {
 		metric := testTimedMetric
 		metric.TimeNanos = input.timeNanos
-		require.Equal(t, errTooFarInTheFuture, e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy}))
+		err := e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy})
+		require.True(t, xerrors.IsInvalidParams(err))
+		require.Equal(t, errTooFarInTheFuture, xerrors.InnerError(err))
+		require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in future"))
+		require.True(t, strings.Contains(err.Error(), "id="+string(metric.ID)))
+		require.True(t, strings.Contains(err.Error(), "timestamp="))
+		require.True(t, strings.Contains(err.Error(), "future_limit="))
 	}
 }
 
@@ -1301,7 +1318,7 @@ func TestEntryAddTimed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, lists, _ := testEntry(ctrl)
+	e, lists, _ := testEntry(ctrl, testEntryOptions{})
 
 	// Add an initial timed metric.
 	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
@@ -1413,7 +1430,7 @@ func TestEntryForwardedRateLimiting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
@@ -1447,7 +1464,7 @@ func TestEntryAddForwardedEntryClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	e.closed = true
 	require.Equal(t, errEntryClosed, e.AddForwarded(testForwardedMetric, testForwardMetadata))
 }
@@ -1462,7 +1479,9 @@ func TestEntryAddForwardedMetricTooLate(t *testing.T) {
 	) time.Duration {
 		return resolution + time.Second*time.Duration(numForwardedTimes)
 	}
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
 	e.opts = e.opts.SetMaxAllowedForwardingDelayFn(maxAllowedForwardingDelayFn)
 
 	inputs := []struct {
@@ -1492,7 +1511,13 @@ func TestEntryAddForwardedMetricTooLate(t *testing.T) {
 		metadata := testForwardMetadata
 		metadata.StoragePolicy = input.storagePolicy
 		metadata.NumForwardedTimes = input.numForwardedTimes
-		require.Equal(t, errArrivedTooLate, e.AddForwarded(metric, metadata))
+		err := e.AddForwarded(metric, metadata)
+		require.True(t, xerrors.IsInvalidParams(err))
+		require.Equal(t, errArrivedTooLate, xerrors.InnerError(err))
+		require.True(t, strings.Contains(err.Error(), "datapoint for aggregation forwarded too late"))
+		require.True(t, strings.Contains(err.Error(), "id="+string(metric.ID)))
+		require.True(t, strings.Contains(err.Error(), "timestamp="))
+		require.True(t, strings.Contains(err.Error(), "past_limit="))
 	}
 }
 
@@ -1500,7 +1525,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, lists, _ := testEntry(ctrl)
+	e, lists, _ := testEntry(ctrl, testEntryOptions{})
 
 	// Add an initial forwarded metric.
 	require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata1))
@@ -1629,7 +1654,7 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// If we are still within entry TTL, should not expire.
 	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
@@ -1648,7 +1673,7 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e, _, now := testEntry(ctrl)
+	e, _, now := testEntry(ctrl, testEntryOptions{})
 	populateTestUntimedAggregations(t, e, testAggregationKeys, metric.CounterType)
 
 	var elems []*CounterElem
@@ -1677,7 +1702,7 @@ func TestEntryMaybeCopyIDWithLock(t *testing.T) {
 	defer ctrl.Finish()
 
 	id := id.RawID("foo")
-	e, _, _ := testEntry(ctrl)
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	res := e.maybeCopyIDWithLock(id)
 	require.Equal(t, id, res)
 
@@ -1765,12 +1790,25 @@ func TestAggregationValues(t *testing.T) {
 	}
 }
 
-func testEntry(ctrl *gomock.Controller) (*Entry, *metricLists, *time.Time) {
+type testEntryOptions struct {
+	options Options
+}
+
+func testEntry(
+	ctrl *gomock.Controller,
+	testOpts testEntryOptions,
+) (*Entry, *metricLists, *time.Time) {
 	now := time.Now()
 	clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
 		return now
 	})
-	opts := testOptions(ctrl).
+
+	opts := testOpts.options
+	if opts == nil {
+		opts = testOptions(ctrl)
+	}
+
+	opts = opts.
 		SetClockOptions(clockOpts).
 		SetDefaultStoragePolicies(testDefaultStoragePolicies)
 
@@ -1905,7 +1943,7 @@ func testEntryAddUntimed(
 	}
 
 	for _, input := range inputs {
-		e, _, now := testEntry(ctrl)
+		e, _, now := testEntry(ctrl, testEntryOptions{})
 		if withPrePopulation {
 			populateTestUntimedAggregations(t, e, prePopulateData, input.mu.Type)
 		}

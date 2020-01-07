@@ -21,38 +21,20 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
-	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-// QueryConversionCache represents the query conversion LRU cache
-type QueryConversionCache struct {
-	mu sync.Mutex
+var (
+	dotStar = []byte(".*")
+)
 
-	lru *QueryConversionLRU
-}
-
-// NewQueryConversionCache creates a new QueryConversionCache with a provided LRU cache
-func NewQueryConversionCache(lru *QueryConversionLRU) *QueryConversionCache {
-	return &QueryConversionCache{
-		lru: lru,
-	}
-}
-
-func (q *QueryConversionCache) set(k []byte, v idx.Query) bool {
-	return q.lru.Set(k, v)
-}
-
-func (q *QueryConversionCache) get(k []byte) (idx.Query, bool) {
-	return q.lru.Get(k)
-}
-
-// FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
+// FromM3IdentToMetric converts an M3 ident metric to a coordinator metric.
 func FromM3IdentToMetric(
 	identID ident.ID,
 	iterTags ident.TagIterator,
@@ -69,7 +51,7 @@ func FromM3IdentToMetric(
 	}, nil
 }
 
-// FromIdentTagIteratorToTags converts ident tags to coordinator tags
+// FromIdentTagIteratorToTags converts ident tags to coordinator tags.
 func FromIdentTagIteratorToTags(
 	identTags ident.TagIterator,
 	tagOptions models.TagOptions,
@@ -90,9 +72,9 @@ func FromIdentTagIteratorToTags(
 	return tags, nil
 }
 
-// TagsToIdentTagIterator converts coordinator tags to ident tags
+// TagsToIdentTagIterator converts coordinator tags to ident tags.
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
-	//TODO get a tags and tag iterator from an ident.Pool here rather than allocing them here
+	// TODO: get a tags and tag iterator from an ident.Pool here rather than allocing them here
 	identTags := make([]ident.Tag, 0, tags.Len())
 	for _, t := range tags.Tags {
 		identTags = append(identTags, ident.Tag{
@@ -104,7 +86,7 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 	return ident.NewTagsIterator(ident.NewTags(identTags...))
 }
 
-// FetchOptionsToM3Options converts a set of coordinator options to M3 options
+// FetchOptionsToM3Options converts a set of coordinator options to M3 options.
 func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
 	return index.QueryOptions{
 		Limit:          fetchOptions.Limit,
@@ -113,39 +95,43 @@ func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery)
 	}
 }
 
-var (
-	// byte representation for [1,2,3,4]
-	lookup = [4]byte{49, 50, 51, 52}
-)
-
-func queryKey(m models.Matchers) []byte {
-	l := len(m)
-	for _, t := range m {
-		l += len(t.Name) + len(t.Value)
+func convertAggregateQueryType(completeNameOnly bool) index.AggregationType {
+	if completeNameOnly {
+		return index.AggregateTagNames
 	}
 
-	key := make([]byte, l)
-	idx := 0
-	for _, t := range m {
-		idx += copy(key[idx:], t.Name)
-		key[idx] = lookup[t.Type]
-		idx += copy(key[idx+1:], t.Value)
-		idx++
-	}
-
-	return key
+	return index.AggregateTagNamesAndValues
 }
 
-// FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query
-func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConversionCache) (index.Query, error) {
+// FetchOptionsToAggregateOptions converts a set of coordinator options as well
+// as complete tags query to an M3 aggregate query option.
+func FetchOptionsToAggregateOptions(
+	fetchOptions *FetchOptions,
+	tagQuery *CompleteTagsQuery,
+) index.AggregationOptions {
+	return index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			Limit:          fetchOptions.Limit,
+			StartInclusive: tagQuery.Start,
+			EndExclusive:   tagQuery.End,
+		},
+		FieldFilter: tagQuery.FilterNameTags,
+		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
+	}
+}
+
+// FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query.
+func FetchQueryToM3Query(
+	fetchQuery *FetchQuery,
+	options *FetchOptions,
+) (index.Query, error) {
+	fetchQuery = fetchQuery.WithAppliedOptions(options)
 	matchers := fetchQuery.TagMatchers
-	k := queryKey(matchers)
-
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
-
-	if val, ok := cache.get(k); ok {
-		return index.Query{Query: val}, nil
+	// If no matchers provided, explicitly set this to an AllQuery.
+	if len(matchers) == 0 {
+		return index.Query{
+			Query: idx.NewAllQuery(),
+		}, nil
 	}
 
 	// Optimization for single matcher case.
@@ -155,7 +141,6 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConversionCache) (i
 			return index.Query{}, err
 		}
 
-		cache.set(k, q)
 		return index.Query{Query: q}, nil
 	}
 
@@ -169,7 +154,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery, cache *QueryConversionCache) (i
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
-	cache.set(k, q)
+
 	return index.Query{Query: q}, nil
 }
 
@@ -181,7 +166,15 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 		negate = true
 		fallthrough
 	case models.MatchRegexp:
-		query, err := idx.NewRegexpQuery(matcher.Name, matcher.Value)
+		var (
+			query idx.Query
+			err   error
+		)
+		if bytes.Equal(dotStar, matcher.Value) {
+			query = idx.NewFieldQuery(matcher.Name)
+		} else {
+			query, err = idx.NewRegexpQuery(matcher.Name, matcher.Value)
+		}
 		if err != nil {
 			return idx.Query{}, err
 		}
@@ -200,6 +193,20 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 			query = idx.NewNegationQuery(query)
 		}
 		return query, nil
+
+	case models.MatchNotField:
+		negate = true
+		fallthrough
+	case models.MatchField:
+		query := idx.NewFieldQuery(matcher.Name)
+		if negate {
+			query = idx.NewNegationQuery(query)
+		}
+
+		return query, nil
+
+	case models.MatchAll:
+		return idx.NewAllQuery(), nil
 
 	default:
 		return idx.Query{}, fmt.Errorf("unsupported query type: %v", matcher)

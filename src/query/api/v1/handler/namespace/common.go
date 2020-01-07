@@ -22,13 +22,16 @@ package namespace
 
 import (
 	"fmt"
+	"net/http"
 	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gorilla/mux"
 )
@@ -45,18 +48,24 @@ const (
 
 	// NamespacePathName is the namespace part of the API path.
 	NamespacePathName = "namespace"
+
+	// SchemaPathName is the schema part of the API path.
+	SchemaPathName = "schema"
 )
 
 var (
 	// M3DBServiceNamespacePathName is the M3DB service namespace API path.
 	M3DBServiceNamespacePathName = path.Join(ServicesPathName, M3DBServiceName, NamespacePathName)
+	// M3DBServiceSchemaPathName is the M3DB service schema API path.
+	M3DBServiceSchemaPathName = path.Join(ServicesPathName, M3DBServiceName, SchemaPathName)
 )
 
 // Handler represents a generic handler for namespace endpoints.
 type Handler struct {
 	// This is used by other namespace Handlers
 	// nolint: structcheck
-	client clusterclient.Client
+	client         clusterclient.Client
+	instrumentOpts instrument.Options
 }
 
 // Metadata returns the current metadata in the given store and its version
@@ -86,22 +95,53 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 	return nsMap.Metadatas(), value.Version(), nil
 }
 
-// RegisterRoutes registers the namespace routes
-func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
-	wrapped := logging.WithResponseTimeAndPanicErrorLogging
+// RegisterRoutes registers the namespace routes.
+func RegisterRoutes(
+	r *mux.Router,
+	client clusterclient.Client,
+	defaults []handleroptions.ServiceOptionsDefault,
+	instrumentOpts instrument.Options,
+) {
+	wrapped := func(n http.Handler) http.Handler {
+		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
+	}
+	applyMiddleware := func(
+		f func(svc handleroptions.ServiceNameAndDefaults,
+			w http.ResponseWriter, r *http.Request),
+		defaults []handleroptions.ServiceOptionsDefault,
+	) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			svc := handleroptions.ServiceNameAndDefaults{
+				ServiceName: handleroptions.M3DBServiceName,
+				Defaults:    defaults,
+			}
+			f(svc, w, r)
+		})
+	}
 
 	// Get M3DB namespaces.
-	getHandler := wrapped(NewGetHandler(client)).ServeHTTP
-	r.HandleFunc(DeprecatedM3DBGetURL, getHandler).Methods(GetHTTPMethod)
-	r.HandleFunc(M3DBGetURL, getHandler).Methods(GetHTTPMethod)
+	getHandler := wrapped(NewGetHandler(client, instrumentOpts))
+	r.HandleFunc(DeprecatedM3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
+	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 
-	// Add M3DB mamespaces
-	addHandler := wrapped(NewAddHandler(client)).ServeHTTP
-	r.HandleFunc(DeprecatedM3DBAddURL, addHandler).Methods(AddHTTPMethod)
-	r.HandleFunc(M3DBAddURL, addHandler).Methods(AddHTTPMethod)
+	// Add M3DB namespaces.
+	addHandler := wrapped(
+		applyMiddleware(NewAddHandler(client, instrumentOpts).ServeHTTP, defaults))
+	r.HandleFunc(DeprecatedM3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
+	r.HandleFunc(M3DBAddURL, addHandler.ServeHTTP).Methods(AddHTTPMethod)
 
 	// Delete M3DB namespaces.
-	deleteHandler := wrapped(NewDeleteHandler(client)).ServeHTTP
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3DBDeleteURL, deleteHandler).Methods(DeleteHTTPMethod)
+	deleteHandler := wrapped(NewDeleteHandler(client, instrumentOpts))
+	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+	r.HandleFunc(M3DBDeleteURL, deleteHandler.ServeHTTP).Methods(DeleteHTTPMethod)
+
+	// Deploy M3DB schemas.
+	schemaHandler := wrapped(
+		applyMiddleware(NewSchemaHandler(client, instrumentOpts).ServeHTTP, defaults))
+	r.HandleFunc(M3DBSchemaURL, schemaHandler.ServeHTTP).Methods(SchemaDeployHTTPMethod)
+
+	// Reset M3DB schemas.
+	schemaResetHandler := wrapped(
+		applyMiddleware(NewSchemaResetHandler(client, instrumentOpts).ServeHTTP, defaults))
+	r.HandleFunc(M3DBSchemaURL, schemaResetHandler.ServeHTTP).Methods(DeleteHTTPMethod)
 }

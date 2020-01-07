@@ -21,7 +21,7 @@
 package postings
 
 import (
-	xpool "github.com/m3db/m3x/pool"
+	xpool "github.com/m3db/m3/src/x/pool"
 )
 
 const (

@@ -22,11 +22,12 @@ package etcd
 
 import (
 	"crypto/tls"
+	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 )
 
 // Options is the Options to create a config service client.
@@ -58,6 +59,9 @@ type Options interface {
 
 	WatchWithRevision() int64
 	SetWatchWithRevision(rev int64) Options
+
+	SetNewDirectoryMode(fm os.FileMode) Options
+	NewDirectoryMode() os.FileMode
 
 	Validate() error
 }
@@ -124,4 +128,7 @@ type Cluster interface {
 
 	TLSOptions() TLSOptions
 	SetTLSOptions(TLSOptions) Cluster
+
+	SetAutoSyncInterval(value time.Duration) Cluster
+	AutoSyncInterval() time.Duration
 }

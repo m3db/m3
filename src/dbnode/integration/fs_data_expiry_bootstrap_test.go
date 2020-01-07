@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -34,8 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +45,6 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	}
 	// Test setup
 	var (
-		log   = xlog.SimpleLogger
 		ropts = retention.NewOptions().
 			SetRetentionPeriod(6 * time.Hour).
 			SetBlockSize(2 * time.Hour).
@@ -63,11 +61,16 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
-	retrieverOpts := fs.NewBlockRetrieverOptions()
+	retrieverOpts := fs.NewBlockRetrieverOptions().
+		SetBlockLeaseManager(&block.NoopLeaseManager{})
 
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-			retriever := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
+			retriever, err := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
+			if err != nil {
+				return nil, err
+			}
+
 			if err := retriever.Open(md); err != nil {
 				return nil, err
 			}
@@ -80,6 +83,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	defer setup.close()
 
+	log := setup.logger
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := fs.NewPersistManager(fsOpts)
@@ -109,7 +113,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
 	})
-	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps, 0))
 
 	// Start the server with filesystem bootstrapper
 	log.Debug("filesystem data expiry bootstrap test")

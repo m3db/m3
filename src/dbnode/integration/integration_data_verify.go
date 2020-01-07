@@ -21,9 +21,11 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -33,19 +35,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type readableSeries struct {
 	ID   string
 	Tags []readableSeriesTag
-	Data []ts.Datapoint
+	Data []generate.TestValue
 }
 
 type readableSeriesTag struct {
@@ -55,12 +56,15 @@ type readableSeriesTag struct {
 
 type readableSeriesList []readableSeries
 
-func toDatapoints(fetched *rpc.FetchResult_) []ts.Datapoint {
-	converted := make([]ts.Datapoint, len(fetched.Datapoints))
+func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
+	converted := make([]generate.TestValue, len(fetched.Datapoints))
 	for i, dp := range fetched.Datapoints {
-		converted[i] = ts.Datapoint{
-			Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
-			Value:     dp.Value,
+		converted[i] = generate.TestValue{
+			Datapoint: ts.Datapoint{
+				Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
+				Value:     dp.Value,
+			},
+			Annotation: dp.Annotation,
 		}
 	}
 	return converted
@@ -119,13 +123,20 @@ func verifySeriesMapForRange(
 		}
 	}
 
-	for i, series := range actual {
-		if !assert.Equal(t, expected[i], series) {
-			return false
-		}
-	}
-	if !assert.Equal(t, expected, actual) {
+	if !assert.Equal(t, len(expected), len(actual)) {
 		return false
+	}
+	for i, series := range actual {
+		if ts.assertEqual == nil {
+			if !assert.Equal(t, expected[i], series) {
+				return false
+			}
+		} else {
+			assert.Equal(t, expected[i].ID, series.ID)
+			if !ts.assertEqual(t, expected[i].Data, series.Data) {
+				return false
+			}
+		}
 	}
 
 	// Now check the metadata of all the series match
@@ -185,11 +196,11 @@ func verifySeriesMapForRange(
 						entry += tag.Name.String() + "=" + tag.Value.String()
 						actual += entry
 					}
-					ts.logger.WithFields(
-						xlog.NewField("id", id),
-						xlog.NewField("expectedTags", expected),
-						xlog.NewField("actualTags", actual),
-					).Error("series does not match expected tags")
+					ts.logger.Error("series does not match expected tags",
+						zap.String("id", id),
+						zap.String("expectedTags", expected),
+						zap.String("actualTags", actual),
+					)
 				}
 
 				if !assert.True(t, tagMatcher.Matches(actualTagsIter)) {
@@ -200,6 +211,17 @@ func verifySeriesMapForRange(
 	}
 
 	return true
+}
+
+func containsSeries(ts *testSetup, namespace, seriesID ident.ID, start, end time.Time) (bool, error) {
+	req := rpc.NewFetchRequest()
+	req.NameSpace = namespace.String()
+	req.ID = seriesID.String()
+	req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
+	req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
+	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
+	fetched, err := ts.fetch(req)
+	return len(fetched) != 0, err
 }
 
 func writeVerifyDebugOutput(
@@ -297,17 +319,35 @@ func createFileIfPrefixSet(t *testing.T, prefix, suffix string) (string, bool) {
 }
 
 func compareSeriesList(
-	t *testing.T,
 	expected generate.SeriesBlock,
 	actual generate.SeriesBlock,
-) {
+) error {
 	sort.Sort(expected)
 	sort.Sort(actual)
 
-	require.Equal(t, len(expected), len(actual))
+	if len(expected) != len(actual) {
+		return fmt.Errorf(
+			"number of expected series: %d did not match actual: %d",
+			len(expected), len(actual))
+	}
 
 	for i := range expected {
-		require.Equal(t, expected[i].ID.Bytes(), actual[i].ID.Bytes())
-		require.Equal(t, expected[i].Data, expected[i].Data)
+		if !bytes.Equal(expected[i].ID.Bytes(), actual[i].ID.Bytes()) {
+			return fmt.Errorf(
+				"series ID did not match, expected: %s, actual: %s",
+				expected[i].ID.String(), actual[i].ID.String())
+		}
+		if len(expected[i].Data) != len(actual[i].Data) {
+			return fmt.Errorf(
+				"data for series: %s did not match, expected: %d data points, actual: %d",
+				expected[i].ID.String(), len(expected[i].Data), len(actual[i].Data))
+		}
+		if !reflect.DeepEqual(expected[i].Data, actual[i].Data) {
+			return fmt.Errorf(
+				"data for series: %s did not match, expected: %v, actual: %v",
+				expected[i].ID.String(), expected[i].Data, actual[i].Data)
+		}
 	}
+
+	return nil
 }

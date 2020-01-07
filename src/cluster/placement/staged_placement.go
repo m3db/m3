@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3/src/x/clock"
 )
 
 var (

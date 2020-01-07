@@ -42,7 +42,7 @@ var (
 )
 
 func generateIterators(
-	t *testing.T,
+	t testing.TB,
 	stepSize time.Duration,
 ) (
 	[]encoding.SeriesIterator,
@@ -114,7 +114,7 @@ func generateIterators(
 }
 
 func buildCustomIterator(
-	t *testing.T,
+	t testing.TB,
 	i int,
 	start time.Time,
 	stepSize time.Duration,
@@ -150,15 +150,16 @@ func verifyMetas(
 	meta block.Metadata,
 	metas []block.SeriesMeta,
 ) {
-	require.Equal(t, 1, meta.Tags.Len())
-	val, found := meta.Tags.Get([]byte("a"))
-	assert.True(t, found)
-	assert.Equal(t, []byte("b"), val)
-
+	require.Equal(t, 0, meta.Tags.Len())
 	for i, m := range metas {
 		assert.Equal(t, []byte(fmt.Sprintf("abc%d", i)), m.Name)
-		require.Equal(t, 1, m.Tags.Len())
-		val, found := m.Tags.Get([]byte("c"))
+		require.Equal(t, 2, m.Tags.Len())
+
+		val, found := m.Tags.Get([]byte("a"))
+		assert.True(t, found)
+		assert.Equal(t, []byte("b"), val)
+
+		val, found = m.Tags.Get([]byte("c"))
 		assert.True(t, found)
 		assert.Equal(t, []byte(fmt.Sprint(i)), val)
 	}
@@ -169,7 +170,7 @@ func verifyMetas(
 // and are put back together at the read step, or at any temporal functions in
 // the execution pipeline.
 func generateBlocks(
-	t *testing.T,
+	t testing.TB,
 	stepSize time.Duration,
 	opts Options,
 ) ([]block.Block, models.Bounds) {
@@ -177,6 +178,7 @@ func generateBlocks(
 	blocks, err := ConvertM3DBSeriesIterators(
 		encoding.NewSeriesIterators(iterators, nil),
 		bounds,
+		block.NewResultMetadata(),
 		opts,
 	)
 	require.NoError(t, err)

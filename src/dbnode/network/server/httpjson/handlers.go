@@ -29,7 +29,7 @@ import (
 	"reflect"
 	"strings"
 
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"
@@ -40,6 +40,30 @@ var (
 	errRequestMustBePost  = xerrors.NewInvalidParamsError(errors.New("request with request params must be POST"))
 	errInvalidRequestBody = xerrors.NewInvalidParamsError(errors.New("request contains an invalid request body"))
 )
+
+// Error is an HTTP JSON error that also sets a return status code.
+type Error interface {
+	error
+
+	StatusCode() int
+}
+
+type errorType struct {
+	error
+	statusCode int
+}
+
+// NewError creates a new HTTP JSON error which has a specified status code.
+func NewError(err error, statusCode int) Error {
+	e := errorType{error: err}
+	e.statusCode = statusCode
+	return e
+}
+
+// StatusCode returns the HTTP status code that matches the error.
+func (e errorType) StatusCode() int {
+	return e.statusCode
+}
 
 type respSuccess struct {
 }
@@ -169,9 +193,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			if method.Type.NumOut() == 1 {
 				// Ensure we always call the post response fn if set
 				if postResponseFn != nil {
-					defer func() {
-						postResponseFn(callContext, method.Name, nil)
-					}()
+					defer postResponseFn(callContext, method.Name, nil)
 				}
 
 				// Deal with error case
@@ -206,6 +228,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 				return
 			}
 
+			w.WriteHeader(http.StatusOK)
 			w.Write(buff.Bytes())
 		})
 	}
@@ -231,10 +254,18 @@ func writeError(w http.ResponseWriter, errValue interface{}) {
 		return
 	}
 
-	if value, ok := errValue.(error); ok && xerrors.IsInvalidParams(value) {
-		w.WriteHeader(http.StatusBadRequest)
-	} else {
+	switch v := errValue.(type) {
+	case Error:
+		w.WriteHeader(v.StatusCode())
+	case error:
+		if xerrors.IsInvalidParams(v) {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+
 	w.Write(buff.Bytes())
 }

@@ -29,7 +29,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -46,26 +47,35 @@ const (
 type InitHandler Handler
 
 // NewInitHandler returns a new instance of InitHandler.
-func NewInitHandler(client clusterclient.Client, cfg config.Configuration) *InitHandler {
-	return &InitHandler{client: client, cfg: cfg, serviceFn: Service}
+func NewInitHandler(
+	client clusterclient.Client,
+	cfg config.Configuration,
+	instrumentOpts instrument.Options,
+) *InitHandler {
+	return &InitHandler{
+		client:         client,
+		cfg:            cfg,
+		serviceFn:      Service,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOpts)
 		req    admin.TopicInitRequest
 	)
 	rErr := parseRequest(r, &req)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
+		logger.Error("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	service, err := h.serviceFn(h.client)
 	if err != nil {
-		logger.Error("unable to get service", zap.Any("error", err))
+		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -75,14 +85,14 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		SetNumberOfShards(req.NumberOfShards)
 	t, err = service.CheckAndSet(t, 0)
 	if err != nil {
-		logger.Error("unable to init topic", zap.Any("error", err))
+		logger.Error("unable to init topic", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	topicProto, err := topic.ToProto(t)
 	if err != nil {
-		logger.Error("unable to get topic protobuf", zap.Any("error", err))
+		logger.Error("unable to get topic protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

@@ -27,24 +27,87 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+type setTestOptions func(t *testing.T, testOpts testOptions) testOptions
+
 func TestRoundtrip(t *testing.T) {
+	testRoundtrip(t, nil, nil)
+}
+
+func TestProtoRoundtrip(t *testing.T) {
+	testRoundtrip(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func setProtoTestInputConfig(inputData []generate.BlockConfig) {
+	for i := 0; i < len(inputData); i++ {
+		inputData[i].AnnGen = testProtoIter
+	}
+}
+
+func setProtoTestOptions(t *testing.T, testOpts testOptions) testOptions {
+	var namespaces []namespace.Metadata
+	for _, nsMeta := range testOpts.Namespaces() {
+		nsOpts := nsMeta.Options().SetSchemaHistory(testSchemaHistory)
+		md, err := namespace.NewMetadata(nsMeta.ID(), nsOpts)
+		require.NoError(t, err)
+		namespaces = append(namespaces, md)
+	}
+	return testOpts.SetProtoEncoding(true).
+		SetNamespaces(namespaces).
+		SetAssertTestDataEqual(assertProtoDataEqual)
+}
+
+func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	for i := 0; i < len(expected); i++ {
+		if !assert.Equal(t, expected[i].Timestamp, actual[i].Timestamp) {
+			return false
+		}
+		if !assert.Equal(t, expected[i].Value, actual[i].Value) {
+			return false
+		}
+		if !prototest.ProtoEqual(testSchema, expected[i].Annotation, actual[i].Annotation) {
+			return false
+		}
+	}
+	return true
+}
+
+func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
 	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
+		SetTickMinimumInterval(time.Second).
+		SetUseTChannelClientForReading(false).
+		SetUseTChannelClientForWriting(false)
+	if setTestOpts != nil {
+		testOpts = setTestOpts(t, testOpts)
+	}
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 
+	// Input data setup
 	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
+	now := testSetup.getNowFn()
+	inputData := []generate.BlockConfig{
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -59,12 +122,7 @@ func TestRoundtrip(t *testing.T) {
 	}()
 
 	// Write test data
-	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
-	inputData := []generate.BlockConfig{
-		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
-		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
-	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)

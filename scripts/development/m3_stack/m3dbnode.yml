@@ -2,6 +2,15 @@ db:
   logging:
     level: info
 
+  tracing:
+    backend: jaeger
+    jaeger:
+      reporter:
+        localAgentHostPort: jaeger:6831
+      sampler:
+        type: const
+        param: 1
+
   metrics:
     prometheus:
       handlerPath: /metrics
@@ -35,8 +44,8 @@ db:
         - peers
         - commitlog
         - uninitialized_topology
-    fs:
-        numProcessorsPerCPU: 0.125
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
     series:
@@ -48,8 +57,8 @@ db:
     flushMaxBytes: 524288
     flushEvery: 1s
     queue:
-        calculationType: fixed
-        size: 2097152
+      calculationType: fixed
+      size: 2097152
 
   fs:
     filePathPrefix: /var/lib/m3db
@@ -68,3 +77,6 @@ db:
           initialCluster:
               - hostID: m3db_seed
                 endpoint: http://m3db_seed:2380
+
+  # proto:
+  #   schemaFilePath: /etc/m3dbnode/schema.proto

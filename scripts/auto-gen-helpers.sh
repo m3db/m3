@@ -27,9 +27,9 @@ revert_copyright_only_change() {
     # generated file will not contain the copyright notice and thus it will
     # add in the copyright (with the new year).
     local FILE=$0
-    numDiffLines=$(git diff --text -U0 $FILE | # Get file text diffs with no context.
-        grep -E -v '^\+\+\+|^---'            | # Exclude file descriptors.
-        grep -E '^-|^\+'                     | # Get only line diffs.
+    numDiffLines=$(git --no-pager diff --text -U0 $FILE | # Get file text diffs with no context.
+        grep -E -v '^\+\+\+|^---'                       | # Exclude file descriptors.
+        grep -E '^-|^\+'                                | # Get only line diffs.
         grep -Evc '^-// Copyright \(c\)|^\+// Copyright \(c\)') # Exclude copyrights and get the number of lines remaining.
     if [ $numDiffLines = 0 ]; then
         git checkout -- "$FILE" 2> /dev/null # Remove changes, since the only change was the copyright year.

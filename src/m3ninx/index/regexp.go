@@ -28,6 +28,25 @@ import (
 	fstregexp "github.com/m3db/m3/src/m3ninx/index/segment/fst/regexp"
 )
 
+var (
+	// dotStartCompiledRegex is a CompileRegex that matches any input.
+	// NB: It can be accessed through DotStartCompiledRegex().
+	dotStarCompiledRegex CompiledRegex
+)
+
+func init() {
+	re, err := CompileRegex([]byte(".*"))
+	if err != nil {
+		panic(err.Error())
+	}
+	dotStarCompiledRegex = re
+}
+
+// DotStarCompiledRegex returns a regexp which matches ".*".
+func DotStarCompiledRegex() CompiledRegex {
+	return dotStarCompiledRegex
+}
+
 // CompileRegex compiles the provided regexp into an object that can be used to query the various
 // segment implementations.
 func CompileRegex(r []byte) (CompiledRegex, error) {

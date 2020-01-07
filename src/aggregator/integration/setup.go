@@ -42,7 +42,8 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/instrument"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -243,6 +244,8 @@ func (ts *testServerSetup) startServer() error {
 		return err
 	}
 
+	instrumentOpts := instrument.NewOptions()
+
 	go func() {
 		if err := serve.Serve(
 			ts.rawTCPAddr,
@@ -251,6 +254,7 @@ func (ts *testServerSetup) startServer() error {
 			ts.httpServerOpts,
 			ts.aggregator,
 			ts.doneCh,
+			instrumentOpts,
 		); err != nil {
 			select {
 			case errCh <- err:

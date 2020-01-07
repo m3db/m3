@@ -30,43 +30,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGlob(t *testing.T) {
-	noGlob := "some_sort of-string,with~no=globbing"
-	expected := []byte(noGlob)
-	actual := glob(noGlob)
-	require.Equal(t, actual, expected)
-
-	globbed := "foo*bar"
-	expected = []byte("foo.*bar")
-	actual = glob(globbed)
-	require.Equal(t, actual, expected)
-
-	globAndRegex := "foo*bar[rz]*(qux|quail)"
-	expected = []byte("foo.*bar[rz].*(qux|quail)")
-	actual = glob(globAndRegex)
-	require.Equal(t, actual, expected)
-}
-
 func TestConvertMetricPartToMatcher(t *testing.T) {
 	for i := 0; i < 100; i++ {
-		globAndRegex := "foo*bar[rz]*(qux|quail)"
+		globAndRegex := "foo*bar[rz]*{qux|quail}"
 		expected := models.Matcher{
 			Type:  models.MatchRegexp,
 			Name:  graphite.TagName(i),
-			Value: []byte("foo.*bar[rz].*(qux|quail)"),
+			Value: []byte(`foo[^\.]*bar[rz][^\.]*(qux|quail)`),
 		}
 
-		actual := convertMetricPartToMatcher(i, globAndRegex)
+		actual, err := convertMetricPartToMatcher(i, globAndRegex)
+		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	}
+}
+
+func TestConvertWildcardToMatcher(t *testing.T) {
+	metric := "*"
+	for i := 0; i < 100; i++ {
+		expected := models.Matcher{
+			Type: models.MatchField,
+			Name: graphite.TagName(i),
+		}
+
+		actual, err := convertMetricPartToMatcher(i, metric)
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	}
+}
+
+func TestConvertAlphanumericMetricPartToMatcher(t *testing.T) {
+	metric := "abcdefg"
+	expected := models.Matcher{
+		Type:  models.MatchEqual,
+		Name:  graphite.TagName(0),
+		Value: []byte("abcdefg"),
+	}
+
+	actual, err := convertMetricPartToMatcher(0, metric)
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
 }
 
 func TestMatcherTerminator(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		expected := models.Matcher{
-			Type:  models.MatchNotRegexp,
-			Name:  graphite.TagName(i),
-			Value: []byte(".*"),
+			Type: models.MatchNotField,
+			Name: graphite.TagName(i),
 		}
 
 		actual := matcherTerminator(i)

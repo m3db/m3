@@ -23,19 +23,19 @@ package proto
 import (
 	"io"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
-// Marshaler can be marshaled.
+// Marshaler can be marshalled.
 type Marshaler interface {
-	// Size returns the size of the marshaled bytes.
+	// Size returns the size of the marshalled bytes.
 	Size() int
 
 	// MarshalTo marshals the marshaler into the given byte slice.
 	MarshalTo(data []byte) (int, error)
 }
 
-// Unmarshaler can be unmarshaled from bytes.
+// Unmarshaler can be unmarshalled from bytes.
 type Unmarshaler interface {
 	// Unmarshal unmarshals the unmarshaler from the given byte slice.
 	Unmarshal(data []byte) error

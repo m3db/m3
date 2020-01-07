@@ -14,6 +14,8 @@
 
 set -eo pipefail
 
+WARMUP=${WARMUP:-10}
+
 # Get endpoints of the agents
 function get_endpoints() {
   local selector="app=m3nsch,component=agent"
@@ -33,6 +35,19 @@ if [[ -z "$CLIENT_POD" ]]; then
 fi
 
 AGENT_ENDPOINTS=$(get_endpoints)
+
+if [[ "$#" -eq 1 && "$1" == "start" ]]; then
+  (
+    IFS=","
+    for EP in $AGENT_ENDPOINTS; do
+      set -x
+      kubectl exec "$CLIENT_POD" -- ./bin/m3nsch_client -e "$EP" "$@"
+      sleep "$WARMUP"
+      set +x
+    done
+  )
+  exit
+fi
 
 set -x
 kubectl exec "$CLIENT_POD" -- ./bin/m3nsch_client -e "$AGENT_ENDPOINTS" "$@"

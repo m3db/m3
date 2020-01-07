@@ -24,12 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	xtime "github.com/m3db/m3x/time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,54 +40,28 @@ func mins(x float64) time.Duration {
 	return time.Duration(x * float64(time.Minute))
 }
 
-func requireDrainedStream(
-	ctx context.Context,
-	t *testing.T,
-	b block.DatabaseBlock,
-) xio.SegmentReader {
-	stream, err := b.Stream(ctx)
-	require.NoError(t, err)
-	return stream
+type blockData struct {
+	start     time.Time
+	writeType WriteType
+	data      [][]DecodedTestValue
 }
 
-type value struct {
-	timestamp  time.Time
-	value      float64
-	unit       xtime.Unit
-	annotation []byte
-}
+type setAnnotation func([]DecodedTestValue) []DecodedTestValue
+type requireAnnEqual func(*testing.T, []byte, []byte)
 
-type valuesByTime []value
-
-func (v valuesByTime) Len() int {
-	return len(v)
-}
-
-func (v valuesByTime) Less(lhs, rhs int) bool {
-	return v[lhs].timestamp.Before(v[rhs].timestamp)
-}
-
-func (v valuesByTime) Swap(lhs, rhs int) {
-	v[lhs], v[rhs] = v[rhs], v[lhs]
-}
-
-type decodedValue struct {
-	timestamp  time.Time
-	value      float64
-	unit       xtime.Unit
-	annotation []byte
-}
-
-func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, error) {
+func decodedReaderValues(results [][]xio.BlockReader,
+	opts Options, nsCtx namespace.Context) ([]DecodedTestValue, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
 	iter := opts.MultiReaderIteratorPool().Get()
-	iter.ResetSliceOfSlices(slicesIter)
+	iter.ResetSliceOfSlices(slicesIter, nsCtx.Schema)
 	defer iter.Close()
 
-	var all []decodedValue
+	var all []DecodedTestValue
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
-		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
+		// Iterator reuse annotation byte slices, so make a copy.
+		annotationCopy := append([]byte(nil), annotation...)
+		all = append(all, DecodedTestValue{dp.Timestamp, dp.Value, unit, annotationCopy})
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err
@@ -99,15 +70,40 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options) {
-	decodedValues, err := decodedValues(results, opts)
+func requireReaderValuesEqual(t *testing.T, values []DecodedTestValue,
+	results [][]xio.BlockReader, opts Options,
+	nsCtx namespace.Context) {
+	decodedValues, err := decodedReaderValues(results, opts, nsCtx)
+	require.NoError(t, err)
+	requireValuesEqual(t, values, decodedValues, nsCtx)
+}
 
-	assert.NoError(t, err)
-	assert.Len(t, decodedValues, len(values))
-	for i := 0; i < len(decodedValues); i++ {
-		assert.True(t, values[i].timestamp.Equal(decodedValues[i].timestamp))
-		assert.Equal(t, values[i].value, decodedValues[i].value)
-		assert.Equal(t, values[i].unit, decodedValues[i].unit)
-		assert.Equal(t, values[i].annotation, decodedValues[i].annotation)
+func requireValuesEqual(t *testing.T, expected, actual []DecodedTestValue,
+	nsCtx namespace.Context) {
+	require.Len(t, actual, len(expected))
+	for i := 0; i < len(actual); i++ {
+		require.True(t, expected[i].Timestamp.Equal(actual[i].Timestamp))
+		require.Equal(t, expected[i].Value, actual[i].Value)
+		require.Equal(t, expected[i].Unit, actual[i].Unit)
+		if nsCtx.Schema == nil {
+			require.Equal(t, expected[i].Annotation, actual[i].Annotation)
+		} else {
+			testProtoEqual(t, expected[i].Annotation, actual[i].Annotation)
+		}
 	}
+}
+
+func decodedSegmentValues(results []xio.SegmentReader, opts Options,
+	nsCtx namespace.Context) ([]DecodedTestValue, error) {
+	iter := opts.MultiReaderIteratorPool().Get()
+	return DecodeSegmentValues(results, iter, nsCtx.Schema)
+}
+
+func requireSegmentValuesEqual(t *testing.T, values []DecodedTestValue,
+	results []xio.SegmentReader, opts Options,
+	nsCtx namespace.Context) {
+	decodedValues, err := decodedSegmentValues(results, opts, nsCtx)
+
+	require.NoError(t, err)
+	requireValuesEqual(t, values, decodedValues, nsCtx)
 }

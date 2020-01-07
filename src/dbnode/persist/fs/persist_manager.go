@@ -34,13 +34,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -416,14 +416,19 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		return prepared, errPersistManagerCannotPrepareDataNotPersisting
 	}
 
-	exists, err := pm.dataFilesetExistsAt(opts)
+	exists, err := pm.dataFilesetExists(opts)
 	if err != nil {
 		return prepared, err
 	}
 
 	var volumeIndex int
-	if opts.FileSetType == persist.FileSetSnapshotType {
-		// Need to work out the volume index for the next snapshot
+	switch opts.FileSetType {
+	case persist.FileSetFlushType:
+		// Use the volume index passed in. This ensures that the volume index is
+		// the same as the cold flush version.
+		volumeIndex = opts.VolumeIndex
+	case persist.FileSetSnapshotType:
+		// Need to work out the volume index for the next snapshot.
 		volumeIndex, err = NextSnapshotFileSetVolumeIndex(pm.opts.FilePathPrefix(),
 			nsMetadata.ID(), shard, blockStart)
 		if err != nil {
@@ -438,22 +443,22 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		// a monotonically increasing number to avoid collisions.
 		// instrument.
 		iopts := pm.opts.InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iopts, func(l xlog.Logger) {
-			l.WithFields(
-				xlog.NewField("blockStart", blockStart.String()),
-				xlog.NewField("fileSetType", opts.FileSetType.String()),
-				xlog.NewField("volumeIndex", volumeIndex),
-				xlog.NewField("snapshotStart", snapshotTime.String()),
-				xlog.NewField("namespace", nsID.String()),
-				xlog.NewField("shard", shard),
-			).Errorf("prepared writing fileset volume that already exists")
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.With(
+				zap.Time("blockStart", blockStart),
+				zap.String("fileSetType", opts.FileSetType.String()),
+				zap.Int("volumeIndex", volumeIndex),
+				zap.Time("snapshotStart", snapshotTime),
+				zap.String("namespace", nsID.String()),
+				zap.Uint32("shard", shard),
+			).Error("prepared writing fileset volume that already exists")
 		})
 
 		return prepared, errPersistManagerFileSetAlreadyExists
 	}
 
 	if exists && opts.DeleteIfExists {
-		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
+		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart, volumeIndex)
 		if err != nil {
 			return prepared, err
 		}
@@ -598,20 +603,25 @@ func (pm *persistManager) doneShared() error {
 	return nil
 }
 
-func (pm *persistManager) dataFilesetExistsAt(prepareOpts persist.DataPrepareOptions) (bool, error) {
+func (pm *persistManager) dataFilesetExists(prepareOpts persist.DataPrepareOptions) (bool, error) {
 	var (
-		blockStart = prepareOpts.BlockStart
-		shard      = prepareOpts.Shard
 		nsID       = prepareOpts.NamespaceMetadata.ID()
+		shard      = prepareOpts.Shard
+		blockStart = prepareOpts.BlockStart
+		volume     = prepareOpts.VolumeIndex
 	)
 
 	switch prepareOpts.FileSetType {
 	case persist.FileSetSnapshotType:
-		// Snapshot files are indexed (multiple per block-start), so checking if the file
-		// already exist doesn't make much sense
+		// Checking if a snapshot file exists for a block start doesn't make
+		// sense in this context because the logic for creating new snapshot
+		// files does not use the volume index provided in the prepareOpts.
+		// Instead, the new volume index is determined by looking at what files
+		// exist on disk. This means that there can never be a conflict when
+		// trying to write new snapshot files.
 		return false, nil
 	case persist.FileSetFlushType:
-		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
+		return DataFileSetExists(pm.filePathPrefix, nsID, shard, blockStart, volume)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",

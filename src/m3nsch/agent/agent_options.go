@@ -22,8 +22,8 @@ package agent
 
 import (
 	"github.com/m3db/m3/src/m3nsch"
-	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (

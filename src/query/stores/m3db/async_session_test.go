@@ -28,9 +28,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -42,10 +41,9 @@ var (
 )
 
 func SetupAsyncSessionTest(t *testing.T) (*client.MockClient, *client.MockSession) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 	mockSession := client.NewMockSession(ctrl)
@@ -106,6 +104,9 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
 	assert.Equal(t, err, errSessionUninitialized)
 
+	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
+	assert.Equal(t, err, errSessionUninitialized)
+
 	id, err := asyncSession.ShardID(nil)
 	assert.Equal(t, uint32(0), id)
 	assert.Equal(t, err, errSessionUninitialized)
@@ -152,6 +153,10 @@ func TestAsyncSessionInitialized(t *testing.T) {
 
 	mockSession.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
+	assert.NoError(t, err)
+
+	mockSession.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
+	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().ShardID(gomock.Any()).Return(uint32(0), nil)

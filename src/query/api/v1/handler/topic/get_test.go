@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,21 +28,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	jsonMarshaler   = jsonpb.Marshaler{EmitDefaults: true, Indent: "  "}
-	jsonUnmarshaler = jsonpb.Unmarshaler{AllowUnknownFields: false}
 )
 
 func TestTopicGetHandler(t *testing.T) {
@@ -50,7 +43,7 @@ func TestTopicGetHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewGetHandler(nil, config.Configuration{})
+	handler := NewGetHandler(nil, config.Configuration{}, instrument.NewOptions())
 	handler.serviceFn = testServiceFn(mockService)
 
 	// Test successful get
@@ -93,24 +86,4 @@ func TestTopicGetHandler(t *testing.T) {
 
 	resp = w.Result()
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
-}
-
-func validateEqualTopicProto(t *testing.T, this, other topicpb.Topic) {
-	t1, err := topic.NewTopicFromProto(&this)
-	require.NoError(t, err)
-	t2, err := topic.NewTopicFromProto(&other)
-	require.NoError(t, err)
-	require.Equal(t, t1, t2)
-}
-
-func testServiceFn(s topic.Service) serviceFn {
-	return func(clusterClient clusterclient.Client) (topic.Service, error) {
-		return s, nil
-	}
-}
-
-func setupTest(t *testing.T, ctrl *gomock.Controller) *topic.MockService {
-	logging.InitWithCores(nil)
-	s := topic.NewMockService(ctrl)
-	return s
 }

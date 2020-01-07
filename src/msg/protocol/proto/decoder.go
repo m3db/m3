@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type decoder struct {

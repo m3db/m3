@@ -21,7 +21,7 @@
 package test
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -30,144 +30,117 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-// ValueMod can be used to modify provided values for testing
-type ValueMod func([]float64) []float64
-
-// NoopMod can be used to generate multi blocks when no value modification is needed
-func NoopMod(v []float64) []float64 {
-	return v
+type multiSeriesBlock struct {
+	consolidated     bool
+	lookbackDuration time.Duration
+	meta             block.Metadata
+	seriesList       ts.SeriesList
 }
 
-// NewBlockFromValues creates a new block using the provided values
-func NewBlockFromValues(bounds models.Bounds, seriesValues [][]float64) block.Block {
-	meta := NewSeriesMeta("dummy", len(seriesValues))
-	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
-}
-
-// NewUnconsolidatedBlockFromDatapointsWithMeta creates a new unconsolidated block using the provided values and metadata
-func NewUnconsolidatedBlockFromDatapointsWithMeta(bounds models.Bounds, meta []block.SeriesMeta, seriesValues [][]float64) block.Block {
-	seriesList := make(ts.SeriesList, len(seriesValues))
-	for i, values := range seriesValues {
-		dps := seriesValuesToDatapoints(values, bounds)
-		seriesList[i] = ts.NewSeries(meta[i].Name, dps, meta[i].Tags)
-	}
-
-	b, _ := storage.NewMultiSeriesBlock(seriesList, &storage.FetchQuery{
-		Start:    bounds.Start,
-		End:      bounds.End(),
-		Interval: bounds.StepSize,
-	}, time.Minute)
-
-	return storage.NewMultiBlockWrapper(b)
-}
-
-// NewUnconsolidatedBlockFromDatapoints creates a new unconsolidated block using the provided values
-func NewUnconsolidatedBlockFromDatapoints(bounds models.Bounds, seriesValues [][]float64) block.Block {
-	meta := NewSeriesMeta("dummy", len(seriesValues))
-	return NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, meta, seriesValues)
-}
-
-func seriesValuesToDatapoints(values []float64, bounds models.Bounds) ts.Datapoints {
-	dps := make(ts.Datapoints, len(values))
-	for i, v := range values {
-		t, _ := bounds.TimeForIndex(i)
-		dps[i] = ts.Datapoint{
-			Timestamp: t.Add(-1 * time.Microsecond),
-			Value:     v,
-		}
-	}
-
-	return dps
-}
-
-// NewMultiUnconsolidatedBlocksFromValues creates new blocks using the provided values and a modifier
-func NewMultiUnconsolidatedBlocksFromValues(bounds models.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
-	meta := NewSeriesMeta("dummy", len(seriesValues))
-	blocks := make([]block.Block, numBlocks)
-	for i := 0; i < numBlocks; i++ {
-		blocks[i] = NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, meta, seriesValues)
-		// Avoid modifying the first value
-		for i, val := range seriesValues {
-			seriesValues[i] = valueMod(val)
-		}
-
-		bounds = bounds.Next(1)
-	}
-	return blocks
-}
-
-// NewSeriesMeta creates new metadata tags in the format [tagPrefix:i] for the number of series
-func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
-	seriesMeta := make([]block.SeriesMeta, count)
-	for i := range seriesMeta {
-		tags := models.EmptyTags()
-		st := []byte(fmt.Sprintf("%s%d", tagPrefix, i))
-		tags = tags.AddTag(models.Tag{Name: []byte("__name__"), Value: st})
-		tags = tags.AddTag(models.Tag{Name: st, Value: st})
-		seriesMeta[i] = block.SeriesMeta{
-			Name: st,
-			Tags: tags,
-		}
-	}
-	return seriesMeta
-}
-
-// NewBlockFromValuesWithSeriesMeta creates a new block using the provided values
-func NewBlockFromValuesWithSeriesMeta(
-	bounds models.Bounds,
-	seriesMeta []block.SeriesMeta,
-	seriesValues [][]float64,
+func newMultiSeriesBlock(
+	fetchResult *storage.FetchResult,
+	query *storage.FetchQuery,
+	lookbackDuration time.Duration,
 ) block.Block {
-	blockMeta := block.Metadata{Bounds: bounds}
+	meta := block.Metadata{
+		Bounds: models.Bounds{
+			Start:    query.Start,
+			Duration: query.End.Sub(query.Start),
+			StepSize: query.Interval,
+		},
 
-	return NewBlockFromValuesWithMetaAndSeriesMeta(blockMeta, seriesMeta, seriesValues)
+		ResultMetadata: fetchResult.Metadata,
+	}
+
+	return multiSeriesBlock{
+		seriesList:       fetchResult.SeriesList,
+		meta:             meta,
+		lookbackDuration: lookbackDuration,
+	}
 }
 
-// NewBlockFromValuesWithMetaAndSeriesMeta creates a new block using the provided values
-// Note: panics on errors, since this is a testutil
-func NewBlockFromValuesWithMetaAndSeriesMeta(
-	meta block.Metadata,
-	seriesMeta []block.SeriesMeta,
-	seriesValues [][]float64,
-) block.Block {
-	columnBuilder := block.NewColumnBlockBuilder(models.NoopQueryContext(), meta, seriesMeta)
-
-	if err := columnBuilder.AddCols(len(seriesValues[0])); err != nil {
-		panic(err)
-	}
-
-	for _, seriesVal := range seriesValues {
-		for idx, val := range seriesVal {
-			if err := columnBuilder.AppendValue(idx, val); err != nil {
-				panic(err)
-			}
-		}
-	}
-
-	return columnBuilder.Build()
+func (m multiSeriesBlock) Meta() block.Metadata {
+	return m.meta
 }
 
-// GenerateValuesAndBounds generates a list of sample values and bounds while allowing overrides
-func GenerateValuesAndBounds(vals [][]float64, b *models.Bounds) ([][]float64, models.Bounds) {
-	values := vals
-	if values == nil {
-		values = [][]float64{
-			{0, 1, 2, 3, 4},
-			{5, 6, 7, 8, 9},
-		}
+func (m multiSeriesBlock) StepCount() int {
+	// If series has fewer points then it should return NaNs
+	return m.meta.Bounds.Steps()
+}
+
+func (m multiSeriesBlock) StepIter() (block.StepIter, error) {
+	return nil, errors.New("step iterator is not supported by test block")
+}
+
+func (m multiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
+	return newMultiSeriesBlockSeriesIter(m), nil
+}
+
+func (m multiSeriesBlock) MultiSeriesIter(
+	concurrency int,
+) ([]block.SeriesIterBatch, error) {
+	return nil, errors.New("batched iterator is not supported by test block")
+}
+
+func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
+	metas := make([]block.SeriesMeta, len(m.seriesList))
+	for i, s := range m.seriesList {
+		metas[i].Tags = s.Tags
+		metas[i].Name = s.Name()
 	}
 
-	var bounds models.Bounds
-	if b == nil {
-		now := time.Now()
-		bounds = models.Bounds{
-			Start:    now,
-			Duration: time.Minute * 5,
-			StepSize: time.Minute,
-		}
-	} else {
-		bounds = *b
-	}
+	return metas
+}
 
-	return values, bounds
+func (m multiSeriesBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockTest)
+}
+
+// TODO: Actually free up resources
+func (m multiSeriesBlock) Close() error {
+	return nil
+}
+
+type multiSeriesBlockSeriesIter struct {
+	block        multiSeriesBlock
+	index        int
+	consolidated bool
+}
+
+func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
+	return m.block.SeriesMeta()
+}
+
+func newMultiSeriesBlockSeriesIter(
+	block multiSeriesBlock,
+) block.SeriesIter {
+	return &multiSeriesBlockSeriesIter{
+		block:        block,
+		index:        -1,
+		consolidated: block.consolidated,
+	}
+}
+
+func (m *multiSeriesBlockSeriesIter) SeriesCount() int {
+	return len(m.block.seriesList)
+}
+
+func (m *multiSeriesBlockSeriesIter) Next() bool {
+	m.index++
+	return m.index < m.SeriesCount()
+}
+
+func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
+	s := m.block.seriesList[m.index]
+	return block.NewUnconsolidatedSeries(s.Values().Datapoints(), block.SeriesMeta{
+		Tags: s.Tags,
+		Name: s.Name(),
+	})
+}
+
+func (m *multiSeriesBlockSeriesIter) Err() error {
+	return nil
+}
+
+func (m *multiSeriesBlockSeriesIter) Close() {
 }

@@ -20,7 +20,7 @@
 
 package cm
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 type samplePool struct {
 	pool pool.ObjectPool

@@ -34,10 +34,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 )
@@ -71,6 +71,7 @@ type writer struct {
 	indexEntries               indexEntries
 
 	start        time.Time
+	volumeIndex  int
 	snapshotTime time.Time
 	snapshotID   uuid.UUID
 
@@ -96,8 +97,10 @@ type indexEntry struct {
 type indexEntries []indexEntry
 
 func (e indexEntries) releaseRefs() {
+	// memset zero loop optimization
+	var zeroed indexEntry
 	for i := range e {
-		e[i].id = nil
+		e[i] = zeroed
 	}
 }
 
@@ -143,20 +146,13 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(opts DataWriterOpenOptions) error {
 	var (
-		nextSnapshotIndex int
-		err               error
-		namespace         = opts.Identifier.Namespace
-		shard             = opts.Identifier.Shard
-		blockStart        = opts.Identifier.BlockStart
+		err         error
+		namespace   = opts.Identifier.Namespace
+		shard       = opts.Identifier.Shard
+		blockStart  = opts.Identifier.BlockStart
+		volumeIndex = opts.Identifier.VolumeIndex
 	)
-
-	w.blockSize = opts.BlockSize
-	w.start = blockStart
-	w.snapshotTime = opts.Snapshot.SnapshotTime
-	w.snapshotID = opts.Snapshot.SnapshotID
-	w.currIdx = 0
-	w.currOffset = 0
-	w.err = nil
+	w.reset(opts)
 
 	var (
 		shardDir            string
@@ -176,27 +172,26 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 			return err
 		}
 
-		nextSnapshotIndex = opts.Identifier.VolumeIndex
-		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, infoFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, indexFileSuffix)
-		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, summariesFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, bloomFilterFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, dataFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, digestFileSuffix)
+		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
-		w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
-		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-		summariesFilepath = filesetPathFromTime(shardDir, blockStart, summariesFileSuffix)
-		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
-		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
-		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
+		w.checkpointFilePath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, false)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, false)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, false)
+		summariesFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, false)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, false)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, false)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, false)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -224,6 +219,22 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.digestFdWithDigestContents.Reset(digestFd)
 
 	return nil
+}
+
+func (w *writer) reset(opts DataWriterOpenOptions) {
+	w.blockSize = opts.BlockSize
+	w.start = opts.Identifier.BlockStart
+	w.volumeIndex = opts.Identifier.VolumeIndex
+	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.snapshotID = opts.Snapshot.SnapshotID
+	w.currIdx = 0
+	w.currOffset = 0
+	w.err = nil
+	// This happens after writing the previous set of files index files, however, do it
+	// again to ensure they get cleared even if there was a premature error writing out the
+	// previous set of files which would have prevented them from being cleared.
+	w.indexEntries.releaseRefs()
+	w.indexEntries = w.indexEntries[:0]
 }
 
 func (w *writer) writeData(data []byte) error {
@@ -532,6 +543,7 @@ func (w *writer) writeInfoFileContents(
 
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
+		VolumeIndex:  w.volumeIndex,
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),

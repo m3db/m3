@@ -23,11 +23,13 @@ package bootstrap
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // ProcessProvider constructs a bootstrap process that can execute a
@@ -50,11 +52,110 @@ type ProcessProvider interface {
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(start time.Time, ns namespace.Metadata, shards []uint32) (ProcessResult, error)
+	Run(start time.Time, namespaces []ProcessNamespace) (NamespaceResults, error)
 }
 
-// ProcessResult is the result of a bootstrap process.
-type ProcessResult struct {
+// ProcessNamespace is a namespace to pass to the bootstrap process.
+type ProcessNamespace struct {
+	// Metadata of the namespace being bootstrapped.
+	Metadata namespace.Metadata
+	// Shards is the shards to bootstrap for the bootstrap process.
+	Shards []uint32
+	// DataAccumulator is the data accumulator for the shards.
+	DataAccumulator NamespaceDataAccumulator
+}
+
+// Namespaces are a set of namespaces being bootstrapped.
+type Namespaces struct {
+	// Namespaces are the namespaces being bootstrapped.
+	Namespaces *NamespacesMap
+}
+
+// Namespace is a namespace that is being bootstrapped.
+type Namespace struct {
+	// Metadata of the namespace being bootstrapped.
+	Metadata namespace.Metadata
+	// Shards is the shards for the namespace being bootstrapped.
+	Shards []uint32
+	// DataAccumulator is the data accumulator for the shards.
+	DataAccumulator NamespaceDataAccumulator
+	// DataTargetRange is the data target bootstrap range.
+	DataTargetRange TargetRange
+	// IndexTargetRange is the index target bootstrap range.
+	IndexTargetRange TargetRange
+	// DataRunOptions are the options for the data bootstrap for this
+	// namespace.
+	DataRunOptions NamespaceRunOptions
+	// IndexRunOptions are the options for the index bootstrap for this
+	// namespace.
+	IndexRunOptions NamespaceRunOptions
+}
+
+// NamespaceRunOptions are the run options for a bootstrap process run.
+type NamespaceRunOptions struct {
+	// ShardTimeRanges are the time ranges for the shards that should be fulfilled
+	// by the bootstrapper.
+	ShardTimeRanges result.ShardTimeRanges
+	// RunOptions are the run options for the bootstrap run.
+	RunOptions RunOptions
+}
+
+// NamespaceDataAccumulator is the namespace data accumulator.
+// TODO(r): Consider rename this to a better name.
+type NamespaceDataAccumulator interface {
+	// CheckoutSeriesWithoutLock retrieves a series for writing to
+	// and when the accumulator is closed it will ensure that the
+	// series is released.
+	// If indexing is not enabled, tags is still required, simply pass
+	// ident.EmptyTagIterator.
+	// Note: Without lock variant does not perform any locking and callers
+	// must ensure non-parallel access themselves, this helps avoid
+	// overhead of the lock for the commit log bootstrapper which reads
+	// in a single threaded manner.
+	CheckoutSeriesWithoutLock(
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (CheckoutSeriesResult, error)
+
+	// CheckoutSeriesWithLock retrieves a series for writing to
+	// and when the accumulator is closed it will ensure that the
+	// series is released.
+	// If indexing is not enabled, tags is still required, simply pass
+	// ident.EmptyTagIterator.
+	// Note: With lock variant perform locking and callers do not need
+	// to be concerned about parallel access.
+	CheckoutSeriesWithLock(
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (CheckoutSeriesResult, error)
+
+	// Close will close the data accumulator and will release
+	// all series read/write refs.
+	Close() error
+}
+
+// CheckoutSeriesResult is the result of a checkout series operation.
+type CheckoutSeriesResult struct {
+	// Series is the series for the checkout operation.
+	Series series.DatabaseSeries
+	// Shard is the shard for the series.
+	Shard uint32
+	// UniqueIndex is the unique index for the series.
+	UniqueIndex uint64
+}
+
+// NamespaceResults is the result of a bootstrap process.
+type NamespaceResults struct {
+	// Results is the result of a bootstrap process.
+	Results *NamespaceResultsMap
+}
+
+// NamespaceResult is the result of a bootstrap process for a given namespace.
+type NamespaceResult struct {
+	Metadata    namespace.Metadata
+	Shards      []uint32
 	DataResult  result.DataBootstrapResult
 	IndexResult result.IndexBootstrapResult
 }
@@ -138,16 +239,6 @@ type BootstrapperProvider interface {
 	Provide() (Bootstrapper, error)
 }
 
-// Strategy describes a bootstrap strategy.
-type Strategy int
-
-const (
-	// BootstrapSequential describes whether a bootstrap can use the sequential bootstrap strategy.
-	BootstrapSequential Strategy = iota
-	// BootstrapParallel describes whether a bootstrap can use the parallel bootstrap strategy.
-	BootstrapParallel
-)
-
 // Bootstrapper is the interface for different bootstrapping mechanisms.  Note that a bootstrapper
 // can and will be reused so it is important to not rely on state stored in the bootstrapper itself
 // with the mindset that it will always be set to default values from the constructor.
@@ -155,53 +246,25 @@ type Bootstrapper interface {
 	// String returns the name of the bootstrapper
 	String() string
 
-	// Can returns whether a specific bootstrapper strategy can be applied.
-	Can(strategy Strategy) bool
-
-	// BootstrapData performs bootstrapping of data for the given time ranges, returning the bootstrapped
-	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
-	// should only return an error should it want to entirely cancel the bootstrapping of the
-	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	BootstrapData(
-		ns namespace.Metadata,
-		shardsTimeRanges result.ShardTimeRanges,
-		opts RunOptions,
-	) (result.DataBootstrapResult, error)
-
-	// BootstrapIndex performs bootstrapping of index blocks for the given time ranges, returning
-	// the bootstrapped index blocks and the time ranges it's unable to fulfill in parallel. A bootstrapper
-	// should only return an error should it want to entirely cancel the bootstrapping of the
-	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	BootstrapIndex(
-		ns namespace.Metadata,
-		shardsTimeRanges result.ShardTimeRanges,
-		opts RunOptions,
-	) (result.IndexBootstrapResult, error)
+	// Bootstrap performs bootstrapping of series data and index metadata
+	// for the  given time ranges, returning the bootstrapped series data
+	// and index blocks for the time ranges it's unable to fulfill in parallel.
+	// A bootstrapper should only return an error should it want to entirely
+	// cancel the bootstrapping of the node, i.e. non-recoverable situation
+	// like not being able to read from the filesystem.
+	Bootstrap(namespaces Namespaces) (NamespaceResults, error)
 }
 
 // Source represents a bootstrap source. Note that a source can and will be reused so
 // it is important to not rely on state stored in the source itself with the mindset
 // that it will always be set to default values from the constructor.
 type Source interface {
-	// Can returns whether a specific bootstrapper strategy can be applied.
-	Can(strategy Strategy) bool
-
 	// AvailableData returns what time ranges are available for bootstrapping a given set of shards.
 	AvailableData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		runOpts RunOptions,
 	) (result.ShardTimeRanges, error)
-
-	// ReadData returns raw series for a given set of shards & specified time ranges and
-	// the time ranges it's unable to fulfill. A bootstrapper source should only return
-	// an error should it want to entirely cancel the bootstrapping of the node,
-	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	ReadData(
-		ns namespace.Metadata,
-		shardsTimeRanges result.ShardTimeRanges,
-		runOpts RunOptions,
-	) (result.DataBootstrapResult, error)
 
 	// AvailableIndex returns what time ranges are available for bootstrapping.
 	AvailableIndex(
@@ -210,10 +273,10 @@ type Source interface {
 		opts RunOptions,
 	) (result.ShardTimeRanges, error)
 
-	// ReadIndex returns series index blocks.
-	ReadIndex(
-		ns namespace.Metadata,
-		shardsTimeRanges result.ShardTimeRanges,
-		opts RunOptions,
-	) (result.IndexBootstrapResult, error)
+	// Read returns series data and index metadata for a given set of shards
+	// and specified time ranges and the time ranges it's unable to fulfill.
+	// A bootstrapper source should only return an error should it want to
+	// entirely cancel the bootstrapping of the node, i.e. non-recoverable
+	// situation like not being able to read from the filesystem.
+	Read(namespaces Namespaces) (NamespaceResults, error)
 }

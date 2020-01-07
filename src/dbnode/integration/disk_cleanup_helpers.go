@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -114,7 +114,7 @@ type cleanupTimesFileSet struct {
 
 func (fset *cleanupTimesFileSet) anyExist() bool {
 	for _, t := range fset.times {
-		exists, err := fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
+		exists, err := fs.DataFileSetExists(fset.filePathPrefix, fset.namespace, fset.shard, t, 0)
 		if err != nil {
 			panic(err)
 		}

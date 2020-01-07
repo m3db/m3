@@ -25,19 +25,21 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // TODO: use a better seriesIterators merge here
 type multiResult struct {
 	sync.Mutex
-	fanout         queryFanoutType
-	seenFirstAttrs storage.Attributes
-	seenIters      []encoding.SeriesIterators // track known iterators to avoid leaking
-	finalResult    encoding.MutableSeriesIterators
-	dedupeMap      map[string]multiResultSeries
-	err            xerrors.MultiError
+	metadata        block.ResultMetadata
+	fanout          queryFanoutType
+	seenFirstAttrs  storage.Attributes
+	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
+	mergedIterators encoding.MutableSeriesIterators
+	dedupeMap       map[string]multiResultSeries
+	err             xerrors.MultiError
 
 	pools encoding.IteratorPools
 }
@@ -47,8 +49,9 @@ func newMultiFetchResult(
 	pools encoding.IteratorPools,
 ) MultiFetchResult {
 	return &multiResult{
-		fanout: fanout,
-		pools:  pools,
+		metadata: block.NewResultMetadata(),
+		fanout:   fanout,
+		pools:    pools,
 	}
 }
 
@@ -66,15 +69,15 @@ func (r *multiResult) Close() error {
 	}
 	r.seenIters = nil
 
-	if r.finalResult != nil {
+	if r.mergedIterators != nil {
 		// NB(r): Since all the series iterators in the final result are held onto
 		// by the original iters in the seenIters slice we allow those iterators
 		// to free iterators held onto by final result, and reset the slice for
 		// the final result to zero so we avoid double returning the iterators
 		// themselves.
-		r.finalResult.Reset(0)
-		r.finalResult.Close()
-		r.finalResult = nil
+		r.mergedIterators.Reset(0)
+		r.mergedIterators.Close()
+		r.mergedIterators = nil
 	}
 
 	r.dedupeMap = nil
@@ -83,14 +86,14 @@ func (r *multiResult) Close() error {
 	return nil
 }
 
-func (r *multiResult) FinalResultWithAttrs() (
-	encoding.SeriesIterators, []storage.Attributes, error) {
-	iters, err := r.FinalResult()
+func (r *multiResult) FinalResultWithAttrs() (SeriesFetchResult,
+	[]storage.Attributes, error) {
+	result, err := r.FinalResult()
 	if err != nil {
-		return nil, nil, err
+		return result, nil, err
 	}
 
-	attrs := make([]storage.Attributes, iters.Len())
+	attrs := make([]storage.Attributes, result.SeriesIterators.Len())
 	// TODO: add testing around here.
 	if r.dedupeMap == nil {
 		for i := range attrs {
@@ -104,47 +107,53 @@ func (r *multiResult) FinalResultWithAttrs() (
 		}
 	}
 
-	return iters, attrs, nil
+	return result, attrs, nil
 }
 
-func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
+func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
+	result := SeriesFetchResult{Metadata: r.metadata}
 	err := r.err.LastError()
 	if err != nil {
-		return nil, err
+		return result, err
 	}
-	if r.finalResult != nil {
-		return r.finalResult, nil
+
+	if r.mergedIterators != nil {
+		result.SeriesIterators = r.mergedIterators
+		return result, nil
 	}
 
 	if len(r.seenIters) == 0 {
-		return encoding.EmptySeriesIterators, nil
+		result.SeriesIterators = encoding.EmptySeriesIterators
+		return result, nil
 	}
 
 	// can short-cicuit in this case
 	if len(r.seenIters) == 1 {
-		return r.seenIters[0], nil
+		result.SeriesIterators = r.seenIters[0]
+		return result, nil
 	}
 
 	// otherwise have to create a new seriesiters
 	numSeries := len(r.dedupeMap)
-	r.finalResult = r.pools.MutableSeriesIterators().Get(numSeries)
-	r.finalResult.Reset(numSeries)
+	r.mergedIterators = r.pools.MutableSeriesIterators().Get(numSeries)
+	r.mergedIterators.Reset(numSeries)
 
 	i := 0
 	for _, res := range r.dedupeMap {
-		r.finalResult.SetAt(i, res.iter)
+		r.mergedIterators.SetAt(i, res.iter)
 		i++
 	}
 
-	return r.finalResult, nil
+	result.SeriesIterators = r.mergedIterators
+	return result, nil
 }
 
 func (r *multiResult) Add(
+	fetchResult SeriesFetchResult,
 	attrs storage.Attributes,
-	newIterators encoding.SeriesIterators,
 	err error,
 ) {
 	r.Lock()
@@ -158,9 +167,15 @@ func (r *multiResult) Add(
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
+		r.metadata = fetchResult.Metadata
+	} else {
+		// NB: any non-exhaustive result set added makes the entire
+		// result non-exhaustive
+		r.metadata = r.metadata.CombineMetadata(fetchResult.Metadata)
 	}
-	r.seenIters = append(r.seenIters, newIterators)
 
+	newIterators := fetchResult.SeriesIterators
+	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
 	if !r.err.Empty() {

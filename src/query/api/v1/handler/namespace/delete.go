@@ -29,10 +29,11 @@ import (
 	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -68,23 +69,29 @@ var (
 type DeleteHandler Handler
 
 // NewDeleteHandler returns a new instance of DeleteHandler.
-func NewDeleteHandler(client clusterclient.Client) *DeleteHandler {
-	return &DeleteHandler{client: client}
+func NewDeleteHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *DeleteHandler {
+	return &DeleteHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	id := strings.TrimSpace(mux.Vars(r)[namespaceIDVar])
 	if id == "" {
-		logger.Error("no namespace ID to delete", zap.Any("error", errEmptyID))
+		logger.Error("no namespace ID to delete", zap.Error(errEmptyID))
 		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
 
 	err := h.Delete(id)
 	if err != nil {
-		logger.Error("unable to delete namespace", zap.Any("error", err))
+		logger.Error("unable to delete namespace", zap.Error(err))
 		if err == errNamespaceNotFound {
 			xhttp.Error(w, err, http.StatusNotFound)
 		} else {

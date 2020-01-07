@@ -30,13 +30,13 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -249,15 +249,15 @@ func makeMultiNodeSetup(
 	asyncInserts bool,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, client.Options) {
-	var (
-		nsOpts  = namespace.NewOptions()
-		md, err = namespace.NewMetadata(testNamespaces[0],
-			nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)).
-				SetIndexOptions(namespace.NewIndexOptions().SetEnabled(indexingEnabled)))
-	)
+	nsOpts := namespace.NewOptions()
+	nsOpts = nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6 * time.Hour)).
+		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(indexingEnabled))
+	md1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
 	require.NoError(t, err)
 
-	nspaces := []namespace.Metadata{md}
+	nspaces := []namespace.Metadata{md1, md2}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts)
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)
@@ -268,7 +268,8 @@ func makeMultiNodeSetup(
 		SetClusterConnectTimeout(2 * time.Second).
 		SetWriteRequestTimeout(2 * time.Second).
 		SetFetchRequestTimeout(2 * time.Second).
-		SetTopologyInitializer(topoInit)
+		SetTopologyInitializer(topoInit).
+		SetUseV2BatchAPIs(true)
 
 	return nodes, closeFn, clientopts
 }
@@ -280,7 +281,8 @@ func makeTestFetchTagged(
 ) (testSetups, closeFn, testFetchFn) {
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 	testFetch := func(cLevel topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
-		c, err := client.NewClient(clientopts.SetReadConsistencyLevel(cLevel))
+		clientopts := clientopts.SetReadConsistencyLevel(cLevel)
+		c, err := client.NewClient(clientopts)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()
@@ -291,7 +293,7 @@ func makeTestFetchTagged(
 
 		startTime := nodes[0].getNowFn()
 		return s.FetchTagged(testNamespaces[0],
-			index.Query{q},
+			index.Query{Query: q},
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
 				EndExclusive:   startTime.Add(time.Minute),

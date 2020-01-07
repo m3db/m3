@@ -188,6 +188,27 @@ func WatchAndUpdateTime(
 	)
 }
 
+// WatchAndUpdateDuration sets up a watch with validation for a time property. Any
+// malformed, or invalid updates are not applied. The default value is applied
+// when the key does not exist in KV. The watch on the value is returned.
+func WatchAndUpdateDuration(
+	store kv.Store,
+	key string,
+	property *time.Duration,
+	lock sync.Locker,
+	defaultValue time.Duration,
+	opts Options,
+) (kv.ValueWatch, error) {
+	if opts == nil {
+		opts = NewOptions()
+	}
+	updateFn := lockedUpdate(func(i interface{}) { *property = i.(time.Duration) }, lock)
+
+	return watchAndUpdate(
+		store, key, getDuration, updateFn, opts.ValidateFn(), defaultValue, opts.Logger(),
+	)
+}
+
 // WatchAndUpdateGeneric sets up a watch with validation for a generic property.
 // Any malformed, or invalid updates are not applied. The default value is
 // applied when the key does not exist in KV. The watch on the value is returned.

@@ -31,17 +31,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3x/checked"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber/tchannel-go/thrift"
-)
-
-var (
-	// errNotImplemented raised when attempting to execute an un-implemented method
-	errNotImplemented = errors.New("method is not implemented")
 )
 
 type service struct {
@@ -275,7 +270,46 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 }
 
 func (s *service) Aggregate(ctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	return nil, tterrors.NewInternalError(errNotImplemented)
+	session, err := s.session()
+	if err != nil {
+		return nil, tterrors.NewInternalError(err)
+	}
+
+	ns, query, opts, err := convert.FromRPCAggregateQueryRequest(req)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	iter, exhaustive, err := session.Aggregate(ns, query, opts)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	defer iter.Finalize()
+
+	response := &rpc.AggregateQueryResult_{
+		Exhaustive: exhaustive,
+	}
+	for iter.Next() {
+		name, values := iter.Current()
+		responseElem := &rpc.AggregateQueryResultTagNameElement{
+			TagName: name.String(),
+		}
+		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, values.Remaining())
+		for values.Next() {
+			value := values.Current()
+			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
+				TagValue: value.String(),
+			})
+		}
+		if err := values.Err(); err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		response.Results = append(response.Results, responseElem)
+	}
+	if err := iter.Err(); err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	return response, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {

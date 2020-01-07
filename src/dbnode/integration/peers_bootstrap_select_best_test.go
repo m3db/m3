@@ -27,11 +27,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +41,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	}
 
 	// Test setups
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -51,7 +50,11 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
@@ -79,7 +82,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	appendSeries := func(target map[xtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
 		startNano := xtime.ToUnixNano(start)
 		if shouldMissData {
-			var dataWithMissing []ts.Datapoint
+			var dataWithMissing []generate.TestValue
 			for i := range s.Data {
 				if i%2 != 0 {
 					continue
@@ -98,8 +101,8 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 			appendSeries(right, start.ToTime(), series)
 		}
 	}
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], left))
-	require.NoError(t, writeTestDataToDisk(namesp, setups[1], right))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], left, 0))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[1], right, 0))
 
 	// Start the first two servers with filesystem bootstrappers
 	setups[:2].parallel(func(s *testSetup) {

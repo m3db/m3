@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -46,7 +46,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheAll)
+	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheAll)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -66,7 +66,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	}
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        true,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
@@ -130,7 +129,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
+	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -210,7 +209,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	// Add mock active series
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        false,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < numActiveSeries; i++ {

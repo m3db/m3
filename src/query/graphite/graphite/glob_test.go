@@ -31,18 +31,51 @@ import (
 
 func TestGlobToRegexPattern(t *testing.T) {
 	tests := []struct {
-		glob  string
-		regex string
+		glob    string
+		isRegex bool
+		regex   []byte
 	}{
-		{"foo\\+bar.'baz<1001>'.qux", "foo\\+bar\\.+\\'baz\\<1001\\>\\'\\.+qux"},
-		{"foo.host.me{1,2,3}.*", "foo\\.+host\\.+me(1|2|3)\\.+[^\\.]*"},
-		{"bar.zed.whatever[0-9].*.*.bar", "bar\\.+zed\\.+whatever[0-9]\\.+[^\\.]*\\.+[^\\.]*\\.+bar"},
-		{"foo{0[3-9],1[0-9],20}", "foo(0[3-9]|1[0-9]|20)"},
+		{
+			glob:    "barbaz",
+			isRegex: false,
+			regex:   []byte("barbaz"),
+		},
+		{
+			glob:    "barbaz:quxqaz",
+			isRegex: false,
+			regex:   []byte("barbaz:quxqaz"),
+		},
+		{
+			glob:    "foo\\+bar.'baz<1001>'.qux",
+			isRegex: true,
+			regex:   []byte("foo\\+bar\\.+\\'baz\\<1001\\>\\'\\.+qux"),
+		},
+		{
+			glob:    "foo.host.me{1,2,3}.*",
+			isRegex: true,
+			regex:   []byte("foo\\.+host\\.+me(1|2|3)\\.+[^\\.]*"),
+		},
+		{
+			glob:    "bar.zed.whatever[0-9].*.*.bar",
+			isRegex: true,
+			regex:   []byte("bar\\.+zed\\.+whatever[0-9]\\.+[^\\.]*\\.+[^\\.]*\\.+bar"),
+		},
+		{
+			glob:    "foo{0[3-9],1[0-9],20}",
+			isRegex: true,
+			regex:   []byte("foo(0[3-9]|1[0-9]|20)"),
+		},
+		{
+			glob:    "foo{0[3-9],1[0-9],20}:bar",
+			isRegex: true,
+			regex:   []byte("foo(0[3-9]|1[0-9]|20):bar"),
+		},
 	}
 
 	for _, test := range tests {
-		pattern, err := GlobToRegexPattern(test.glob)
+		pattern, isRegex, err := GlobToRegexPattern(test.glob)
 		require.NoError(t, err)
+		assert.Equal(t, test.isRegex, isRegex)
 		assert.Equal(t, test.regex, pattern, "bad pattern for %s", test.glob)
 	}
 }
@@ -59,7 +92,7 @@ func TestGlobToRegexPatternErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		_, err := GlobToRegexPattern(test.glob)
+		_, _, err := GlobToRegexPattern(test.glob)
 		require.Error(t, err)
 		assert.Equal(t, test.err, err.Error(), "invalid error for %s", test.glob)
 	}
@@ -98,7 +131,7 @@ func TestCompileGlob(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rePattern, err := GlobToRegexPattern(test.glob)
+		rePattern, _, err := GlobToRegexPattern(test.glob)
 		require.NoError(t, err)
 		re := regexp.MustCompile(fmt.Sprintf("^%s$", rePattern))
 		for _, s := range test.toMatch {

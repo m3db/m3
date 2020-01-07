@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +93,7 @@ func (w testIndexWrites) numIndexed(t *testing.T, ns ident.ID, s client.Session)
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
 		q := newQuery(t, wi.tags)
-		iter, _, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
+		iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 			StartInclusive: wi.ts.Add(-1 * time.Second),
 			EndExclusive:   wi.ts.Add(1 * time.Second),
 			Limit:          10})
@@ -157,7 +157,7 @@ func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
 
 func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
 	q := newQuery(t, tags)
-	iter, _, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
+	iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 		StartInclusive: time.Now(),
 		EndExclusive:   time.Now(),
 		Limit:          10})

@@ -27,83 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMatcher(t *testing.T, mType MatchType, value string) Matcher {
-	m, err := NewMatcher(mType, []byte{}, []byte(value))
+func TestMatcherString(t *testing.T) {
+	m, err := NewMatcher(MatchEqual, []byte("foo"), []byte("bar"))
 	require.NoError(t, err)
 	require.NotNil(t, m)
-
-	return m
-}
-
-func TestMatcher(t *testing.T) {
-	tests := []struct {
-		matcher Matcher
-		value   string
-		match   bool
-	}{
-		{
-			matcher: newMatcher(t, MatchEqual, "bar"),
-			value:   "bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchEqual, "bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchNotEqual, "bar"),
-			value:   "bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchNotEqual, "bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchRegexp, "bar"),
-			value:   "bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchRegexp, "bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchRegexp, ".*bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchNotRegexp, "bar"),
-			value:   "bar",
-			match:   false,
-		},
-		{
-			matcher: newMatcher(t, MatchNotRegexp, "bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: newMatcher(t, MatchNotRegexp, ".*bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-	}
-
-	for _, test := range tests {
-		assert.Equal(t, test.match, test.matcher.Matches([]byte(test.value)))
-	}
-}
-
-func TestMatcher_String(t *testing.T) {
-	m := newMatcher(t, MatchEqual, "foo")
-	m.Name = []byte(`key`)
-
-	assert.Equal(t, `key="foo"`, m.String())
-	assert.Equal(t, `key="foo"`, (&m).String())
+	assert.Equal(t, `foo="bar"`, m.String())
+	assert.Equal(t, `foo="bar"`, (&m).String())
 }
 
 func TestMatchType(t *testing.T) {

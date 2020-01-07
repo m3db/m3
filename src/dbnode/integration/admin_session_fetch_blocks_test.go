@@ -28,26 +28,36 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
+func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
+	testAdminSessionFetchBlocksFromPeers(t, nil, nil)
+}
+
+func TestProtoAdminSessionFetchBlocksFromPeers(t *testing.T) {
+	testAdminSessionFetchBlocksFromPeers(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
 // This test writes data, and retrieves it using AdminSession endpoints
 // FetchMetadataBlocksFromPeers and FetchBlocksFromPeers. Verifying the
 // retrieved value is the same as the written.
-func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
+func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	// Test setup
 	testOpts := newTestOptions(t)
+	if setTestOpts != nil {
+		testOpts = setTestOpts(t, testOpts)
+	}
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -71,6 +81,9 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
 	}
 	for _, input := range inputData {
 		start := input.Start
@@ -173,6 +186,7 @@ func testSetupToSeriesMaps(
 	session, err := testSetup.m3dbVerificationAdminClient.DefaultAdminSession()
 	require.NoError(t, err)
 	require.NotNil(t, session)
+	nsCtx := namespace.NewContextFrom(nsMetadata)
 
 	for shardID, metadatas := range metadatasByShard {
 		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID,
@@ -186,12 +200,12 @@ func testSetupToSeriesMaps(
 			reader, err := blk.Stream(ctx)
 			require.NoError(t, err)
 			readerIter := iterPool.Get()
-			readerIter.Reset(reader)
+			readerIter.Reset(reader, nsCtx.Schema)
 
-			var datapoints []ts.Datapoint
+			var datapoints []generate.TestValue
 			for readerIter.Next() {
-				datapoint, _, _ := readerIter.Current()
-				datapoints = append(datapoints, datapoint)
+				datapoint, _, ann := readerIter.Current()
+				datapoints = append(datapoints, generate.TestValue{Datapoint: datapoint, Annotation: ann})
 			}
 			require.NoError(t, readerIter.Err())
 			require.NotEmpty(t, datapoints)

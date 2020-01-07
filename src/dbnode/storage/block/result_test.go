@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,5 +110,11 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 		assert.Equal(t, expected[i].Size, actual[i].Size)
 		assert.Equal(t, expected[i].Checksum, actual[i].Checksum)
 		assert.Equal(t, expected[i].LastRead, actual[i].LastRead)
+	}
+
+	for _, fetchMetadataResult := range res.Results() {
+		// Ensure that the consumed (and closed) tags are marked as nil so subsequent code paths
+		// can't trigger a double close.
+		require.Nil(t, fetchMetadataResult.Tags)
 	}
 }

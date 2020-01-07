@@ -30,18 +30,19 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 	opts := NewOptions()
-	b := NewDatabaseBlock(time.Now(), 0, ts.Segment{}, opts).(*dbBlock)
+	b := NewDatabaseBlock(time.Now(), 0, ts.Segment{}, opts, namespace.Context{}).(*dbBlock)
 	return b
 }
 
@@ -54,7 +55,7 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time, sizes []time.Duration)
 	blocks := testDatabaseSeriesBlocks()
 	for i := range times {
 		block := opts.DatabaseBlockPool().Get()
-		block.Reset(times[i], sizes[i], ts.Segment{})
+		block.Reset(times[i], sizes[i], ts.Segment{}, namespace.Context{})
 		blocks.AddBlock(block)
 	}
 	return blocks
@@ -155,12 +156,12 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Lazily merge the two blocks
 	block1.Merge(block2)
@@ -239,12 +240,12 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 			encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 			encoder.Encode(data[0], xtime.Second, nil)
 			seg := encoder.Discard()
-			block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+			block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-			encoder.Reset(data[1].Timestamp, 10)
+			encoder.Reset(data[1].Timestamp, 10, nil)
 			encoder.Encode(data[1], xtime.Second, nil)
 			seg = encoder.Discard()
-			block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+			block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 			// Lazily merge the two blocks
 			block1.Merge(block2)
@@ -343,17 +344,17 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[2].Timestamp, 10)
+	encoder.Reset(data[2].Timestamp, 10, nil)
 	encoder.Encode(data[2], xtime.Second, nil)
 	seg = encoder.Discard()
-	block3 := NewDatabaseBlock(data[2].Timestamp, durations[2], seg, blockOpts).(*dbBlock)
+	block3 := NewDatabaseBlock(data[2].Timestamp, durations[2], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Lazily merge two blocks into block1
 	block1.Merge(block2)
@@ -405,8 +406,8 @@ func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
 	)
 
 	// Create the two blocks we plan to merge
-	block1 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
-	block2 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
+	block2 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Mark only block 2 as retrieved from disk so we can make sure it checks
 	// the block that is being merged, as well as the one that is being merged
@@ -449,12 +450,12 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	// Keep track of the old checksum so we can make sure it changed
 	oldChecksum, err := block1.Checksum()
@@ -523,12 +524,12 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
-	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Reset(data[1].Timestamp, 10, nil)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts, namespace.Context{}).(*dbBlock)
 
 	err := block1.Merge(block2)
 	require.NoError(t, err)
@@ -555,8 +556,8 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 func TestDatabaseBlockCloseIfFromDisk(t *testing.T) {
 	var (
 		blockOpts        = NewOptions()
-		blockNotFromDisk = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts).(*dbBlock)
-		blockFromDisk    = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts).(*dbBlock)
+		blockNotFromDisk = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
+		blockFromDisk    = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts, namespace.Context{}).(*dbBlock)
 	)
 	blockFromDisk.wasRetrievedFromDisk = true
 
@@ -689,7 +690,7 @@ func TestBlockResetFromDisk(t *testing.T) {
 	blockSize := 2 * time.Hour
 	id := ident.StringID("testID")
 	segment := ts.Segment{}
-	bl.ResetFromDisk(now, blockSize, segment, id)
+	bl.ResetFromDisk(now, blockSize, segment, id, namespace.Context{})
 
 	assert.True(t, now.Equal(bl.StartTime()))
 	assert.Equal(t, blockSize, bl.BlockSize())

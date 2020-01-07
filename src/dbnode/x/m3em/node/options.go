@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/m3em/node"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type opts struct {

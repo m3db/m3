@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 package index
 
 import (
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -115,7 +115,7 @@ type ResultsMapEntry struct {
 	// key is used to check equality on lookups to resolve collisions
 	key _ResultsMapKey
 	// value type stored
-	value ident.Tags
+	value ident.TagIterator
 }
 
 type _ResultsMapKey struct {
@@ -129,7 +129,7 @@ func (e ResultsMapEntry) Key() ident.ID {
 }
 
 // Value returns the map entry value.
-func (e ResultsMapEntry) Value() ident.Tags {
+func (e ResultsMapEntry) Value() ident.TagIterator {
 	return e.value
 }
 
@@ -161,7 +161,7 @@ func (m *ResultsMap) removeMapKey(hash ResultsMapHash, key _ResultsMapKey) {
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *ResultsMap) Get(k ident.ID) (ident.Tags, bool) {
+func (m *ResultsMap) Get(k ident.ID) (ident.TagIterator, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -170,12 +170,12 @@ func (m *ResultsMap) Get(k ident.ID) (ident.Tags, bool) {
 		// Linear probe to "next" to this entry (really a rehash)
 		hash++
 	}
-	var empty ident.Tags
+	var empty ident.TagIterator
 	return empty, false
 }
 
 // Set will set the value for an identifier.
-func (m *ResultsMap) Set(k ident.ID, v ident.Tags) {
+func (m *ResultsMap) Set(k ident.ID, v ident.TagIterator) {
 	m.set(k, v, _ResultsMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -191,7 +191,7 @@ type ResultsMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *ResultsMap) SetUnsafe(k ident.ID, v ident.Tags, opts ResultsMapSetUnsafeOptions) {
+func (m *ResultsMap) SetUnsafe(k ident.ID, v ident.TagIterator, opts ResultsMapSetUnsafeOptions) {
 	m.set(k, v, _ResultsMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -203,7 +203,7 @@ type _ResultsMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *ResultsMap) set(k ident.ID, v ident.Tags, opts _ResultsMapKeyOptions) {
+func (m *ResultsMap) set(k ident.ID, v ident.TagIterator, opts _ResultsMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

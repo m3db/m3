@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -43,6 +43,15 @@ type Entry struct {
 	curReadWriters int32
 	reverseIndex   entryIndexState
 }
+
+// OnReleaseReadWriteRef is a callback that can release
+// a strongly held series read/write ref.
+type OnReleaseReadWriteRef interface {
+	OnReleaseReadWriteRef()
+}
+
+// ensure Entry satifies the `OnReleaseReadWriteRef` interface.
+var _ OnReleaseReadWriteRef = &Entry{}
 
 // ensure Entry satisfies the `index.OnIndexSeries` interface.
 var _ index.OnIndexSeries = &Entry{}
@@ -70,6 +79,15 @@ func (entry *Entry) IncrementReaderWriterCount() {
 // DecrementReaderWriterCount decrements the ref count on the Entry.
 func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
+}
+
+// OnReleaseReadWriteRef decrements a read/write ref, it's named
+// differently to decouple the concrete task needed when a ref
+// is released and the intent to release the ref (simpler for
+// caller readability/reasoning).
+func (entry *Entry) OnReleaseReadWriteRef() {
+	// All we do when we release a read/write ref is decrement.
+	entry.DecrementReaderWriterCount()
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully

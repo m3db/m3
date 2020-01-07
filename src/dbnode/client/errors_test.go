@@ -27,28 +27,26 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConsistencyResultError(t *testing.T) {
-	topErr := &rpc.Error{
+	badReqErr := xerrors.NewRenamedError(&rpc.Error{
 		Type: rpc.ErrorType_BAD_REQUEST,
-	}
+	}, fmt.Errorf("renamed error"))
 
-	err := consistencyResultErr{
-		level:       topology.ReadConsistencyLevelMajority,
-		success:     1,
-		enqueued:    3,
-		responded:   3,
-		topLevelErr: topErr,
-		errs:        []error{topErr, fmt.Errorf("another error")},
-	}
+	level := topology.ReadConsistencyLevelMajority
+	enqueued := 3
+	responded := 3
+	errs := []error{fmt.Errorf("another error"), badReqErr}
+
+	err := error(newConsistencyResultError(level, enqueued, responded, errs))
 
 	assert.True(t, strings.HasPrefix(err.Error(),
 		"failed to meet consistency level majority with 1/3 success, 3 nodes responded, errors:"))
-	assert.Equal(t, topErr, xerrors.InnerError(err))
+	assert.Equal(t, badReqErr, xerrors.InnerError(err))
 	assert.True(t, IsBadRequestError(err))
 	assert.Equal(t, 3, NumResponded(err))
 	assert.Equal(t, 1, NumSuccess(err))

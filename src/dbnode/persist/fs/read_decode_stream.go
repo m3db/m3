@@ -30,7 +30,7 @@ import (
 )
 
 type dataFileSetReaderDecoderStream interface {
-	msgpack.DecoderStream
+	msgpack.ByteDecoderStream
 
 	// reader returns the underlying reader with access to the
 	// incremental computed digest

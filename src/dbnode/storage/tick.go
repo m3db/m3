@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
 )
@@ -63,6 +63,7 @@ func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 }
 
 type tickManager struct {
+	sync.Mutex
 	database database
 	opts     Options
 	nowFn    clock.NowFn
@@ -123,7 +124,7 @@ func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
 	})
 }
 
-func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
+func (mgr *tickManager) Tick(forceType forceType, startTime time.Time) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)
@@ -165,7 +166,7 @@ func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
 		multiErr xerrors.MultiError
 	)
 	for _, n := range namespaces {
-		multiErr = multiErr.Add(n.Tick(mgr.c, tickStart))
+		multiErr = multiErr.Add(n.Tick(mgr.c, startTime))
 	}
 
 	// NB(r): Always sleep for some constant period since ticking

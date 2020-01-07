@@ -95,29 +95,14 @@ func (op AggregationOp) String() string {
 	return op.Type.String()
 }
 
-// MarshalJSON returns the JSON encoding of an aggregation operation.
-func (op AggregationOp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(op.Type)
+// MarshalText returns the text encoding of an aggregation operation.
+func (op AggregationOp) MarshalText() ([]byte, error) {
+	return op.Type.MarshalText()
 }
 
-// UnmarshalJSON unmarshals JSON-encoded data into an aggregation operation.
-func (op *AggregationOp) UnmarshalJSON(data []byte) error {
-	var t aggregation.Type
-	if err := json.Unmarshal(data, &t); err != nil {
-		return err
-	}
-	op.Type = t
-	return nil
-}
-
-// UnmarshalYAML unmarshals YAML-encoded data into an aggregation operation.
-func (op *AggregationOp) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var t aggregation.Type
-	if err := unmarshal(&t); err != nil {
-		return err
-	}
-	op.Type = t
-	return nil
+// UnmarshalText unmarshals text-encoded data into an aggregation operation.
+func (op *AggregationOp) UnmarshalText(data []byte) error {
+	return op.Type.UnmarshalText(data)
 }
 
 // TransformationOp is a transformation operation.
@@ -171,29 +156,14 @@ func (op *TransformationOp) FromProto(pb *pipelinepb.TransformationOp) error {
 	return op.Type.FromProto(pb.Type)
 }
 
-// MarshalJSON returns the JSON encoding of a transformation operation.
-func (op TransformationOp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(op.Type)
+// UnmarshalText extracts this type from its textual representation.
+func (op *TransformationOp) UnmarshalText(text []byte) error {
+	return op.Type.UnmarshalText(text)
 }
 
-// UnmarshalJSON unmarshals JSON-encoded data into a transformation operation.
-func (op *TransformationOp) UnmarshalJSON(data []byte) error {
-	var t transformation.Type
-	if err := json.Unmarshal(data, &t); err != nil {
-		return err
-	}
-	op.Type = t
-	return nil
-}
-
-// UnmarshalYAML unmarshals YAML-encoded data into a transformation operation.
-func (op *TransformationOp) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var t transformation.Type
-	if err := unmarshal(&t); err != nil {
-		return err
-	}
-	op.Type = t
-	return nil
+// MarshalText serializes this type to its textual representation.
+func (op TransformationOp) MarshalText() (text []byte, err error) {
+	return op.Type.MarshalText()
 }
 
 // RollupOp is a rollup operation.
@@ -325,6 +295,11 @@ func (op *RollupOp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	*op = converted.RollupOp()
 	return nil
+}
+
+// MarshalYAML returns the YAML representation of this type.
+func (op RollupOp) MarshalYAML() (interface{}, error) {
+	return newRollupMarshaler(op), nil
 }
 
 type rollupMarshaler struct {
@@ -469,6 +444,11 @@ func (u *OpUnion) UnmarshalJSON(data []byte) error {
 	}
 	*u = union
 	return nil
+}
+
+// MarshalJSON returns the JSON encoding of an operation union.
+func (u OpUnion) MarshalYAML() (interface{}, error) {
+	return newUnionMarshaler(u)
 }
 
 // UnmarshalYAML unmarshals YAML-encoded data into an operation union.
@@ -633,4 +613,9 @@ func (p *Pipeline) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	p.operations = operations
 	return nil
+}
+
+// MarshalYAML returns the YAML representation.
+func (p Pipeline) MarshalYAML() (interface{}, error) {
+	return p.operations, nil
 }

@@ -21,8 +21,8 @@
 package encoding
 
 import (
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
@@ -155,13 +155,33 @@ func (os *ostream) WriteByte(v byte) {
 
 // WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
-	// Make sure we only have to grow the underlying buffer at most
-	// one time before we write one byte at a time in a loop.
+	// Call ensureCapacityFor ahead of time to ensure that the bytes pool is used to
+	// grow the rawBuffer (as opposed to append possibly triggering an allocation if
+	// it wasn't) and that its only grown a maximum of one time regardless of the size
+	// of the []byte being written.
 	os.ensureCapacityFor(len(bytes))
+
+	if !os.hasUnusedBits() {
+		// If the stream is aligned on a byte boundary then all of the WriteByte()
+		// function calls and bit-twiddling can be skipped in favor of a single
+		// copy operation.
+		os.rawBuffer = append(os.rawBuffer, bytes...)
+		// Position 8 indicates that the last byte of the buffer has been completely
+		// filled.
+		os.pos = 8
+		return
+	}
 
 	for i := 0; i < len(bytes); i++ {
 		os.WriteByte(bytes[i])
 	}
+}
+
+// Write writes a byte slice. This method exists in addition to WriteBytes()
+// to satisfy the io.Writer interface.
+func (os *ostream) Write(bytes []byte) (int, error) {
+	os.WriteBytes(bytes)
+	return len(bytes), nil
 }
 
 // WriteBits writes the lowest numBits of v to the stream, starting
@@ -238,6 +258,10 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 //     2. Use this function with care.
 func (os *ostream) Rawbytes() ([]byte, int) {
 	return os.rawBuffer, os.pos
+}
+
+func (os *ostream) CheckedBytes() (checked.Bytes, int) {
+	return os.checked, os.pos
 }
 
 // repairCheckedBytes makes sure that the checked.Bytes wraps the rawBuffer as

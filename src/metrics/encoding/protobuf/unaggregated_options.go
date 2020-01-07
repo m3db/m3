@@ -20,7 +20,7 @@
 
 package protobuf
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 const (
 	defaultInitBufferSize = 2880

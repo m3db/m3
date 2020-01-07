@@ -27,11 +27,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Strategy describes the commit log writing strategy
@@ -84,26 +84,56 @@ type CommitLog interface {
 	QueueLength() int64
 }
 
-// Iterator provides an iterator for commit logs
+// LogEntry is a commit log entry being read.
+type LogEntry struct {
+	Series     ts.Series
+	Datapoint  ts.Datapoint
+	Unit       xtime.Unit
+	Annotation ts.Annotation
+	Metadata   LogEntryMetadata
+}
+
+// LogEntryMetadata is a set of metadata about a commit log entry being read.
+type LogEntryMetadata struct {
+	// FileReadID is a unique index for the current commit log
+	// file that is being read (only unique per-process).
+	FileReadID uint64
+	// SeriesUniqueIndex is the series unique index relative to the
+	// current commit log file being read.
+	SeriesUniqueIndex uint64
+}
+
+// Iterator provides an iterator for commit logs.
 type Iterator interface {
-	// Next returns whether the iterator has the next value
+	// Next returns whether the iterator has the next value.
 	Next() bool
 
-	// Current returns the current commit log entry
-	Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation)
+	// Current returns the current commit log entry.
+	Current() LogEntry
 
-	// Err returns an error if an error occurred
+	// Err returns an error if an error occurred.
 	Err() error
 
-	// Close the iterator
+	// Close the iterator.
 	Close()
 }
 
-// IteratorOpts is a struct that contains coptions for the Iterator
+// IteratorOpts is a struct that contains coptions for the Iterator.
 type IteratorOpts struct {
-	CommitLogOptions      Options
-	FileFilterPredicate   FileFilterPredicate
-	SeriesFilterPredicate SeriesFilterPredicate
+	CommitLogOptions    Options
+	FileFilterPredicate FileFilterPredicate
+	// ReturnMetadataAsRef will return all series metadata such as ID,
+	// tags and namespace as a reference instead of returning pooled
+	// or allocated byte/string/ID references.
+	// Useful if caller does not hold onto the result between calls to
+	// the next read log entry and wants to avoid allocations and pool
+	// contention.
+	// Note: Series metadata will only be set on the result of a log
+	// entry read if the series is read for the first time for the
+	// combined tuple of FileReadID and SeriesUniqueIndex returned by
+	// the LogEntryMetadata. EncodedTags will also be returned
+	// instead of Tags on the series metadata.
+	ReturnMetadataAsRef bool
 }
 
 // Options represents the options for the commit log.
@@ -186,12 +216,16 @@ type Options interface {
 	IdentifierPool() ident.Pool
 }
 
+// FileFilterInfo contains information about a commitog file that can be used to
+// determine whether the iterator should filter it out or not.
+type FileFilterInfo struct {
+	// If isCorrupt is true then File will contain a valid CommitLogFile, otherwise
+	// ErrorWithPath will contain an error and the path of the corrupt file.
+	File      persist.CommitLogFile
+	Err       ErrorWithPath
+	IsCorrupt bool
+}
+
 // FileFilterPredicate is a predicate that allows the caller to determine
 // which commitlogs the iterator should read from.
-type FileFilterPredicate func(f persist.CommitLogFile) bool
-
-// SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
-// should be returned from the Commit log reader. The predicate is pushed down to the
-// reader level to prevent having to run the same function for every datapoint for a
-// given series.
-type SeriesFilterPredicate func(id ident.ID, namespace ident.ID) bool
+type FileFilterPredicate func(f FileFilterInfo) bool

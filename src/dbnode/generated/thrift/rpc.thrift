@@ -53,17 +53,23 @@ service Node {
 
 	// Performant read/write endpoints
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
+	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
 	// Management endpoints
 	NodeHealthResult health() throws (1: Error err)
+	// NB: bootstrapped is for use with cluster management tools like k8s.
 	NodeBootstrappedResult bootstrapped() throws (1: Error err)
+	// NB: bootstrappedInPlacementOrNoPlacement is for use with cluster management tools like k8s.
+	NodeBootstrappedInPlacementOrNoPlacementResult bootstrappedInPlacementOrNoPlacement() throws (1: Error err)
 	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
 	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
@@ -112,6 +118,20 @@ struct FetchBatchRawRequest {
 	2: required i64 rangeEnd
 	3: required binary nameSpace
 	4: required list<binary> ids
+	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+}
+
+
+struct FetchBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<FetchBatchRawV2RequestElement> elements
+}
+
+struct FetchBatchRawV2RequestElement {
+	1: required i64 nameSpace
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
+	4: required binary id
 	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 
@@ -224,9 +244,20 @@ struct WriteBatchRawRequest {
 	2: required list<WriteBatchRawRequestElement> elements
 }
 
+struct WriteBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<WriteBatchRawV2RequestElement> elements
+}
+
 struct WriteBatchRawRequestElement {
 	1: required binary id
 	2: required Datapoint datapoint
+}
+
+struct WriteBatchRawV2RequestElement {
+	1: required binary id
+	2: required Datapoint datapoint
+	3: required i64 nameSpace
 }
 
 struct WriteTaggedBatchRawRequest {
@@ -234,10 +265,22 @@ struct WriteTaggedBatchRawRequest {
 	2: required list<WriteTaggedBatchRawRequestElement> elements
 }
 
+struct WriteTaggedBatchRawV2Request {
+	1: required list<binary> nameSpaces
+	2: required list<WriteTaggedBatchRawV2RequestElement> elements
+}
+
 struct WriteTaggedBatchRawRequestElement {
 	1: required binary id
 	2: required binary encodedTags
 	3: required Datapoint datapoint
+}
+
+struct WriteTaggedBatchRawV2RequestElement {
+	1: required binary id
+	2: required binary encodedTags
+	3: required Datapoint datapoint
+	4: required i64 nameSpace
 }
 
 struct WriteBatchRawError {
@@ -260,6 +303,8 @@ struct NodeHealthResult {
 }
 
 struct NodeBootstrappedResult {}
+
+struct NodeBootstrappedInPlacementOrNoPlacementResult {}
 
 struct NodePersistRateLimitResult {
 	1: required bool limitEnabled
@@ -326,7 +371,7 @@ enum AggregateQueryType {
 // (2) Given a filter query (optionally), return all know tag key+values matching this restriction
 // (3) For (1), (2) - filter results to a given set of keys
 struct AggregateQueryRawRequest {
-	1: optional Query query
+	1: required binary query
 	2: required i64 rangeStart
 	3: required i64 rangeEnd
 	4: required binary nameSpace
@@ -421,10 +466,18 @@ struct DisjunctionQuery {
   1: required list<Query> queries
 }
 
+struct AllQuery {}
+
+struct FieldQuery {
+  1: required string field
+}
+
 struct Query {
-  1: optional TermQuery term
-  2: optional RegexpQuery regexp
-  3: optional NegationQuery negation
+  1: optional TermQuery        term
+  2: optional RegexpQuery      regexp
+  3: optional NegationQuery    negation
   4: optional ConjunctionQuery conjunction
   5: optional DisjunctionQuery disjunction
+  6: optional AllQuery         all
+  7: optional FieldQuery       field
 }

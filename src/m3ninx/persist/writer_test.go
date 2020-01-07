@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	xtest "github.com/m3db/m3x/test"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

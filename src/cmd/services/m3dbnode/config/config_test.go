@@ -21,14 +21,22 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/topology"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
-	xconfig "github.com/m3db/m3x/config"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -85,7 +93,6 @@ db:
       hashing:
         seed: 42
 
-
   gcPercentage: 100
 
   writeNewSeriesLimitPerSecond: 1048576
@@ -97,7 +104,9 @@ db:
           - peers
           - noop-all
       fs:
-          numProcessorsPerCPU: 0.125
+          numProcessorsPerCPU: 0.42
+      commitlog:
+          returnUnfulfilledForCorruptCommitLogFiles: false
 
   commitlog:
       flushMaxBytes: 524288
@@ -119,14 +128,12 @@ db:
 
   repair:
       enabled: false
-      interval: 2h
-      offset: 30m
-      jitter: 1h
       throttle: 2m
       checkInterval: 1m
 
   pooling:
       blockAllocSize: 16
+      thriftBytesPoolAllocSize: 2048
       type: simple
       seriesPool:
           size: 5242880
@@ -140,6 +147,10 @@ db:
           size: 25165824
           lowWatermark: 0.01
           highWatermark: 0.02
+      checkedBytesWrapperPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       closersPool:
           size: 104857
           lowWatermark: 0.01
@@ -148,7 +159,6 @@ db:
           size: 524288
           lowWatermark: 0.01
           highWatermark: 0.02
-          maxFinalizerCapacity: 8
       segmentReaderPool:
           size: 16384
           lowWatermark: 0.01
@@ -167,7 +177,7 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
           capacity: 4096
-      hostBlockMetadataSlicePool:
+      replicaMetadataSlicePool:
           size: 131072
           capacity: 3
           lowWatermark: 0.01
@@ -224,6 +234,18 @@ db:
           size: 9437184
           lowWatermark: 0.01
           highWatermark: 0.02
+      bufferBucketPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      bufferBucketVersionsPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      retrieveRequestPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       bytesPool:
           buckets:
               - capacity: 16
@@ -271,6 +293,7 @@ db:
                     - 1.1.1.1:2379
                     - 1.1.1.2:2379
                     - 1.1.1.3:2379
+
       seedNodes:
           listenPeerUrls:
               - http://0.0.0.0:2380
@@ -292,6 +315,9 @@ db:
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+
+  tracing:
+    backend: jaeger
 `
 
 func TestConfiguration(t *testing.T) {
@@ -317,6 +343,11 @@ func TestConfiguration(t *testing.T) {
 	expected := `db:
   index:
     maxQueryIDsConcurrency: 0
+    forwardIndexProbability: 0
+    forwardIndexThreshold: 0
+  transforms:
+    truncateBy: 0
+    forceValue: null
   logging:
     file: /var/log/m3dbnode.log
     level: info
@@ -370,6 +401,10 @@ func TestConfiguration(t *testing.T) {
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
       seed: 42
+    proto: null
+    asyncWriteWorkerPoolSize: null
+    asyncWriteMaxConcurrency: null
+    useV2BatchAPIs: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -380,8 +415,9 @@ func TestConfiguration(t *testing.T) {
     - peers
     - noop-all
     fs:
-      numProcessorsPerCPU: 0.125
-    commitlog: null
+      numProcessorsPerCPU: 0.42
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
     cacheSeriesMetadata: null
   blockRetrieve: null
   cache:
@@ -403,6 +439,7 @@ func TestConfiguration(t *testing.T) {
     mmap: null
     force_index_summaries_mmap_memory: true
     force_bloom_filter_mmap_memory: true
+    bloomFilterFalsePositivePercent: null
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
@@ -413,13 +450,14 @@ func TestConfiguration(t *testing.T) {
     blockSize: null
   repair:
     enabled: false
-    interval: 2h0m0s
-    offset: 30m0s
-    jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
+    debugShadowComparisonsEnabled: false
+    debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
+    thriftBytesPoolAllocSize: 2048
     type: simple
     bytesPool:
       buckets:
@@ -455,6 +493,10 @@ func TestConfiguration(t *testing.T) {
         lowWatermark: 0.01
         highWatermark: 0.02
         capacity: 8192
+    checkedBytesWrapperPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -463,7 +505,6 @@ func TestConfiguration(t *testing.T) {
       size: 524288
       lowWatermark: 0.01
       highWatermark: 0.02
-      maxFinalizerCapacity: 8
     seriesPool:
       size: 5242880
       lowWatermark: 0.01
@@ -498,7 +539,7 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
       capacity: 4096
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
       size: 131072
       lowWatermark: 0.01
       highWatermark: 0.02
@@ -547,28 +588,47 @@ func TestConfiguration(t *testing.T) {
       size: 8192
       initialBatchSize: 128
       maxBatchSize: 100000
+    bufferBucketPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
+    bufferBucketVersionsPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
+    retrieveRequestPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0
       highWatermark: 0
   config:
-    service:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive: null
-        tls: null
-      m3sd:
-        initTimeout: null
-      watchWithRevision: 0
-    static: null
+    services:
+    - async: false
+      clientOverrides:
+        hostQueueFlushInterval: null
+        targetHostQueueFlushSize: null
+      service:
+        zone: embedded
+        env: production
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: embedded
+          endpoints:
+          - 1.1.1.1:2379
+          - 1.1.1.2:2379
+          - 1.1.1.3:2379
+          keepAlive: null
+          tls: null
+          autoSyncInterval: 0s
+        m3sd:
+          initTimeout: null
+        watchWithRevision: 0
+        newDirectoryMode: null
+    statics: []
     seedNodes:
       rootDir: /var/lib/etcd
       initialAdvertisePeerUrls:
@@ -606,6 +666,24 @@ func TestConfiguration(t *testing.T) {
   hashing:
     seed: 42
   writeNewSeriesAsync: true
+  proto: null
+  tracing:
+    serviceName: ""
+    backend: jaeger
+    jaeger:
+      serviceName: ""
+      disabled: false
+      rpc_metrics: false
+      tags: []
+      sampler: null
+      reporter: null
+      headers: null
+      baggage_restrictions: null
+      throttler: null
+  limits:
+    maxOutstandingWriteRequests: 0
+    maxOutstandingReadRequests: 0
+    maxOutstandingRepairedBytes: 0
 coordinator: null
 `
 
@@ -777,4 +855,162 @@ func TestNewEtcdEmbedConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "existing", embedCfg.ClusterState)
+}
+
+func TestNewJaegerTracer(t *testing.T) {
+	fd, err := ioutil.TempFile("", "config_jaeger.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testBaseConfig))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	instrumentOpts := instrument.NewOptions()
+	tracer, closer, err := cfg.DB.Tracing.NewTracer("m3dbnode",
+		instrumentOpts.MetricsScope(), instrumentOpts.Logger())
+	require.NoError(t, err)
+	defer closer.Close()
+
+	// Verify tracer gets created
+	require.NotNil(t, tracer)
+}
+
+func TestProtoConfig(t *testing.T) {
+	testProtoConf := `
+db:
+  metrics:
+      samplingRate: 1.0
+
+  listenAddress: 0.0.0.0:9000
+  clusterListenAddress: 0.0.0.0:9001
+  httpNodeListenAddress: 0.0.0.0:9002
+  httpClusterListenAddress: 0.0.0.0:9003
+
+  bootstrap:
+      bootstrappers:
+          - noop-all
+
+  commitlog:
+      flushMaxBytes: 524288
+      flushEvery: 1s
+      queue:
+          size: 2097152
+
+  proto:
+      enabled: false
+      schema_registry:
+         "ns1:2d":
+            schemaFilePath: "file/path/to/ns1/schema"
+            messageName: "ns1_msg_name"
+         ns2:
+            schemaFilePath: "file/path/to/ns2/schema"
+            messageName: "ns2_msg_name"
+`
+	fd, err := ioutil.TempFile("", "config_proto.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testProtoConf))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.DB.Proto)
+	require.False(t, cfg.DB.Proto.Enabled)
+
+	require.Len(t, cfg.DB.Proto.SchemaRegistry, 2)
+	require.EqualValues(t, map[string]NamespaceProtoSchema{
+		"ns1:2d": {
+			SchemaFilePath: "file/path/to/ns1/schema",
+			MessageName:    "ns1_msg_name",
+		},
+		"ns2": {
+			SchemaFilePath: "file/path/to/ns2/schema",
+			MessageName:    "ns2_msg_name",
+		}}, cfg.DB.Proto.SchemaRegistry)
+}
+
+func TestBootstrapCommitLogConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	notDefault := !commitlog.DefaultReturnUnfulfilledForCorruptCommitLogFiles
+	notDefaultStr := fmt.Sprintf("%v", notDefault)
+
+	testConf := `
+db:
+  metrics:
+      samplingRate: 1.0
+
+  listenAddress: 0.0.0.0:9000
+  clusterListenAddress: 0.0.0.0:9001
+  httpNodeListenAddress: 0.0.0.0:9002
+  httpClusterListenAddress: 0.0.0.0:9003
+
+  bootstrap:
+      bootstrappers:
+          - filesystem
+          - commitlog
+          - peers
+          - uninitialized_topology
+      commitlog:
+          returnUnfulfilledForCorruptCommitLogFiles: ` + notDefaultStr + `
+
+  commitlog:
+      flushMaxBytes: 524288
+      flushEvery: 1s
+      queue:
+          size: 2097152
+`
+	fd, err := ioutil.TempFile("", "config.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(testConf))
+	require.NoError(t, err)
+
+	// Verify is valid
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, cfg.DB)
+
+	validator := NewMockBootstrapConfigurationValidator(ctrl)
+	validator.EXPECT().ValidateBootstrappersOrder(gomock.Any()).Return(nil).AnyTimes()
+	validator.EXPECT().ValidateFilesystemBootstrapperOptions(gomock.Any()).Return(nil)
+	validator.EXPECT().ValidatePeersBootstrapperOptions(gomock.Any()).Return(nil)
+	validator.EXPECT().ValidateUninitializedBootstrapperOptions(gomock.Any()).Return(nil)
+	validator.EXPECT().
+		ValidateCommitLogBootstrapperOptions(gomock.Any()).
+		DoAndReturn(func(opts commitlog.Options) error {
+			actual := opts.ReturnUnfulfilledForCorruptCommitLogFiles()
+			expected := notDefault
+			require.Equal(t, expected, actual)
+			return nil
+		})
+
+	mapProvider := topology.NewMockMapProvider(ctrl)
+	origin := topology.NewMockHost(ctrl)
+	adminClient := client.NewMockAdminClient(ctrl)
+
+	_, err = cfg.DB.Bootstrap.New(validator,
+		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+	require.NoError(t, err)
 }

@@ -38,11 +38,12 @@ import (
 	"github.com/m3db/m3/src/m3em/integration/resources"
 	"github.com/m3db/m3/src/m3em/node"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -57,7 +58,7 @@ type testHarness struct {
 	scriptNum         int
 	harnessDir        string
 	iopts             instrument.Options
-	logger            xlog.Logger
+	logger            *zap.Logger
 	agentListener     net.Listener
 	agentOptions      agent.Options
 	agentService      agent.Agent
@@ -79,13 +80,12 @@ func newTestHarness(t *testing.T) *testHarness {
 }
 
 func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOptions) *testHarness {
-	logger := xlog.NewLogger(os.Stderr)
-
+	logger := xtest.NewLogger(t)
 	useTLS := strings.ToLower(os.Getenv("TEST_TLS_COMMUNICATION")) == "true"
 	if useTLS {
-		logger.Infof("Using TLS for RPC")
+		logger.Info("using TLS for RPC")
 	} else {
-		logger.Infof("Not using TLS for RPC")
+		logger.Info("not using TLS for RPC")
 	}
 
 	th := &testHarness{

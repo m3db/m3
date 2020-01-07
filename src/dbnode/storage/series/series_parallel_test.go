@@ -27,10 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,10 +45,12 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		numStepsPerWorker = numWorkers * 100
 		opts              = newSeriesTestOptions()
 		curr              = time.Now()
-		series            = NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
+		series            = NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
+		dbBlock           = block.NewDatabaseBlock(time.Time{}, time.Hour*2,
+			ts.Segment{}, block.NewOptions(), namespace.Context{})
 	)
 
-	_, err := series.Bootstrap(nil)
+	err := series.LoadBlock(dbBlock, WarmWrite)
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
@@ -56,7 +61,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	go func() {
 		for i := 0; i < numStepsPerWorker; i++ {
 			wasWritten, err := series.Write(
-				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil)
+				ctx, curr.Add(time.Duration(i)*time.Nanosecond), float64(i), xtime.Second, nil, WriteOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -72,7 +77,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < numStepsPerWorker; i++ {
-				_, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
+				_, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute), namespace.Context{})
 				if err != nil {
 					panic(err)
 				}

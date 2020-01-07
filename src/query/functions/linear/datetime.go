@@ -25,19 +25,24 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/lazy"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 const (
-	// DayOfMonthType returns the day of the month for each of the given times in UTC.
+	// DayOfMonthType returns the day of the month for each of the given times
+	// in UTC.
 	// Returned values are from 1 to 31.
 	DayOfMonthType = "day_of_month"
 
-	// DayOfWeekType returns the day of the week for each of the given times in UTC.
+	// DayOfWeekType returns the day of the week for each of the given times
+	// in UTC.
 	// Returned values are from 0 to 6, where 0 means Sunday etc.
 	DayOfWeekType = "day_of_week"
 
-	// DaysInMonthType returns number of days in the month for each of the given times in UTC.
+	// DaysInMonthType returns number of days in the month for each of the given
+	// times in UTC.
 	// Returned values are from 28 to 31.
 	DaysInMonthType = "days_in_month"
 
@@ -45,7 +50,8 @@ const (
 	// Returned values are from 0 to 23.
 	HourType = "hour"
 
-	// MinuteType returns the minute of the hour for each of the given times in UTC.
+	// MinuteType returns the minute of the hour for each of the given times
+	// in UTC.
 	// Returned values are from 0 to 59.
 	MinuteType = "minute"
 
@@ -57,12 +63,15 @@ const (
 	YearType = "year"
 )
 
+type timeFn func(time.Time) float64
+
 var (
-	datetimeFuncs = map[string]func(time.Time) float64{
+	datetimeFuncs = map[string]timeFn{
 		DayOfMonthType: func(t time.Time) float64 { return float64(t.Day()) },
 		DayOfWeekType:  func(t time.Time) float64 { return float64(t.Weekday()) },
 		DaysInMonthType: func(t time.Time) float64 {
-			return float64(32 - time.Date(t.Year(), t.Month(), 32, 0, 0, 0, 0, time.UTC).Day())
+			return float64(32 - time.Date(t.Year(), t.Month(),
+				32, 0, 0, 0, 0, time.UTC).Day())
 		},
 		HourType:   func(t time.Time) float64 { return float64(t.Hour()) },
 		MinuteType: func(t time.Time) float64 { return float64(t.Minute()) },
@@ -71,37 +80,30 @@ var (
 	}
 )
 
-// NewDateOp creates a new date op based on the type
-func NewDateOp(optype string) (BaseOp, error) {
-	if _, ok := datetimeFuncs[optype]; !ok {
-		return emptyOp, fmt.Errorf("unknown date type: %s", optype)
-	}
-
-	return BaseOp{
-		operatorType: optype,
-		processorFn:  newDateNode,
-	}, nil
-}
-
-func newDateNode(op BaseOp, controller *transform.Controller) Processor {
-	return &dateNode{op: op, controller: controller, dateFn: datetimeFuncs[op.operatorType]}
-}
-
-type dateNode struct {
-	op         BaseOp
-	dateFn     func(t time.Time) float64
-	controller *transform.Controller
-}
-
-func (d *dateNode) Process(values []float64) []float64 {
-	for i := range values {
-		if math.IsNaN(values[i]) {
-			values[i] = math.NaN()
-			continue
+func buildTransform(fn timeFn, usingSeries bool) block.ValueTransform {
+	if !usingSeries {
+		return func(v float64) float64 {
+			return fn(time.Now())
 		}
-		t := time.Unix(int64(values[i]), 0).UTC()
-		values[i] = d.dateFn(t)
 	}
 
-	return values
+	return func(v float64) float64 {
+		if math.IsNaN(v) {
+			return v
+		}
+
+		t := time.Unix(int64(v), 0).UTC()
+		return fn(t)
+	}
+}
+
+// NewDateOp creates a new date op based on the type.
+func NewDateOp(opType string, usingSeries bool) (parser.Params, error) {
+	if dateFn, ok := datetimeFuncs[opType]; ok {
+		fn := buildTransform(dateFn, usingSeries)
+		lazyOpts := block.NewLazyOptions().SetValueTransform(fn)
+		return lazy.NewLazyOp(opType, lazyOpts)
+	}
+
+	return nil, fmt.Errorf("unknown date type: %s", opType)
 }

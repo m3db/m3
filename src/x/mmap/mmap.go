@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // FileOpener is the signature of a function that MmapFiles can use

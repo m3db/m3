@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -57,19 +57,24 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		it := getTestReaderIterator(input.rawBytes)
-		it.tu = input.timeUnit
-		it.dt = input.previousTimeDelta
-		it.readNextTimestamp()
-		require.Equal(t, input.expectedTimeDelta, it.dt)
-		require.NoError(t, it.Err())
+		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		it := NewTimestampIterator(encoding.NewOptions(), false)
+
+		it.TimeUnit = input.timeUnit
+		it.PrevTimeDelta = input.previousTimeDelta
+
+		err := it.readNextTimestamp(stream)
+		require.NoError(t, err)
+		require.Equal(t, input.expectedTimeDelta, it.PrevTimeDelta)
 	}
 
-	it := getTestReaderIterator([]byte{0x1})
-	it.readNextTimestamp()
-	require.Error(t, it.Err())
-	it.readNextTimestamp()
-	require.Error(t, it.Err())
+	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}), 16)
+	it := NewTimestampIterator(encoding.NewOptions(), false)
+	err := it.readNextTimestamp(stream)
+	require.Error(t, err)
+
+	err = it.readNextTimestamp(stream)
+	require.Error(t, err)
 }
 
 func TestReaderIteratorReadNextValue(t *testing.T) {
@@ -86,11 +91,11 @@ func TestReaderIteratorReadNextValue(t *testing.T) {
 	}
 	for _, input := range inputs {
 		it := getTestReaderIterator(input.rawBytes)
-		it.vb = input.previousValue
-		it.xor = input.previousValueXOR
+		it.floatIter.PrevFloatBits = input.previousValue
+		it.floatIter.PrevXOR = input.previousValueXOR
 		it.readNextValue()
-		require.Equal(t, input.expectedValueXOR, it.xor)
-		require.Equal(t, input.expectedValue, it.vb)
+		require.Equal(t, input.expectedValueXOR, it.floatIter.PrevXOR)
+		require.Equal(t, input.expectedValue, it.floatIter.PrevFloatBits)
 		require.NoError(t, it.Err())
 	}
 
@@ -122,9 +127,12 @@ func TestReaderIteratorReadAnnotation(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		it := getTestReaderIterator(input.rawBytes)
-		it.readAnnotation()
-		require.Equal(t, input.expectedAnnotation, it.ant)
+		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		it := NewTimestampIterator(encoding.NewOptions(), false)
+
+		err := it.readAnnotation(stream)
+		require.NoError(t, err)
+		require.Equal(t, input.expectedAnnotation, it.PrevAnt)
 	}
 }
 
@@ -149,12 +157,14 @@ func TestReaderIteratorReadTimeUnit(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		it := getTestReaderIterator(input.rawBytes)
-		it.tu = input.timeUnit
-		it.readTimeUnit()
-		require.NoError(t, it.err)
-		require.Equal(t, input.expectedTimeUnit, it.tu)
-		require.Equal(t, input.expectedTimeUnitChanged, it.tuChanged)
+		stream := encoding.NewIStream(bytes.NewBuffer(input.rawBytes), 16)
+		it := NewTimestampIterator(encoding.NewOptions(), false)
+		it.TimeUnit = input.timeUnit
+
+		err := it.ReadTimeUnit(stream)
+		require.NoError(t, err)
+		require.Equal(t, input.expectedTimeUnit, it.TimeUnit)
+		require.Equal(t, input.expectedTimeUnitChanged, it.TimeUnitChanged)
 	}
 }
 

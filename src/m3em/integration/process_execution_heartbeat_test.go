@@ -91,7 +91,7 @@ func TestProcessExecutionHeartbeating(t *testing.T) {
 	// ensure we were notified of exit
 	time.Sleep(time.Second)
 	require.True(t, notifiedTermination)
-	th.logger.Infof("received termination heartbeat in operator")
+	th.logger.Info("received termination heartbeat in operator")
 
 	stderrFile := path.Join(th.agentOptions.WorkingDirectory(), fmt.Sprintf("%s.err", testBuildID))
 	stderrContents, err := ioutil.ReadFile(stderrFile)

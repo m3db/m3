@@ -24,7 +24,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/util/opentracing"
+	"github.com/m3db/m3/src/x/opentracing"
 )
 
 // simpleOpNode defines the contract for OpNode instances which
@@ -41,14 +41,32 @@ type simpleOpNode interface {
 // func (n MyNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 //     return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 // }
-func ProcessSimpleBlock(node simpleOpNode, controller *Controller, queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
-	sp, ctx := opentracingutil.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
+func ProcessSimpleBlock(
+	node simpleOpNode,
+	controller *Controller,
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
+	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, node.Params().OpType())
 	nextBlock, err := node.ProcessBlock(queryCtx.WithContext(ctx), ID, b)
 	sp.Finish()
 	if err != nil {
 		return err
 	}
 
-	defer nextBlock.Close()
-	return controller.Process(queryCtx, nextBlock)
+	// NB: The flow here is a little weird; this kicks off the next block's
+	// processing step after retrieving it, then attempts to close it. There is a
+	// trick here where some blocks (specifically lazy wrappers) that should not
+	// be closed, as they would free underlying data. The general story in block
+	// lifecycle should be revisited to remove quirks arising from these edge
+	// cases (something where blocks are responsible for calling their own
+	// downstreams would seem more intuative and allow finer grained lifecycle
+	// control).
+	err = controller.Process(queryCtx, nextBlock)
+	if nextBlock.Info().Type() != block.BlockLazy {
+		nextBlock.Close()
+	}
+
+	return err
 }

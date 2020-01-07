@@ -1,6 +1,8 @@
 listenAddress:
-  type: "config"
   value: "0.0.0.0:7201"
+
+logging:
+  level: info
 
 metrics:
   scope:
@@ -32,12 +34,14 @@ clusters:
             - zone: embedded
               endpoints:
                 - m3db_seed:2379
+      # proto:
+      #   schemaFilePath: /etc/m3coordinator/schema.proto
 
 ingest:
   ingester:
-    workerPoolSize: 100
+    workerPoolSize: 10000
     opPool:
-      size: 100
+      size: 10000
     retry:
       maxRetries: 3
       jitter: true

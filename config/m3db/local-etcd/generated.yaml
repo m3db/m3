@@ -1,0 +1,83 @@
+"coordinator":
+  "limits":
+    "maxComputedDatapoints": 10000
+  "listenAddress":
+    "type": "config"
+    "value": "0.0.0.0:7201"
+  "local":
+    "namespaces":
+    - "namespace": "default"
+      "retention": "48h"
+      "type": "unaggregated"
+  "logging":
+    "level": "info"
+  "metrics":
+    "extended": "none"
+    "prometheus":
+      "handlerPath": "/metrics"
+      "listenAddress": "0.0.0.0:7203"
+    "samplingRate": 1
+    "sanitization": "prometheus"
+    "scope":
+      "prefix": "coordinator"
+  "tagOptions":
+    "idScheme": "quoted"
+"db":
+  "bootstrap":
+    "bootstrappers":
+    - "filesystem"
+    - "commitlog"
+    - "peers"
+    - "uninitialized_topology"
+    "commitlog":
+      "returnUnfulfilledForCorruptCommitLogFiles": false
+  "cache":
+    "postingsList":
+      "size": 262144
+    "series":
+      "policy": "lru"
+  "client":
+    "readConsistencyLevel": "unstrict_majority"
+    "writeConsistencyLevel": "majority"
+  "clusterListenAddress": "0.0.0.0:9001"
+  "commitlog":
+    "flushEvery": "1s"
+    "flushMaxBytes": 524288
+    "queue":
+      "calculationType": "fixed"
+      "size": 2097152
+  "config":
+    "seedNodes":
+      "initialCluster":
+      - "endpoint": "http://127.0.0.1:2380"
+        "hostID": "m3db_local"
+    "service":
+      "cacheDir": "/var/lib/m3kv"
+      "env": "default_env"
+      "etcdClusters":
+      - "endpoints":
+        - "127.0.0.1:2379"
+        "zone": "embedded"
+      "service": "m3db"
+      "zone": "embedded"
+  "debugListenAddress": "0.0.0.0:9004"
+  "fs":
+    "filePathPrefix": "/var/lib/m3db"
+  "gcPercentage": 100
+  "hostID":
+    "resolver": "config"
+    "value": "m3db_local"
+  "httpClusterListenAddress": "0.0.0.0:9003"
+  "httpNodeListenAddress": "0.0.0.0:9002"
+  "listenAddress": "0.0.0.0:9000"
+  "logging":
+    "level": "info"
+  "metrics":
+    "extended": "detailed"
+    "prometheus":
+      "handlerPath": "/metrics"
+    "samplingRate": 1
+    "sanitization": "prometheus"
+  "writeNewSeriesAsync": true
+  "writeNewSeriesBackoffDuration": "2ms"
+  "writeNewSeriesLimitPerSecond": 1048576

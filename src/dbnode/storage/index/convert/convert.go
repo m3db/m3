@@ -23,10 +23,12 @@ package convert
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"unicode/utf8"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -44,14 +46,35 @@ var (
 		"corrupt data, unable to extract id")
 )
 
-// ValidateMetric will validate a metric for use in the m3ninx subsytem
-// FOLLOWUP(r): Rename ValidateMetric to ValidateSeries (metric terminiology
-// is not common in the codebase)
-func ValidateMetric(id ident.ID, tags ident.Tags) error {
+// ValidateSeries will validate a metric for use with m3ninx.
+func ValidateSeries(id ident.ID, tags ident.Tags) error {
+	if idBytes := id.Bytes(); !utf8.Valid(idBytes) {
+		return fmt.Errorf("series has invalid ID: id=%s, id_hex=%x",
+			idBytes, idBytes)
+	}
 	for _, tag := range tags.Values() {
-		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return ErrUsingReservedFieldName
+		if err := ValidateSeriesTag(tag); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// ValidateSeriesTag validates a series tag for use with m3ninx.
+func ValidateSeriesTag(tag ident.Tag) error {
+	tagName := tag.Name.Bytes()
+	tagValue := tag.Value.Bytes()
+	if bytes.Equal(ReservedFieldNameID, tagName) {
+		return ErrUsingReservedFieldName
+	}
+	if !utf8.Valid(tagName) {
+		return fmt.Errorf("series contains invalid field name: "+
+			"field=%s, field_hex=%v", tagName, tagName)
+	}
+	if !utf8.Valid(tagValue) {
+		return fmt.Errorf("series contains invalid field value: "+
+			"field=%s, field_value=%s, field_value_hex=%x",
+			tagName, tagValue, tagValue)
 	}
 	return nil
 }
@@ -250,12 +273,16 @@ func clone(id ident.ID) []byte {
 type Opts struct {
 	IdentPool        ident.Pool
 	CheckedBytesPool pool.CheckedBytesPool
+	NoClone          bool
 }
 
 // wrapBytes wraps the provided bytes into an ident.ID backed by pooled types,
 // such that calling Finalize() on the returned type returns the resources to
 // the pools.
 func (o Opts) wrapBytes(b []byte) ident.ID {
+	if o.NoClone {
+		return ident.BytesID(b)
+	}
 	cb := o.CheckedBytesPool.Get(len(b))
 	cb.IncRef()
 	cb.AppendAll(b)
@@ -270,7 +297,12 @@ func ToMetric(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
 	if len(d.ID) == 0 {
 		return nil, nil, errInvalidResultMissingID
 	}
-	return opts.wrapBytes(d.ID), newTagIter(d, opts), nil
+	return opts.wrapBytes(d.ID), ToMetricTags(d, opts), nil
+}
+
+// ToMetricTags converts the provided doc to metric tags.
+func ToMetricTags(d doc.Document, opts Opts) ident.TagIterator {
+	return newTagIter(d, opts)
 }
 
 // tagIter exposes an ident.TagIterator interface over a doc.Document.

@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/collector/api/v1/httpd"
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/collector/reporter/m3aggregator"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
 
 	"go.uber.org/zap"
 )
@@ -44,11 +44,7 @@ import (
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
-	// ConfigFile is the config file to use.
-	ConfigFile string
-
-	// Config is an alternate way to provide configuration and will be used
-	// instead of parsing ConfigFile if ConfigFile is not specified.
+	// Config will be used to configure the application.
 	Config config.Configuration
 
 	// InterruptCh is a programmatic interrupt channel to supply to
@@ -58,24 +54,19 @@ type RunOptions struct {
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
-	var cfg config.Configuration
-	if runOpts.ConfigFile != "" {
-		if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
-			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
-			os.Exit(1)
-		}
-	} else {
-		cfg = runOpts.Config
-	}
+	cfg := runOpts.Config
 
 	ctx := context.Background()
 	logger, err := cfg.Logging.Build()
 	if err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
-
 	defer logger.Sync()
+
+	xconfig.WarnOnDeprecation(cfg, logger)
 
 	logger.Info("creating metrics scope")
 	scope, closer, err := cfg.Metrics.NewRootScope()
@@ -86,7 +77,7 @@ func Run(runOpts RunOptions) {
 
 	instrumentOpts := instrument.NewOptions().
 		SetMetricsScope(scope).
-		SetZapLogger(logger)
+		SetLogger(logger)
 
 	logger.Info("creating etcd client")
 	clusterClient, err := cfg.Etcd.NewClient(instrumentOpts)
@@ -178,7 +169,7 @@ func newReporter(
 	instrumentOpts instrument.Options,
 ) (reporter.Reporter, error) {
 	scope := instrumentOpts.MetricsScope()
-	logger := instrumentOpts.ZapLogger()
+	logger := instrumentOpts.Logger()
 	clockOpts := cfg.Clock.NewOptions()
 
 	logger.Info("creating metrics matcher cache")

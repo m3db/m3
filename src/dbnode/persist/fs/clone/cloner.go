@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/ident/testutil"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/ident/testutil"
 )
 
 type cloner struct {

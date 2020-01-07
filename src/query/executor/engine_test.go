@@ -27,62 +27,70 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/cost"
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
+func newEngine(
+	s storage.Storage,
+	lookbackDuration time.Duration,
+	enforcer qcost.ChainedEnforcer,
+	instrumentOpts instrument.Options,
+) Engine {
+	engineOpts := NewEngineOptions().
+		SetStore(s).
+		SetLookbackDuration(lookbackDuration).
+		SetGlobalEnforcer(enforcer).
+		SetInstrumentOptions(instrumentOpts)
+
+	return NewEngine(engineOpts)
+}
+
 func TestEngine_Execute(t *testing.T) {
-	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
+		gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
-	engine := NewEngine(store, tally.NewTestScope("test", nil), time.Minute, nil)
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
-	res := <-results
-	assert.NotNil(t, res.Err)
+	engine := newEngine(store, time.Minute, nil, instrument.NewOptions())
+	_, err := engine.ExecuteProm(context.TODO(),
+		&storage.FetchQuery{}, &QueryOptions{}, storage.NewFetchOptions())
+	assert.NotNil(t, err)
 }
 
 func TestEngine_ExecuteExpr(t *testing.T) {
-	t.Run("releases and reports on completion", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
-		mockEnforcer.EXPECT().Close().Times(1)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		mockParent := cost.NewMockChainedEnforcer(ctrl)
-		mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
+	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
+	mockEnforcer.EXPECT().Close().Times(1)
 
-		parser, err := promql.Parse("foo", models.NewTagOptions())
-		require.NoError(t, err)
+	mockParent := cost.NewMockChainedEnforcer(ctrl)
+	mockParent.EXPECT().Child(gomock.Any()).Return(mockEnforcer)
 
-		results := make(chan Query)
-		engine := NewEngine(mock.NewMockStorage(), tally.NewTestScope("", nil), defaultLookbackDuration, mockParent)
-		go engine.ExecuteExpr(context.TODO(), parser, &EngineOptions{}, models.RequestParams{
+	parser, err := promql.Parse("foo", time.Second,
+		models.NewTagOptions(), promql.NewParseOptions())
+	require.NoError(t, err)
+
+	engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,
+		mockParent, instrument.NewOptions())
+	_, err = engine.ExecuteExpr(context.TODO(), parser,
+		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
 			Start: time.Now().Add(-2 * time.Second),
 			End:   time.Now(),
 			Step:  time.Second,
-		}, results)
+		})
 
-		// drain the channel
-		var resSl []Query
-		for r := range results {
-			resSl = append(resSl, r)
-		}
-		require.Len(t, resSl, 1)
-
-		res := resSl[0]
-		require.NoError(t, res.Err)
-	})
+	require.NoError(t, err)
 }

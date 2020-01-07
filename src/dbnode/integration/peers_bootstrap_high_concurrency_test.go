@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xlog "github.com/m3db/m3x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	}
 
 	// Test setups
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -51,7 +51,11 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	batchSize := 16
 	concurrency := 64
@@ -70,7 +74,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 
 	// Write test data for first node
 	total := 8 * batchSize * concurrency
-	log.Debugf("testing a total of %d IDs with %d batch size %d concurrency", total, batchSize, concurrency)
+	log.Sugar().Debugf("testing a total of %d IDs with %d batch size %d concurrency", total, batchSize, concurrency)
 	shardIDs := make([]string, 0, total)
 	for i := 0; i < total; i++ {
 		id := fmt.Sprintf("id.%d", i)
@@ -85,7 +89,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-blockSize)},
 		{IDs: shardIDs, NumPoints: 3, Start: now},
 	})
-	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

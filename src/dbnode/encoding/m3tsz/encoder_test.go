@@ -27,10 +27,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -47,7 +50,6 @@ func getTestOptEncoder(startTime time.Time) *encoder {
 }
 
 func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
-	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
 		delta         time.Duration
 		timeUnit      xtime.Unit
@@ -67,16 +69,16 @@ func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
 		{-4096 * time.Second, xtime.Nanosecond, []byte{0xff, 0xff, 0xff, 0xc4, 0x65, 0x36, 0x0, 0x0, 0x0}, 4},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime, 0)
-		encoder.writeDeltaOfDeltaTimeUnitUnchanged(0, input.delta, input.timeUnit)
-		b, p := encoder.os.Rawbytes()
+		stream := encoding.NewOStream(nil, false, nil)
+		tsEncoder := NewTimestampEncoder(testStartTime, input.timeUnit, encoding.NewOptions())
+		tsEncoder.writeDeltaOfDeltaTimeUnitUnchanged(stream, 0, input.delta, input.timeUnit)
+		b, p := stream.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
 }
 
 func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
-	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
 		delta         time.Duration
 		expectedBytes []byte
@@ -87,9 +89,10 @@ func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
 		{-63 * time.Microsecond, []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x9, 0xe8}, 8},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime, 0)
-		encoder.writeDeltaOfDeltaTimeUnitChanged(0, input.delta)
-		b, p := encoder.os.Rawbytes()
+		stream := encoding.NewOStream(nil, false, nil)
+		tsEncoder := NewTimestampEncoder(testStartTime, xtime.Nanosecond, nil)
+		tsEncoder.writeDeltaOfDeltaTimeUnitChanged(stream, 0, input.delta)
+		b, p := stream.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
@@ -108,8 +111,9 @@ func TestWriteValue(t *testing.T) {
 		{0x0120000000000000, 0x4028000000000000, []byte{0xc1, 0x2e, 0x1, 0x40}, 2},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime, 0)
-		encoder.writeXOR(input.previousXOR, input.currentXOR)
+		encoder.Reset(testStartTime, 0, nil)
+		eit := FloatEncoderAndIterator{PrevXOR: input.previousXOR}
+		eit.writeXOR(encoder.os, input.currentXOR)
 		b, p := encoder.os.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
@@ -117,41 +121,43 @@ func TestWriteValue(t *testing.T) {
 }
 
 func TestWriteAnnotation(t *testing.T) {
-	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
 		annotation    ts.Annotation
 		expectedBytes []byte
 		expectedPos   int
 	}{
 		{
-			nil,
-			[]byte{},
-			0,
+			annotation:  nil,
+			expectedPos: 0,
 		},
 		{
-			[]byte{0x1, 0x2},
-			[]byte{0x80, 0x20, 0x40, 0x20, 0x40},
-			3,
+			annotation:    []byte{0x1, 0x2},
+			expectedBytes: []byte{0x80, 0x20, 0x40, 0x20, 0x40},
+			expectedPos:   3,
 		},
 
 		{
-			[]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-			[]byte{0x80, 0x21, 0xdf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0},
-			3,
+			annotation:    []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			expectedBytes: []byte{0x80, 0x21, 0xdf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0},
+			expectedPos:   3,
 		},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime, 0)
-		encoder.writeAnnotation(input.annotation)
-		b, p := encoder.os.Rawbytes()
+		stream := encoding.NewOStream(nil, false, nil)
+		tsEncoder := NewTimestampEncoder(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
+		tsEncoder.writeAnnotation(stream, input.annotation)
+		b, p := stream.Rawbytes()
 		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, p)
 	}
 }
 
 func getBytes(t *testing.T, e encoding.Encoder) []byte {
-	r := e.Stream()
-	if r == nil {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	r, ok := e.Stream(ctx)
+	if !ok {
 		return nil
 	}
 	var b [1000]byte
@@ -161,7 +167,6 @@ func getBytes(t *testing.T, e encoding.Encoder) []byte {
 }
 
 func TestWriteTimeUnit(t *testing.T) {
-	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
 		timeUnit       xtime.Unit
 		expectedResult bool
@@ -169,37 +174,40 @@ func TestWriteTimeUnit(t *testing.T) {
 		expectedPos    int
 	}{
 		{
-			xtime.None,
-			false,
-			[]byte{},
-			0,
+			timeUnit:       xtime.None,
+			expectedResult: false,
+			expectedPos:    0,
 		},
 		{
-			xtime.Second,
-			true,
-			[]byte{0x80, 0x40, 0x20},
-			3,
+			timeUnit:       xtime.Second,
+			expectedResult: true,
+			expectedBytes:  []byte{0x80, 0x40, 0x20},
+			expectedPos:    3,
 		},
 		{
-			xtime.Unit(255),
-			false,
-			[]byte{},
-			0,
+			timeUnit:       xtime.Unit(255),
+			expectedResult: false,
+			expectedPos:    0,
 		},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime, 0)
-		encoder.tu = xtime.None
-		assert.Equal(t, input.expectedResult, encoder.writeTimeUnit(input.timeUnit))
-		b, p := encoder.os.Rawbytes()
+		stream := encoding.NewOStream(nil, false, nil)
+		tsEncoder := NewTimestampEncoder(time.Time{}, xtime.Nanosecond, encoding.NewOptions())
+		tsEncoder.TimeUnit = xtime.None
+		assert.Equal(t, input.expectedResult, tsEncoder.maybeWriteTimeUnitChange(stream, input.timeUnit))
+		b, p := stream.Rawbytes()
 		assert.Equal(t, input.expectedBytes, b)
 		assert.Equal(t, input.expectedPos, p)
 	}
 }
 
 func TestEncodeNoAnnotation(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(ctx)
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []ts.Datapoint{
@@ -234,8 +242,12 @@ func TestEncodeNoAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithAnnotation(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(ctx)
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -274,8 +286,12 @@ func TestEncodeWithAnnotation(t *testing.T) {
 }
 
 func TestEncodeWithTimeUnit(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(ctx)
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -308,8 +324,12 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 }
 
 func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := getTestEncoder(testStartTime)
-	require.Nil(t, encoder.Stream())
+	_, ok := encoder.Stream(ctx)
+	require.False(t, ok)
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -359,28 +379,34 @@ func TestInitTimeUnit(t *testing.T) {
 }
 
 func TestEncoderResets(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	enc := getTestOptEncoder(testStartTime)
 	defer enc.Close()
 
 	require.Equal(t, 0, enc.os.Len())
-	require.Equal(t, nil, enc.Stream())
+	_, ok := enc.Stream(ctx)
+	require.False(t, ok)
 
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
 	now := time.Now()
-	enc.Reset(now, 0)
+	enc.Reset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	require.Equal(t, nil, enc.Stream())
+	_, ok = enc.Stream(ctx)
+	require.False(t, ok)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
 
 	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
-	enc.DiscardReset(now, 0)
+	enc.DiscardReset(now, 0, nil)
 	require.Equal(t, 0, enc.os.Len())
-	require.Equal(t, nil, enc.Stream())
+	_, ok = enc.Stream(ctx)
+	require.False(t, ok)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
 }
@@ -402,6 +428,58 @@ func TestEncoderLastEncoded(t *testing.T) {
 			assert.Equal(t, datapoint.Value, datapoint.Value)
 		},
 	})
+}
+
+func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
+	testMultiplePasses(t, multiplePassesTest{
+		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+			ctx := context.NewContext()
+			defer ctx.BlockingClose()
+
+			encLen := enc.Len()
+			stream, ok := enc.Stream(ctx)
+
+			var streamLen int
+			if ok {
+				segment, err := stream.Segment()
+				require.NoError(t, err)
+				streamLen = segment.Len()
+			}
+			require.Equal(t, streamLen, encLen)
+		},
+	})
+}
+
+type testFinalizer struct {
+	t                *testing.T
+	numActiveStreams *atomic.Int32
+}
+
+func (f *testFinalizer) FinalizeBytes(bytes checked.Bytes) {
+	require.Equal(f.t, int32(0), f.numActiveStreams.Load(), "expect 0 active streams when finalizing the byte slice")
+}
+
+func TestEncoderCloseWaitForStream(t *testing.T) {
+	numActiveStreams := atomic.NewInt32(0)
+
+	finalizer := &testFinalizer{t: t, numActiveStreams: numActiveStreams}
+	bytesOptions := checked.NewBytesOptions().SetFinalizer(finalizer)
+	cb := checked.NewBytes(make([]byte, 16), bytesOptions)
+	enc := NewEncoder(testStartTime, cb, false, nil).(*encoder)
+	defer enc.Close()
+
+	numStreams := 8
+	for i := 0; i <= numStreams; i++ {
+		numActiveStreams.Inc()
+		ctx := context.NewContext()
+		_, ok := enc.Stream(ctx)
+		require.True(t, ok)
+		go func(ctx context.Context, idx int) {
+			time.Sleep(time.Duration(idx*rand.Intn(100)) * time.Millisecond)
+			numActiveStreams.Dec()
+			ctx.Close()
+		}(ctx, i)
+	}
 }
 
 type multiplePassesTest struct {

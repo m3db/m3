@@ -12,7 +12,7 @@ Before setting up m3query, make sure that you have at least [one M3DB node runni
 
 You can run m3query by either building and running the binary yourself:
 
-```
+```bash
 make m3query
 ./bin/m3query -f ./src/query/config/m3query-local-etcd.yml
 ```
@@ -33,16 +33,18 @@ The configuration file linked above uses an embedded etcd cluster, which is fine
 
 You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace in M3DB **and** in the m3query configuration. It is important to note that all writes go to all namespaces so as long as you include all namespaces in your query config, you will be querying all namespaces. Aggregation is done strictly by the query service. For example if you have an aggregated namespace setup in M3DB named `metrics_10s_48h`, you can add the following to the query config:
 
-```json
+```yaml
 - namespace: metrics_10s_48h
   type: aggregated
   retention: 48h
   resolution: 10s
 ```
 
+### Disabling automatic aggregation
+
 If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated.
 
-```json
+```yaml
 - namespace: metrics_10s_48h
   type: aggregated
   retention: 48h

@@ -27,13 +27,13 @@ import (
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 type getFlushTimesByResolutionFn func(*schema.ShardFlushTimes) map[int64]int64
@@ -103,7 +103,7 @@ type flushTimesManager struct {
 	sync.WaitGroup
 
 	nowFn                    clock.NowFn
-	logger                   log.Logger
+	logger                   *zap.Logger
 	flushTimesKeyFmt         string
 	flushTimesStore          kv.Store
 	flushTimesPersistRetrier retry.Retrier
@@ -247,10 +247,10 @@ func (mgr *flushTimesManager) watchFlushTimes(flushTimesWatch kv.ValueWatch) {
 		)
 		if err := value.Unmarshal(&proto); err != nil {
 			mgr.metrics.flushTimesUnmarshalErrors.Inc(1)
-			mgr.logger.WithFields(
-				log.NewField("flushTimesKey", mgr.flushTimesKey),
-				log.NewErrField(err),
-			).Error("flush times unmarshal error")
+			mgr.logger.Error("flush times unmarshal error",
+				zap.String("flushTimesKey", mgr.flushTimesKey),
+				zap.Error(err),
+			)
 			continue
 		}
 		mgr.Lock()
@@ -279,10 +279,10 @@ func (mgr *flushTimesManager) persistFlushTimes(persistWatch watch.Watch) {
 				mgr.metrics.flushTimesPersist.ReportSuccess(duration)
 			} else {
 				mgr.metrics.flushTimesPersist.ReportError(duration)
-				mgr.logger.WithFields(
-					log.NewField("flushTimesKey", mgr.flushTimesKey),
-					log.NewErrField(persistErr),
-				).Error("flush times persist error")
+				mgr.logger.Error("flush times persist error",
+					zap.String("flushTimesKey", mgr.flushTimesKey),
+					zap.Error(persistErr),
+				)
 			}
 		}
 	}

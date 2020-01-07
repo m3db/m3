@@ -44,7 +44,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -185,15 +185,19 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Open().Return(nil)
-	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
-	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
 
 	agg, _ := testAggregator(t, ctrl)
 	agg.placementManager = placementManager
+
+	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
+	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+
+	placementManager.EXPECT().Open().Return(nil)
+	placementManager.EXPECT().InstanceID().Return(agg.opts.PlacementManager().InstanceID())
+	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
+
 	require.NoError(t, agg.Open())
 	require.Equal(t, uint32(0), agg.shardSetID)
 	require.False(t, agg.shardSetOpen)

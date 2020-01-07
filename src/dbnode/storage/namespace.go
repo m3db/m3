@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -36,19 +37,22 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -109,8 +113,13 @@ type dbNamespace struct {
 	seriesOpts         series.Options
 	nowFn              clock.NowFn
 	snapshotFilesFn    snapshotFilesFn
-	log                xlog.Logger
+	log                *zap.Logger
 	bootstrapState     BootstrapState
+
+	// schemaDescr caches the latest schema for the namespace.
+	// schemaDescr is updated whenever schema registry is updated.
+	schemaListener xclose.SimpleCloser
+	schemaDescr    namespace.SchemaDescr
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -142,7 +151,8 @@ type databaseNamespaceIndexStatsLastTick struct {
 
 type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
-	flush               instrument.MethodMetrics
+	flushWarmData       instrument.MethodMetrics
+	flushColdData       instrument.MethodMetrics
 	flushIndex          instrument.MethodMetrics
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
@@ -151,6 +161,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	queryIDs            instrument.MethodMetrics
+	aggregateQuery      instrument.MethodMetrics
 	unfulfilled         tally.Counter
 	bootstrapStart      tally.Counter
 	bootstrapEnd        tally.Counter
@@ -169,7 +180,6 @@ type databaseNamespaceTickMetrics struct {
 	activeSeries           tally.Gauge
 	expiredSeries          tally.Counter
 	activeBlocks           tally.Gauge
-	openBlocks             tally.Gauge
 	wiredBlocks            tally.Gauge
 	unwiredBlocks          tally.Gauge
 	pendingMergeBlocks     tally.Gauge
@@ -178,6 +188,7 @@ type databaseNamespaceTickMetrics struct {
 	mergedOutOfOrderBlocks tally.Counter
 	errors                 tally.Counter
 	index                  databaseNamespaceIndexTickMetrics
+	evictedBuckets         tally.Counter
 }
 
 type databaseNamespaceIndexTickMetrics struct {
@@ -219,7 +230,8 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", samplingRate),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", samplingRate),
 		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
@@ -228,6 +240,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", samplingRate),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", samplingRate),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
 		bootstrapEnd:        scope.Counter("bootstrap.end"),
@@ -240,7 +253,6 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeSeries:           tickScope.Gauge("active-series"),
 			expiredSeries:          tickScope.Counter("expired-series"),
 			activeBlocks:           tickScope.Gauge("active-blocks"),
-			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
 			pendingMergeBlocks:     tickScope.Gauge("pending-merge-blocks"),
@@ -255,6 +267,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 				numBlocksSealed:  indexTickScope.Counter("num-blocks-sealed"),
 				numBlocksEvicted: indexTickScope.Counter("num-blocks-evicted"),
 			},
+			evictedBuckets: tickScope.Counter("evicted-buckets"),
 		},
 		status: databaseNamespaceStatusMetrics{
 			activeSeries: statusScope.Gauge("active-series"),
@@ -285,7 +298,7 @@ func newDatabaseNamespace(
 	}
 
 	iops := opts.InstrumentOptions()
-	logger := iops.Logger().WithFields(xlog.NewField("namespace", id.String()))
+	logger := iops.Logger().With(zap.String("namespace", id.String()))
 	iops = iops.SetLogger(logger)
 	opts = opts.SetInstrumentOptions(iops)
 
@@ -299,7 +312,8 @@ func newDatabaseNamespace(
 	tickWorkers.Init()
 
 	seriesOpts := NewSeriesOptionsFromOptions(opts, nopts.RetentionOptions()).
-		SetStats(series.NewStats(scope))
+		SetStats(series.NewStats(scope)).
+		SetColdWritesEnabled(nopts.ColdWritesEnabled())
 	if err := seriesOpts.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"unable to create namespace %v, invalid series options: %v",
@@ -311,7 +325,7 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
-		index, err = newNamespaceIndex(metadata, opts)
+		index, err = newNamespaceIndex(metadata, shardSet, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -338,14 +352,43 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
+	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
+	// Fail to create namespace is schema listener can not be registered successfully.
+	// If proto is disabled, err will always be nil.
+	if err != nil {
+		return nil, fmt.Errorf(
+			"unable to register schema listener for namespace %v, error: %v",
+			metadata.ID().String(), err)
+	}
+	n.schemaListener = sl
 	n.initShards(nopts.BootstrapEnabled())
-	go n.reportStatusLoop()
+	go n.reportStatusLoop(opts.InstrumentOptions().ReportInterval())
 
 	return n, nil
 }
 
-func (n *dbNamespace) reportStatusLoop() {
-	reportInterval := n.opts.InstrumentOptions().ReportInterval()
+// SetSchemaHistory implements namespace.SchemaListener.
+func (n *dbNamespace) SetSchemaHistory(value namespace.SchemaHistory) {
+	n.Lock()
+	defer n.Unlock()
+
+	schema, ok := value.GetLatest()
+	if !ok {
+		n.log.Error("can not update namespace schema to empty", zap.Stringer("namespace", n.ID()))
+		return
+	}
+
+	metadata, err := namespace.NewMetadata(n.ID(), n.nopts.SetSchemaHistory(value))
+	if err != nil {
+		n.log.Error("can not update namespace metadata with empty schema history", zap.Stringer("namespace", n.ID()), zap.Error(err))
+		return
+	}
+
+	n.schemaDescr = schema
+	n.metadata = metadata
+}
+
+func (n *dbNamespace) reportStatusLoop(reportInterval time.Duration) {
 	ticker := time.NewTicker(reportInterval)
 	defer ticker.Stop()
 	for {
@@ -370,6 +413,21 @@ func (n *dbNamespace) Options() namespace.Options {
 
 func (n *dbNamespace) ID() ident.ID {
 	return n.id
+}
+
+func (n *dbNamespace) Metadata() namespace.Metadata {
+	// NB(r): metadata is updated in SetSchemaHistory so requires an RLock.
+	n.RLock()
+	result := n.metadata
+	n.RUnlock()
+	return result
+}
+
+func (n *dbNamespace) Schema() namespace.SchemaDescr {
+	n.RLock()
+	schema := n.schemaDescr
+	n.RUnlock()
+	return schema
 }
 
 func (n *dbNamespace) NumSeries() int64 {
@@ -402,6 +460,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 
 	n.Lock()
+	metadata := n.metadata
 	existing = n.shards
 	for _, shard := range existing {
 		if shard == nil {
@@ -418,11 +477,14 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 			n.shards[shard] = existing[shard]
 		} else {
 			bootstrapEnabled := n.nopts.BootstrapEnabled()
-			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
+			n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
+	}
+	if idx := n.reverseIndex; idx != nil {
+		idx.AssignShardSet(shardSet)
 	}
 	n.Unlock()
 	n.closeShards(closing, false)
@@ -441,8 +503,8 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 		defer wg.Done()
 		if err := shard.Close(); err != nil {
 			n.log.
-				WithFields(xlog.NewField("shard", shard.ID())).
-				Errorf("error occurred closing shard: %v", err)
+				With(zap.Uint32("shard", shard.ID())).
+				Error("error occurred closing shard", zap.Error(err))
 			n.metrics.shards.closeErrors.Inc(1)
 		} else {
 			n.metrics.shards.close.Inc(1)
@@ -463,17 +525,21 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
-	// Allow the reader cache to tick
+func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+	// Allow the reader cache to tick.
 	n.namespaceReaderMgr.tick()
 
-	// Fetch the owned shards
+	// Fetch the owned shards.
 	shards := n.GetOwnedShards()
 	if len(shards) == 0 {
 		return nil
 	}
 
-	// Tick through the shards at a capped level of concurrency
+	n.RLock()
+	nsCtx := n.nsContextWithRLock()
+	n.RUnlock()
+
+	// Tick through the shards at a capped level of concurrency.
 	var (
 		r        tickResult
 		multiErr xerrors.MultiError
@@ -490,7 +556,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 				return
 			}
 
-			shardResult, err := shard.Tick(c, tickStart)
+			shardResult, err := shard.Tick(c, startTime, nsCtx)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -501,13 +567,13 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 
 	wg.Wait()
 
-	// Tick namespaceIndex if it exists
+	// Tick namespaceIndex if it exists.
 	var (
 		indexTickResults namespaceIndexTickResult
 		err              error
 	)
 	if idx := n.reverseIndex; idx != nil {
-		indexTickResults, err = idx.Tick(c, tickStart)
+		indexTickResults, err = idx.Tick(c, startTime)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -532,13 +598,13 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
-	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
 	n.metrics.tick.pendingMergeBlocks.Update(float64(r.pendingMergeBlocks))
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
+	n.metrics.tick.evictedBuckets.Inc(int64(r.evictedBuckets))
 	n.metrics.tick.index.numDocs.Update(float64(indexTickResults.NumTotalDocs))
 	n.metrics.tick.index.numBlocks.Update(float64(indexTickResults.NumBlocks))
 	n.metrics.tick.index.numSegments.Update(float64(indexTickResults.NumSegments))
@@ -558,13 +624,17 @@ func (n *dbNamespace) Write(
 	annotation []byte,
 ) (ts.Series, bool, error) {
 	callStart := n.nowFn()
-	shard, err := n.shardFor(id)
+	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
+	opts := series.WriteOptions{
+		TruncateType: n.opts.TruncateType(),
+		SchemaDesc:   nsCtx.Schema,
+	}
 	series, wasWritten, err := shard.Write(ctx, id, timestamp,
-		value, unit, annotation)
+		value, unit, annotation, opts)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
@@ -583,36 +653,100 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, errNamespaceIndexingDisabled
 	}
-	shard, err := n.shardFor(id)
+	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
+	opts := series.WriteOptions{
+		TruncateType: n.opts.TruncateType(),
+		SchemaDesc:   nsCtx.Schema,
+	}
 	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
-		value, unit, annotation)
+		value, unit, annotation, opts)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
+}
+
+func (n *dbNamespace) SeriesReadWriteRef(
+	shardID uint32,
+	id ident.ID,
+	tags ident.TagIterator,
+) (SeriesReadWriteRef, error) {
+	n.RLock()
+	shard, err := n.shardAtWithRLock(shardID)
+	n.RUnlock()
+	if err != nil {
+		return SeriesReadWriteRef{}, err
+	}
+
+	opts := ShardSeriesReadWriteRefOptions{
+		ReverseIndex: n.reverseIndex != nil,
+	}
+	return shard.SeriesReadWriteRef(id, tags, opts)
 }
 
 func (n *dbNamespace) QueryIDs(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (index.QueryResult, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSQueryIDs)
+	sp.LogFields(
+		opentracinglog.String("query", query.String()),
+		opentracinglog.String("namespace", n.ID().String()),
+		opentracinglog.Int("limit", opts.Limit),
+		xopentracing.Time("start", opts.StartInclusive),
+		xopentracing.Time("end", opts.EndExclusive),
+	)
+
+	defer sp.Finish()
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryResults{}, errNamespaceIndexingDisabled
+		err := errNamespaceIndexingDisabled
+		sp.LogFields(opentracinglog.Error(err))
+		return index.QueryResult{}, err
 	}
 
 	if n.reverseIndex.BootstrapsDone() < 1 {
 		// Similar to reading shard data, return not bootstrapped
 		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		return index.QueryResults{}, xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+		err := errIndexNotBootstrappedToRead
+		sp.LogFields(opentracinglog.Error(err))
+		return index.QueryResult{},
+			xerrors.NewRetryableError(err)
 	}
 
 	res, err := n.reverseIndex.Query(ctx, query, opts)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+
+func (n *dbNamespace) AggregateQuery(
+	ctx context.Context,
+	query index.Query,
+	opts index.AggregationOptions,
+) (index.AggregateQueryResult, error) {
+	callStart := n.nowFn()
+	if n.reverseIndex == nil { // only happens if indexing is enabled.
+		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
+		return index.AggregateQueryResult{}, errNamespaceIndexingDisabled
+	}
+
+	if n.reverseIndex.BootstrapsDone() < 1 {
+		// Similar to reading shard data, return not bootstrapped
+		n.metrics.aggregateQuery.ReportError(n.nowFn().Sub(callStart))
+		return index.AggregateQueryResult{},
+			xerrors.NewRetryableError(errIndexNotBootstrappedToRead)
+	}
+
+	res, err := n.reverseIndex.AggregateQuery(ctx, query, opts)
+	n.metrics.aggregateQuery.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
 
@@ -622,12 +756,12 @@ func (n *dbNamespace) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.BlockReader, error) {
 	callStart := n.nowFn()
-	shard, err := n.readableShardFor(id)
+	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	res, err := shard.ReadEncoded(ctx, id, start, end)
+	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -639,13 +773,13 @@ func (n *dbNamespace) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
-	shard, err := n.readableShardAt(shardID)
+	shard, nsCtx, err := n.readableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
 
-	res, err := shard.FetchBlocks(ctx, id, starts)
+	res, err := shard.FetchBlocks(ctx, id, starts, nsCtx)
 	n.metrics.fetchBlocks.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
@@ -659,7 +793,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
 	callStart := n.nowFn()
-	shard, err := n.readableShardAt(shardID)
+	shard, _, err := n.readableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
 		return nil, nil, err
@@ -671,7 +805,9 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	return res, nextPageToken, err
 }
 
-func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
+func (n *dbNamespace) Bootstrap(
+	bootstrapResult bootstrap.NamespaceResult,
+) error {
 	callStart := n.nowFn()
 
 	n.Lock()
@@ -703,62 +839,50 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 		return nil
 	}
 
-	var (
-		owned  = n.GetOwnedShards()
-		shards = make([]databaseShard, 0, len(owned))
-	)
-	for _, shard := range owned {
-		if !shard.IsBootstrapped() {
-			shards = append(shards, shard)
-		}
-	}
-	if len(shards) == 0 {
-		success = true
-		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil
-	}
-
-	shardIDs := make([]uint32, len(shards))
-	for i, shard := range shards {
-		shardIDs[i] = shard.ID()
-	}
-
-	bootstrapResult, err := process.Run(start, n.metadata, shardIDs)
-	if err != nil {
-		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v",
-			n.id.String(), err)
-		return err
-	}
-	n.metrics.bootstrap.Success.Inc(1)
-
 	// Bootstrap shards using at least half the CPUs available
 	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
-	numSeries := bootstrapResult.DataResult.ShardResults().NumSeries()
-	n.log.WithFields(
-		xlog.NewField("numShards", len(shards)),
-		xlog.NewField("numSeries", numSeries),
-	).Infof("bootstrap data fetched now initializing shards with series blocks")
-
 	var (
-		multiErr = xerrors.NewMultiError()
-		results  = bootstrapResult.DataResult.ShardResults()
-		mutex    sync.Mutex
-		wg       sync.WaitGroup
+		bootstrappedShards = bootstrapResult.Shards
+		multiErr           = xerrors.NewMultiError()
+		mutex              sync.Mutex
+		wg                 sync.WaitGroup
 	)
-	for _, shard := range shards {
-		shard := shard
-		wg.Add(1)
-		workers.Go(func() {
-			var bootstrapped *result.Map
-			if shardResult, ok := results[shard.ID()]; ok {
-				bootstrapped = shardResult.AllSeries()
-			} else {
-				bootstrapped = result.NewMap(result.MapOptions{})
+	n.log.Info("bootstrap marking all shards as bootstrapped",
+		zap.Stringer("namespace", n.id),
+		zap.Int("numShards", len(bootstrappedShards)))
+	for _, shard := range n.GetOwnedShards() {
+		// Make sure it was bootstrapped during this bootstrap run.
+		shardID := shard.ID()
+		bootstrapped := false
+		for _, elem := range bootstrappedShards {
+			if elem == shardID {
+				bootstrapped = true
+				break
 			}
+		}
+		if !bootstrapped {
+			// NB(r): Not bootstrapped in this bootstrap run.
+			continue
+		}
 
-			err := shard.Bootstrap(bootstrapped)
+		if shard.IsBootstrapped() {
+			// No concurrent bootstraps, this is an invariant since
+			// we only select bootstrapping the shard for a run if it's
+			// not already bootstrapped.
+			err := instrument.InvariantErrorf(
+				"bootstrapper already bootstrapped shard: %d", shardID)
+			mutex.Lock()
+			multiErr = multiErr.Add(err)
+			mutex.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		shard := shard
+		workers.Go(func() {
+			err := shard.Bootstrap()
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)
@@ -767,39 +891,56 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 			wg.Done()
 		})
 	}
-
 	wg.Wait()
 
 	if n.reverseIndex != nil {
-		err := n.reverseIndex.Bootstrap(bootstrapResult.IndexResult.IndexResults())
+		indexResults := bootstrapResult.IndexResult.IndexResults()
+		n.log.Info("bootstrap index with bootstrapped index segments",
+			zap.Int("numIndexBlocks", len(indexResults)))
+		err := n.reverseIndex.Bootstrap(indexResults)
 		multiErr = multiErr.Add(err)
 	}
 
-	markAnyUnfulfilled := func(label string, unfulfilled result.ShardTimeRanges) {
+	markAnyUnfulfilled := func(
+		bootstrapType string,
+		unfulfilled result.ShardTimeRanges,
+	) error {
 		shardsUnfulfilled := int64(len(unfulfilled))
 		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
-		if shardsUnfulfilled > 0 {
-			str := unfulfilled.SummaryString()
-			err := fmt.Errorf("bootstrap completed with unfulfilled ranges: %s", str)
+		if shardsUnfulfilled == 0 {
+			return nil
+		}
+
+		errStr := unfulfilled.SummaryString()
+		errFmt := "bootstrap completed with unfulfilled ranges"
+		n.log.Error(errFmt,
+			zap.Error(errors.New(errStr)),
+			zap.String("namespace", n.id.String()),
+			zap.String("bootstrapType", bootstrapType))
+		return fmt.Errorf("%s: %s", errFmt, errStr)
+	}
+
+	r := bootstrapResult
+	if err := markAnyUnfulfilled("data", r.DataResult.Unfulfilled()); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if n.reverseIndex != nil {
+		if err := markAnyUnfulfilled("index", r.IndexResult.Unfulfilled()); err != nil {
 			multiErr = multiErr.Add(err)
-			n.log.WithFields(
-				xlog.NewField("namespace", n.id.String()),
-				xlog.NewField("bootstrap-type", label),
-			).Errorf(err.Error())
 		}
 	}
-	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())
-	markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
 
-	err = multiErr.FinalError()
+	err := multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
+	// NB(r): "success" is read by the defer above and depending on if true/false
+	// will set the namespace status as bootstrapped or not.
 	success = err == nil
 	return err
 }
 
-func (n *dbNamespace) Flush(
+func (n *dbNamespace) WarmFlush(
 	blockStart time.Time,
-	shardBootstrapStatesAtTickStart ShardBootstrapStates,
 	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -809,13 +950,14 @@ func (n *dbNamespace) Flush(
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
-		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.flushWarmData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
+	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() {
-		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushWarmData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -828,31 +970,25 @@ func (n *dbNamespace) Flush(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		// This is different than calling shard.IsBootstrapped() because it was determined
-		// before the start of the tick that preceded this flush, meaning it can be reliably
-		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
-		// and are ready to be flushed.
-		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
-		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
-			// We don't own this shard anymore (!ok) or the shard was not bootstrapped
-			// before the previous tick which means that we have no guarantee that all
-			// bootstrapped blocks have been rotated out of the series buffer buckets,
-			// so we wait until the next opportunity.
+		if !shard.IsBootstrapped() {
 			n.log.
-				WithFields(xlog.NewField("shard", shard.ID())).
-				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
-				WithFields(xlog.NewField("bootstrapStateExists", ok)).
-				Debug("skipping snapshot due to shard bootstrap state before tick")
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping warm flush due to shard not bootstrapped yet")
 			continue
 		}
 
+		flushState, err := shard.FlushState(blockStart)
+		if err != nil {
+			return err
+		}
 		// skip flushing if the shard has already flushed data for the `blockStart`
-		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
+		if flushState.WarmStatus == fileOpSuccess {
 			continue
 		}
+
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(blockStart, flushPersist); err != nil {
+		if err := shard.WarmFlush(blockStart, flushPersist, nsCtx); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -860,13 +996,110 @@ func (n *dbNamespace) Flush(
 	}
 
 	res := multiErr.FinalError()
-	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.metrics.flushWarmData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 	return res
 }
 
-func (n *dbNamespace) FlushIndex(
-	flush persist.IndexFlush,
-) error {
+// idAndBlockStart is the composite key for the genny map used to keep track of
+// dirty series that need to be ColdFlushed.
+type idAndBlockStart struct {
+	id         ident.ID
+	blockStart xtime.UnixNano
+}
+
+type coldFlushReuseableResources struct {
+	// dirtySeries is a map from a composite key of <series ID, block start>
+	// to an element in a list in the dirtySeriesToWrite map. This map is used
+	// to quickly test whether a series is dirty for a particular block start.
+	//
+	// The composite key is deliberately made so that this map stays one level
+	// deep, making it easier to share between shard loops, minimizing the need
+	// for allocations.
+	//
+	// Having a reference to the element in the dirtySeriesToWrite list enables
+	// efficient removal of the series that have been read and subsequent
+	// iterating through remaining series to be read.
+	dirtySeries *dirtySeriesMap
+	// dirtySeriesToWrite is a map from block start to a list of dirty series
+	// that have yet to be written to disk.
+	dirtySeriesToWrite map[xtime.UnixNano]*idList
+	// idElementPool is a pool of list elements to be used when constructing
+	// new lists for the dirtySeriesToWrite map.
+	idElementPool *idElementPool
+	fsReader      fs.DataFileSetReader
+}
+
+func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, error) {
+	fsReader, err := fs.NewReader(opts.BytesPool(), opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return coldFlushReuseableResources{}, nil
+	}
+
+	return coldFlushReuseableResources{
+		// TODO(juchan): consider setting these options.
+		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
+		// TODO(juchan): set pool options.
+		idElementPool: newIDElementPool(nil),
+		fsReader:      fsReader,
+	}, nil
+}
+
+func (r *coldFlushReuseableResources) reset() {
+	for _, seriesList := range r.dirtySeriesToWrite {
+		if seriesList != nil {
+			seriesList.Reset()
+		}
+		// Don't delete the empty list from the map so that other shards don't
+		// need to reinitialize the list for these blocks.
+	}
+
+	r.dirtySeries.Reset()
+}
+
+func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
+	callStart := n.nowFn()
+
+	n.RLock()
+	if n.bootstrapState != Bootstrapped {
+		n.RUnlock()
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceNotBootstrapped
+	}
+	nsCtx := n.nsContextWithRLock()
+	n.RUnlock()
+
+	// If repair is enabled we still need cold flush regardless of whether cold writes is
+	// enabled since repairs are dependent on the cold flushing logic.
+	if !n.nopts.ColdWritesEnabled() && !n.nopts.RepairEnabled() {
+		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
+
+	multiErr := xerrors.NewMultiError()
+	shards := n.GetOwnedShards()
+
+	resources, err := newColdFlushReuseableResources(n.opts)
+	if err != nil {
+		return err
+	}
+	for _, shard := range shards {
+		err := shard.ColdFlush(flushPersist, resources, nsCtx)
+		if err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			// Continue with remaining shards.
+		}
+	}
+
+	res := multiErr.FinalError()
+	n.metrics.flushColdData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
+}
+
+func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	callStart := n.nowFn()
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
@@ -877,12 +1110,13 @@ func (n *dbNamespace) FlushIndex(
 	n.RUnlock()
 
 	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
-		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
-	err := n.reverseIndex.Flush(flush, n.GetOwnedShards())
-	n.metrics.flush.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	shards := n.GetOwnedShards()
+	err := n.reverseIndex.Flush(flush, shards)
+	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
 
@@ -895,12 +1129,14 @@ func (n *dbNamespace) Snapshot(
 	// for business logic.
 	callStart := n.nowFn()
 
+	var nsCtx namespace.Context
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
+	nsCtx = n.nsContextWithRLock()
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
@@ -915,17 +1151,7 @@ func (n *dbNamespace) Snapshot(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		isSnapshotting, _ := shard.SnapshotState()
-		if isSnapshotting {
-			// Should never happen because snapshots should never overlap
-			// each other (controlled by loop in flush manager)
-			n.log.
-				WithFields(xlog.NewField("shard", shard.ID())).
-				Errorf("[invariant violated] tried to snapshot shard that is already snapshotting")
-			continue
-		}
-
-		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
+		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -939,7 +1165,9 @@ func (n *dbNamespace) Snapshot(
 }
 
 func (n *dbNamespace) NeedsFlush(
-	alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
+	alignedInclusiveStart time.Time,
+	alignedInclusiveEnd time.Time,
+) (bool, error) {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
 	// we need to flush - otherwise if any in progress we can't flush and if
@@ -949,54 +1177,10 @@ func (n *dbNamespace) NeedsFlush(
 	return n.needsFlushWithLock(alignedInclusiveStart, alignedInclusiveEnd)
 }
 
-func (n *dbNamespace) IsCapturedBySnapshot(
-	alignedInclusiveStart, alignedInclusiveEnd, capturedUpTo time.Time) (bool, error) {
-	var (
-		blockSize      = n.nopts.RetentionOptions().BlockSize()
-		blockStarts    = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
-		filePathPrefix = n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	)
-
-	n.RLock()
-	defer n.RUnlock()
-
-	for _, shard := range n.shards {
-		if shard == nil {
-			continue
-		}
-
-		for _, blockStart := range blockStarts {
-			snapshotFiles, err := n.snapshotFilesFn(filePathPrefix, n.ID(), shard.ID())
-			if err != nil {
-				return false, err
-			}
-
-			snapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
-			if !ok {
-				// If a single shard is missing a snapshot for the blockStart then
-				// the entire namespace is not covered by snapshots up to time t.
-				return false, nil
-			}
-
-			snapshotTime, _, err := snapshot.SnapshotTimeAndID()
-			if err != nil {
-				return false, err
-			}
-
-			if snapshotTime.Before(capturedUpTo) {
-				// If a single shard's most recent snapshot has a snapshot time before
-				// capturedUpTo then we can't be sure that the entire namespace is
-				// covered by snapshots.
-				return false, nil
-			}
-		}
-
-	}
-
-	return true, nil
-}
-
-func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
+func (n *dbNamespace) needsFlushWithLock(
+	alignedInclusiveStart time.Time,
+	alignedInclusiveEnd time.Time,
+) (bool, error) {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
 		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
@@ -1011,14 +1195,18 @@ func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, aligne
 			continue
 		}
 		for _, blockStart := range blockStarts {
-			if shard.FlushState(blockStart).Status != fileOpSuccess {
-				return true
+			flushState, err := shard.FlushState(blockStart)
+			if err != nil {
+				return false, err
+			}
+			if flushState.WarmStatus != fileOpSuccess {
+				return true, nil
 			}
 		}
 	}
 
 	// All success or failed and reached max retries
-	return false
+	return false, nil
 }
 
 func (n *dbNamespace) Truncate() (int64, error) {
@@ -1072,6 +1260,12 @@ func (n *dbNamespace) Repair(
 
 	workers := xsync.NewWorkerPool(repairer.Options().RepairShardConcurrency())
 	workers.Init()
+
+	n.RLock()
+	nsCtx := n.nsContextWithRLock()
+	nsMeta := n.metadata
+	n.RUnlock()
+
 	for _, shard := range shards {
 		shard := shard
 
@@ -1082,7 +1276,7 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, tr, repairer)
+			metadataRes, err := shard.Repair(ctx, nsCtx, nsMeta, tr, repairer)
 
 			mutex.Lock()
 			if err != nil {
@@ -1106,17 +1300,17 @@ func (n *dbNamespace) Repair(
 
 	wg.Wait()
 
-	n.log.WithFields(
-		xlog.NewField("repairTimeRange", tr.String()),
-		xlog.NewField("numTotalShards", len(shards)),
-		xlog.NewField("numShardsRepaired", numShardsRepaired),
-		xlog.NewField("numTotalSeries", numTotalSeries),
-		xlog.NewField("numTotalBlocks", numTotalBlocks),
-		xlog.NewField("numSizeDiffSeries", numSizeDiffSeries),
-		xlog.NewField("numSizeDiffBlocks", numSizeDiffBlocks),
-		xlog.NewField("numChecksumDiffSeries", numChecksumDiffSeries),
-		xlog.NewField("numChecksumDiffBlocks", numChecksumDiffBlocks),
-	).Infof("repair result")
+	n.log.Info("repair result",
+		zap.String("repairTimeRange", tr.String()),
+		zap.Int("numTotalShards", len(shards)),
+		zap.Int("numShardsRepaired", numShardsRepaired),
+		zap.Int64("numTotalSeries", numTotalSeries),
+		zap.Int64("numTotalBlocks", numTotalBlocks),
+		zap.Int64("numSizeDiffSeries", numSizeDiffSeries),
+		zap.Int64("numSizeDiffBlocks", numSizeDiffBlocks),
+		zap.Int64("numChecksumDiffSeries", numChecksumDiffSeries),
+		zap.Int64("numChecksumDiffBlocks", numChecksumDiffBlocks),
+	)
 
 	return multiErr.FinalError()
 }
@@ -1141,27 +1335,30 @@ func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
 	return n.reverseIndex, nil
 }
 
-func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, error) {
+func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
+	nsCtx := n.nsContextWithRLock()
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, error) {
+func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Context, error) {
 	n.RLock()
+	nsCtx := n.nsContextWithRLock()
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, error) {
+func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	n.RLock()
+	nsCtx := n.nsContextWithRLock()
 	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
-	return shard, err
+	return shard, nsCtx, err
 }
 
 func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
@@ -1220,6 +1417,9 @@ func (n *dbNamespace) Close() error {
 	if n.reverseIndex != nil {
 		return n.reverseIndex.Close()
 	}
+	if n.schemaListener != nil {
+		n.schemaListener.Close()
+	}
 	return nil
 }
 
@@ -1234,4 +1434,22 @@ func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
 	}
 	n.RUnlock()
 	return shardStates
+}
+
+func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
+	n.RLock()
+	defer n.RUnlock()
+	shard, err := n.shardAtWithRLock(shardID)
+	if err != nil {
+		return fileOpState{}, err
+	}
+	flushState, err := shard.FlushState(blockStart)
+	if err != nil {
+		return fileOpState{}, err
+	}
+	return flushState, nil
+}
+
+func (n *dbNamespace) nsContextWithRLock() namespace.Context {
+	return namespace.Context{ID: n.id, Schema: n.schemaDescr}
 }

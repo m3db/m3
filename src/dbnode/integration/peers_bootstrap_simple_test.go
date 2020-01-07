@@ -27,20 +27,28 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xlog "github.com/m3db/m3x/log"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestPeersBootstrapSimple(t *testing.T) {
+	testPeersBootstrapSimple(t, nil, nil)
+}
+
+func TestProtoPeersBootstrapSimple(t *testing.T) {
+	testPeersBootstrapSimple(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	// Test setups
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -49,7 +57,15 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		namesp = opts.Namespaces()[0]
+	}
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
@@ -63,14 +79,18 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
-	})
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())

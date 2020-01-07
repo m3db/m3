@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,23 +29,16 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestSeeker(filePathPrefix string) DataFileSetSeeker {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
-		Capacity: 1024,
-		Count:    10,
-	}}, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
-	})
-	bytesPool.Init()
-	return NewSeeker(filePathPrefix, testReaderBufferSize, testReaderBufferSize,
-		testReaderBufferSize, bytesPool, false, nil, testDefaultOpts)
+	return NewSeeker(
+		filePathPrefix, testReaderBufferSize, testReaderBufferSize,
+		testBytesPool, false, testDefaultOpts)
 }
 
 func TestSeekEmptyIndex(t *testing.T) {
@@ -68,11 +62,11 @@ func TestSeekEmptyIndex(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, s.Entries())
-	_, err = s.SeekByID(ident.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 	assert.NoError(t, s.Close())
@@ -108,13 +102,14 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	// Truncate one byte
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
-	_, err = s.SeekByID(ident.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
-	assert.Equal(t, errNotEnoughBytes, err)
+	assert.Equal(t, errors.New("unexpected EOF"), err)
 
 	assert.NoError(t, s.Close())
 }
@@ -146,11 +141,12 @@ func TestSeekBadChecksum(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 4})))
 	assert.NoError(t, w.Close())
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
-	_, err = s.SeekByID(ident.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
 	assert.Equal(t, errSeekChecksumMismatch, err)
 
@@ -195,29 +191,30 @@ func TestSeek(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
-	data, err := s.SeekByID(ident.StringID("foo3"))
+	data, err := s.SeekByID(ident.StringID("foo3"), resources)
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 3}, data.Bytes())
 
-	data, err = s.SeekByID(ident.StringID("foo1"))
+	data, err = s.SeekByID(ident.StringID("foo1"), resources)
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
-	_, err = s.SeekByID(ident.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 
-	data, err = s.SeekByID(ident.StringID("foo2"))
+	data, err = s.SeekByID(ident.StringID("foo2"), resources)
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -262,20 +259,21 @@ func TestSeekIDNotExists(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	// Test errSeekIDNotFound when we scan far enough into the index file that
 	// we're sure that the ID we're looking for doesn't exist (because the index
 	// file is sorted). In this particular case, we would know foo21 doesn't exist
 	// once we've scanned all the way to foo30 (which does exist).
-	_, err = s.SeekByID(ident.StringID("foo21"))
+	_, err = s.SeekByID(ident.StringID("foo21"), resources)
 	assert.Equal(t, errSeekIDNotFound, err)
 
 	// Test errSeekIDNotFound when we scan to the end of the index file (foo40
 	// would be located at the end of the index file based on the writes we've made)
-	_, err = s.SeekByID(ident.StringID("foo40"))
+	_, err = s.SeekByID(ident.StringID("foo40"), resources)
 	assert.Equal(t, errSeekIDNotFound, err)
 
 	assert.NoError(t, s.Close())
@@ -323,21 +321,22 @@ func TestReuseSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), 0, resources)
 	assert.NoError(t, err)
 
-	data, err := s.SeekByID(ident.StringID("foo"))
+	data, err := s.SeekByID(ident.StringID("foo"), resources)
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
-	err = s.Open(testNs1ID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
-	data, err = s.SeekByID(ident.StringID("foo"))
+	data, err = s.SeekByID(ident.StringID("foo"), resources)
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -387,17 +386,22 @@ func TestCloneSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
+	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), 0, resources)
 	assert.NoError(t, err)
 
 	clone, err := s.ConcurrentClone()
 	require.NoError(t, err)
 
-	data, err := clone.SeekByID(ident.StringID("foo"))
+	data, err := clone.SeekByID(ident.StringID("foo"), resources)
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
+}
+
+func newTestReusableSeekerResources() ReusableSeekerResources {
+	return NewReusableSeekerResources(testDefaultOpts)
 }

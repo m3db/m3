@@ -24,20 +24,33 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
+// samplesAppender must have one of agg or client set
 type samplesAppender struct {
-	agg             aggregator.Aggregator
+	agg          aggregator.Aggregator
+	clientRemote client.Client
+
 	unownedID       []byte
 	stagedMetadatas metadata.StagedMetadatas
 }
 
 func (a samplesAppender) AppendCounterSample(value int64) error {
+	if a.clientRemote != nil {
+		// Remote client write instead of local aggregation.
+		sample := unaggregated.Counter{
+			ID:    a.unownedID,
+			Value: value,
+		}
+		return a.clientRemote.WriteUntimedCounter(sample, a.stagedMetadatas)
+	}
+
 	sample := unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		ID:         a.unownedID,
@@ -47,6 +60,15 @@ func (a samplesAppender) AppendCounterSample(value int64) error {
 }
 
 func (a samplesAppender) AppendGaugeSample(value float64) error {
+	if a.clientRemote != nil {
+		// Remote client write instead of local aggregation.
+		sample := unaggregated.Gauge{
+			ID:    a.unownedID,
+			Value: value,
+		}
+		return a.clientRemote.WriteUntimedGauge(sample, a.stagedMetadatas)
+	}
+
 	sample := unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		ID:       a.unownedID,
@@ -82,14 +104,22 @@ func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
 					AggregationID: pipeline.AggregationID,
 					StoragePolicy: policy,
 				}
+
+				if a.clientRemote != nil {
+					// Remote client write instead of local aggregation.
+					multiErr = multiErr.Add(a.clientRemote.WriteTimed(sample, metadata))
+					continue
+				}
+
+				// Add timed to local aggregator.
 				multiErr = multiErr.Add(a.agg.AddTimed(sample, metadata))
 			}
 		}
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
-// Ensure multiSamplesAppender implements SamplesAppender
+// Ensure multiSamplesAppender implements SamplesAppender.
 var _ SamplesAppender = (*multiSamplesAppender)(nil)
 
 type multiSamplesAppender struct {
@@ -116,7 +146,7 @@ func (a *multiSamplesAppender) AppendCounterSample(value int64) error {
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendCounterSample(value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
@@ -124,7 +154,7 @@ func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeSample(value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value int64) error {
@@ -132,7 +162,7 @@ func (a *multiSamplesAppender) AppendCounterTimedSample(t time.Time, value int64
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendCounterTimedSample(t, value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64) error {
@@ -140,5 +170,5 @@ func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeTimedSample(t, value))
 	}
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }

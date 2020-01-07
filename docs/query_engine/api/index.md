@@ -2,96 +2,100 @@
 
 **Please note:** This documentation is a work in progress and more detail is required.
 
-**Read using prometheus query**
-----
-  Returns datapoints in Grafana format based on the PromQL expression.
+## Query using PromQL
 
-* **URL**
+Query using PromQL and returns JSON datapoints compatible with the Prometheus Grafana plugin.
 
-  /query_range
+### URL
 
-* **Method:**
+`/api/v1/query_range`
 
-  `GET`
+### Method
 
-*  **URL Params**
+`GET`
 
-   **Required:**
+### URL Params
 
-   `start=[time in RFC3339Nano]`
-   `end=[time in RFC3339Nano]`
-   `step=[time duration]`
-   `target=[string]`
+#### Required
 
-   **Optional:**
-   `debug=[bool]`
+- `start=[time in RFC3339Nano]`
+- `end=[time in RFC3339Nano]`
+- `step=[time duration]`
+- `target=[string]`
 
-* **Data Params**
+#### Optional
 
-  None
+- `debug=[bool]`
+- `lookback=[string|time duration]`: This sets the per request lookback duration to something other than the default set in config, can either be a time duration or the string "step" which sets the lookback to the same as the `step` request parameter.
 
-* **Success Response:**
+### Header Params
 
-  * **Code:** 200 <br />
+#### Optional
 
-* **Error Response:**
+--8<--
+docs/common/headers_optional_read_write.md
+--8<--
 
-* **Sample Call:**
+### Data Params
 
-  ```
-  curl 'http://localhost:9090/api/v1/query_range?query=abs(http_requests_total)&start=1530220860&end=1530220900&step=15s'
-  {
-    "status": "success",
-    "data": {
-      "resultType": "matrix",
-      "result": [
-        {
-          "metric": {
-            "code": "200",
-            "handler": "graph",
-            "instance": "localhost:9090",
-            "job": "prometheus",
-            "method": "get"
-          },
-          "values": [
-            [
-              1530220860,
-              "6"
-            ],
-            [
-              1530220875,
-              "6"
-            ],
-            [
-              1530220890,
-              "6"
-            ]
-          ]
+None.
+
+### Sample Call
+
+<!-- 
+Note: keep this example similar to the one found in coordinator API 
+documentation for consistency/ease of readers.
+-->
+```bash
+curl 'http://localhost:7201/api/v1/query_range?query=abs(http_requests_total)&start=1530220860&end=1530220900&step=15s'
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "code": "200",
+          "handler": "graph",
+          "method": "get"
         },
-        {
-          "metric": {
-            "code": "200",
-            "handler": "label_values",
-            "instance": "localhost:9090",
-            "job": "prometheus",
-            "method": "get"
-          },
-          "values": [
-            [
-              1530220860,
-              "6"
-            ],
-            [
-              1530220875,
-              "6"
-            ],
-            [
-              1530220890,
-              "6"
-            ]
+        "values": [
+          [
+            1530220860,
+            "6"
+          ],
+          [
+            1530220875,
+            "6"
+          ],
+          [
+            1530220890,
+            "6"
           ]
-        }
-      ]
-    }
+        ]
+      },
+      {
+        "metric": {
+          "code": "200",
+          "handler": "label_values",
+          "method": "get"
+        },
+        "values": [
+          [
+            1530220860,
+            "6"
+          ],
+          [
+            1530220875,
+            "6"
+          ],
+          [
+            1530220890,
+            "6"
+          ]
+        ]
+      }
+    ]
   }
-  ```
+}
+```

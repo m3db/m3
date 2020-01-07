@@ -21,6 +21,7 @@
 package plan
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,6 +38,14 @@ var (
 	defaultLookbackDuration = time.Minute
 )
 
+func testRequestParams() models.RequestParams {
+	return models.RequestParams{
+		Now:              time.Now(),
+		LookbackDuration: defaultLookbackDuration,
+		Step:             time.Second,
+	}
+}
+
 func TestResultNode(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
 	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
@@ -52,7 +61,7 @@ func TestResultNode(t *testing.T) {
 
 	lp, err := NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()}, defaultLookbackDuration)
+	p, err := NewPhysicalPlan(lp, testRequestParams())
 	require.NoError(t, err)
 	node, err := p.leafNode()
 	require.NoError(t, err)
@@ -74,15 +83,21 @@ func TestShiftTime(t *testing.T) {
 	}
 
 	lp, _ := NewLogicalPlan(transforms, edges)
-	now := time.Now()
-	start := time.Now().Add(-1 * time.Hour)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start}, defaultLookbackDuration)
+
+	params := testRequestParams()
+	params.Start = params.Now.Add(-1 * time.Hour)
+
+	p, err := NewPhysicalPlan(lp, params)
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*defaultLookbackDuration), defaultLookbackDuration)
-	fetchTransform = parser.NewTransformFromOperation(functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
+	assert.Equal(t, params.Start.Add(-1*params.LookbackDuration),
+		p.TimeSpec.Start, fmt.Sprintf("start is not now - lookback"))
+	fetchTransform = parser.NewTransformFromOperation(
+		functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
 	transforms = parser.Nodes{fetchTransform, countTransform}
 	lp, _ = NewLogicalPlan(transforms, edges)
-	p, err = NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start}, defaultLookbackDuration)
+	p, err = NewPhysicalPlan(lp, params)
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*(time.Minute+time.Hour+defaultLookbackDuration)), "start time offset by fetch")
+	assert.Equal(t, params.Start.
+		Add(-1*(time.Minute+time.Hour+defaultLookbackDuration)), p.TimeSpec.Start,
+		"start time offset by fetch")
 }

@@ -28,13 +28,14 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -62,21 +63,6 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 	return m.recorder
 }
 
-// Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks) (BootstrapResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", arg0)
-	ret0, _ := ret[0].(BootstrapResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockDatabaseSeriesMockRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabaseSeries)(nil).Bootstrap), arg0)
-}
-
 // Close mocks base method
 func (m *MockDatabaseSeries) Close() {
 	m.ctrl.T.Helper()
@@ -89,19 +75,48 @@ func (mr *MockDatabaseSeriesMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseSeries)(nil).Close))
 }
 
-// FetchBlocks mocks base method
-func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time) ([]block.FetchBlockResult, error) {
+// ColdFlushBlockStarts mocks base method
+func (m *MockDatabaseSeries) ColdFlushBlockStarts(arg0 BootstrappedBlockStateSnapshot) OptimizedTimes {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchBlocks", arg0, arg1)
+	ret := m.ctrl.Call(m, "ColdFlushBlockStarts", arg0)
+	ret0, _ := ret[0].(OptimizedTimes)
+	return ret0
+}
+
+// ColdFlushBlockStarts indicates an expected call of ColdFlushBlockStarts
+func (mr *MockDatabaseSeriesMockRecorder) ColdFlushBlockStarts(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushBlockStarts", reflect.TypeOf((*MockDatabaseSeries)(nil).ColdFlushBlockStarts), arg0)
+}
+
+// FetchBlocks mocks base method
+func (m *MockDatabaseSeries) FetchBlocks(arg0 context.Context, arg1 []time.Time, arg2 namespace.Context) ([]block.FetchBlockResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocks", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocks indicates an expected call of FetchBlocks
-func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocks), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocks), arg0, arg1, arg2)
+}
+
+// FetchBlocksForColdFlush mocks base method
+func (m *MockDatabaseSeries) FetchBlocksForColdFlush(arg0 context.Context, arg1 time.Time, arg2 int, arg3 namespace.Context) ([]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]xio.BlockReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksForColdFlush indicates an expected call of FetchBlocksForColdFlush
+func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksForColdFlush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksForColdFlush", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksForColdFlush), arg0, arg1, arg2, arg3)
 }
 
 // FetchBlocksMetadata mocks base method
@@ -119,21 +134,6 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksMetadata), arg0, arg1, arg2, arg3)
 }
 
-// Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn) (FlushOutcome, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2)
-	ret0, _ := ret[0].(FlushOutcome)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Flush indicates an expected call of Flush
-func (mr *MockDatabaseSeriesMockRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockDatabaseSeries)(nil).Flush), arg0, arg1, arg2)
-}
-
 // ID mocks base method
 func (m *MockDatabaseSeries) ID() ident.ID {
 	m.ctrl.T.Helper()
@@ -148,20 +148,6 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
-// IsBootstrapped mocks base method
-func (m *MockDatabaseSeries) IsBootstrapped() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBootstrapped")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBootstrapped indicates an expected call of IsBootstrapped
-func (mr *MockDatabaseSeriesMockRecorder) IsBootstrapped() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockDatabaseSeries)(nil).IsBootstrapped))
-}
-
 // IsEmpty mocks base method
 func (m *MockDatabaseSeries) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -174,6 +160,20 @@ func (m *MockDatabaseSeries) IsEmpty() bool {
 func (mr *MockDatabaseSeriesMockRecorder) IsEmpty() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockDatabaseSeries)(nil).IsEmpty))
+}
+
+// LoadBlock mocks base method
+func (m *MockDatabaseSeries) LoadBlock(arg0 block.DatabaseBlock, arg1 WriteType) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LoadBlock", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LoadBlock indicates an expected call of LoadBlock
+func (mr *MockDatabaseSeriesMockRecorder) LoadBlock(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).LoadBlock), arg0, arg1)
 }
 
 // NumActiveBlocks mocks base method
@@ -203,56 +203,56 @@ func (mr *MockDatabaseSeriesMockRecorder) OnEvictedFromWiredList(arg0, arg1 inte
 }
 
 // OnRetrieveBlock mocks base method
-func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment) {
+func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment, arg4 namespace.Context) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3)
+	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3, arg4)
 }
 
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2, arg3, arg4)
 }
 
 // ReadEncoded mocks base method
-func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time) ([][]xio.BlockReader, error) {
+func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time, arg3 namespace.Context) ([][]xio.BlockReader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadEncoded", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ReadEncoded", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadEncoded indicates an expected call of ReadEncoded
-func (mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabaseSeries)(nil).ReadEncoded), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabaseSeries)(nil).ReadEncoded), arg0, arg1, arg2, arg3)
 }
 
 // Reset mocks base method
-func (m *MockDatabaseSeries) Reset(arg0 ident.ID, arg1 ident.Tags, arg2 QueryableBlockRetriever, arg3 block.OnRetrieveBlock, arg4 block.OnEvictedFromWiredList, arg5 Options) {
+func (m *MockDatabaseSeries) Reset(arg0 ident.ID, arg1 ident.Tags, arg2 uint64, arg3 QueryableBlockRetriever, arg4 block.OnRetrieveBlock, arg5 block.OnEvictedFromWiredList, arg6 Options) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", arg0, arg1, arg2, arg3, arg4, arg5)
+	m.ctrl.Call(m, "Reset", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Snapshot mocks base method
-func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn) error {
+func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2, arg3)
 }
 
 // Tags mocks base method
@@ -270,33 +270,62 @@ func (mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockDatabaseSeries) Tick() (TickResult, error) {
+func (m *MockDatabaseSeries) Tick(arg0 ShardBlockStateSnapshot, arg1 namespace.Context) (TickResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tick")
+	ret := m.ctrl.Call(m, "Tick", arg0, arg1)
 	ret0, _ := ret[0].(TickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockDatabaseSeriesMockRecorder) Tick() *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockDatabaseSeries)(nil).Tick))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockDatabaseSeries)(nil).Tick), arg0, arg1)
+}
+
+// UniqueIndex mocks base method
+func (m *MockDatabaseSeries) UniqueIndex() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UniqueIndex")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// UniqueIndex indicates an expected call of UniqueIndex
+func (mr *MockDatabaseSeriesMockRecorder) UniqueIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UniqueIndex", reflect.TypeOf((*MockDatabaseSeries)(nil).UniqueIndex))
+}
+
+// WarmFlush mocks base method
+func (m *MockDatabaseSeries) WarmFlush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) (FlushOutcome, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlush", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(FlushOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WarmFlush indicates an expected call of WarmFlush
+func (mr *MockDatabaseSeriesMockRecorder) WarmFlush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockDatabaseSeries)(nil).WarmFlush), arg0, arg1, arg2, arg3)
 }
 
 // Write mocks base method
-func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.Time, arg2 float64, arg3 time0.Unit, arg4 []byte) (bool, error) {
+func (m *MockDatabaseSeries) Write(arg0 context.Context, arg1 time.Time, arg2 float64, arg3 time0.Unit, arg4 []byte, arg5 WriteOptions) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Write indicates an expected call of Write
-func (mr *MockDatabaseSeriesMockRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDatabaseSeries)(nil).Write), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDatabaseSeries)(nil).Write), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // MockQueryableBlockRetriever is a mock of QueryableBlockRetriever interface
@@ -322,12 +351,27 @@ func (m *MockQueryableBlockRetriever) EXPECT() *MockQueryableBlockRetrieverMockR
 	return m.recorder
 }
 
+// BlockStatesSnapshot mocks base method
+func (m *MockQueryableBlockRetriever) BlockStatesSnapshot() ShardBlockStateSnapshot {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockStatesSnapshot")
+	ret0, _ := ret[0].(ShardBlockStateSnapshot)
+	return ret0
+}
+
+// BlockStatesSnapshot indicates an expected call of BlockStatesSnapshot
+func (mr *MockQueryableBlockRetrieverMockRecorder) BlockStatesSnapshot() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStatesSnapshot", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).BlockStatesSnapshot))
+}
+
 // IsBlockRetrievable mocks base method
-func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) bool {
+func (m *MockQueryableBlockRetriever) IsBlockRetrievable(arg0 time.Time) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBlockRetrievable", arg0)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // IsBlockRetrievable indicates an expected call of IsBlockRetrievable
@@ -336,17 +380,32 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBlockRetrievable", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).IsBlockRetrievable), arg0)
 }
 
-// Stream mocks base method
-func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock) (xio.BlockReader, error) {
+// RetrievableBlockColdVersion mocks base method
+func (m *MockQueryableBlockRetriever) RetrievableBlockColdVersion(arg0 time.Time) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "RetrievableBlockColdVersion", arg0)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RetrievableBlockColdVersion indicates an expected call of RetrievableBlockColdVersion
+func (mr *MockQueryableBlockRetrieverMockRecorder) RetrievableBlockColdVersion(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetrievableBlockColdVersion", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).RetrievableBlockColdVersion), arg0)
+}
+
+// Stream mocks base method
+func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock, arg4 namespace.Context) (xio.BlockReader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Stream indicates an expected call of Stream
-func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3, arg4)
 }

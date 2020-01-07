@@ -21,8 +21,8 @@
 package runtime
 
 import (
-	"github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/close"
+	"github.com/m3db/m3/src/x/watch"
 )
 
 // OptionsManager manages runtime options.

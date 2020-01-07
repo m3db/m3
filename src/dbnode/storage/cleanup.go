@@ -31,12 +31,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 type commitLogFilesFn func(commitlog.Options) (persist.CommitLogFiles, []commitlog.ErrorWithPath, error)
@@ -134,7 +134,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	if err := m.cleanupExpiredDataFiles(t); err != nil {
+	if err := m.cleanupDataFiles(t); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up data files for %v: %v", t, err))
 	}
@@ -227,7 +227,7 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupExpiredDataFiles(t time.Time) error {
+func (m *cleanupManager) cleanupDataFiles(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
@@ -240,6 +240,7 @@ func (m *cleanupManager) cleanupExpiredDataFiles(t time.Time) error {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		shards := n.GetOwnedShards()
 		multiErr = multiErr.Add(m.cleanupExpiredNamespaceDataFiles(earliestToRetain, shards))
+		multiErr = multiErr.Add(m.cleanupCompactedNamespaceDataFiles(shards))
 	}
 	return multiErr.FinalError()
 }
@@ -268,6 +269,17 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
 		if err := shard.CleanupExpiredFileSets(earliestToRetain); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseShard) error {
+	multiErr := xerrors.NewMultiError()
+	for _, shard := range shards {
+		if err := shard.CleanupCompactedFileSets(); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -306,6 +318,11 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
 func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
+	logger := m.opts.InstrumentOptions().Logger().With(
+		zap.String("comment",
+			"partial/corrupt files are expected as result of a restart (this is ok)"),
+	)
+
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
@@ -374,11 +391,10 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 					// retained.
 					m.metrics.corruptSnapshotFile.Inc(1)
-					m.opts.InstrumentOptions().Logger().WithFields(
-						xlog.NewField("err", err),
-						xlog.NewField("files", snapshot.AbsoluteFilepaths),
-					).Errorf(
-						"encountered corrupt snapshot file during cleanup, marking files for deletion")
+					logger.With(
+						zap.Error(err),
+						zap.Strings("files", snapshot.AbsoluteFilepaths),
+					).Warn("corrupt snapshot file during cleanup, marking files for deletion")
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilepaths...)
 					continue
 				}
@@ -402,12 +418,11 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 	// Delete corrupt snapshot metadata files.
 	for _, errorWithPath := range snapshotMetadataErrorsWithPaths {
 		m.metrics.corruptSnapshotMetadataFile.Inc(1)
-		m.opts.InstrumentOptions().Logger().WithFields(
-			xlog.NewField("err", errorWithPath.Error),
-			xlog.NewField("metadataFilePath", errorWithPath.MetadataFilePath),
-			xlog.NewField("checkpointFilePath", errorWithPath.CheckpointFilePath),
-		).Errorf(
-			"encountered corrupt snapshot metadata file during cleanup, marking files for deletion")
+		logger.With(
+			zap.Error(errorWithPath.Error),
+			zap.String("metadataFilePath", errorWithPath.MetadataFilePath),
+			zap.String("checkpointFilePath", errorWithPath.CheckpointFilePath),
+		).Warn("corrupt snapshot metadata file during cleanup, marking files for deletion")
 		filesToDelete = append(filesToDelete, errorWithPath.MetadataFilePath)
 		filesToDelete = append(filesToDelete, errorWithPath.CheckpointFilePath)
 	}
@@ -454,12 +469,10 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 		// sudden shutdown.
-		m.opts.InstrumentOptions().Logger().WithFields(
-			xlog.NewField("err", errorWithPath.Error()),
-			xlog.NewField("path", errorWithPath.Path()),
-		).Errorf(
-			"encountered corrupt commitlog file during cleanup, marking file for deletion: %s",
-			errorWithPath.Error())
+		logger.With(
+			zap.Error(errorWithPath),
+			zap.String("path", errorWithPath.Path()),
+		).Warn("corrupt commitlog file during cleanup, marking file for deletion")
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 

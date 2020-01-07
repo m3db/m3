@@ -32,9 +32,9 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -42,7 +42,7 @@ var (
 	defaultCounterPrefix              = []byte("counts.")
 	defaultTimerPrefix                = []byte("timers.")
 	defaultGaugePrefix                = []byte("gauges.")
-	defaultEntryTTL                   = 24 * time.Hour
+	defaultEntryTTL                   = time.Hour
 	defaultEntryCheckInterval         = time.Hour
 	defaultEntryCheckBatchPercent     = 0.01
 	defaultMaxTimerBatchSizePerWrite  = 0
@@ -53,6 +53,7 @@ var (
 		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
+	defaultVerboseErrors = false
 
 	defaultTimedMetricBuffer = time.Minute
 
@@ -300,6 +301,12 @@ type Options interface {
 
 	// FullGaugePrefix returns the full prefix for gauges.
 	FullGaugePrefix() []byte
+
+	// SetVerboseErrors returns whether to return verbose errors or not.
+	SetVerboseErrors(value bool) Options
+
+	// VerboseErrors returns whether to return verbose errors or not.
+	VerboseErrors() bool
 }
 
 type options struct {
@@ -338,6 +345,7 @@ type options struct {
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
 	gaugeElemPool                    GaugeElemPool
+	verboseErrors                    bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -353,17 +361,17 @@ func NewOptions() Options {
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
 		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
 	o := &options{
-		aggTypesOptions:    aggTypesOptions,
-		metricPrefix:       defaultMetricPrefix,
-		counterPrefix:      defaultCounterPrefix,
-		timerPrefix:        defaultTimerPrefix,
-		gaugePrefix:        defaultGaugePrefix,
-		timeLock:           &sync.RWMutex{},
-		clockOpts:          clock.NewOptions(),
-		instrumentOpts:     instrument.NewOptions(),
-		streamOpts:         cm.NewOptions(),
-		runtimeOptsManager: runtime.NewOptionsManager(runtime.NewOptions()),
-		shardFn:            sharding.Murmur32Hash.MustShardFn(),
+		aggTypesOptions:                  aggTypesOptions,
+		metricPrefix:                     defaultMetricPrefix,
+		counterPrefix:                    defaultCounterPrefix,
+		timerPrefix:                      defaultTimerPrefix,
+		gaugePrefix:                      defaultGaugePrefix,
+		timeLock:                         &sync.RWMutex{},
+		clockOpts:                        clock.NewOptions(),
+		instrumentOpts:                   instrument.NewOptions(),
+		streamOpts:                       cm.NewOptions(),
+		runtimeOptsManager:               runtime.NewOptionsManager(runtime.NewOptions()),
+		shardFn:                          sharding.Murmur32Hash.MustShardFn(),
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
 		entryTTL:                         defaultEntryTTL,
@@ -377,6 +385,7 @@ func NewOptions() Options {
 		bufferForFutureTimedMetric:       defaultTimedMetricBuffer,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
 		discardNaNAggregatedValues:       defaultDiscardNaNAggregatedValues,
+		verboseErrors:                    defaultVerboseErrors,
 	}
 
 	// Initialize pools.
@@ -730,6 +739,16 @@ func (o *options) SetGaugeElemPool(value GaugeElemPool) Options {
 
 func (o *options) GaugeElemPool() GaugeElemPool {
 	return o.gaugeElemPool
+}
+
+func (o *options) SetVerboseErrors(value bool) Options {
+	opts := *o
+	opts.verboseErrors = value
+	return &opts
+}
+
+func (o *options) VerboseErrors() bool {
+	return o.verboseErrors
 }
 
 func (o *options) FullCounterPrefix() []byte {

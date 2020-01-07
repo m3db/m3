@@ -24,8 +24,8 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -37,6 +37,7 @@ type writeOperation struct {
 	namespace    ident.ID
 	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
+	requestV2    rpc.WriteBatchRawV2RequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
 	pool         *writeOperationPool
@@ -45,6 +46,7 @@ type writeOperation struct {
 func (w *writeOperation) reset() {
 	*w = writeOperationZeroed
 	w.request.Datapoint = &w.datapoint
+	w.requestV2.Datapoint = &w.datapoint
 }
 
 func (w *writeOperation) Close() {

@@ -23,7 +23,6 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/cespare/xxhash"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,10 +86,7 @@ func TestHashedID(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
 	actual := tags.HashedID()
 
-	h := fnv.New64a()
-	h.Write([]byte("t1=v1,t2=v2,t3=v3,t4=v4,"))
-	expected := h.Sum64()
-
+	expected := xxhash.Sum64String("t1=v1,t2=v2,t3=v3,t4=v4,")
 	assert.Equal(t, expected, actual)
 }
 
@@ -192,6 +189,29 @@ func TestAddTags(t *testing.T) {
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("x"), Value: []byte("3")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
+
+	assert.Equal(t, expected, tags.Tags)
+}
+
+func TestAddTagsIfNotExists(t *testing.T) {
+	tags := NewTags(3, nil)
+	tags = tags.AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("z"), Value: []byte("4")},
+	})
+
+	tags = tags.AddTagsIfNotExists([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("c"), Value: []byte("3")},
+	})
+
+	expected := []Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("c"), Value: []byte("3")},
 		{Name: []byte("z"), Value: []byte("4")},
 	}
 
@@ -316,6 +336,9 @@ func TestCloneTags(t *testing.T) {
 
 	assert.Equal(t, cloned.Opts, tags.Opts)
 	assert.Equal(t, cloned.Tags, tags.Tags)
+	assert.True(t, cloned.Equals(tags))
+	assert.True(t, tags.Equals(cloned))
+
 	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&cloned.Tags))
 	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tags.Tags))
 	assert.False(t, aHeader.Data == bHeader.Data)
@@ -327,6 +350,37 @@ func TestCloneTags(t *testing.T) {
 	assert.True(t, bytes.Equal(tv, cv))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tn, cn))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tv, cv))
+}
+
+func TestTagsEquals(t *testing.T) {
+	tags, other := createTags(true), createTags(true)
+	assert.True(t, tags.Equals(other))
+
+	bad := []byte("a")
+	n := tags.Opts.BucketName()
+	tags.Opts = tags.Opts.SetBucketName(bad)
+	assert.False(t, tags.Equals(other))
+
+	tags.Opts = tags.Opts.SetBucketName(n)
+	assert.True(t, tags.Equals(other))
+
+	n = tags.Tags[0].Name
+	tags.Tags[0].Name = bad
+	assert.False(t, tags.Equals(other))
+
+	tags.Tags[0].Name = n
+	assert.True(t, tags.Equals(other))
+
+	tags = tags.AddTag(Tag{n, n})
+	assert.False(t, tags.Equals(other))
+}
+
+func TestTagEquals(t *testing.T) {
+	a, b, c := []byte("a"), []byte("b"), []byte("c")
+	assert.True(t, Tag{a, b}.Equals(Tag{a, b}))
+	assert.False(t, Tag{a, b}.Equals(Tag{a, c}))
+	assert.False(t, Tag{a, b}.Equals(Tag{b, c}))
+	assert.False(t, Tag{a, b}.Equals(Tag{b, b}))
 }
 
 func TestTagAppend(t *testing.T) {
@@ -480,7 +534,6 @@ func BenchmarkIDs(b *testing.B) {
 				}
 			})
 		}
-		fmt.Println()
 	}
 }
 

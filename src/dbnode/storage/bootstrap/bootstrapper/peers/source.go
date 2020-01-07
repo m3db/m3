@@ -28,24 +28,26 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+
+	"github.com/m3db/m3/src/x/instrument"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 type peersSource struct {
 	opts  Options
-	log   xlog.Logger
+	log   *zap.Logger
 	nowFn clock.NowFn
 }
 
@@ -58,19 +60,12 @@ type persistenceFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
+	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
 		opts:  opts,
-		log:   opts.ResultOptions().InstrumentOptions().Logger(),
+		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
-}
-
-func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapSequential:
-		return true
-	}
-	return false
 }
 
 type shardPeerAvailability struct {
@@ -89,8 +84,89 @@ func (s *peersSource) AvailableData(
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
-func (s *peersSource) ReadData(
+func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
+	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
+}
+
+func (s *peersSource) Read(
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	results := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
+
+	// NB(r): Perform all data bootstrapping first then index bootstrapping
+	// to more clearly deliniate which process is slower than the other.
+	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
+	start := nowFn()
+	s.log.Info("bootstrapping time series data start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+
+		r, err := s.readData(md, namespace.DataAccumulator,
+			namespace.DataRunOptions.ShardTimeRanges,
+			namespace.DataRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
+			Metadata:   md,
+			Shards:     namespace.Shards,
+			DataResult: r,
+		})
+	}
+	s.log.Info("bootstrapping time series data success",
+		zap.Duration("took", nowFn().Sub(start)))
+
+	start = nowFn()
+	s.log.Info("bootstrapping index metadata start")
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		md := namespace.Metadata
+		if !md.Options().IndexOptions().Enabled() {
+			s.log.Info("skipping bootstrap for namespace based on options",
+				zap.Stringer("namespace", md.ID()))
+
+			// Not bootstrapping for index.
+			continue
+		}
+
+		r, err := s.readIndex(md,
+			namespace.IndexRunOptions.ShardTimeRanges,
+			namespace.IndexRunOptions.RunOptions)
+		if err != nil {
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result, ok := results.Results.Get(md.ID())
+		if !ok {
+			err = fmt.Errorf("missing expected result for namespace: %s",
+				md.ID().String())
+			return bootstrap.NamespaceResults{}, err
+		}
+
+		result.IndexResult = r
+
+		results.Results.Set(md.ID(), result)
+	}
+	s.log.Info("bootstrapping index metadata success",
+		zap.Duration("took", nowFn().Sub(start)))
+
+	return results, nil
+}
+
+func (s *peersSource) readData(
+	nsMetadata namespace.Metadata,
+	accumulator bootstrap.NamespaceDataAccumulator,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
@@ -104,13 +180,13 @@ func (s *peersSource) ReadData(
 
 	var (
 		namespace         = nsMetadata.ID()
-		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.FlushPreparer
 		shouldPersist     = false
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
+
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -125,9 +201,7 @@ func (s *peersSource) ReadData(
 			s.log.Fatal("tried to perform a bootstrap with persistence without persist manager")
 		}
 
-		s.log.WithFields(
-			xlog.NewField("namespace", namespace.String()),
-		).Infof("peers bootstrapper resolving block retriever")
+		s.log.Info("peers bootstrapper resolving block retriever", zap.Stringer("namespace", namespace))
 
 		r, err := retrieverMgr.Retriever(nsMetadata)
 		if err != nil {
@@ -142,7 +216,6 @@ func (s *peersSource) ReadData(
 		defer persist.DoneFlush()
 
 		shouldPersist = true
-		blockRetriever = r
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
 		persistFlush = persist
 	}
@@ -150,7 +223,7 @@ func (s *peersSource) ReadData(
 	result := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
-		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
+		s.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
 		result.SetUnfulfilled(shardsTimeRanges)
 		return nil, err
 	}
@@ -170,11 +243,11 @@ func (s *peersSource) ReadData(
 		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
-	s.log.WithFields(
-		xlog.NewField("shards", count),
-		xlog.NewField("concurrency", concurrency),
-		xlog.NewField("shouldPersist", shouldPersist),
-	).Infof("peers bootstrapper bootstrapping shards for ranges")
+	s.log.Info("peers bootstrapper bootstrapping shards for ranges",
+		zap.Int("shards", count),
+		zap.Int("concurrency", concurrency),
+		zap.Bool("shouldPersist", shouldPersist),
+	)
 	if shouldPersist {
 		go s.startPersistenceQueueWorkerLoop(
 			opts, persistenceWorkerDoneCh, persistenceQueue, persistFlush, result, &resultLock)
@@ -188,8 +261,8 @@ func (s *peersSource) ReadData(
 		workers.Go(func() {
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
-				resultOpts, result, &resultLock, shouldPersist, persistenceQueue,
-				shardRetrieverMgr, blockSize)
+				accumulator, resultOpts, result, &resultLock, shouldPersist,
+				persistenceQueue, shardRetrieverMgr, blockSize)
 		})
 	}
 
@@ -198,14 +271,6 @@ func (s *peersSource) ReadData(
 	if shouldPersist {
 		// Wait for the persistenceQueueWorker to finish flushing everything
 		<-persistenceWorkerDoneCh
-	}
-
-	if shouldPersist {
-		// Now cache the flushed results
-		err := s.cacheShardIndices(shardsTimeRanges, blockRetriever)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return result, nil
@@ -230,21 +295,20 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 		if err == nil {
-			// Safe to add to the shared bootstrap result now.
-			lock.Lock()
-			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
-			lock.Unlock()
 			continue
 		}
 
 		// Remove results and make unfulfilled if an error occurred.
-		s.log.WithFields(
-			xlog.NewField("error", err.Error()),
-		).Errorf("peers bootstrapper bootstrap with persistence flush encountered error")
+		s.log.Error("peers bootstrapper bootstrap with persistence flush encountered error",
+			zap.Error(err))
 
 		// Make unfulfilled.
 		lock.Lock()
-		bootstrapResult.Add(flush.shard, nil, xtime.NewRanges(flush.timeRange))
+		unfulfilled := bootstrapResult.Unfulfilled().Copy()
+		unfulfilled.AddRanges(result.ShardTimeRanges{
+			flush.shard: xtime.NewRanges(flush.timeRange),
+		})
+		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
 	close(doneCh)
@@ -261,6 +325,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	ranges xtime.Ranges,
 	nsMetadata namespace.Metadata,
 	session client.AdminSession,
+	accumulator bootstrap.NamespaceDataAccumulator,
 	bopts result.Options,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
@@ -270,6 +335,13 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	blockSize time.Duration,
 ) {
 	it := ranges.Iter()
+	tagsIter := ident.NewTagsIterator(ident.Tags{})
+	unfulfill := func(r xtime.Range) {
+		lock.Lock()
+		unfulfilled := bootstrapResult.Unfulfilled()
+		unfulfilled.AddRanges(result.ShardTimeRanges{shard: xtime.NewRanges(r)})
+		lock.Unlock()
+	}
 	for it.Next() {
 		currRange := it.Value()
 
@@ -277,14 +349,11 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
 				nsMetadata, shard, blockStart, blockEnd, bopts)
-
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 			if err != nil {
-				// Do not add result at all to the bootstrap result
-				lock.Lock()
-				bootstrapResult.Add(shard, nil, xtime.NewRanges(currRange))
-				lock.Unlock()
+				// No result to add for this bootstrap.
+				unfulfill(currRange)
 				continue
 			}
 
@@ -299,10 +368,28 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			// If not waiting to flush, add straight away to bootstrap result
-			lock.Lock()
-			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-			lock.Unlock()
+			// If not waiting to flush, add straight away to bootstrap result.
+			for _, elem := range shardResult.AllSeries().Iter() {
+				entry := elem.Value()
+				tagsIter.Reset(entry.Tags)
+				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
+				if err != nil {
+					unfulfill(currRange)
+					s.log.Error("could not checkout series", zap.Error(err))
+					continue
+				}
+
+				for _, block := range entry.Blocks.AllBlocks() {
+					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+						unfulfill(currRange)
+						s.log.Error("could not load series block", zap.Error(err))
+					}
+				}
+
+				// Safe to finalize these IDs and Tags, shard result no longer used.
+				entry.ID.Finalize()
+				entry.Tags.Finalize()
+			}
 		}
 	}
 }
@@ -322,17 +409,17 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 		}
 
 		for block, numSeries := range shardBlockSeriesCounter {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("numSeries", numSeries),
-				xlog.NewField("block", block),
-			).Info("peer bootstrapped shard")
+			s.log.Info("peer bootstrapped shard",
+				zap.Uint32("shard", shard),
+				zap.Int64("numSeries", numSeries),
+				zap.Time("blockStart", block.ToTime()),
+			)
 		}
 	} else {
-		s.log.WithFields(
-			xlog.NewField("shard", shard),
-			xlog.NewField("error", err.Error()),
-		).Error("error fetching bootstrap blocks from peers")
+		s.log.Error("error fetching bootstrap blocks",
+			zap.Uint32("shard", shard),
+			zap.Error(err),
+		)
 	}
 }
 
@@ -361,10 +448,10 @@ func (s *peersSource) flush(
 	if persistConfig.FileSetType != persist.FileSetFlushType {
 		// Should never happen.
 		iOpts := s.opts.ResultOptions().InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
-			l.WithFields(
-				xlog.NewField("namespace", nsMetadata.ID().String()),
-				xlog.NewField("filesetType", persistConfig.FileSetType),
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+			l.With(
+				zap.Stringer("namespace", nsMetadata.ID()),
+				zap.Any("filesetType", persistConfig.FileSetType),
 			).Error("error tried to persist data in peers bootstrapper with non-flush fileset type")
 		})
 		return instrument.InvariantErrorf(
@@ -376,10 +463,10 @@ func (s *peersSource) flush(
 		seriesCachePolicy != series.CacheLRU {
 		// Should never happen.
 		iOpts := s.opts.ResultOptions().InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
-			l.WithFields(
-				xlog.NewField("namespace", nsMetadata.ID().String()),
-				xlog.NewField("cachePolicy", seriesCachePolicy),
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+			l.With(
+				zap.Stringer("namespace", nsMetadata.ID()),
+				zap.Any("cachePolicy", seriesCachePolicy),
 			).Error("error tried to persist data in peers bootstrapper with invalid cache policy")
 		})
 		return instrument.InvariantErrorf(
@@ -389,7 +476,7 @@ func (s *peersSource) flush(
 	var (
 		ropts     = nsMetadata.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
-		tmpCtx    = context.NewContext()
+		flushCtx  = s.opts.ContextPool().Get()
 	)
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
@@ -398,6 +485,14 @@ func (s *peersSource) flush(
 			FileSetType:       persistConfig.FileSetType,
 			Shard:             shard,
 			BlockStart:        start,
+			// When bootstrapping, the volume index will always be 0. However,
+			// if we want to be able to snapshot and flush while bootstrapping,
+			// this may not be the case, e.g. if a flush occurs before a
+			// bootstrap, then the bootstrap volume index will be >0. In order
+			// to support this, bootstrapping code will need to incorporate
+			// merging logic and flush version/volume index will need to be
+			// synchronized between processes.
+			VolumeIndex: 0,
 			// If we've peer bootstrapped this shard/block combination AND the fileset
 			// already exists on disk, then that means either:
 			// 1) The Filesystem bootstrapper was unable to bootstrap the fileset
@@ -424,30 +519,30 @@ func (s *peersSource) flush(
 				continue
 			}
 
-			tmpCtx.Reset()
-			stream, err := bl.Stream(tmpCtx)
+			flushCtx.Reset()
+			stream, err := bl.Stream(flushCtx)
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			segment, err := stream.Segment()
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			checksum, err := bl.Checksum()
 			if err != nil {
-				tmpCtx.BlockingClose()
+				flushCtx.BlockingCloseReset()
 				blockErr = err
 				break
 			}
 
 			err = prepared.Persist(s.ID, s.Tags, segment, checksum)
-			tmpCtx.BlockingClose()
+			flushCtx.BlockingCloseReset()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
@@ -498,11 +593,11 @@ func (s *peersSource) flush(
 	}
 	if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
 		iOpts := s.opts.ResultOptions().InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
-			l.WithFields(
-				xlog.NewField("start", tr.Start.Unix()),
-				xlog.NewField("end", tr.End.Unix()),
-				xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+			l.With(
+				zap.Int64("start", tr.Start.Unix()),
+				zap.Int64("end", tr.End.Unix()),
+				zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
 			).Error("error tried to remove series that still has blocks")
 		})
 	}
@@ -510,31 +605,7 @@ func (s *peersSource) flush(
 	return nil
 }
 
-func (s *peersSource) cacheShardIndices(
-	shardsTimeRanges result.ShardTimeRanges,
-	blockRetriever block.DatabaseBlockRetriever,
-) error {
-	// Now cache the flushed results
-	shards := make([]uint32, 0, len(shardsTimeRanges))
-	for shard := range shardsTimeRanges {
-		shards = append(shards, shard)
-	}
-
-	return blockRetriever.CacheShardIndices(shards)
-}
-
-func (s *peersSource) AvailableIndex(
-	nsMetadata namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	runOpts bootstrap.RunOptions,
-) (result.ShardTimeRanges, error) {
-	if err := s.validateRunOpts(runOpts); err != nil {
-		return nil, err
-	}
-	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
-}
-
-func (s *peersSource) ReadIndex(
+func (s *peersSource) readIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
@@ -552,7 +623,7 @@ func (s *peersSource) ReadIndex(
 
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
-		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
+		s.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
 		r.SetUnfulfilled(shardsTimeRanges)
 		return nil, err
 	}
@@ -566,10 +637,10 @@ func (s *peersSource) ReadIndex(
 		resultLock    = &sync.Mutex{}
 		wg            sync.WaitGroup
 	)
-	s.log.WithFields(
-		xlog.NewField("shards", count),
-		xlog.NewField("concurrency", concurrency),
-	).Infof("peers bootstrapper bootstrapping index for ranges")
+	s.log.Info("peers bootstrapper bootstrapping index for ranges",
+		zap.Int("shards", count),
+		zap.Int("concurrency", concurrency),
+	)
 
 	workers := xsync.NewWorkerPool(concurrency)
 	workers.Init()
@@ -604,7 +675,6 @@ func (s *peersSource) ReadIndex(
 						markUnfulfilled(err)
 						continue
 					}
-
 					for metadata.Next() {
 						_, dataBlock := metadata.Current()
 
@@ -752,17 +822,20 @@ func (s *peersSource) peerAvailability(
 
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
-			s.log.Debugf(
-				"0 available peers out of %d for shard %d, unable to peer bootstrap",
-				total, shardIDUint)
+			s.log.Debug(
+				"0 available peers, unable to peer bootstrap",
+				zap.Int("total", total), zap.Uint32("shard", shardIDUint))
 			continue
 		}
 
 		if !topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, total, available) {
-			s.log.Debugf(
-				"read consistency of %v not achieved with %d replicas and %d total and %d available, unable to peer bootstrap",
-				bootstrapConsistencyLevel, majorityReplicas, total, available)
+			s.log.Debug(
+				"read consistency not achieved, unable to peer bootstrap",
+				zap.Any("level", bootstrapConsistencyLevel),
+				zap.Int("replicas", majorityReplicas),
+				zap.Int("total", total),
+				zap.Int("available", available))
 			continue
 		}
 

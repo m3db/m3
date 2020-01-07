@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+message VehicleLocation {
+  reserved 3, 4;
+  double latitude = 1;
+  double longitude = 2;
+  map<string, string> attributes = 5;
+  string new_custom_field = 6;
+  map<int64, int64> new_proto_field = 7;
+}

@@ -34,7 +34,7 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	defer ctrl.Finish()
 
 	database := newMockdatabase(ctrl)
-	fsm := newFileSystemManager(database, nil, testDatabaseOptions())
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 
 	database.EXPECT().IsBootstrapped().Return(false)
@@ -48,7 +48,7 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
-	fsm := newFileSystemManager(database, nil, testDatabaseOptions())
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
@@ -60,7 +60,7 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
-	fsm := newFileSystemManager(database, nil, testDatabaseOptions())
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	require.True(t, mgr.shouldRunWithLock())
@@ -78,7 +78,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)
-	fsm := newFileSystemManager(database, nil, testDatabaseOptions())
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 	mgr.databaseFlushManager = fm
 	mgr.databaseCleanupManager = cm
@@ -86,9 +86,9 @@ func TestFileSystemManagerRun(t *testing.T) {
 	ts := time.Now()
 	gomock.InOrder(
 		cm.EXPECT().Cleanup(ts).Return(errors.New("foo")),
-		fm.EXPECT().Flush(ts, DatabaseBootstrapState{}).Return(errors.New("bar")),
+		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 
-	mgr.Run(ts, DatabaseBootstrapState{}, syncRun, noForce)
+	mgr.Run(ts, syncRun, noForce)
 	require.Equal(t, fileOpNotStarted, mgr.status)
 }

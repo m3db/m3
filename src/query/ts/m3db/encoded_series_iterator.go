@@ -21,55 +21,40 @@
 package m3db
 
 import (
-	"math"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/models"
-	xts "github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 type encodedSeriesIter struct {
-	idx          int
-	err          error
-	meta         block.Metadata
-	bounds       models.Bounds
-	series       block.Series
-	seriesMeta   []block.SeriesMeta
-	seriesIters  []encoding.SeriesIterator
-	consolidator *consolidators.SeriesLookbackConsolidator
+	idx              int
+	lookbackDuration time.Duration
+	err              error
+	meta             block.Metadata
+	datapoints       ts.Datapoints
+	series           block.UnconsolidatedSeries
+	seriesMeta       []block.SeriesMeta
+	seriesIters      []encoding.SeriesIterator
 }
 
-func (b *encodedBlock) SeriesIter() (
-	block.SeriesIter,
-	error,
-) {
-	cs := b.consolidation
-	bounds := cs.bounds
-	consolidator := consolidators.NewSeriesLookbackConsolidator(
-		b.lookback,
-		bounds.StepSize,
-		cs.currentTime,
-		cs.consolidationFn,
-	)
-
+func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
 	return &encodedSeriesIter{
-		idx:          -1,
-		meta:         b.meta,
-		bounds:       bounds,
-		seriesMeta:   b.seriesMetas,
-		seriesIters:  b.seriesBlockIterators,
-		consolidator: consolidator,
+		idx:              -1,
+		meta:             b.meta,
+		seriesMeta:       b.seriesMetas,
+		seriesIters:      b.seriesBlockIterators,
+		lookbackDuration: b.options.LookbackDuration(),
 	}, nil
+}
+
+func (it *encodedSeriesIter) Current() block.UnconsolidatedSeries {
+	return it.series
 }
 
 func (it *encodedSeriesIter) Err() error {
 	return it.err
-}
-
-func (it *encodedSeriesIter) Current() block.Series {
-	return it.series
 }
 
 func (it *encodedSeriesIter) Next() bool {
@@ -83,44 +68,31 @@ func (it *encodedSeriesIter) Next() bool {
 		return false
 	}
 
-	it.consolidator.Reset(it.bounds.Start)
 	iter := it.seriesIters[it.idx]
-	values := make([]float64, it.bounds.Steps())
-	xts.Memset(values, math.NaN())
-	i := 0
-	currentTime := it.bounds.Start
+	if it.datapoints == nil {
+		it.datapoints = make(ts.Datapoints, 0, initBlockReplicaLength)
+	} else {
+		it.datapoints = it.datapoints[:0]
+	}
+
 	for iter.Next() {
 		dp, _, _ := iter.Current()
-		ts := dp.Timestamp
-
-		if !ts.After(currentTime) {
-			it.consolidator.AddPoint(dp)
-			continue
-		}
-
-		for i < len(values) {
-			values[i] = it.consolidator.ConsolidateAndMoveToNext()
-			i++
-			currentTime = currentTime.Add(it.bounds.StepSize)
-
-			if !ts.After(currentTime) {
-				it.consolidator.AddPoint(dp)
-				break
-			}
-		}
+		it.datapoints = append(it.datapoints,
+			ts.Datapoint{
+				Timestamp: dp.Timestamp,
+				Value:     dp.Value,
+			})
 	}
 
 	if it.err = iter.Err(); it.err != nil {
 		return false
 	}
 
-	// Consolidate any remaining points iff has not been finished
-	// Fill up any missing values with NaNs
-	for ; i < len(values) && !it.consolidator.Empty(); i++ {
-		values[i] = it.consolidator.ConsolidateAndMoveToNext()
-	}
+	it.series = block.NewUnconsolidatedSeries(
+		it.datapoints,
+		it.seriesMeta[it.idx],
+	)
 
-	it.series = block.NewSeries(values, it.seriesMeta[it.idx])
 	return next
 }
 
@@ -130,10 +102,6 @@ func (it *encodedSeriesIter) SeriesCount() int {
 
 func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return it.seriesMeta
-}
-
-func (it *encodedSeriesIter) Meta() block.Metadata {
-	return it.meta
 }
 
 func (it *encodedSeriesIter) Close() {

@@ -28,7 +28,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -97,7 +98,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 		},
 	}
 
-	clusters, err := cfg.NewClusters(ClustersStaticConfigurationOptions{})
+	clusters, err := cfg.NewClusters(instrument.NewOptions(),
+		ClustersStaticConfigurationOptions{})
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes

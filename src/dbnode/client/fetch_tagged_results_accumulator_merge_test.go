@@ -33,8 +33,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,25 +57,25 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 	th := newTestFetchTaggedHelper(t)
 	ts1 := newTestSeries(1)
 	ts2 := newTestSeries(2)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelAll,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:          "testhost0",
+				fetchTaggedResult: testSerieses{ts1}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				response: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
+			testFetchStateWorklowStep{
+				hostname:          "testhost1",
+				fetchTaggedResult: testSerieses{ts1, ts2}.toRPCResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost2",
-				response:     testSerieses{}.toRPCResult(th, testStartTime, true),
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:          "testhost2",
+				fetchTaggedResult: testSerieses{}.toRPCResult(th, testStartTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -112,21 +113,21 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:          "testhost0",
+				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, true),
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				response:     newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:          "testhost1",
+				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -148,21 +149,21 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	})
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: testStartTime,
 		endTime:   testEndTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:          "testhost0",
+				fetchTaggedResult: newTestSerieses(1, 10).toRPCResult(th, testStartTime, false),
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				response:     newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:          "testhost1",
+				fetchTaggedResult: newTestSerieses(5, 15).toRPCResult(th, testStartTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -174,7 +175,7 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	matcher := newTestSerieses(1, 15).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools, nil)
 	require.NoError(t, err)
 	require.False(t, exhaust)
 	newTestSerieses(1, 15).assertMatchesEncodingIters(t, iters)
@@ -202,21 +203,21 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	sg1.addDatapoints(numPoints, startTime, endTime)
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelUnstrictMajority,
 		startTime: startTime,
 		endTime:   endTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: sg0.toRPCResult(th, startTime, false),
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:          "testhost0",
+				fetchTaggedResult: sg0.toRPCResult(th, startTime, false),
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost1",
-				response:     sg1.toRPCResult(th, endTime, true),
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:          "testhost1",
+				fetchTaggedResult: sg1.toRPCResult(th, endTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -228,7 +229,7 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
 	require.NoError(t, err)
 	require.False(t, exhaust)
 	append(sg0, sg1...).assertMatchesEncodingIters(t, iters)
@@ -252,25 +253,25 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	groups := sg0.nsplit(3)
 
 	th := newTestFetchTaggedHelper(t)
-	workflow := testFetchTaggedWorkflow{
+	workflow := testFetchStateWorkflow{
 		t:         t,
 		topoMap:   topoMap,
 		level:     topology.ReadConsistencyLevelAll,
 		startTime: startTime,
 		endTime:   endTime,
-		steps: []testFetchTaggedWorklowStep{
-			testFetchTaggedWorklowStep{
-				hostname: "testhost0",
-				response: groups[0].toRPCResult(th, startTime, true),
+		steps: []testFetchStateWorklowStep{
+			testFetchStateWorklowStep{
+				hostname:          "testhost0",
+				fetchTaggedResult: groups[0].toRPCResult(th, startTime, true),
 			},
-			testFetchTaggedWorklowStep{
-				hostname: "testhost1",
-				response: groups[1].toRPCResult(th, endTime, true),
+			testFetchStateWorklowStep{
+				hostname:          "testhost1",
+				fetchTaggedResult: groups[1].toRPCResult(th, endTime, true),
 			},
-			testFetchTaggedWorklowStep{
-				hostname:     "testhost2",
-				response:     groups[2].toRPCResult(th, endTime, true),
-				expectedDone: true,
+			testFetchStateWorklowStep{
+				hostname:          "testhost2",
+				fetchTaggedResult: groups[2].toRPCResult(th, endTime, true),
+				expectedDone:      true,
 			},
 		},
 	}
@@ -282,7 +283,7 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
 	require.NoError(t, err)
 	require.True(t, exhaust)
 	// ensure iters are valid after the lifecycle of the accumulator
@@ -290,35 +291,52 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	sg0.assertMatchesEncodingIters(t, iters)
 }
 
-type testFetchTaggedWorkflow struct {
+type testFetchStateWorkflow struct {
 	t         *testing.T
 	topoMap   topology.Map
 	level     topology.ReadConsistencyLevel
 	startTime time.Time
 	endTime   time.Time
-	steps     []testFetchTaggedWorklowStep
+	steps     []testFetchStateWorklowStep
 }
 
-type testFetchTaggedWorklowStep struct {
-	hostname     string
-	response     *rpc.FetchTaggedResult_
-	err          error
-	expectedDone bool
-	expectedErr  bool
+type testFetchStateWorklowStep struct {
+	hostname          string
+	fetchTaggedResult *rpc.FetchTaggedResult_
+	fetchTaggedErr    error
+	aggregateResult   *rpc.AggregateQueryRawResult_
+	aggregateErr      error
+	expectedDone      bool
+	expectedErr       bool
 }
 
-func (tm testFetchTaggedWorkflow) run() fetchTaggedResultAccumulator {
+func (tm testFetchStateWorkflow) run() fetchTaggedResultAccumulator {
 	var accum fetchTaggedResultAccumulator
 	majority := tm.topoMap.MajorityReplicas()
 	accum = newFetchTaggedResultAccumulator()
 	accum.Clear()
 	accum.Reset(tm.startTime, tm.endTime, tm.topoMap, majority, tm.level)
 	for _, s := range tm.steps {
-		opts := fetchTaggedResultAccumulatorOpts{
-			host:     host(tm.t, tm.topoMap, s.hostname),
-			response: s.response,
+		var (
+			done bool
+			err  error
+		)
+		switch {
+		case s.fetchTaggedResult != nil || s.fetchTaggedErr != nil:
+			opts := fetchTaggedResultAccumulatorOpts{
+				host:     host(tm.t, tm.topoMap, s.hostname),
+				response: s.fetchTaggedResult,
+			}
+			done, err = accum.AddFetchTaggedResponse(opts, s.fetchTaggedErr)
+		case s.aggregateResult != nil || s.aggregateErr != nil:
+			opts := aggregateResultAccumulatorOpts{
+				host:     host(tm.t, tm.topoMap, s.hostname),
+				response: s.aggregateResult,
+			}
+			done, err = accum.AddAggregateResponse(opts, s.aggregateErr)
+		default:
+			assert.FailNow(tm.t, "unexpected workflow step", fmt.Sprintf("%+v", s))
 		}
-		done, err := accum.Add(opts, s.err)
 		assert.Equal(tm.t, s.expectedDone, done, fmt.Sprintf("%+v", s))
 		assert.Equal(tm.t, s.expectedErr, err != nil, fmt.Sprintf("%+v", s))
 	}
@@ -359,6 +377,44 @@ func (ts testSerieses) assertMatchesEncodingIters(t *testing.T, iters encoding.S
 	}
 }
 
+func (ts testSerieses) assertMatchesAggregatedTagsIter(t *testing.T, iters AggregatedTagsIterator) {
+	aggMap := ts.toRPCAggResultMap()
+	require.Equal(t, len(aggMap), iters.Remaining())
+	for iters.Next() {
+		name, values := iters.Current()
+		valuesMap, ok := aggMap[name.String()]
+		require.True(t, ok)
+		require.Equal(t, len(valuesMap), values.Remaining())
+		for values.Next() {
+			v := values.Current()
+			_, ok := valuesMap[v.String()]
+			require.True(t, ok)
+		}
+		require.NoError(t, values.Err())
+	}
+	require.NoError(t, iters.Err())
+}
+
+func (ts testSerieses) assertMatchesLimitedAggregatedTagsIter(t *testing.T, limit int, iters AggregatedTagsIterator) {
+	aggMap := ts.toRPCAggResultMap()
+	foundNames := make([]string, 0, limit)
+	for iters.Next() {
+		name, values := iters.Current()
+		valuesMap, ok := aggMap[name.String()]
+		require.True(t, ok)
+		require.Equal(t, len(valuesMap), values.Remaining())
+		for values.Next() {
+			v := values.Current()
+			_, ok := valuesMap[v.String()]
+			require.True(t, ok)
+		}
+		require.NoError(t, values.Err())
+		foundNames = append(foundNames, name.String())
+	}
+	require.NoError(t, iters.Err())
+	require.True(t, len(foundNames) <= limit, "limit: %d, foundNames: %+v", limit, foundNames)
+}
+
 // nolint
 func (ts testSerieses) indexMatcher() TaggedIDsIteratorMatcher {
 	opts := make([]TaggedIDsIteratorMatcherOption, 0, len(ts))
@@ -378,6 +434,44 @@ func (ts testSerieses) toRPCResult(th testFetchTaggedHelper, start time.Time, ex
 	return res
 }
 
+func (ts testSerieses) toRPCAggResultMap() map[string]map[string]struct{} {
+	aggedMap := make(map[string]map[string]struct{})
+	for _, s := range ts {
+		for _, t := range s.tags.Values() {
+			name := t.Name.String()
+			value := t.Value.String()
+			m, ok := aggedMap[name]
+			if !ok {
+				m = make(map[string]struct{})
+				aggedMap[name] = m
+			}
+			m[value] = struct{}{}
+		}
+	}
+	return aggedMap
+}
+
+func (ts testSerieses) toRPCAggResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.AggregateQueryRawResult_ {
+	aggedMap := ts.toRPCAggResultMap()
+	res := &rpc.AggregateQueryRawResult_{
+		Exhaustive: exhaustive,
+	}
+	res.Results = make([]*rpc.AggregateQueryRawResultTagNameElement, 0, len(aggedMap))
+	for name, valuesMap := range aggedMap {
+		elem := &rpc.AggregateQueryRawResultTagNameElement{
+			TagName: []byte(name),
+		}
+		elem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, len(valuesMap))
+		for v := range valuesMap {
+			elem.TagValues = append(elem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+				TagValue: []byte(v),
+			})
+		}
+		res.Results = append(res.Results, elem)
+	}
+	return res
+}
+
 func newTestSerieses(i, j int) testSerieses {
 	numSeries := j - i + 1
 	ts := make(testSerieses, 0, numSeries)
@@ -389,19 +483,21 @@ func newTestSerieses(i, j int) testSerieses {
 
 func newTestSeries(i int) testSeries {
 	return testSeries{
-		ns: ident.StringID("testNs"),
-		id: ident.StringID(fmt.Sprintf("id%03d", i)),
-		tags: ident.NewTags(
-			ident.StringTag(
-				fmt.Sprintf("tagName0%d", i),
-				fmt.Sprintf("tagValue0%d", i),
-			),
-			ident.StringTag(
-				fmt.Sprintf("tagName1%d", i),
-				fmt.Sprintf("tagValue1%d", i),
-			),
-		),
+		ns:   ident.StringID("testNs"),
+		id:   ident.StringID(fmt.Sprintf("id%03d", i)),
+		tags: newTestTags(i),
 	}
+}
+
+func newTestTags(i int) ident.Tags {
+	t := make([]ident.Tag, 0, i)
+	for j := 0; j < i; j++ {
+		t = append(t, ident.StringTag(
+			fmt.Sprintf("tagName0%d", i),
+			fmt.Sprintf("tagValue0%d", i),
+		))
+	}
+	return ident.NewTags(t...)
 }
 
 type testSeries struct {
@@ -484,12 +580,12 @@ func (td testDatapoints) assertMatchesEncodingIter(t *testing.T, iter encoding.S
 
 func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time) []*rpc.Segments {
 	enc := th.encPool.Get()
-	enc.Reset(start, len(td))
+	enc.Reset(start, len(td), nil)
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
-	reader := enc.Stream()
-	if reader == nil {
+	reader, ok := enc.Stream(context.NewContext())
+	if !ok {
 		return nil
 	}
 	res, err := convert.ToSegments([]xio.BlockReader{

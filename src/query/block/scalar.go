@@ -21,87 +21,64 @@
 package block
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
 )
 
 // Scalar is a block containing a single value over a certain bound
-// This represents constant values; it greatly simplifies downstream operations by
-// allowing them to treat this as a regular block, while at the same time
-// having an option to optimize by accessing the scalar value directly instead
+// This represents constant values; it greatly simplifies downstream operations
+// by allowing them to treat this as a regular block, while at the same time
+// having an option to optimize by accessing the scalar value directly instead.
 type Scalar struct {
+	val  float64
 	meta Metadata
-	s    ScalarFunc
 }
 
-// NewScalar creates a scalar block containing val over the bounds
-func NewScalar(s ScalarFunc, bounds models.Bounds) Block {
+// NewScalar creates a scalar block whose value is given by the function over
+// the metadata bounds.
+func NewScalar(
+	val float64,
+	meta Metadata,
+) Block {
+	// NB: sanity check to ensure scalar values always have clean metadata.
+	meta.ResultMetadata = NewResultMetadata()
 	return &Scalar{
-		s: s,
-		meta: Metadata{
-			Bounds: bounds,
-			Tags:   models.EmptyTags(),
-		},
+		val:  val,
+		meta: meta,
 	}
 }
 
-// Unconsolidated returns the unconsolidated version for the block
-func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
+// Info returns information about the block.
+func (b *Scalar) Info() BlockInfo {
+	return NewBlockInfo(BlockScalar)
 }
 
-// WithMetadata updates this blocks metadata, and the metadatas for each series.
-func (b *Scalar) WithMetadata(
-	meta Metadata,
-	_ []SeriesMeta,
-) (Block, error) {
-	return &Scalar{
-		meta: meta,
-		s:    b.s,
-	}, nil
+// Meta returns the metadata for the block.
+func (b *Scalar) Meta() Metadata {
+	return b.meta
 }
 
-// StepIter returns a StepIterator
+// StepIter returns a step-wise block iterator, giving consolidated values
+// across all series comprising the box at a single time step.
 func (b *Scalar) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	return &scalarStepIter{
 		meta:    b.meta,
-		s:       b.s,
+		vals:    []float64{b.val},
 		numVals: steps,
 		idx:     -1,
 	}, nil
 }
 
-// ScalarFunc determines the function to apply to generate the value at each step
-type ScalarFunc func(t time.Time) float64
-
-// SeriesIter returns a SeriesIterator
-func (b *Scalar) SeriesIter() (SeriesIter, error) {
-	bounds := b.meta.Bounds
-	steps := bounds.Steps()
-	vals := make([]float64, steps)
-	t := bounds.Start
-	for i := range vals {
-		vals[i] = b.s(t)
-		t = t.Add(bounds.StepSize)
-	}
-
-	return &scalarSeriesIter{
-		meta: b.meta,
-		vals: vals,
-		idx:  -1,
-	}, nil
-}
-
-// Close closes the scalar block
+// Close closes the block; this is a no-op for scalar block.
 func (b *Scalar) Close() error { return nil }
 
-// Value returns the value for the scalar block
-func (b *Scalar) Value(t time.Time) float64 {
-	return b.s(t)
+// Value yields the constant value this scalar is set to.
+func (b *Scalar) Value() float64 {
+	return b.val
 }
 
 type scalarStepIter struct {
@@ -109,21 +86,22 @@ type scalarStepIter struct {
 	stepTime     time.Time
 	err          error
 	meta         Metadata
-	s            ScalarFunc
+	vals         []float64
 }
 
-// build an empty SeriesMeta
-func buildSeriesMeta() SeriesMeta {
+// build an empty SeriesMetadata.
+func buildSeriesMeta(meta Metadata) SeriesMeta {
 	return SeriesMeta{
-		Tags: models.EmptyTags(),
+		Tags: models.NewTags(0, meta.Tags.Opts),
 	}
 }
 
-func (it *scalarStepIter) Close()                   { /* No-op*/ }
-func (it *scalarStepIter) Err() error               { return it.err }
-func (it *scalarStepIter) StepCount() int           { return it.numVals }
-func (it *scalarStepIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
-func (it *scalarStepIter) Meta() Metadata           { return it.meta }
+func (it *scalarStepIter) Close()         { /* No-op*/ }
+func (it *scalarStepIter) Err() error     { return it.err }
+func (it *scalarStepIter) StepCount() int { return it.numVals }
+func (it *scalarStepIter) SeriesMeta() []SeriesMeta {
+	return []SeriesMeta{buildSeriesMeta(it.meta)}
+}
 
 func (it *scalarStepIter) Next() bool {
 	if it.err != nil {
@@ -136,7 +114,7 @@ func (it *scalarStepIter) Next() bool {
 		return false
 	}
 
-	it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
+	it.stepTime, it.err = it.meta.Bounds.TimeForIndex(it.idx)
 	if it.err != nil {
 		return false
 	}
@@ -147,7 +125,7 @@ func (it *scalarStepIter) Next() bool {
 func (it *scalarStepIter) Current() Step {
 	t := it.stepTime
 	return &scalarStep{
-		vals: []float64{it.s(t)},
+		vals: it.vals,
 		time: t,
 	}
 }
@@ -160,25 +138,12 @@ type scalarStep struct {
 func (it *scalarStep) Time() time.Time   { return it.time }
 func (it *scalarStep) Values() []float64 { return it.vals }
 
-type scalarSeriesIter struct {
-	meta Metadata
-	vals []float64
-	idx  int
+// SeriesIter is invalid for a scalar block.
+func (b *Scalar) SeriesIter() (SeriesIter, error) {
+	return nil, errors.New("series iterator undefined for a scalar block")
 }
 
-func (it *scalarSeriesIter) Close()                   { /* No-op*/ }
-func (it *scalarSeriesIter) Err() error               { return nil }
-func (it *scalarSeriesIter) SeriesCount() int         { return 1 }
-func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
-func (it *scalarSeriesIter) Meta() Metadata           { return it.meta }
-func (it *scalarSeriesIter) Next() bool {
-	it.idx++
-	return it.idx == 0
-}
-
-func (it *scalarSeriesIter) Current() Series {
-	return Series{
-		Meta:   buildSeriesMeta(),
-		values: it.vals,
-	}
+// MultiSeriesIter is invalid for a scalar block.
+func (b *Scalar) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
+	return nil, errors.New("multi series iterator undefined for a scalar block")
 }

@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -108,7 +108,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t0Nano: seriesMaps[t0Nano],
 		t1Nano: seriesMaps[t1Nano],
 	}
-	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps, 0))
 
 	log.Info("writing commit logs")
 	t2Nano := xtime.ToUnixNano(t2)

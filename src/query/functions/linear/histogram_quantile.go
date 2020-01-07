@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -50,17 +50,17 @@ func NewHistogramQuantileOp(
 	opType string,
 ) (parser.Params, error) {
 	if len(args) != 1 {
-		return emptyOp, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"invalid number of args for histogram_quantile: %d", len(args))
 	}
 
 	if opType != HistogramQuantileType {
-		return emptyOp, fmt.Errorf("operator not supported: %s", opType)
+		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
 
 	q, ok := args[0].(float64)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
+		return nil, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
 	}
 
 	return newHistogramQuantileOp(q, opType), nil
@@ -237,19 +237,25 @@ func (n *histogramQuantileNode) Params() parser.Params {
 }
 
 // Process the block
-func (n *histogramQuantileNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
+func (n *histogramQuantileNode) Process(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) error {
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-func (n *histogramQuantileNode) ProcessBlock(queryCtx *models.QueryContext,
+func (n *histogramQuantileNode) ProcessBlock(
+	queryCtx *models.QueryContext,
 	ID parser.NodeID,
-	b block.Block) (block.Block, error) {
+	b block.Block,
+) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	meta := stepIter.Meta()
+	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	bucketedSeries := gatherSeriesToBuckets(seriesMetas)
 
@@ -278,7 +284,7 @@ func setupBuilder(
 		idx++
 	}
 
-	meta.Tags, metas = utils.DedupeMetadata(metas)
+	meta.Tags, metas = utils.DedupeMetadata(metas, meta.Tags.Opts)
 	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err
@@ -368,7 +374,7 @@ func processInvalidQuantile(
 
 	setValue := math.Inf(sign)
 	outValues := make([]float64, len(bucketedSeries))
-	ts.Memset(outValues, setValue)
+	util.Memset(outValues, setValue)
 	for index := 0; stepIter.Next(); index++ {
 		if err := builder.AppendValues(index, outValues); err != nil {
 			return nil, err

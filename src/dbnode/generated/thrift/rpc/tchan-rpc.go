@@ -48,8 +48,10 @@ type TChanNode interface {
 	Aggregate(ctx thrift.Context, req *AggregateQueryRequest) (*AggregateQueryResult_, error)
 	AggregateRaw(ctx thrift.Context, req *AggregateQueryRawRequest) (*AggregateQueryRawResult_, error)
 	Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error)
+	BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error)
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
+	FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
 	FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error)
@@ -67,8 +69,10 @@ type TChanNode interface {
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error
+	WriteBatchRawV2(ctx thrift.Context, req *WriteBatchRawV2Request) error
 	WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error
 	WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTaggedBatchRawRequest) error
+	WriteTaggedBatchRawV2(ctx thrift.Context, req *WriteTaggedBatchRawV2Request) error
 }
 
 // Implementation of a client and service handler.
@@ -527,6 +531,22 @@ func (c *tchanNodeClient) Bootstrapped(ctx thrift.Context) (*NodeBootstrappedRes
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
+	var resp NodeBootstrappedInPlacementOrNoPlacementResult
+	args := NodeBootstrappedInPlacementOrNoPlacementArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "bootstrappedInPlacementOrNoPlacement", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for bootstrappedInPlacementOrNoPlacement")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	var resp NodeFetchResult
 	args := NodeFetchArgs{
@@ -557,6 +577,24 @@ func (c *tchanNodeClient) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRe
 			err = resp.Err
 		default:
 			err = fmt.Errorf("received no result or unknown exception for fetchBatchRaw")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error) {
+	var resp NodeFetchBatchRawV2Result
+	args := NodeFetchBatchRawV2Args{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "fetchBatchRawV2", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for fetchBatchRawV2")
 		}
 	}
 
@@ -857,6 +895,24 @@ func (c *tchanNodeClient) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRe
 	return err
 }
 
+func (c *tchanNodeClient) WriteBatchRawV2(ctx thrift.Context, req *WriteBatchRawV2Request) error {
+	var resp NodeWriteBatchRawV2Result
+	args := NodeWriteBatchRawV2Args{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "writeBatchRawV2", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for writeBatchRawV2")
+		}
+	}
+
+	return err
+}
+
 func (c *tchanNodeClient) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error {
 	var resp NodeWriteTaggedResult
 	args := NodeWriteTaggedArgs{
@@ -893,6 +949,24 @@ func (c *tchanNodeClient) WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTagg
 	return err
 }
 
+func (c *tchanNodeClient) WriteTaggedBatchRawV2(ctx thrift.Context, req *WriteTaggedBatchRawV2Request) error {
+	var resp NodeWriteTaggedBatchRawV2Result
+	args := NodeWriteTaggedBatchRawV2Args{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "writeTaggedBatchRawV2", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for writeTaggedBatchRawV2")
+		}
+	}
+
+	return err
+}
+
 type tchanNodeServer struct {
 	handler TChanNode
 }
@@ -914,8 +988,10 @@ func (s *tchanNodeServer) Methods() []string {
 		"aggregate",
 		"aggregateRaw",
 		"bootstrapped",
+		"bootstrappedInPlacementOrNoPlacement",
 		"fetch",
 		"fetchBatchRaw",
+		"fetchBatchRawV2",
 		"fetchBlocksMetadataRawV2",
 		"fetchBlocksRaw",
 		"fetchTagged",
@@ -933,8 +1009,10 @@ func (s *tchanNodeServer) Methods() []string {
 		"truncate",
 		"write",
 		"writeBatchRaw",
+		"writeBatchRawV2",
 		"writeTagged",
 		"writeTaggedBatchRaw",
+		"writeTaggedBatchRawV2",
 	}
 }
 
@@ -946,10 +1024,14 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleAggregateRaw(ctx, protocol)
 	case "bootstrapped":
 		return s.handleBootstrapped(ctx, protocol)
+	case "bootstrappedInPlacementOrNoPlacement":
+		return s.handleBootstrappedInPlacementOrNoPlacement(ctx, protocol)
 	case "fetch":
 		return s.handleFetch(ctx, protocol)
 	case "fetchBatchRaw":
 		return s.handleFetchBatchRaw(ctx, protocol)
+	case "fetchBatchRawV2":
+		return s.handleFetchBatchRawV2(ctx, protocol)
 	case "fetchBlocksMetadataRawV2":
 		return s.handleFetchBlocksMetadataRawV2(ctx, protocol)
 	case "fetchBlocksRaw":
@@ -984,10 +1066,14 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleWrite(ctx, protocol)
 	case "writeBatchRaw":
 		return s.handleWriteBatchRaw(ctx, protocol)
+	case "writeBatchRawV2":
+		return s.handleWriteBatchRawV2(ctx, protocol)
 	case "writeTagged":
 		return s.handleWriteTagged(ctx, protocol)
 	case "writeTaggedBatchRaw":
 		return s.handleWriteTaggedBatchRaw(ctx, protocol)
+	case "writeTaggedBatchRawV2":
+		return s.handleWriteTaggedBatchRawV2(ctx, protocol)
 
 	default:
 		return false, nil, fmt.Errorf("method %v not found in service %v", methodName, s.Service())
@@ -1078,6 +1164,34 @@ func (s *tchanNodeServer) handleBootstrapped(ctx thrift.Context, protocol athrif
 	return err == nil, &res, nil
 }
 
+func (s *tchanNodeServer) handleBootstrappedInPlacementOrNoPlacement(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeBootstrappedInPlacementOrNoPlacementArgs
+	var res NodeBootstrappedInPlacementOrNoPlacementResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.BootstrappedInPlacementOrNoPlacement(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
 func (s *tchanNodeServer) handleFetch(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeFetchArgs
 	var res NodeFetchResult
@@ -1116,6 +1230,34 @@ func (s *tchanNodeServer) handleFetchBatchRaw(ctx thrift.Context, protocol athri
 
 	r, err :=
 		s.handler.FetchBatchRaw(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleFetchBatchRawV2(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchBatchRawV2Args
+	var res NodeFetchBatchRawV2Result
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.FetchBatchRawV2(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -1607,6 +1749,33 @@ func (s *tchanNodeServer) handleWriteBatchRaw(ctx thrift.Context, protocol athri
 	return err == nil, &res, nil
 }
 
+func (s *tchanNodeServer) handleWriteBatchRawV2(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeWriteBatchRawV2Args
+	var res NodeWriteBatchRawV2Result
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.WriteBatchRawV2(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *WriteBatchRawErrors:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteBatchRawErrors but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+	}
+
+	return err == nil, &res, nil
+}
+
 func (s *tchanNodeServer) handleWriteTagged(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeWriteTaggedArgs
 	var res NodeWriteTaggedResult
@@ -1644,6 +1813,33 @@ func (s *tchanNodeServer) handleWriteTaggedBatchRaw(ctx thrift.Context, protocol
 
 	err :=
 		s.handler.WriteTaggedBatchRaw(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *WriteBatchRawErrors:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteBatchRawErrors but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleWriteTaggedBatchRawV2(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeWriteTaggedBatchRawV2Args
+	var res NodeWriteTaggedBatchRawV2Result
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.WriteTaggedBatchRawV2(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

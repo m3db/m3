@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/m3em/build"
 	"github.com/m3db/m3/src/m3em/node"
-	"github.com/m3db/m3x/instrument"
-	xretry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	xretry "github.com/m3db/m3/src/x/retry"
 )
 
 const (

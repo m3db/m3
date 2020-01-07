@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"time"
 
-	xclock "github.com/m3db/m3x/clock"
+	xclock "github.com/m3db/m3/src/x/clock"
 )
 
 const (

@@ -25,30 +25,30 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestShardWriteSyncRefCount(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	testShardWriteSyncRefCount(t, opts)
 }
 
 func TestShardWriteSyncRefCountVerifyNoCopyAnnotation(t *testing.T) {
-	opts := testDatabaseOptions().
+	opts := DefaultTestOptions().
 		// Set bytes pool to nil to ensure we're not using it to copy annotations
 		// on the sync path.
 		SetBytesPool(nil)
@@ -66,19 +66,19 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
+	_, wasWritten, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.False(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -94,15 +94,15 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -158,13 +158,13 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		opts      = testDatabaseOptions()
+		opts      = DefaultTestOptions()
 		indexOpts = opts.IndexOptions().
 				SetInsertMode(index.InsertSync)
 	)
 	opts = opts.SetIndexOptions(indexOpts)
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
 	assert.NoError(t, err)
 
 	defer func() {
@@ -177,7 +177,7 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	var (
 		now   = time.Now()
-		opts  = testDatabaseOptions()
+		opts  = DefaultTestOptions()
 		shard = testDatabaseShardWithIndexFn(t, opts, idx)
 	)
 
@@ -188,15 +188,15 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -212,15 +212,15 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -242,7 +242,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	defer closer.Close()
 
 	now := time.Now()
-	opts := testDatabaseOptions()
+	opts := DefaultTestOptions()
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().
 			SetMetricsScope(scope).
@@ -256,15 +256,15 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil)
+	_, wasWritten, err := shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -286,15 +286,15 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -308,6 +308,17 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	}
 }
 
+func newNowFnForWriteTaggedAsyncRefCount() func() time.Time {
+	// Explicitly truncate the time to the beginning of the index block size to prevent
+	// the ref-counts from being thrown off by needing to re-index entries because the first
+	// write happened near a block boundary so that when the second write comes in they need
+	// to be re-indexed for the next block time.
+	start := time.Now().Truncate(namespaceIndexOptions.BlockSize())
+
+	return func() time.Time {
+		return start
+	}
+}
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -332,7 +343,8 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 		}).
 		AnyTimes()
 
-	testShardWriteTaggedAsyncRefCount(t, idx)
+	nowFn := newNowFnForWriteTaggedAsyncRefCount()
+	testShardWriteTaggedAsyncRefCount(t, idx, nowFn)
 }
 
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
@@ -346,36 +358,47 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 
+	nowFn := newNowFnForWriteTaggedAsyncRefCount()
 	var (
-		opts      = testDatabaseOptions()
+		opts      = DefaultTestOptions()
 		indexOpts = opts.IndexOptions().
 				SetInsertMode(index.InsertSync)
 	)
+	opts = opts.
+		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	indexOpts = indexOpts.
+		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	opts = opts.SetIndexOptions(indexOpts)
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
 	assert.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, idx.Close())
 	}()
 
-	testShardWriteTaggedAsyncRefCount(t, idx)
+	testShardWriteTaggedAsyncRefCount(t, idx, nowFn)
 }
 
-func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
+func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex, nowFn func() time.Time) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
 	}, 100*time.Millisecond)
 	defer closer.Close()
 
-	now := time.Now()
-	opts := testDatabaseOptions()
-	opts = opts.SetInstrumentOptions(
-		opts.InstrumentOptions().
-			SetMetricsScope(scope).
-			SetReportInterval(100 * time.Millisecond))
+	var (
+		start = nowFn()
+		now   = start
+		opts  = DefaultTestOptions()
+	)
+	opts = opts.
+		SetInstrumentOptions(
+			opts.InstrumentOptions().
+				SetMetricsScope(scope).
+				SetReportInterval(100 * time.Millisecond))
+	opts = opts.
+		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	shard := testDatabaseShardWithIndexFn(t, opts, idx)
 	shard.SetRuntimeOptions(runtime.NewOptions().
@@ -386,17 +409,17 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	defer ctx.Close()
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"),
-		ident.EmptyTagIterator, now, 2.0, xtime.Second, nil)
+		ident.EmptyTagIterator, now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"),
-		ident.EmptyTagIterator, now, 3.0, xtime.Second, nil)
+		ident.EmptyTagIterator, now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -418,15 +441,15 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil)
+	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 

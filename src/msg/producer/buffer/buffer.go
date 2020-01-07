@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"

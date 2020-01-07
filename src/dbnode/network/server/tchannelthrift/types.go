@@ -21,39 +21,83 @@
 package tchannelthrift
 
 import (
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
 )
 
 // Options controls server behavior
 type Options interface {
-	// SetInstrumentOptions sets the instrumentation options
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetBlockMetadataV2Pool sets the block metadata pool
+	// SetTopologyInitializer sets the TopologyInitializer.
+	SetTopologyInitializer(value topology.Initializer) Options
+
+	// TopologyInitializer returns the TopologyInitializer.
+	TopologyInitializer() topology.Initializer
+
+	// SetIdentifierPool sets the identifier pool.
+	SetIdentifierPool(value ident.Pool) Options
+
+	// IdentifierPool returns the identifier pool.
+	IdentifierPool() ident.Pool
+
+	// SetBlockMetadataV2Pool sets the block metadata pool.
 	SetBlockMetadataV2Pool(value BlockMetadataV2Pool) Options
 
-	// BlockMetadataV2Pool returns the block metadata pool
+	// BlockMetadataV2Pool returns the block metadata pool.
 	BlockMetadataV2Pool() BlockMetadataV2Pool
 
-	// SetBlockMetadataV2SlicePool sets the block metadata slice pool
+	// SetBlockMetadataV2SlicePool sets the block metadata slice pool.
 	SetBlockMetadataV2SlicePool(value BlockMetadataV2SlicePool) Options
 
-	// BlockMetadataV2SlicePool returns the block metadata slice pool
+	// BlockMetadataV2SlicePool returns the block metadata slice pool.
 	BlockMetadataV2SlicePool() BlockMetadataV2SlicePool
 
 	// SetTagEncoderPool sets the tag encoder pool.
 	SetTagEncoderPool(value serialize.TagEncoderPool) Options
 
-	// TagEncoderPool returns the tag encoder pool
+	// TagEncoderPool returns the tag encoder pool.
 	TagEncoderPool() serialize.TagEncoderPool
 
 	// SetTagDecoderPool sets the tag encoder pool.
 	SetTagDecoderPool(value serialize.TagDecoderPool) Options
 
-	// TagDecoderPool returns the tag encoder pool
+	// TagDecoderPool returns the tag encoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
+
+	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
+	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
+
+	// CheckedBytesWrapperPool returns the checked bytes wrapper pool.
+	CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool
+
+	// SetMaxOutstandingWriteRequests sets the maximum number of allowed
+	// outstanding write requests.
+	SetMaxOutstandingWriteRequests(value int) Options
+
+	// MaxOutstandingWriteRequests returns the maxinum number of allowed
+	// outstanding write requests.
+	MaxOutstandingWriteRequests() int
+
+	// SetMaxOutstandingReadRequests sets the maximum number of allowed
+	// outstanding read requests.
+	SetMaxOutstandingReadRequests(value int) Options
+
+	// MaxOutstandingReadRequests returns the maxinum number of allowed
+	// outstanding read requests.
+	MaxOutstandingReadRequests() int
 }

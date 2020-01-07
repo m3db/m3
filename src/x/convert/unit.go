@@ -20,7 +20,7 @@
 
 package convert
 
-import xtime "github.com/m3db/m3x/time"
+import xtime "github.com/m3db/m3/src/x/time"
 
 // UnitForM3DB converts a time unit into one that is suitable for m3db.
 // The is done in a explicit way for better performance and the logic is

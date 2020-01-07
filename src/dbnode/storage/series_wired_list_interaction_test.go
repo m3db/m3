@@ -26,15 +26,16 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +68,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	defer wl.Stop()
 
 	var (
-		blOpts = testDatabaseOptions().DatabaseBlockOptions()
+		blOpts = DefaultTestOptions().DatabaseBlockOptions()
 		blPool = block.NewDatabaseBlockPool(
 			// Small pool size to make any pooling issues more
 			// likely to manifest.
@@ -75,30 +76,34 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		)
 	)
 	blPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blOpts, namespace.Context{})
 	})
 
 	var (
-		opts = testDatabaseOptions().SetDatabaseBlockOptions(
+		blockSize = time.Hour * 2
+		start     = time.Now().Truncate(blockSize)
+		opts      = DefaultTestOptions().SetDatabaseBlockOptions(
 			blOpts.
 				SetWiredList(wl).
 				SetDatabaseBlockPool(blPool),
 		)
-		shard  = testDatabaseShard(t, opts)
-		id     = ident.StringID("foo")
-		series = series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
+		shard       = testDatabaseShard(t, opts)
+		id          = ident.StringID("foo")
+		seriesEntry = series.NewDatabaseSeries(id, ident.Tags{}, 1, shard.seriesOpts)
+		block       = block.NewDatabaseBlock(start, blockSize, ts.Segment{}, blOpts, namespace.Context{})
 	)
 
-	series.Reset(id, ident.Tags{}, nil, shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
-	series.Bootstrap(nil)
+	seriesEntry.Reset(id, ident.Tags{}, 1, nil,
+		shard.seriesOnRetrieveBlock, shard, shard.seriesOpts)
+
+	seriesEntry.LoadBlock(block, series.WarmWrite)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(seriesEntry, 0))
 	shard.Unlock()
 
 	var (
-		wg        = sync.WaitGroup{}
-		doneCh    = make(chan struct{})
-		blockSize = 2 * time.Hour
+		wg     = sync.WaitGroup{}
+		doneCh = make(chan struct{})
 	)
 	go func() {
 		// Try and trigger any pooling issues
@@ -114,7 +119,6 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	}()
 
 	var (
-		start          = time.Now().Truncate(blockSize)
 		startLock      = sync.Mutex{}
 		getAndIncStart = func() time.Time {
 			startLock.Lock()
@@ -129,9 +133,9 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			blTime := getAndIncStart()
-			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
+			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{}, namespace.Context{})
 			// Simulate concurrent reads
-			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize))
+			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize), namespace.Context{})
 			require.NoError(t, err)
 			wg.Done()
 		}()

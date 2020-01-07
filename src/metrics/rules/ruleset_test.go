@@ -41,8 +41,8 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
 	xbytes "github.com/m3db/m3/src/metrics/x/bytes"
-	xerrors "github.com/m3db/m3x/errors"
-	xtime "github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"

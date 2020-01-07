@@ -26,11 +26,11 @@ import (
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // Options for the ingest handler.
@@ -66,7 +66,7 @@ type pbHandler struct {
 	writeFn WriteFn
 	pool    protobuf.AggregatedDecoderPool
 	wg      *sync.WaitGroup
-	logger  log.Logger
+	logger  *zap.Logger
 	m       handlerMetrics
 }
 
@@ -86,13 +86,13 @@ func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 func (h *pbHandler) Process(msg consumer.Message) {
 	dec := h.pool.Get()
 	if err := dec.Decode(msg.Bytes()); err != nil {
-		h.logger.WithFields(log.NewErrField(err)).Error("could not decode metric from message")
+		h.logger.Error("could not decode metric from message", zap.Error(err))
 		h.m.droppedMetricDecodeError.Inc(1)
 		return
 	}
 	sp, err := dec.StoragePolicy()
 	if err != nil {
-		h.logger.WithFields(log.NewErrField(err)).Error("invalid storage policy")
+		h.logger.Error("invalid storage policy", zap.Error(err))
 		h.m.droppedMetricDecodeMalformed.Inc(1)
 		return
 	}

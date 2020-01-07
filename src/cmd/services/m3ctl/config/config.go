@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
 	"github.com/m3db/m3/src/metrics/rules/validator"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/log"
 )
 
 var (

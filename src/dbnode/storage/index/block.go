@@ -21,15 +21,17 @@
 package index
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -37,14 +39,17 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
+	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -75,7 +80,8 @@ const (
 	blockStateSealed
 	blockStateClosed
 
-	defaultQueryDocsBatchSize = 256
+	defaultQueryDocsBatchSize             = 256
+	defaultAggregateResultsEntryBatchSize = 256
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
 )
@@ -101,29 +107,24 @@ type block struct {
 	state                             blockState
 	hasEvictedMutableSegmentsAnyTimes bool
 
-	segmentBuilder      segment.DocumentsBuilder
 	foregroundSegments  []*readableSeg
 	backgroundSegments  []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
 
-	newExecutorFn newExecutorFn
-	blockStart    time.Time
-	blockEnd      time.Time
-	blockSize     time.Duration
-	opts          Options
-	iopts         instrument.Options
-	nsMD          namespace.Metadata
-	docsPool      doc.DocumentArrayPool
+	newFieldsAndTermsIteratorFn newFieldsAndTermsIteratorFn
+	newExecutorFn               newExecutorFn
+	blockStart                  time.Time
+	blockEnd                    time.Time
+	blockSize                   time.Duration
+	blockOpts                   BlockOptions
+	opts                        Options
+	iopts                       instrument.Options
+	nsMD                        namespace.Metadata
 
-	compactingForeground  bool
-	compactingBackground  bool
-	compactionsForeground int
-	compactionsBackground int
-	foregroundCompactor   *compaction.Compactor
-	backgroundCompactor   *compaction.Compactor
+	compact blockCompact
 
 	metrics blockMetrics
-	logger  xlog.Logger
+	logger  *zap.Logger
 }
 
 type blockMetrics struct {
@@ -174,52 +175,20 @@ func NewBlock(
 	opts BlockOptions,
 	indexOpts Options,
 ) (Block, error) {
-	docsPool := indexOpts.DocumentArrayPool()
-
-	foregroundCompactor := compaction.NewCompactor(docsPool,
-		documentArrayPoolCapacity,
-		indexOpts.SegmentBuilderOptions(),
-		indexOpts.FSTSegmentOptions(),
-		compaction.CompactorOptions{
-			FSTWriterOptions: &fst.WriterOptions{
-				// DisableRegistry is set to true to trade a larger FST size
-				// for a faster FST compaction since we want to reduce the end
-				// to end latency for time to first index a metric.
-				DisableRegistry: true,
-			},
-			MmapDocsData: opts.ForegroundCompactorMmapDocsData,
-		})
-
-	backgroundCompactor := compaction.NewCompactor(docsPool,
-		documentArrayPoolCapacity,
-		indexOpts.SegmentBuilderOptions(),
-		indexOpts.FSTSegmentOptions(),
-		compaction.CompactorOptions{
-			MmapDocsData: opts.BackgroundCompactorMmapDocsData,
-		})
-
-	segmentBuilder, err := builder.NewBuilderFromDocuments(indexOpts.SegmentBuilderOptions())
-	if err != nil {
-		return nil, err
-	}
-
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := indexOpts.InstrumentOptions()
 	b := &block{
-		state:               blockStateOpen,
-		segmentBuilder:      segmentBuilder,
-		blockStart:          blockStart,
-		blockEnd:            blockStart.Add(blockSize),
-		blockSize:           blockSize,
-		opts:                indexOpts,
-		iopts:               iopts,
-		nsMD:                md,
-		docsPool:            docsPool,
-		foregroundCompactor: foregroundCompactor,
-		backgroundCompactor: backgroundCompactor,
-		metrics:             newBlockMetrics(iopts.MetricsScope()),
-		logger:              iopts.Logger(),
+		state:      blockStateOpen,
+		blockStart: blockStart,
+		blockEnd:   blockStart.Add(blockSize),
+		blockSize:  blockSize,
+		opts:       indexOpts,
+		iopts:      iopts,
+		nsMD:       md,
+		metrics:    newBlockMetrics(iopts.MetricsScope()),
+		logger:     iopts.Logger(),
 	}
+	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorFn = b.executorWithRLock
 
 	return b, nil
@@ -234,7 +203,7 @@ func (b *block) EndTime() time.Time {
 }
 
 func (b *block) maybeBackgroundCompactWithLock() {
-	if b.compactingBackground || b.state != blockStateOpen {
+	if b.compact.compactingBackground || b.state != blockStateOpen {
 		return
 	}
 
@@ -251,8 +220,8 @@ func (b *block) maybeBackgroundCompactWithLock() {
 
 	plan, err := compaction.NewPlan(segs, b.opts.BackgroundCompactionPlannerOptions())
 	if err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-			l.Errorf("index background compaction plan error: %v", err)
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+			l.Error("index background compaction plan error", zap.Error(err))
 		})
 		return
 	}
@@ -262,12 +231,12 @@ func (b *block) maybeBackgroundCompactWithLock() {
 	}
 
 	// Kick off compaction.
-	b.compactingBackground = true
+	b.compact.compactingBackground = true
 	go func() {
 		b.backgroundCompactWithPlan(plan)
 
 		b.Lock()
-		b.compactingBackground = false
+		b.compact.compactingBackground = false
 		b.cleanupBackgroundCompactWithLock()
 		b.Unlock()
 	}()
@@ -300,24 +269,24 @@ func (b *block) cleanupBackgroundCompactWithLock() {
 	b.backgroundSegments = nil
 
 	// Free compactor resources.
-	if b.backgroundCompactor == nil {
+	if b.compact.backgroundCompactor == nil {
 		return
 	}
 
-	if err := b.backgroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-			l.Errorf("error closing index block background compactor: %v", err)
+	if err := b.compact.backgroundCompactor.Close(); err != nil {
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+			l.Error("error closing index block background compactor", zap.Error(err))
 		})
 	}
-	b.backgroundCompactor = nil
+	b.compact.backgroundCompactor = nil
 }
 
 func (b *block) closeCompactedSegments(segments []*readableSeg) {
 	for _, seg := range segments {
 		err := seg.Segment().Close()
 		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("could not close compacted segment: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("could not close compacted segment", zap.Error(err))
 			})
 		}
 	}
@@ -327,33 +296,33 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	sw := b.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
 
-	n := b.compactionsBackground
-	b.compactionsBackground++
+	n := b.compact.numBackground
+	b.compact.numBackground++
 
-	logger := b.logger.WithFields(
-		xlog.NewField("block", b.blockStart.String()),
-		xlog.NewField("numBackgroundCompaction", n),
+	logger := b.logger.With(
+		zap.Time("block", b.blockStart),
+		zap.Int("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
 	if log {
 		for i, task := range plan.Tasks {
 			summary := task.Summary()
-			logger.WithFields(
-				xlog.NewField("task", i),
-				xlog.NewField("numMutable", summary.NumMutable),
-				xlog.NewField("numFST", summary.NumFST),
-				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
-				xlog.NewField("cumulativeSize", summary.CumulativeSize),
-			).Debug("planned background compaction task")
+			logger.Debug("planned background compaction task",
+				zap.Int("task", i),
+				zap.Int("numMutable", summary.NumMutable),
+				zap.Int("numFST", summary.NumFST),
+				zap.String("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
+				zap.Int64("cumulativeSize", summary.CumulativeSize),
+			)
 		}
 	}
 
 	for i, task := range plan.Tasks {
 		err := b.backgroundCompactWithTask(task, log,
-			logger.WithFields(xlog.NewField("task", i)))
+			logger.With(zap.Int("task", i)))
 		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("error compacting segments: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("error compacting segments", zap.Error(err))
 			})
 			return
 		}
@@ -363,7 +332,7 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 func (b *block) backgroundCompactWithTask(
 	task compaction.Task,
 	log bool,
-	logger xlog.Logger,
+	logger *zap.Logger,
 ) error {
 	if log {
 		logger.Debug("start compaction task")
@@ -375,13 +344,12 @@ func (b *block) backgroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.backgroundCompactor.Compact(segments)
+	compacted, err := b.compact.backgroundCompactor.Compact(segments)
 	took := time.Since(start)
 	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
 
 	if log {
-		logger.WithFields(xlog.NewField("took", took.String())).
-			Debug("done compaction task")
+		logger.Debug("done compaction task", zap.Duration("took", took))
 	}
 
 	if err != nil {
@@ -423,8 +391,8 @@ func (b *block) addCompactedSegmentFromSegments(
 		err := existing.Segment().Close()
 		if err != nil {
 			// Already compacted, not much we can do about not closing it.
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("unable to close compacted block: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("unable to close compacted block", zap.Error(err))
 			})
 		}
 	}
@@ -439,18 +407,24 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		b.Unlock()
 		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
 	}
-	if b.compactingForeground {
+	if b.compact.compactingForeground {
 		b.Unlock()
 		return b.writeBatchResult(inserts, errUnableToWriteBlockConcurrent)
 	}
+	// Lazily allocate the segment builder and compactors
+	err := b.compact.allocLazyBuilderAndCompactors(b.blockOpts, b.opts)
+	if err != nil {
+		b.Unlock()
+		return b.writeBatchResult(inserts, err)
+	}
 
-	b.compactingForeground = true
-	builder := b.segmentBuilder
+	b.compact.compactingForeground = true
+	builder := b.compact.segmentBuilder
 	b.Unlock()
 
 	defer func() {
 		b.Lock()
-		b.compactingForeground = false
+		b.compact.compactingForeground = false
 		b.cleanupForegroundCompactWithLock()
 		b.Unlock()
 	}()
@@ -468,7 +442,7 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment from the segment builder before we can serve reads
 	// from an FST segment.
-	err := b.foregroundCompactWithBuilder(builder)
+	err = b.foregroundCompactWithBuilder(builder)
 	if err != nil {
 		return b.writeBatchResult(inserts, err)
 	}
@@ -553,24 +527,24 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	b.maybeMoveForegroundSegmentsToBackgroundWithLock(plan.UnusedSegments)
 	b.Unlock()
 
-	n := b.compactionsForeground
-	b.compactionsForeground++
+	n := b.compact.numForeground
+	b.compact.numForeground++
 
-	logger := b.logger.WithFields(
-		xlog.NewField("block", b.blockStart.String()),
-		xlog.NewField("numForegroundCompaction", n),
+	logger := b.logger.With(
+		zap.Time("block", b.blockStart),
+		zap.Int("numForegroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
 	if log {
 		for i, task := range plan.Tasks {
 			summary := task.Summary()
-			logger.WithFields(
-				xlog.NewField("task", i),
-				xlog.NewField("numMutable", summary.NumMutable),
-				xlog.NewField("numFST", summary.NumFST),
-				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
-				xlog.NewField("cumulativeSize", summary.CumulativeSize),
-			).Debug("planned foreground compaction task")
+			logger.Debug("planned foreground compaction task",
+				zap.Int("task", i),
+				zap.Int("numMutable", summary.NumMutable),
+				zap.Int("numFST", summary.NumFST),
+				zap.Duration("cumulativeMutableAge", summary.CumulativeMutableAge),
+				zap.Int64("cumulativeSize", summary.CumulativeSize),
+			)
 		}
 	}
 
@@ -581,7 +555,7 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 	// Run the first task, without resetting the builder.
 	if err := b.foregroundCompactWithTask(
 		builder, plan.Tasks[0],
-		log, logger.WithFields(xlog.NewField("task", 0)),
+		log, logger.With(zap.Int("task", 0)),
 	); err != nil {
 		return err
 	}
@@ -599,7 +573,7 @@ func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) e
 		builder.Reset(0)
 		if err := b.foregroundCompactWithTask(
 			builder, task,
-			log, logger.WithFields(xlog.NewField("task", i)),
+			log, logger.With(zap.Int("task", i)),
 		); err != nil {
 			return err
 		}
@@ -614,13 +588,13 @@ func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	if len(segments) == 0 {
 		return
 	}
-	if b.backgroundCompactor == nil {
+	if b.compact.backgroundCompactor == nil {
 		// No longer performing background compaction due to evict/close.
 		return
 	}
 
-	b.logger.Debugf("moving %d segments from foreground to background",
-		len(segments))
+	b.logger.Debug("moving segments from foreground to background",
+		zap.Int("numSegments", len(segments)))
 
 	// If background compaction is still active, then we move any unused
 	// foreground segments into the background so that they might be
@@ -653,7 +627,7 @@ func (b *block) foregroundCompactWithTask(
 	builder segment.DocumentsBuilder,
 	task compaction.Task,
 	log bool,
-	logger xlog.Logger,
+	logger *zap.Logger,
 ) error {
 	if log {
 		logger.Debug("start compaction task")
@@ -668,13 +642,12 @@ func (b *block) foregroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.foregroundCompactor.CompactUsingBuilder(builder, segments)
+	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments)
 	took := time.Since(start)
 	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
 
 	if log {
-		logger.WithFields(xlog.NewField("took", took.String())).
-			Debug("done compaction task")
+		logger.Debug("done compaction task", zap.Duration("took", took))
 	}
 
 	if err != nil {
@@ -704,18 +677,18 @@ func (b *block) cleanupForegroundCompactWithLock() {
 	b.foregroundSegments = nil
 
 	// Free compactor resources.
-	if b.foregroundCompactor == nil {
+	if b.compact.foregroundCompactor == nil {
 		return
 	}
 
-	if err := b.foregroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-			l.Errorf("error closing index block foreground compactor: %v", err)
+	if err := b.compact.foregroundCompactor.Close(); err != nil {
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+			l.Error("error closing index block foreground compactor", zap.Error(err))
 		})
 	}
 
-	b.foregroundCompactor = nil
-	b.segmentBuilder = nil
+	b.compact.foregroundCompactor = nil
+	b.compact.segmentBuilder = nil
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
@@ -762,6 +735,31 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	return executor.NewExecutor(readers), nil
 }
 
+func (b *block) segmentsWithRLock() []segment.Segment {
+	numSegments := len(b.foregroundSegments) + len(b.backgroundSegments)
+	for _, group := range b.shardRangesSegments {
+		numSegments += len(group.segments)
+	}
+
+	segments := make([]segment.Segment, 0, numSegments)
+	// Add foreground & background segments.
+	for _, seg := range b.foregroundSegments {
+		segments = append(segments, seg.Segment())
+	}
+	for _, seg := range b.backgroundSegments {
+		segments = append(segments, seg.Segment())
+	}
+
+	// Loop over the segments associated to shard time ranges.
+	for _, group := range b.shardRangesSegments {
+		for _, seg := range group.segments {
+			segments = append(segments, seg)
+		}
+	}
+
+	return segments
+}
+
 // Query acquires a read lock on the block so that the segments
 // are guaranteed to not be freed/released while accumulating results.
 // This allows references to the mmap'd segment data to be accumulated
@@ -770,10 +768,33 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 // results datastructure is used to copy it every time documents are added
 // to the results datastructure).
 func (b *block) Query(
+	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	query Query,
 	opts QueryOptions,
-	results Results,
+	results BaseResults,
+	logFields []opentracinglog.Field,
+) (bool, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	exhaustive, err := b.queryWithSpan(ctx, cancellable, query, opts, results, sp, logFields)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (b *block) queryWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	query Query,
+	opts QueryOptions,
+	results BaseResults,
+	sp opentracing.Span,
+	logFields []opentracinglog.Field,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -787,26 +808,52 @@ func (b *block) Query(
 		return false, err
 	}
 
+	// Make sure if we don't register to close the executor later
+	// that we close it before returning.
+	execCloseRegistered := false
+	defer func() {
+		if !execCloseRegistered {
+			b.closeExecutorAsync(exec)
+		}
+	}()
+
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
 	iter, err := exec.Execute(query.Query.SearchQuery())
 	if err != nil {
-		exec.Close()
 		return false, err
 	}
 
-	size := results.Size()
-	batch := b.docsPool.Get()
-	batchSize := cap(batch)
+	// Register the executor to close when context closes
+	// so can avoid copying the results into the map and just take
+	// references to it.
+	// NB(r): Needs to still be a valid query otherwise
+	// the context could be invalid because the caller early returned
+	// which means it can't be used for finalization any longer.
+	valid := cancellable.TryCheckout()
+	if !valid {
+		return false, errCancelledQuery
+	}
+	execCloseRegistered = true // Make sure to not locally close it.
+	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		b.closeExecutorAsync(exec)
+	}))
+	cancellable.ReleaseCheckout()
+
+	var (
+		iterCloser = safeCloser{closable: iter}
+		size       = results.Size()
+		docsPool   = b.opts.DocumentArrayPool()
+		batch      = docsPool.Get()
+		batchSize  = cap(batch)
+	)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
 	}
-	iterCloser := safeCloser{closable: iter}
-	execCloser := safeCloser{closable: exec}
 
+	// Register local data structures that need closing.
 	defer func() {
-		b.docsPool.Put(batch)
 		iterCloser.Close()
-		execCloser.Close()
+		docsPool.Put(batch)
 	}()
 
 	for iter.Next() {
@@ -836,12 +883,7 @@ func (b *block) Query(
 	if err := iter.Err(); err != nil {
 		return false, err
 	}
-
 	if err := iterCloser.Close(); err != nil {
-		return false, err
-	}
-
-	if err := execCloser.Close(); err != nil {
 		return false, err
 	}
 
@@ -849,33 +891,273 @@ func (b *block) Query(
 	return exhaustive, nil
 }
 
+func (b *block) closeExecutorAsync(exec search.Executor) {
+	// Note: This only happens if closing the readers isn't clean.
+	if err := exec.Close(); err != nil {
+		b.logger.Error("could not close search exec", zap.Error(err))
+	}
+}
+
 func (b *block) addQueryResults(
 	cancellable *resource.CancellableLifetime,
-	results Results,
+	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
-	// Checkout the lifetime of the query before adding results
+	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
-		// Query not valid any longer, do not add results and return early
+		// query not valid any longer, do not add results and return early.
 		return batch, 0, errCancelledQuery
 	}
 
-	// Try to add the docs to the resource
+	// try to add the docs to the resource.
 	size, err := results.AddDocuments(batch)
 
-	// Immediately release the checkout on the lifetime of query
+	// immediately release the checkout on the lifetime of query.
 	cancellable.ReleaseCheckout()
 
-	// Reset batch
+	// reset batch.
 	var emptyDoc doc.Document
 	for i := range batch {
 		batch[i] = emptyDoc
 	}
 	batch = batch[:0]
 
-	// Return results
+	// return results.
 	return batch, size, err
+}
+
+// Aggregate acquires a read lock on the block so that the segments
+// are guaranteed to not be freed/released while accumulating results.
+// NB: Aggregate is an optimization of the general aggregate Query approach
+// for the case when we can skip going to raw documents, and instead rely on
+// pre-aggregated results via the FST underlying the index.
+func (b *block) Aggregate(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	opts QueryOptions,
+	results AggregateResults,
+	logFields []opentracinglog.Field,
+) (bool, error) {
+	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockAggregate)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	exhaustive, err := b.aggregateWithSpan(ctx, cancellable, opts, results, sp)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return exhaustive, err
+}
+
+func (b *block) aggregateWithSpan(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	opts QueryOptions,
+	results AggregateResults,
+	sp opentracing.Span,
+) (bool, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	if b.state == blockStateClosed {
+		return false, ErrUnableToQueryBlockClosed
+	}
+
+	aggOpts := results.AggregateResultsOptions()
+	iterateTerms := aggOpts.Type == AggregateTagNamesAndValues
+	iterateOpts := fieldsAndTermsIteratorOpts{
+		iterateTerms: iterateTerms,
+		allowFn: func(field []byte) bool {
+			// skip any field names that we shouldn't allow.
+			if bytes.Equal(field, doc.IDReservedFieldName) {
+				return false
+			}
+			return aggOpts.FieldFilter.Allow(field)
+		},
+		fieldIterFn: func(s segment.Segment) (segment.FieldsIterator, error) {
+			// NB(prateek): we default to using the regular (FST) fields iterator
+			// unless we have a predefined list of fields we know we need to restrict
+			// our search to, in which case we iterate that list and check if known values
+			// in the FST to restrict our search. This is going to be significantly faster
+			// while len(FieldsFilter) < 5-10 elements;
+			// but there will exist a ratio between the len(FieldFilter) v size(FST) after which
+			// iterating the entire FST is faster.
+			// Here, we chose to avoid factoring that in to our choice because almost all input
+			// to this function is expected to have (FieldsFilter) pretty small. If that changes
+			// in the future, we can revisit this.
+			if len(aggOpts.FieldFilter) == 0 {
+				return s.FieldsIterable().Fields()
+			}
+			return newFilterFieldsIterator(s, aggOpts.FieldFilter)
+		},
+	}
+
+	iter, err := b.newFieldsAndTermsIteratorFn(nil, iterateOpts)
+	if err != nil {
+		return false, err
+	}
+
+	var (
+		size       = results.Size()
+		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
+		batchSize  = cap(batch)
+		iterClosed = false // tracking whether we need to free the iterator at the end.
+	)
+	if batchSize == 0 {
+		batchSize = defaultAggregateResultsEntryBatchSize
+	}
+
+	// cleanup at the end
+	defer func() {
+		b.opts.AggregateResultsEntryArrayPool().Put(batch)
+		if !iterClosed {
+			iter.Close()
+		}
+	}()
+
+	segs := b.segmentsWithRLock()
+	for _, s := range segs {
+		if opts.LimitExceeded(size) {
+			break
+		}
+
+		err = iter.Reset(s, iterateOpts)
+		if err != nil {
+			return false, err
+		}
+		iterClosed = false // only once the iterator has been successfully Reset().
+
+		for iter.Next() {
+			if opts.LimitExceeded(size) {
+				break
+			}
+
+			field, term := iter.Current()
+			batch = b.appendFieldAndTermToBatch(batch, field, term, iterateTerms)
+			if len(batch) < batchSize {
+				continue
+			}
+
+			batch, size, err = b.addAggregateResults(cancellable, results, batch)
+			if err != nil {
+				return false, err
+			}
+		}
+
+		if err := iter.Err(); err != nil {
+			return false, err
+		}
+
+		iterClosed = true
+		if err := iter.Close(); err != nil {
+			return false, err
+		}
+	}
+
+	// Add last batch to results if remaining.
+	if len(batch) > 0 {
+		batch, size, err = b.addAggregateResults(cancellable, results, batch)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	exhaustive := !opts.LimitExceeded(size)
+	return exhaustive, nil
+}
+
+func (b *block) appendFieldAndTermToBatch(
+	batch []AggregateResultsEntry,
+	field, term []byte,
+	includeTerms bool,
+) []AggregateResultsEntry {
+	// NB(prateek): we make a copy of the (field, term) entries returned
+	// by the iterator during traversal, because the []byte are only valid per entry during
+	// the traversal (i.e. calling Next() invalidates the []byte). We choose to do this
+	// instead of checking if the entry is required (duplicates may exist in the results map
+	// already), as it reduces contention on the map itself. Further, the ownership of these
+	// idents is transferred to the results map, which either hangs on to them (if they are new),
+	// or finalizes them if they are duplicates.
+	var (
+		entry            AggregateResultsEntry
+		lastField        []byte
+		lastFieldIsValid bool
+		reuseLastEntry   bool
+	)
+	// we are iterating multiple segments so we may receive duplicates (same field/term), but
+	// as we are iterating one segment at a time, and because the underlying index structures
+	// are FSTs, we rely on the fact that iterator traversal is in order to avoid creating duplicate
+	// entries for the same fields, by checking the last batch entry to see if the bytes are
+	// the same.
+	// It's easier to consider an example, say we have a segment with fields/terms:
+	// (f1, t1), (f1, t2), ..., (fn, t1), ..., (fn, tn)
+	// as we iterate in order, we receive (f1, t1) and then (f1, t2) we can avoid the repeated f1
+	// allocation if the previous entry has the same value.
+	// NB: this isn't strictly true because when we switch iterating between segments,
+	// the fields/terms switch in an order which doesn't have to be strictly lexicographic. In that
+	// instance however, the only downside is we would be allocating more. i.e. this is just an
+	// optimisation, it doesn't affect correctness.
+	if len(batch) > 0 {
+		lastFieldIsValid = true
+		lastField = batch[len(batch)-1].Field.Bytes()
+	}
+	if lastFieldIsValid && bytes.Equal(lastField, field) {
+		reuseLastEntry = true
+		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
+	} else {
+		entry.Field = b.pooledID(field) // allocate id because this is the first time we've seen it
+	}
+
+	if includeTerms {
+		// terms are always new (as far we know without checking the map for duplicates), so we allocate
+		entry.Terms = append(entry.Terms, b.pooledID(term))
+	}
+
+	if reuseLastEntry {
+		batch[len(batch)-1] = entry
+	} else {
+		batch = append(batch, entry)
+	}
+	return batch
+}
+
+func (b *block) pooledID(id []byte) ident.ID {
+	data := b.opts.CheckedBytesPool().Get(len(id))
+	data.IncRef()
+	data.AppendAll(id)
+	data.DecRef()
+	return b.opts.IdentifierPool().BinaryID(data)
+}
+
+func (b *block) addAggregateResults(
+	cancellable *resource.CancellableLifetime,
+	results AggregateResults,
+	batch []AggregateResultsEntry,
+) ([]AggregateResultsEntry, int, error) {
+	// checkout the lifetime of the query before adding results.
+	queryValid := cancellable.TryCheckout()
+	if !queryValid {
+		// query not valid any longer, do not add results and return early.
+		return batch, 0, errCancelledQuery
+	}
+
+	// try to add the docs to the resource.
+	size := results.AddFields(batch)
+
+	// immediately release the checkout on the lifetime of query.
+	cancellable.ReleaseCheckout()
+
+	// reset batch.
+	var emptyField AggregateResultsEntry
+	for i := range batch {
+		batch[i] = emptyField
+	}
+	batch = batch[:0]
+
+	// return results.
+	return batch, size, nil
 }
 
 func (b *block) AddResults(
@@ -910,7 +1192,7 @@ func (b *block) AddResults(
 	for _, seg := range segments {
 		readThroughSeg := seg
 		if _, ok := seg.(segment.MutableSegment); !ok {
-			// Only wrap the immutable segments with a read through cache.
+			// only wrap the immutable segments with a read through cache.
 			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, readThroughSeg)
@@ -921,7 +1203,7 @@ func (b *block) AddResults(
 		segments:        readThroughSegments,
 	}
 
-	// First see if this block can cover all our current blocks covering shard
+	// first see if this block can cover all our current blocks covering shard
 	// time ranges.
 	currFulfilled := make(result.ShardTimeRanges)
 	for _, existing := range b.shardRangesSegments {
@@ -952,9 +1234,9 @@ func (b *block) AddResults(
 	return multiErr.FinalError()
 }
 
-func (b *block) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error) {
-	b.RLock()
-	defer b.RUnlock()
+func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
+	b.Lock()
+	defer b.Unlock()
 	result := BlockTickResult{}
 	if b.state == blockStateClosed {
 		return result, errUnableToTickBlockClosed
@@ -970,15 +1252,23 @@ func (b *block) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResul
 		result.NumDocs += seg.Segment().Size()
 	}
 
+	multiErr := xerrors.NewMultiError()
+
 	// Any segments covering persisted shard ranges.
 	for _, group := range b.shardRangesSegments {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+				if err := immSeg.FreeMmap(); err != nil {
+					multiErr = multiErr.Add(err)
+				}
+			}
 		}
 	}
 
-	return result, nil
+	return result, multiErr.FinalError()
 }
 
 func (b *block) Seal() error {
@@ -1085,10 +1375,10 @@ func (b *block) EvictMutableSegments() error {
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted
 	// segments will get closed.
-	if !b.compactingForeground {
+	if !b.compact.compactingForeground {
 		b.cleanupForegroundCompactWithLock()
 	}
-	if !b.compactingBackground {
+	if !b.compact.compactingBackground {
 		b.cleanupBackgroundCompactWithLock()
 	}
 
@@ -1121,10 +1411,10 @@ func (b *block) Close() error {
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted
 	// segments will get closed.
-	if !b.compactingForeground {
+	if !b.compact.compactingForeground {
 		b.cleanupForegroundCompactWithLock()
 	}
-	if !b.compactingBackground {
+	if !b.compact.compactingBackground {
 		b.cleanupBackgroundCompactWithLock()
 	}
 
@@ -1148,11 +1438,72 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 		return errUnableToWriteBlockSealed
 	default: // should never happen
 		err := fmt.Errorf(errUnableToWriteBlockUnknownStateFmtString, state)
-		instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
-			l.Errorf(err.Error())
+		instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l *zap.Logger) {
+			l.Error(err.Error())
 		})
 		return err
 	}
+}
+
+// blockCompact has several lazily allocated compaction components.
+type blockCompact struct {
+	segmentBuilder       segment.DocumentsBuilder
+	foregroundCompactor  *compaction.Compactor
+	backgroundCompactor  *compaction.Compactor
+	compactingForeground bool
+	compactingBackground bool
+	numForeground        int
+	numBackground        int
+}
+
+func (b *blockCompact) allocLazyBuilderAndCompactors(
+	blockOpts BlockOptions,
+	opts Options,
+) error {
+	var (
+		err      error
+		docsPool = opts.DocumentArrayPool()
+	)
+	if b.segmentBuilder == nil {
+		b.segmentBuilder, err = builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
+		if err != nil {
+			return err
+		}
+	}
+
+	if b.foregroundCompactor == nil {
+		b.foregroundCompactor, err = compaction.NewCompactor(docsPool,
+			documentArrayPoolCapacity,
+			opts.SegmentBuilderOptions(),
+			opts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				FSTWriterOptions: &fst.WriterOptions{
+					// DisableRegistry is set to true to trade a larger FST size
+					// for a faster FST compaction since we want to reduce the end
+					// to end latency for time to first index a metric.
+					DisableRegistry: true,
+				},
+				MmapDocsData: blockOpts.ForegroundCompactorMmapDocsData,
+			})
+		if err != nil {
+			return err
+		}
+	}
+
+	if b.backgroundCompactor == nil {
+		b.backgroundCompactor, err = compaction.NewCompactor(docsPool,
+			documentArrayPoolCapacity,
+			opts.SegmentBuilderOptions(),
+			opts.FSTSegmentOptions(),
+			compaction.CompactorOptions{
+				MmapDocsData: blockOpts.BackgroundCompactorMmapDocsData,
+			})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type closable interface {

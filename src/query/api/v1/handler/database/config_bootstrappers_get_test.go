@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/gogo/protobuf/proto"
@@ -42,7 +43,8 @@ func TestConfigGetBootstrappersHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockStore, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigGetBootstrappersHandler(mockClient)
+	handler := NewConfigGetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	value := kv.NewMockValue(ctrl)
@@ -83,7 +85,8 @@ func TestConfigGetBootstrappersHandlerNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockStore, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigGetBootstrappersHandler(mockClient)
+	handler := NewConfigGetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	mockStore.EXPECT().

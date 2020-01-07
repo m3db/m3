@@ -26,14 +26,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +57,9 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 			End:   blockStart.Add(blockSize),
 		})
 	)
-	nsMetadata, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	nsOpts := namespace.NewOptions()
+	nsOpts = nsOpts.SetIndexOptions(nsOpts.IndexOptions().SetEnabled(true))
+	nsMetadata, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
 
 	for i := 0; i < int(numShards); i++ {
@@ -194,19 +196,23 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataAvailabilityResult)
 				require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexAvailabilityResult)
 
-				// Make sure ReadData marks anything that AvailableData wouldn't return as unfulfilled
-				dataResult, err := src.ReadData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-				require.NoError(t, err)
+				// Make sure Read marks anything that available ranges wouldn't return as unfulfilled
+				tester := bootstrap.BuildNamespacesTester(t, runOpts, tc.shardsTimeRangesToBootstrap, nsMetadata)
+				defer tester.Finish()
+				tester.TestReadWith(src)
+
 				expectedDataUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
 				expectedDataUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
-				require.Equal(t, expectedDataUnfulfilled, dataResult.Unfulfilled())
-
-				// Make sure ReadIndex marks anything that AvailableIndex wouldn't return as unfulfilled
-				indexResult, err := src.ReadIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-				require.NoError(t, err)
 				expectedIndexUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
 				expectedIndexUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
-				require.Equal(t, expectedIndexUnfulfilled, indexResult.Unfulfilled())
+				tester.TestUnfulfilledForNamespace(
+					nsMetadata,
+					expectedDataUnfulfilled,
+					expectedIndexUnfulfilled,
+				)
+
+				tester.EnsureNoLoadedBlocks()
+				tester.EnsureNoWrites()
 			}
 		})
 	}

@@ -20,7 +20,7 @@
 
 package series
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 type databaseSeriesPool struct {
 	pool pool.ObjectPool

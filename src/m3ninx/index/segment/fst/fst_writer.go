@@ -24,7 +24,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/couchbase/vellum"
+	"github.com/m3db/vellum"
 )
 
 var (

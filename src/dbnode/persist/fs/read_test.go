@@ -33,11 +33,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/mmap"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -271,7 +271,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	var (
 		shardDir       = ShardDataDirPath(filePathPrefix, testNs1ID, shard)
-		checkpointFile = filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
+		checkpointFile = dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, checkpointFileSuffix, false)
 	)
 	exists, err := CompleteCheckpointFileExists(checkpointFile)
 	require.NoError(t, err)
@@ -316,7 +316,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
-		digestFile := filesetPathFromTime(shardDir, start, suffix)
+		digestFile := dataFilesetPathFromTimeAndIndex(shardDir, start, 0, suffix, false)
 		fd, err := os.OpenFile(digestFile, os.O_WRONLY|os.O_TRUNC, os.FileMode(0666))
 		require.NoError(t, err)
 		_, err = fd.Write(data)

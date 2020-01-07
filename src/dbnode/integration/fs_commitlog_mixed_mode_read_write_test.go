@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -35,16 +36,28 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/stretchr/testify/require"
 )
 
+type annotationGenerator interface {
+	Next() []byte
+}
+
 func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
+	testFsCommitLogMixedModeReadWrite(t, nil, nil)
+}
+
+func TestProtoFsCommitLogMixedModeReadWrite(t *testing.T) {
+	testFsCommitLogMixedModeReadWrite(t, setProtoTestOptions, prototest.NewProtoMessageIterator(testProtoMessages))
+}
+
+func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions, annGen annotationGenerator) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -62,12 +75,19 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+	}
+
 	// Test setup
 	setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
 	defer setup.close()
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log & fileset files, write, read, and merge bootstrap test")
+
+	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// setting time to 2017/02/13 15:30:10
 	fakeStart := time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
@@ -99,69 +119,69 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 		ctx   = context.NewContext()
 	)
 	defer ctx.Close()
-	log.Infof("writing datapoints")
-	datapoints := generateDatapoints(fakeStart, total, ids)
+	log.Info("writing datapoints")
+	datapoints := generateDatapoints(fakeStart, total, ids, annGen)
 	for _, dp := range datapoints {
 		ts := dp.time
 		setup.setNowFn(ts)
-		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil))
+		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann))
 	}
-	log.Infof("wrote datapoints")
+	log.Info("wrote datapoints")
 
 	// verify in-memory data matches what we expect
 	expectedSeriesMap := datapoints.toSeriesMap(ns1BlockSize)
-	log.Infof("verifying data in database equals expected data")
+	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
-	log.Infof("verified data in database equals expected data")
+	log.Info("verified data in database equals expected data")
 
 	// current time is 18:50, so we expect data for block starts [15, 18) to be written out
 	// to fileset files, and flushed.
 	expectedFlushedData := datapoints.toSeriesMap(ns1BlockSize)
 	delete(expectedFlushedData, xtime.ToUnixNano(blkStart18))
 	waitTimeout := 5 * time.Minute
-	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	log.Infof("waiting till expected fileset files have been written")
+
+	log.Info("waiting till expected fileset files have been written")
 	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
-	log.Infof("expected fileset files have been written")
+	log.Info("expected fileset files have been written")
 
 	// stopping db
-	log.Infof("stopping database")
+	log.Info("stopping database")
 	require.NoError(t, setup.stopServer())
-	log.Infof("database stopped")
+	log.Info("database stopped")
 
 	// the time now is 18:55
 	setup.setNowFn(setup.getNowFn().Add(5 * time.Minute))
 
 	// recreate the db from the data files and commit log
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
-	log.Infof("re-opening database & bootstrapping")
+	log.Info("re-opening database & bootstrapping")
 	startServerWithNewInspection(t, opts, setup)
-	log.Infof("verifying data in database equals expected data")
+	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
-	log.Infof("verified data in database equals expected data")
+	log.Info("verified data in database equals expected data")
 
 	// the time now is 19:15
 	setup.setNowFn(setup.getNowFn().Add(20 * time.Minute))
 	// data from hour 15 is now outdated, ensure the file has been cleaned up
-	log.Infof("waiting till expired fileset files have been cleanedup")
+	log.Info("waiting till expired fileset files have been cleanedup")
 	require.NoError(t, waitUntilFileSetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
-	log.Infof("fileset files have been cleaned up")
+	log.Info("fileset files have been cleaned up")
 
 	// stopping db
-	log.Infof("stopping database")
+	log.Info("stopping database")
 	require.NoError(t, setup.stopServer())
-	log.Infof("database stopped")
+	log.Info("database stopped")
 
 	// recreate the db from the data files and commit log
-	log.Infof("re-opening database & bootstrapping")
+	log.Info("re-opening database & bootstrapping")
 	startServerWithNewInspection(t, opts, setup)
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
 	delete(expectedSeriesMap, xtime.ToUnixNano(blkStart15))
-	log.Infof("verifying data in database equals expected data")
+	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
-	log.Infof("verified data in database equals expected data")
+	log.Info("verified data in database equals expected data")
 }
 
 // We use this helper method to start the server so that a new filesystem
@@ -255,22 +275,38 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	return setup
 }
 
-func generateDatapoints(start time.Time, numPoints int, ig *idGen) dataPointsInTimeOrder {
+func generateDatapoints(start time.Time, numPoints int, ig *idGen, annGen annotationGenerator) dataPointsInTimeOrder {
 	var points dataPointsInTimeOrder
 	for i := 0; i < numPoints; i++ {
 		t := start.Add(time.Duration(i) * time.Minute)
-		points = append(points,
-			seriesDatapoint{
-				series: ig.base(),
-				time:   t,
-				value:  float64(i),
-			},
-			seriesDatapoint{
-				series: ig.nth(i),
-				time:   t,
-				value:  float64(i),
-			},
-		)
+		if annGen == nil {
+			points = append(points,
+				seriesDatapoint{
+					series: ig.base(),
+					time:   t,
+					value:  float64(i),
+				},
+				seriesDatapoint{
+					series: ig.nth(i),
+					time:   t,
+					value:  float64(i),
+				},
+			)
+		} else {
+			annBytes := annGen.Next()
+			points = append(points,
+				seriesDatapoint{
+					series: ig.base(),
+					time:   t,
+					ann:    annBytes,
+				},
+				seriesDatapoint{
+					series: ig.nth(i),
+					time:   t,
+					ann:    annBytes,
+				},
+			)
+		}
 	}
 	return points
 }
@@ -281,6 +317,7 @@ type seriesDatapoint struct {
 	series ident.ID
 	time   time.Time
 	value  float64
+	ann    []byte
 }
 
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
@@ -297,10 +334,10 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		if !ok {
 			dp = generate.Series{ID: point.series}
 		}
-		dp.Data = append(dp.Data, ts.Datapoint{
+		dp.Data = append(dp.Data, generate.TestValue{Datapoint: ts.Datapoint{
 			Timestamp: t,
 			Value:     point.value,
-		})
+		}, Annotation: point.ann})
 		seriesBlock[idString] = dp
 		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock
 	}
@@ -314,8 +351,6 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		seriesMap[t] = seriesSlice
 	}
 	return seriesMap
-
-	return nil
 }
 
 // before returns a slice of the dataPointsInTimeOrder that are before the

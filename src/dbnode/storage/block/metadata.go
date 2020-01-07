@@ -23,7 +23,7 @@ package block
 import (
 	"time"
 
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // NewMetadata creates a new block metadata

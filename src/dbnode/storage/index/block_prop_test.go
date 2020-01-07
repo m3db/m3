@@ -30,16 +30,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
-	"github.com/m3db/m3/src/m3ninx/util"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
-	"github.com/m3db/m3x/instrument"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -47,9 +47,7 @@ import (
 )
 
 var (
-	testFstOptions    = fst.NewOptions()
-	testBlockSize     = time.Hour
-	lotsTestDocuments = util.MustReadDocs("../../../m3ninx/util/testdata/node_exporter.json", 2000)
+	testBlockSize = time.Hour
 )
 
 // TestPostingsListCacheDoesNotAffectBlockQueryResults verifies that the postings list
@@ -125,9 +123,9 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					EndExclusive:   blockStart.Add(blockSize),
 				}
 
-				uncachedResults := NewResults(nil, ResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(cancellable, indexQuery,
-					queryOpts, uncachedResults)
+				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+				exhaustive, err := uncachedBlock.Query(context.NewContext(), cancellable, indexQuery,
+					queryOpts, uncachedResults, emptyLogFields)
 				if err != nil {
 					return false, fmt.Errorf("error querying uncached block: %v", err)
 				}
@@ -135,9 +133,9 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 					return false, errors.New("querying uncached block was not exhaustive")
 				}
 
-				cachedResults := NewResults(nil, ResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(cancellable, indexQuery,
-					queryOpts, cachedResults)
+				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+				exhaustive, err = cachedBlock.Query(context.NewContext(), cancellable, indexQuery,
+					queryOpts, cachedResults, emptyLogFields)
 				if err != nil {
 					return false, fmt.Errorf("error querying cached block: %v", err)
 				}

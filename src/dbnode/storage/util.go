@@ -21,8 +21,67 @@
 package storage
 
 import (
+	"sync"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/x/pool"
 )
+
+var (
+	defaultTestOptionsOnce sync.Once
+	defaultTestOptions     Options
+)
+
+// DefaultTestOptions provides a single set of test storage options
+// we save considerable memory by doing this avoiding creating
+// default pools several times.
+func DefaultTestOptions() Options {
+	defaultTestOptionsOnce.Do(func() {
+		opts := newOptions(pool.NewObjectPoolOptions().
+			SetSize(16))
+
+		// Use a no-op options manager to avoid spinning up a goroutine to listen
+		// for updates, which causes problems with leaktest in individual test
+		// executions
+		runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
+			runtime.NewOptions())
+
+		blockLeaseManager := &block.NoopLeaseManager{}
+		fsOpts := fs.NewOptions().
+			SetRuntimeOptionsManager(runtimeOptionsMgr)
+		pm, err := fs.NewPersistManager(fsOpts)
+		if err != nil {
+			panic(err)
+		}
+
+		plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+			InstrumentOptions: opts.InstrumentOptions(),
+		})
+		if err != nil {
+			panic(err)
+		}
+		defer stopReporting()
+
+		indexOpts := opts.IndexOptions().
+			SetPostingsListCache(plCache)
+
+		defaultTestOptions = opts.
+			SetIndexOptions(indexOpts).
+			SetSeriesCachePolicy(series.CacheAll).
+			SetPersistManager(pm).
+			SetRepairEnabled(false).
+			SetCommitLogOptions(
+				opts.CommitLogOptions().SetFilesystemOptions(fsOpts)).
+			SetBlockLeaseManager(blockLeaseManager)
+	})
+
+	return defaultTestOptions
+}
 
 // numIntervals returns the number of intervals between [start, end] for a given
 // windowSize.

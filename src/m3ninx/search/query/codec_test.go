@@ -38,6 +38,10 @@ func TestMarshal(t *testing.T) {
 			query: NewAllQuery(),
 		},
 		{
+			name:  "field query",
+			query: NewFieldQuery([]byte("fruit")),
+		},
+		{
 			name:  "term query",
 			query: NewTermQuery([]byte("fruit"), []byte("apple")),
 		},
@@ -52,6 +56,7 @@ func TestMarshal(t *testing.T) {
 		{
 			name: "disjunction query",
 			query: NewDisjunctionQuery([]search.Query{
+				NewFieldQuery([]byte("fruit")),
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 				NewConjunctionQuery([]search.Query{
 					NewTermQuery([]byte("fruit"), []byte("banana")),
@@ -65,6 +70,7 @@ func TestMarshal(t *testing.T) {
 		{
 			name: "conjunction query",
 			query: NewConjunctionQuery([]search.Query{
+				NewFieldQuery([]byte("fruit")),
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 				NewConjunctionQuery([]search.Query{
 					NewTermQuery([]byte("fruit"), []byte("banana")),

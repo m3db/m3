@@ -27,12 +27,14 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/uber-go/tally"
 )
 
@@ -126,6 +128,7 @@ type dbShardPendingWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
+	opts       series.WriteOptions
 }
 
 type dbShardPendingIndex struct {
@@ -138,6 +141,7 @@ type dbShardPendingRetrievedBlock struct {
 	tags    ident.TagIterator
 	start   time.Time
 	segment ts.Segment
+	nsCtx   namespace.Context
 }
 
 func (b *dbShardInsertBatch) reset() {
@@ -296,7 +300,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 	}
 	if limit := q.insertPerSecondLimit; limit > 0 {
 		if q.insertPerSecondLimitWindowNanos != windowNanos {
-			// Rolled into to a new window
+			// Rolled into a new window
 			q.insertPerSecondLimitWindowNanos = windowNanos
 			q.insertPerSecondLimitWindowValues = 0
 		}

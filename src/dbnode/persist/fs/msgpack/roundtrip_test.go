@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,7 @@ var (
 		SnapshotTime: time.Now().UnixNano(),
 		FileType:     persist.FileSetSnapshotType,
 		SnapshotID:   []byte("some_bytes"),
+		VolumeIndex:  1,
 	}
 
 	testIndexEntry = schema.IndexEntry{
@@ -91,13 +93,13 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the V3 decoding code can handle the V1 file format.
+// Make sure the V4 decoding code can handle the V1 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV1}
@@ -106,7 +108,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	)
 
 	// Set the default values on the fields that did not exist in V1,
-	// as well as the fields that were added in versions after V2,
+	// as well as the fields that were added in versions after V1,
 	// and then restore them at the end of the test - This is required
 	// because the new decoder won't try and read the new fields from
 	// the old file format
@@ -114,25 +116,28 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 		currSnapshotTime = testIndexInfo.SnapshotTime
 		currFileType     = testIndexInfo.FileType
 		currSnapshotID   = testIndexInfo.SnapshotID
+		currVolumeIndex  = testIndexInfo.VolumeIndex
 	)
 	testIndexInfo.SnapshotTime = 0
 	testIndexInfo.FileType = 0
 	testIndexInfo.SnapshotID = nil
+	testIndexInfo.VolumeIndex = 0
 	defer func() {
 		testIndexInfo.SnapshotTime = currSnapshotTime
 		testIndexInfo.FileType = currFileType
 		testIndexInfo.SnapshotID = currSnapshotID
+		testIndexInfo.VolumeIndex = currVolumeIndex
 	}()
 
 	enc.EncodeIndexInfo(testIndexInfo)
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the V1 decoder code can handle the V3 file format.
-func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
+// Make sure the V1 decoder code can handle the V4 file format.
+func TestIndexInfoRoundTripForwardsCompatibilityV1(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV1}
 		enc  = newEncoder(opts)
@@ -146,6 +151,7 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 		currSnapshotTime = testIndexInfo.SnapshotTime
 		currFileType     = testIndexInfo.FileType
 		currSnapshotID   = testIndexInfo.SnapshotID
+		currVolumeIndex  = testIndexInfo.VolumeIndex
 	)
 
 	enc.EncodeIndexInfo(testIndexInfo)
@@ -155,19 +161,21 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	testIndexInfo.SnapshotTime = 0
 	testIndexInfo.FileType = 0
 	testIndexInfo.SnapshotID = nil
+	testIndexInfo.VolumeIndex = 0
 	defer func() {
 		testIndexInfo.SnapshotTime = currSnapshotTime
 		testIndexInfo.FileType = currFileType
 		testIndexInfo.SnapshotID = currSnapshotID
+		testIndexInfo.VolumeIndex = currVolumeIndex
 	}()
 
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the V3 decoding code can handle the V2 file format.
+// Make sure the V4 decoding code can handle the V2 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV2}
@@ -183,25 +191,28 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 		currSnapshotTime = testIndexInfo.SnapshotTime
 		currFileType     = testIndexInfo.FileType
 		currSnapshotID   = testIndexInfo.SnapshotID
+		currVolumeIndex  = testIndexInfo.VolumeIndex
 	)
 	testIndexInfo.SnapshotTime = 0
 	testIndexInfo.FileType = 0
 	testIndexInfo.SnapshotID = nil
+	testIndexInfo.VolumeIndex = 0
 	defer func() {
 		testIndexInfo.SnapshotTime = currSnapshotTime
 		testIndexInfo.FileType = currFileType
 		testIndexInfo.SnapshotID = currSnapshotID
+		testIndexInfo.VolumeIndex = currVolumeIndex
 	}()
 
 	enc.EncodeIndexInfo(testIndexInfo)
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the V2 decoder code can handle the V3 file format.
-func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
+// Make sure the V2 decoder code can handle the V4 file format.
+func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV2}
 		enc  = newEncoder(opts)
@@ -212,17 +223,75 @@ func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
 	// and then restore them at the end of the test - This is required
 	// because the old decoder won't read the new fields.
 	currSnapshotID := testIndexInfo.SnapshotID
+	currVolumeIndex := testIndexInfo.VolumeIndex
 
 	enc.EncodeIndexInfo(testIndexInfo)
 
 	// Make sure to zero them before we compare, but after we have
 	// encoded the data.
 	testIndexInfo.SnapshotID = nil
+	testIndexInfo.VolumeIndex = 0
 	defer func() {
 		testIndexInfo.SnapshotID = currSnapshotID
+		testIndexInfo.VolumeIndex = currVolumeIndex
 	}()
 
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the V4 decoding code can handle the V3 file format.
+func TestIndexInfoRoundTripBackwardsCompatibilityV3(t *testing.T) {
+	var (
+		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV3}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V3,
+	// and then restore them at the end of the test - This is required
+	// because the new decoder won't try and read the new fields from
+	// the old file format.
+	var (
+		currVolumeIndex = testIndexInfo.VolumeIndex
+	)
+	testIndexInfo.VolumeIndex = 0
+	defer func() {
+		testIndexInfo.VolumeIndex = currVolumeIndex
+	}()
+
+	enc.EncodeIndexInfo(testIndexInfo)
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the V3 decoder code can handle the V4 file format.
+func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
+	var (
+		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV3}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V2
+	// and then restore them at the end of the test - This is required
+	// because the old decoder won't read the new fields.
+	currVolumeIndex := testIndexInfo.VolumeIndex
+
+	enc.EncodeIndexInfo(testIndexInfo)
+
+	// Make sure to zero them before we compare, but after we have
+	// encoded the data.
+	testIndexInfo.VolumeIndex = 0
+	defer func() {
+		testIndexInfo.VolumeIndex = currVolumeIndex
+	}()
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
@@ -234,8 +303,23 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntry()
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexEntry, res)
+}
+
+func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
+	var (
+		pool = pool.NewBytesPool(nil, nil)
+		enc  = NewEncoder()
+		dec  = NewDecoder(nil)
+	)
+	pool.Init()
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(pool)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
 }
@@ -259,8 +343,8 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	}()
 
 	enc.EncodeIndexEntry(testIndexEntry)
-	dec.Reset(NewDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntry()
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
 }
@@ -287,8 +371,8 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 		testIndexEntry.EncodedTags = currEncodedTags
 	}()
 
-	dec.Reset(NewDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntry()
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
 }
@@ -299,7 +383,7 @@ func TestIndexSummaryRoundtrip(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, _, err := dec.DecodeIndexSummary()
 	require.NoError(t, err)
 	require.Equal(t, testIndexSummary, res)
@@ -311,7 +395,7 @@ func TestLogInfoRoundtrip(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogInfo(testLogInfo))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogInfo()
 	require.NoError(t, err)
 	require.Equal(t, testLogInfo, res)
@@ -323,7 +407,7 @@ func TestLogEntryRoundtrip(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogEntry()
 	require.NoError(t, err)
 	require.Equal(t, testLogEntry, res)
@@ -335,7 +419,7 @@ func TestLogEntryRoundtripUniqueIndexAndRemaining(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	create, idx, err := dec.DecodeLogEntryUniqueIndex()
 	require.NoError(t, err)
 
@@ -352,7 +436,7 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogMetadata()
 	require.NoError(t, err)
 	require.Equal(t, testLogMetadata, res)
@@ -388,13 +472,13 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		}
 	}
 
-	dec.Reset(NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	for i := 0; i < iter; i++ {
 		switch i % 5 {
 		case 0:
 			res, err = dec.DecodeIndexInfo()
 		case 1:
-			res, err = dec.DecodeIndexEntry()
+			res, err = dec.DecodeIndexEntry(nil)
 		case 2:
 			res, err = dec.DecodeLogInfo()
 		case 3:

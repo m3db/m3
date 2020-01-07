@@ -22,15 +22,16 @@ package client
 
 import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type fetchBatchOp struct {
 	checked.RefCount
-	request       rpc.FetchBatchRawRequest
-	completionFns []completionFn
-	finalizer     fetchBatchOpFinalizer
+	request           rpc.FetchBatchRawRequest
+	requestV2Elements []rpc.FetchBatchRawV2RequestElement
+	completionFns     []completionFn
+	finalizer         fetchBatchOpFinalizer
 }
 
 func (f *fetchBatchOp) reset() {
@@ -46,6 +47,16 @@ func (f *fetchBatchOp) reset() {
 		f.completionFns[i] = nil
 	}
 	f.completionFns = f.completionFns[:0]
+
+	for i := range f.requestV2Elements {
+		f.requestV2Elements[i].NameSpace = 0
+		f.requestV2Elements[i].RangeStart = 0
+		f.requestV2Elements[i].RangeEnd = 0
+		f.requestV2Elements[i].ID = nil
+		f.requestV2Elements[i].RangeTimeType = 0
+	}
+	f.requestV2Elements = f.requestV2Elements[:0]
+
 	f.DecWrites()
 }
 
@@ -53,6 +64,13 @@ func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
 	f.IncWrites()
 	f.request.NameSpace = namespace
 	f.request.Ids = append(f.request.Ids, id)
+	f.requestV2Elements = append(f.requestV2Elements, rpc.FetchBatchRawV2RequestElement{
+		// NameSpace filled in by the host queue later.
+		RangeStart:    f.request.RangeStart,
+		RangeEnd:      f.request.RangeEnd,
+		ID:            id,
+		RangeTimeType: f.request.RangeTimeType,
+	})
 	f.completionFns = append(f.completionFns, completionFn)
 	f.DecWrites()
 }
@@ -60,6 +78,9 @@ func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
 func (f *fetchBatchOp) Size() int {
 	f.IncReads()
 	value := len(f.request.Ids)
+	if value == 0 {
+		value = len(f.requestV2Elements)
+	}
 	f.DecReads()
 	return value
 }
@@ -86,7 +107,7 @@ type fetchBatchOpFinalizer struct {
 	pool *fetchBatchOpPool
 }
 
-func (f fetchBatchOpFinalizer) Finalize() {
+func (f fetchBatchOpFinalizer) OnFinalize() {
 	f.pool.Put(f.ref)
 }
 
@@ -107,7 +128,7 @@ func (p *fetchBatchOpPool) Init() {
 		f.completionFns = make([]completionFn, 0, p.capacity)
 		f.finalizer.ref = f
 		f.finalizer.pool = p
-		f.SetFinalizer(&f.finalizer)
+		f.SetOnFinalize(&f.finalizer)
 
 		f.IncRef()
 		f.reset()

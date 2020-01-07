@@ -25,13 +25,13 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type writer struct {
@@ -39,7 +39,7 @@ type writer struct {
 }
 
 // WriteAllPredicate writes all datapoints
-func WriteAllPredicate(_ ts.Datapoint) bool {
+func WriteAllPredicate(_ TestValue) bool {
 	return true
 }
 
@@ -51,48 +51,53 @@ func NewWriter(opts Options) Writer {
 }
 
 func (w *writer) WriteData(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	volume int,
 ) error {
-	return w.WriteDataWithPredicate(namespace, shardSet, seriesMaps, WriteAllPredicate)
+	return w.WriteDataWithPredicate(nsCtx, shardSet, seriesMaps, volume, WriteAllPredicate)
 }
 
 func (w *writer) WriteSnapshot(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	volume int,
 	snapshotInterval time.Duration,
 ) error {
 	return w.WriteSnapshotWithPredicate(
-		namespace, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, volume, WriteAllPredicate, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	volume int,
 	pred WriteDatapointPredicate,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
+		nsCtx, shardSet, seriesMaps, volume, pred, persist.FileSetFlushType, 0)
 }
 
 func (w *writer) WriteSnapshotWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	volume int,
 	pred WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
+		nsCtx, shardSet, seriesMaps, volume, pred, persist.FileSetSnapshotType, snapshotInterval)
 }
 
 func (w *writer) writeWithPredicate(
-	namespace ident.ID,
+	nsCtx ns.Context,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	volume int,
 	pred WriteDatapointPredicate,
 	fileSetType persist.FileSetType,
 	snapshotInterval time.Duration,
@@ -121,10 +126,11 @@ func (w *writer) writeWithPredicate(
 		return err
 	}
 	encoder := gOpts.EncoderPool().Get()
+	encoder.SetSchema(nsCtx.Schema)
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
-			data, pred, fileSetType, snapshotInterval)
+			writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
+			data, volume, pred, fileSetType, snapshotInterval)
 		if err != nil {
 			return err
 		}
@@ -135,8 +141,8 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
-				nil, pred, fileSetType, snapshotInterval)
+				writer, shardSet, encoder, start.ToTime(), nsCtx, blockSize,
+				nil, volume, pred, fileSetType, snapshotInterval)
 			if err != nil {
 				return err
 			}
@@ -151,9 +157,10 @@ func writeToDiskWithPredicate(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	namespace ident.ID,
+	nsCtx ns.Context,
 	blockSize time.Duration,
 	seriesList SeriesBlock,
+	volume int,
 	pred WriteDatapointPredicate,
 	fileSetType persist.FileSetType,
 	snapshotInterval time.Duration,
@@ -172,32 +179,37 @@ func writeToDiskWithPredicate(
 		writerOpts := fs.DataWriterOpenOptions{
 			BlockSize: blockSize,
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  namespace,
-				Shard:      shard,
-				BlockStart: start,
+				Namespace:   nsCtx.ID,
+				Shard:       shard,
+				BlockStart:  start,
+				VolumeIndex: volume,
 			},
 			FileSetType: fileSetType,
 			Snapshot: fs.DataWriterSnapshotOptions{
 				SnapshotTime: start.Add(snapshotInterval),
 			},
 		}
+
 		if err := writer.Open(writerOpts); err != nil {
 			return err
 		}
+
+		ctx := context.NewContext()
 		for _, series := range seriesList {
-			encoder.Reset(start, 0)
+			encoder.Reset(start, 0, nsCtx.Schema)
 			for _, dp := range series.Data {
 				if !pred(dp) {
 					continue
 				}
 
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
+				if err := encoder.Encode(dp.Datapoint, xtime.Second, dp.Annotation); err != nil {
 					return err
 				}
 			}
 
-			stream := encoder.Stream()
-			if stream == nil {
+			ctx.Reset()
+			stream, ok := encoder.Stream(ctx)
+			if !ok {
 				// None of the datapoints passed the predicate.
 				continue
 			}
@@ -212,7 +224,9 @@ func writeToDiskWithPredicate(
 			if err != nil {
 				return err
 			}
+			ctx.BlockingClose()
 		}
+
 		if err := writer.Close(); err != nil {
 			return err
 		}

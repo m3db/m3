@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3x/instrument"
-	xwatch "github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/instrument"
+	xwatch "github.com/m3db/m3/src/x/watch"
 )
 
 // Services provides access to the service topology.
@@ -51,6 +51,9 @@ type Services interface {
 
 	// SetMetadata sets the metadata for a given service.
 	SetMetadata(sid ServiceID, m Metadata) error
+
+	// DeleteMetadata deletes the metadata for a given service
+	DeleteMetadata(sid ServiceID) error
 
 	// PlacementService returns a client of placement.Service.
 	PlacementService(sid ServiceID, popts placement.Options) (placement.Service, error)

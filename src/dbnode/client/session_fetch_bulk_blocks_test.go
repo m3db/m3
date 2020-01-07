@@ -36,21 +36,21 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -99,7 +99,7 @@ func testsNsMetadata(t *testing.T) namespace.Metadata {
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
-	p.Init(func(r io.Reader) encoding.ReaderIterator {
+	p.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	})
 	return p
@@ -145,45 +145,8 @@ func newRoundRobinPickBestPeerFn() pickBestPeerFn {
 	}
 }
 
-func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSessionTestAdminOptions()
-	s, err := newSession(opts)
-	require.NoError(t, err)
-	session := s.(*session)
-
-	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
-	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-
-	// Don't drain the peer blocks queue, explicitly drain ourselves to
-	// avoid unpredictable batches being retrieved from peers
-	var (
-		qs      []*peerBlocksQueue
-		qsMutex sync.RWMutex
-	)
-	session.newPeerBlocksQueueFn = func(
-		peer peer,
-		maxQueueSize int,
-		_ time.Duration,
-		workers xsync.WorkerPool,
-		processFn processFn,
-	) *peerBlocksQueue {
-		qsMutex.Lock()
-		defer qsMutex.Unlock()
-		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
-		qs = append(qs, q)
-		return q
-	}
-
-	require.NoError(t, session.Open())
-
-	batchSize := opts.FetchSeriesBlocksBatchSize()
-
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
-	blocks := []testBlocks{
+func newTestBlocks(start time.Time) []testBlocks {
+	return []testBlocks{
 		{
 			id: fooID,
 			blocks: []testBlock{
@@ -221,6 +184,46 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 			},
 		},
 	}
+}
+func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	require.NoError(t, session.Open())
+
+	var (
+		batchSize = opts.FetchSeriesBlocksBatchSize()
+		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks    = newTestBlocks(start)
+	)
 
 	// Expect the fetch metadata calls
 	metadataResult := resultMetadataFromBlocks(blocks)
@@ -231,7 +234,7 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	participating := len(mockClients) - 1
 	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
 		blocks, batchSize, participating,
-		func(blockIdx int) (clientIdx int) {
+		func(_ ident.ID, blockIdx int) (clientIdx int) {
 			// Round robin to match the best peer selection algorithm
 			return blockIdx % participating
 		})
@@ -277,6 +280,175 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	assertFetchBootstrapBlocksResult(t, blocks, result)
 
 	assert.NoError(t, session.Close())
+}
+
+// TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier was added as a regression test
+// to ensure that in the scenario where a peer is not available (hard down) but the others are
+// available the streamBlocksMetadataFromPeers does not wait for all of the exponential retries
+// to the downed host to fail before continuing. This is important because if the client waits for
+// all the retries to the downed host to complete it can block each metadata fetch for up to 30 seconds
+// due to the exponential backoff logic in the retrier.
+func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions().
+		// Set bootstrap consistency level to unstrict majority because there are only 3 nodes in the
+		// cluster. The first one will not return data because it is the origin and the last node will
+		// return an error.
+		SetBootstrapConsistencyLevel(topology.ReadConsistencyLevelUnstrictMajority).
+		// Configure the stream blocks retrier such that if the short-circuit logic did not work the
+		// test would timeout.
+		SetStreamBlocksRetrier(xretry.NewRetrier(
+			xretry.NewOptions().
+				SetBackoffFactor(10).
+				SetMaxRetries(10).
+				SetInitialBackoff(30 * time.Second).
+				SetJitter(true),
+		)).
+		// Ensure that the batch size is configured such that all of the blocks could
+		// be retrieved from a single peer in a single request. This makes mocking
+		// expected calls and responses significantly easier since which batch call a
+		// given block will fall into is non-deterministic (depends on the result of
+		// concurrent execution).
+		SetFetchSeriesBlocksBatchSize(len(newTestBlocks(time.Now())))
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	var (
+		mockHostQueues MockHostQueues
+		mockClients    MockTChanNodes
+		hostShardSets  = sessionTestHostAndShards(sessionTestShardSet())
+	)
+	// Skip the last one because it is going to be manually configured to return an error.
+	for i := 0; i < len(hostShardSets)-1; i++ {
+		host := hostShardSets[i].Host()
+		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
+		mockHostQueues = append(mockHostQueues, hostQueue)
+
+		if i != 0 {
+			// Skip creating a client for the origin because it will never be called so we want
+			// to avoid setting up expectations for it.
+			mockClients = append(mockClients, client)
+		}
+	}
+
+	// Construct the last hostQueue with a connection pool that will error out.
+	host := hostShardSets[len(hostShardSets)-1].Host()
+	connectionPool := NewMockconnectionPool(ctrl)
+	connectionPool.EXPECT().
+		NextClient().
+		Return(nil, errConnectionPoolHasNoConnections).
+		AnyTimes()
+	hostQueue := NewMockhostQueue(ctrl)
+	hostQueue.EXPECT().Open()
+	hostQueue.EXPECT().Host().Return(host).AnyTimes()
+	hostQueue.EXPECT().
+		ConnectionCount().
+		Return(opts.MinConnectionCount()).
+		Times(sessionTestShards)
+	hostQueue.EXPECT().
+		ConnectionPool().
+		Return(connectionPool).
+		AnyTimes()
+	hostQueue.EXPECT().
+		BorrowConnection(gomock.Any()).
+		Return(errConnectionPoolHasNoConnections).
+		AnyTimes()
+	hostQueue.EXPECT().Close()
+	mockHostQueues = append(mockHostQueues, hostQueue)
+
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+	require.NoError(t, session.Open())
+
+	var (
+		batchSize = opts.FetchSeriesBlocksBatchSize()
+		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		blocks    = newTestBlocks(start)
+
+		// Expect the fetch metadata calls.
+		metadataResult = resultMetadataFromBlocks(blocks)
+	)
+	mockClients.expectFetchMetadataAndReturn(metadataResult, opts)
+
+	// Expect the fetch blocks calls.
+	participating := len(mockClients)
+	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(t,
+		blocks, batchSize, participating,
+		func(id ident.ID, blockIdx int) (clientIdx int) {
+			// Only one host to pull data from.
+			return 0
+		})
+	// Skip the first client which is the client for the origin.
+	for i, client := range mockClients {
+		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
+	}
+
+	// Make sure peer selection is round robin to match our expected
+	// peer fetch calls.
+	session.pickBestPeerFn = func(
+		perPeerBlocksMetadata []receivedBlockMetadata,
+		peerQueues peerBlocksQueues,
+		resources pickBestPeerPooledResources,
+	) (int, pickBestPeerPooledResources) {
+		// Only one host to pull data from.
+		return 0, resources
+	}
+
+	// Fetch blocks.
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued.
+		for {
+			qsMutex.RLock()
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			qsMutex.RUnlock()
+			if assigned == len(blocks) {
+				qsMutex.Lock()
+				defer qsMutex.Unlock()
+				for _, q := range qs {
+					q.drain()
+				}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	rangeStart := start
+	rangeEnd := start.Add(blockSize * (24 - 1))
+	bootstrapOpts := newResultTestOptions()
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Assert result.
+	assertFetchBootstrapBlocksResult(t, blocks, result)
+
+	require.NoError(t, session.Close())
 }
 
 type fetchBlocksFromPeersTestScenarioGenerator func(
@@ -374,11 +546,11 @@ func fetchBlocksFromPeersTestsHelper(
 	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchBlocksFromPeers(testsNsMetadata(t), 0, topology.ReadConsistencyLevelAll,
 		blockReplicasMetadata, bootstrapOpts)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 
 	assertFetchBlocksFromPeersResult(t, peerBlocks, mockHostQueues[1:], result)
-	assert.NoError(t, session.Close())
+	require.NoError(t, session.Close())
 }
 
 func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
@@ -1137,8 +1309,6 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 	enqueueCh.EXPECT().
 		enqueueDelayed(1).
 		Return(func(reEnqueuedPerPeer []receivedBlockMetadata) {
-			defer wg.Done()
-
 			assert.Equal(t, len(initialPerPeer), len(reEnqueuedPerPeer))
 			for i := range reEnqueuedPerPeer {
 				expected := initialPerPeer[i]
@@ -1153,7 +1323,11 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 				// Ensure no reattempt data is attached
 				assert.Equal(t, blockMetadataReattempt{}, actual.block.reattempt)
 			}
-		})
+
+			return
+		}, func() {
+			wg.Done()
+		}, nil)
 
 	// Perform second selection
 	selected, _ = session.selectPeersFromPerPeerBlockMetadatas(
@@ -1183,10 +1357,12 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
-		enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	) error {
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1253,10 +1429,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
-		enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	) error {
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1269,8 +1447,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader := enc.Stream()
-	require.NotNil(t, reader)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	reader, ok := enc.Stream(ctx)
+	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
 	rawBlockData := make([]byte, segment.Len())
@@ -1357,7 +1539,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
+	r := newBulkBlocksResult(namespace.Context{}, opts, bopts, session.pools.tagDecoder, session.pools.id)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1396,10 +1578,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		_ reason,
 		reattemptType reattemptType,
 		_ *streamFromPeersMetrics,
-	) {
-		enqueue := enqueueCh.enqueueDelayed(len(blocks))
+	) error {
+		enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+		require.NoError(t, err)
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr,
-			reattemptType, enqueue)
+			reattemptType, enqueue, done)
+		return nil
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1414,8 +1598,12 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		Timestamp: start.Add(10 * time.Second),
 		Value:     42,
 	}, xtime.Second, nil))
-	reader := enc.Stream()
-	require.NotNil(t, reader)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	reader, ok := enc.Stream(ctx)
+	require.True(t, ok)
 	segment, err := reader.Segment()
 	require.NoError(t, err)
 	rawBlockData := make([]byte, segment.Len())
@@ -1510,7 +1698,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
+	r := newBulkBlocksResult(namespace.Context{}, opts, bopts, session.pools.tagDecoder, session.pools.id)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert enqueueChannel contents (bad bar block)
@@ -1552,7 +1740,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 		}},
 	}
 
-	r := newBulkBlocksResult(opts, bopts,
+	r := newBulkBlocksResult(namespace.Context{}, opts, bopts,
 		testTagDecodingPool, testIDPool)
 	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
@@ -1627,8 +1815,9 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		Segments: &rpc.Segments{},
 	}
 	for _, vals := range [][]testValue{vals0, vals1, vals2} {
+		nsCtx := namespace.NewContextFor(ident.StringID("default"), opts.SchemaRegistry())
 		encoder := encoderPool.Get()
-		encoder.Reset(start, 0)
+		encoder.Reset(start, 0, nsCtx.Schema)
 		for _, val := range vals {
 			dp := ts.Datapoint{Timestamp: val.t, Value: val.value}
 			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
@@ -1639,7 +1828,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r := newBulkBlocksResult(namespace.Context{}, opts, bopts, testTagDecodingPool, testIDPool)
 	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
@@ -1683,7 +1872,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r := newBulkBlocksResult(namespace.Context{}, opts, bopts, testTagDecodingPool, testIDPool)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
 	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
@@ -1694,7 +1883,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r := newBulkBlocksResult(namespace.Context{}, opts, bopts, testTagDecodingPool, testIDPool)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
 	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
@@ -1715,24 +1904,33 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	// Enqueue multiple blocks metadata
 	numBlocks := 10
 	blocks := make([][]receivedBlockMetadata, numBlocks)
-	enqueueFn := enqueueCh.enqueueDelayed(len(blocks))
-	assert.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	assert.Equal(t, 0, len(enqueueCh.get()))
+	enqueueFn, enqueueDelayedDone, err := enqueueCh.enqueueDelayed(len(blocks))
+	require.NoError(t, err)
+
+	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
+	enqueueChInputs := enqueueCh.read()
+	require.Equal(t, 0, len(enqueueChInputs))
 
 	// Actually enqueue the blocks
 	for i := 0; i < numBlocks; i++ {
 		enqueueFn(blocks[i])
 	}
-	assert.Equal(t, numBlocks, enqueueCh.unprocessedLen())
-	assert.Equal(t, numBlocks, len(enqueueCh.get()))
+	enqueueDelayedDone()
+
+	require.Equal(t, numBlocks, enqueueCh.unprocessedLen())
+	enqueueChInputs = enqueueCh.read()
+	require.Equal(t, numBlocks, len(enqueueChInputs))
 
 	// Process the blocks
+	require.NoError(t, err)
 	for i := 0; i < numBlocks; i++ {
-		<-enqueueCh.get()
+		<-enqueueChInputs
 		enqueueCh.trackProcessed(1)
 	}
-	assert.Equal(t, 0, enqueueCh.unprocessedLen())
-	assert.Equal(t, 0, len(enqueueCh.get()))
+
+	require.Equal(t, 0, enqueueCh.unprocessedLen())
+	enqueueChInputs = enqueueCh.read()
+	require.Equal(t, 0, len(enqueueChInputs))
 }
 
 func mockPeerBlocksQueues(peers []peer, opts AdminOptions) peerBlocksQueues {
@@ -1796,22 +1994,33 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	for i := 0; i < len(hostShardSets); i++ {
 		host := hostShardSets[i].Host()
-		client := rpc.NewMockTChanNode(ctrl)
-		connectionPool := NewMockconnectionPool(ctrl)
-		connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
-		hostQueue := NewMockhostQueue(ctrl)
-		hostQueue.EXPECT().Open()
-		hostQueue.EXPECT().Host().Return(host).AnyTimes()
-		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
-		hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
-		hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
-			fn(client)
-		}).Return(nil).AnyTimes()
-		hostQueue.EXPECT().Close()
+		hostQueue, client := defaultHostAndClientWithExpect(ctrl, host, opts)
 		hostQueues = append(hostQueues, hostQueue)
 		clients = append(clients, client)
 	}
 	return hostQueues, clients
+}
+
+func defaultHostAndClientWithExpect(
+	ctrl *gomock.Controller,
+	host topology.Host,
+	opts AdminOptions,
+) (*MockhostQueue, *rpc.MockTChanNode) {
+	client := rpc.NewMockTChanNode(ctrl)
+	connectionPool := NewMockconnectionPool(ctrl)
+	connectionPool.EXPECT().NextClient().Return(client, nil).AnyTimes()
+
+	hostQueue := NewMockhostQueue(ctrl)
+	hostQueue.EXPECT().Open()
+	hostQueue.EXPECT().Host().Return(host).AnyTimes()
+	hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
+	hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
+	hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
+		fn(client)
+	}).Return(nil).AnyTimes()
+	hostQueue.EXPECT().Close()
+
+	return hostQueue, client
 }
 
 func resultMetadataFromBlocks(
@@ -1890,7 +2099,7 @@ func expectedReqsAndResultFromBlocks(
 	blocks []testBlocks,
 	batchSize int,
 	clientsParticipatingLen int,
-	selectClientForBlockFn func(blockIndex int) (clientIndex int),
+	selectClientForBlockFn func(id ident.ID, blockIndex int) (clientIndex int),
 ) ([][]fetchBlocksReq, [][][]testBlocks) {
 	var (
 		clientsExpectReqs   [][]fetchBlocksReq
@@ -1906,7 +2115,7 @@ func expectedReqsAndResultFromBlocks(
 	for len(blocks) > 0 {
 		currBlock := blocks[0]
 
-		clientIdx := selectClientForBlockFn(blockIdx)
+		clientIdx := selectClientForBlockFn(currBlock.id, blockIdx)
 		if clientIdx >= clientsParticipatingLen {
 			msg := "client selected for block (%d) " +
 				"is greater than clients partipating (%d)"
@@ -2094,7 +2303,34 @@ func expectFetchBlocksAndReturn(
 			}
 			ret.Elements = append(ret.Elements, blocks)
 		}
-		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
+
+		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Do(func(_ interface{}, req *rpc.FetchBlocksRawRequest) {
+			// The order of the elements in the request is non-deterministic (due to concurrency) so inspect the request
+			// and re-order the response to match by trying to match up values (their may be duplicate entries for a
+			// given series ID so comparing IDs is not sufficient).
+			retElements := make([]*rpc.Blocks, 0, len(ret.Elements))
+			for _, elem := range req.Elements {
+			inner:
+				for _, retElem := range ret.Elements {
+					if !bytes.Equal(elem.ID, retElem.ID) {
+						continue
+					}
+					if len(elem.Starts) != len(retElem.Blocks) {
+						continue
+					}
+
+					for i, start := range elem.Starts {
+						block := retElem.Blocks[i]
+						if start != block.Start {
+							continue inner
+						}
+					}
+
+					retElements = append(retElements, retElem)
+				}
+			}
+			ret.Elements = retElements
+		}).Return(ret, nil)
 	}
 }
 
@@ -2114,17 +2350,30 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		reqID := ident.BinaryID(checked.NewBytes(req.Elements[i].ID, nil))
-		if !params[i].id.Equal(reqID) {
-			return false
-		}
-		if len(params[i].starts) != len(req.Elements[i].Starts) {
-			return false
-		}
-		for j := range params[i].starts {
-			if params[i].starts[j].UnixNano() != req.Elements[i].Starts[j] {
-				return false
+		// Possible for slices to be in different orders so try and match
+		// them up intelligently.
+		var found = false
+	inner:
+		for reqIdx, element := range req.Elements {
+			reqID := ident.BinaryID(checked.NewBytes(element.ID, nil))
+			if !params[i].id.Equal(reqID) {
+				continue
 			}
+
+			if len(params[i].starts) != len(req.Elements[reqIdx].Starts) {
+				continue
+			}
+			for j := range params[i].starts {
+				if params[i].starts[j].UnixNano() != req.Elements[reqIdx].Starts[j] {
+					continue inner
+				}
+			}
+
+			found = true
+		}
+
+		if !found {
+			return false
 		}
 	}
 
@@ -2190,13 +2439,13 @@ func assertFetchBootstrapBlocksResult(
 	defer ctx.Close()
 
 	series := actual.AllSeries()
-	assert.Equal(t, len(expected), series.Len())
+	require.Equal(t, len(expected), series.Len())
 
 	for i := range expected {
 		id := expected[i].id
 		entry, ok := series.Get(id)
 		if !ok {
-			assert.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id.String()))
+			require.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id.String()))
 			continue
 		}
 
@@ -2207,12 +2456,12 @@ func assertFetchBootstrapBlocksResult(
 			}
 			expectedLen++
 		}
-		assert.Equal(t, expectedLen, entry.Blocks.Len())
+		require.Equal(t, expectedLen, entry.Blocks.Len())
 
 		for _, block := range expected[i].blocks {
 			actualBlock, ok := entry.Blocks.BlockAt(block.start)
 			if !ok {
-				assert.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id.String(), block.start))
+				require.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id.String(), block.start))
 				continue
 			}
 
@@ -2223,9 +2472,9 @@ func assertFetchBootstrapBlocksResult(
 				seg, err := stream.Segment()
 				require.NoError(t, err)
 				actualData := append(bytesFor(seg.Head), bytesFor(seg.Tail)...)
-				assert.Equal(t, expectedData, actualData)
+				require.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
-				assert.Fail(t, "unmerged comparison not supported")
+				require.Fail(t, "unmerged comparison not supported")
 			}
 		}
 	}
@@ -2249,8 +2498,10 @@ func assertEnqueueChannel(
 	var distinct []receivedBlockMetadata
 	for {
 		var perPeerBlocksMetadata []receivedBlockMetadata
+		enqueueChInputs := enqueueCh.read()
+
 		select {
-		case perPeerBlocksMetadata = <-enqueueCh.get():
+		case perPeerBlocksMetadata = <-enqueueChInputs:
 		default:
 		}
 		if perPeerBlocksMetadata == nil {
@@ -2288,12 +2539,14 @@ type testEncoder struct {
 	closed bool
 }
 
+func (e *testEncoder) SetSchema(descr namespace.SchemaDescr) {}
+
 func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
 	return fmt.Errorf("not implemented")
 }
 
-func (e *testEncoder) Stream() xio.SegmentReader {
-	return xio.NewSegmentReader(e.data)
+func (e *testEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
+	return xio.NewSegmentReader(e.data), true
 }
 
 func (e *testEncoder) NumEncoded() int {
@@ -2312,7 +2565,7 @@ func (e *testEncoder) Seal() {
 	e.sealed = true
 }
 
-func (e *testEncoder) Reset(t time.Time, capacity int) {
+func (e *testEncoder) Reset(t time.Time, capacity int, descr namespace.SchemaDescr) {
 	e.start = t
 	e.data = ts.Segment{}
 }
@@ -2328,7 +2581,7 @@ func (e *testEncoder) Discard() ts.Segment {
 	return data
 }
 
-func (e *testEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
+func (e *testEncoder) DiscardReset(t time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
 	curr := e.data
 	e.start = t
 	e.data = ts.Segment{}

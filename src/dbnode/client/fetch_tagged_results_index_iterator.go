@@ -22,7 +22,7 @@ package client
 
 import (
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 // FOLLOWUP(prateek): add pooling for taggedIDsIterator(s).
@@ -69,8 +69,8 @@ func (i *taggedIDsIterator) Next() bool {
 	wb := i.pools.CheckedBytesWrapper().Get(i.backing.tags[i.currentIdx])
 	dec.Reset(wb)
 
-	i.current.tsID = i.asIdent(i.backing.ids[i.currentIdx])
-	i.current.nsID = i.asIdent(i.backing.nses[i.currentIdx])
+	i.current.tsID = ident.BytesID(i.backing.ids[i.currentIdx])
+	i.current.nsID = ident.BytesID(i.backing.nses[i.currentIdx])
 	i.current.tags = dec
 	return true
 }
@@ -79,11 +79,6 @@ func (i *taggedIDsIterator) addBacking(nsID, tsID, tags []byte) {
 	i.backing.nses = append(i.backing.nses, nsID)
 	i.backing.ids = append(i.backing.ids, tsID)
 	i.backing.tags = append(i.backing.tags, tags)
-}
-
-func (i *taggedIDsIterator) asIdent(b []byte) ident.ID {
-	wb := i.pools.CheckedBytesWrapper().Get(b)
-	return i.pools.ID().BinaryID(wb)
 }
 
 func (i *taggedIDsIterator) Finalize() {

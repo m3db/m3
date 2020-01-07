@@ -20,7 +20,7 @@
 
 package writer
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 // messagePool is the pool for message.
 type messagePool interface {

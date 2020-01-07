@@ -26,49 +26,42 @@ import (
 )
 
 const (
-	carbonSeparatorByte = byte('.')
-	carbonGlobRune      = '*'
+	wildcard = "*"
 )
 
-var (
-	wildcard = []byte(".*")
-)
-
-func glob(metric string) []byte {
-	globLen := len(metric)
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			globLen++
-		}
+func convertMetricPartToMatcher(
+	count int,
+	metric string,
+) (models.Matcher, error) {
+	var matchType models.MatchType
+	if metric == wildcard {
+		return models.Matcher{
+			Type: models.MatchField,
+			Name: graphite.TagName(count),
+		}, nil
 	}
 
-	glob := make([]byte, globLen)
-	i := 0
-	for _, c := range metric {
-		if c == carbonGlobRune {
-			glob[i] = carbonSeparatorByte
-			i++
-		}
-
-		glob[i] = byte(c)
-		i++
+	value, isRegex, err := graphite.GlobToRegexPattern(metric)
+	if err != nil {
+		return models.Matcher{}, err
 	}
 
-	return glob
-}
+	if isRegex {
+		matchType = models.MatchRegexp
+	} else {
+		matchType = models.MatchEqual
+	}
 
-func convertMetricPartToMatcher(count int, metric string) models.Matcher {
 	return models.Matcher{
-		Type:  models.MatchRegexp,
+		Type:  matchType,
 		Name:  graphite.TagName(count),
-		Value: glob(metric),
-	}
+		Value: value,
+	}, nil
 }
 
 func matcherTerminator(count int) models.Matcher {
 	return models.Matcher{
-		Type:  models.MatchNotRegexp,
-		Name:  graphite.TagName(count),
-		Value: wildcard,
+		Type: models.MatchNotField,
+		Name: graphite.TagName(count),
 	}
 }

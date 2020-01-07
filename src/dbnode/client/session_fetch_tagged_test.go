@@ -32,9 +32,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xretry "github.com/m3db/m3x/retry"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xretry "github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ var (
 )
 
 func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := newSessionTestOptions().
@@ -292,7 +293,6 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
 	assert.NoError(t, session.Close())
 }
 

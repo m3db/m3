@@ -26,10 +26,13 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/util/httperrors"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -39,52 +42,82 @@ const (
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server
 	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
+)
 
-	// PromReadInstantHTTPMethod is the HTTP method used with this resource.
-	PromReadInstantHTTPMethod = http.MethodGet
+var (
+	// PromReadInstantHTTPMethods are the HTTP methods for this handler.
+	PromReadInstantHTTPMethods = []string{
+		http.MethodGet,
+		http.MethodPost,
+	}
 )
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
 type PromReadInstantHandler struct {
-	engine      *executor.Engine
-	tagOpts     models.TagOptions
-	timeoutOpts *prometheus.TimeoutOpts
+	engine              executor.Engine
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	tagOpts             models.TagOptions
+	timeoutOpts         *prometheus.TimeoutOpts
+	instrumentOpts      instrument.Options
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
 func NewPromReadInstantHandler(
-	engine *executor.Engine,
-	tagOpts models.TagOptions,
-	timeoutOpts *prometheus.TimeoutOpts,
-) *PromReadInstantHandler {
+	opts options.HandlerOptions) *PromReadInstantHandler {
 	return &PromReadInstantHandler{
-		engine:      engine,
-		tagOpts:     tagOpts,
-		timeoutOpts: timeoutOpts,
+		engine:              opts.Engine(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		tagOpts:             opts.TagOptions(),
+		timeoutOpts:         opts.TimeoutOpts(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
 func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
-	params, rErr := parseInstantaneousParams(r, h.timeoutOpts)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
+
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
 	if rErr != nil {
-		httperrors.ErrorWithReqInfo(w, r, rErr.Code(), rErr)
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	params, rErr := parseInstantaneousParams(r, h.engine.Options(),
+		h.timeoutOpts, fetchOpts, h.instrumentOpts)
+	if rErr != nil {
+		xhttp.Error(w, rErr, rErr.Code())
 		return
 	}
 
 	if params.Debug {
-		logger.Info("Request params", zap.Any("params", params))
+		logger.Info("request params", zap.Any("params", params))
 	}
 
-	result, err := read(ctx, h.engine, h.tagOpts, w, params)
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		}}
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
+
+	result, err := read(ctx, h.engine, queryOpts, fetchOpts,
+		h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		httperrors.ErrorWithReqInfo(w, r, http.StatusBadRequest, rErr)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	renderResultsInstantaneousJSON(w, result)
+	handleroptions.AddWarningHeaders(w, result.meta)
+	renderResultsInstantaneousJSON(w, result.series)
 }

@@ -22,15 +22,18 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -59,14 +62,22 @@ var (
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")
 )
 
+const (
+	bootstrapRetryInterval = 10 * time.Second
+)
+
+type bootstrapFn func() error
+
 type bootstrapManager struct {
 	sync.RWMutex
 
 	database                    database
 	mediator                    databaseMediator
 	opts                        Options
-	log                         xlog.Logger
+	log                         *zap.Logger
+	bootstrapFn                 bootstrapFn
 	nowFn                       clock.NowFn
+	sleepFn                     sleepFn
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
 	hasPending                  bool
@@ -80,15 +91,18 @@ func newBootstrapManager(
 	opts Options,
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
-	return &bootstrapManager{
+	m := &bootstrapManager{
 		database:        database,
 		mediator:        mediator,
 		opts:            opts,
 		log:             opts.InstrumentOptions().Logger(),
 		nowFn:           opts.ClockOptions().NowFn(),
+		sleepFn:         time.Sleep,
 		processProvider: opts.BootstrapProcessProvider(),
 		status:          scope.Gauge("bootstrapped"),
 	}
+	m.bootstrapFn = m.bootstrap
+	return m
 }
 
 func (m *bootstrapManager) IsBootstrapped() bool {
@@ -102,7 +116,7 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
 	return m.lastBootstrapCompletionTime, !m.lastBootstrapCompletionTime.IsZero()
 }
 
-func (m *bootstrapManager) Bootstrap() error {
+func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.Lock()
 	switch m.state {
 	case Bootstrapping:
@@ -114,7 +128,7 @@ func (m *bootstrapManager) Bootstrap() error {
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
 		m.Unlock()
-		return errBootstrapEnqueued
+		return BootstrapResult{AlreadyBootstrapping: true}, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
 	}
@@ -125,12 +139,13 @@ func (m *bootstrapManager) Bootstrap() error {
 	m.mediator.DisableFileOps()
 	defer m.mediator.EnableFileOps()
 
-	// Keep performing bootstraps until none pending
-	multiErr := xerrors.NewMultiError()
-	for {
-		err := m.bootstrap()
-		if err != nil {
-			multiErr = multiErr.Add(err)
+	// Keep performing bootstraps until none pending and no error returned.
+	var result BootstrapResult
+	for i := 0; true; i++ {
+		// NB(r): Decouple implementation of bootstrap so can override in tests.
+		bootstrapErr := m.bootstrapFn()
+		if bootstrapErr != nil {
+			result.ErrorsBootstrap = append(result.ErrorsBootstrap, bootstrapErr)
 		}
 
 		m.Lock()
@@ -143,9 +158,24 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 		m.Unlock()
 
-		if !currPending {
-			break
+		if currPending {
+			// NB(r): Requires another bootstrap.
+			continue
 		}
+
+		if bootstrapErr != nil {
+			// NB(r): Last bootstrap failed, since this could be due to transient
+			// failure we retry the bootstrap again. This is to avoid operators
+			// needing to manually intervene for cases where failures are transient.
+			m.log.Warn("retrying bootstrap after backoff",
+				zap.Duration("backoff", bootstrapRetryInterval),
+				zap.Int("numRetries", i+1))
+			m.sleepFn(bootstrapRetryInterval)
+			continue
+		}
+
+		// No pending bootstraps and last finished successfully.
+		break
 	}
 
 	// NB(xichen): in order for bootstrapped data to be flushed to disk, a tick
@@ -158,7 +188,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	// across the cluster.
 
 	m.lastBootstrapCompletionTime = m.nowFn()
-	return multiErr.FinalError()
+	return result, nil
 }
 
 func (m *bootstrapManager) Report() {
@@ -177,27 +207,109 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	// NB(xichen): each bootstrapper should be responsible for choosing the most
-	// efficient way of bootstrapping database shards, be it sequential or parallel.
-	multiErr := xerrors.NewMultiError()
-
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
 	}
 
-	startBootstrap := m.nowFn()
-	for _, namespace := range namespaces {
-		startNamespaceBootstrap := m.nowFn()
-		if err := namespace.Bootstrap(startBootstrap, process); err != nil {
-			multiErr = multiErr.Add(err)
+	accmulators := make([]bootstrap.NamespaceDataAccumulator, 0, len(namespaces))
+	defer func() {
+		// Close all accumulators at bootstrap completion, only error
+		// it returns is if already closed, so this is a code bug if ever
+		// an error returned.
+		for _, accumulator := range accmulators {
+			if err := accumulator.Close(); err != nil {
+				instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+					func(l *zap.Logger) {
+						l.Error("could not close bootstrap data accumulator",
+							zap.Error(err))
+					})
+			}
 		}
-		took := m.nowFn().Sub(startNamespaceBootstrap)
-		m.log.WithFields(
-			xlog.NewField("namespace", namespace.ID().String()),
-			xlog.NewField("duration", took.String()),
-		).Info("bootstrap finished")
+	}()
+
+	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	var uniqueShards map[uint32]struct{}
+	for _, namespace := range namespaces {
+		namespaceShards := namespace.GetOwnedShards()
+		bootstrapShards := make([]uint32, 0, len(namespaceShards))
+		if uniqueShards == nil {
+			uniqueShards = make(map[uint32]struct{}, len(namespaceShards))
+		}
+
+		for _, shard := range namespaceShards {
+			if shard.IsBootstrapped() {
+				continue
+			}
+
+			uniqueShards[shard.ID()] = struct{}{}
+			bootstrapShards = append(bootstrapShards, shard.ID())
+		}
+
+		accumulator := NewDatabaseNamespaceDataAccumulator(namespace)
+		accmulators = append(accmulators, accumulator)
+
+		targets = append(targets, bootstrap.ProcessNamespace{
+			Metadata:        namespace.Metadata(),
+			Shards:          bootstrapShards,
+			DataAccumulator: accumulator,
+		})
 	}
 
-	return multiErr.FinalError()
+	start := m.nowFn()
+	logFields := []zapcore.Field{
+		zap.Int("numShards", len(uniqueShards)),
+	}
+	m.log.Info("bootstrap started", logFields...)
+
+	// Run the bootstrap.
+	bootstrapResult, err := process.Run(start, targets)
+
+	logFields = append(logFields,
+		zap.Duration("bootstrapDuration", m.nowFn().Sub(start)))
+
+	if err != nil {
+		m.log.Error("bootstrap failed",
+			append(logFields, zap.Error(err))...)
+		return err
+	}
+
+	m.log.Info("bootstrap succeeded, marking namespaces complete", logFields...)
+	// Use a multi-error here because we want to at least bootstrap
+	// as many of the namespaces as possible.
+	multiErr := xerrors.NewMultiError()
+	for _, namespace := range namespaces {
+		id := namespace.ID()
+		result, ok := bootstrapResult.Results.Get(id)
+		if !ok {
+			err := fmt.Errorf("missing namespace from bootstrap result: %v",
+				id.String())
+			i := m.opts.InstrumentOptions()
+			instrument.EmitAndLogInvariantViolation(i, func(l *zap.Logger) {
+				l.Error("bootstrap failed",
+					append(logFields, zap.Error(err))...)
+			})
+			return err
+		}
+
+		if err := namespace.Bootstrap(result); err != nil {
+			m.log.Info("bootstrap error", append(logFields,
+				[]zapcore.Field{
+					zap.String("namespace", id.String()),
+					zap.Error(err),
+				}...,
+			)...,
+			)
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		m.log.Info("bootstrap namespaces failed",
+			append(logFields, zap.Error(err))...)
+		return err
+	}
+
+	m.log.Info("bootstrap success", logFields...)
+	return nil
 }

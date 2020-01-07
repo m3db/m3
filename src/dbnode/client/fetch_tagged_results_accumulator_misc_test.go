@@ -34,19 +34,20 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func TestFetchTaggedResultsAccumulatorClearResetsState(t *testing.T) {
 	pools := newTestFetchTaggedPools()
 	accum := newFetchTaggedResultAccumulator()
-	iter, exhaustive, err := accum.AsEncodingSeriesIterators(100, pools)
+	iter, exhaustive, err := accum.AsEncodingSeriesIterators(100, pools, nil)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 0, iter.Len())
@@ -268,7 +269,7 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 	pools.readerSlices.Init()
 
 	pools.multiReader = encoding.NewMultiReaderIteratorPool(opts)
-	pools.multiReader.Init(func(r io.Reader) encoding.ReaderIterator {
+	pools.multiReader.Init(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	})
 

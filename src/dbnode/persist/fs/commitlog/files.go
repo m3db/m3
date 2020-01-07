@@ -60,7 +60,7 @@ func NextFile(opts Options) (string, int, error) {
 			// for any information, we just list all the files in a directory and then
 			// read their encoded heads to obtain information about them), so in the future
 			// we can just get rid of this.
-			filePath = fs.CommitLogFilePath(prefix, timeNone, newIndex)
+			filePath = fs.CommitLogFilePath(prefix, newIndex)
 		)
 		exists, err := fs.FileExists(filePath)
 		if err != nil {
@@ -101,7 +101,7 @@ func ReadLogInfo(filePath string, opts Options) (int64, error) {
 		return 0, err
 	}
 	logDecoder := msgpack.NewDecoder(nil)
-	logDecoder.Reset(msgpack.NewDecoderStream(bytes))
+	logDecoder.Reset(msgpack.NewByteDecoderStream(bytes))
 	logInfo, decoderErr := logDecoder.DecodeLogInfo()
 
 	err = fd.Close()

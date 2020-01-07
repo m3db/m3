@@ -29,28 +29,36 @@ const (
 	// DefaultIntOptimizationEnabled is the default switch for m3tsz int optimization
 	DefaultIntOptimizationEnabled = true
 
+	// OpcodeZeroSig indicates that there were zero significant digits.
+	OpcodeZeroSig = 0x0
+	// OpcodeNonZeroSig indicates that there were a non-zero number of significant digits.
+	OpcodeNonZeroSig = 0x1
+
+	// NumSigBits is the number of bits required to encode the maximum possible value
+	// of significant digits.
+	NumSigBits = 6
+
 	opcodeZeroValueXOR        = 0x0
 	opcodeContainedValueXOR   = 0x2
 	opcodeUncontainedValueXOR = 0x3
+	opcodeNoUpdateSig         = 0x0
+	opcodeUpdateSig           = 0x1
+	opcodeUpdate              = 0x0
+	opcodeNoUpdate            = 0x1
+	opcodeUpdateMult          = 0x1
+	opcodeNoUpdateMult        = 0x0
+	opcodePositive            = 0x0
+	opcodeNegative            = 0x1
+	opcodeRepeat              = 0x1
+	opcodeNoRepeat            = 0x0
+	opcodeFloatMode           = 0x1
+	opcodeIntMode             = 0x0
 
-	opcodeUpdate       = 0x0
-	opcodeNoUpdate     = 0x1
-	opcodeUpdateSig    = 0x1
-	opcodeNoUpdateSig  = 0x0
-	opcodeUpdateMult   = 0x1
-	opcodeNoUpdateMult = 0x0
-	opcodePositive     = 0x0
-	opcodeNegative     = 0x1
-	opcodeRepeat       = 0x1
-	opcodeNoRepeat     = 0x0
-	opcodeFloatMode    = 0x1
-	opcodeIntMode      = 0x0
-	opcodeZeroSig      = 0x0
-	opcodeNonZeroSig   = 0x1
+	sigDiffThreshold   = uint8(3)
+	sigRepeatThreshold = uint8(5)
 
 	maxMult     = uint8(6)
 	numMultBits = 3
-	numSigBits  = 6
 )
 
 var (

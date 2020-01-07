@@ -25,30 +25,39 @@ import (
 	"testing"
 	"time"
 
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	defaultTestBlockRetrieverOptions = NewBlockRetrieverOptions().
+		SetBlockLeaseManager(&block.NoopLeaseManager{})
+)
+
 func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
-	var byTimes []*seekersByTime
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	byTimes := make(map[uint32]*seekersByTime)
+	var mu sync.Mutex
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
-		byTimes = append(byTimes, byTime)
+		mu.Lock()
+		byTimes[byTime.shard] = byTime
+		mu.Unlock()
 		return nil
 	}
 
 	require.NoError(t, m.CacheShardIndices(shards))
-
 	// Assert captured byTime objects match expectations
 	require.Equal(t, len(shards), len(byTimes))
-	for idx, shard := range shards {
-		byTimes[idx].shard = shard
+	for _, shard := range shards {
+		byTimes[shard].shard = shard
 	}
 
 	// Assert seeksByShardIdx match expectations
@@ -56,15 +65,127 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	for _, shard := range shards {
 		shardSet[shard] = struct{}{}
 	}
+
 	for shard, byTime := range m.seekersByShardIdx {
 		_, exists := shardSet[uint32(shard)]
 		if !exists {
 			require.False(t, byTime.accessed)
 		} else {
 			require.True(t, byTime.accessed)
-			require.Equal(t, uint32(shard), byTime.shard)
+			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
+}
+
+func TestSeekerManagerUpdateOpenLease(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	var (
+		ctrl   = gomock.NewController(t)
+		shards = []uint32{2, 5, 9, 478, 1023}
+		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	)
+	defer ctrl.Finish()
+
+	var (
+		mockSeekerStatsLock sync.Mutex
+		numMockSeekerCloses int
+	)
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		mock := NewMockDataFileSetSeeker(ctrl)
+		// ConcurrentClone() will be called fetchConcurrency-1 times because the original can be used
+		// as one of the clones.
+		for i := 0; i < defaultFetchConcurrency-1; i++ {
+			mock.EXPECT().ConcurrentClone().Return(mock, nil)
+		}
+		for i := 0; i < defaultFetchConcurrency; i++ {
+			mock.EXPECT().Close().DoAndReturn(func() error {
+				mockSeekerStatsLock.Lock()
+				numMockSeekerCloses++
+				mockSeekerStatsLock.Unlock()
+				return nil
+			})
+			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		}
+		return mock, nil
+	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
+
+	metadata := testNs1Metadata(t)
+	// Pick a start time thats within retention so the background loop doesn't close
+	// the seeker.
+	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
+	require.NoError(t, m.Open(metadata))
+	for _, shard := range shards {
+		seeker, err := m.Borrow(shard, blockStart)
+		require.NoError(t, err)
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 0, seekers.active.volume)
+		byTime.RUnlock()
+		require.NoError(t, m.Return(shard, blockStart, seeker))
+	}
+
+	// Ensure that UpdateOpenLease() updates the volumes.
+	for _, shard := range shards {
+		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  metadata.ID(),
+			Shard:      shard,
+			BlockStart: blockStart,
+		}, block.LeaseState{Volume: 1})
+		require.NoError(t, err)
+		require.Equal(t, block.UpdateOpenLease, updateResult)
+
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 1, seekers.active.volume)
+		byTime.RUnlock()
+	}
+	// Ensure that the old seekers actually get closed.
+	mockSeekerStatsLock.Lock()
+	require.Equal(t, len(shards)*defaultFetchConcurrency, numMockSeekerCloses)
+	mockSeekerStatsLock.Unlock()
+
+	// Ensure that UpdateOpenLease() ignores updates for the wrong namespace.
+	for _, shard := range shards {
+		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  ident.StringID("some-other-ns"),
+			Shard:      shard,
+			BlockStart: blockStart,
+		}, block.LeaseState{Volume: 2})
+		require.NoError(t, err)
+		require.Equal(t, block.NoOpenLease, updateResult)
+
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
+		// Should not have increased to 2.
+		require.Equal(t, 1, seekers.active.volume)
+		byTime.RUnlock()
+	}
+
+	// Ensure that UpdateOpenLease() returns an error for out-of-order updates.
+	for _, shard := range shards {
+		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  metadata.ID(),
+			Shard:      shard,
+			BlockStart: blockStart,
+		}, block.LeaseState{Volume: 0})
+		require.Equal(t, errOutOfOrderUpdateOpenLease, err)
+	}
+
+	require.NoError(t, m.Close())
 }
 
 // TestSeekerManagerBorrowOpenSeekersLazy tests that the Borrow() method will
@@ -75,13 +196,14 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
+		volume int,
 	) (DataFileSetSeeker, error) {
 		mock := NewMockDataFileSetSeeker(ctrl)
-		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().ConcurrentClone().Return(mock, nil)
 		for i := 0; i < defaultFetchConcurrency; i++ {
 			mock.EXPECT().Close().Return(nil)
@@ -101,7 +223,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		byTime := m.seekersByTime(shard)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
-		require.Equal(t, defaultFetchConcurrency, len(seekers.seekers))
+		require.Equal(t, defaultFetchConcurrency, len(seekers.active.seekers))
 		byTime.RUnlock()
 		require.NoError(t, m.Return(shard, time.Time{}, seeker))
 	}
@@ -118,7 +240,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
-	m := NewSeekerManager(nil, testDefaultOpts, defaultFetchConcurrency).(*seekerManager)
+	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	clockOpts := m.opts.ClockOptions()
 	now := clockOpts.NowFn()()
 	startNano := xtime.ToUnixNano(now)
@@ -156,9 +278,11 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		mock.EXPECT().Close().Return(nil)
 		mocks := []borrowableSeeker{}
 		mocks = append(mocks, borrowableSeeker{seeker: mock})
-		byTime.seekers[startNano] = seekersAndBloom{
-			seekers:     mocks,
-			bloomFilter: nil,
+		byTime.seekers[startNano] = rotatableSeekers{
+			active: seekersAndBloom{
+				seekers:     mocks,
+				bloomFilter: nil,
+			},
 		}
 		return nil
 	}
@@ -188,7 +312,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].seekers))
+					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
 				}
 				m.RUnlock()
 			},
@@ -219,7 +343,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].seekers))
+					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
 				}
 				m.RUnlock()
 			},

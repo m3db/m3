@@ -31,7 +31,7 @@ import (
 	aggreporter "github.com/m3db/m3/src/collector/reporter/m3aggregator"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
-	"github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/server"
 
 	"github.com/stretchr/testify/require"
 )

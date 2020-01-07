@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
@@ -73,9 +73,10 @@ func (b seriesBlocks) Less(i, j int) bool {
 func seriesIteratorsToEncodedBlockIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
-	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, opts)
+	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, resultMeta, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +90,7 @@ func seriesIteratorsToEncodedBlockIterators(
 func ConvertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
 	if err := opts.Validate(); err != nil {
@@ -96,20 +98,23 @@ func ConvertM3DBSeriesIterators(
 	}
 
 	if opts.SplittingSeriesByBlock() {
-		return convertM3DBSegmentedBlockIterators(iterators, bounds, opts)
+		return convertM3DBSegmentedBlockIterators(iterators, bounds,
+			resultMeta, opts)
 	}
 
-	return seriesIteratorsToEncodedBlockIterators(iterators, bounds, opts)
+	return seriesIteratorsToEncodedBlockIterators(iterators, bounds,
+		resultMeta, opts)
 }
 
 // convertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
 func convertM3DBSegmentedBlockIterators(
 	iterators encoding.SeriesIterators,
 	bounds models.Bounds,
+	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
 	defer iterators.Close()
-	blockBuilder := newEncodedBlockBuilder(opts)
+	blockBuilder := newEncodedBlockBuilder(resultMeta, opts)
 	var (
 		iterAlloc    = opts.IterAlloc()
 		pools        = opts.IteratorPools()
@@ -181,7 +186,8 @@ func blockReplicasFromSeriesIterator(
 			}
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, pool)
-			iter.Reset(readers, start, bs)
+			// TODO [haijun] query assumes schemaless iterators.
+			iter.Reset(readers, start, bs, nil)
 			inserted := false
 			for _, bl := range blocks {
 				if bl.blockStart.Equal(start) {

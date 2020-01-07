@@ -26,7 +26,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -64,22 +66,32 @@ func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
 	return &DeleteAllHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *DeleteAllHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
-		opts   = handler.NewServiceOptions(
-			serviceName, r.Header, h.M3AggServiceOptions)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
+		opts   = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
+	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	if err := service.Delete(); err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
+		if err == kv.ErrNotFound {
+			logger.Info("cannot delete placement",
+				zap.String("service", svc.ServiceName),
+				zap.Error(err))
+			xhttp.Error(w, err, http.StatusNotFound)
+			return
+		}
+		logger.Error("error deleting placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

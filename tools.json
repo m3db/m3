@@ -22,7 +22,7 @@
     },
     {
       "Repository": "github.com/fossas/fossa-cli/cmd/fossa",
-      "Commit": "623f658a3882ec0d4e64c43fa973c8088bee54fa"
+      "Commit": "638f9f79fac6fd4b4fa2eb575d1faea4c5d04807"
     },
     {
       "Repository": "github.com/pointlander/peg",
@@ -39,6 +39,10 @@
     {
       "Repository": "github.com/garethr/kubeval",
       "Commit": "c44f5193dc944abc00e60a1b041ce48b0ae03dfb"
+    },
+    {
+      "Repository": "github.com/google/go-jsonnet/cmd/jsonnet",
+      "Commit": "71a3e169581ece942e77bfc47840a806eb868ca8"
     }
   ],
   "RetoolVersion": "1.3.7"

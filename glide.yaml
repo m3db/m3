@@ -1,20 +1,5 @@
 package: github.com/m3db/m3
 import:
-  - package: github.com/m3db/m3x
-    version: b66c9c466c4726e3c9b47b1f837abbbe0f14be81
-    vcs: git
-    subpackages:
-      - checked
-      - close
-      - errors
-      - instrument
-      - log
-      - pool
-      - retry
-      - time
-      - watch
-      - ident
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
@@ -26,6 +11,9 @@ import:
 
   - package: github.com/m3db/stackadler32
     version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+
+  - package: github.com/MichaelTJones/pcg
+    version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 
   - package: github.com/willf/bitset
     version: e553b05586428962bf7058d1044519d87ca72d74
@@ -40,7 +28,7 @@ import:
     version: ^0.8
 
   - package: github.com/apache/thrift
-    version: 0.9.3-pool-read-binary-2
+    version: 0.9.3-pool-read-binary-3
     subpackages:
       - lib/go/thrift
     repo: https://github.com/m3db/thrift
@@ -56,15 +44,19 @@ import:
     subpackages:
       - proto
       - ptypes/timestamp
+      - jsonpb
 
   - package: github.com/gogo/protobuf
     version: ^1
+
+  - package: github.com/jhump/protoreflect
+    version: e0795ed1d1ada047d01e90243863def21db467fc
 
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
 
   - package: github.com/opentracing/opentracing-go
-    version: 1.0.2
+    version: 1.1.0
 
   - package: github.com/spaolacci/murmur3
     version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
@@ -80,7 +72,7 @@ import:
     vcs: git
 
   - package: github.com/uber-go/tally
-    version: ^3.3.6
+    version: ^3.3.10
 
   - package: golang.org/x/net
     version: ab5485076ff3407ad2d02db054635913f017b0ed
@@ -114,9 +106,8 @@ import:
     version: ^1.2.0
 
   # NB(r): make sure to use the master commit for vellum
-  # once all upstream changes are complete in github.com/couchbase/vellum.
-  - package: github.com/couchbase/vellum
-    repo: https://github.com/m3db/vellum
+  # once all upstream changes are complete in github.com/m3db/vellum.
+  - package: github.com/m3db/vellum
     version: e766292d14de216c324bb60b17320af72dee59c6
 
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
@@ -133,6 +124,9 @@ import:
     version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
     subpackages:
       - require
+
+  - package: github.com/fortytw2/leaktest
+    version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 
   - package: github.com/sergi/go-diff
     version: feef008d51ad2b3778f85d387ccf91735543008d
@@ -159,27 +153,24 @@ import:
       - errgroup
 
   - package: github.com/google/go-cmp
-    version: ^0.2
+    version: ^0.3
     subpackages:
       - cmp
 
   - package: github.com/hydrogen18/stalecucumber
     version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
 
+  - package: github.com/c2h5oh/datasize
+    version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
+
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
-    version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+    version: ~2.12.0
 
   # To avoid prometheus/prometheus dependencies from breaking,
   # pin the transitive dependencies
   - package: github.com/prometheus/common
-    version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
-
-  - package: github.com/prometheus/procfs
-    version: a1dba9ce8baed984a2495b658c82687f8157b98f
-
-  - package: github.com/prometheus/tsdb
-    version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
+    version: ~0.7.0
   # END_PROMETHEUS_DEPS
 
   # START_TALLY_PROMETHEUS_DEPS
@@ -203,15 +194,15 @@ import:
 
   # START_JAEGER_DEPS
   - package: github.com/uber/jaeger-lib
-    version: ^1.5.0
+    version: ^2.0.0
 
   - package: github.com/uber/jaeger-client-go
-    version: ^2.7.0
+    version: ~2.16.0
 
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
     # the same code.
-    version: 77df8e8e70b403c6b13c0fffaa4867c9044ff4e9
+    version: cf7a6c988dc994e945d2715565026f3cc8718689
 
   # END_JAEGER_DEPS
 
@@ -239,12 +230,22 @@ import:
     repo: https://github.com/go-yaml/yaml.git
     vcs: git
 
+  - package: github.com/russross/blackfriday
+    version: ^2.0.1
+
   - package: github.com/mauricelam/genny
     version: eb2c5232c885956af3565a20ecf48555cab2b9bc
 
   - package: github.com/leanovate/gopter
     version: e2604588f4db2d2e5eb78ae75d615516f55873e3
 
-testImport:
-  - package: github.com/fortytw2/leaktest
-    version: b433bbd6d743c1854040b39062a3916ed5f78fe8
+  - package: github.com/rakyll/statik
+    version: ^0.1.6
+
+  - package: golang.org/x/sys
+    subpackages:
+      - unix
+    version: c178f38b412c7b426e4e97be2e75d11ff7b8d4d4
+
+  - package: go.uber.org/config
+    version: ^1.3.1

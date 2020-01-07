@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -44,8 +45,7 @@ type unaggregatedNamespaceDetails struct {
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
 // should be used, and if so, determines if it fully satisfies the query range.
 func resolveUnaggregatedNamespaceForQuery(
-	now time.Time,
-	start time.Time,
+	now, start time.Time,
 	unaggregated ClusterNamespace,
 	opts *storage.FanoutOptions,
 ) unaggregatedNamespaceDetails {
@@ -73,12 +73,17 @@ func resolveUnaggregatedNamespaceForQuery(
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
 func resolveClusterNamespacesForQuery(
-	now time.Time,
+	now, start, end time.Time,
 	clusters Clusters,
-	start time.Time,
-	end time.Time,
 	opts *storage.FanoutOptions,
+	restrict *storage.RestrictQueryOptions,
 ) (queryFanoutType, ClusterNamespaces, error) {
+	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
+		// If a specific restriction is set, then attempt to satisfy.
+		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
+			start, clusters, *typeRestrict)
+	}
+
 	// First check if the unaggregated cluster can fully satisfy the query range.
 	// If so, return it and shortcircuit, as unaggregated will necessarily have
 	// every metric.
@@ -104,11 +109,10 @@ func resolveClusterNamespacesForQuery(
 	//
 	// NB: if fanout aggregation is forced on, the filter instead forces clusters
 	// that do not cover the range to be set as partially aggregated.
-	coversRangeFilter := func(namespace ClusterNamespace) bool {
-		// Include only if can fulfill the entire time range of the query
-		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
-		return !clusterStart.After(start)
-	}
+	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
+		now:        now,
+		queryStart: start,
+	})
 
 	// Filter aggregated namespaces by filter function and options.
 	var r reusedAggregatedNamespaceSlices
@@ -289,4 +293,68 @@ func aggregatedNamespaces(
 	}
 
 	return slices
+}
+
+// resolveClusterNamespacesForQueryWithRestrictQueryOptions returns the cluster
+// namespace referred to by the restrict fetch options or an error if it
+// cannot be found.
+func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
+	now, start time.Time,
+	clusters Clusters,
+	restrict storage.RestrictByType,
+) (queryFanoutType, ClusterNamespaces, error) {
+	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
+		now:        now,
+		queryStart: start,
+	})
+
+	result := func(
+		namespace ClusterNamespace,
+		err error,
+	) (queryFanoutType, ClusterNamespaces, error) {
+		if err != nil {
+			return 0, nil, err
+		}
+
+		if coversRangeFilter(namespace) {
+			return namespaceCoversAllQueryRange,
+				ClusterNamespaces{namespace}, nil
+		}
+
+		return namespaceCoversPartialQueryRange,
+			ClusterNamespaces{namespace}, nil
+	}
+
+	switch restrict.MetricsType {
+	case storage.UnaggregatedMetricsType:
+		return result(clusters.UnaggregatedClusterNamespace(), nil)
+	case storage.AggregatedMetricsType:
+		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
+			Retention:  restrict.StoragePolicy.Retention().Duration(),
+			Resolution: restrict.StoragePolicy.Resolution().Window,
+		})
+		if !ok {
+			return result(nil,
+				fmt.Errorf("could not find namespace for storage policy: %v",
+					restrict.StoragePolicy.String()))
+		}
+
+		return result(ns, nil)
+	default:
+		return result(nil,
+			fmt.Errorf("unrecognized metrics type: %v", restrict.MetricsType))
+	}
+}
+
+type coversRangeFilterOptions struct {
+	now        time.Time
+	queryStart time.Time
+}
+
+func newCoversRangeFilter(opts coversRangeFilterOptions) func(namespace ClusterNamespace) bool {
+	return func(namespace ClusterNamespace) bool {
+		// Include only if can fulfill the entire time range of the query
+		clusterStart := opts.now.Add(-1 * namespace.Options().Attributes().Retention)
+		return !clusterStart.After(opts.queryStart)
+	}
 }

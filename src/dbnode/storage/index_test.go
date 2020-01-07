@@ -25,17 +25,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ import (
 
 func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testDatabaseOptions())
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	now := time.Now().Truncate(time.Hour)
@@ -69,7 +69,7 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testDatabaseOptions())
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	defer func() {
@@ -118,8 +118,8 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpSuccess})
+	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
@@ -185,8 +185,8 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpFailed})
+	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpFailed}, nil)
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
@@ -220,13 +220,13 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 
 	mockShard1 := NewMockdatabaseShard(ctrl)
 	mockShard1.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpSuccess})
+	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
 	mockShard2 := NewMockdatabaseShard(ctrl)
 	mockShard2.EXPECT().ID().Return(uint32(1)).AnyTimes()
-	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{Status: fileOpSuccess})
-	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{Status: fileOpSuccess})
+	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
 	shards := []databaseShard{mockShard1, mockShard2}
 
@@ -306,6 +306,17 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Exhaustive)
 	assert.Equal(t, 0, result.Results.Size())
+
+	// Aggregate query on the non-overlapping range
+	aggResult, err := idx.AggregateQuery(ctx, query, index.AggregationOptions{
+		QueryOptions: index.QueryOptions{
+			StartInclusive: now.Add(-3 * test.indexBlockSize),
+			EndExclusive:   now.Add(-2 * test.indexBlockSize),
+		},
+	})
+	require.NoError(t, err)
+	assert.True(t, aggResult.Exhaustive)
+	assert.Equal(t, 0, aggResult.Results.Size())
 }
 
 type testIndex struct {
@@ -330,8 +341,8 @@ func newTestIndex(t *testing.T, ctrl *gomock.Controller) testIndex {
 		SetIndexOptions(namespace.NewIndexOptions().SetBlockSize(indexBlockSize))
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	require.NoError(t, err)
-	opts := testDatabaseOptions()
-	index, err := newNamespaceIndex(md, opts)
+	opts := DefaultTestOptions()
+	index, err := newNamespaceIndex(md, testShardSet, opts)
 	require.NoError(t, err)
 
 	return testIndex{

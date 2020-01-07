@@ -89,5 +89,5 @@ func TestHeartbeatTimeout(t *testing.T) {
 
 	// ensure we were notified of exit at the operator level
 	require.True(t, receivedTimeout)
-	th.logger.Infof("received heartbeat timeout in operator")
+	th.logger.Info("received heartbeat timeout in operator")
 }

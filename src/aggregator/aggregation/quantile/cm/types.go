@@ -20,7 +20,7 @@
 
 package cm
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 // Sample represents a sampled value.
 type Sample struct {
@@ -36,7 +36,7 @@ type SamplePool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Get returns a sample from the pool.
+	// Get gets a sample from the pool.
 	Get() *Sample
 
 	// Put returns a sample to the pool.

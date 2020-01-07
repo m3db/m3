@@ -29,16 +29,23 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	xerrors "github.com/m3db/m3x/errors"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
+)
+
+var (
+	unaggregatedStoragePolicy   = policy.NewStoragePolicy(0, xtime.Unit(0), 0)
+	unaggregatedStoragePolicies = []policy.StoragePolicy{
+		unaggregatedStoragePolicy,
+	}
 )
 
 // DownsampleAndWriteIter is an interface that can be implemented to use
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, xtime.Unit)
+	Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte)
 	Reset() error
 	Error() error
 }
@@ -51,22 +58,30 @@ type DownsamplerAndWriter interface {
 		tags models.Tags,
 		datapoints ts.Datapoints,
 		unit xtime.Unit,
+		annotation []byte,
 		overrides WriteOptions,
 	) error
 
-	// TODO(rartoul): Batch interface should also support downsampling rules.
 	WriteBatch(
 		ctx context.Context,
 		iter DownsampleAndWriteIter,
-	) error
+		overrides WriteOptions,
+	) BatchError
 
 	Storage() storage.Storage
+}
+
+// BatchError allows for access to individual errors.
+type BatchError interface {
+	error
+	Errors() []error
+	LastError() error
 }
 
 // WriteOptions contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
 type WriteOptions struct {
-	DownsampleMappingRules []downsample.MappingRule
+	DownsampleMappingRules []downsample.AutoMappingRule
 	WriteStoragePolicies   []policy.StoragePolicy
 
 	DownsampleOverride bool
@@ -99,109 +114,153 @@ func (d *downsamplerAndWriter) Write(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
+	annotation []byte,
 	overrides WriteOptions,
 ) error {
-	err := d.maybeWriteDownsampler(tags, datapoints, unit, overrides)
-	if err != nil {
-		return err
+	multiErr := xerrors.NewMultiError()
+	if d.shouldDownsample(overrides) {
+		err := d.writeToDownsampler(tags, datapoints, unit, overrides)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
-	return d.maybeWriteStorage(ctx, tags, datapoints, unit, overrides)
+	if d.shouldWrite(overrides) {
+		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
-func (d *downsamplerAndWriter) maybeWriteDownsampler(
-	tags models.Tags,
-	datapoints ts.Datapoints,
-	unit xtime.Unit,
+func (d *downsamplerAndWriter) shouldWrite(
 	overrides WriteOptions,
-) error {
+) bool {
+	var (
+		// Ensure storage set.
+		storageExists = d.store != nil
+		// Ensure using default storage policies or some storage policies set.
+		useDefaultStoragePolicies = !overrides.WriteOverride
+		// If caller tried to override the storage policies, make sure there's
+		// at least one.
+		_, writeOverride = d.writeOverrideStoragePolicies(overrides)
+	)
+	// Only write directly to storage if the store exists, and caller wants to
+	// use the default storage policies, or they're trying to override the
+	// storage policies and they've provided at least one override to do so.
+	return storageExists && (useDefaultStoragePolicies || writeOverride)
+}
+
+func (d *downsamplerAndWriter) writeOverrideStoragePolicies(
+	overrides WriteOptions,
+) ([]policy.StoragePolicy, bool) {
+	writeOverride := overrides.WriteOverride && len(overrides.WriteStoragePolicies) > 0
+	if !writeOverride {
+		return nil, false
+	}
+	return overrides.WriteStoragePolicies, true
+}
+
+func (d *downsamplerAndWriter) shouldDownsample(
+	overrides WriteOptions,
+) bool {
 	var (
 		downsamplerExists = d.downsampler != nil
 		// If they didn't request the mapping rules to be overridden, then assume they want the default
 		// ones.
 		useDefaultMappingRules = !overrides.DownsampleOverride
 		// If they did try and override the mapping rules, make sure they've provided at least one.
-		downsampleOverride = overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
-		// Only downsample if the downsampler exists, and they either want to use the default mapping
-		// rules, or they're trying to override the mapping rules and they've provided at least one
-		// override to do so.
-		shouldDownsample = downsamplerExists && (useDefaultMappingRules || downsampleOverride)
+		_, downsampleOverride = d.downsampleOverrideRules(overrides)
 	)
-	if shouldDownsample {
-		// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
-		// resources. If we can pool this properly we can get a nice speedup.
-		appender, err := d.downsampler.NewMetricsAppender()
-		if err != nil {
-			return err
-		}
-
-		for _, tag := range tags.Tags {
-			appender.AddTag(tag.Name, tag.Value)
-		}
-
-		if tags.Opts.IDSchemeType() == models.TypeGraphite {
-			// NB(r): This is gross, but if this is a graphite metric then
-			// we are going to set a special tag that means the downsampler
-			// will write a graphite ID. This should really be plumbed
-			// through the downsampler in general, but right now the aggregator
-			// does not allow context to be attached to a metric so when it calls
-			// back the context is lost currently.
-			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
-				downsample.GraphiteIDSchemeTagValue)
-		}
-
-		var appenderOpts downsample.SampleAppenderOptions
-		if downsampleOverride {
-			appenderOpts = downsample.SampleAppenderOptions{
-				Override: true,
-				OverrideRules: downsample.SamplesAppenderOverrideRules{
-					MappingRules: overrides.DownsampleMappingRules,
-				},
-			}
-		}
-
-		samplesAppender, err := appender.SamplesAppender(appenderOpts)
-		if err != nil {
-			return err
-		}
-
-		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeSample(dp.Value)
-			if err != nil {
-				return err
-			}
-		}
-
-		appender.Finalize()
-	}
-
-	return nil
+	// Only downsample if the downsampler exists, and they either want to use the default mapping
+	// rules, or they're trying to override the mapping rules and they've provided at least one
+	// override to do so.
+	return downsamplerExists && (useDefaultMappingRules || downsampleOverride)
 }
 
-func (d *downsamplerAndWriter) maybeWriteStorage(
-	ctx context.Context,
+func (d *downsamplerAndWriter) downsampleOverrideRules(
+	overrides WriteOptions,
+) ([]downsample.AutoMappingRule, bool) {
+	downsampleOverride := overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
+	if !downsampleOverride {
+		return nil, false
+	}
+	return overrides.DownsampleMappingRules, true
+}
+
+func (d *downsamplerAndWriter) writeToDownsampler(
 	tags models.Tags,
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) error {
-	var (
-		storageExists             = d.store != nil
-		useDefaultStoragePolicies = !overrides.WriteOverride
-	)
-
-	if !storageExists {
-		return nil
+	// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
+	// resources. If we can pool this properly we can get a nice speedup.
+	appender, err := d.downsampler.NewMetricsAppender()
+	if err != nil {
+		return err
 	}
 
-	if storageExists && useDefaultStoragePolicies {
+	defer appender.Finalize()
+
+	for _, tag := range tags.Tags {
+		appender.AddTag(tag.Name, tag.Value)
+	}
+
+	if tags.Opts.IDSchemeType() == models.TypeGraphite {
+		// NB(r): This is gross, but if this is a graphite metric then
+		// we are going to set a special tag that means the downsampler
+		// will write a graphite ID. This should really be plumbed
+		// through the downsampler in general, but right now the aggregator
+		// does not allow context to be attached to a metric so when it calls
+		// back the context is lost currently.
+		appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
+			downsample.GraphiteIDSchemeTagValue)
+	}
+
+	var appenderOpts downsample.SampleAppenderOptions
+	if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
+		appenderOpts = downsample.SampleAppenderOptions{
+			Override: true,
+			OverrideRules: downsample.SamplesAppenderOverrideRules{
+				MappingRules: downsampleMappingRuleOverrides,
+			},
+		}
+	}
+
+	samplesAppender, err := appender.SamplesAppender(appenderOpts)
+	if err != nil {
+		return err
+	}
+
+	for _, dp := range datapoints {
+		err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d *downsamplerAndWriter) writeToStorage(
+	ctx context.Context,
+	tags models.Tags,
+	datapoints ts.Datapoints,
+	unit xtime.Unit,
+	annotation []byte,
+	overrides WriteOptions,
+) error {
+	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
+	if !ok {
 		return d.store.Write(ctx, &storage.WriteQuery{
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
-			Attributes: storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
-			},
+			Annotation: annotation,
+			Attributes: storageAttributesFromPolicy(unaggregatedStoragePolicy),
 		})
 	}
 
@@ -211,7 +270,7 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 		errLock  sync.Mutex
 	)
 
-	for _, p := range overrides.WriteStoragePolicies {
+	for _, p := range storagePolicies {
 		p := p // Capture for goroutine.
 
 		wg.Add(1)
@@ -220,12 +279,8 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
-				Attributes: storage.Attributes{
-					// Assume all overridden storage policies are for aggregated namespaces.
-					MetricsType: storage.AggregatedMetricsType,
-					Resolution:  p.Resolution().Window,
-					Retention:   p.Retention().Duration(),
-				},
+				Annotation: annotation,
+				Attributes: storageAttributesFromPolicy(p),
 			})
 			if err != nil {
 				errLock.Lock()
@@ -243,9 +298,10 @@ func (d *downsamplerAndWriter) maybeWriteStorage(
 func (d *downsamplerAndWriter) WriteBatch(
 	ctx context.Context,
 	iter DownsampleAndWriteIter,
-) error {
+	overrides WriteOptions,
+) BatchError {
 	var (
-		wg       = sync.WaitGroup{}
+		wg       sync.WaitGroup
 		multiErr xerrors.MultiError
 		errLock  sync.Mutex
 		addError = func(err error) {
@@ -255,27 +311,34 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 	)
 
-	if d.store != nil {
+	if d.shouldWrite(overrides) {
 		// Write unaggregated. Spin up all the background goroutines that make
 		// network requests before we do the synchronous work of writing to the
 		// downsampler.
+		storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
+		if !ok {
+			storagePolicies = unaggregatedStoragePolicies
+		}
+
 		for iter.Next() {
-			wg.Add(1)
-			tags, datapoints, unit := iter.Current()
-			d.workerPool.Go(func() {
-				err := d.store.Write(ctx, &storage.WriteQuery{
-					Tags:       tags,
-					Datapoints: datapoints,
-					Unit:       unit,
-					Attributes: storage.Attributes{
-						MetricsType: storage.UnaggregatedMetricsType,
-					},
+			tags, datapoints, unit, annotation := iter.Current()
+			for _, p := range storagePolicies {
+				p := p // Capture for lambda.
+				wg.Add(1)
+				d.workerPool.Go(func() {
+					err := d.store.Write(ctx, &storage.WriteQuery{
+						Tags:       tags,
+						Datapoints: datapoints,
+						Unit:       unit,
+						Annotation: annotation,
+						Attributes: storageAttributesFromPolicy(p),
+					})
+					if err != nil {
+						addError(err)
+					}
+					wg.Done()
 				})
-				if err != nil {
-					addError(err)
-				}
-				wg.Done()
-			})
+			}
 		}
 	}
 
@@ -286,31 +349,46 @@ func (d *downsamplerAndWriter) WriteBatch(
 		addError(resetErr)
 	}
 
-	if d.downsampler != nil && resetErr == nil {
-		err := d.writeAggregatedBatch(iter)
-		if err != nil {
+	if d.shouldDownsample(overrides) && resetErr == nil {
+		if err := d.writeAggregatedBatch(iter, overrides); err != nil {
 			addError(err)
 		}
 	}
 
 	wg.Wait()
-	return multiErr.LastError()
+	if multiErr.NumErrors() == 0 {
+		return nil
+	}
+
+	return multiErr
 }
 
 func (d *downsamplerAndWriter) writeAggregatedBatch(
 	iter DownsampleAndWriteIter,
+	overrides WriteOptions,
 ) error {
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
 		return err
 	}
 
-	var opts downsample.SampleAppenderOptions
+	defer appender.Finalize()
+
 	for iter.Next() {
 		appender.Reset()
-		tags, datapoints, _ := iter.Current()
+		tags, datapoints, _, _ := iter.Current()
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
+		}
+
+		var opts downsample.SampleAppenderOptions
+		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
+			opts = downsample.SampleAppenderOptions{
+				Override: true,
+				OverrideRules: downsample.SamplesAppenderOverrideRules{
+					MappingRules: downsampleMappingRuleOverrides,
+				},
+			}
 		}
 
 		samplesAppender, err := appender.SamplesAppender(opts)
@@ -319,17 +397,33 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeSample(dp.Value)
+			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	appender.Finalize()
 
 	return iter.Error()
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
 	return d.store
+}
+
+func storageAttributesFromPolicy(
+	p policy.StoragePolicy,
+) storage.Attributes {
+	attributes := storage.Attributes{
+		MetricsType: storage.UnaggregatedMetricsType,
+	}
+	if p != unaggregatedStoragePolicy {
+		attributes = storage.Attributes{
+			// Assume all overridden storage policies are for aggregated namespaces.
+			MetricsType: storage.AggregatedMetricsType,
+			Resolution:  p.Resolution().Window,
+			Retention:   p.Retention().Duration(),
+		}
+	}
+	return attributes
 }

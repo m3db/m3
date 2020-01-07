@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -47,16 +48,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
-	xsync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
 	tchannel "github.com/uber/tchannel-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -72,30 +74,43 @@ var (
 	testNamespaces         = []ident.ID{ident.StringID("testNs1"), ident.StringID("testNs2")}
 
 	created = uint64(0)
+
+	testSchemaHistory = prototest.NewSchemaHistory()
+	testSchema        = prototest.NewMessageDescriptor(testSchemaHistory)
+	testSchemaDesc    = namespace.GetTestSchemaDescr(testSchema)
+	testProtoMessages = prototest.NewProtoTestMessages(testSchema)
+	testProtoEqual    = func(expect, actual []byte) bool {
+		return prototest.ProtoEqual(testSchema, expect, actual)
+	}
+	testProtoIter = prototest.NewProtoMessageIterator(testProtoMessages)
 )
 
 // nowSetterFn is the function that sets the current time
 type nowSetterFn func(t time.Time)
 
+type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValue) bool
+
 var _ topology.MapProvider = &testSetup{}
 
 type testSetup struct {
-	t    *testing.T
-	opts testOptions
+	t         *testing.T
+	opts      testOptions
+	schemaReg namespace.SchemaRegistry
 
-	logger xlog.Logger
+	logger *zap.Logger
 
-	db             cluster.Database
-	storageOpts    storage.Options
-	fsOpts         fs.Options
-	hostID         string
-	origin         topology.Host
-	topoInit       topology.Initializer
-	shardSet       sharding.ShardSet
-	getNowFn       clock.NowFn
-	setNowFn       nowSetterFn
-	tchannelClient rpc.TChanNode
-	m3dbClient     client.Client
+	db                cluster.Database
+	storageOpts       storage.Options
+	fsOpts            fs.Options
+	blockLeaseManager block.LeaseManager
+	hostID            string
+	origin            topology.Host
+	topoInit          topology.Initializer
+	shardSet          sharding.ShardSet
+	getNowFn          clock.NowFn
+	setNowFn          nowSetterFn
+	tchannelClient    rpc.TChanNode
+	m3dbClient        client.Client
 	// We need two distinct clients where one has the origin set to the same ID as the
 	// node itself (I.E) the client will behave exactly as if it is the node itself
 	// making requests, and another client with the origin set to an ID different than
@@ -104,6 +119,9 @@ type testSetup struct {
 	m3dbAdminClient             client.AdminClient
 	m3dbVerificationAdminClient client.AdminClient
 	workerPool                  xsync.WorkerPool
+
+	// compare expected with actual data function
+	assertEqual assertTestDataEqual
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -125,21 +143,48 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
-	var logger xlog.Logger
+	zapConfig := zap.NewDevelopmentConfig()
+	zapConfig.DisableCaller = true
+	zapConfig.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
-		parsedLevel, err := xlog.ParseLevel(level)
-		if err != nil {
+		var parsedLevel zap.AtomicLevel
+		if err := parsedLevel.UnmarshalText([]byte(level)); err != nil {
 			return nil, fmt.Errorf("unable to parse log level: %v", err)
 		}
-		logger = xlog.NewLevelLogger(xlog.SimpleLogger, parsedLevel)
-	} else {
-		logger = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelInfo)
+		zapConfig.Level = parsedLevel
+	}
+	logger, err := zapConfig.Build()
+	if err != nil {
+		return nil, err
 	}
 
+	// Schema registry is shared between database and admin client.
+	schemaReg := namespace.NewSchemaRegistry(opts.ProtoEncoding(), nil)
+
+	blockLeaseManager := block.NewLeaseManager(nil)
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit)
+		SetNamespaceInitializer(nsInit).
+		SetSchemaRegistry(schemaReg).
+		SetBlockLeaseManager(blockLeaseManager)
+
+	if opts.ProtoEncoding() {
+		blockOpts := storageOpts.DatabaseBlockOptions().
+			SetEncoderPool(prototest.ProtoPools.EncoderPool).
+			SetReaderIteratorPool(prototest.ProtoPools.ReaderIterPool).
+			SetMultiReaderIteratorPool(prototest.ProtoPools.MultiReaderIterPool)
+		storageOpts = storageOpts.
+			SetDatabaseBlockOptions(blockOpts).
+			SetEncoderPool(prototest.ProtoPools.EncoderPool).
+			SetReaderIteratorPool(prototest.ProtoPools.ReaderIterPool).
+			SetMultiReaderIteratorPool(prototest.ProtoPools.MultiReaderIterPool)
+	}
+
 	if strings.ToLower(os.Getenv("TEST_DEBUG_LOG")) == "true" {
-		logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelDebug)
+		zapConfig.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+		logger, err = zapConfig.Build()
+		if err != nil {
+			return nil, err
+		}
 		storageOpts = storageOpts.SetInstrumentOptions(
 			storageOpts.InstrumentOptions().SetLogger(logger))
 	}
@@ -154,10 +199,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts = storageOpts.SetSeriesCachePolicy(value)
 	}
 
-	fields := []xlog.Field{
-		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
+	fields := []zapcore.Field{
+		zap.Stringer("cache-policy", storageOpts.SeriesCachePolicy()),
 	}
-	logger = logger.WithFields(fields...)
+	logger = logger.With(fields...)
 	iOpts := storageOpts.InstrumentOptions()
 	storageOpts = storageOpts.SetInstrumentOptions(iOpts.SetLogger(logger))
 
@@ -214,7 +259,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		}
 	}
 
-	adminClient, verificationAdminClient, err := newClients(topoInit, opts, id, tchannelNodeAddr)
+	adminClient, verificationAdminClient, err := newClients(topoInit, opts, schemaReg, id, tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -233,9 +278,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// a value to align `now` for all of them.
 	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
 	if guess {
-		logger.Warnf(
-			"unable to find a single blockSize from known retention periods, guessing: %v",
-			truncateSize.String())
+		logger.Warn("unable to find a single blockSize from known retention periods",
+			zap.String("guessing", truncateSize.String()))
 	}
 
 	// Set up getter and setter for now
@@ -252,8 +296,14 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		now = t
 		lock.Unlock()
 	}
-	storageOpts = storageOpts.SetClockOptions(
-		storageOpts.ClockOptions().SetNowFn(getNowFn))
+	if overrideTimeNow := opts.NowFn(); overrideTimeNow != nil {
+		// Allow overriding the frozen time
+		storageOpts = storageOpts.SetClockOptions(
+			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
+	} else {
+		storageOpts = storageOpts.SetClockOptions(
+			storageOpts.ClockOptions().SetNowFn(getNowFn))
+	}
 
 	// Set up file path prefix
 	idx := atomic.AddUint64(&created, 1) - 1
@@ -283,7 +333,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	storageOpts = storageOpts.SetPersistManager(pm)
 
 	// Set up repair options
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
+	storageOpts = storageOpts.
+		SetRepairOptions(storageOpts.RepairOptions().
+			SetAdminClients([]client.AdminClient{adminClient}))
 
 	// Set up block retriever manager
 	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {
@@ -295,8 +347,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		default:
 			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 				func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-					retrieverOpts := fs.NewBlockRetrieverOptions()
-					retriever := fs.NewBlockRetriever(retrieverOpts, fsOpts)
+					retrieverOpts := fs.NewBlockRetrieverOptions().
+						SetBlockLeaseManager(blockLeaseManager)
+					retriever, err := fs.NewBlockRetriever(retrieverOpts, fsOpts)
+					if err != nil {
+						return nil, err
+					}
+
 					if err := retriever.Open(md); err != nil {
 						return nil, err
 					}
@@ -321,7 +378,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		// Have to manually set the blockpool because the default one uses a constructor
 		// function that doesn't have the updated blockOpts.
 		blockPool.Init(func() block.DatabaseBlock {
-			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
+			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
@@ -335,8 +392,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	return &testSetup{
 		t:                           t,
 		opts:                        opts,
+		schemaReg:                   schemaReg,
 		logger:                      logger,
 		storageOpts:                 storageOpts,
+		blockLeaseManager:           blockLeaseManager,
 		fsOpts:                      fsOpts,
 		hostID:                      id,
 		origin:                      newOrigin(id, tchannelNodeAddr),
@@ -354,6 +413,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		namespaces:                  opts.Namespaces(),
 		doneCh:                      make(chan struct{}),
 		closedCh:                    make(chan struct{}),
+		assertEqual:                 opts.AssertTestDataEqual(),
 	}, nil
 }
 
@@ -476,7 +536,7 @@ func (ts *testSetup) startServer() error {
 }
 
 func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
-	ts.logger.Infof("starting server")
+	ts.logger.Info("starting server")
 
 	var (
 		resultCh = make(chan error, 1)
@@ -495,6 +555,11 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 
 	ts.db, err = cluster.NewDatabase(ts.hostID, topo, topoWatch, ts.storageOpts)
 	if err != nil {
+		return err
+	}
+
+	leaseVerifier := storage.NewLeaseVerifier(ts.db)
+	if err := ts.blockLeaseManager.SetLeaseVerifier(leaseVerifier); err != nil {
 		return err
 	}
 
@@ -529,9 +594,9 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 
 	err = <-resultCh
 	if err == nil {
-		ts.logger.Infof("started server")
+		ts.logger.Info("started server")
 	} else {
-		ts.logger.Errorf("start server error: %v", err)
+		ts.logger.Error("start server error", zap.Error(err))
 	}
 	return err
 }
@@ -566,7 +631,7 @@ func (ts *testSetup) writeBatch(namespace ident.ID, seriesList generate.SeriesBl
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, namespace, seriesList)
 }
 
-func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]ts.Datapoint, error) {
+func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]generate.TestValue, error) {
 	if ts.opts.UseTChannelClientForReading() {
 		return tchannelClientFetch(ts.tchannelClient, ts.opts.ReadRequestTimeout(), req)
 	}
@@ -651,7 +716,7 @@ func (ts *testSetup) maybeResetClients() error {
 	if ts.m3dbClient == nil {
 		// Recreate the clients as their session was destroyed by stopServer()
 		adminClient, verificationAdminClient, err := newClients(
-			ts.topoInit, ts.opts, ts.hostID, ts.tchannelNodeAddr())
+			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
 		if err != nil {
 			return err
 		}
@@ -679,6 +744,7 @@ func newOrigin(id string, tchannelNodeAddr string) topology.Host {
 func newClients(
 	topoInit topology.Initializer,
 	opts testOptions,
+	schemaReg namespace.SchemaRegistry,
 	id,
 	tchannelNodeAddr string,
 ) (client.AdminClient, client.AdminClient, error) {
@@ -686,14 +752,24 @@ func newClients(
 		clientOpts = defaultClientOptions(topoInit).
 				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
 				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit)
+				SetTopologyInitializer(topoInit).
+				SetUseV2BatchAPIs(true)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
-		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
-		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
+		adminOpts = clientOpts.(client.AdminOptions).
+				SetOrigin(origin).
+				SetSchemaRegistry(schemaReg)
+		verificationAdminOpts = adminOpts.
+					SetOrigin(verificationOrigin).
+					SetSchemaRegistry(schemaReg)
 	)
+
+	if opts.ProtoEncoding() {
+		adminOpts = adminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
+		verificationAdminOpts = verificationAdminOpts.SetEncodingProto(prototest.ProtoPools.EncodingOpt).(client.AdminOptions)
+	}
 
 	// Set up m3db client
 	adminClient, err := m3dbAdminClient(adminOpts)
@@ -743,13 +819,12 @@ func newNodes(
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
-		log  = xlog.SimpleLogger
+		log  = zap.L()
 		opts = newTestOptions(t).
 			SetNamespaces(nspaces).
 			SetTickMinimumInterval(3 * time.Second).
 			SetWriteNewSeriesAsync(asyncInserts).
 			SetNumShards(numShards)
-
 		// NB(bl): We set replication to 3 to mimic production. This can be made
 		// into a variable if needed.
 		svc = fake.NewM3ClusterService().

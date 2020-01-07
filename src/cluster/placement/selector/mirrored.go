@@ -27,7 +27,8 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/cluster/placement"
-	"github.com/m3db/m3x/log"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -36,7 +37,7 @@ var (
 
 type mirroredSelector struct {
 	opts   placement.Options
-	logger log.Logger
+	logger *zap.Logger
 }
 
 func newMirroredSelector(opts placement.Options) placement.InstanceSelector {
@@ -67,7 +68,10 @@ func (f *mirroredSelector) SelectInitialInstances(
 		groupedHosts, ungrouped := groupHostsWithIsolationGroupCheck(hosts, rf)
 		if len(ungrouped) != 0 {
 			for _, host := range ungrouped {
-				f.logger.Warnf("could not group host %s, isolation group %s, weight %d", host.name, host.isolationGroup, host.weight)
+				f.logger.Warn("could not group",
+					zap.String("host", host.name),
+					zap.String("isolationGroup", host.isolationGroup),
+					zap.Uint32("weight", host.weight))
 			}
 		}
 		if len(groupedHosts) == 0 {
@@ -215,7 +219,10 @@ func (f *mirroredSelector) SelectReplaceInstances(
 
 		groups, err = groupInstancesByHostPort([][]host{[]host{h, candidateHost}})
 		if err != nil {
-			f.logger.Warnf("could not match up candidate host %s with target host %s: %v", candidateHost.name, h.name, err)
+			f.logger.Warn("could not match up candidate host with target host",
+				zap.String("candidate", candidateHost.name),
+				zap.String("target", h.name),
+				zap.Error(err))
 			continue
 		}
 

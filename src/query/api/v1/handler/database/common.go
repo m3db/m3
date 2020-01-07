@@ -21,10 +21,14 @@
 package database
 
 import (
+	"net/http"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/gorilla/mux"
 )
@@ -33,7 +37,8 @@ import (
 type Handler struct {
 	// This is used by other namespace Handlers
 	// nolint: structcheck, megacheck, unused
-	client clusterclient.Client
+	client         clusterclient.Client
+	instrumentOpts instrument.Options
 }
 
 // RegisterRoutes registers the namespace routes
@@ -42,30 +47,41 @@ func RegisterRoutes(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
-) {
-	wrapped := logging.WithResponseTimeAndPanicErrorLogging
+	defaults []handleroptions.ServiceOptionsDefault,
+	instrumentOpts instrument.Options,
+) error {
+	wrapped := func(n http.Handler) http.Handler {
+		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
+	}
 
-	r.HandleFunc(CreateURL, wrapped(
-		NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).
+	createHandler, err := NewCreateHandler(client, cfg, embeddedDbCfg,
+		defaults, instrumentOpts)
+	if err != nil {
+		return err
+	}
+
+	r.HandleFunc(CreateURL,
+		wrapped(createHandler).ServeHTTP).
 		Methods(CreateHTTPMethod)
 
 	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
-		NewConfigGetBootstrappersHandler(client)).ServeHTTP).
+		NewConfigGetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
 		Methods(ConfigGetBootstrappersHTTPMethod)
 	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
-		NewConfigSetBootstrappersHandler(client)).ServeHTTP).
+		NewConfigSetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
 		Methods(ConfigSetBootstrappersHTTPMethod)
 
 	// Register the same handler under two different endpoints. This just makes explaining things in
 	// our documentation easier so we can separate out concepts, but share the underlying code.
-	createHandler := wrapped(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP
-	r.HandleFunc(CreateURL, createHandler).Methods(CreateHTTPMethod)
-	r.HandleFunc(CreateNamespaceURL, createHandler).Methods(CreateNamespaceHTTPMethod)
+	r.HandleFunc(CreateURL, wrapped(createHandler).ServeHTTP).Methods(CreateHTTPMethod)
+	r.HandleFunc(CreateNamespaceURL, wrapped(createHandler).ServeHTTP).Methods(CreateNamespaceHTTPMethod)
 
 	r.HandleFunc(ConfigGetBootstrappersURL, wrapped(
-		NewConfigGetBootstrappersHandler(client)).ServeHTTP).
+		NewConfigGetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
 		Methods(ConfigGetBootstrappersHTTPMethod)
 	r.HandleFunc(ConfigSetBootstrappersURL, wrapped(
-		NewConfigSetBootstrappersHandler(client)).ServeHTTP).
+		NewConfigSetBootstrappersHandler(client, instrumentOpts)).ServeHTTP).
 		Methods(ConfigSetBootstrappersHTTPMethod)
+
+	return nil
 }

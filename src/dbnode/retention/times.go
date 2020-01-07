@@ -34,7 +34,8 @@ func FlushTimeStartForRetentionPeriod(retentionPeriod time.Duration, blockSize t
 
 // FlushTimeEnd is the latest flushable time
 func FlushTimeEnd(opts Options, t time.Time) time.Time {
-	return FlushTimeEndForBlockSize(opts.BlockSize(), t.Add(-opts.BufferPast()))
+	return FlushTimeEndForBlockSize(opts.BlockSize(),
+		t.Add(opts.FutureRetentionPeriod()).Add(-opts.BufferPast()))
 }
 
 // FlushTimeEndForBlockSize is the latest flushable time

@@ -23,9 +23,11 @@ package msgpack
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/x/pool"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
@@ -41,13 +43,17 @@ var (
 	emptyLogEntry               schema.LogEntry
 	emptyLogMetadata            schema.LogMetadata
 	emptyLogEntryRemainingToken DecodeLogEntryRemainingToken
-)
 
-var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num fields to skip")
+	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
+	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+)
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	reader            DecoderStream
+	reader DecoderStream
+	// Will only be set if the Decoder is Reset() with a DecoderStream
+	// that also implements ByteStream.
+	byteReader        ByteStream
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
@@ -64,7 +70,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
-	reader := NewDecoderStream(nil)
+	reader := NewByteDecoderStream(nil)
 	return &Decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
 		reader:            reader,
@@ -76,6 +82,15 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 // Reset resets the data stream to decode from
 func (dec *Decoder) Reset(stream DecoderStream) {
 	dec.reader = stream
+
+	// Do the type assertion upfront so that we don't have to do it
+	// repeatedly later.
+	if byteStream, ok := stream.(ByteStream); ok {
+		dec.byteReader = byteStream
+	} else {
+		dec.byteReader = nil
+	}
+
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
 }
@@ -96,12 +111,12 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 }
 
 // DecodeIndexEntry decodes index entry
-func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
+func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexEntry := dec.decodeIndexEntry()
+	indexEntry := dec.decodeIndexEntry(bytesPool)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -226,16 +241,23 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
+	// Overrides only used to test forwards compatibility.
+	switch dec.legacy.decodeLegacyIndexInfoVersion {
+	case legacyEncodingIndexVersionV1:
 		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
-	} else if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
+	case legacyEncodingIndexVersionV2:
 		// V2 had 8 fields.
 		opts.override = true
-		opts.numExpectedMinFields = 8
+		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 8
+	case legacyEncodingIndexVersionV3:
+		// V3 had 9 fields.
+		opts.override = true
+		opts.numExpectedMinFields = 6
+		opts.numExpectedCurrFields = 9
 	}
 
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
@@ -270,6 +292,15 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	// Decode fields added in V3.
 	indexInfo.SnapshotID, _, _ = dec.decodeBytes()
 
+	// At this point if its a V3 file we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV3 || actual < 10 {
+		dec.skip(numFieldsToSkip)
+		return indexInfo
+	}
+
+	// Decode fields added in V4.
+	indexInfo.VolumeIndex = int(dec.decodeVarint())
+
 	dec.skip(numFieldsToSkip)
 	return indexInfo
 }
@@ -303,7 +334,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
+func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
 	if dec.legacy.decodeLegacyV1IndexEntry {
 		// V1 had 5 fields.
@@ -318,7 +349,13 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
-	indexEntry.ID, _, _ = dec.decodeBytes()
+
+	if bytesPool == nil {
+		indexEntry.ID, _, _ = dec.decodeBytes()
+	} else {
+		indexEntry.ID = dec.decodeBytesWithPool(bytesPool)
+	}
+
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
@@ -328,7 +365,11 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 		return indexEntry
 	}
 
-	indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+	if bytesPool == nil {
+		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+	} else {
+		indexEntry.EncodedTags = dec.decodeBytesWithPool(bytesPool)
+	}
 
 	dec.skip(numFieldsToSkip)
 	return indexEntry
@@ -533,6 +574,7 @@ func (dec *Decoder) decodeFloat64() float64 {
 	return value
 }
 
+// Should only be called if dec.byteReader != nil.
 func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	if dec.err != nil {
 		return nil, -1, -1
@@ -546,11 +588,19 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		return value, -1, -1
 	}
 
+	if dec.byteReader == nil {
+		// If we're not allowing the msgpack library to allocate the bytes and we haven't been
+		// provided a byte decoder stream, then we've reached an invalid state as its not
+		// possible for us to decode the bytes in an alloc-less way.
+		dec.err = errorCalledDecodeBytesWithoutByteStreamDecoder
+		return nil, -1, -1
+	}
+
 	var (
 		bytesLen     = dec.decodeBytesLen()
-		backingBytes = dec.reader.Bytes()
+		backingBytes = dec.byteReader.Bytes()
 		numBytes     = len(backingBytes)
-		currPos      = int(int64(numBytes) - dec.reader.Remaining())
+		currPos      = int(int64(numBytes) - dec.byteReader.Remaining())
 	)
 
 	if dec.err != nil {
@@ -566,12 +616,46 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
 		return nil, -1, -1
 	}
-	if err := dec.reader.Skip(int64(bytesLen)); err != nil {
+	if err := dec.byteReader.Skip(int64(bytesLen)); err != nil {
 		dec.err = err
 		return nil, -1, -1
 	}
 	value = backingBytes[currPos:targetPos]
 	return value, currPos, bytesLen
+}
+
+func (dec *Decoder) decodeBytesWithPool(bytesPool pool.BytesPool) []byte {
+	if dec.err != nil {
+		return nil
+	}
+
+	bytesLen := dec.decodeBytesLen()
+	if dec.err != nil {
+		return nil
+	}
+	if bytesLen < 0 {
+		return nil
+	}
+
+	bytes := bytesPool.Get(bytesLen)[:bytesLen]
+	n, err := io.ReadFull(dec.reader, bytes)
+	if err != nil {
+		dec.err = err
+		bytesPool.Put(bytes)
+		return nil
+	}
+	if n != bytesLen {
+		// This check is redundant because io.ReadFull will return an error if
+		// its not able to read the specified number of bytes, but we keep it
+		// in for posterity.
+		dec.err = fmt.Errorf(
+			"tried to decode checked bytes of length: %d, but read: %d",
+			bytesLen, n)
+		bytesPool.Put(bytes)
+		return nil
+	}
+
+	return bytes
 }
 
 func (dec *Decoder) decodeArrayLen() int {

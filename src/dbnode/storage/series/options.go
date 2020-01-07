@@ -25,10 +25,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type options struct {
@@ -43,6 +43,9 @@ type options struct {
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
 	identifierPool                ident.Pool
 	stats                         Stats
+	coldWritesEnabled             bool
+	bufferBucketPool              *BufferBucketPool
+	bufferBucketVersionsPool      *BufferBucketVersionsPool
 }
 
 // NewOptions creates new database series options
@@ -184,4 +187,34 @@ func (o *options) SetStats(value Stats) Options {
 
 func (o *options) Stats() Stats {
 	return o.stats
+}
+
+func (o *options) SetColdWritesEnabled(value bool) Options {
+	opts := *o
+	opts.coldWritesEnabled = value
+	return &opts
+}
+
+func (o *options) ColdWritesEnabled() bool {
+	return o.coldWritesEnabled
+}
+
+func (o *options) SetBufferBucketVersionsPool(value *BufferBucketVersionsPool) Options {
+	opts := *o
+	opts.bufferBucketVersionsPool = value
+	return &opts
+}
+
+func (o *options) BufferBucketVersionsPool() *BufferBucketVersionsPool {
+	return o.bufferBucketVersionsPool
+}
+
+func (o *options) SetBufferBucketPool(value *BufferBucketPool) Options {
+	opts := *o
+	opts.bufferBucketPool = value
+	return &opts
+}
+
+func (o *options) BufferBucketPool() *BufferBucketPool {
+	return o.bufferBucketPool
 }

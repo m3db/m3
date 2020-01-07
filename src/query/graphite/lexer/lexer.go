@@ -46,8 +46,6 @@ const (
 	LParenthesis
 	// RParenthesis is the right parenthesis ")".
 	RParenthesis
-	// Colon is the ":" symbol.
-	Colon
 	// NotOperator is the exclamation sign - "!" symbol.
 	NotOperator
 	// Comma is a punctuation mark.
@@ -77,8 +75,6 @@ func (tt TokenType) String() string {
 		return "LParenthesis"
 	case RParenthesis:
 		return "RParenthesis"
-	case Colon:
-		return "Colon"
 	case NotOperator:
 		return "NotOperator"
 	case Comma:
@@ -96,7 +92,6 @@ func (tt TokenType) String() string {
 var symbols = map[rune]TokenType{
 	'(': LParenthesis,
 	')': RParenthesis,
-	':': Colon,
 	'!': NotOperator,
 	',': Comma,
 	'=': Equal,
@@ -123,8 +118,8 @@ const (
 	lowercaseLetters     = "abcdefghijklmnopqrstuvwxyz"
 	digits               = "0123456789"
 	exponentRunes        = "eE"
-	identifierStartRunes = uppercaseLetters + lowercaseLetters + "_" + "$"
-	identifierRunes      = identifierStartRunes + digits + "-"
+	identifierStartRunes = uppercaseLetters + lowercaseLetters + "_" + "-" + "$" + ":"
+	identifierRunes      = identifierStartRunes + digits
 	signs                = "+-"
 )
 
@@ -291,7 +286,7 @@ func (l *Lexer) identifierOrPattern() bool {
 		return l.pattern()
 	}
 
-	// Check if idenitifer is one of the reserved identifiers.
+	// Check if identifier is one of the reserved identifiers.
 	for text, identifier := range l.reservedIdentifiers {
 		if strings.ToLower(l.currentVal()) == text {
 			l.emit(identifier)

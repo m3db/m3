@@ -29,7 +29,8 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -46,33 +47,42 @@ const (
 type GetHandler Handler
 
 // NewGetHandler returns a new instance of GetHandler.
-func NewGetHandler(client clusterclient.Client, cfg config.Configuration) *GetHandler {
-	return &GetHandler{client: client, cfg: cfg, serviceFn: Service}
+func NewGetHandler(
+	client clusterclient.Client,
+	cfg config.Configuration,
+	instrumentOpts instrument.Options,
+) *GetHandler {
+	return &GetHandler{
+		client:         client,
+		cfg:            cfg,
+		serviceFn:      Service,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
 
 	service, err := h.serviceFn(h.client)
 	if err != nil {
-		logger.Error("unable to get service", zap.Any("error", err))
+		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	t, err := service.Get(topicName(r.Header))
 	if err != nil {
-		logger.Error("unable to get topic", zap.Any("error", err))
+		logger.Error("unable to get topic", zap.Error(err))
 		xhttp.Error(w, err, http.StatusNotFound)
 		return
 	}
 
 	pb, err := topic.ToProto(t)
 	if err != nil {
-		logger.Error("unable to get topic protobuf", zap.Any("error", err))
+		logger.Error("unable to get topic protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

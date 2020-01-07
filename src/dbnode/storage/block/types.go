@@ -24,16 +24,16 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Metadata captures block metadata
@@ -170,7 +170,7 @@ type DatabaseBlock interface {
 	WasRetrievedFromDisk() bool
 
 	// Reset resets the block start time, duration, and the segment.
-	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
+	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment, nsCtx namespace.Context)
 
 	// ResetFromDisk resets the block start time, duration, segment, and id.
 	ResetFromDisk(
@@ -178,6 +178,7 @@ type DatabaseBlock interface {
 		blockSize time.Duration,
 		segment ts.Segment,
 		id ident.ID,
+		nsCtx namespace.Context,
 	)
 
 	// Discard closes the block, but returns the (unfinalized) segment.
@@ -226,6 +227,7 @@ type OnRetrieveBlock interface {
 		tags ident.TagIterator,
 		startTime time.Time,
 		segment ts.Segment,
+		nsCtx namespace.Context,
 	)
 }
 
@@ -238,17 +240,21 @@ type OnReadBlock interface {
 // OnRetrieveBlock interface.
 type OnRetrieveBlockFn func(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
+	nsCtx namespace.Context,
 )
 
 // OnRetrieveBlock implements the OnRetrieveBlock interface.
 func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
+	nsCtx namespace.Context,
 ) {
-	fn(id, startTime, segment)
+	fn(id, tags, startTime, segment, nsCtx)
 }
 
 // RetrievableBlockMetadata describes a retrievable block.
@@ -271,6 +277,7 @@ type DatabaseBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
+		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 }
 
@@ -282,18 +289,21 @@ type DatabaseShardBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
+		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
+	// Retriever provides the DatabaseBlockRetriever for the given namespace.
 	Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error)
 }
 
 // DatabaseShardBlockRetrieverManager creates and holds shard block
 // retrievers binding shards to an existing retriever.
 type DatabaseShardBlockRetrieverManager interface {
+	// ShardRetriever provides the DatabaseShardBlockRetriever for the given shard.
 	ShardRetriever(shard uint32) DatabaseShardBlockRetriever
 }
 
@@ -364,6 +374,91 @@ type FetchBlocksMetadataResultsPool interface {
 
 	// Put puts an fetchBlocksMetadataResults back to pool
 	Put(res FetchBlocksMetadataResults)
+}
+
+// LeaseManager is a manager of block leases and leasers.
+type LeaseManager interface {
+	// RegisterLeaser registers the leaser to receive UpdateOpenLease()
+	// calls when leases need to be updated.
+	RegisterLeaser(leaser Leaser) error
+	// UnregisterLeaser unregisters the leaser from receiving UpdateOpenLease()
+	// calls.
+	UnregisterLeaser(leaser Leaser) error
+	// OpenLease opens a lease.
+	OpenLease(
+		leaser Leaser,
+		descriptor LeaseDescriptor,
+		state LeaseState,
+	) error
+	// OpenLatestLease opens a lease for the latest LeaseState for a given
+	// LeaseDescriptor.
+	OpenLatestLease(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error)
+	// UpdateOpenLeases propagate a call to UpdateOpenLease() to each registered
+	// leaser.
+	UpdateOpenLeases(
+		descriptor LeaseDescriptor,
+		state LeaseState,
+	) (UpdateLeasesResult, error)
+	// SetLeaseVerifier sets the LeaseVerifier (for delayed initialization).
+	SetLeaseVerifier(leaseVerifier LeaseVerifier) error
+}
+
+// UpdateLeasesResult is the result of a call to update leases.
+type UpdateLeasesResult struct {
+	LeasersUpdatedLease int
+	LeasersNoOpenLease  int
+}
+
+// LeaseDescriptor describes a lease (like an ID).
+type LeaseDescriptor struct {
+	Namespace  ident.ID
+	Shard      uint32
+	BlockStart time.Time
+}
+
+// LeaseState is the current state of a lease which can be
+// requested to be updated.
+type LeaseState struct {
+	Volume int
+}
+
+// LeaseVerifier verifies that a lease is valid.
+type LeaseVerifier interface {
+	// VerifyLease is called to determine if the requested lease is valid.
+	VerifyLease(
+		descriptor LeaseDescriptor,
+		state LeaseState,
+	) error
+
+	// LatestState returns the latest LeaseState for a given descriptor.
+	LatestState(descriptor LeaseDescriptor) (LeaseState, error)
+}
+
+// UpdateOpenLeaseResult is the result of processing an update lease.
+type UpdateOpenLeaseResult uint
+
+const (
+	// UpdateOpenLease is used to communicate a lease updated successfully.
+	UpdateOpenLease UpdateOpenLeaseResult = iota
+	// NoOpenLease is used to communicate there is no related open lease.
+	NoOpenLease
+)
+
+// Leaser is a block leaser.
+type Leaser interface {
+	// UpdateOpenLease is called on the Leaser when the latest state
+	// has changed and the leaser needs to update their lease. The leaser
+	// should update its state (releasing any resources as necessary and
+	// optionally acquiring new ones related to the updated lease) accordingly,
+	// but it should *not* call LeaseManager.OpenLease() with the provided
+	// descriptor and state.
+	//
+	// UpdateOpenLease will never be called concurrently on the same Leaser. Each
+	// call to UpdateOpenLease() must return before the next one will begin.
+	UpdateOpenLease(
+		descriptor LeaseDescriptor,
+		state LeaseState,
+	) (UpdateOpenLeaseResult, error)
 }
 
 // Options represents the options for a database block

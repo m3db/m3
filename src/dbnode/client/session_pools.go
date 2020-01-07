@@ -24,8 +24,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 type sessionPools struct {
@@ -36,6 +36,7 @@ type sessionPools struct {
 	fetchBatchOp                *fetchBatchOpPool
 	fetchBatchOpArrayArray      *fetchBatchOpArrayArrayPool
 	fetchTaggedOp               fetchTaggedOpPool
+	aggregateOp                 aggregateOpPool
 	fetchState                  fetchStatePool
 	multiReaderIteratorArray    encoding.MultiReaderIteratorArrayPool
 	tagEncoder                  serialize.TagEncoderPool
@@ -48,6 +49,7 @@ type sessionPools struct {
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
 	fetchTaggedAttempt          fetchTaggedAttemptPool
+	aggregateAttempt            aggregateAttemptPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
 }
 

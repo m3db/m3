@@ -25,8 +25,8 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/stats"
-	xts "github.com/m3db/m3/src/query/ts"
-	xpool "github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/query/util"
+	xpool "github.com/m3db/m3/src/x/pool"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -135,7 +135,12 @@ var (
 	consolidationPools    xpool.BucketizedObjectPool
 )
 
-func newValues(ctx context.Context, millisPerStep, numSteps int, initialValue float64) MutableValues {
+func newValues(
+	ctx context.Context,
+	millisPerStep,
+	numSteps int,
+	initialValue float64,
+) MutableValues {
 	var values []float64
 	var pooled bool
 
@@ -152,8 +157,8 @@ func newValues(ctx context.Context, millisPerStep, numSteps int, initialValue fl
 		values = make([]float64, numSteps)
 	}
 
-	// Faster way to initialize an array instead of a loop
-	xts.Memset(values, initialValue)
+	// Faster way to initialize an array instead of a loop.
+	util.Memset(values, initialValue)
 	vals := &float64Values{
 		ctx:           ctx,
 		millisPerStep: millisPerStep,
@@ -204,14 +209,9 @@ func (b *float64Values) Slice(begin, end int) Values {
 		millisPerStep: b.millisPerStep,
 		values:        b.values[begin:end],
 		numSteps:      end - begin,
-		allNaN:        false, // NB(mmihic): Someone might modify the parent and we won't be able to tell
+		// NB(mmihic): Someone might modify the parent and we won't be able to tell
+		allNaN: false,
 	}
-}
-
-// PoolBucket is a pool bucket
-type PoolBucket struct {
-	Capacity int
-	Count    int
 }
 
 func initPools(valueBuckets, consolidationBuckets []xpool.Bucket) error {
@@ -242,8 +242,6 @@ func initPools(valueBuckets, consolidationBuckets []xpool.Bucket) error {
 }
 
 // EnablePooling enables pooling.
-func EnablePooling(
-	valueBuckets, consolidationBuckets []xpool.Bucket,
-) {
+func EnablePooling(valueBuckets, consolidationBuckets []xpool.Bucket) {
 	initPools(valueBuckets, consolidationBuckets)
 }

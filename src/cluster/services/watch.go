@@ -21,7 +21,7 @@
 package services
 
 import (
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3/src/x/watch"
 )
 
 // NewWatch creates a Watch.

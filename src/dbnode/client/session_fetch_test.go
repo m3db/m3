@@ -32,13 +32,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/metrics"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	xretry "github.com/m3db/m3x/retry"
-	xtime "github.com/m3db/m3x/time"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	xretry "github.com/m3db/m3/src/x/retry"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -53,6 +55,16 @@ const (
 var (
 	fetchFailureErrStr = "a specific fetch error"
 )
+
+type testOptions struct {
+	nsID        ident.ID
+	opts        Options
+	encoderPool encoding.EncoderPool
+	setFetchAnn setFetchAnnotation
+	setWriteAnn setWriteAnnotation
+	annEqual    assertAnnotationEqual
+	expectedErr error
+}
 
 type testFetch struct {
 	id     string
@@ -82,6 +94,10 @@ type testValue struct {
 
 type testValuesByTime []testValue
 
+type setFetchAnnotation func([]testFetch) []testFetch
+type setWriteAnnotation func(*writeStub)
+type assertAnnotationEqual func(*testing.T, []byte, []byte)
+
 func (v testValuesByTime) Len() int      { return len(v) }
 func (v testValuesByTime) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
 func (v testValuesByTime) Less(i, j int) bool {
@@ -106,12 +122,20 @@ func TestSessionFetchNotOpenError(t *testing.T) {
 }
 
 func TestSessionFetchIDs(t *testing.T) {
+	opts := newSessionTestOptions()
+	testSessionFetchIDs(t, testOptions{nsID: ident.StringID(testNamespaceName), opts: opts})
+}
+
+func testSessionFetchIDs(t *testing.T, testOpts testOptions) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions().SetFetchBatchSize(2)
+	nsID := testOpts.nsID
+	opts := testOpts.opts
+	opts = opts.SetFetchBatchSize(2)
+
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	start := time.Now().Truncate(time.Hour)
@@ -134,22 +158,34 @@ func TestSessionFetchIDs(t *testing.T) {
 			{9.0, start.Add(3 * time.Minute), xtime.Second, nil},
 		}},
 	})
+	if testOpts.setFetchAnn != nil {
+		fetches = testOpts.setFetchAnn(fetches)
+	}
 
-	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, fetches)
+	expectedFetches := fetches
+	if testOpts.expectedErr != nil {
+		// If an error is expected then don't setup any go mock expectation for the host queues since
+		// they will never be fulfilled and will hang the test.
+		expectedFetches = nil
+	}
+	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, expectedFetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, 0)
+		fulfillFetchBatchOps(t, testOpts, fetches, *fetchBatchOps, 0)
 	}()
 
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
-	results, err := session.FetchIDs(ident.StringID(testNamespaceName), fetches.IDsIter(), start, end)
-	assert.NoError(t, err)
-	assertFetchResults(t, start, end, fetches, results)
-
-	assert.NoError(t, session.Close())
+	results, err := session.FetchIDs(nsID, fetches.IDsIter(), start, end)
+	if testOpts.expectedErr == nil {
+		require.NoError(t, err)
+		assertFetchResults(t, start, end, fetches, results, testOpts.annEqual)
+	} else {
+		require.Equal(t, testOpts.expectedErr, err)
+	}
+	require.NoError(t, session.Close())
 }
 
 func TestSessionFetchIDsWithRetries(t *testing.T) {
@@ -160,6 +196,8 @@ func TestSessionFetchIDsWithRetries(t *testing.T) {
 		SetFetchBatchSize(2).
 		SetFetchRetrier(
 			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+	testOpts := testOptions{nsID: ident.StringID(testNamespaceName), opts: opts}
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -180,14 +218,14 @@ func TestSessionFetchIDsWithRetries(t *testing.T) {
 	go func() {
 		// Fulfill success fetch ops once all are enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchBatchOps(t, fetches, *successBatchOps, 0)
+		fulfillFetchBatchOps(t, testOpts, fetches, *successBatchOps, 0)
 	}()
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchIDs(ident.StringID(testNamespaceName), fetches.IDsIter(), start, end)
+	results, err := session.FetchIDs(testOpts.nsID, fetches.IDsIter(), start, end)
 	assert.NoError(t, err)
-	assertFetchResults(t, start, end, fetches, results)
+	assertFetchResults(t, start, end, fetches, results, nil)
 
 	assert.NoError(t, session.Close())
 }
@@ -197,6 +235,8 @@ func TestSessionFetchIDsTrimsWindowsInTimeWindow(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSessionTestOptions().SetFetchBatchSize(2)
+	testOpts := testOptions{nsID: ident.StringID(testNamespaceName), opts: opts}
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -219,14 +259,14 @@ func TestSessionFetchIDsTrimsWindowsInTimeWindow(t *testing.T) {
 	go func() {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, 0)
+		fulfillFetchBatchOps(t, testOpts, fetches, *fetchBatchOps, 0)
 	}()
 
 	assert.NoError(t, session.Open())
 
-	result, err := session.Fetch(ident.StringID(testNamespaceName), ident.StringID(fetches[0].id), start, end)
+	result, err := session.Fetch(testOpts.nsID, ident.StringID(fetches[0].id), start, end)
 	assert.NoError(t, err)
-	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
+	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result), nil)
 	assert.Equal(t, 2, assertion.trimToTimeRange)
 
 	assert.NoError(t, session.Close())
@@ -327,6 +367,8 @@ func testFetchConsistencyLevel(
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 		SetMetricsScope(scope))
 
+	testOpts := testOptions{nsID: ident.StringID(testNamespaceName), opts: opts}
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -347,7 +389,7 @@ func testFetchConsistencyLevel(
 	go func() {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, failures)
+		fulfillFetchBatchOps(t, testOpts, fetches, *fetchBatchOps, failures)
 	}()
 
 	assert.NoError(t, session.Open())
@@ -356,7 +398,7 @@ func testFetchConsistencyLevel(
 		fetches.IDsIter(), start, end)
 	if expected == outcomeSuccess {
 		assert.NoError(t, err)
-		assertFetchResults(t, start, end, fetches, results)
+		assertFetchResults(t, start, end, fetches, results, nil)
 	} else {
 		assert.Error(t, err)
 		assert.True(t, IsInternalServerError(err))
@@ -449,8 +491,9 @@ func prepareTestFetchEnqueues(
 	return &fetchBatchOps, enqueueWg
 }
 
-func fulfillTszFetchBatchOps(
+func fulfillFetchBatchOps(
 	t *testing.T,
+	testOpts testOptions,
 	fetches []testFetch,
 	fetchBatchOps []*fetchBatchOp,
 	failures int,
@@ -479,7 +522,14 @@ func fulfillTszFetchBatchOps(
 					break
 				}
 
-				encoder := m3tsz.NewEncoder(f.values[0].t, nil, true, nil)
+				var encoder encoding.Encoder
+				if testOpts.encoderPool == nil {
+					encoder = m3tsz.NewEncoder(f.values[0].t, nil, true, nil)
+				} else {
+					encoder = testOpts.encoderPool.Get()
+					nsCtx := namespace.NewContextFor(testOpts.nsID, testOpts.opts.SchemaRegistry())
+					encoder.Reset(f.values[0].t, 0, nsCtx.Schema)
+				}
 				for _, value := range f.values {
 					dp := ts.Datapoint{
 						Timestamp: value.t,
@@ -489,7 +539,7 @@ func fulfillTszFetchBatchOps(
 				}
 				seg := encoder.Discard()
 				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
-					Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
+					Merged: &rpc.Segment{Head: bytesIfNotNil(seg.Head), Tail: bytesIfNotNil(seg.Tail)},
 				}}, nil)
 				calledCompletionFn = true
 				break
@@ -499,11 +549,19 @@ func fulfillTszFetchBatchOps(
 	}
 }
 
+func bytesIfNotNil(data checked.Bytes) []byte {
+	if data != nil {
+		return data.Bytes()
+	}
+	return nil
+}
+
 func assertFetchResults(
 	t *testing.T,
 	start, end time.Time,
 	fetches []testFetch,
 	results encoding.SeriesIterators,
+	annEqual assertAnnotationEqual,
 ) testFetchResultsAssertion {
 	trimToTimeRange := 0
 	assert.Equal(t, len(fetches), results.Len())
@@ -533,10 +591,15 @@ func assertFetchResults(
 		for series.Next() {
 			value := expectedValues[j]
 			dp, unit, annotation := series.Current()
+
 			assert.True(t, dp.Timestamp.Equal(value.t))
 			assert.Equal(t, value.value, dp.Value)
 			assert.Equal(t, value.unit, unit)
-			assert.Equal(t, value.annotation, []byte(annotation))
+			if annEqual != nil {
+				annEqual(t, value.annotation, []byte(annotation))
+			} else {
+				assert.Equal(t, value.annotation, []byte(annotation))
+			}
 			j++
 		}
 		assert.Equal(t, len(expectedValues), j)

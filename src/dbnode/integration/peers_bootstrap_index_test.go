@@ -27,12 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/ident"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,10 +42,9 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 
 	blockSize := 2 * time.Hour
-
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(blockSize).
@@ -61,7 +60,11 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{ns1})
+		SetNamespaces([]namespace.Metadata{ns1}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
@@ -115,7 +118,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 			Start:     now,
 		},
 	})
-	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
@@ -148,28 +151,28 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhausitive, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhausitive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
-		exhausitive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
+	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
+		exhaustive: true,
+		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhausitive, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhausitive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
-		exhausitive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
+	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
+		exhaustive: true,
+		expected:   []generate.Series{barSeries, bazSeries},
 	})
 }

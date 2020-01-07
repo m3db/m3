@@ -25,10 +25,10 @@ import (
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/config/listenaddress"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/config/listenaddress"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 
 	"go.uber.org/zap"
 )

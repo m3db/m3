@@ -4,22 +4,8 @@ include $(SELF_DIR)/../../.ci/common.mk
 gopath_prefix        := $(GOPATH)/src
 m3ninx_package       := github.com/m3db/m3/src/m3ninx
 m3ninx_package_path  := $(gopath_prefix)/$(m3ninx_package)
-m3x_package          := github.com/m3db/m3x
+m3x_package          := github.com/m3db/m3/src/x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver  := 76a586220279667a81eaaec4150de182f4d5077c
-
-.PHONY: install-m3x-repo
-install-m3x-repo: install-glide
-	# Check if repository exists, if not get it
-	test -d $(m3x_package_path) || go get -u $(m3x_package)
-	test -d $(m3x_package_path)/vendor || (cd $(m3x_package_path) && glide install)
-	test "$(shell cd $(m3x_package_path) && git diff --shortstat 2>/dev/null)" = "" || ( \
-		echo "WARNING: m3x repository is dirty, generated files might not be as expected" \
-	)
-	# If does exist but not at min version then update it
-	(cd $(m3x_package_path) && git cat-file -t $(m3x_package_min_ver) > /dev/null) || ( \
-		echo "WARNING: m3x repository is below commit $(m3x_package_min_ver), generated files might not be as expected" \
-	)
 
 # Generation rule for all generated types
 .PHONY: genny-all
@@ -47,7 +33,7 @@ genny-map-all:                          \
 
 # Map generation rule for index/segment/builder.PostingsMap
 .PHONY: genny-map-segment-builder-postingsmap
-genny-map-segment-builder-postingsmap: install-m3x-repo
+genny-map-segment-builder-postingsmap:
 	cd $(m3x_package_path) && make byteshashmap-gen          \
 		pkg=builder                                            \
 		value_type=postings.MutableList                        \
@@ -63,7 +49,7 @@ genny-map-segment-builder-postingsmap: install-m3x-repo
 
 	# Map generation rule for index/segment/builder.IDsMap
 .PHONY: genny-map-segment-builder-idsmap
-genny-map-segment-builder-idsmap: install-m3x-repo
+genny-map-segment-builder-idsmap:
 	cd $(m3x_package_path) && make byteshashmap-gen          \
 		pkg=builder                                            \
 		value_type=struct{}                                    \
@@ -80,7 +66,7 @@ genny-map-segment-builder-idsmap: install-m3x-repo
 
 # Map generation rule for index/segment/builder.fieldsMap
 .PHONY: genny-map-segment-builder-fieldsmap
-genny-map-segment-builder-fieldsmap: install-m3x-repo
+genny-map-segment-builder-fieldsmap:
 	cd $(m3x_package_path) && make byteshashmap-gen          \
 		pkg=builder                                            \
 		value_type=*terms                                      \
@@ -96,7 +82,7 @@ genny-map-segment-builder-fieldsmap: install-m3x-repo
 
 # Map generation rule for index/segment/mem.fieldsMap
 .PHONY: genny-map-segment-mem-fieldsmap
-genny-map-segment-mem-fieldsmap: install-m3x-repo
+genny-map-segment-mem-fieldsmap:
 	cd $(m3x_package_path) && make byteshashmap-gen      \
 		pkg=mem                                            \
 		value_type=*concurrentPostingsMap                  \
@@ -112,13 +98,13 @@ genny-map-segment-mem-fieldsmap: install-m3x-repo
 
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
-genny-arraypool-all:                     \
-	genny-arraypool-bytes-slice-array-pool \
-	genny-arraypool-document-array-pool    \
+genny-arraypool-all:                        \
+	genny-arraypool-bytes-slice-array-pool    \
+	genny-arraypool-document-array-pool       \
 
 # arraypool generation rule for ./x/bytes.SliceArrayPool
 .PHONY: genny-arraypool-bytes-slice-array-pool
-genny-arraypool-bytes-slice-array-pool: install-m3x-repo
+genny-arraypool-bytes-slice-array-pool:
 	cd $(m3x_package_path) && make genny-arraypool \
 	pkg=bytes                                      \
 	elem_type=[]byte                               \
@@ -128,9 +114,9 @@ genny-arraypool-bytes-slice-array-pool: install-m3x-repo
 	rename_type_middle=Slice                       \
 	rename_constructor=NewSliceArrayPool           \
 
-	# arraypool generation rule for ./doc.DocumentArrayPool
+# arraypool generation rule for ./doc.DocumentArrayPool
 .PHONY: genny-arraypool-document-array-pool
-genny-arraypool-document-array-pool: install-m3x-repo
+genny-arraypool-document-array-pool:
 	cd $(m3x_package_path) && make genny-arraypool \
 	pkg=doc                                        \
 	elem_type=Document                             \
@@ -140,5 +126,4 @@ genny-arraypool-document-array-pool: install-m3x-repo
 	rename_type_middle=Document                    \
 	rename_constructor=NewDocumentArrayPool        \
 	rename_gen_types=true                          \
-
 

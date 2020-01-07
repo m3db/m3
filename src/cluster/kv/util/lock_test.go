@@ -23,6 +23,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"testing"
@@ -630,6 +631,81 @@ func TestWatchAndUpdateTime(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(100 * time.Millisecond)
 	require.Equal(t, newTime.Unix(), valueFn().Unix())
+
+	leaktest.Check(t)
+}
+
+func TestWatchAndUpdateDuration(t *testing.T) {
+	testConfig := struct {
+		sync.RWMutex
+		v time.Duration
+	}{}
+
+	valueFn := func() time.Duration {
+		testConfig.RLock()
+		defer testConfig.RUnlock()
+
+		return testConfig.v
+	}
+
+	var (
+		store        = mem.NewStore()
+		defaultValue = time.Duration(rand.Int63())
+	)
+
+	watch, err := WatchAndUpdateDuration(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
+	require.NoError(t, err)
+
+	newDuration := time.Duration(rand.Int63())
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: int64(newDuration)})
+	require.NoError(t, err)
+	for {
+		if valueFn() == newDuration {
+			break
+		}
+	}
+
+	// Malformed updates should not be applied.
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 100})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, newDuration, valueFn())
+
+	newDuration = time.Duration(rand.Int63())
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: int64(newDuration)})
+	require.NoError(t, err)
+	for {
+		if valueFn() == newDuration {
+			break
+		}
+	}
+
+	// Nil updates should apply the default value.
+	_, err = store.Delete("foo")
+	require.NoError(t, err)
+	for {
+		if valueFn() == defaultValue {
+			break
+		}
+	}
+
+	newDuration = time.Duration(rand.Int63())
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: int64(newDuration)})
+	require.NoError(t, err)
+	for {
+		if valueFn() == newDuration {
+			break
+		}
+	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: int64(defaultValue)})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, newDuration, valueFn())
 
 	leaktest.Check(t)
 }

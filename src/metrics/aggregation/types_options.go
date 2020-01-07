@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // QuantileTypeStringFn returns the type string for a quantile value.

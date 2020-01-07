@@ -28,13 +28,20 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
+	testCommitLogBootstrapWithSnapshots(t, nil, nil)
+}
+
+func TestProtoCommitLogBootstrapWithSnapshots(t *testing.T) {
+	testCommitLogBootstrapWithSnapshots(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -51,6 +58,12 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		ns1 = opts.Namespaces()[0]
+		ns2 = opts.Namespaces()[1]
+	}
+
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
@@ -66,14 +79,14 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	log.Info("generating data")
 	var (
 		now        = setup.getNowFn().Truncate(blockSize)
-		seriesMaps = generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+		seriesMaps = generateSeriesMaps(30, updateInputConfig, now.Add(-2*blockSize), now.Add(-blockSize))
 	)
 	log.Info("writing data")
 
 	var (
 		snapshotInterval            = 10 * time.Second
 		numDatapointsNotInSnapshots = 0
-		pred                        = func(dp ts.Datapoint) bool {
+		pred                        = func(dp generate.TestValue) bool {
 			blockStart := dp.Timestamp.Truncate(blockSize)
 			if dp.Timestamp.Before(blockStart.Add(snapshotInterval)) {
 				return true
@@ -85,10 +98,10 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	)
 
 	writeSnapshotsWithPredicate(
-		t, setup, commitLogOpts, seriesMaps, ns1, nil, pred, snapshotInterval)
+		t, setup, commitLogOpts, seriesMaps, 0,ns1, nil, pred, snapshotInterval)
 
 	numDatapointsNotInCommitLogs := 0
-	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp ts.Datapoint) bool {
+	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp generate.TestValue) bool {
 		blockStart := dp.Timestamp.Truncate(blockSize)
 		if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
 			return true

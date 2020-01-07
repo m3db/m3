@@ -28,8 +28,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -58,9 +58,11 @@ func (m *MockWriteBatch) EXPECT() *MockWriteBatchMockRecorder {
 }
 
 // Add mocks base method
-func (m *MockWriteBatch) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) {
+func (m *MockWriteBatch) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Add indicates an expected call of Add
@@ -70,15 +72,29 @@ func (mr *MockWriteBatchMockRecorder) Add(originalIndex, id, timestamp, value, u
 }
 
 // AddTagged mocks base method
-func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) {
+func (m *MockWriteBatch) AddTagged(originalIndex int, id ident.ID, tags ident.TagIterator, encodedTags EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddTagged", originalIndex, id, tags, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AddTagged indicates an expected call of AddTagged
-func (mr *MockWriteBatchMockRecorder) AddTagged(originalIndex, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockWriteBatchMockRecorder) AddTagged(originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockWriteBatch)(nil).AddTagged), originalIndex, id, tags, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockWriteBatch)(nil).AddTagged), originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation)
+}
+
+// SetFinalizeEncodedTagsFn mocks base method
+func (m *MockWriteBatch) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeEncodedTagsFn", f)
+}
+
+// SetFinalizeEncodedTagsFn indicates an expected call of SetFinalizeEncodedTagsFn
+func (mr *MockWriteBatchMockRecorder) SetFinalizeEncodedTagsFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeEncodedTagsFn", reflect.TypeOf((*MockWriteBatch)(nil).SetFinalizeEncodedTagsFn), f)
 }
 
 // SetFinalizeAnnotationFn mocks base method
@@ -193,9 +209,11 @@ func (m *MockBatchWriter) EXPECT() *MockBatchWriterMockRecorder {
 }
 
 // Add mocks base method
-func (m *MockBatchWriter) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) {
+func (m *MockBatchWriter) Add(originalIndex int, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "Add", originalIndex, id, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Add indicates an expected call of Add
@@ -205,15 +223,29 @@ func (mr *MockBatchWriterMockRecorder) Add(originalIndex, id, timestamp, value, 
 }
 
 // AddTagged mocks base method
-func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) {
+func (m *MockBatchWriter) AddTagged(originalIndex int, id ident.ID, tags ident.TagIterator, encodedTags EncodedTags, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddTagged", originalIndex, id, tags, timestamp, value, unit, annotation)
+	ret := m.ctrl.Call(m, "AddTagged", originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AddTagged indicates an expected call of AddTagged
-func (mr *MockBatchWriterMockRecorder) AddTagged(originalIndex, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+func (mr *MockBatchWriterMockRecorder) AddTagged(originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockBatchWriter)(nil).AddTagged), originalIndex, id, tags, timestamp, value, unit, annotation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTagged", reflect.TypeOf((*MockBatchWriter)(nil).AddTagged), originalIndex, id, tags, encodedTags, timestamp, value, unit, annotation)
+}
+
+// SetFinalizeEncodedTagsFn mocks base method
+func (m *MockBatchWriter) SetFinalizeEncodedTagsFn(f FinalizeEncodedTagsFn) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizeEncodedTagsFn", f)
+}
+
+// SetFinalizeEncodedTagsFn indicates an expected call of SetFinalizeEncodedTagsFn
+func (mr *MockBatchWriterMockRecorder) SetFinalizeEncodedTagsFn(f interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizeEncodedTagsFn", reflect.TypeOf((*MockBatchWriter)(nil).SetFinalizeEncodedTagsFn), f)
 }
 
 // SetFinalizeAnnotationFn mocks base method

@@ -20,27 +20,27 @@
 
 package index
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 type resultsPool struct {
 	pool pool.ObjectPool
 }
 
-// NewResultsPool creates a new ResultsPool.
-func NewResultsPool(opts pool.ObjectPoolOptions) ResultsPool {
+// NewQueryResultsPool creates a new QueryResultsPool.
+func NewQueryResultsPool(opts pool.ObjectPoolOptions) QueryResultsPool {
 	return &resultsPool{pool: pool.NewObjectPool(opts)}
 }
 
-func (p *resultsPool) Init(alloc ResultsAllocator) {
+func (p *resultsPool) Init(alloc QueryResultsAllocator) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *resultsPool) Get() Results {
-	return p.pool.Get().(Results)
+func (p *resultsPool) Get() QueryResults {
+	return p.pool.Get().(QueryResults)
 }
 
-func (p *resultsPool) Put(value Results) {
+func (p *resultsPool) Put(value QueryResults) {
 	p.pool.Put(value)
 }

@@ -2,7 +2,6 @@
 coordinator:
   # Address for M3Coordinator to listen for traffic.
   listenAddress:
-    type: "config"
     value: "0.0.0.0:7201"
 
   # All configured M3DB namespaces must be listed in this config if running an
@@ -12,6 +11,10 @@ coordinator:
       - namespace: default
         type: unaggregated
         retention: 48h
+
+  # Configuratino for M3Coordinator logging.
+  logging:
+    level: info
 
   # Configuration for emitting M3Coordinator metrics.
   metrics:
@@ -113,8 +116,8 @@ db:
         - commitlog
         - peers
         - uninitialized_topology
-    fs:
-        numProcessorsPerCPU: 0.125
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
 
   cache:
     # Caching policy for database blocks.
@@ -129,9 +132,8 @@ db:
     # Configuration for the commitlog queue. High throughput setups may require higher
     # values. Higher values will use more memory.
     queue:
-        calculationType: fixed
-        size: 2097152
-    blockSize: 10m
+      calculationType: fixed
+      size: 2097152
 
   fs:
     # Directory to store M3DB data in.
@@ -151,9 +153,6 @@ db:
   # This feature is currently not working, do not enable.
   repair:
     enabled: false
-    interval: 2h
-    offset: 30m
-    jitter: 1h
     throttle: 2m
     checkInterval: 1m
 
@@ -199,7 +198,7 @@ db:
         capacity: 4096
         lowWatermark: 0.7
         highWatermark: 1.0
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
         size: 131072
         capacity: 3
         lowWatermark: 0.7

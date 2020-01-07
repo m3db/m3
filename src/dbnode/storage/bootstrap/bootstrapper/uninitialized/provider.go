@@ -35,9 +35,9 @@ type uninitializedTopologyBootstrapperProvider struct {
 	next bootstrap.BootstrapperProvider
 }
 
-// NewuninitializedTopologyBootstrapperProvider creates a new uninitialized bootstrapper
+// NewUninitializedTopologyBootstrapperProvider creates a new uninitialized bootstrapper
 // provider.
-func NewuninitializedTopologyBootstrapperProvider(
+func NewUninitializedTopologyBootstrapperProvider(
 	opts Options,
 	next bootstrap.BootstrapperProvider,
 ) bootstrap.BootstrapperProvider {

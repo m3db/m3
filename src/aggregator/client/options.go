@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -50,6 +50,12 @@ const (
 
 	// By default the oldest metrics in the queue are dropped when it is full.
 	defaultDropType = DropOldest
+
+	// By default set maximum batch size to 32k
+	defaultMaxBatchSize = 2 << 14
+
+	// By default write at least every 100ms
+	defaultBatchFlushDeadline = 100 * time.Millisecond
 )
 
 // Options provide a set of client options.
@@ -127,6 +133,18 @@ type Options interface {
 	// QueueDropType returns sets the strategy for which metrics should metrics should be dropped
 	// when the queue is full.
 	QueueDropType() DropType
+
+	// SetMaxBatchSize sets the buffer limit that triggers a write of queued buffers.
+	SetMaxBatchSize(value int) Options
+
+	// MaxBatchSize returns the maximum buffer size that triggers a queue drain.
+	MaxBatchSize() int
+
+	// SetBatchFlushDeadline sets the deadline that triggers a write of queued buffers.
+	SetBatchFlushDeadline(value time.Duration) Options
+
+	// BatchFlushDeadline returns the deadline that triggers a write of queued buffers.
+	BatchFlushDeadline() time.Duration
 }
 
 type options struct {
@@ -142,6 +160,8 @@ type options struct {
 	maxTimerBatchSize          int
 	instanceQueueSize          int
 	dropType                   DropType
+	maxBatchSize               int
+	batchFlushDeadline         time.Duration
 }
 
 // NewOptions creates a new set of client options.
@@ -159,6 +179,8 @@ func NewOptions() Options {
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
 		instanceQueueSize:          defaultInstanceQueueSize,
 		dropType:                   defaultDropType,
+		maxBatchSize:               defaultMaxBatchSize,
+		batchFlushDeadline:         defaultBatchFlushDeadline,
 	}
 }
 
@@ -280,4 +302,31 @@ func (o *options) SetQueueDropType(value DropType) Options {
 
 func (o *options) QueueDropType() DropType {
 	return o.dropType
+}
+
+func (o *options) SetMaxBatchSize(value int) Options {
+	opts := *o
+	if value < 0 {
+		value = defaultMaxBatchSize
+	}
+	opts.maxBatchSize = value
+
+	return &opts
+}
+
+func (o *options) MaxBatchSize() int {
+	return o.maxBatchSize
+}
+
+func (o *options) SetBatchFlushDeadline(value time.Duration) Options {
+	opts := *o
+	if value < 0 {
+		value = defaultBatchFlushDeadline
+	}
+	opts.batchFlushDeadline = value
+	return &opts
+}
+
+func (o *options) BatchFlushDeadline() time.Duration {
+	return o.batchFlushDeadline
 }

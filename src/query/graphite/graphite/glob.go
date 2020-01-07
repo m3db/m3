@@ -33,22 +33,18 @@ const (
 	ValidIdentifierRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"abcdefghijklmnopqrstuvwxyz" +
 		"0123456789" +
-		"$-_'|<>%#/"
+		"$-_'|<>%#/:"
 )
 
-var (
-	// ErrNotPattern signifies that the provided string is not a glob pattern
-	ErrNotPattern = errors.NewInvalidParamsError(fmt.Errorf("not a pattern"))
-)
-
-// GlobToRegexPattern converts a graphite-style glob into a regex pattern
-func GlobToRegexPattern(glob string) (string, error) {
+// GlobToRegexPattern converts a graphite-style glob into a regex pattern, with
+// a boolean indicating if the glob is regexed or not
+func GlobToRegexPattern(glob string) ([]byte, bool, error) {
 	return globToRegexPattern(glob, GlobOptions{})
 }
 
 // ExtendedGlobToRegexPattern converts a graphite-style glob into a regex pattern
 // with extended options
-func ExtendedGlobToRegexPattern(glob string, opts GlobOptions) (string, error) {
+func ExtendedGlobToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 	return globToRegexPattern(glob, opts)
 }
 
@@ -92,7 +88,7 @@ func (p *pattern) UnwriteLast() {
 	p.lastWriteLen = 0
 }
 
-func globToRegexPattern(glob string, opts GlobOptions) (string, error) {
+func globToRegexPattern(glob string, opts GlobOptions) ([]byte, bool, error) {
 	var (
 		pattern  pattern
 		escaping = false
@@ -141,7 +137,7 @@ func globToRegexPattern(glob string, opts GlobOptions) (string, error) {
 			// End non-capturing group
 			priorGroupStart := groupStartStack[len(groupStartStack)-1]
 			if priorGroupStart != '{' {
-				return "", errors.NewInvalidParamsError(fmt.Errorf("invalid '}' at %d, no prior for '{' in %s", i, glob))
+				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid '}' at %d, no prior for '{' in %s", i, glob))
 			}
 
 			pattern.WriteRune(')')
@@ -155,7 +151,7 @@ func globToRegexPattern(glob string, opts GlobOptions) (string, error) {
 			// End character range
 			priorGroupStart := groupStartStack[len(groupStartStack)-1]
 			if priorGroupStart != '[' {
-				return "", errors.NewInvalidParamsError(fmt.Errorf("invalid ']' at %d, no prior for '[' in %s", i, glob))
+				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid ']' at %d, no prior for '[' in %s", i, glob))
 			}
 
 			pattern.WriteRune(']')
@@ -168,21 +164,19 @@ func globToRegexPattern(glob string, opts GlobOptions) (string, error) {
 			if groupStartStack[len(groupStartStack)-1] == '{' {
 				pattern.WriteRune('|')
 			} else {
-				return "", errors.NewInvalidParamsError(fmt.Errorf("invalid ',' outside of matching group at pos %d in %s", i, glob))
+				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid ',' outside of matching group at pos %d in %s", i, glob))
 			}
 		default:
 			if !strings.ContainsRune(ValidIdentifierRunes, r) {
-				return "", errors.NewInvalidParamsError(fmt.Errorf("invalid character %c at pos %d in %s", r, i, glob))
+				return nil, false, errors.NewInvalidParamsError(fmt.Errorf("invalid character %c at pos %d in %s", r, i, glob))
 			}
 			pattern.WriteRune(r)
 		}
 	}
 
 	if len(groupStartStack) > 1 {
-		return "", errors.NewInvalidParamsError(fmt.Errorf("unbalanced '%c' in %s", groupStartStack[len(groupStartStack)-1], glob))
-	} else if !regexed {
-		return "", ErrNotPattern
+		return nil, false, errors.NewInvalidParamsError(fmt.Errorf("unbalanced '%c' in %s", groupStartStack[len(groupStartStack)-1], glob))
 	}
 
-	return pattern.String(), nil
+	return pattern.buff.Bytes(), regexed, nil
 }

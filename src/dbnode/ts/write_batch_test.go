@@ -24,11 +24,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -79,6 +83,23 @@ var (
 	}
 )
 
+var (
+	testTagEncodingPool = struct {
+		once sync.Once
+		pool serialize.TagEncoderPool
+	}{
+		pool: serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+			pool.NewObjectPoolOptions().SetSize(1)),
+	}
+)
+
+func getTagEncoder() serialize.TagEncoder {
+	testTagEncodingPool.once.Do(func() {
+		testTagEncodingPool.pool.Init()
+	})
+	return testTagEncodingPool.pool.Get()
+}
+
 type testWrite struct {
 	id         ident.ID
 	tagIter    ident.TagIterator
@@ -86,6 +107,14 @@ type testWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
+}
+
+func (w testWrite) encodedTags(t *testing.T) checked.Bytes {
+	encoder := getTagEncoder()
+	require.NoError(t, encoder.Encode(w.tagIter.Duplicate()))
+	data, ok := encoder.Data()
+	require.True(t, ok)
+	return data
 }
 
 func TestBatchWriterAddAndIter(t *testing.T) {
@@ -113,6 +142,7 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 			i,
 			write.id,
 			write.tagIter,
+			write.encodedTags(t).Bytes(),
 			write.timestamp,
 			write.value,
 			write.unit,
@@ -131,6 +161,7 @@ func TestBatchWriterSetSeries(t *testing.T) {
 			i,
 			write.id,
 			write.tagIter,
+			write.encodedTags(t).Bytes(),
 			write.timestamp,
 			write.value,
 			write.unit,
@@ -238,9 +269,13 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 
 func TestBatchWriterFinalizer(t *testing.T) {
 	var (
+		numEncodedTagsFinalized = 0
 		numAnnotationsFinalized = 0
 		numFinalized            = 0
 
+		finalizeEncodedTagsFn = func(b []byte) {
+			numEncodedTagsFinalized++
+		}
 		finalizeAnnotationFn = func(b []byte) {
 			numAnnotationsFinalized++
 		}
@@ -250,6 +285,7 @@ func TestBatchWriterFinalizer(t *testing.T) {
 	)
 
 	writeBatch := NewWriteBatch(batchSize, namespace, finalizeFn)
+	writeBatch.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
 	writeBatch.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, write := range writes {
@@ -257,6 +293,7 @@ func TestBatchWriterFinalizer(t *testing.T) {
 			i,
 			write.id,
 			write.tagIter,
+			write.encodedTags(t).Bytes(),
 			write.timestamp,
 			write.value,
 			write.unit,
@@ -267,5 +304,6 @@ func TestBatchWriterFinalizer(t *testing.T) {
 	writeBatch.Finalize()
 	require.Equal(t, 0, len(writeBatch.Iter()))
 	require.Equal(t, 1, numFinalized)
+	require.Equal(t, 3, numEncodedTagsFinalized)
 	require.Equal(t, 3, numAnnotationsFinalized)
 }

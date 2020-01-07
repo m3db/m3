@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // EmbeddedKV is an embedded etcd server wrapped around

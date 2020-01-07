@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
-	xerrors "github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // IsInternalServerError determines if the error is an internal server error.
@@ -94,6 +94,27 @@ func NumError(err error) int {
 	return 0
 }
 
+type hostNotAvailableError struct {
+	err error
+}
+
+func (h hostNotAvailableError) Error() string {
+	return h.err.Error()
+}
+
+func newHostNotAvailableError(err error) error {
+	return xerrors.NewNonRetryableError(hostNotAvailableError{err: err})
+}
+
+func isHostNotAvailableError(err error) bool {
+	inner := xerrors.GetInnerNonRetryableError(err)
+	if inner == nil {
+		return false
+	}
+	_, ok := inner.(hostNotAvailableError)
+	return ok
+}
+
 type consistencyResultError interface {
 	error
 
@@ -135,7 +156,7 @@ func newConsistencyResultError(
 		enqueued:    enqueued,
 		responded:   responded,
 		topLevelErr: topLevelErr,
-		errs:        append([]error{}, errs...),
+		errs:        append([]error(nil), errs...),
 	}
 }
 

@@ -36,9 +36,6 @@ import (
 type DecoderStream interface {
 	io.Reader
 
-	// Reset resets the decoder stream for decoding a new byte slice.
-	Reset(b []byte)
-
 	// ReadByte reads the next byte.
 	ReadByte() (byte, error)
 
@@ -46,25 +43,39 @@ type DecoderStream interface {
 	// yet. Only a single byte can be unread at a time, a consecutive call
 	// to UnreadByte will result in an error.
 	UnreadByte() error
+}
 
+// ByteDecoderStream is an additional interface that some decoder streams
+// can implement if they are backed by a byte slice.
+type ByteDecoderStream interface {
+	DecoderStream
+	ByteStream
+}
+
+// ByteStream is the interface that contains the additional methods which
+// can be implemented by streams that are backed by byte slices.
+type ByteStream interface {
 	// Bytes returns the ref to the bytes provided when Reset(...) is
 	// called. To get the current position into the byte slice use:
 	// len(s.Bytes()) - s.Remaining()
 	Bytes() []byte
+
+	// Remaining returns the remaining bytes in the stream.
+	Remaining() int64
+
+	// Reset resets the decoder stream for decoding a new byte slice.
+	Reset(b []byte)
 
 	// Skip progresses the reader by a certain amount of bytes, useful
 	// when taking a ref to some of the bytes and progressing the reader
 	// itself.
 	Skip(length int64) error
 
-	// Remaining returns the remaining bytes in the stream.
-	Remaining() int64
-
-	// Offset returns the current offset in the byte stream
+	// Offset returns the current offset in the byte stream.
 	Offset() int
 }
 
-type decoderStream struct {
+type byteDecoderStream struct {
 	reader *bytes.Reader
 	bytes  []byte
 	// Store so we don't have to keep calling len()
@@ -73,9 +84,9 @@ type decoderStream struct {
 	unreadByte   int
 }
 
-// NewDecoderStream creates a new decoder stream from a bytes ref.
-func NewDecoderStream(b []byte) DecoderStream {
-	return &decoderStream{
+// NewByteDecoderStream creates a new decoder stream from a bytes ref.
+func NewByteDecoderStream(b []byte) ByteDecoderStream {
+	return &byteDecoderStream{
 		reader:       bytes.NewReader(b),
 		bytes:        b,
 		lastReadByte: -1,
@@ -84,7 +95,7 @@ func NewDecoderStream(b []byte) DecoderStream {
 	}
 }
 
-func (s *decoderStream) Reset(b []byte) {
+func (s *byteDecoderStream) Reset(b []byte) {
 	s.reader.Reset(b)
 	s.bytes = b
 	s.lastReadByte = -1
@@ -92,7 +103,7 @@ func (s *decoderStream) Reset(b []byte) {
 	s.bytesLen = len(b)
 }
 
-func (s *decoderStream) Read(p []byte) (int, error) {
+func (s *byteDecoderStream) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -117,7 +128,7 @@ func (s *decoderStream) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (s *decoderStream) ReadByte() (byte, error) {
+func (s *byteDecoderStream) ReadByte() (byte, error) {
 	if s.unreadByte >= 0 {
 		r := byte(s.unreadByte)
 		s.unreadByte = -1
@@ -130,7 +141,7 @@ func (s *decoderStream) ReadByte() (byte, error) {
 	return b, err
 }
 
-func (s *decoderStream) UnreadByte() error {
+func (s *byteDecoderStream) UnreadByte() error {
 	if s.lastReadByte < 0 {
 		return fmt.Errorf("no previous read byte or already unread byte")
 	}
@@ -139,11 +150,11 @@ func (s *decoderStream) UnreadByte() error {
 	return nil
 }
 
-func (s *decoderStream) Bytes() []byte {
+func (s *byteDecoderStream) Bytes() []byte {
 	return s.bytes
 }
 
-func (s *decoderStream) Skip(length int64) error {
+func (s *byteDecoderStream) Skip(length int64) error {
 	defer func() {
 		if length > 0 {
 			s.unreadByte = -1
@@ -154,7 +165,7 @@ func (s *decoderStream) Skip(length int64) error {
 	return err
 }
 
-func (s *decoderStream) Remaining() int64 {
+func (s *byteDecoderStream) Remaining() int64 {
 	var unreadBytes int64
 	if s.unreadByte != -1 {
 		unreadBytes = 1
@@ -162,6 +173,6 @@ func (s *decoderStream) Remaining() int64 {
 	return int64(s.reader.Len()) + unreadBytes
 }
 
-func (s *decoderStream) Offset() int {
+func (s *byteDecoderStream) Offset() int {
 	return s.bytesLen - int(s.Remaining())
 }

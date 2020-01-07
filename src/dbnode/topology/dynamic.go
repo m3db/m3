@@ -24,12 +24,14 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	xlog "github.com/m3db/m3x/log"
-	xwatch "github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3/src/x/watch"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -72,6 +74,25 @@ func (i *dynamicInitializer) Init() (Topology, error) {
 	return i.topo, nil
 }
 
+func (i *dynamicInitializer) TopologyIsSet() (bool, error) {
+	services, err := i.opts.ConfigServiceClient().Services(i.opts.ServicesOverrideOptions())
+	if err != nil {
+		return false, err
+	}
+
+	_, err = services.Query(i.opts.ServiceID(), i.opts.QueryOptions())
+	if err != nil {
+		if err == kv.ErrNotFound {
+			// Valid, just means topology is not set
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
 type dynamicTopology struct {
 	sync.RWMutex
 	opts      DynamicOptions
@@ -80,7 +101,7 @@ type dynamicTopology struct {
 	watchable xwatch.Watchable
 	closed    bool
 	hashGen   sharding.HashGen
-	logger    xlog.Logger
+	logger    *zap.Logger
 }
 
 func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
@@ -101,8 +122,7 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
-		logger.Errorf("dynamic topology received invalid initial value: %v",
-			err)
+		logger.Error("dynamic topology received invalid initial value", zap.Error(err))
 		return nil, err
 	}
 
@@ -137,7 +157,7 @@ func (t *dynamicTopology) run() {
 
 		m, err := getMapFromUpdate(t.watch.Get(), t.hashGen)
 		if err != nil {
-			t.logger.Warnf("dynamic topology received invalid update: %v", err)
+			t.logger.Warn("dynamic topology received invalid update", zap.Error(err))
 			continue
 		}
 		t.watchable.Update(m)

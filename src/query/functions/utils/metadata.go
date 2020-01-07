@@ -42,9 +42,10 @@ func FlattenMetadata(
 // DedupeMetadata applies all shared tags from Metadata to each SeriesMeta
 func DedupeMetadata(
 	seriesMeta []block.SeriesMeta,
+	tagOptions models.TagOptions,
 ) (models.Tags, []block.SeriesMeta) {
 	if len(seriesMeta) == 0 {
-		return models.EmptyTags(), seriesMeta
+		return models.NewTags(0, tagOptions), seriesMeta
 	}
 
 	commonKeys := make([][]byte, 0, seriesMeta[0].Tags.Len())
@@ -77,7 +78,7 @@ func DedupeMetadata(
 		seriesMeta[i].Tags = meta.Tags.TagsWithoutKeys(commonKeys)
 	}
 
-	tags := models.NewTags(len(commonTags), seriesMeta[0].Tags.Opts)
+	tags := models.NewTags(len(commonTags), tagOptions)
 	for n, v := range commonTags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: v})
 	}

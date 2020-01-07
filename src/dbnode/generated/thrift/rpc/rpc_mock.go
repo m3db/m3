@@ -225,6 +225,21 @@ func (mr *MockTChanNodeMockRecorder) Bootstrapped(ctx interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapped", reflect.TypeOf((*MockTChanNode)(nil).Bootstrapped), ctx)
 }
 
+// BootstrappedInPlacementOrNoPlacement mocks base method
+func (m *MockTChanNode) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BootstrappedInPlacementOrNoPlacement", ctx)
+	ret0, _ := ret[0].(*NodeBootstrappedInPlacementOrNoPlacementResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BootstrappedInPlacementOrNoPlacement indicates an expected call of BootstrappedInPlacementOrNoPlacement
+func (mr *MockTChanNodeMockRecorder) BootstrappedInPlacementOrNoPlacement(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrappedInPlacementOrNoPlacement", reflect.TypeOf((*MockTChanNode)(nil).BootstrappedInPlacementOrNoPlacement), ctx)
+}
+
 // Fetch mocks base method
 func (m *MockTChanNode) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	m.ctrl.T.Helper()
@@ -253,6 +268,21 @@ func (m *MockTChanNode) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequ
 func (mr *MockTChanNodeMockRecorder) FetchBatchRaw(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchRaw", reflect.TypeOf((*MockTChanNode)(nil).FetchBatchRaw), ctx, req)
+}
+
+// FetchBatchRawV2 mocks base method
+func (m *MockTChanNode) FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchBatchRawV2", ctx, req)
+	ret0, _ := ret[0].(*FetchBatchRawResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBatchRawV2 indicates an expected call of FetchBatchRawV2
+func (mr *MockTChanNodeMockRecorder) FetchBatchRawV2(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchRawV2", reflect.TypeOf((*MockTChanNode)(nil).FetchBatchRawV2), ctx, req)
 }
 
 // FetchBlocksMetadataRawV2 mocks base method
@@ -507,6 +537,20 @@ func (mr *MockTChanNodeMockRecorder) WriteBatchRaw(ctx, req interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchRaw", reflect.TypeOf((*MockTChanNode)(nil).WriteBatchRaw), ctx, req)
 }
 
+// WriteBatchRawV2 mocks base method
+func (m *MockTChanNode) WriteBatchRawV2(ctx thrift.Context, req *WriteBatchRawV2Request) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatchRawV2", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatchRawV2 indicates an expected call of WriteBatchRawV2
+func (mr *MockTChanNodeMockRecorder) WriteBatchRawV2(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchRawV2", reflect.TypeOf((*MockTChanNode)(nil).WriteBatchRawV2), ctx, req)
+}
+
 // WriteTagged mocks base method
 func (m *MockTChanNode) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error {
 	m.ctrl.T.Helper()
@@ -533,4 +577,18 @@ func (m *MockTChanNode) WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTagged
 func (mr *MockTChanNodeMockRecorder) WriteTaggedBatchRaw(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatchRaw", reflect.TypeOf((*MockTChanNode)(nil).WriteTaggedBatchRaw), ctx, req)
+}
+
+// WriteTaggedBatchRawV2 mocks base method
+func (m *MockTChanNode) WriteTaggedBatchRawV2(ctx thrift.Context, req *WriteTaggedBatchRawV2Request) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTaggedBatchRawV2", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatchRawV2 indicates an expected call of WriteTaggedBatchRawV2
+func (mr *MockTChanNodeMockRecorder) WriteTaggedBatchRawV2(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatchRawV2", reflect.TypeOf((*MockTChanNode)(nil).WriteTaggedBatchRawV2), ctx, req)
 }

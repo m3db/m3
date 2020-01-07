@@ -30,16 +30,20 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
+	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xretry "github.com/m3db/m3x/retry"
+	xsync "github.com/m3db/m3/src/x/sync"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 )
 
 const (
@@ -89,7 +93,7 @@ const (
 	defaultWriteTaggedOpPoolSize = 65536
 
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
-	defaultFetchBatchOpPoolSize = 8192
+	defaultFetchBatchOpPoolSize = 1024
 
 	// defaultFetchBatchSize is the default fetch batch size
 	defaultFetchBatchSize = 128
@@ -149,6 +153,13 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
+
+	// defaultAsyncWriteMaxConcurrency is the default maximum concurrency for async writes.
+	defaultAsyncWriteMaxConcurrency = 4096
+
+	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
+	// be used.
+	defaultUseV2BatchAPIs = false
 )
 
 var (
@@ -242,6 +253,12 @@ type options struct {
 	fetchSeriesBlocksMetadataBatchTimeout   time.Duration
 	fetchSeriesBlocksBatchTimeout           time.Duration
 	fetchSeriesBlocksBatchConcurrency       int
+	schemaRegistry                          namespace.SchemaRegistry
+	isProtoEnabled                          bool
+	asyncTopologyInitializers               []topology.Initializer
+	asyncWriteWorkerPool                    xsync.PooledWorkerPool
+	asyncWriteMaxConcurrency                int
+	useV2BatchAPIs                          bool
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -252,6 +269,23 @@ func NewOptions() Options {
 // NewAdminOptions creates a new set of administration client options with defaults
 func NewAdminOptions() AdminOptions {
 	return newOptions()
+}
+
+// NewOptionsForAsyncClusters returns a slice of Options, where each is the set of client
+// for a given async client.
+func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, overrides []environment.ClientOverrides) []Options {
+	result := make([]Options, 0, len(opts.AsyncTopologyInitializers()))
+	for i, topoInit := range topoInits {
+		options := opts.SetTopologyInitializer(topoInit)
+		if overrides[i].HostQueueFlushInterval != nil {
+			options = options.SetHostQueueOpsFlushInterval(*overrides[i].HostQueueFlushInterval)
+		}
+		if overrides[i].TargetHostQueueFlushSize != nil {
+			options = options.SetHostQueueOpsFlushSize(*overrides[i].TargetHostQueueFlushSize)
+		}
+		result = append(result, options)
+	}
+	return result
 }
 
 func newOptions() *options {
@@ -320,43 +354,65 @@ func newOptions() *options {
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
+		schemaRegistry:                          namespace.NewSchemaRegistry(false, nil),
+		asyncTopologyInitializers:               []topology.Initializer{},
+		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
+		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
 
-func (o *options) Validate() error {
-	if o.topologyInitializer == nil {
+func validate(opts *options) error {
+	if opts.topologyInitializer == nil {
 		return errNoTopologyInitializerSet
 	}
-	if o.readerIteratorAllocate == nil {
+	if opts.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
 	if err := topology.ValidateConsistencyLevel(
-		o.writeConsistencyLevel,
+		opts.writeConsistencyLevel,
 	); err != nil {
 		return err
 	}
 	if err := topology.ValidateReadConsistencyLevel(
-		o.readConsistencyLevel,
+		opts.readConsistencyLevel,
 	); err != nil {
 		return err
 	}
 	if err := topology.ValidateReadConsistencyLevel(
-		o.bootstrapConsistencyLevel,
+		opts.bootstrapConsistencyLevel,
 	); err != nil {
 		return err
 	}
 	return topology.ValidateConnectConsistencyLevel(
-		o.clusterConnectConsistencyLevel,
+		opts.clusterConnectConsistencyLevel,
 	)
+}
+
+func (o *options) Validate() error {
+	return validate(o)
 }
 
 func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
+	opts.readerIteratorAllocate = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
+	opts.isProtoEnabled = false
 	return &opts
+}
+
+func (o *options) SetEncodingProto(encodingOpts encoding.Options) Options {
+	opts := *o
+	opts.readerIteratorAllocate = func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+		return proto.NewIterator(r, descr, encodingOpts)
+	}
+	opts.isProtoEnabled = true
+	return &opts
+}
+
+func (o *options) IsSetEncodingProto() bool {
+	return o.isProtoEnabled
 }
 
 func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
@@ -789,6 +845,16 @@ func (o *options) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
 	return o.readerIteratorAllocate
 }
 
+func (o *options) SetSchemaRegistry(registry namespace.SchemaRegistry) AdminOptions {
+	opts := *o
+	opts.schemaRegistry = registry
+	return &opts
+}
+
+func (o *options) SchemaRegistry() namespace.SchemaRegistry {
+	return o.schemaRegistry
+}
+
 func (o *options) SetOrigin(value topology.Host) AdminOptions {
 	opts := *o
 	opts.origin = value
@@ -847,4 +913,44 @@ func (o *options) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
 
 func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetAsyncTopologyInitializers(value []topology.Initializer) Options {
+	opts := *o
+	opts.asyncTopologyInitializers = value
+	return &opts
+}
+
+func (o *options) AsyncTopologyInitializers() []topology.Initializer {
+	return o.asyncTopologyInitializers
+}
+
+func (o *options) SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.asyncWriteWorkerPool = value
+	return &opts
+}
+
+func (o *options) AsyncWriteWorkerPool() xsync.PooledWorkerPool {
+	return o.asyncWriteWorkerPool
+}
+
+func (o *options) SetAsyncWriteMaxConcurrency(value int) Options {
+	opts := *o
+	opts.asyncWriteMaxConcurrency = value
+	return &opts
+}
+
+func (o *options) AsyncWriteMaxConcurrency() int {
+	return o.asyncWriteMaxConcurrency
+}
+
+func (o *options) SetUseV2BatchAPIs(value bool) Options {
+	opts := *o
+	opts.useV2BatchAPIs = value
+	return &opts
+}
+
+func (o *options) UseV2BatchAPIs() bool {
+	return o.useV2BatchAPIs
 }

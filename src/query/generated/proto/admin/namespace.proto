@@ -12,3 +12,35 @@ message NamespaceAddRequest {
   string                        name = 1;
   namespace.NamespaceOptions options = 2;
 }
+
+message NamespaceSchemaAddRequest {
+  // Name is the namespace name.
+  // Add schema to non-existent namespace will get 404.
+  string name = 1;
+  // MsgName is the name of the top level proto message.
+  string msgName = 2;
+  // ProtoName is the name of the top level proto file.
+  // Proto file content will be looked up from protoMap, so the name must corresponds to the map key.
+  string protoName = 3;
+  // ProtoMap is a map of name to proto strings.
+  // Except the top level proto file, other imported proto files' key must be exactly the same
+  // as how they are imported in the import statement.
+  // E.g. If import.proto is imported using as below
+  // import "mainpkg/imported.proto";
+  // Then the map key for imported.proto must be "mainpkg/imported.proto"
+  // See src/dbnode/namespame/kvadmin test for example.
+  map<string, string> protoMap = 4;
+}
+
+message NamespaceSchemaAddResponse {
+  string deployID = 1;
+}
+
+message NamespaceSchemaResetRequest {
+  // Name is the namespace name.
+  // Reset schema to non-existent namespace will get 404.
+  string name = 1;
+}
+
+message NamespaceSchemaResetResponse {
+}

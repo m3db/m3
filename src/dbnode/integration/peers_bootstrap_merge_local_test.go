@@ -27,22 +27,30 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestPeersBootstrapMergeLocal(t *testing.T) {
+	testPeersBootstrapMergeLocal(t, nil, nil)
+}
+
+func TestProtoPeersBootstrapMergeLocal(t *testing.T) {
+	testPeersBootstrapMergeLocal(t, setProtoTestOptions, setProtoTestInputConfig)
+}
+
+func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	// Test setups
-	log := xlog.SimpleLogger
+	log := xtest.NewLogger(t)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -54,7 +62,11 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 
 	var (
 		opts = newTestOptions(t).
-			SetNamespaces([]namespace.Metadata{namesp})
+			SetNamespaces([]namespace.Metadata{namesp}).
+			// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+			// and not write/read all nodes in the cluster.
+			SetUseTChannelClientForWriting(true).
+			SetUseTChannelClientForReading(true)
 
 		reporter = xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 
@@ -74,6 +86,11 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		}
 	)
 
+	if setTestOpts != nil {
+		opts = setTestOpts(t, opts)
+		namesp = opts.Namespaces()[0]
+	}
+
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
@@ -82,10 +99,14 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	cutoverAt := now.Add(retentionOpts.BufferFuture())
 	completeAt := now.Add(180 * time.Second)
 	blockSize := retentionOpts.BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: int(completeAt.Sub(now) / time.Second), Start: now},
-	})
+	}
+	if updateInputConfig != nil {
+		updateInputConfig(inputData)
+	}
+	seriesMaps := generate.BlocksByStart(inputData)
 	firstNodeSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	directWritesSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	for start, s := range seriesMaps {
@@ -143,7 +164,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	require.Equal(t, 120, len(directWritesSeriesMaps[xtime.ToUnixNano(now)][1].Data))
 
 	// Write data to first node
-	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps, 0)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

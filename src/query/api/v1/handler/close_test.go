@@ -26,13 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCloseWatcher(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	w := httptest.NewRecorder()
-	CloseWatcher(ctx, cancel, w)
+	CloseWatcher(ctx, cancel, w, instrument.NewOptions())
 	assert.Nil(t, ctx.Err())
 	time.Sleep(100 * time.Millisecond)
 	assert.NotNil(t, ctx.Err())

@@ -24,10 +24,15 @@ import (
 	"bytes"
 	"errors"
 	"sort"
+	"sync"
+
+	"github.com/m3db/m3/src/query/block"
 )
 
 type completeTagsResultBuilder struct {
+	sync.RWMutex
 	nameOnly    bool
+	metadata    block.ResultMetadata
 	tagBuilders map[string]completedTagBuilder
 }
 
@@ -37,10 +42,14 @@ func NewCompleteTagsResultBuilder(
 ) CompleteTagsResultBuilder {
 	return &completeTagsResultBuilder{
 		nameOnly: nameOnly,
+		metadata: block.NewResultMetadata(),
 	}
 }
 
 func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
+	b.Lock()
+	defer b.Unlock()
+
 	nameOnly := b.nameOnly
 	if nameOnly != tagResult.CompleteNameOnly {
 		return errors.New("incoming tag result has mismatched type")
@@ -51,6 +60,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 		b.tagBuilders = make(map[string]completedTagBuilder, len(completedTags))
 	}
 
+	b.metadata = b.metadata.CombineMetadata(tagResult.Metadata)
 	if nameOnly {
 		for _, tag := range completedTags {
 			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
@@ -81,6 +91,9 @@ func (s completedTagsByName) Less(i, j int) bool {
 }
 
 func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
+	b.RLock()
+	defer b.RUnlock()
+
 	result := make([]CompletedTag, 0, len(b.tagBuilders))
 	if b.nameOnly {
 		for name := range b.tagBuilders {
@@ -94,6 +107,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 		return CompleteTagsResult{
 			CompleteNameOnly: true,
 			CompletedTags:    result,
+			Metadata:         b.metadata,
 		}
 	}
 
@@ -108,6 +122,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 	return CompleteTagsResult{
 		CompleteNameOnly: false,
 		CompletedTags:    result,
+		Metadata:         b.metadata,
 	}
 }
 

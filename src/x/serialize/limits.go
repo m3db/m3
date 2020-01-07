@@ -27,7 +27,7 @@ var (
 	defaultMaxNumberTags uint16 = math.MaxUint16
 
 	// defaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	defaultMaxTagLiteralLength uint16 = 4096
+	defaultMaxTagLiteralLength uint16 = math.MaxUint16
 )
 
 type limits struct {

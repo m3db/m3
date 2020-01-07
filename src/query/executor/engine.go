@@ -28,41 +28,38 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/opentracing"
+	"github.com/m3db/m3/src/x/opentracing"
 
 	"github.com/uber-go/tally"
 )
 
-// Engine executes a Query.
-type Engine struct {
-	metrics          *engineMetrics
-	costScope        tally.Scope
-	globalEnforcer   qcost.ChainedEnforcer
-	store            storage.Storage
-	lookbackDuration time.Duration
+type engine struct {
+	opts    EngineOptions
+	metrics *engineMetrics
 }
 
-// EngineOptions can be used to pass custom flags to engine
-type EngineOptions struct {
+// QueryOptions can be used to pass custom flags to engine.
+type QueryOptions struct {
+	QueryContextOptions models.QueryContextOptions
 }
 
-// Query is the result after execution
+// Query is the result after execution.
 type Query struct {
 	Err    error
 	Result Result
 }
 
 // NewEngine returns a new instance of QueryExecutor.
-func NewEngine(store storage.Storage, scope tally.Scope, lookbackDuration time.Duration, factory qcost.ChainedEnforcer) *Engine {
-	if factory == nil {
-		factory = qcost.NoopChainedEnforcer()
+func NewEngine(
+	engineOpts EngineOptions,
+) Engine {
+	if engineOpts.GlobalEnforcer() == nil {
+		engineOpts = engineOpts.SetGlobalEnforcer(qcost.NoopChainedEnforcer())
 	}
-	return &Engine{
-		metrics:          newEngineMetrics(scope),
-		costScope:        scope,
-		store:            store,
-		lookbackDuration: lookbackDuration,
-		globalEnforcer:   factory,
+
+	return &engine{
+		metrics: newEngineMetrics(engineOpts.InstrumentOptions().MetricsScope()),
+		opts:    engineOpts,
 	}
 }
 
@@ -112,73 +109,64 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 	}
 }
 
-// Execute runs the query and closes the results channel once done
-func (e *Engine) Execute(
+func (e *engine) ExecuteProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	opts *EngineOptions,
-	results chan *storage.QueryResult,
-) {
-	defer close(results)
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = 0
-	result, err := e.store.Fetch(ctx, query, fetchOpts)
-	if err != nil {
-		results <- &storage.QueryResult{Err: err}
-		return
-	}
-
-	results <- &storage.QueryResult{FetchResult: result}
+	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return e.opts.Store().FetchProm(ctx, query, fetchOpts)
 }
 
-// ExecuteExpr runs the query DAG and closes the results channel once done
-// nolint: unparam
-func (e *Engine) ExecuteExpr(
+func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
-	opts *EngineOptions,
+	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
-	results chan Query,
-) {
-	defer close(results)
-
-	perQueryEnforcer := e.globalEnforcer.Child(qcost.QueryLevel)
+) (Result, error) {
+	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
-	req := newRequest(e, params)
-
+	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	pp, err := req.plan(ctx, nodes, edges)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	state, err := req.generateExecutionState(ctx, pp)
-	// free up resources
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
-	sp, ctx := opentracingutil.StartSpanFromContext(ctx, "executing")
+	// free up resources
+	sp, ctx := opentracing.StartSpanFromContext(ctx, "executing")
 	defer sp.Finish()
 
 	result := state.resultNode
-	results <- Query{Result: result}
+	scope := e.opts.InstrumentOptions().MetricsScope()
+	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
+		opts.QueryContextOptions)
 
-	if err := state.Execute(models.NewQueryContext(ctx, e.costScope, perQueryEnforcer)); err != nil {
-		result.abort(err)
-	} else {
-		result.done()
-	}
+	go func() {
+		if err := state.Execute(queryCtx); err != nil {
+			result.abort(err)
+		} else {
+			result.done()
+		}
+	}()
+
+	return result, nil
 }
 
-// Close kills all running queries and prevents new queries from being attached.
-func (e *Engine) Close() error {
+func (e *engine) Options() EngineOptions {
+	return e.opts
+}
+
+func (e *engine) Close() error {
 	return nil
 }

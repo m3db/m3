@@ -27,6 +27,7 @@ import (
 // Configuration is the set of knobs to configure retention options
 type Configuration struct {
 	RetentionPeriod                       time.Duration  `yaml:"retentionPeriod" validate:"nonzero"`
+	FutureRetentionPeriod                 time.Duration  `yaml:"futureRetentionPeriod" validate:"nonzero"`
 	BlockSize                             time.Duration  `yaml:"blockSize" validate:"nonzero"`
 	BufferFuture                          time.Duration  `yaml:"bufferFuture" validate:"nonzero"`
 	BufferPast                            time.Duration  `yaml:"bufferPast" validate:"nonzero"`
@@ -38,6 +39,7 @@ type Configuration struct {
 func (c *Configuration) Options() Options {
 	opts := NewOptions().
 		SetRetentionPeriod(c.RetentionPeriod).
+		SetFutureRetentionPeriod(c.FutureRetentionPeriod).
 		SetBlockSize(c.BlockSize).
 		SetBufferFuture(c.BufferFuture).
 		SetBufferPast(c.BufferPast)

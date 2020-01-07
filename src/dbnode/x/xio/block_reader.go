@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // CloneBlock returns a clone of the block with the underlying data reset
@@ -55,4 +55,43 @@ func (b *BlockReader) ResetWindowed(segment ts.Segment, start time.Time, blockSi
 	b.Reset(segment)
 	b.Start = start
 	b.BlockSize = blockSize
+}
+
+// FilterEmptyBlockReadersSliceOfSlicesInPlace filters a [][]BlockReader in place (I.E by modifying
+// the existing data structures instead of allocating new ones) such that the returned [][]BlockReader
+// will only contain BlockReaders that contain non-empty segments.
+//
+// Note that if any of the Block/Segment readers are backed by async implementations then this function
+// will not return until all of the async execution has completed.
+func FilterEmptyBlockReadersSliceOfSlicesInPlace(brSliceOfSlices [][]BlockReader) ([][]BlockReader, error) {
+	filteredSliceOfSlices := brSliceOfSlices[:0]
+	for _, brSlice := range brSliceOfSlices {
+		filteredBrSlice, err := FilterEmptyBlockReadersInPlace(brSlice)
+		if err != nil {
+			return nil, err
+		}
+		if len(filteredBrSlice) > 0 {
+			filteredSliceOfSlices = append(filteredSliceOfSlices, filteredBrSlice)
+		}
+	}
+	return filteredSliceOfSlices, nil
+}
+
+// FilterEmptyBlockReadersInPlace is the same as FilterEmptyBlockReadersSliceOfSlicesInPlace except for
+// one dimensional slices instead of two.
+func FilterEmptyBlockReadersInPlace(brs []BlockReader) ([]BlockReader, error) {
+	filtered := brs[:0]
+	for _, br := range brs {
+		if br.SegmentReader == nil {
+			continue
+		}
+		segment, err := br.Segment()
+		if err != nil {
+			return nil, err
+		}
+		if segment.Len() > 0 {
+			filtered = append(filtered, br)
+		}
+	}
+	return filtered, nil
 }

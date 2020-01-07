@@ -21,13 +21,17 @@
 package json
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -41,8 +45,7 @@ func TestFailingJSONWriteParsing(t *testing.T) {
 					}`
 
 	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(badJSON))
-	jsonWrite := &WriteJSONHandler{store: nil}
-	_, err := jsonWrite.parseRequest(req)
+	_, err := parseRequest(req)
 	require.Error(t, err)
 }
 
@@ -55,23 +58,19 @@ func generateJSONWriteRequest() string {
 }
 
 func TestJSONWriteParsing(t *testing.T) {
-	logging.InitWithCores(nil)
-
-	jsonWrite := &WriteJSONHandler{store: nil}
-
 	jsonReq := generateJSONWriteRequest()
-	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
+	req := httptest.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
 
-	r, err := jsonWrite.parseRequest(req)
+	r, err := parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, 10.0, r.Value)
 	require.Equal(t, map[string]string{"tag_one": "val_one", "tag_two": "val_two"}, r.Tags)
 }
 
 func TestJSONWrite(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
@@ -80,14 +79,15 @@ func TestJSONWrite(t *testing.T) {
 	session.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 
-	jsonWrite := &WriteJSONHandler{store: storage}
+	opts := options.EmptyHandlerOptions().SetStorage(storage)
+	jsonWrite := NewWriteJSONHandler(opts).(*WriteJSONHandler)
 
 	jsonReq := generateJSONWriteRequest()
 	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,
 		strings.NewReader(jsonReq))
 	require.NoError(t, err)
 
-	r, rErr := jsonWrite.parseRequest(req)
+	r, rErr := parseRequest(req)
 	require.Nil(t, rErr, "unable to parse request")
 
 	writeQuery, err := newStorageWriteQuery(r)
@@ -95,4 +95,39 @@ func TestJSONWrite(t *testing.T) {
 
 	writeErr := jsonWrite.store.Write(context.TODO(), writeQuery)
 	require.NoError(t, writeErr)
+}
+
+func TestJSONWriteError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	expectedErr := fmt.Errorf("an error")
+
+	storage, session := m3.NewStorageAndSession(t, ctrl)
+	session.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AnyTimes().
+		Return(expectedErr)
+	session.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
+
+	opts := options.EmptyHandlerOptions().SetStorage(storage)
+	jsonWrite := NewWriteJSONHandler(opts).(*WriteJSONHandler)
+
+	jsonReq := generateJSONWriteRequest()
+	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,
+		strings.NewReader(jsonReq))
+	require.NoError(t, err)
+
+	writer := httptest.NewRecorder()
+	jsonWrite.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.True(t, bytes.Contains(body, []byte(expectedErr.Error())),
+		fmt.Sprintf("body: %s", body))
 }

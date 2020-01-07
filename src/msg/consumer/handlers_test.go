@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/server"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"

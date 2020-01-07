@@ -22,11 +22,14 @@ package uninitialized
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Options is the options interface for the uninitialized source.
 type Options interface {
+	// Validate the values of the options.
+	Validate() error
+
 	// SetResultOptions sets the result options
 	SetResultOptions(value result.Options) Options
 

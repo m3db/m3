@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -eo pipefail
+
+echo "--- :git: cleaning checkout"
+git clean -dffx

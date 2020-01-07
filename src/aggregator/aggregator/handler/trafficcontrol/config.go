@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Type defines the type of the traffic controller.

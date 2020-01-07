@@ -39,14 +39,15 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	m3xserver "github.com/m3db/m3x/server"
-	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	m3xserver "github.com/m3db/m3/src/x/server"
+	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -67,7 +68,6 @@ var (
 
 // Options configures the ingester.
 type Options struct {
-	Debug             bool
 	InstrumentOptions instrument.Options
 	WorkerPool        xsync.PooledWorkerPool
 }
@@ -144,7 +144,7 @@ func NewIngester(
 type ingester struct {
 	downsamplerAndWriter ingest.DownsamplerAndWriter
 	opts                 Options
-	logger               log.Logger
+	logger               *zap.Logger
 	metrics              carbonIngesterMetrics
 	tagOpts              models.TagOptions
 
@@ -189,12 +189,12 @@ func (i *ingester) Handle(conn net.Conn) {
 	}
 
 	if err := s.Err(); err != nil {
-		logger.Errorf("encountered error during carbon ingestion when scanning connection: %s", err)
+		logger.Error("encountered error during carbon ingestion when scanning connection", zap.Error(err))
 	}
 
-	logger.Debugf("waiting for outstanding carbon ingestion writes to complete")
+	logger.Debug("waiting for outstanding carbon ingestion writes to complete")
 	wg.Wait()
-	logger.Debugf("all outstanding writes completed, shutting down carbon ingestion handler")
+	logger.Debug("all outstanding writes completed, shutting down carbon ingestion handler")
 
 	// Don't close the connection, that is the server's responsibility.
 }
@@ -221,10 +221,12 @@ func (i *ingester) write(
 			downsampleAndStoragePolicies.DownsampleMappingRules = rule.mappingRules
 			downsampleAndStoragePolicies.WriteStoragePolicies = rule.storagePolicies
 
-			if i.opts.Debug {
-				i.logger.Infof(
-					"carbon metric: %s matched by pattern: %s with mapping rules: %#v and storage policies: %#v",
-					string(resources.name), rule.rule.Pattern, rule.mappingRules, rule.storagePolicies)
+			debugLog := i.logger.Check(zapcore.DebugLevel, "carbon metric matched by pattern")
+			if debugLog != nil {
+				debugLog.Write(zap.ByteString("name", resources.name),
+					zap.String("pattern", rule.rule.Pattern),
+					zap.Any("mappingRules", rule.mappingRules),
+					zap.Any("storagePolicies", rule.storagePolicies))
 			}
 			// Break because we only want to apply one rule per metric based on which
 			// ever one matches first.
@@ -235,8 +237,9 @@ func (i *ingester) write(
 	if len(downsampleAndStoragePolicies.DownsampleMappingRules) == 0 &&
 		len(downsampleAndStoragePolicies.WriteStoragePolicies) == 0 {
 		// Nothing to do if none of the policies matched.
-		if i.opts.Debug {
-			i.logger.Infof("no rules matched carbon metric: %s, skipping", string(resources.name))
+		debugLog := i.logger.Check(zapcore.DebugLevel, "no rules matched carbon metric, skipping")
+		if debugLog != nil {
+			debugLog.Write(zap.ByteString("name", resources.name))
 		}
 		return false
 	}
@@ -244,24 +247,26 @@ func (i *ingester) write(
 	resources.datapoints[0] = ts.Datapoint{Timestamp: timestamp, Value: value}
 	tags, err := GenerateTagsFromNameIntoSlice(resources.name, i.tagOpts, resources.tags)
 	if err != nil {
-		i.logger.Errorf("err generating tags from carbon name: %s, err: %s",
-			string(resources.name), err)
+		i.logger.Error("err generating tags from carbon",
+			zap.String("name", string(resources.name)), zap.Error(err))
 		i.metrics.malformed.Inc(1)
 		return false
 	}
 
 	err = i.downsamplerAndWriter.Write(
-		ctx, tags, resources.datapoints, xtime.Second, downsampleAndStoragePolicies)
+		ctx, tags, resources.datapoints, xtime.Second, nil, downsampleAndStoragePolicies,
+	)
 
 	if err != nil {
-		i.logger.Errorf("err writing carbon metric: %s, err: %s",
-			string(resources.name), err)
+		i.logger.Error("err writing carbon metric",
+			zap.String("name", string(resources.name)), zap.Error(err))
 		i.metrics.err.Inc(1)
 		return false
 	}
 
-	if i.opts.Debug {
-		i.logger.Infof("successfully wrote carbon metric: %s", string(resources.name))
+	debugLog := i.logger.Check(zapcore.DebugLevel, "successfully wrote carbon metric")
+	if debugLog != nil {
+		debugLog.Write(zap.ByteString("name", resources.name))
 	}
 	return true
 }
@@ -391,10 +396,12 @@ func compileRules(rules CarbonIngesterRules) ([]ruleAndRegex, error) {
 		}
 
 		if rule.Aggregation.EnabledOrDefault() {
-			compiledRule.mappingRules = []downsample.MappingRule{downsample.MappingRule{
-				Aggregations: []aggregation.Type{rule.Aggregation.TypeOrDefault()},
-				Policies:     storagePolicies,
-			}}
+			compiledRule.mappingRules = []downsample.AutoMappingRule{
+				downsample.AutoMappingRule{
+					Aggregations: []aggregation.Type{rule.Aggregation.TypeOrDefault()},
+					Policies:     storagePolicies,
+				},
+			}
 		} else {
 			compiledRule.storagePolicies = storagePolicies
 		}
@@ -439,6 +446,6 @@ type lineResources struct {
 type ruleAndRegex struct {
 	rule            config.CarbonIngesterRuleConfiguration
 	regexp          *regexp.Regexp
-	mappingRules    []downsample.MappingRule
+	mappingRules    []downsample.AutoMappingRule
 	storagePolicies []policy.StoragePolicy
 }

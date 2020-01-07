@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -113,7 +113,7 @@ func (h *reportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &reportResponse{Reported: len(req.Metrics)}
-	xhttp.WriteJSONResponse(w, resp, h.instrumentOpts.ZapLogger())
+	xhttp.WriteJSONResponse(w, resp, h.instrumentOpts.Logger())
 }
 
 func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *xhttp.ParseError) {

@@ -23,7 +23,7 @@ package protobuf
 import (
 	"math"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 // Buffer contains a byte slice backed by an optional bytes pool.

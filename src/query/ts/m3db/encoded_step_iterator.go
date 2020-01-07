@@ -26,43 +26,70 @@ import (
 )
 
 type encodedStepIter struct {
-	consolidator *consolidators.StepLookbackConsolidator
+	collectors []*consolidators.StepLookbackConsolidator
 	encodedStepIterWithCollector
+	values []float64
 }
 
 func (b *encodedBlock) StepIter() (
 	block.StepIter,
 	error,
 ) {
-	cs := b.consolidation
-	iters := b.seriesBlockIterators
-	consolidator := consolidators.NewStepLookbackConsolidator(
-		b.lookback,
-		cs.bounds.StepSize,
-		cs.currentTime,
-		len(iters),
-		cs.consolidationFn,
+	var (
+		cs       = b.consolidation
+		iters    = b.seriesBlockIterators
+		lookback = b.options.LookbackDuration()
+
+		collectors       = make([]*consolidators.StepLookbackConsolidator, len(iters))
+		seriesCollectors = make([]consolidators.StepCollector, len(iters))
 	)
 
-	return &encodedStepIter{
-		consolidator: consolidator,
+	for i := range iters {
+		collectors[i] = consolidators.NewStepLookbackConsolidator(
+			lookback,
+			cs.bounds.StepSize,
+			cs.currentTime,
+			cs.consolidationFn,
+		)
+	}
+
+	for i := range collectors {
+		seriesCollectors[i] = collectors[i]
+	}
+
+	iter := &encodedStepIter{
+		collectors: collectors,
+		values:     make([]float64, 0, len(iters)),
 		encodedStepIterWithCollector: encodedStepIterWithCollector{
 			lastBlock: b.lastBlock,
 
 			stepTime:   cs.currentTime,
+			blockEnd:   b.meta.Bounds.End(),
 			meta:       b.meta,
 			seriesMeta: b.seriesMetas,
 
-			collector:   consolidator,
-			seriesPeek:  make([]peekValue, len(iters)),
-			seriesIters: iters,
+			seriesPeek:       make([]peekValue, len(iters)),
+			seriesIters:      iters,
+			seriesCollectors: seriesCollectors,
+
+			workerPool: b.options.ReadWorkerPool(),
 		},
-	}, nil
+	}
+
+	iter.encodedStepIterWithCollector.updateFn = iter.update
+	return iter, nil
+}
+
+func (it *encodedStepIter) update() {
+	it.values = it.values[:0]
+	for _, consolidator := range it.collectors {
+		it.values = append(it.values, consolidator.ConsolidateAndMoveToNext())
+	}
 }
 
 func (it *encodedStepIter) Current() block.Step {
 	return block.NewColStep(
 		it.stepTime,
-		it.consolidator.ConsolidateAndMoveToNext(),
+		it.values,
 	)
 }

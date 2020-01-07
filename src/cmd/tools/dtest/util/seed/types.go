@@ -24,13 +24,13 @@ import (
 	"math/rand"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Generator generates data
 type Generator interface {
-	Generate(namespace ident.ID, shard uint32) error
+	Generate(nsCtx namespace.Context, shard uint32) error
 }
 
 // Options control the knobs to generate data

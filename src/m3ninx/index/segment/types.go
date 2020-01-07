@@ -53,6 +53,9 @@ type Segment interface {
 	// ContainsID returns a bool indicating if the Segment contains the provided ID.
 	ContainsID(docID []byte) (bool, error)
 
+	// ContainsField returns a bool indicating if the Segment contains the provided field.
+	ContainsField(field []byte) (bool, error)
+
 	// Reader returns a point-in-time accessor to search the segment.
 	Reader() (index.Reader, error)
 
@@ -139,6 +142,13 @@ type MutableSegment interface {
 
 	// IsSealed returns true iff the segment is open and un-sealed.
 	IsSealed() bool
+}
+
+// ImmutableSegment is segment that has been written to disk.
+type ImmutableSegment interface {
+	Segment
+
+	FreeMmap() error
 }
 
 // Builder is a builder that can be used to construct segments.

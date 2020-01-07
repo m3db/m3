@@ -110,6 +110,34 @@ func (mr *MockOptionsMockRecorder) RetentionPeriod() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetentionPeriod", reflect.TypeOf((*MockOptions)(nil).RetentionPeriod))
 }
 
+// SetFutureRetentionPeriod mocks base method
+func (m *MockOptions) SetFutureRetentionPeriod(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetFutureRetentionPeriod", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFutureRetentionPeriod indicates an expected call of SetFutureRetentionPeriod
+func (mr *MockOptionsMockRecorder) SetFutureRetentionPeriod(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFutureRetentionPeriod", reflect.TypeOf((*MockOptions)(nil).SetFutureRetentionPeriod), value)
+}
+
+// FutureRetentionPeriod mocks base method
+func (m *MockOptions) FutureRetentionPeriod() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FutureRetentionPeriod")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FutureRetentionPeriod indicates an expected call of FutureRetentionPeriod
+func (mr *MockOptionsMockRecorder) FutureRetentionPeriod() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FutureRetentionPeriod", reflect.TypeOf((*MockOptions)(nil).FutureRetentionPeriod))
+}
+
 // SetBlockSize mocks base method
 func (m *MockOptions) SetBlockSize(value time.Duration) Options {
 	m.ctrl.T.Helper()

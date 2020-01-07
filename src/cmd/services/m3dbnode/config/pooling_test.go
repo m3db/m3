@@ -25,29 +25,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestContextPoolPolicyPoolPolicy(t *testing.T) {
-	size := 10
-	refillLowWaterMark := 0.5
-	refillHighWaterMark := 0.7
-	cpp := ContextPoolPolicy{
-		PoolPolicy: PoolPolicy{
-			Size:                &size,
-			RefillLowWaterMark:  &refillLowWaterMark,
-			RefillHighWaterMark: &refillHighWaterMark,
-		},
-	}
+func TestPoolingPolicyThriftBytesPoolAllocSizeOrDefault(t *testing.T) {
+	policy := PoolingPolicy{}
+	require.Equal(t, defaultThriftBytesPoolAllocSize,
+		policy.ThriftBytesPoolAllocSizeOrDefault())
 
-	require.Equal(t, size, cpp.SizeOrDefault())
-	require.Equal(t, refillLowWaterMark, cpp.RefillLowWaterMarkOrDefault())
-	require.Equal(t, refillHighWaterMark, cpp.RefillHighWaterMarkOrDefault())
-}
-
-func TestContextPoolMaxFinalizerCapacityOrDefault(t *testing.T) {
-	cpp := ContextPoolPolicy{
-		MaxFinalizerCapacity: 0,
-	}
-	require.Equal(t, defaultMaxFinalizerCapacity, cpp.MaxFinalizerCapacityOrDefault())
-
-	cpp.MaxFinalizerCapacity = 10
-	require.Equal(t, 10, cpp.MaxFinalizerCapacityOrDefault())
+	value := 42
+	policy.ThriftBytesPoolAllocSize = &value
+	require.Equal(t, 42, policy.ThriftBytesPoolAllocSizeOrDefault())
 }

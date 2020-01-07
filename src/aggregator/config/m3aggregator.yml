@@ -94,6 +94,8 @@ aggregator:
   hostID:
     resolver: environment
     envVarName: M3AGGREGATOR_HOST_ID
+  instanceID:
+    type: host_id
   metricPrefix: ""
   counterPrefix: ""
   timerPrefix: ""
@@ -234,7 +236,6 @@ aggregator:
       - dynamicBackend:
           name: m3msg
           hashType: murmur32
-          totalShards: 64
           producer:
             buffer:
               maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.

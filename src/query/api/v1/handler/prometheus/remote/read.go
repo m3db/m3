@@ -21,17 +21,24 @@
 package remote
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
@@ -50,17 +57,25 @@ const (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine          *executor.Engine
-	promReadMetrics promReadMetrics
-	timeoutOpts     *prometheus.TimeoutOpts
+	engine              executor.Engine
+	promReadMetrics     promReadMetrics
+	timeoutOpts         *prometheus.TimeoutOpts
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	keepEmpty           bool
+	instrumentOpts      instrument.Options
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(engine *executor.Engine, scope tally.Scope, timeoutOpts *prometheus.TimeoutOpts) http.Handler {
+func NewPromReadHandler(opts options.HandlerOptions) http.Handler {
+	taggedScope := opts.InstrumentOpts().MetricsScope().
+		Tagged(map[string]string{"handler": "remote-read"})
 	return &PromReadHandler{
-		engine:          engine,
-		promReadMetrics: newPromReadMetrics(scope),
-		timeoutOpts:     timeoutOpts,
+		engine:              opts.Engine(),
+		promReadMetrics:     newPromReadMetrics(taggedScope),
+		timeoutOpts:         opts.TimeoutOpts(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		keepEmpty:           opts.Config().ResultOptions.KeepNans,
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -68,22 +83,26 @@ type promReadMetrics struct {
 	fetchSuccess      tally.Counter
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	return promReadMetrics{
-		fetchSuccess:      scope.Counter("fetch.success"),
-		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("fetch.errors"),
-		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("fetch.errors"),
+		fetchSuccess: scope.
+			Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
+			Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
+			Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
 	}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
-
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 	req, rErr := h.parseRequest(r)
-
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -96,54 +115,68 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.read(ctx, w, req, timeout)
+	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	readResult, err := h.read(ctx, w, req, timeout, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to fetch data", zap.Any("error", err))
+		logger.Error("unable to fetch data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	resp := &prompb.ReadResponse{
-		Results: result,
+		Results: readResult.result,
 	}
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to marshal read results to protobuf", zap.Any("error", err))
+		logger.Error("unable to marshal read results to protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
+	handleroptions.AddWarningHeaders(w, readResult.meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to encode read results to snappy", zap.Any("err", err))
+		logger.Error("unable to encode read results to snappy",
+			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
+	timer.Stop()
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
 func (h *PromReadHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.ReadRequest, *xhttp.ParseError) {
-	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
+	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
 	}
 
 	var req prompb.ReadRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
+}
+
+type readResult struct {
+	meta   block.ResultMetadata
+	result []*prompb.QueryResult
 }
 
 func (h *PromReadHandler) read(
@@ -151,37 +184,114 @@ func (h *PromReadHandler) read(
 	w http.ResponseWriter,
 	r *prompb.ReadRequest,
 	timeout time.Duration,
-) ([]*prompb.QueryResult, error) {
-	// TODO: Handle multi query use case
-	if len(r.Queries) != 1 {
-		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
+	fetchOpts *storage.FetchOptions,
+) (readResult, error) {
+	var (
+		queryCount   = len(r.Queries)
+		cancelFuncs  = make([]context.CancelFunc, queryCount)
+		queryResults = make([]*prompb.QueryResult, queryCount)
+		meta         = block.NewResultMetadata()
+		queryOpts    = &executor.QueryOptions{
+			QueryContextOptions: models.QueryContextOptions{
+				LimitMaxTimeseries: fetchOpts.Limit,
+			}}
+
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		multiErr xerrors.MultiError
+	)
+
+	wg.Add(queryCount)
+	for i, promQuery := range r.Queries {
+		i, promQuery := i, promQuery // Capture vars for lambda.
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(reqCtx, timeout)
+			cancelFuncs[i] = cancel
+			query, err := storage.PromReadQueryToM3(promQuery)
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+				return
+			}
+
+			// Detect clients closing connections
+			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
+			result, err := h.engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+				return
+			}
+
+			result.PromResult.Timeseries = filterResults(
+				result.PromResult.GetTimeseries(), fetchOpts)
+			mu.Lock()
+			queryResults[i] = result.PromResult
+			meta = meta.CombineMetadata(result.Metadata)
+			mu.Unlock()
+		}()
 	}
 
-	ctx, cancel := context.WithTimeout(reqCtx, timeout)
-	defer cancel()
-	promQuery := r.Queries[0]
-	query, err := storage.PromReadQueryToM3(promQuery)
-	if err != nil {
-		return nil, err
+	wg.Wait()
+	for _, cancel := range cancelFuncs {
+		cancel()
 	}
 
-	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
+	if err := multiErr.FinalError(); err != nil {
+		return readResult{result: nil, meta: meta}, err
+	}
 
-	opts := &executor.EngineOptions{}
-	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w)
-	go h.engine.Execute(ctx, query, opts, results)
+	return readResult{result: queryResults, meta: meta}, nil
+}
 
-	promResults := make([]*prompb.QueryResult, 0, 1)
-	for result := range results {
-		if result.Err != nil {
-			return nil, result.Err
+// filterResults removes series tags based on options.
+func filterResults(
+	series []*prompb.TimeSeries,
+	opts *storage.FetchOptions,
+) []*prompb.TimeSeries {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) == 0 {
+		return series
+	}
+
+	for i, s := range series {
+		series[i].Labels = filterLabels(s.Labels, keys)
+	}
+
+	return series
+}
+
+func filterLabels(
+	labels []prompb.Label,
+	filtering [][]byte,
+) []prompb.Label {
+	if len(filtering) == 0 {
+		return labels
+	}
+
+	filtered := labels[:0]
+	for _, l := range labels {
+		skip := false
+		for _, f := range filtering {
+			if bytes.Equal(l.GetName(), f) {
+				skip = true
+				break
+			}
 		}
 
-		promRes := storage.FetchResultToPromResult(result.FetchResult)
-		promResults = append(promResults, promRes)
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, l)
 	}
 
-	return promResults, nil
+	return filtered
 }

@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/resource"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 )
 
 // BlockReader represents a block reader backed by a SegmentReader with start time and block size.

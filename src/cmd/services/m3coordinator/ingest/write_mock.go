@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -74,29 +74,29 @@ func (mr *MockDownsamplerAndWriterMockRecorder) Storage() *gomock.Call {
 }
 
 // Write mocks base method
-func (m *MockDownsamplerAndWriter) Write(arg0 context.Context, arg1 models.Tags, arg2 ts.Datapoints, arg3 time.Unit, arg4 WriteOptions) error {
+func (m *MockDownsamplerAndWriter) Write(arg0 context.Context, arg1 models.Tags, arg2 ts.Datapoints, arg3 time.Unit, arg4 []byte, arg5 WriteOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (mr *MockDownsamplerAndWriterMockRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+func (mr *MockDownsamplerAndWriterMockRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).Write), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).Write), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // WriteBatch mocks base method
-func (m *MockDownsamplerAndWriter) WriteBatch(arg0 context.Context, arg1 DownsampleAndWriteIter) error {
+func (m *MockDownsamplerAndWriter) WriteBatch(arg0 context.Context, arg1 DownsampleAndWriteIter, arg2 WriteOptions) BatchError {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatch", arg0, arg1)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "WriteBatch", arg0, arg1, arg2)
+	ret0, _ := ret[0].(BatchError)
 	return ret0
 }
 
 // WriteBatch indicates an expected call of WriteBatch
-func (mr *MockDownsamplerAndWriterMockRecorder) WriteBatch(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDownsamplerAndWriterMockRecorder) WriteBatch(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).WriteBatch), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).WriteBatch), arg0, arg1, arg2)
 }

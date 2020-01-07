@@ -96,77 +96,50 @@ m3dbnode -f <config-name.yml>
 
 Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc
 
-## Initialize Topology
-M3DB calls its cluster topology ‘placement’. Run the command below on any of the seed nodes to initialize your first placement.
+## Create Namespace and Initialize Topology
 
-Note: Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones `us-east1-a`, `us-east1-b`, `us-east1-c` as our isolation groups which matches our replication factor of 3.
+The recommended way to create a namespace and initialize a topology is to use the `/api/v1/database/create` api. Below is an example.
+
+**Note:** In order to create a more custom setup, please refer to the [namespace configuration](../operational_guide/namespace_configuration.md) and 
+[placement configuration](../operational_guide/placement_configuration.md) guides, though this is discouraged.
 
 ```json
-curl -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 1024,
-    "replication_factor": 3,
-    "instances": [
+curl -X POST http://localhost:7201/api/v1/database/create -d '{
+  "type": "cluster",
+  "namespaceName": "1week_namespace",
+  "retentionTime": "168h",
+  "numShards": "1024",
+  "replicationFactor": "3",
+  "hosts": [
         {
             "id": "m3db001",
-            "isolation_group": "us-east1-a",
+            "isolationGroup": "us-east1-a",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "10.142.0.1:9000",
-            "hostname": "m3db001",
+            "address": "10.142.0.1",
             "port": 9000
         },
         {
             "id": "m3db002",
-            "isolation_group": "us-east1-b",
+            "isolationGroup": "us-east1-b",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "10.142.0.2:9000",
-            "hostname": "m3db002-us-east",
+            "address": "10.142.0.2",
             "port": 9000
         },
         {
             "id": "m3db003",
-            "isolation_group": "us-east1-c",
+            "isolationGroup": "us-east1-c",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "10.142.0.3:9000",
-            "hostname": "m3db003",
+            "address": "10.142.0.3",
             "port": 9000
         }
     ]
 }'
 ```
 
-## Create namespace(s)
-A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.
-
-Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:
-
-```json
-curl -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "metrics",
-  "options": {
-    "bootstrapEnabled": true,
-    "flushEnabled": true,
-    "writesToCommitLog": true,
-    "cleanupEnabled": true,
-    "snapshotEnabled": true,
-    "repairEnabled": false,
-    "retentionOptions": {
-      "retentionPeriodDuration": "720h",
-      "blockSizeDuration": "12h",
-      "bufferFutureDuration": "1h",
-      "bufferPastDuration": "1h",
-      "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
-    },
-    "indexOptions": {
-      "enabled": true,
-      "blockSizeDuration": "12h"
-    }
-  }
-}'
-```
+**Note:** Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones `us-east1-a`, `us-east1-b`, `us-east1-c` as our isolation groups which matches our replication factor of 3.
 
 Shortly after, you should see your node complete bootstrapping:
 
@@ -183,7 +156,15 @@ Shortly after, you should see your node complete bootstrapping:
 20:10:14.764771[I] successfully updated topology to 3 hosts
 ```
 
-Read more about namespaces and the various knobs in the docs.
+If you need to setup multiple namespaces, you can run the above `/api/v1/database/create` command multiple times with different namespace configurations.
+
+### Replication factor (RF)
+
+Recommended is RF3, where each replica is spread across failure domains such as a rack, data center or availability zone. See [Replication Factor Recommendations](../operational_guide/replication_and_deployment_in_zones.md) for more specifics.
+
+### Shards
+
+See [placement configuration](../operational_guide/placement_configuration.md) to determine the appropriate number of shards to specify.
 
 ## Test it out
 

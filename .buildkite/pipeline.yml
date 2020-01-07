@@ -10,20 +10,11 @@ common: &common
     manual: true
 
 steps:
-  - name: "Check for :docker: build"
-    command: ".ci/docker/check_do_docker.sh"
-    agents:
-      queue: init
-    timeout_in_minutes: 10
-    retry:
-      automatic:
-        limit: 1
-      manual: true
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.10.x
+      GIMME_GO_VERSION: 1.12.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -53,9 +44,20 @@ steps:
     <<: *common
   - name: "Integration (:docker:)"
     command: make clean install-vendor docker-integration-test
+    parallelism: 2
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.10.x
+      GIMME_GO_VERSION: 1.13.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+    <<: *common
+  - name: "Prometheus compatibility (:docker:)"
+    command: make clean install-vendor docker-compatibility-test
+    parallelism: 1
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.13.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -84,3 +86,32 @@ steps:
         run: app
         workdir: /go/src/github.com/m3db/m3
     <<: *common
+  - name: "Documentation tests"
+    command: make clean install-vendor docs-test
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.12.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+    <<: *common
+  - label: "FOSSA license scan"
+    command: make clean install-vendor fossa
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+        env:
+          - FOSSA_API_KEY
+    <<: *common
+  - name: "Check for docker and docs builds :docker: :books:"
+    commands:
+    - ".ci/docker/check_do_docker.sh"
+    - ".buildkite/scripts/check_do_docs.sh"
+    agents:
+      queue: init
+    timeout_in_minutes: 10
+    retry:
+      automatic:
+        limit: 1
+      manual: true

@@ -33,14 +33,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
-	xlog "github.com/m3db/m3x/log"
+
+	"go.uber.org/zap"
 )
 
 type indexReader struct {
 	opts           Options
 	filePathPrefix string
 	hugePagesOpts  mmap.HugeTLBOptions
-	logger         xlog.Logger
+	logger         *zap.Logger
 
 	namespaceDir string
 	start        time.Time
@@ -200,11 +201,16 @@ func (r *indexReader) ReadSegmentFileSet() (
 			segmentType: idxpersist.IndexSegmentType(segment.SegmentType),
 		}
 	)
-	closeFiles := func() {
+	success := false
+	defer func() {
+		// Do not close opened files if read finishes sucessfully.
+		if success {
+			return
+		}
 		for _, file := range result.files {
 			file.Close()
 		}
-	}
+	}()
 	for _, file := range segment.Files {
 		segFileType := idxpersist.IndexSegmentFileType(file.SegmentFileType)
 
@@ -217,7 +223,6 @@ func (r *indexReader) ReadSegmentFileSet() (
 			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start, r.volumeIndex,
 				r.currIdx, segFileType)
 		default:
-			closeFiles()
 			return nil, fmt.Errorf("unknown fileset type: %s", r.fileSetType)
 		}
 
@@ -233,13 +238,11 @@ func (r *indexReader) ReadSegmentFileSet() (
 			},
 		})
 		if err != nil {
-			closeFiles()
 			return nil, err
 		}
 
 		if warning := mmapResult.Warning; warning != nil {
-			r.logger.Warnf("warning while mmapping files in reader: %s",
-				warning.Error())
+			r.logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 		}
 
 		file := newReadableIndexSegmentFileMmap(segFileType, fd, bytes)
@@ -248,10 +251,16 @@ func (r *indexReader) ReadSegmentFileSet() (
 			segmentFileType: segFileType,
 			digest:          digest.Checksum(bytes),
 		})
+
+		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.
+		if err := mmap.MadviseDontNeed(bytes); err != nil {
+			return nil, err
+		}
 	}
 
 	r.currIdx++
 	r.readDigests.segments = append(r.readDigests.segments, digests)
+	success = true
 	return result, nil
 }
 

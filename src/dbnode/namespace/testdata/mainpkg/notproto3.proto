@@ -1,0 +1,10 @@
+syntax = "proto2";
+package mainpkg;
+
+message TestMessage {
+    required int32 a_int32 = 1;
+    required int64 a_int64 = 2;
+    required uint32 a_uint32 = 3;
+    required uint64 a_uint64 = 4;
+    required sint32 a_sint32 = 5;
+}

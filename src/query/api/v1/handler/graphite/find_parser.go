@@ -29,16 +29,41 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	graphiteStorage "github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/x/net/http"
 )
 
-func parseFindParamsToQuery(r *http.Request) (
-	*storage.FetchQuery,
-	*xhttp.ParseError,
+// parseFindParamsToQueries parses an incoming request to two find queries,
+// which are then combined to give the final result.
+// It returns, in order:
+//  the given query; this will return all values for exactly that tag which have
+// _terminatedQuery, which adds an explicit terminator after the last term in
+//  no child nodes
+// _childQuery, which adds an explicit match all after the last term in the
+// given query; this will return all values for exactly that tag which have at
+// least one child node.
+// _rawQueryString, which is the initial query request (bar final
+// matcher), which  is used to reconstruct the return values.
+// _err, any error encountered during parsing.
+//
+// As an example, given the query `a.b*`, and metrics `a.bar.c` and `a.biz`,
+// terminatedQuery will return only [biz], and childQuery will return only
+// [bar].
+func parseFindParamsToQueries(r *http.Request) (
+	_terminatedQuery *storage.CompleteTagsQuery,
+	_childQuery *storage.CompleteTagsQuery,
+	_rawQueryString string,
+	_err *xhttp.ParseError,
 ) {
 	values := r.URL.Query()
+	query := values.Get("query")
+	if query == "" {
+		return nil, nil, "",
+			xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
+	}
+
 	now := time.Now()
 	fromString, untilString := r.FormValue("from"), r.FormValue("until")
 	if len(fromString) == 0 {
@@ -56,8 +81,9 @@ func parseFindParamsToQuery(r *http.Request) (
 	)
 
 	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf("invalid 'from': %s", fromString),
-			http.StatusBadRequest)
+		return nil, nil, "",
+			xhttp.NewParseError(fmt.Errorf("invalid 'from': %s", fromString),
+				http.StatusBadRequest)
 	}
 
 	until, err := graphite.ParseTime(
@@ -67,28 +93,50 @@ func parseFindParamsToQuery(r *http.Request) (
 	)
 
 	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf("invalid 'until': %s", untilString),
-			http.StatusBadRequest)
+		return nil, nil, "",
+			xhttp.NewParseError(fmt.Errorf("invalid 'until': %s", untilString),
+				http.StatusBadRequest)
 	}
 
-	query := values.Get("query")
-	if query == "" {
-		return nil, xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
-	}
-
-	matchers, err := graphiteStorage.TranslateQueryToMatchers(query)
+	matchers, err := graphiteStorage.TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf("invalid 'query': %s", query),
+		return nil, nil, "",
+			xhttp.NewParseError(fmt.Errorf("invalid 'query': %s", query),
+				http.StatusBadRequest)
+	}
+
+	// NB: Filter will always be the second last term in the matchers, and the
+	// matchers should always have a length of at least 2 (term + terminator)
+	// so this is a sanity check and unexpected in actual execution.
+	if len(matchers) < 2 {
+		return nil, nil, "", xhttp.NewParseError(fmt.Errorf("unable to parse "+
+			"'query': %s", query),
 			http.StatusBadRequest)
 	}
 
-	return &storage.FetchQuery{
-		Raw:         query,
-		TagMatchers: matchers,
-		Start:       from,
-		End:         until,
-		Interval:    0,
-	}, nil
+	filter := [][]byte{matchers[len(matchers)-2].Name}
+	terminatedQuery := &storage.CompleteTagsQuery{
+		CompleteNameOnly: false,
+		FilterNameTags:   filter,
+		TagMatchers:      matchers,
+		Start:            from,
+		End:              until,
+	}
+
+	clonedMatchers := make([]models.Matcher, len(matchers))
+	copy(clonedMatchers, matchers)
+	// NB: change terminator from `MatchNotField` to `MatchField` to ensure
+	// segments with children are matched.
+	clonedMatchers[len(clonedMatchers)-1].Type = models.MatchField
+	childQuery := &storage.CompleteTagsQuery{
+		CompleteNameOnly: false,
+		FilterNameTags:   filter,
+		TagMatchers:      clonedMatchers,
+		Start:            from,
+		End:              until,
+	}
+
+	return terminatedQuery, childQuery, query, nil
 }
 
 func findResultsJSON(

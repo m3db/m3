@@ -23,15 +23,16 @@ package pools
 import (
 	"io"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
-	xsync "github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -139,7 +140,7 @@ func BuildIteratorPools() encoding.IteratorPools {
 		SetSize(size)
 	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(poolOpts)
 	encodingOpts := encoding.NewOptions()
-	readerIterAlloc := func(r io.Reader) encoding.ReaderIterator {
+	readerIterAlloc := func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	}

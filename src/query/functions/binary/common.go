@@ -28,40 +28,19 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// VectorMatchCardinality describes the cardinality relationship
-// of two Vectors in a binary operation.
-type VectorMatchCardinality int
-
-const (
-	// CardOneToOne is used for one-one relationship
-	CardOneToOne VectorMatchCardinality = iota
-	// CardManyToOne is used for many-one relationship
-	CardManyToOne
-	// CardOneToMany is used for one-many relationship
-	CardOneToMany
-	// CardManyToMany is used for many-many relationship
-	CardManyToMany
+var (
+	errRExhausted = errors.New("right iter exhausted while left iter has values")
+	errLExhausted = errors.New("left iter exhausted while right iter has values")
 )
 
-// VectorMatching describes how elements from two Vectors in a binary
-// operation are supposed to be matched.
-type VectorMatching struct {
-	// The cardinality of the two Vectors.
-	Card VectorMatchCardinality
-	// MatchingLabels contains the labels which define equality of a pair of
-	// elements from the Vectors.
-	MatchingLabels [][]byte
-	// On includes the given label names from matching,
-	// rather than excluding them.
-	On bool
-	// Include contains additional labels that should be included in
-	// the result from the side with the lower cardinality.
-	Include []string
+type indexMatcher struct {
+	lhsIndex int
+	rhsIndex int
 }
 
-// HashFunc returns a function that calculates the signature for a metric
-// ignoring the provided labels. If on, then the given labels are only used instead.
-func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
+// hashFunc returns a function that calculates the signature for a metric
+// ignoring the provided labels. If on, then only the given labels are used.
+func hashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 	if on {
 		return func(tags models.Tags) uint64 {
 			return tags.TagsWithKeys(names).HashedID()
@@ -76,12 +55,16 @@ func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 const initIndexSliceLength = 10
 
 var (
-	errMismatchedBounds        = errors.New("block bounds are mismatched")
-	errMismatchedStepCounts    = errors.New("block step counts are mismatched")
-	errLeftScalar              = errors.New("expected left scalar but node type incorrect")
-	errRightScalar             = errors.New("expected right scalar but node type incorrect")
-	errNoModifierForComparison = errors.New("comparisons between scalars must use BOOL modifier")
-	errNoMatching              = errors.New("vector matching parameters must be provided for binary operations between series")
+	errMismatchedBounds     = errors.New("block bounds are mismatched")
+	errMismatchedStepCounts = errors.New("block step counts are mismatched")
+	errLeftScalar           = errors.New("expected left scalar but node type" +
+		" incorrect")
+	errRightScalar = errors.New("expected right scalar but node" +
+		" type incorrect")
+	errNoModifierForComparison = errors.New("comparisons between scalars must" +
+		" use BOOL modifier")
+	errNoMatching = errors.New("vector matching parameters must" +
+		" be provided for binary operations between series")
 )
 
 func tagMap(t models.Tags) map[string]models.Tag {
@@ -91,6 +74,38 @@ func tagMap(t models.Tags) map[string]models.Tag {
 	}
 
 	return m
+}
+
+// Iff one of left or right is a time block, match match one to many
+// against it, and match everything.
+func defaultVectorMatcherBuilder(lhs, rhs block.Block) VectorMatching {
+	left := lhs.Info().BaseType() == block.BlockTime
+	right := rhs.Info().BaseType() == block.BlockTime
+
+	if left {
+		if right {
+			return VectorMatching{
+				Set:  true,
+				Card: CardOneToOne,
+			}
+		}
+
+		return VectorMatching{
+			Set:  true,
+			Card: CardOneToMany,
+			On:   true,
+		}
+	}
+
+	if right {
+		return VectorMatching{
+			Set:  true,
+			Card: CardManyToOne,
+			On:   true,
+		}
+	}
+
+	return VectorMatching{Set: false}
 }
 
 func combineMetaAndSeriesMeta(
@@ -149,22 +164,24 @@ func combineMetaAndSeriesMeta(
 		otherSeriesMeta[i].Tags = m.Tags.Add(otherMetaTagsToAdd)
 	}
 
+	meta.ResultMetadata = meta.ResultMetadata.
+		CombineMetadata(otherMeta.ResultMetadata)
+
 	return meta,
 		seriesMeta,
 		otherSeriesMeta,
 		nil
 }
 
-func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
-	for index := 0; iter.Next(); index++ {
-		step := iter.Current()
-		values := step.Values()
-		for _, idx := range idxArray {
-			if err := builder.AppendValue(index, values[idx]); err != nil {
-				return err
-			}
-		}
+// NB: binary functions should remove the name tag from relevant series.
+func removeNameTags(
+	meta block.Metadata,
+	metas []block.SeriesMeta,
+) (block.Metadata, []block.SeriesMeta) {
+	meta.Tags = meta.Tags.WithoutName()
+	for i, sm := range metas {
+		metas[i].Tags = sm.Tags.WithoutName()
 	}
 
-	return iter.Err()
+	return meta, metas
 }

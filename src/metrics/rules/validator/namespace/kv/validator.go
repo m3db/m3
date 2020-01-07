@@ -29,7 +29,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	kvutil "github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
-	"github.com/m3db/m3x/log"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -40,7 +41,7 @@ type validator struct {
 	sync.RWMutex
 
 	opts               NamespaceValidatorOptions
-	logger             log.Logger
+	logger             *zap.Logger
 	kvStore            kv.Store
 	validNamespacesKey string
 	initWatchTimeout   time.Duration
@@ -108,11 +109,11 @@ func (v *validator) watchRuntimeConfig() error {
 	case <-watch.C():
 		v.processUpdate(watch.Get(), kvOpts)
 	case <-time.After(v.initWatchTimeout):
-		v.logger.WithFields(
-			log.NewField("key", v.validNamespacesKey),
-			log.NewField("timeout", v.initWatchTimeout),
-			log.NewField("default", v.opts.DefaultValidNamespaces()),
-		).Warnf("timed out waiting for initial valid namespaces")
+		v.logger.Warn("timed out waiting for initial valid namespaces",
+			zap.String("key", v.validNamespacesKey),
+			zap.Duration("timeout", v.initWatchTimeout),
+			zap.Strings("default", v.opts.DefaultValidNamespaces()),
+		)
 	}
 
 	v.wg.Add(1)

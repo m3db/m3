@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
-	xtest "github.com/m3db/m3x/test"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
@@ -286,6 +286,8 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				shard := NewMockdatabaseShard(ctrl)
 				shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 				shard.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil).AnyTimes()
+				shard.EXPECT().CleanupCompactedFileSets().Return(nil).AnyTimes()
+
 				shards = append(shards, shard)
 			}
 
@@ -293,7 +295,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				ns := NewMockdatabaseNamespace(ctrl)
 				ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
 				ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-				ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+				ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 				ns.EXPECT().GetOwnedShards().Return(shards).AnyTimes()
 				namespaces = append(namespaces, ns)
 			}
@@ -345,7 +347,7 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return(nil).AnyTimes()
 
 	idx := NewMocknamespaceIndex(ctrl)
@@ -374,7 +376,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	for range namespaces {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 		namespaces = append(namespaces, ns)
 	}
 	db := newMockdatabase(ctrl, namespaces...)
@@ -405,10 +407,11 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
+	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
 
 	db := newMockdatabase(ctrl, namespaces...)
@@ -437,7 +440,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
-	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
 
 	db := newMockdatabase(ctrl, namespaces...)
@@ -490,7 +493,7 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	ts := timeFor(36000)
 
 	db := NewMockdatabase(ctrl)
-	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	db.EXPECT().Open().Return(nil)
 	db.EXPECT().Terminate().Return(nil)
 	db.EXPECT().GetOwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()

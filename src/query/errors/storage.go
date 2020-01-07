@@ -25,13 +25,14 @@ import (
 )
 
 var (
-	// ErrNilWriteQuery is returned when trying to write a nil query
+	// ErrNilWriteQuery is returned when trying to write a nil query.
 	ErrNilWriteQuery = errors.New("nil write query")
 
-	// ErrRemoteWriteQuery is returned when trying to write to a remote endpoint query
+	// ErrRemoteWriteQuery is returned when trying to write to a remote
+	// endpoint query.
 	ErrRemoteWriteQuery = errors.New("cannot write to remote endpoint")
 
-	// ErrNotImplemented is returned when the storage endpoint is not implemented
+	// ErrNotImplemented is returned when the storage endpoint is not implemented.
 	ErrNotImplemented = errors.New("not implemented")
 
 	// ErrInvalidFetchResponse is returned when fetch fails from storage.
@@ -40,8 +41,13 @@ var (
 	// ErrFetchResponseOrder is returned fetch responses are not in order.
 	ErrFetchResponseOrder = errors.New("responses out of order for fetch")
 
-	// ErrFetchRequestType is an error returned when response from fetch has invalid type.
+	// ErrFetchRequestType is an error returned when response from fetch has
+	// an invalid type.
 	ErrFetchRequestType = errors.New("invalid request type")
+
+	// ErrNoValidResults is an error returned when there are no stores
+	// that succeeded the fanout.
+	ErrNoValidResults = errors.New("no valid results in fanout")
 
 	// ErrInvalidFetchResult is an error returned when fetch result is invalid.
 	ErrInvalidFetchResult = errors.New("invalid fetch result")
@@ -49,24 +55,37 @@ var (
 	// ErrZeroInterval is an error returned when fetch interval is 0.
 	ErrZeroInterval = errors.New("interval cannot be 0")
 
-	// ErrInvalidOperation is an error returned when fetch raw is called on wrong storage type
-	ErrInvalidOperation = errors.New("can only fetch raw iterators on local storage")
+	// ErrInvalidOperation is an error returned when fetch raw is called on wrong
+	// storage type.
+	ErrInvalidOperation = errors.New("can only fetch raw iterators on" +
+		" local storage")
 
-	// ErrBadRequestType is an error returned when a request is an unexpected type
+	// ErrBadRequestType is an error returned when a request type is unexpected.
 	ErrBadRequestType = errors.New("request is an invalid type")
 
-	// ErrCannotDecodeCompressedTags is an error returned when compressed tags cannot be decoded
+	// ErrCannotDecodeCompressedTags is an error returned when compressed
+	// tags cannot be decoded.
 	ErrCannotDecodeCompressedTags = errors.New("unable to decode compressed tags")
 
-	// ErrCannotDecodeDecompressedTags is an error returned when decompressed tags cannot be decoded
-	ErrCannotDecodeDecompressedTags = errors.New("unable to decode decompressed tags")
+	// ErrCannotDecodeDecompressedTags is an error returned when decompressed
+	// tags cannot be decoded.
+	ErrCannotDecodeDecompressedTags = errors.New("unable to decode" +
+		" decompressed tags")
 
-	// ErrCannotEncodeCompressedTags is an error returned when compressed tags cannot be encoded
+	// ErrCannotEncodeCompressedTags is an error returned when compressed tags
+	// cannot be encoded.
 	ErrCannotEncodeCompressedTags = errors.New("unable to encode compressed tags")
 
-	// ErrOnlyFixedResSupported is an error returned we try to get step size for variable resolution
+	// ErrOnlyFixedResSupported is an error returned we try to get step size
+	// for variable resolution.
 	ErrOnlyFixedResSupported = errors.New("only fixed resolution supported")
 
-	// ErrUnexpectedGRPCResponseType is an error returned when rpc response type is unhandled
+	// ErrUnexpectedGRPCResponseType is an error returned when rpc response type
+	// is unhandled.
 	ErrUnexpectedGRPCResponseType = errors.New("unexpected grpc response type")
+
+	// ErrInconsistentCompleteTagsType is an error returned when a complete tags
+	// request returns an inconsistenent type.
+	ErrInconsistentCompleteTagsType = errors.New("inconsistent complete tags" +
+		" response type")
 )

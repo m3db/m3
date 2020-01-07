@@ -33,11 +33,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xtest "github.com/m3db/m3/src/x/test"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xretry "github.com/m3db/m3x/retry"
-	xtime "github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xretry "github.com/m3db/m3/src/x/retry"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -56,12 +56,22 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 }
 
 func TestSessionWrite(t *testing.T) {
+	testSessionWrite(t, testOptions{
+		opts: newSessionTestOptions(),
+	})
+}
+
+func testSessionWrite(t *testing.T, testOpts testOptions) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	session := newDefaultTestSession(t).(*session)
+	session := newTestSession(t, testOpts.opts).(*session)
 
 	w := newWriteStub()
+	if testOpts.setWriteAnn != nil {
+		testOpts.setWriteAnn(&w)
+	}
+
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
@@ -72,6 +82,9 @@ func TestSessionWrite(t *testing.T) {
 		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 		assert.NotNil(t, write.completionFn)
+		if testOpts.annEqual != nil {
+			testOpts.annEqual(t, w.annotation, write.request.Datapoint.Annotation)
+		}
 	}})
 
 	assert.NoError(t, session.Open())
@@ -496,7 +509,7 @@ func newDefaultTestSession(t *testing.T) clientSession {
 func newRetryEnabledTestSession(t *testing.T, opts Options) clientSession {
 	opts = opts.
 		SetWriteRetrier(
-			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+		xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
 	return newTestSession(t, opts)
 }
 
@@ -507,6 +520,5 @@ func newWriteStub() writeStub {
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Second,
-		annotation: nil,
-	}
+		annotation: nil}
 }

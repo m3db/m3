@@ -32,6 +32,7 @@ const (
 	sysctlDir        = "/proc/sys/"
 	vmMaxMapCountKey = "vm.max_map_count"
 	vmSwappinessKey  = "vm.swappiness"
+	fsNROpenKey      = "fs.nr_open"
 )
 
 // CanGetProcessLimits returns a boolean to signify if it can return limits,
@@ -63,6 +64,50 @@ func GetProcessLimits() (ProcessLimits, error) {
 		NoFileMax:     noFile.Max,
 		VMMaxMapCount: maxMap,
 		VMSwappiness:  swap,
+	}, nil
+}
+
+// RaiseProcessNoFileToNROpen first determines the NROpen limit by reading
+// the corresponding proc sys file and then if the hard or soft limits
+// are below this number, the limits are raised using a call to setrlimit.
+func RaiseProcessNoFileToNROpen() (RaiseProcessNoFileToNROpenResult, error) {
+	value, err := sysctlInt64(fsNROpenKey)
+	if err != nil {
+		return RaiseProcessNoFileToNROpenResult{}, fmt.Errorf(
+			"unable to raise nofile limits: nr_open_parse_err=%v", err)
+	}
+
+	limit := uint64(value)
+
+	var limits syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limits); err != nil {
+		return RaiseProcessNoFileToNROpenResult{}, fmt.Errorf(
+			"unable to raise nofile limits: rlimit_get_err=%v", err)
+	}
+
+	if limits.Max >= limit && limits.Cur >= limit {
+		// Limit already set correctly
+		return RaiseProcessNoFileToNROpenResult{
+			RaisePerformed:  false,
+			NROpenValue:     limit,
+			NoFileMaxValue:  limits.Max,
+			NoFileCurrValue: limits.Cur,
+		}, nil
+	}
+
+	limits.Max = limit
+	limits.Cur = limit
+
+	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limits); err != nil {
+		return RaiseProcessNoFileToNROpenResult{}, fmt.Errorf(
+			"unable to raise nofile limits: rlimit_set_err=%v", err)
+	}
+
+	return RaiseProcessNoFileToNROpenResult{
+		RaisePerformed:  true,
+		NROpenValue:     limit,
+		NoFileMaxValue:  limits.Max,
+		NoFileCurrValue: limits.Cur,
 	}, nil
 }
 

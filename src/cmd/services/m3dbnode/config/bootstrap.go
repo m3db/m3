@@ -35,13 +35,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 var (
 	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
-	defaultNumProcessorsPerCPU = 0.5
+	defaultNumProcessorsPerCPU = 0.125
 )
 
 // BootstrapConfiguration specifies the config for bootstrappers.
@@ -61,18 +60,20 @@ type BootstrapConfiguration struct {
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
 }
 
-func (bsc BootstrapConfiguration) fsNumProcessors() int {
-	np := defaultNumProcessorsPerCPU
-	if fsCfg := bsc.Filesystem; fsCfg != nil {
-		np = bsc.Filesystem.NumProcessorsPerCPU
-	}
-	return int(math.Ceil(float64(runtime.NumCPU()) * np))
-}
-
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per CPU.
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
+}
+
+func (c BootstrapFilesystemConfiguration) numCPUs() int {
+	return int(math.Ceil(float64(c.NumProcessorsPerCPU * float64(runtime.NumCPU()))))
+}
+
+func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfiguration {
+	return BootstrapFilesystemConfiguration{
+		NumProcessorsPerCPU: defaultNumProcessorsPerCPU,
+	}
 }
 
 // BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
@@ -86,31 +87,42 @@ type BootstrapCommitlogConfiguration struct {
 	ReturnUnfulfilledForCorruptCommitLogFiles bool `yaml:"returnUnfulfilledForCorruptCommitLogFiles"`
 }
 
+func newDefaultBootstrapCommitlogConfiguration() BootstrapCommitlogConfiguration {
+	return BootstrapCommitlogConfiguration{
+		ReturnUnfulfilledForCorruptCommitLogFiles: commitlog.DefaultReturnUnfulfilledForCorruptCommitLogFiles,
+	}
+}
+
+// BootstrapConfigurationValidator can be used to validate the option sets
+// that the  bootstrap configuration builds.
+// Useful for tests and perhaps verifying same options set across multiple
+// bootstrappers.
+type BootstrapConfigurationValidator interface {
+	ValidateBootstrappersOrder(names []string) error
+	ValidateFilesystemBootstrapperOptions(opts bfs.Options) error
+	ValidateCommitLogBootstrapperOptions(opts commitlog.Options) error
+	ValidatePeersBootstrapperOptions(opts peers.Options) error
+	ValidateUninitializedBootstrapperOptions(opts uninitialized.Options) error
+}
+
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
+	validator BootstrapConfigurationValidator,
+	rsOpts result.Options,
 	opts storage.Options,
 	topoMapProvider topology.MapProvider,
 	origin topology.Host,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
-	if err := ValidateBootstrappersOrder(bsc.Bootstrappers); err != nil {
+	if err := validator.ValidateBootstrappersOrder(bsc.Bootstrappers); err != nil {
 		return nil, err
 	}
 
 	var (
-		mutableSegmentAllocator = index.NewBootstrapResultMutableSegmentAllocator(
-			opts.IndexOptions())
-		bs  bootstrap.BootstrapperProvider
-		err error
+		bs     bootstrap.BootstrapperProvider
+		err    error
+		fsOpts = opts.CommitLogOptions().FilesystemOptions()
 	)
-	rsOpts := result.NewOptions().
-		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
-		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-		SetIndexMutableSegmentAllocator(mutableSegmentAllocator)
-
-	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
 		switch bsc.Bootstrappers[i] {
@@ -119,25 +131,33 @@ func (bsc BootstrapConfiguration) New(
 		case bootstrapper.NoOpNoneBootstrapperName:
 			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case bfs.FileSystemBootstrapperName:
+			fsCfg := bsc.filesystemConfig()
 			fsbOpts := bfs.NewOptions().
 				SetInstrumentOptions(opts.InstrumentOptions()).
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
 				SetPersistManager(opts.PersistManager()).
-				SetBoostrapDataNumProcessors(bsc.fsNumProcessors()).
+				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool())
+			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
+				return nil, err
+			}
 			bs, err = bfs.NewFileSystemBootstrapperProvider(fsbOpts, bs)
 			if err != nil {
 				return nil, err
 			}
 		case commitlog.CommitLogBootstrapperName:
+			cCfg := bsc.commitlogConfig()
 			cOpts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions()).
-				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
-
+				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
+				SetReturnUnfulfilledForCorruptCommitLogFiles(cCfg.ReturnUnfulfilledForCorruptCommitLogFiles)
+			if err := validator.ValidateCommitLogBootstrapperOptions(cOpts); err != nil {
+				return nil, err
+			}
 			inspection, err := fs.InspectFilesystem(fsOpts)
 			if err != nil {
 				return nil, err
@@ -152,7 +172,11 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
-				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
+				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
+				SetContextPool(opts.ContextPool())
+			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
+				return nil, err
+			}
 			bs, err = peers.NewPeersBootstrapperProvider(pOpts, bs)
 			if err != nil {
 				return nil, err
@@ -161,7 +185,10 @@ func (bsc BootstrapConfiguration) New(
 			uOpts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
 				SetInstrumentOptions(opts.InstrumentOptions())
-			bs = uninitialized.NewuninitializedTopologyBootstrapperProvider(uOpts, bs)
+			if err := validator.ValidateUninitializedBootstrapperOptions(uOpts); err != nil {
+				return nil, err
+			}
+			bs = uninitialized.NewUninitializedTopologyBootstrapperProvider(uOpts, bs)
 		default:
 			return nil, fmt.Errorf("unknown bootstrapper: %s", bsc.Bootstrappers[i])
 		}
@@ -176,9 +203,31 @@ func (bsc BootstrapConfiguration) New(
 	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts)
 }
 
-// ValidateBootstrappersOrder will validate that a list of bootstrappers specified
-// is in valid order.
-func ValidateBootstrappersOrder(names []string) error {
+func (bsc BootstrapConfiguration) filesystemConfig() BootstrapFilesystemConfiguration {
+	if cfg := bsc.Filesystem; cfg != nil {
+		return *cfg
+	}
+	return newDefaultBootstrapFilesystemConfiguration()
+}
+
+func (bsc BootstrapConfiguration) commitlogConfig() BootstrapCommitlogConfiguration {
+	if cfg := bsc.Commitlog; cfg != nil {
+		return *cfg
+	}
+	return newDefaultBootstrapCommitlogConfiguration()
+}
+
+type bootstrapConfigurationValidator struct {
+}
+
+// NewBootstrapConfigurationValidator returns a new bootstrap configuration
+// validator that validates certain options configured by the bootstrap
+// configuration.
+func NewBootstrapConfigurationValidator() BootstrapConfigurationValidator {
+	return bootstrapConfigurationValidator{}
+}
+
+func (v bootstrapConfigurationValidator) ValidateBootstrappersOrder(names []string) error {
 	dataFetchingBootstrappers := []string{
 		bfs.FileSystemBootstrapperName,
 		peers.PeersBootstrapperName,
@@ -233,4 +282,28 @@ func ValidateBootstrappersOrder(names []string) error {
 	}
 
 	return nil
+}
+
+func (v bootstrapConfigurationValidator) ValidateFilesystemBootstrapperOptions(
+	opts bfs.Options,
+) error {
+	return opts.Validate()
+}
+
+func (v bootstrapConfigurationValidator) ValidateCommitLogBootstrapperOptions(
+	opts commitlog.Options,
+) error {
+	return opts.Validate()
+}
+
+func (v bootstrapConfigurationValidator) ValidatePeersBootstrapperOptions(
+	opts peers.Options,
+) error {
+	return opts.Validate()
+}
+
+func (v bootstrapConfigurationValidator) ValidateUninitializedBootstrapperOptions(
+	opts uninitialized.Options,
+) error {
+	return opts.Validate()
 }

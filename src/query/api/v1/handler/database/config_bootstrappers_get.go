@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -43,25 +44,28 @@ const (
 )
 
 type configGetBootstrappersHandler struct {
-	client clusterclient.Client
+	client         clusterclient.Client
+	instrumentOpts instrument.Options
 }
 
 // NewConfigGetBootstrappersHandler returns a new instance of a database create handler.
 func NewConfigGetBootstrappersHandler(
 	client clusterclient.Client,
+	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &configGetBootstrappersHandler{
-		client: client,
+		client:         client,
+		instrumentOpts: instrumentOpts,
 	}
 }
 
 func (h *configGetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	store, err := h.client.KV()
 	if err != nil {
-		logger.Error("unable to get kv store", zap.Any("error", err))
+		logger.Error("unable to get kv store", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -72,14 +76,14 @@ func (h *configGetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 		return
 	}
 	if err != nil {
-		logger.Error("unable to get kv key", zap.Any("error", err))
+		logger.Error("unable to get kv key", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	array := new(commonpb.StringArrayProto)
 	if err := value.Unmarshal(array); err != nil {
-		logger.Error("unable to unmarshal kv key", zap.Any("error", err))
+		logger.Error("unable to unmarshal kv key", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

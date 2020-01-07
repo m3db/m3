@@ -20,7 +20,7 @@
 
 package aggregator
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3/src/x/pool"
 
 // EntryAlloc allocates a new entry.
 type EntryAlloc func() *Entry

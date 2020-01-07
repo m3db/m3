@@ -21,11 +21,9 @@
 package consolidators
 
 import (
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	xts "github.com/m3db/m3/src/query/ts"
 )
 
 func removeStale(
@@ -49,8 +47,9 @@ type StepLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
-	consolidated     []float64
-	datapoints       [][]ts.Datapoint
+	datapoints       []ts.Datapoint
+	buffer           []float64
+	unconsumed       []float64
 	fn               ConsolidationFunc
 }
 
@@ -62,50 +61,53 @@ var _ StepCollector = (*StepLookbackConsolidator)(nil)
 func NewStepLookbackConsolidator(
 	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
-	resultSize int,
 	fn ConsolidationFunc,
 ) *StepLookbackConsolidator {
-	consolidated := make([]float64, resultSize)
-	xts.Memset(consolidated, math.NaN())
-	datapoints := make([][]ts.Datapoint, resultSize)
-	for i := range datapoints {
-		datapoints[i] = make([]ts.Datapoint, 0, initLength)
-	}
-
+	datapoints := make([]ts.Datapoint, 0, initLength)
+	buffer := make([]float64, BufferSteps)
 	return &StepLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
-		consolidated:     consolidated,
 		datapoints:       datapoints,
+		buffer:           buffer,
+		unconsumed:       buffer[:0],
 		fn:               fn,
 	}
 }
 
-// AddPointForIterator adds a datapoint to a given step if it's within the valid
+// AddPoint adds a datapoint to a given step if it's within the valid
 // time period; otherwise drops it silently, which is fine for consolidation.
-func (c *StepLookbackConsolidator) AddPointForIterator(
-	dp ts.Datapoint,
-	i int,
-) {
+func (c *StepLookbackConsolidator) AddPoint(dp ts.Datapoint) {
 	if dp.Timestamp.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
 
-	c.datapoints[i] = append(c.datapoints[i], dp)
+	c.datapoints = append(c.datapoints, dp)
+}
+
+// BufferStep adds viable points to the next unconsumed buffer step.
+func (c *StepLookbackConsolidator) BufferStep() {
+	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
+	val := c.fn(c.datapoints)
+	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
+	c.unconsumed = append(c.unconsumed, val)
+}
+
+// BufferStepCount indicates how many accumulated points are still unconsumed.
+func (c *StepLookbackConsolidator) BufferStepCount() int {
+	return len(c.unconsumed)
 }
 
 // ConsolidateAndMoveToNext consolidates the current values and moves the
 // consolidator to the next given value, purging stale values.
-func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() []float64 {
-	// Update earliest lookback then remove stale values for the next
-	// iteration of the datapoint set.
-	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
-	for i, dps := range c.datapoints {
-		c.consolidated[i] = c.fn(dps)
-		c.datapoints[i] = removeStale(c.earliestLookback, dps)
+func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
+	if len(c.unconsumed) == 0 {
+		return c.fn(nil)
 	}
 
-	return c.consolidated
+	val := c.unconsumed[0]
+	c.unconsumed = c.unconsumed[1:]
+	return val
 }

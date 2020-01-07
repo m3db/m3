@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/server"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/server"
 
 	"github.com/stretchr/testify/require"
 )

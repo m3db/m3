@@ -54,6 +54,13 @@ func (d *termsDict) Insert(field doc.Field, id postings.ID) error {
 	return postingsMap.Add(field.Value, id)
 }
 
+func (d *termsDict) ContainsField(field []byte) bool {
+	d.fields.RLock()
+	defer d.fields.RUnlock()
+	_, ok := d.fields.Get(field)
+	return ok
+}
+
 func (d *termsDict) ContainsTerm(field, term []byte) bool {
 	_, found := d.matchTerm(field, term)
 	return found

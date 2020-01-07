@@ -21,225 +21,121 @@
 package m3db
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/ts"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var consolidatedSeriesIteratorTests = []struct {
-	name     string
-	stepSize time.Duration
-	expected [][]float64
-}{
-	{
-		name:     "1 minute",
-		stepSize: time.Minute,
-		expected: [][]float64{
-			{
-				nan, nan, nan, nan, nan, nan,
-				1, 1, 3, 4, 5, 6,
-				7, 7, nan, nan, nan, 8,
-				8, nan, nan, nan, 9, 9,
-				nan, nan, nan, nan, nan, nan,
-			},
-			{
-				nan, nan, 10, 20, 20, nan,
-				nan, nan, nan, nan, nan, nan,
-				nan, 30, 30, nan, nan, nan,
-				nan, 40, nan, nan, nan, nan,
-				nan, nan, nan, nan, nan, nan,
-			},
-			{
-				nan, nan, nan, 100, 100, nan,
-				nan, nan, nan, 200, 200, nan,
-				nan, nan, nan, 300, 300, nan,
-				nan, nan, nan, 400, 400, nan,
-				500, 500, nan, nan, nan, nan,
-			},
-		},
-	},
-	{
-		name:     "2 minute",
-		stepSize: time.Minute * 2,
-		expected: [][]float64{
-			{
-				nan, nan, nan, 1, 3, 5, 7, nan,
-				nan, 8, nan, 9, nan, nan, nan,
-			},
-			{
-				nan, 10, 20, nan, nan, nan, nan, 30,
-				nan, nan, nan, nan, nan, nan, nan,
-			},
-			{
-				nan, nan, 100, nan, nan, 200, nan,
-				nan, 300, nan, nan, 400, 500, nan, nan,
-			},
-		},
-	},
-	{
-		name:     "3 minute",
-		stepSize: time.Minute * 3,
-		expected: [][]float64{
-			{
-				nan, nan, 1, 4, 7, nan, 8, nan, nan, nan,
-			},
-			{
-				nan, 20, nan, nan, nan, nan, nan, nan, nan, nan,
-			},
-			{
-				nan, 100, nan, 200, nan, 300, nan, 400, 500, nan,
-			},
-		},
-	},
+func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
+	vals := make([][]float64, len(dps))
+	for i, dp := range dps {
+		vals[i] = dp.Values()
+	}
+
+	return vals
 }
 
-func TestConsolidatedSeriesIteratorWithLookback(t *testing.T) {
-	for _, tt := range consolidatedSeriesIteratorTests {
-		opts := NewOptions().
-			SetLookbackDuration(1 * time.Minute).
-			SetSplitSeriesByBlock(false)
-		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
-		j := 0
-		for i, block := range blocks {
-			iters, err := block.SeriesIter()
-			require.NoError(t, err)
+func TestSeriesIterator(t *testing.T) {
+	expected := [][]float64{
+		{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		{10, 20, 30, 40},
+		{100, 200, 300, 400, 500},
+	}
 
-			require.True(t, bounds.Equals(iters.Meta().Bounds))
-			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
-			for iters.Next() {
-				series := iters.Current()
-				test.EqualsWithNans(t, tt.expected[j], series.Values())
-				j++
+	j := 0
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(false)
+	require.NoError(t, opts.Validate())
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
+	for i, block := range blocks {
+		iters, err := block.SeriesIter()
+		require.NoError(t, err)
+
+		require.True(t, bounds.Equals(block.Meta().Bounds))
+		verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
+		for iters.Next() {
+			series := iters.Current()
+			actual := make([]float64, 0, len(series.Datapoints()))
+			for _, v := range series.Datapoints() {
+				actual = append(actual, v.Value)
 			}
 
-			require.NoError(t, iters.Err())
+			test.EqualsWithNans(t, expected[j], actual)
+			j++
 		}
+
+		require.Equal(t, len(expected), j)
+		require.NoError(t, iters.Err())
 	}
 }
 
-var consolidatedSeriesIteratorTestsSplitByBlock = []struct {
-	name     string
-	stepSize time.Duration
-	expected [][][]float64
-}{
-	{
-		name:     "1 minute",
-		stepSize: time.Minute,
-		expected: [][][]float64{
-			{
-				{nan, nan, nan, nan, nan, nan},
-				{nan, nan, 10, 20, nan, nan},
-				{nan, nan, nan, 100, nan, nan},
-			},
-			{
-				{1, nan, 3, 4, 5, 6},
-				{nan, nan, nan, nan, nan, nan},
-				{nan, nan, nan, 200, nan, nan},
-			},
-			{
-				{7, nan, nan, nan, nan, 8},
-				{nan, nan, nan, nan, nan, nan},
-				{nan, nan, nan, 300, nan, nan},
-			},
-			{
-				{nan, nan, nan, nan, 9, nan},
-				{nan, nan, nan, nan, nan, nan},
-				{nan, nan, nan, 400, nan, nan},
-			},
-			{
-				{nan, nan, nan, nan, nan, nan},
-				{nan, nan, nan, nan, nan, nan},
-				{500, nan, nan, nan, nan, nan},
-			},
-		},
-	},
-	{
-		name:     "2 minute",
-		stepSize: time.Minute * 2,
-		expected: [][][]float64{
-			{
-				{nan, nan, nan},
-				{nan, 10, nan},
-				{nan, nan, nan},
-			},
-			{
-				{1, 3, 5},
-				{nan, nan, nan},
-				{nan, nan, nan},
-			},
-			{
-				{7, nan, nan},
-				{nan, nan, nan},
-				{nan, nan, nan},
-			},
-			{
-				{nan, nan, 9},
-				{nan, nan, nan},
-				{nan, nan, nan},
-			},
-			{
-				{nan, nan, nan},
-				{nan, nan, nan},
-				{500, nan, nan},
-			},
-		},
-	},
-	{
-		name:     "3 minute",
-		stepSize: time.Minute * 3,
-		expected: [][][]float64{
-			{
-				{nan, nan},
-				{nan, 20},
-				{nan, 100},
-			},
-			{
-				{1, 4},
-				{nan, nan},
-				{nan, 200},
-			},
-			{
-				{7, nan},
-				{nan, nan},
-				{nan, 300},
-			},
-			{
-				{nan, nan},
-				{nan, nan},
-				{nan, 400},
-			},
-			{
-				{nan, nan},
-				{nan, nan},
-				{500, nan},
-			},
-		},
-	},
+func verifySingleMeta(
+	t *testing.T,
+	i int,
+	meta block.Metadata,
+	metas []block.SeriesMeta,
+) {
+	require.Equal(t, 0, meta.Tags.Len())
+	require.Equal(t, 1, len(metas))
+
+	m := metas[0]
+	assert.Equal(t, fmt.Sprintf("abc%d", i), string(m.Name))
+	require.Equal(t, 2, m.Tags.Len())
+
+	val, found := m.Tags.Get([]byte("a"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("b"), val)
+
+	val, found = m.Tags.Get([]byte("c"))
+	assert.True(t, found)
+	assert.Equal(t, []byte(fmt.Sprint(i)), val)
 }
 
-func TestConsolidatedSeriesIteratorSplitByBlock(t *testing.T) {
-	for _, tt := range consolidatedSeriesIteratorTestsSplitByBlock {
-		opts := NewOptions().
-			SetLookbackDuration(0).
-			SetSplitSeriesByBlock(true)
-		blocks, bounds := generateBlocks(t, tt.stepSize, opts)
-		for i, block := range blocks {
-			iters, err := block.SeriesIter()
-			require.NoError(t, err)
+func TestSeriesIteratorBatch(t *testing.T) {
+	expected := [][]float64{
+		{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		{10, 20, 30, 40},
+		{100, 200, 300, 400, 500},
+	}
 
-			j := 0
-			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
-			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
-			for iters.Next() {
-				series := iters.Current()
-				test.EqualsWithNans(t, tt.expected[idx][j], series.Values())
-				j++
+	count := 0
+	opts := NewOptions().
+		SetLookbackDuration(1 * time.Minute).
+		SetSplitSeriesByBlock(false)
+	require.NoError(t, opts.Validate())
+	blocks, bounds := generateBlocks(t, time.Minute, opts)
+	for _, bl := range blocks {
+		require.True(t, bounds.Equals(bl.Meta().Bounds))
+		iters, err := bl.MultiSeriesIter(3)
+		require.NoError(t, err)
+		require.Equal(t, 3, len(iters))
+
+		for i, itBatch := range iters {
+			iter := itBatch.Iter
+			require.Equal(t, 1, itBatch.Size)
+			verifySingleMeta(t, i, bl.Meta(), iter.SeriesMeta())
+			for iter.Next() {
+				series := iter.Current()
+				actual := make([]float64, 0, len(series.Datapoints()))
+				for _, v := range series.Datapoints() {
+					actual = append(actual, v.Value)
+				}
+
+				test.EqualsWithNans(t, expected[i], actual)
+				count++
 			}
 
-			require.NoError(t, iters.Err())
+			require.NoError(t, iter.Err())
 		}
+
+		assert.Equal(t, 3, count)
 	}
 }

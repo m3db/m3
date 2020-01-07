@@ -44,7 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/m3em/convert"
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 	"github.com/m3db/m3/src/m3em/build"
@@ -52,14 +52,14 @@ import (
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3/src/m3em/node"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
-	m3xclock "github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
-	xtcp "github.com/m3db/m3x/tcp"
+	m3xclock "github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xtcp "github.com/m3db/m3/src/x/tcp"
 
 	"github.com/gogo/protobuf/proto"
+	"go.uber.org/zap"
 )
 
 const (
@@ -83,7 +83,7 @@ type DTestHarness struct {
 	conf             *config.Configuration
 	harnessDir       string
 	iopts            instrument.Options
-	logger           xlog.Logger
+	logger           *zap.Logger
 	placementService placement.Service
 	nodeOpts         node.Options
 	clusterOpts      cluster.Options
@@ -91,13 +91,14 @@ type DTestHarness struct {
 }
 
 // New constructs a new DTestHarness
-func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
+func New(cliOpts *config.Args, rawLogger *zap.Logger) *DTestHarness {
 	dt := &DTestHarness{
 		cliOpts: cliOpts,
-		logger:  logger,
-		iopts:   instrument.NewOptions().SetLogger(logger),
+		logger:  rawLogger,
+		iopts:   instrument.NewOptions().SetLogger(rawLogger),
 	}
 
+	logger := rawLogger.Sugar()
 	// create temporary directory for use on local host
 	dir, err := ioutil.TempDir("", "dtest")
 	if err != nil {
@@ -183,11 +184,11 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	co := conf.M3EM.Cluster.Options(dt.iopts)
 	dt.clusterOpts = co.
 		SetPlacementService(pSvc).
-		SetServiceBuild(newBuild(logger, cliOpts.NodeBuildPath)).
-		SetServiceConfig(newConfig(logger, cliOpts.NodeConfigPath)).
+		SetServiceBuild(newBuild(rawLogger, cliOpts.NodeBuildPath)).
+		SetServiceConfig(newConfig(rawLogger, cliOpts.NodeConfigPath)).
 		SetSessionToken(cliOpts.SessionToken).
 		SetSessionOverride(cliOpts.SessionOverride).
-		SetNodeListener(util.NewPullLogsAndPanicListener(logger, dt.harnessDir))
+		SetNodeListener(util.NewPullLogsAndPanicListener(rawLogger, dt.harnessDir))
 
 	if cliOpts.InitialReset {
 		dt.initialReset()
@@ -199,7 +200,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 func (dt *DTestHarness) initialReset() {
 	svcNodes, err := convert.AsServiceNodes(dt.nodes)
 	if err != nil {
-		dt.logger.Fatalf("unable to cast nodes: %v", err)
+		dt.logger.Fatal("unable to cast nodes", zap.Error(err))
 	}
 
 	var (
@@ -209,7 +210,7 @@ func (dt *DTestHarness) initialReset() {
 		exec        = node.NewConcurrentExecutor(svcNodes, concurrency, timeout, teardownFn)
 	)
 	if err := exec.Run(); err != nil {
-		dt.logger.Fatalf("unable to reset nodes: %v", err)
+		dt.logger.Fatal("unable to reset nodes", zap.Error(err))
 	}
 }
 
@@ -217,10 +218,10 @@ func (dt *DTestHarness) startPProfServer() {
 	serverAddress := fmt.Sprintf("0.0.0.0:%d", dt.conf.DTest.DebugPort)
 	go func() {
 		if err := http.ListenAndServe(serverAddress, nil); err != nil {
-			dt.logger.Fatalf("unable to serve debug server: %v", err)
+			dt.logger.Fatal("unable to serve debug server", zap.Error(err))
 		}
 	}()
-	dt.logger.Infof("serving pprof endpoints at: %v", serverAddress)
+	dt.logger.Info("serving pprof endpoints", zap.String("address", serverAddress))
 }
 
 // Close releases any resources held by the harness
@@ -254,12 +255,12 @@ func (dt *DTestHarness) Cluster() cluster.Cluster {
 
 	svcNodes, err := convert.AsServiceNodes(dt.nodes)
 	if err != nil {
-		dt.logger.Fatalf("unable to cast nodes: %v", err)
+		dt.logger.Fatal("unable to cast nodes", zap.Error(err))
 	}
 
 	testCluster, err := cluster.New(svcNodes, dt.clusterOpts)
 	if err != nil {
-		dt.logger.Fatalf("unable to create cluster: %v", err)
+		dt.logger.Fatal("unable to create cluster", zap.Error(err))
 	}
 	dt.addCloser(testCluster.Teardown)
 	dt.cluster = testCluster
@@ -290,7 +291,7 @@ func (dt *DTestHarness) Seed(nodes []node.ServiceNode) error {
 
 	seedConfigs := dt.conf.DTest.Seeds
 	if len(seedConfigs) == 0 {
-		dt.logger.Infof("No seed configurations provided, skipping.")
+		dt.logger.Info("no seed configurations provided, skipping.")
 		return nil
 	}
 
@@ -314,7 +315,7 @@ func delayedNowFn(delay time.Duration) xclock.NowFn {
 }
 
 func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config.SeedConfig) error {
-	dt.logger.Infof("Seeding data with configuration: %+v", seedConf)
+	dt.logger.Info("seeding data with configuration", zap.Any("config", seedConf))
 
 	seedDir := path.Join(dt.harnessDir, "seed", seedConf.Namespace)
 	if err := os.MkdirAll(seedDir, os.FileMode(0755)|os.ModeDir); err != nil {
@@ -335,7 +336,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 	generator := seed.NewGenerator(seedDataOpts)
 	outputNamespace := ident.StringID(seedConf.Namespace)
 
-	if err := generator.Generate(outputNamespace, seedConf.LocalShardNum); err != nil {
+	if err := generator.Generate(namespace.Context{ID: outputNamespace}, seedConf.LocalShardNum); err != nil {
 		return fmt.Errorf("unable to generate data: %v", err)
 	}
 
@@ -366,7 +367,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 		}
 	)
 
-	dt.logger.Infof("transferring data to nodes")
+	dt.logger.Info("transferring data to nodes")
 	transferDataExecutor := node.NewConcurrentExecutor(nodes, concurrency, timeout, transferFunc)
 	if err := transferDataExecutor.Run(); err != nil {
 		return fmt.Errorf("unable to transfer generated data, err: %v", err)
@@ -474,13 +475,13 @@ func (dt *DTestHarness) newHeartbeatRouter() node.HeartbeatRouter {
 	listenAddress := fmt.Sprintf("0.0.0.0:%d", hbPort)
 	listener, err := xtcp.NewTCPListener(listenAddress, 3*time.Minute)
 	if err != nil {
-		dt.logger.Fatalf("could not create TCP Listener: %v", err)
+		dt.logger.Fatal("could not create TCP Listener", zap.Error(err))
 	}
 	// listener is closed when hbServer.Serve returns
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		dt.logger.Fatalf("could not retrieve hostname: %v", err)
+		dt.logger.Fatal("could not retrieve hostname", zap.Error(err))
 	}
 
 	externalAddress := fmt.Sprintf("%s:%d", hostname, hbPort)
@@ -491,13 +492,14 @@ func (dt *DTestHarness) newHeartbeatRouter() node.HeartbeatRouter {
 		err := hbServer.Serve(listener)
 		if err != nil {
 			if closing := atomic.LoadInt32(&dt.closing); closing == 0 {
-				dt.logger.Fatalf("could not create heartbeat server: %v", err)
+				dt.logger.Fatal("could not create heartbeat server", zap.Error(err))
 			}
 			// we're closing the server, which will trigger this path. we don't want to error on it
-			dt.logger.Infof("stopping heartbeatserver, server closed or inaccessible. err: %s", err.Error())
+			dt.logger.Info("stopping heartbeatserver, server closed or inaccessible", zap.Error(err))
 		}
 	}()
-	dt.logger.Infof("serving HeartbeatRouter at %s (i.e. %s)", listenAddress, externalAddress)
+	dt.logger.Info("serving HeartbeatRouter",
+		zap.String("address", listenAddress), zap.String("external", externalAddress))
 
 	dt.addCloser(func() error {
 		hbServer.GracefulStop()
@@ -525,19 +527,19 @@ func defaultPlacementOptions(zone string, iopts instrument.Options) placement.Op
 		SetValidZone(zone)
 }
 
-func newBuild(logger xlog.Logger, filename string) build.ServiceBuild {
+func newBuild(logger *zap.Logger, filename string) build.ServiceBuild {
 	bld := build.NewServiceBuild(buildFilename, filename)
-	logger.Infof("marking service build: %+v", bld)
+	logger.Info("marking service build", zap.Any("build", bld))
 	return bld
 }
 
-func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
+func newConfig(logger *zap.Logger, filename string) build.ServiceConfiguration {
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		logger.Fatalf("unable to read: %v, err: %v", filename, err)
+		logger.Fatal("unable to read", zap.String("filename", filename), zap.Error(err))
 	}
 	conf := build.NewServiceConfig(configFilename, bytes)
-	logger.Infof("read service config from: %v", filename)
+	logger.Info("read service config", zap.String("filename", filename))
 	// TODO(prateek): once the main struct is OSS-ed, parse M3DB configuration,
 	// and ensure the following fields are correctly overridden/line up from dtest|m3em configs
 	// - kv (env|zone)

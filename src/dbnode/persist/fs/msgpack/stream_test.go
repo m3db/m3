@@ -33,8 +33,8 @@ import (
 	msgpacklib "gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// Call Read to accumulate the text of a file
-func reads(buf DecoderStream, m int) string {
+// Call Read to accumulate the text of a file.
+func reads(buf ByteDecoderStream, m int) string {
 	var b [1000]byte
 	if int(buf.Remaining()) > len(b) {
 		panic(fmt.Errorf("cannot read all"))
@@ -62,7 +62,7 @@ func TestDecoderStream(t *testing.T) {
 	}
 	texts[len(texts)-1] = all
 
-	buf := NewDecoderStream(nil)
+	buf := NewByteDecoderStream(nil)
 	for i := 0; i < len(texts); i++ {
 		text := texts[i]
 		for j := 1; j <= 8; j++ {
@@ -77,7 +77,7 @@ func TestDecoderStream(t *testing.T) {
 
 func TestDecoderStreamSkip(t *testing.T) {
 	d := []byte{1, 2, 3, 4, 5}
-	buf := NewDecoderStream(d)
+	buf := NewByteDecoderStream(d)
 	assert.Equal(t, int64(5), buf.Remaining())
 	assert.NoError(t, buf.Skip(3))
 	assert.Equal(t, int64(2), buf.Remaining())
@@ -93,7 +93,7 @@ func TestDecoderStreamUnreadByte(t *testing.T) {
 	segments := []string{"Hello, ", "world"}
 	got := ""
 	want := strings.Join(segments, "")
-	r := NewDecoderStream([]byte(want))
+	r := NewByteDecoderStream([]byte(want))
 	// Normal execution.
 	for {
 		b1, err := r.ReadByte()
@@ -125,7 +125,7 @@ func TestDecoderStreamUnreadByteMultiple(t *testing.T) {
 	segments := []string{"Hello, ", "world"}
 	data := []byte(strings.Join(segments, ""))
 	for n := 0; n <= len(data); n++ {
-		r := NewDecoderStream(data)
+		r := NewByteDecoderStream(data)
 		// Read n bytes.
 		for i := 0; i < n; i++ {
 			b, err := r.ReadByte()
@@ -186,7 +186,7 @@ func (f *bufioWrapCheckReaderNotImpl) Read(p []byte) (int, error) {
 }
 
 type bufioWrapCheckReader struct {
-	decoderStream
+	byteDecoderStream
 	wasWrappedByBufio bool
 }
 

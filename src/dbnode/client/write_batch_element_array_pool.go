@@ -22,7 +22,7 @@ package client
 
 import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 type writeBatchRawRequestElementArrayPool interface {
@@ -59,6 +59,47 @@ func (p *poolOfWriteBatchRawRequestElementArray) Get() []*rpc.WriteBatchRawReque
 }
 
 func (p *poolOfWriteBatchRawRequestElementArray) Put(w []*rpc.WriteBatchRawRequestElement) {
+	for i := range w {
+		w[i] = nil
+	}
+	w = w[:0]
+	p.pool.Put(w)
+}
+
+type writeBatchRawV2RequestElementArrayPool interface {
+	// Init pool
+	Init()
+
+	// Get an array of WriteBatchV2RawRequestElement objects
+	Get() []*rpc.WriteBatchRawV2RequestElement
+
+	// Put an array of WriteBatchRawV2RequestElement objects
+	Put(w []*rpc.WriteBatchRawV2RequestElement)
+}
+
+type poolOfWriteBatchRawV2RequestElementArray struct {
+	pool     pool.ObjectPool
+	capacity int
+}
+
+func newWriteBatchRawV2RequestElementArrayPool(
+	opts pool.ObjectPoolOptions, capacity int) writeBatchRawV2RequestElementArrayPool {
+
+	p := pool.NewObjectPool(opts)
+	return &poolOfWriteBatchRawV2RequestElementArray{p, capacity}
+}
+
+func (p *poolOfWriteBatchRawV2RequestElementArray) Init() {
+	p.pool.Init(func() interface{} {
+		return make([]*rpc.WriteBatchRawV2RequestElement, 0, p.capacity)
+	})
+}
+
+func (p *poolOfWriteBatchRawV2RequestElementArray) Get() []*rpc.WriteBatchRawV2RequestElement {
+	return p.pool.Get().([]*rpc.WriteBatchRawV2RequestElement)
+}
+
+func (p *poolOfWriteBatchRawV2RequestElementArray) Put(w []*rpc.WriteBatchRawV2RequestElement) {
 	for i := range w {
 		w[i] = nil
 	}

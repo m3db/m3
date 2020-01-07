@@ -22,7 +22,7 @@ package serialize
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 const (

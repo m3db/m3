@@ -24,9 +24,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	xtime "github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 // multiReaderIterator is an iterator that iterates in order over a list of sets of
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type multiReaderIterator struct {
+	schemaDesc       namespace.SchemaDescr
 	iters            iterators
 	slicesIter       xio.ReaderSliceOfSlicesIterator
 	iteratorAlloc    ReaderIteratorAllocate
@@ -52,7 +54,7 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
-	it.Reset(nil, time.Time{}, 0)
+	it.Reset(nil, time.Time{}, 0, nil)
 	return it
 }
 
@@ -110,7 +112,7 @@ func (it *multiReaderIterator) moveToNext() {
 	for i := 0; i < currentLen; i++ {
 		var (
 			reader = it.slicesIter.CurrentReaderAt(i)
-			iter   = it.iteratorAlloc(reader)
+			iter   = it.iteratorAlloc(reader, it.schemaDesc)
 		)
 		if iter.Next() {
 			// Only insert it if it has values
@@ -159,16 +161,17 @@ func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return it.slicesIter
 }
 
-func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration) {
+func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration, descr namespace.SchemaDescr) {
 	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
 	it.singleSlicesIter.start = start
 	it.singleSlicesIter.blockSize = blockSize
-	it.ResetSliceOfSlices(&it.singleSlicesIter)
+	it.ResetSliceOfSlices(&it.singleSlicesIter, descr)
 }
 
-func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSlicesIterator) {
+func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSlicesIterator, descr namespace.SchemaDescr) {
+	it.schemaDesc = descr
 	it.iters.reset()
 	it.slicesIter = slicesIter
 	it.err = nil

@@ -25,7 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	xlog "github.com/m3db/m3x/log"
+
+	"go.uber.org/zap"
 )
 
 type fileOpStatus int
@@ -38,8 +39,33 @@ const (
 )
 
 type fileOpState struct {
-	Status      fileOpStatus
-	NumFailures int
+	// WarmStatus is the status of data persistence for WarmWrites only.
+	// Each block will only be warm-flushed once, so not keeping track of a
+	// version here is okay. This is used in the buffer Tick to determine when
+	// a warm bucket is evictable from memory.
+	WarmStatus fileOpStatus
+	// ColdVersionRetrievable keeps track of data persistence for ColdWrites only.
+	// Each block can be cold-flushed multiple times, so this tracks which
+	// version of the flush completed successfully. This is ultimately used in
+	// the buffer Tick to determine which buckets are evictable. Note the distinction
+	// between ColdVersionRetrievable and ColdVersionFlushed described below.
+	ColdVersionRetrievable int
+	// ColdVersionFlushed is the same as ColdVersionRetrievable except in some cases it will be
+	// higher than ColdVersionRetrievable. ColdVersionFlushed will be higher than
+	// ColdVersionRetrievable in the situation that a cold flush has completed successfully but
+	// signaling the update to the BlockLeaseManager hasn't completed yet. As a result, the
+	// ColdVersionRetrievable can't be incremented yet because a concurrent tick could evict the
+	// block before it becomes queryable via the block retriever / seeker manager, however, the
+	// BlockLeaseVerifier needs to know that a higher cold flush version exists on disk so that
+	// it can approve the SeekerManager's request to open a lease on the latest version.
+	//
+	// In other words ColdVersionRetrievabled is used to keep track of the latest cold version that has
+	// been succesfully flushed and can be queried via the block retriever / seeker manager and
+	// as a result is safe to evict, while ColdVersionFlushed is used to keep track of the latest
+	// cold version that has been flushed and to validate lease requests from the SeekerManager when it
+	// receives a signal to open a new lease.
+	ColdVersionFlushed int
+	NumFailures        int
 }
 
 type runType int
@@ -61,7 +87,7 @@ type fileSystemManager struct {
 	databaseCleanupManager
 	sync.RWMutex
 
-	log      xlog.Logger
+	log      *zap.Logger
 	database database
 	opts     Options
 	status   fileOpStatus
@@ -81,11 +107,11 @@ func newFileSystemManager(
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
-		log:      instrumentOpts.Logger(),
-		database: database,
-		opts:     opts,
-		status:   fileOpNotStarted,
-		enabled:  true,
+		log:                    instrumentOpts.Logger(),
+		database:               database,
+		opts:                   opts,
+		status:                 fileOpNotStarted,
+		enabled:                true,
 	}
 }
 
@@ -114,7 +140,6 @@ func (m *fileSystemManager) Status() fileOpStatus {
 
 func (m *fileSystemManager) Run(
 	t time.Time,
-	dbBootstrapStates DatabaseBootstrapState,
 	runType runType,
 	forceType forceType,
 ) bool {
@@ -129,10 +154,10 @@ func (m *fileSystemManager) Run(
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
 		if err := m.Cleanup(t); err != nil {
-			m.log.Errorf("error when cleaning up data for time %v: %v", t, err)
+			m.log.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
 		}
-		if err := m.Flush(t, dbBootstrapStates); err != nil {
-			m.log.Errorf("error when flushing data for time %v: %v", t, err)
+		if err := m.Flush(t); err != nil {
+			m.log.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
 		}
 		m.Lock()
 		m.status = fileOpNotStarted

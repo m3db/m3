@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -134,8 +134,8 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()
@@ -164,28 +164,28 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhausitive, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhausitive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:   ns1.ID(),
-		exhausitive: true,
+		exhaustive: true,
 		expected:    []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhausitive, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhausitive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:   ns1.ID(),
-		exhausitive: true,
+		exhaustive: true,
 		expected:    []generate.Series{barSeries, bazSeries},
 	})
 }

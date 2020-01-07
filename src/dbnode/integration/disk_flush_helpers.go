@@ -25,19 +25,20 @@ package integration
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/ident/testutil"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/ident/testutil"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -122,8 +123,8 @@ func waitUntilDataFilesFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				exists, err := fs.DataFileSetExistsAt(
-					filePathPrefix, namespace, shard, timestamp.ToTime())
+				exists, err := fs.DataFileSetExists(
+					filePathPrefix, namespace, shard, timestamp.ToTime(), 0)
 				if err != nil {
 					panic(err)
 				}
@@ -141,6 +142,53 @@ func waitUntilDataFilesFlushed(
 	return errDiskFlushTimedOut
 }
 
+func waitUntilFileSetFilesExist(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	timeout time.Duration,
+) error {
+	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, true, timeout)
+}
+
+func waitUntilFileSetFilesNotExist(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	timeout time.Duration,
+) error {
+	return waitUntilFileSetFilesExistOrNot(filePathPrefix, files, false, timeout)
+}
+
+func waitUntilFileSetFilesExistOrNot(
+	filePathPrefix string,
+	files []fs.FileSetFileIdentifier,
+	// Either wait for all files to exist of for all files to not exist.
+	checkForExistence bool,
+	timeout time.Duration,
+) error {
+	dataFlushed := func() bool {
+		for _, file := range files {
+			exists, err := fs.DataFileSetExists(
+				filePathPrefix, file.Namespace, file.Shard, file.BlockStart, file.VolumeIndex)
+			if err != nil {
+				panic(err)
+			}
+
+			if checkForExistence && !exists {
+				return false
+			}
+
+			if !checkForExistence && exists {
+				return false
+			}
+		}
+		return true
+	}
+	if waitUntil(dataFlushed, timeout) {
+		return nil
+	}
+	return errDiskFlushTimedOut
+}
+
 func verifyForTime(
 	t *testing.T,
 	storageOpts storage.Options,
@@ -148,10 +196,26 @@ func verifyForTime(
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
-	namespace ident.ID,
+	nsCtx ns.Context,
 	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
 ) {
+	err := checkForTime(
+		storageOpts, reader, shardSet, iteratorPool, timestamp,
+		nsCtx, filesetType, expected)
+	require.NoError(t, err)
+}
+
+func checkForTime(
+	storageOpts storage.Options,
+	reader fs.DataFileSetReader,
+	shardSet sharding.ShardSet,
+	iteratorPool encoding.ReaderIteratorPool,
+	timestamp time.Time,
+	nsCtx ns.Context,
+	filesetType persist.FileSetType,
+	expected generate.SeriesBlock,
+) error {
 	shards := make(map[uint32]struct{})
 	for _, series := range expected {
 		shard := shardSet.Lookup(series.ID)
@@ -161,43 +225,64 @@ func verifyForTime(
 	for shard := range shards {
 		rOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:  namespace,
+				Namespace:  nsCtx.ID,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
 			FileSetType: filesetType,
 		}
 
-		if filesetType == persist.FileSetSnapshotType {
-			// If we're verifying snapshot files, then we need to identify the latest
-			// one because multiple snapshot files can exist at the same time with the
-			// same blockStart, but increasing "indexes" which indicates which one is
-			// most recent (and thus has more cumulative data).
-			filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, namespace, shard)
-			require.NoError(t, err)
+		filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+		switch filesetType {
+		// Identify the latest volume for this block start.
+		case persist.FileSetSnapshotType:
+			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, nsCtx.ID, shard)
+			if err != nil {
+				return err
+			}
 			latest, ok := snapshotFiles.LatestVolumeForBlock(timestamp)
-			require.True(t, ok)
+			if !ok {
+				return fmt.Errorf("no latest snapshot volume for block: %v", timestamp)
+			}
+			rOpts.Identifier.VolumeIndex = latest.ID.VolumeIndex
+		case persist.FileSetFlushType:
+			dataFiles, err := fs.DataFiles(filePathPrefix, nsCtx.ID, shard)
+			if err != nil {
+				return err
+			}
+			latest, ok := dataFiles.LatestVolumeForBlock(timestamp)
+			if !ok {
+				return fmt.Errorf("no latest data volume for block: %v", timestamp)
+			}
 			rOpts.Identifier.VolumeIndex = latest.ID.VolumeIndex
 		}
-		require.NoError(t, reader.Open(rOpts))
+		if err := reader.Open(rOpts); err != nil {
+			return err
+		}
+
 		for i := 0; i < reader.Entries(); i++ {
 			id, tagsIter, data, _, err := reader.Read()
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 
 			tags, err := testutil.NewTagsFromTagIterator(tagsIter)
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 
 			data.IncRef()
 
-			var datapoints []ts.Datapoint
+			var datapoints []generate.TestValue
 			it := iteratorPool.Get()
-			it.Reset(bytes.NewBuffer(data.Bytes()))
+			it.Reset(bytes.NewBuffer(data.Bytes()), nsCtx.Schema)
 			for it.Next() {
-				dp, _, _ := it.Current()
-				datapoints = append(datapoints, dp)
+				dp, _, ann := it.Current()
+				datapoints = append(datapoints, generate.TestValue{Datapoint: dp, Annotation: ann})
 			}
-			require.NoError(t, it.Err())
+			if err := it.Err(); err != nil {
+				return err
+			}
 			it.Close()
 
 			actual = append(actual, generate.Series{
@@ -209,46 +294,66 @@ func verifyForTime(
 			data.DecRef()
 			data.Finalize()
 		}
-		require.NoError(t, reader.Close())
+		if err := reader.Close(); err != nil {
+			return err
+		}
 	}
 
-	compareSeriesList(t, expected, actual)
+	return compareSeriesList(expected, actual)
 }
 
 func verifyFlushedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	storageOpts storage.Options,
-	namespace ident.ID,
+	nsID ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
+	err := checkFlushedDataFiles(shardSet, storageOpts, nsID, seriesMaps)
+	require.NoError(t, err)
+}
+
+func checkFlushedDataFiles(
+	shardSet sharding.ShardSet,
+	storageOpts storage.Options,
+	nsID ident.ID,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) error {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
-	require.NoError(t, err)
-	iteratorPool := storageOpts.ReaderIteratorPool()
-	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(
-			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
-			namespace, persist.FileSetFlushType, seriesList)
+	if err != nil {
+		return err
 	}
+	iteratorPool := storageOpts.ReaderIteratorPool()
+	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
+	for timestamp, seriesList := range seriesMaps {
+		err := checkForTime(
+			storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
+			nsCtx, persist.FileSetFlushType, seriesList)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func verifySnapshottedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	storageOpts storage.Options,
-	namespace ident.ID,
+	nsID ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
 	iteratorPool := storageOpts.ReaderIteratorPool()
+	nsCtx := ns.NewContextFor(nsID, storageOpts.SchemaRegistry())
 	for blockStart, seriesList := range seriesMaps {
-
 		verifyForTime(
 			t, storageOpts, reader, shardSet, iteratorPool, blockStart.ToTime(),
-			namespace, persist.FileSetSnapshotType, seriesList)
+			nsCtx, persist.FileSetSnapshotType, seriesList)
 	}
 
 }

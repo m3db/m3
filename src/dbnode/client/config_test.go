@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/topology"
-	xconfig "github.com/m3db/m3x/config"
-	"github.com/m3db/m3x/retry"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,6 +56,15 @@ backgroundHealthCheckFailLimit: 4
 backgroundHealthCheckFailThrottleFactor: 0.5
 hashing:
   seed: 42
+proto:
+  enabled: false
+  schema_registry:
+    "ns1:2d":
+      schemaFilePath: "/path/to/schema"
+      messageName: "ns1_msg_name"
+    ns2:
+      schemaDeployID: "deployID-345"
+      messageName: "ns2_msg_name"
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -107,6 +116,13 @@ hashing:
 		BackgroundHealthCheckFailThrottleFactor: &numHalf,
 		HashingConfiguration: &HashingConfiguration{
 			Seed: 42,
+		},
+		Proto: &ProtoConfiguration{
+			Enabled: false,
+			SchemaRegistry: map[string]NamespaceProtoSchema{
+				"ns1:2d": {SchemaFilePath: "/path/to/schema", MessageName: "ns1_msg_name"},
+				"ns2":    {SchemaDeployID: "deployID-345", MessageName: "ns2_msg_name"},
+			},
 		},
 	}
 
