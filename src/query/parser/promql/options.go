@@ -21,8 +21,25 @@
 package promql
 
 import (
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
 	pql "github.com/prometheus/prometheus/promql"
 )
+
+// CallParseFn is a function that parses custom call functions
+// to parameters if able.
+type CallParseFn func(
+	name string,
+	argValues []interface{},
+	stringValues []string,
+	hasArgValue bool,
+	tagOptions models.TagOptions,
+) (parser.Params, bool, error)
+
+func defaultCallParseFn(_ string, _ []interface{}, _ []string,
+	_ bool, _ models.TagOptions) (parser.Params, bool, error) {
+	return nil, false, nil
+}
 
 // ParseFn is a function that parses a query to a Prometheus expression.
 type ParseFn func(query string) (pql.Expr, error)
@@ -36,16 +53,25 @@ type ParseOptions interface {
 	// ParseFn gets the parse function.
 	ParseFn() ParseFn
 	// SetParseFn sets the parse function.
-	SetParseFn(e ParseFn) ParseOptions
+	SetParseFn(f ParseFn) ParseOptions
+
+	// CustomCallParseFn gets the custom call parsing function.
+	CustomCallParseFn() CallParseFn
+	// SetCustomCallParseFn sets the custom call parsing function.
+	SetCustomCallParseFn(f CallParseFn) ParseOptions
 }
 
 type parseOptions struct {
-	fn ParseFn
+	fn          ParseFn
+	callParseFn CallParseFn
 }
 
 // NewParseOptions creates a new parse options.
 func NewParseOptions() ParseOptions {
-	return &parseOptions{fn: defaultParseFn}
+	return &parseOptions{
+		fn:          defaultParseFn,
+		callParseFn: defaultCallParseFn,
+	}
 }
 
 func (o *parseOptions) ParseFn() ParseFn {
@@ -55,5 +81,15 @@ func (o *parseOptions) ParseFn() ParseFn {
 func (o *parseOptions) SetParseFn(f ParseFn) ParseOptions {
 	opts := *o
 	opts.fn = f
+	return &opts
+}
+
+func (o *parseOptions) CustomCallParseFn() CallParseFn {
+	return o.callParseFn
+}
+
+func (o *parseOptions) SetCustomCallParseFn(f CallParseFn) ParseOptions {
+	opts := *o
+	opts.callParseFn = f
 	return &opts
 }

@@ -524,3 +524,37 @@ func TestCustomParseOptions(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, v, str.Val)
 }
+
+type customParam struct{}
+
+func (c customParam) String() string {
+	return "custom"
+}
+
+func (c customParam) OpType() string {
+	return "customOpType"
+}
+
+func TestCustomSort(t *testing.T) {
+	// NB: this utilizes the fact that `sort` is a no-op to add a custom sort
+	// function.
+	q := "sort(up)"
+
+	fn := func(s string, _ []interface{}, _ []string,
+		_ bool, _ models.TagOptions) (parser.Params, bool, error) {
+		require.Equal(t, "sort", s)
+		return customParam{}, true, nil
+	}
+
+	opts := NewParseOptions().SetCustomCallParseFn(fn)
+	p, err := Parse(q, time.Second, models.NewTagOptions(), opts)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	require.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Len(t, edges, 1)
+	assert.Equal(t, transforms[1].Op.OpType(), "customOpType")
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+}

@@ -35,9 +35,10 @@ import (
 )
 
 type promParser struct {
-	stepSize time.Duration
-	expr     pql.Expr
-	tagOpts  models.TagOptions
+	stepSize    time.Duration
+	expr        pql.Expr
+	tagOpts     models.TagOptions
+	callParseFn CallParseFn
 }
 
 // Parse takes a promQL string and converts parses it into a DAG.
@@ -54,16 +55,18 @@ func Parse(
 	}
 
 	return &promParser{
-		expr:     expr,
-		stepSize: stepSize,
-		tagOpts:  tagOpts,
+		expr:        expr,
+		stepSize:    stepSize,
+		tagOpts:     tagOpts,
+		callParseFn: parseOptions.CustomCallParseFn(),
 	}, nil
 }
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
 	state := &parseState{
-		stepSize: p.stepSize,
-		tagOpts:  p.tagOpts,
+		stepSize:    p.stepSize,
+		tagOpts:     p.tagOpts,
+		callParseFn: p.callParseFn,
 	}
 
 	err := state.walk(p.expr)
@@ -79,10 +82,11 @@ func (p *promParser) String() string {
 }
 
 type parseState struct {
-	stepSize   time.Duration
-	edges      parser.Edges
-	transforms parser.Nodes
-	tagOpts    models.TagOptions
+	stepSize    time.Duration
+	edges       parser.Edges
+	transforms  parser.Nodes
+	tagOpts     models.TagOptions
+	callParseFn CallParseFn
 }
 
 func (p *parseState) lastTransformID() parser.NodeID {
@@ -325,7 +329,15 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		if !ok {
-			return nil
+			op, ok, err = p.callParseFn(n.Func.Name, argValues,
+				stringValues, hasValue, p.tagOpts)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				return nil
+			}
 		}
 
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
@@ -335,6 +347,7 @@ func (p *parseState) walk(node pql.Node) error {
 				ChildID:  opTransform.ID,
 			})
 		}
+
 		p.transforms = append(p.transforms, opTransform)
 		return nil
 
