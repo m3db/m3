@@ -1804,6 +1804,22 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	return result, nil, nil
 }
 
+func (s *dbShard) PrepareBootstrap() error {
+	s.flushState.RLock()
+	flushStateBootstrapped := s.flushState.bootstrapped
+	s.flushState.RUnlock()
+	if flushStateBootstrapped {
+		return nil // Already prepared.
+	}
+
+	// Iterate flushed time ranges to determine which blocks are retrievable.
+	// NB(r): This must be done before bootstrap since during bootstrapping
+	// series will load blocks into series with series.LoadBlock(...) which
+	// needs to ask the shard whether certain time windows have been flushed or
+	// not.
+	return s.bootstrapFlushStates()
+}
+
 func (s *dbShard) Bootstrap() error {
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
@@ -1816,9 +1832,6 @@ func (s *dbShard) Bootstrap() error {
 	}
 	s.bootstrapState = Bootstrapping
 	s.Unlock()
-
-	// Iterate flushed time ranges to determine which blocks are retrievable.
-	s.bootstrapFlushStates()
 
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
 	// this earlier as block lease verification will fail due to the shards not being bootstrapped
@@ -2270,18 +2283,20 @@ func (s *dbShard) Snapshot(
 
 func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
 	s.flushState.RLock()
-	defer s.flushState.RUnlock()
 	if !s.flushState.bootstrapped {
+		s.flushState.RUnlock()
 		return fileOpState{}, errFlushStateIsNotBootstrapped
 	}
-
-	return s.flushStateWithRLock(blockStart), nil
+	state := s.flushStateWithRLock(blockStart)
+	s.flushState.RUnlock()
+	return state, nil
 }
 
 func (s *dbShard) flushStateNoBootstrapCheck(blockStart time.Time) fileOpState {
 	s.flushState.RLock()
-	defer s.flushState.RUnlock()
-	return s.flushStateWithRLock(blockStart)
+	check := s.flushStateWithRLock(blockStart)
+	s.flushState.RUnlock()
+	return check
 }
 
 func (s *dbShard) flushStateWithRLock(blockStart time.Time) fileOpState {

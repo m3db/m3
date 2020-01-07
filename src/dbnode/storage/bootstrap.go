@@ -199,6 +199,11 @@ func (m *bootstrapManager) Report() {
 	}
 }
 
+type bootstrapNamespace struct {
+	namespace databaseNamespace
+	shards    []databaseShard
+}
+
 func (m *bootstrapManager) bootstrap() error {
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
@@ -228,16 +233,54 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 	}()
 
-	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	start := m.nowFn()
+	m.log.Info("bootstrap prepare")
+
+	var (
+		bootstrapNamespaces = make([]bootstrapNamespace, len(namespaces))
+		prepareWg           sync.WaitGroup
+		prepareLock         sync.Mutex
+		prepareMultiErr     xerrors.MultiError
+	)
+	for i, namespace := range namespaces {
+		i, namespace := i, namespace
+		prepareWg.Add(1)
+		go func() {
+			defer prepareWg.Done()
+
+			shards, err := namespace.PrepareBootstrap()
+
+			prepareLock.Lock()
+			defer prepareLock.Unlock()
+
+			if err != nil {
+				prepareMultiErr = prepareMultiErr.Add(err)
+				return
+			}
+
+			bootstrapNamespaces[i] = bootstrapNamespace{
+				namespace: namespace,
+				shards:    shards,
+			}
+		}()
+	}
+
+	prepareWg.Wait()
+
+	if err := prepareMultiErr.FinalError(); err != nil {
+		m.log.Error("bootstrap prepare failed", zap.Error(err))
+		return err
+	}
+
 	var uniqueShards map[uint32]struct{}
-	for _, namespace := range namespaces {
-		namespaceShards := namespace.GetOwnedShards()
-		bootstrapShards := make([]uint32, 0, len(namespaceShards))
+	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	for _, ns := range bootstrapNamespaces {
+		bootstrapShards := make([]uint32, 0, len(ns.shards))
 		if uniqueShards == nil {
-			uniqueShards = make(map[uint32]struct{}, len(namespaceShards))
+			uniqueShards = make(map[uint32]struct{}, len(ns.shards))
 		}
 
-		for _, shard := range namespaceShards {
+		for _, shard := range ns.shards {
 			if shard.IsBootstrapped() {
 				continue
 			}
@@ -246,17 +289,16 @@ func (m *bootstrapManager) bootstrap() error {
 			bootstrapShards = append(bootstrapShards, shard.ID())
 		}
 
-		accumulator := NewDatabaseNamespaceDataAccumulator(namespace)
+		accumulator := NewDatabaseNamespaceDataAccumulator(ns.namespace)
 		accmulators = append(accmulators, accumulator)
 
 		targets = append(targets, bootstrap.ProcessNamespace{
-			Metadata:        namespace.Metadata(),
+			Metadata:        ns.namespace.Metadata(),
 			Shards:          bootstrapShards,
 			DataAccumulator: accumulator,
 		})
 	}
 
-	start := m.nowFn()
 	logFields := []zapcore.Field{
 		zap.Int("numShards", len(uniqueShards)),
 	}
@@ -293,13 +335,10 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 
 		if err := namespace.Bootstrap(result); err != nil {
-			m.log.Info("bootstrap error", append(logFields,
-				[]zapcore.Field{
-					zap.String("namespace", id.String()),
-					zap.Error(err),
-				}...,
-			)...,
-			)
+			m.log.Info("bootstrap error", append(logFields, []zapcore.Field{
+				zap.String("namespace", id.String()),
+				zap.Error(err),
+			}...)...)
 			multiErr = multiErr.Add(err)
 		}
 	}

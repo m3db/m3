@@ -22,6 +22,7 @@ package series
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -288,6 +289,19 @@ func (s *dbSeries) Write(
 	annotation []byte,
 	wOpts WriteOptions,
 ) (bool, error) {
+	if wOpts.BootstrapWrite {
+		at := timestamp.Truncate(s.opts.RetentionOptions().BlockSize())
+		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
+		if err != nil {
+			return false, fmt.Errorf(
+				"error checking block retrievable for bootstrap write: %v", err)
+		}
+		if alreadyExists {
+			return false, fmt.Errorf(
+				"bootstrap write for block is retrievable: block_start=%s", at)
+		}
+	}
+
 	s.Lock()
 	matchUniqueIndex := wOpts.MatchUniqueIndex
 	if matchUniqueIndex {
@@ -391,6 +405,19 @@ func (s *dbSeries) LoadBlock(
 	block block.DatabaseBlock,
 	writeType WriteType,
 ) error {
+	switch writeType {
+	case WarmWrite:
+		at := block.StartTime()
+		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
+		if err != nil {
+			return fmt.Errorf("error checking block retrievable: %v", err)
+		}
+		if alreadyExists {
+			return fmt.Errorf(
+				"block load as warm write is retrievable: block_start=%s", at)
+		}
+	}
+
 	s.Lock()
 	s.buffer.Load(block, writeType)
 	s.Unlock()

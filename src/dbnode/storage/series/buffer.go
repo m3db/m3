@@ -273,10 +273,10 @@ func (b *dbBuffer) Write(
 	)
 	switch {
 	case wOpts.BootstrapWrite:
+		// Bootstrap writes are always warm writes, validated
+		// that safe by the series.
 		writeType = WarmWrite
-		// Bootstrap writes are always warm writes.
-		// TODO(r): Validate that the block doesn't reside on disk by asking
-		// the shard for it's bootstrap flush states.
+
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
 		if !b.coldWritesEnabled {
@@ -289,6 +289,7 @@ func (b *dbBuffer) Write(
 					pastLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), pastLimit.UnixNano()))
 		}
+
 	case !futureLimit.After(timestamp):
 		writeType = ColdWrite
 		if !b.coldWritesEnabled {
@@ -301,8 +302,10 @@ func (b *dbBuffer) Write(
 					futureLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), futureLimit.UnixNano()))
 		}
+
 	default:
 		writeType = WarmWrite
+
 	}
 
 	if writeType == ColdWrite {
@@ -437,9 +440,6 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 }
 
 func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
-	// TODO(r): If warm write then validate that the block doesn't reside on
-	// disk by asking the shard for its bootstrap flush states and verifying
-	// that the block does not exist yet.
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)
