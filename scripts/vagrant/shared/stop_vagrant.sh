@@ -16,7 +16,6 @@ if [[ "$PROVIDER" != "virtualbox" ]]; then
     fi
 fi
 
-
 if [[ "$PROVIDER" == "google" ]]; then
     export BOX="google/gce"
 

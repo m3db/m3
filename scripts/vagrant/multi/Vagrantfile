@@ -10,6 +10,7 @@ require 'etc'
 $BOX=ENV['BOX']
 $USER = ENV['USER']
 $SSH_KEY = ENV['SSH_KEY']
+$BENCHMARK_TYPE=ENV['BENCHMARK_TYPE']
 # Google GCE env vars
 $GOOGLE_PROJECT_ID = ENV['GOOGLE_PROJECT_ID']
 $GOOGLE_JSON_KEY_LOCATION = ENV['GOOGLE_JSON_KEY_LOCATION']
@@ -82,15 +83,17 @@ Vagrant.configure("2") do |config|
       machine.vm.provider :google do |google, override|
         do_common_google.call google, override
 
-        # Normal benchmarks:
-        google.machine_type = "n1-standard-16"
-        google.preemptible = false
-
-        # For heavy benchmarks, use pre-emptible n1-standard-64:
-        #google.machine_type = "n1-standard-64"
-        #google.preemptible = true
-        #google.auto_restart = false
-        #google.on_host_maintenance = "TERMINATE"
+        if $BENCHMARK_TYPE == "HEAVY" 
+            # For heavy benchmarks, use pre-emptible n1-standard-64:
+            google.machine_type = "n1-standard-64"
+            google.preemptible = true
+            google.auto_restart = false
+            google.on_host_maintenance = "TERMINATE"
+        else
+            # Normal benchmarks:
+            google.machine_type = "n1-standard-16"
+            google.preemptible = false
+        end
 
         google.name = "m3-dev-primary-" + $USER
       end
@@ -136,15 +139,17 @@ Vagrant.configure("2") do |config|
       machine.vm.provider :google do |google, override|
         do_common_google.call google, override
 
-        # Normal benchmarks:
-        google.machine_type = "n1-standard-16"
-        google.preemptible = false
-
-        # For heavy benchmarks, use pre-emptible n1-standard-64:
-        #google.machine_type = "n1-standard-64"
-        #google.preemptible = true
-        #google.auto_restart = false
-        #google.on_host_maintenance = "TERMINATE"
+        if $BENCHMARK_TYPE == "HEAVY" 
+            # For heavy benchmarks, use pre-emptible n1-standard-64:
+            google.machine_type = "n1-standard-64"
+            google.preemptible = true
+            google.auto_restart = false
+            google.on_host_maintenance = "TERMINATE"
+        else
+            # Normal benchmarks:
+            google.machine_type = "n1-standard-16"
+            google.preemptible = false
+        end
 
         google.name = "m3-dev-secondary-" + $USER
       end

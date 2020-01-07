@@ -4,7 +4,7 @@ set -xe
 
 export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
 
-# Perform rollign restarts of db nodes forever.
+# Perform rolling restarts of db nodes forever.
 NODE_NUM=0
 while true
 do
@@ -20,7 +20,7 @@ do
         if kubectl exec test-cluster-rep$NODE_NUM-0 -- curl -f localhost:9002/bootstrapped; then
             bootstrapped=true
         fi
-        sleep 1m
+        sleep 30s
     done
 
     NODE_NUM=$(( NODE_NUM + 1 ))

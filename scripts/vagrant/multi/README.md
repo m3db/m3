@@ -1,22 +1,19 @@
 # Vagrant
 
-This allows you to run a Kubernetes environment on multiple boxes using vagrant to provision VMs either locally or in a cloud environment.
-Let's us compare a feature branch to release by specifying a `FEATURE_DOCKER_IMAGE` env variable.
+This allows comparisons between a feature branch (specified by a `FEATURE_DOCKER_IMAGE` environment variable), and `latest`.
 
 It includes:
 - kubernetes (using kind)
 - etcd (single node)
 - m3db operator
-- m3db node (single node)
+- m3db node (multi node)
 - m3coordinator dedicated (two instances)
 - prometheus
 - grafana (accessible localhost:3333, login admin:admin)
 
-This is useful for benchmarking and similar needs.
-
 # Requirements
 Setup vagrant azure provider via [docs](https://github.com/Azure/vagrant-azure).
-Or altertnatively set up google provider via [docs](https://github.com/mitchellh/vagrant-google).
+Or alternatively set up google provider via [docs](https://github.com/mitchellh/vagrant-google).
 
 # Local setup
 
@@ -42,7 +39,7 @@ SSH:
 
 # GCP setup
 
-If you authorized with `gcloud` you can use `~/.ssh/google_compute_engine` as your SSH key.
+After authorizing with gcloud, use ~/.ssh/google_compute_engine as the SSH key.
 
 Start:
 ```bash
@@ -51,17 +48,41 @@ FEATURE_DOCKER_IMAGE=quay.io/m3dbtest/m3dbnode:feature PROVIDER="google" GOOGLE_
 
 Stop:
 ```bash
-PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./stop_vagrant.sh
+PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/stop_vagrant.sh
 ```
 
 Reopen tunnels (must provide $MACHINE):
 ```bash
-MACHINE=primary PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./tunnel_vagrant.sh
+MACHINE=primary PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/tunnel_vagrant.sh
 ```
 
 SSH (must provide $MACHINE):
 ```bash
-MACHINE=primary PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./ssh_vagrant.sh
+MACHINE=primary PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/ssh_vagrant.sh
+```
+
+# AZURE setup
+
+After authorizing with azure, use preferred key as the SSH key.
+
+Start:
+```bash
+FEATURE_DOCKER_IMAGE=quay.io/m3dbtest/m3dbnode:feature PROVIDER="azure" AZURE_TENANT_ID="tenant-id" AZURE_CLIENT_ID="client-id" AZURE_CLIENT_SECRET="client-secret" AZURE_SUBSCRIPTION_ID="subscription-id" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./start_vagrant.sh
+```
+
+Stop:
+```bash
+PROVIDER="azure" AZURE_TENANT_ID="tenant-id" AZURE_CLIENT_ID="client-id" AZURE_CLIENT_SECRET="client-secret" AZURE_SUBSCRIPTION_ID="subscription-id" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/stop_vagrant.sh
+```
+
+Reopen tunnels (must provide $MACHINE):
+```bash
+MACHINE=primary PROVIDER="azure" AZURE_TENANT_ID="tenant-id" AZURE_CLIENT_ID="client-id" AZURE_CLIENT_SECRET="client-secret" AZURE_SUBSCRIPTION_ID="subscription-id" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/tunnel_vagrant.sh
+```
+
+SSH (must provide $MACHINE):
+```bash
+MACHINE=primary PROVIDER="azure" AZURE_TENANT_ID="tenant-id" AZURE_CLIENT_ID="client-id" AZURE_CLIENT_SECRET="client-secret" AZURE_SUBSCRIPTION_ID="subscription-id" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/ssh_vagrant.sh
 ```
 
 # Running

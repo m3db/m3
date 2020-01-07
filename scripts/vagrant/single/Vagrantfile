@@ -8,6 +8,7 @@ require 'etc'
 
 # Boxes available at: https://vagrantcloud.com/search
 $BOX=ENV['BOX']
+$BENCHMARK_TYPE=ENV['BENCHMARK_TYPE']
 $BOX_NUM=ENV['BOX_NUM']
 $GOOGLE_PROJECT_ID = ENV['GOOGLE_PROJECT_ID']
 $GOOGLE_JSON_KEY_LOCATION = ENV['GOOGLE_JSON_KEY_LOCATION']
@@ -31,15 +32,17 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.provider :google do |google, override|
-    # Normal benchmarks:
-    google.machine_type = "n1-standard-16"
-    google.preemptible = false
-
-    # For heavy benchmarks, use pre-emptible n1-standard-64:
-    # google.machine_type = "n1-standard-64"
-    # google.preemptible = true
-    # google.auto_restart = false
-    # google.on_host_maintenance = "TERMINATE"
+    if $BENCHMARK_TYPE == "HEAVY"
+	# For heavy benchmarks, use pre-emptible n1-standard-64:
+	google.machine_type = "n1-standard-64"
+	google.preemptible = true
+	google.auto_restart = false
+	google.on_host_maintenance = "TERMINATE"
+    else
+	# Normal benchmarks:
+	google.machine_type = "n1-standard-16"
+	google.preemptible = false
+    end
 
     google.google_project_id = $GOOGLE_PROJECT_ID
     google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION

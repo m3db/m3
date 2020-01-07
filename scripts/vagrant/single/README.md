@@ -1,6 +1,6 @@
 # Vagrant
 
-This allows you to run a Kubernetes environment on a single box using vagrant to provision a VM either local or in a cloud environment.
+This runs a Kubernetes environment on a single box, using vagrant to provision a VM either locally, or in a cloud environment.
 
 It includes:
 - kubernetes (using kind)
@@ -37,7 +37,7 @@ SSH:
 
 # GCP setup
 
-If you authorized with `gcloud` you can use `~/.ssh/google_compute_engine` as your SSH key.
+After authorizing with gcloud, use ~/.ssh/google_compute_engine as the SSH key.
 
 Start:
 ```bash
@@ -46,17 +46,17 @@ PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOC
 
 Stop:
 ```bash
-PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./stop_vagrant.sh
+PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/stop_vagrant.sh
 ```
 
 Reopen tunnels:
 ```bash
-PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./tunnel_vagrant.sh
+PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/tunnel_vagrant.sh
 ```
 
 SSH:
 ```bash
-PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ./ssh_vagrant.sh
+PROVIDER="google" GOOGLE_PROJECT_ID="your_google_project_id" GOOGLE_JSON_KEY_LOCATION="your_google_service_account_json_key_as_local_path" USER="$(whoami)" SSH_KEY="your_ssh_key_as_local_path" ../shared/ssh_vagrant.sh
 ```
 
 # Running
