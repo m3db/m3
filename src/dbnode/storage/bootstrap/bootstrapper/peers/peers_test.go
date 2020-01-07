@@ -26,9 +26,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewPeersBootstrapperInvalidOpts(t *testing.T) {
@@ -40,9 +44,26 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	idxOpts := index.NewOptions()
+	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		idxOpts.SegmentBuilderOptions(),
+		idxOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
+
 	opts := NewOptions().
+		SetIndexOptions(idxOpts).
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetPersistManager(persist.NewMockManager(ctrl)).
+		SetCompactor(compactor).
 		SetRuntimeOptionsManager(runtime.NewMockOptionsManager(ctrl))
 
 	b, err := NewPeersBootstrapperProvider(opts, nil)

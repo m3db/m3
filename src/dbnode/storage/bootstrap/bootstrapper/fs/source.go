@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -345,6 +346,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
+	log.Printf("requestedRanges: %s", requestedRanges)
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
 		readers := shardReaders.Readers
@@ -356,6 +358,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockSize = ns.Options().RetentionOptions().BlockSize()
 				err       error
 			)
+			log.Printf("reader timeRange -> %s", timeRange)
 			switch run {
 			case bootstrapDataRunType:
 				// Pass, since nothing to do.
@@ -417,6 +420,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 
 			if err == nil {
+				log.Printf("remainingRanges.Subtract")
 				remainingRanges.Subtract(result.ShardTimeRanges{
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				})
@@ -431,9 +435,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		shouldPersist = s.shouldPersist(runOpts)
 		noneRemaining = remainingRanges.IsEmpty()
 	)
-	log.Printf("shouldPersist: %t, noneRemaining: %t", shouldPersist, noneRemaining)
-	if run == bootstrapIndexRunType && noneRemaining {
-		if shouldPersist {
+	log.Printf("shouldPersist: %t, noneRemaining: %t, timesWithErrors len: %d, remainingRanges: %s", shouldPersist, noneRemaining, len(timesWithErrors), remainingRanges)
+	if run == bootstrapIndexRunType {
+		if shouldPersist && noneRemaining {
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -450,7 +454,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						zap.Error(err))
 				})
 			}
+			// Track success.
+			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
+			log.Printf("bootstrapper.BuildBootstrapIndexSegment called")
 			if err := bootstrapper.BuildBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -554,6 +561,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	if err != nil {
 		return batch, err
 	}
+	log.Printf("readNextEntryAndMaybeIndex added doc ID -> %s", string(d.ID))
 
 	batch = append(batch, d)
 
@@ -752,7 +760,12 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			res.result = newRunResult()
 		}
 		segmentsFulfilled := willFulfill
-		indexBlock := result.NewIndexBlock(indexBlockStart, segments,
+		// NB(bodu): All segments read from disk are already persisted.
+		persistedSegments := make([]segment.Segment, 0, len(segments))
+		for _, segment := range segments {
+			persistedSegments = append(persistedSegments, bootstrapper.NewSegment(segment, true))
+		}
+		indexBlock := result.NewIndexBlock(indexBlockStart, persistedSegments,
 			segmentsFulfilled)
 		// NB(r): Don't need to call MarkFulfilled on the IndexResults here
 		// as we've already passed the ranges fulfilled to the block that

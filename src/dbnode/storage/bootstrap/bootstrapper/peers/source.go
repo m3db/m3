@@ -54,6 +54,7 @@ type peersSource struct {
 	log            *zap.Logger
 	nowFn          clock.NowFn
 	persistManager *bootstrapper.SharedPersistManager
+	compactor      *bootstrapper.SharedCompactor
 }
 
 type persistenceFlush struct {
@@ -72,6 +73,9 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 		persistManager: &bootstrapper.SharedPersistManager{
 			Mgr: opts.PersistManager(),
+		},
+		compactor: &bootstrapper.SharedCompactor{
+			Compactor: opts.Compactor(),
 		},
 	}, nil
 }
@@ -785,6 +789,8 @@ func (s *peersSource) processReaders(
 		}
 	}
 
+	// Only persist to disk if the requested ranges were completely fulfilled.
+	// Otherwise, this is the latest index segment and should only exist in mem.
 	if remainingRanges.IsEmpty() {
 		if err := bootstrapper.PersistBootstrapIndexSegment(
 			ns,
@@ -797,6 +803,23 @@ func (s *peersSource) processReaders(
 			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
+					zap.Stringer("namespace", ns.ID()),
+					zap.Stringer("requestedRanges", shardsTimeRanges),
+					zap.Error(err))
+			})
+		}
+	} else {
+		if err := bootstrapper.BuildBootstrapIndexSegment(
+			ns,
+			shardsTimeRanges,
+			r.IndexResults(),
+			builders,
+			s.compactor,
+			s.opts.ResultOptions(),
+		); err != nil {
+			iopts := s.opts.ResultOptions().InstrumentOptions()
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("build fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
 					zap.Stringer("requestedRanges", shardsTimeRanges),
 					zap.Error(err))

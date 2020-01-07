@@ -30,9 +30,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -309,7 +309,7 @@ func TestBootstrapIndex(t *testing.T) {
 
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
-	src := newFileSystemSource(newTestOptions(dir))
+	src := newFileSystemSource(newTestOptions(t, dir))
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
 		times.shardTimeRanges, nsMD)
@@ -367,15 +367,17 @@ func TestBootstrapIndexWithPersist(t *testing.T) {
 	block, ok := indexResults[xtime.ToUnixNano(times.start)]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable and was not written out
 	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
@@ -426,14 +428,16 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	block, ok := indexResults[xtime.ToUnixNano(times.start)]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
@@ -484,15 +488,17 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	block, ok := indexResults[xtime.ToUnixNano(times.start)]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable
 	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
@@ -576,15 +582,17 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	block, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second is not a mutable segment
 	block, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)

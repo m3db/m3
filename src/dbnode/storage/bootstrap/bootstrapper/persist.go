@@ -109,7 +109,10 @@ func PersistBootstrapIndexSegment(
 		}
 
 		// Combine persisted  and existing segments.
-		segments := persistedSegments
+		segments := make([]segment.Segment, 0, len(persistedSegments))
+		for _, pSeg := range persistedSegments {
+			segments = append(segments, NewSegment(pSeg, true))
+		}
 		for _, seg := range indexBlock.Segments() {
 			segments = append(segments, seg)
 		}
@@ -256,7 +259,7 @@ func BuildBootstrapIndexSegment(
 		return err
 	}
 
-	segments := []segment.Segment{seg}
+	segments := []segment.Segment{NewSegment(seg, false)}
 	for _, seg := range indexBlock.Segments() {
 		segments = append(segments, seg)
 	}
