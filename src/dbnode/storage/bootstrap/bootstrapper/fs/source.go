@@ -112,9 +112,6 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 	}
 	s.newReaderPoolOpts.alloc = s.newReader
 
-	s.log.Info("newFileSystemSource BoostrapIndexNumProcessors",
-		zap.Int("num_processors", opts.BoostrapIndexNumProcessors()))
-
 	return s
 }
 
@@ -143,9 +140,6 @@ func (s *fileSystemSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
-	start := nowFn()
-	s.log.Info("bootstrapping time series data start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -163,18 +157,12 @@ func (s *fileSystemSource) Read(
 			DataResult: r.data,
 		})
 	}
-	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", nowFn().Sub(start)))
 
-	start = nowFn()
-	s.log.Info("bootstrapping index metadata start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
 			// Not bootstrapping for index.
-			s.log.Info("bootstrapping for namespace disabled by options",
-				zap.String("ns", md.ID().String()))
 			continue
 		}
 
@@ -196,8 +184,6 @@ func (s *fileSystemSource) Read(
 
 		results.Results.Set(md.ID(), result)
 	}
-	s.log.Info("bootstrapping index metadata success",
-		zap.Stringer("took", nowFn().Sub(start)))
 
 	return results, nil
 }
@@ -229,13 +215,6 @@ func (s *fileSystemSource) shardAvailability(
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
 		if err := result.Err.Error(); err != nil {
-			s.log.Error("unable to read info files in shardAvailability",
-				zap.Uint32("shard", shard),
-				zap.Stringer("namespace", namespace),
-				zap.Error(err),
-				zap.Any("targetRangesForShard", targetRangesForShard),
-				zap.String("filepath", result.Err.Filepath()),
-			)
 			continue
 		}
 		info := result.Info
@@ -498,7 +477,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		timesWithErrors   []time.Time
 		nsCtx             = namespace.NewContextFrom(ns)
 	)
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 
 	requestedRanges := timeWindowReaders.ranges
 	remainingRanges := requestedRanges.Copy()
@@ -507,9 +485,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		shard := uint32(shard)
 		readers := shardReaders.readers
 
-		startBootstrap := nowFn()
-		s.log.Info("bootstrapping index metadata from data readers for shard",
-			zap.Int("shard", int(shard)))
 		for _, r := range readers {
 			var (
 				timeRange = r.Range()
@@ -517,8 +492,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockSize = ns.Options().RetentionOptions().BlockSize()
 				err       error
 			)
-			startGetOrAddIndexSegment := nowFn()
-			s.log.Info("bootstrapping index metadata getOrAddIndexSegment")
 			switch run {
 			case bootstrapDataRunType:
 				// Pass, since nothing to do.
@@ -528,13 +501,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				// Unreachable unless an internal method calls with a run type casted from int.
 				panic(fmt.Errorf("invalid run type: %d", run))
 			}
-			s.log.Info("bootstrapping index metadata getOrAddIndexSegment",
-				zap.Stringer("took", nowFn().Sub(startGetOrAddIndexSegment)))
 
 			numEntries := r.Entries()
-			startReadNextEntryAndRecordBlock := nowFn()
-			s.log.Info("bootstrapping index metadata readNextEntryAndRecordBlock",
-				zap.Int("numEntries", numEntries))
 			for i := 0; err == nil && i < numEntries; i++ {
 				switch run {
 				case bootstrapDataRunType:
@@ -548,12 +516,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					panic(fmt.Errorf("invalid run type: %d", run))
 				}
 			}
-			s.log.Info("bootstrapping index metadata readNextEntryAndRecordBlock",
-				zap.Stringer("took", nowFn().Sub(startReadNextEntryAndRecordBlock)))
 
 			if err == nil {
-				startValidate := nowFn()
-				s.log.Info("bootstrapping index metadata validate")
 				// Validate the read results.
 				var validateErr error
 				switch run {
@@ -572,8 +536,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				if validateErr != nil {
 					err = fmt.Errorf("data validation failed: %v", validateErr)
 				}
-				s.log.Info("bootstrapping index metadata validate",
-					zap.Stringer("took", nowFn().Sub(startValidate)))
 			}
 
 			if err == nil && run == bootstrapIndexRunType {
@@ -594,9 +556,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
-		s.log.Info("bootstrapping index metadata from data readers for shard",
-			zap.Int("shard", int(shard)),
-			zap.Stringer("took", nowFn().Sub(startBootstrap)))
 	}
 
 	var (
@@ -604,8 +563,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		noneRemaining = remainingRanges.IsEmpty()
 	)
 	if run == bootstrapIndexRunType && shouldPersist && noneRemaining {
-		startPersistBootstrapIndexSegment := nowFn()
-		s.log.Info("persisting bootstrap index segment")
 		err := s.persistBootstrapIndexSegment(ns, requestedRanges, runResult)
 		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
@@ -616,8 +573,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					zap.Error(err))
 			})
 		}
-		s.log.Info("persisting bootstrap index segment",
-			zap.Stringer("took", nowFn().Sub(startPersistBootstrapIndexSegment)))
 	}
 
 	// Return readers to pool.
@@ -952,10 +907,7 @@ func (s *fileSystemSource) read(
 		}
 	}
 
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 	if run == bootstrapIndexRunType {
-		start := nowFn()
-		s.log.Info("bootstrapping index metadata from disk start")
 		// NB(r): First read all the FSTs and add to runResult index results,
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
@@ -970,12 +922,8 @@ func (s *fileSystemSource) read(
 			// Set or merge result.
 			setOrMergeResult(r.result)
 		}
-		s.log.Info("bootstrapping index metadata from disk success",
-			zap.Stringer("took", nowFn().Sub(start)))
 	}
 
-	start := nowFn()
-	s.log.Info("bootstrapping index metadata from data readers start")
 	// Create a reader pool once per bootstrap as we don't really want to
 	// allocate and keep around readers outside of the bootstrapping process,
 	// hence why its created on demand each time.
@@ -985,15 +933,9 @@ func (s *fileSystemSource) read(
 		readerPool, readersCh)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh)
-	s.log.Info("bootstrapping index metadata from data readers",
-		zap.Stringer("took", nowFn().Sub(start)))
 
-	start = nowFn()
-	s.log.Info("bootstrapping index metadata merge results start")
 	// Merge any existing results if necessary.
 	setOrMergeResult(bootstrapFromDataReadersResult)
-	s.log.Info("bootstrapping index metadata merge results success",
-		zap.Stringer("took", nowFn().Sub(start)))
 
 	return res, nil
 }
