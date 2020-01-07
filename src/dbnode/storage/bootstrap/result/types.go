@@ -43,7 +43,7 @@ type DataBootstrapResult interface {
 
 // IndexBootstrapResult is the result of a bootstrap of series index metadata.
 type IndexBootstrapResult interface {
-	// Blocks returns a map of all index block results.
+	// IndexResults returns a map of all index block results.
 	IndexResults() IndexResults
 
 	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
@@ -62,12 +62,14 @@ type IndexBootstrapResult interface {
 // IndexResults is a set of index blocks indexed by block start.
 type IndexResults map[xtime.UnixNano]IndexBlock
 
+// IndexBuilders is a set of index segment builders indexed by block start.
+type IndexBuilders map[xtime.UnixNano]segment.DocumentsBuilder
+
 // IndexBlock contains the bootstrap data structures for an index block.
 type IndexBlock struct {
 	blockStart time.Time
 	segments   []segment.Segment
 	fulfilled  ShardTimeRanges
-	builder    segment.DocumentsBuilder
 }
 
 // DocumentsBuilderAllocator allocates a new DocumentsBuilder type when

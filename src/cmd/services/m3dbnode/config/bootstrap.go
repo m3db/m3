@@ -35,7 +35,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 )
 
 var (
@@ -118,9 +121,25 @@ func (bsc BootstrapConfiguration) New(
 		return nil, err
 	}
 
+	idxOpts := opts.IndexOptions()
+	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		idxOpts.SegmentBuilderOptions(),
+		idxOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		bs     bootstrap.BootstrapperProvider
-		err    error
 		fsOpts = opts.CommitLogOptions().FilesystemOptions()
 	)
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
@@ -136,7 +155,9 @@ func (bsc BootstrapConfiguration) New(
 				SetInstrumentOptions(opts.InstrumentOptions()).
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
+				SetIndexOptions(opts.IndexOptions()).
 				SetPersistManager(opts.PersistManager()).
+				SetCompactor(compactor).
 				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
@@ -169,8 +190,10 @@ func (bsc BootstrapConfiguration) New(
 		case peers.PeersBootstrapperName:
 			pOpts := peers.NewOptions().
 				SetResultOptions(rsOpts).
+				SetIndexOptions(opts.IndexOptions()).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
+				SetCompactor(compactor).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetContextPool(opts.ContextPool())

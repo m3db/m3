@@ -1473,7 +1473,7 @@ func (b *blockCompact) allocLazyBuilderAndCompactors(
 
 	if b.foregroundCompactor == nil {
 		b.foregroundCompactor, err = compaction.NewCompactor(docsPool,
-			documentArrayPoolCapacity,
+			DocumentArrayPoolCapacity,
 			opts.SegmentBuilderOptions(),
 			opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -1492,7 +1492,7 @@ func (b *blockCompact) allocLazyBuilderAndCompactors(
 
 	if b.backgroundCompactor == nil {
 		b.backgroundCompactor, err = compaction.NewCompactor(docsPool,
-			documentArrayPoolCapacity,
+			DocumentArrayPoolCapacity,
 			opts.SegmentBuilderOptions(),
 			opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{

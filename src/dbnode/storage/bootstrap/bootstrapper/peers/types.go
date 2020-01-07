@@ -27,7 +27,8 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/x/context"
 )
 
@@ -86,6 +87,12 @@ type Options interface {
 	// when performing a bootstrap with persistence.
 	PersistManager() persist.Manager
 
+	// SetCompactor sets the compactor used to compact segment builders into segments.
+	SetCompactor(value *compaction.Compactor) Options
+
+	// Compactor returns the compactor used to compact segment builders into segments.
+	Compactor() *compaction.Compactor
+
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// pass to newly flushed blocks when performing a bootstrap run with
 	// persistence enabled.
@@ -110,15 +117,15 @@ type Options interface {
 	// ContextPool returns the contextPool.
 	ContextPool() context.Pool
 
-	// SetDocumentArrayPool sets the document array pool.
-	SetDocumentArrayPool(value doc.DocumentArrayPool) Options
-
-	// DocumentArrayPool returns the document array pool.
-	DocumentArrayPool() doc.DocumentArrayPool
-
 	// SetFilesystemOptions sets the filesystem options.
 	SetFilesystemOptions(value fs.Options) Options
 
 	// FilesystemOptions returns the filesystem options.
 	FilesystemOptions() fs.Options
+
+	// SetIndexOptions set the indexing options.
+	SetIndexOptions(value index.Options) Options
+
+	// IndexOptions returns the indexing options.
+	IndexOptions() index.Options
 }

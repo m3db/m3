@@ -8,6 +8,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -20,11 +21,18 @@ type SharedPersistManager struct {
 	Mgr persist.Manager
 }
 
+// SharedCompactor is a lockable compactor that's safe to be shared across threads.
+type SharedCompactor struct {
+	sync.Mutex
+	Compactor *compaction.Compactor
+}
+
 // PersistBootstrapIndexSegment is a helper function that persists bootstrapped index segments for a ns -> block of time.
 func PersistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
 	indexResults result.IndexResults,
+	indexBuilders result.IndexBuilders,
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
 ) error {
@@ -72,6 +80,15 @@ func PersistBootstrapIndexSegment(
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
+	}
+	builder, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		// No-op if there are no index builders for this time block (nothing to persist).
+		return nil
+	}
+	if len(builder.Docs()) == 0 {
+		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
+		return nil
 	}
 
 	var (
@@ -144,7 +161,7 @@ func PersistBootstrapIndexSegment(
 		}
 	}()
 
-	if err := preparedPersist.Persist(indexBlock.Builder()); err != nil {
+	if err := preparedPersist.Persist(builder); err != nil {
 		return err
 	}
 
@@ -164,6 +181,89 @@ func PersistBootstrapIndexSegment(
 	return nil
 }
 
+// BuildBootstrapIndexSegment is a helper function that builds (in memory) bootstrapped index segments for a ns -> block of time.
+func BuildBootstrapIndexSegment(
+	ns namespace.Metadata,
+	requestedRanges result.ShardTimeRanges,
+	indexResults result.IndexResults,
+	indexBuilders result.IndexBuilders,
+	compactor *SharedCompactor,
+	resultOpts result.Options,
+) error {
+	// If we're performing an index run with persistence enabled
+	// determine if we covered a full block exactly (which should
+	// occur since we always group readers by block size).
+	min, _ := requestedRanges.MinMax()
+	blockSize := ns.Options().IndexOptions().BlockSize()
+	blockStart := min.Truncate(blockSize)
+	blockEnd := blockStart.Add(blockSize)
+	expectedRangeStart, expectedRangeEnd := blockStart, blockEnd
+
+	// Index blocks can be arbitrarily larger than data blocks, but the
+	// retention of the namespace is based on the size of the data blocks,
+	// not the index blocks. As a result, it's possible that the block start
+	// for the earliest index block is before the earliest possible retention
+	// time.
+	// If that is the case, then we snap the expected range start to the
+	// earliest retention block start because that is the point in time for
+	// which we'll actually have data available to construct a segment from.
+	//
+	// Example:
+	//  Index block size: 4 hours
+	//  Data block size: 2 hours
+	//  Retention: 6 hours
+	//           [12PM->2PM][2PM->4PM][4PM->6PM] (Data Blocks)
+	// [10AM     ->     2PM][2PM     ->     6PM] (Index Blocks)
+	retentionOpts := ns.Options().RetentionOptions()
+	nowFn := resultOpts.ClockOptions().NowFn()
+	earliestRetentionTime := retention.FlushTimeStart(retentionOpts, nowFn())
+	if blockStart.Before(earliestRetentionTime) {
+		expectedRangeStart = earliestRetentionTime
+	}
+
+	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
+	for shard := range requestedRanges {
+		expectedRanges[shard] = xtime.Ranges{}.AddRange(xtime.Range{
+			Start: expectedRangeStart,
+			End:   expectedRangeEnd,
+		})
+	}
+
+	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
+	}
+	builder, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		// No-op if there are is no index builder for this time block (nothing to persist).
+		return nil
+	}
+	if len(builder.Docs()) == 0 {
+		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
+		return nil
+	}
+
+	compactor.Lock()
+	defer compactor.Unlock()
+	seg, err := compactor.Compactor.CompactUsingBuilder(builder, nil)
+	if err != nil {
+		return err
+	}
+
+	segments := []segment.Segment{seg}
+	for _, seg := range indexBlock.Segments() {
+		segments = append(segments, seg)
+	}
+
+	// Now replace the active segment with the built segment.
+	newFulfilled := indexBlock.Fulfilled().Copy()
+	newFulfilled.AddRanges(expectedRanges)
+	replacedBlock := result.NewIndexBlock(blockStart, segments, newFulfilled)
+	indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
+
+	return nil
+}
+
 type writeLock interface {
 	Lock()
 	Unlock()
@@ -172,13 +272,12 @@ type writeLock interface {
 // CreateFlushBatchFn creates a batch flushing fn for code reuse.
 func CreateFlushBatchFn(
 	mu writeLock,
-	batch []doc.Document,
 	builder segment.DocumentsBuilder,
-) func() error {
-	return func() error {
+) func([]doc.Document) ([]doc.Document, error) {
+	return func(batch []doc.Document) ([]doc.Document, error) {
 		if len(batch) == 0 {
 			// Last flush might not have any docs enqueued
-			return nil
+			return batch, nil
 		}
 
 		// NB(bodu): Prevent concurrent writes.
@@ -201,7 +300,7 @@ func CreateFlushBatchFn(
 			err = batchErr.FilterDuplicateIDErrors()
 		}
 		if err != nil {
-			return err
+			return batch, err
 		}
 
 		// Reset docs batch for reuse
@@ -210,6 +309,6 @@ func CreateFlushBatchFn(
 			batch[i] = empty
 		}
 		batch = batch[:0]
-		return nil
+		return batch, nil
 	}
 }

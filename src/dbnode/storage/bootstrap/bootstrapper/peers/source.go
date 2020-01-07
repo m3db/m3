@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -625,6 +626,7 @@ func (s *peersSource) readIndex(
 	// FOLLOWUP(r): Try to reuse any metadata fetched during the ReadData(...)
 	// call rather than going to the network again
 	r := result.NewIndexBootstrapResult()
+	builders := make(result.IndexBuilders)
 	if shardsTimeRanges.IsEmpty() {
 		return r, nil
 	}
@@ -664,7 +666,7 @@ func (s *peersSource) readIndex(
 		// NB(bodu): This is fetching the data for all shards for a block of time.
 		workers.Go(func() {
 			var (
-				docsPool                   = s.opts.DocumentArrayPool()
+				docsPool                   = s.opts.IndexOptions().DocumentArrayPool()
 				batch                      = docsPool.Get()
 				indexBlockDocumentsBuilder segment.DocumentsBuilder
 				timesWithErrors            []time.Time
@@ -686,20 +688,20 @@ func (s *peersSource) readIndex(
 						err       error
 					)
 
-					indexBlockDocumentsBuilder, err = r.IndexResults().GetOrAddDocumentsBuilder(
+					indexBlockDocumentsBuilder, err = builders.GetOrAddDocumentsBuilder(
 						start,
 						idxOpts,
 						resultOpts,
 					)
-					flushBatch := bootstrapper.CreateFlushBatchFn(resultLock, batch, indexBlockDocumentsBuilder)
+					flushBatch := bootstrapper.CreateFlushBatchFn(resultLock, indexBlockDocumentsBuilder)
 					numEntries := reader.Entries()
 					for i := 0; err == nil && i < numEntries; i++ {
-						err = s.readNextEntryAndMaybeIndex(reader, batch, flushBatch)
+						batch, err = s.readNextEntryAndMaybeIndex(reader, batch, flushBatch)
 					}
 
 					// NB(bodu): Only flush if we've experienced no errors up until this point.
 					if err == nil && len(batch) > 0 {
-						err = flushBatch()
+						batch, err = flushBatch(batch)
 					}
 
 					// Validate the read results
@@ -732,6 +734,7 @@ func (s *peersSource) readIndex(
 					ns,
 					shardsTimeRanges,
 					r.IndexResults(),
+					builders,
 					s.persistManager,
 					s.opts.ResultOptions(),
 				); err != nil {
@@ -769,12 +772,12 @@ func (s *peersSource) readIndex(
 func (s *peersSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Document,
-	flushBatch func() error,
-) error {
+	flushBatch func([]doc.Document) ([]doc.Document, error),
+) ([]doc.Document, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
 	if err != nil {
-		return err
+		return batch, err
 	}
 
 	d, err := convert.FromMetricIter(id, tagsIter)
@@ -782,16 +785,16 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 	id.Finalize()
 	tagsIter.Close()
 	if err != nil {
-		return err
+		return batch, err
 	}
 
 	batch = append(batch, d)
 
-	if len(batch) >= documentArrayPoolCapacity {
-		return flushBatch()
+	if len(batch) >= index.DocumentArrayPoolCapacity {
+		return flushBatch(batch)
 	}
 
-	return nil
+	return batch, nil
 }
 
 // markRunResultErrorsAndUnfulfilled checks the list of times that had errors and makes
@@ -839,7 +842,7 @@ func (s *peersSource) readBlockMetadataAndIndex(
 	}
 
 	batch = append(batch, d)
-	if len(batch) >= documentArrayPoolCapacity {
+	if len(batch) >= index.DocumentArrayPoolCapacity {
 		return true, flushBatch()
 	}
 

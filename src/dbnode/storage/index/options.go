@@ -42,8 +42,9 @@ const (
 	// = 256 * 256 * 16
 	// = 1mb (but with Go's heap probably 2mb)
 	// TODO(r): Make this configurable in a followup change.
-	documentArrayPoolSize        = 256
-	documentArrayPoolCapacity    = 256
+	documentArrayPoolSize = 256
+	// DocumentArrayPoolCapacity is the capacity of the document array pool.
+	DocumentArrayPoolCapacity    = 256
 	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 
 	// aggregateResultsEntryArrayPool size in general: 256*256*sizeof(doc.Field)
@@ -139,7 +140,7 @@ func NewOptions() Options {
 	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
 		Options: pool.NewObjectPoolOptions().
 			SetSize(documentArrayPoolSize),
-		Capacity:    documentArrayPoolCapacity,
+		Capacity:    DocumentArrayPoolCapacity,
 		MaxCapacity: documentArrayPoolMaxCapacity,
 	})
 	docArrayPool.Init()

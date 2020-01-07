@@ -22,6 +22,7 @@ package fs
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -70,6 +72,7 @@ type fileSystemSource struct {
 	dataProcessors    xsync.WorkerPool
 	indexProcessors   xsync.WorkerPool
 	persistManager    *bootstrapper.SharedPersistManager
+	compactor         *bootstrapper.SharedCompactor
 	metrics           fileSystemSourceMetrics
 }
 
@@ -99,6 +102,9 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 		indexProcessors: indexProcessors,
 		persistManager: &bootstrapper.SharedPersistManager{
 			Mgr: opts.PersistManager(),
+		},
+		compactor: &bootstrapper.SharedCompactor{
+			Compactor: opts.Compactor(),
 		},
 		metrics: fileSystemSourceMetrics{
 			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
@@ -185,7 +191,6 @@ func (s *fileSystemSource) Read(
 		}
 
 		result.IndexResult = r.index
-
 		results.Results.Set(md.ID(), result)
 	}
 	s.log.Info("bootstrapping index metadata success",
@@ -333,7 +338,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		indexBlockDocumentsBuilder segment.DocumentsBuilder
 		timesWithErrors            []time.Time
 		nsCtx                      = namespace.NewContextFrom(ns)
-		docsPool                   = s.opts.DocumentArrayPool()
+		docsPool                   = s.opts.IndexOptions().DocumentArrayPool()
 		batch                      = docsPool.Get()
 	)
 	defer func() {
@@ -358,13 +363,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			case bootstrapDataRunType:
 				// Pass, since nothing to do.
 			case bootstrapIndexRunType:
+				// NB(bodu): This should be the same documents builder for every shard.
 				indexBlockDocumentsBuilder, err = runResult.getOrAddDocumentsBuilder(start, ns, ropts)
 			default:
 				// Unreachable unless an internal method calls with a run type casted from int.
 				panic(fmt.Errorf("invalid run type: %d", run))
 			}
 
-			flushBatch := bootstrapper.CreateFlushBatchFn(&runResult.RWMutex, batch, indexBlockDocumentsBuilder)
+			flushBatch := bootstrapper.CreateFlushBatchFn(&runResult.RWMutex, indexBlockDocumentsBuilder)
 			numEntries := r.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
 				switch run {
@@ -373,17 +379,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						runResult, start, blockSize, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
-					err = s.readNextEntryAndMaybeIndex(r, batch, flushBatch)
+					batch, err = s.readNextEntryAndMaybeIndex(r, batch, flushBatch)
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
 				}
 			}
 			// NB(bodu): Only flush if we've experienced no errors up to this point.
-			if err == nil {
-				if len(batch) > 0 {
-					err = flushBatch()
-				}
+			if err == nil && len(batch) > 0 {
+				batch, err = flushBatch(batch)
 			}
 
 			if err == nil {
@@ -431,22 +435,42 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		shouldPersist = s.shouldPersist(runOpts)
 		noneRemaining = remainingRanges.IsEmpty()
 	)
-	if run == bootstrapIndexRunType && shouldPersist && noneRemaining {
-		err := bootstrapper.PersistBootstrapIndexSegment(
-			ns,
-			requestedRanges,
-			runResult.index.IndexResults(),
-			s.persistManager,
-			s.opts.ResultOptions(),
-		)
-		if err != nil {
-			iopts := s.opts.ResultOptions().InstrumentOptions()
-			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-				l.Error("persist fs index bootstrap failed",
-					zap.Stringer("namespace", ns.ID()),
-					zap.Stringer("requestedRanges", requestedRanges),
-					zap.Error(err))
-			})
+	log.Printf("shouldPersist: %t, noneRemaining: %t", shouldPersist, noneRemaining)
+	if run == bootstrapIndexRunType && noneRemaining {
+		if shouldPersist {
+			if err := bootstrapper.PersistBootstrapIndexSegment(
+				ns,
+				requestedRanges,
+				runResult.index.IndexResults(),
+				runResult.builders,
+				s.persistManager,
+				s.opts.ResultOptions(),
+			); err != nil {
+				iopts := s.opts.ResultOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+					l.Error("persist fs index bootstrap failed",
+						zap.Stringer("namespace", ns.ID()),
+						zap.Stringer("requestedRanges", requestedRanges),
+						zap.Error(err))
+				})
+			}
+		} else {
+			if err := bootstrapper.BuildBootstrapIndexSegment(
+				ns,
+				requestedRanges,
+				runResult.index.IndexResults(),
+				runResult.builders,
+				s.compactor,
+				s.opts.ResultOptions(),
+			); err != nil {
+				iopts := s.opts.ResultOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+					l.Error("build fs index bootstrap failed",
+						zap.Stringer("namespace", ns.ID()),
+						zap.Stringer("requestedRanges", requestedRanges),
+						zap.Error(err))
+				})
+			}
 		}
 	}
 
@@ -519,12 +543,12 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Document,
-	flushBatch func() error,
-) error {
+	flushBatch func([]doc.Document) ([]doc.Document, error),
+) ([]doc.Document, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
 	if err != nil {
-		return err
+		return batch, err
 	}
 
 	d, err := convert.FromMetricIter(id, tagsIter)
@@ -532,16 +556,16 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	id.Finalize()
 	tagsIter.Close()
 	if err != nil {
-		return err
+		return batch, err
 	}
 
 	batch = append(batch, d)
 
-	if len(batch) >= documentArrayPoolCapacity {
-		return flushBatch()
+	if len(batch) >= index.DocumentArrayPoolCapacity {
+		return flushBatch(batch)
 	}
 
-	return nil
+	return batch, nil
 }
 
 func (s *fileSystemSource) read(
@@ -751,14 +775,16 @@ func (s *fileSystemSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
 
 type runResult struct {
 	sync.RWMutex
-	data  result.DataBootstrapResult
-	index result.IndexBootstrapResult
+	data     result.DataBootstrapResult
+	index    result.IndexBootstrapResult
+	builders result.IndexBuilders
 }
 
 func newRunResult() *runResult {
 	return &runResult{
-		data:  result.NewDataBootstrapResult(),
-		index: result.NewIndexBootstrapResult(),
+		data:     result.NewDataBootstrapResult(),
+		index:    result.NewIndexBootstrapResult(),
+		builders: make(result.IndexBuilders),
 	}
 }
 
@@ -771,8 +797,7 @@ func (r *runResult) getOrAddDocumentsBuilder(
 	r.Lock()
 	defer r.Unlock()
 
-	indexResults := r.index.IndexResults()
-	indexBlockDocumentsBuilder, err := indexResults.GetOrAddDocumentsBuilder(start,
+	indexBlockDocumentsBuilder, err := r.builders.GetOrAddDocumentsBuilder(start,
 		ns.Options().IndexOptions(), ropts)
 	return indexBlockDocumentsBuilder, err
 }
