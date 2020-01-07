@@ -21,6 +21,7 @@
 package promql
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -525,36 +526,43 @@ func TestCustomParseOptions(t *testing.T) {
 	assert.Equal(t, v, str.Val)
 }
 
-type customParam struct{}
+type customParam struct {
+	prefix string
+}
 
 func (c customParam) String() string {
-	return "custom"
+	return fmt.Sprintf("%s_custom", c.prefix)
 }
 
 func (c customParam) OpType() string {
-	return "customOpType"
+	return fmt.Sprintf("%s_customOpType", c.prefix)
 }
 
 func TestCustomSort(t *testing.T) {
-	// NB: this utilizes the fact that `sort` is a no-op to add a custom sort
-	// function.
-	q := "sort(up)"
+	tests := []struct {
+		q  string
+		ex string
+	}{
+		{"sort(up)", "sort_customOpType"},
+		{"clamp_max(up, 0.3)", "clamp_max_customOpType"},
+	}
 
 	fn := func(s string, _ []interface{}, _ []string,
 		_ bool, _ models.TagOptions) (parser.Params, bool, error) {
-		require.Equal(t, "sort", s)
-		return customParam{}, true, nil
+		return customParam{s}, true, nil
 	}
 
-	opts := NewParseOptions().SetCustomCallParseFn(fn)
-	p, err := Parse(q, time.Second, models.NewTagOptions(), opts)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	require.Len(t, transforms, 2)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Len(t, edges, 1)
-	assert.Equal(t, transforms[1].Op.OpType(), "customOpType")
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	opts := NewParseOptions().SetFunctionParseExpr(fn)
+	for _, tt := range tests {
+		p, err := Parse(tt.q, time.Second, models.NewTagOptions(), opts)
+		require.NoError(t, err)
+		transforms, edges, err := p.DAG()
+		require.NoError(t, err)
+		require.Len(t, transforms, 2)
+		assert.Equal(t, functions.FetchType, transforms[0].Op.OpType())
+		assert.Equal(t, parser.NodeID("0"), transforms[0].ID)
+		assert.Len(t, edges, 1)
+		assert.Equal(t, tt.ex, transforms[1].Op.OpType())
+		assert.Equal(t, parser.NodeID("1"), transforms[1].ID)
+	}
 }

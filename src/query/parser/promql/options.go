@@ -26,20 +26,16 @@ import (
 	pql "github.com/prometheus/prometheus/promql"
 )
 
-// CallParseFn is a function that parses custom call functions
-// to parameters if able.
-type CallParseFn func(
+// ParseFunctionExpr parses arguments to a function expression, returning
+// a function, a bool indicating whether the function is a noop,
+// and any errors during execution.
+type ParseFunctionExpr func(
 	name string,
 	argValues []interface{},
 	stringValues []string,
 	hasArgValue bool,
 	tagOptions models.TagOptions,
 ) (parser.Params, bool, error)
-
-func defaultCallParseFn(_ string, _ []interface{}, _ []string,
-	_ bool, _ models.TagOptions) (parser.Params, bool, error) {
-	return nil, false, nil
-}
 
 // ParseFn is a function that parses a query to a Prometheus expression.
 type ParseFn func(query string) (pql.Expr, error)
@@ -55,22 +51,22 @@ type ParseOptions interface {
 	// SetParseFn sets the parse function.
 	SetParseFn(f ParseFn) ParseOptions
 
-	// CustomCallParseFn gets the custom call parsing function.
-	CustomCallParseFn() CallParseFn
-	// SetCustomCallParseFn sets the custom call parsing function.
-	SetCustomCallParseFn(f CallParseFn) ParseOptions
+	// FunctionParseExpr gets the parsing function.
+	FunctionParseExpr() ParseFunctionExpr
+	// SetFunctionParseExpr sets the parsing function.
+	SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions
 }
 
 type parseOptions struct {
 	fn          ParseFn
-	callParseFn CallParseFn
+	fnParseExpr ParseFunctionExpr
 }
 
 // NewParseOptions creates a new parse options.
 func NewParseOptions() ParseOptions {
 	return &parseOptions{
 		fn:          defaultParseFn,
-		callParseFn: defaultCallParseFn,
+		fnParseExpr: NewFunctionExpr,
 	}
 }
 
@@ -84,12 +80,12 @@ func (o *parseOptions) SetParseFn(f ParseFn) ParseOptions {
 	return &opts
 }
 
-func (o *parseOptions) CustomCallParseFn() CallParseFn {
-	return o.callParseFn
+func (o *parseOptions) FunctionParseExpr() ParseFunctionExpr {
+	return o.fnParseExpr
 }
 
-func (o *parseOptions) SetCustomCallParseFn(f CallParseFn) ParseOptions {
+func (o *parseOptions) SetFunctionParseExpr(f ParseFunctionExpr) ParseOptions {
 	opts := *o
-	opts.callParseFn = f
+	opts.fnParseExpr = f
 	return &opts
 }
