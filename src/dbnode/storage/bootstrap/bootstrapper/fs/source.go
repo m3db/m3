@@ -140,6 +140,9 @@ func (s *fileSystemSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
+	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
+	start := nowFn()
+	s.log.Info("bootstrapping time series data start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -157,12 +160,18 @@ func (s *fileSystemSource) Read(
 			DataResult: r.data,
 		})
 	}
+	s.log.Info("bootstrapping time series data success",
+		zap.Duration("took", nowFn().Sub(start)))
 
+	start = nowFn()
+	s.log.Info("bootstrapping index metadata start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 		if !md.Options().IndexOptions().Enabled() {
 			// Not bootstrapping for index.
+			s.log.Info("bootstrapping for namespace disabled by options",
+				zap.String("ns", md.ID().String()))
 			continue
 		}
 
@@ -184,6 +193,8 @@ func (s *fileSystemSource) Read(
 
 		results.Results.Set(md.ID(), result)
 	}
+	s.log.Info("bootstrapping index metadata success",
+		zap.Stringer("took", nowFn().Sub(start)))
 
 	return results, nil
 }
@@ -215,6 +226,13 @@ func (s *fileSystemSource) shardAvailability(
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
 		if err := result.Err.Error(); err != nil {
+			s.log.Error("unable to read info files in shardAvailability",
+				zap.Uint32("shard", shard),
+				zap.Stringer("namespace", namespace),
+				zap.Error(err),
+				zap.Any("targetRangesForShard", targetRangesForShard),
+				zap.String("filepath", result.Err.Filepath()),
+			)
 			continue
 		}
 		info := result.Info
@@ -699,7 +717,8 @@ func (s *fileSystemSource) readNextEntryAndIndex(
 func (s *fileSystemSource) persistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
-	runResult *runResult) error {
+	runResult *runResult,
+) error {
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
