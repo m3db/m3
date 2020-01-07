@@ -1,5 +1,5 @@
-hash: 6085baceb60bdabb01d6fd1279d5dbbb39717bcb2349c7252c003a5836a66fc9
-updated: 2020-01-07T11:14:16.207047114-05:00
+hash: 4841483b89795e7a52fb9f560b5595804b37bdc6baaaf7f24065b23ccb015844
+updated: 2020-01-07T16:57:02.397357273-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -57,6 +57,7 @@ imports:
   - etcdserver/etcdserverpb/gw
   - etcdserver/membership
   - etcdserver/stats
+  - integration
   - lease
   - lease/leasehttp
   - lease/leasepb
@@ -457,13 +458,6 @@ imports:
   version: e553b05586428962bf7058d1044519d87ca72d74
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
-- name: github.com/coreos/etcd
-  version: 2d861f39e9ec31dd9129a8070e8ff6492f859c07
-  subpackages:
-  - clientv3
-  - clientv3/concurrency
-  - etcdserver/api/v3rpc/rpctypes
-  - integration
 - name: go.uber.org/atomic
   version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: go.uber.org/config
@@ -570,12 +564,15 @@ imports:
   - protobuf/ptype
   - protobuf/source_context
 - name: google.golang.org/grpc
-  version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
+  version: 6b51017f791ae1cfbec89c52efdf444b13b550ef
   subpackages:
   - balancer
+  - balancer/base
+  - balancer/roundrobin
   - codes
   - connectivity
   - credentials
+  - encoding
   - grpclb/grpc_lb_v1/messages
   - grpclog
   - health/grpc_health_v1
@@ -587,6 +584,8 @@ imports:
   - reflection
   - reflection/grpc_reflection_v1alpha
   - resolver
+  - resolver/dns
+  - resolver/passthrough
   - stats
   - status
   - tap

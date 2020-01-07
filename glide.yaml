@@ -211,7 +211,7 @@ import:
 
   # To avoid conflicting packages not resolving the latest GRPC
   - package: google.golang.org/grpc
-    version: ~1.7.5
+    version: ~1.9.2
     subpackages:
       - codes
 
