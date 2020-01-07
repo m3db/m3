@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -71,7 +72,7 @@ func NewGetHandler(opts HandlerOptions) *GetHandler {
 }
 
 func (h *GetHandler) ServeHTTP(
-	service handler.ServiceNameAndDefaults,
+	service handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -111,7 +112,7 @@ func (h *GetHandler) ServeHTTP(
 
 // Get gets a placement.
 func (h *GetHandler) Get(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
 ) (placement placement.Placement, badRequest bool, err error) {
 	var headers http.Header
@@ -119,7 +120,7 @@ func (h *GetHandler) Get(
 		headers = httpReq.Header
 	}
 
-	opts := handler.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
+	opts := handleroptions.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
 	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		return nil, false, err

@@ -197,7 +197,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 }
 
 func (w *downsamplerFlushHandlerWriter) Flush() error {
-	// NB(r): This is a just simply waiting for inflight requests
+	// NB(r): This is just simply waiting for inflight requests
 	// to complete since this flush handler isn't connection based.
 	w.wg.Wait()
 	return nil

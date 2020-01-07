@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -65,7 +66,7 @@ func NewSchemaHandler(
 }
 
 func (h *SchemaHandler) ServeHTTP(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -79,7 +80,7 @@ func (h *SchemaHandler) ServeHTTP(
 		return
 	}
 
-	opts := handler.NewServiceOptions(svc, r.Header, nil)
+	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	resp, err := h.Add(md, opts)
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
@@ -114,7 +115,7 @@ func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAdd
 // Add adds schema to an existing namespace.
 func (h *SchemaHandler) Add(
 	addReq *admin.NamespaceSchemaAddRequest,
-	opts handler.ServiceOptions,
+	opts handleroptions.ServiceOptions,
 ) (admin.NamespaceSchemaAddResponse, error) {
 	var emptyRep = admin.NamespaceSchemaAddResponse{}
 
@@ -150,7 +151,7 @@ func NewSchemaResetHandler(
 }
 
 func (h *SchemaResetHandler) ServeHTTP(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -164,7 +165,7 @@ func (h *SchemaResetHandler) ServeHTTP(
 		return
 	}
 
-	opts := handler.NewServiceOptions(svc, r.Header, nil)
+	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	resp, err := h.Reset(md, opts)
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
@@ -199,7 +200,7 @@ func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSche
 // Reset resets schema for an existing namespace.
 func (h *SchemaResetHandler) Reset(
 	addReq *admin.NamespaceSchemaResetRequest,
-	opts handler.ServiceOptions,
+	opts handleroptions.ServiceOptions,
 ) (*admin.NamespaceSchemaResetResponse, error) {
 	var emptyRep = admin.NamespaceSchemaResetResponse{}
 	if !opts.Force {

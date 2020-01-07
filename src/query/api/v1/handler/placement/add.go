@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -67,7 +68,7 @@ func NewAddHandler(opts HandlerOptions) *AddHandler {
 }
 
 func (h *AddHandler) ServeHTTP(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -118,7 +119,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 
 // Add adds a placement.
 func (h *AddHandler) Add(
-	svc handler.ServiceNameAndDefaults,
+	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
 	req *admin.PlacementAddRequest,
 ) (placement.Placement, error) {
@@ -127,7 +128,7 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(svc, httpReq.Header,
+	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
 		h.m3AggServiceOptions)
 	var validateFn placement.ValidateFn
 	if !req.Force {

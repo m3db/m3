@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -52,8 +52,9 @@ var (
 	testDBCfg = &dbconfig.DBConfiguration{
 		ListenAddress: "0.0.0.0:9000",
 	}
-	svcDefaultOptions = []handler.ServiceOptionsDefault{
-		func(o handler.ServiceOptions) handler.ServiceOptions {
+
+	svcDefaultOptions = []handleroptions.ServiceOptionsDefault{
+		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
 			return o
 		},
 	}

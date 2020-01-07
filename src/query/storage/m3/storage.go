@@ -112,8 +112,8 @@ func (s *m3storage) FetchProm(
 		return storage.PromResult{}, err
 	}
 
-	result, _, err := accumulator.FinalResultWithAttrs()
 	defer accumulator.Close()
+	result, attrs, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -123,55 +123,25 @@ func (s *m3storage) FetchProm(
 		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	return storage.SeriesIteratorsToPromResult(
+	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result.SeriesIterators,
 		s.opts.ReadWorkerPool(),
 		result.Metadata,
 		enforcer,
 		s.opts.TagOptions(),
 	)
-}
-
-func (s *m3storage) Fetch(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
-	if err != nil {
-		return nil, err
-	}
-
-	result, attrs, err := accumulator.FinalResultWithAttrs()
-	defer accumulator.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(
-		result.SeriesIterators,
-		s.opts.ReadWorkerPool(),
-		true,
-		result.Metadata,
-		enforcer,
-		s.opts.TagOptions(),
-	)
 
 	if err != nil {
-		return nil, err
+		return storage.PromResult{}, err
 	}
 
-	if len(fetchResult.SeriesList) != len(attrs) {
-		return nil, errMismatchedFetchedLength
+	tsLength := len(fetchResult.PromResult.GetTimeseries())
+	if tsLength != len(attrs) {
+		return storage.PromResult{}, errMismatchedFetchedLength
 	}
 
 	if options.IncludeResolution {
-		resolutions := make([]int64, 0, len(fetchResult.SeriesList))
+		resolutions := make([]int64, 0, tsLength)
 		for _, attr := range attrs {
 			resolutions = append(resolutions, int64(attr.Resolution))
 		}
@@ -236,19 +206,6 @@ func (s *m3storage) FetchBlocks(
 	opts := s.opts.SetLookbackDuration(
 		options.LookbackDurationOrDefault(s.opts.LookbackDuration()))
 
-	// If using decoded block, return the legacy path.
-	if options.BlockType == models.TypeDecodedBlock {
-		fetchResult, err := s.Fetch(ctx, query, options)
-		if err != nil {
-			return block.Result{
-				Metadata: block.NewResultMetadata(),
-			}, err
-		}
-
-		return storage.FetchResultToBlockResult(fetchResult, query,
-			opts.LookbackDuration(), options.Enforcer)
-	}
-
 	result, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{
@@ -295,6 +252,12 @@ func (s *m3storage) fetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (MultiFetchResult, error) {
+	if err := options.BlockType.Validate(); err != nil {
+		// This is an invariant error; should not be able to get to here.
+		return nil, instrument.InvariantErrorf("invalid block type on "+
+			"fetch, got: %v with error %v", options.BlockType, err)
+	}
+
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():

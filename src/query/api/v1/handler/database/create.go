@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -135,7 +136,7 @@ type createHandler struct {
 	namespaceGetHandler    *namespace.GetHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
 	embeddedDbCfg          *dbconfig.DBConfiguration
-	defaults               []handler.ServiceOptionsDefault
+	defaults               []handleroptions.ServiceOptionsDefault
 	instrumentOpts         instrument.Options
 }
 
@@ -144,7 +145,7 @@ func NewCreateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
-	defaults []handler.ServiceOptionsDefault,
+	defaults []handleroptions.ServiceOptionsDefault,
 	instrumentOpts instrument.Options,
 ) (http.Handler, error) {
 	placementHandlerOptions, err := placement.NewHandlerOptions(client,
@@ -164,9 +165,9 @@ func NewCreateHandler(
 	}, nil
 }
 
-func (h *createHandler) serviceNameAndDefaults() handler.ServiceNameAndDefaults {
-	return handler.ServiceNameAndDefaults{
-		ServiceName: handler.M3DBServiceName,
+func (h *createHandler) serviceNameAndDefaults() handleroptions.ServiceNameAndDefaults {
+	return handleroptions.ServiceNameAndDefaults{
+		ServiceName: handleroptions.M3DBServiceName,
 		Defaults:    h.defaults,
 	}
 }
@@ -220,7 +221,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions(h.serviceNameAndDefaults(),
+	opts := handleroptions.NewServiceOptions(h.serviceNameAndDefaults(),
 		r.Header, nil)
 	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 	if err != nil {

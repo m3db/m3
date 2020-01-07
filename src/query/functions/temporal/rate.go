@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -70,12 +71,14 @@ func (r rateProcessor) initialize(
 // NewRateOp creates a new base temporal transform for rate functions
 func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 	if len(args) != 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
+		return emptyOp,
+			fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
 	}
 
 	duration, ok := args[0].(time.Duration)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		return emptyOp,
+			fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
 	}
 
 	var (
@@ -108,7 +111,14 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 	return newBaseOp(duration, optype, r)
 }
 
-type rateFn func(ts.Datapoints, bool, bool, int64, int64, time.Duration) float64
+type rateFn func(
+	datapoints ts.Datapoints,
+	isRate bool,
+	isCounter bool,
+	rangeStart xtime.UnixNano,
+	rangeEnd xtime.UnixNano,
+	duration time.Duration,
+) float64
 
 type rateNode struct {
 	controller        *transform.Controller
@@ -130,9 +140,10 @@ func (r *rateNode) process(datapoints ts.Datapoints, bounds iterationBounds) flo
 
 func standardRateFunc(
 	datapoints ts.Datapoints,
-	isRate, isCounter bool,
-	rangeStart int64,
-	rangeEnd int64,
+	isRate bool,
+	isCounter bool,
+	rangeStart xtime.UnixNano,
+	rangeEnd xtime.UnixNano,
 	timeWindow time.Duration,
 ) float64 {
 	if len(datapoints) < 2 {
@@ -143,7 +154,7 @@ func standardRateFunc(
 		counterCorrection   float64
 		firstVal, lastValue float64
 		firstIdx, lastIdx   int
-		firstTS, lastTS     int64
+		firstTS, lastTS     xtime.UnixNano
 		foundFirst          bool
 	)
 
@@ -154,7 +165,7 @@ func standardRateFunc(
 
 		if !foundFirst {
 			firstVal = dp.Value
-			firstTS = dp.Timestamp.UnixNano()
+			firstTS = xtime.ToUnixNano(dp.Timestamp)
 			firstIdx = i
 			foundFirst = true
 		}
@@ -164,7 +175,7 @@ func standardRateFunc(
 		}
 
 		lastValue = dp.Value
-		lastTS = dp.Timestamp.UnixNano()
+		lastTS = xtime.ToUnixNano(dp.Timestamp)
 		lastIdx = i
 	}
 
@@ -222,10 +233,7 @@ func standardRateFunc(
 func irateFunc(
 	datapoints ts.Datapoints,
 	isRate bool,
-	_ bool,
-	_ int64,
-	_ int64,
-	_ time.Duration,
+	_ bool, _ xtime.UnixNano, _ xtime.UnixNano, _ time.Duration,
 ) float64 {
 	dpsLen := len(datapoints)
 	if dpsLen < 2 {
