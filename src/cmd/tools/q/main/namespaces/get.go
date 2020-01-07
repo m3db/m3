@@ -16,15 +16,20 @@ var (
 	GetFlags    *flag.FlagSet
 	endpoint    *string
 	showAll     *bool
-	defaultPath = "/api/v1/namespace?debug=true"
+	defaultPath = "/api/v1/namespace"
+	debugQS = "debug=true"
+	delete *string
 )
 
 //curl -s -k -v 'http://localhost:7201/api/v1/namespace?debug=true' | jq .registry.namespaces\|keys
 
+//curl -v -X DELETE bmcqueen-ld1:7201/api/v1/services/m3db/namespace/metrics_10s_48h
+
 func init() {
 	GetFlags = flag.NewFlagSet("namespaces", flag.ExitOnError)
-	endpoint = GetFlags.String("endpoint", "http://localhost:7201", "url for endpoint")
-	showAll = GetFlags.Bool("all", false, "show standard info for namespaces (default is to list only the names)")
+	endpoint = GetFlags.String("endpoint", "http://bmcqueen-ld1:7201", "url for endpoint")
+	endpoint = GetFlags.String("delete", "", "name of namespace to delete")
+	showAll = GetFlags.Bool("all", false, "show all the standard info for namespaces (otherwise default behaviour lists only the names)")
 	GetFlags.Usage = func() {
 		fmt.Fprintf(GetFlags.Output(), `
 Description:
@@ -53,7 +58,7 @@ func Get(log *zap.SugaredLogger) {
 
 	registry := admin.NamespaceGetResponse{}
 
-	url := fmt.Sprintf("%s%s", *endpoint, defaultPath)
+	url := fmt.Sprintf("%s%s?%s", *endpoint, defaultPath, debugQS)
 
 	log.Debugf("url:%s:\n", url)
 

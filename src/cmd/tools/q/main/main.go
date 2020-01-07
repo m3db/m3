@@ -26,7 +26,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/m3db/m3/src/cmd/tools/q/main/database"
 	"github.com/m3db/m3/src/cmd/tools/q/main/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/q/main/placements"
 	//"github.com/m3db/m3/src/dbnode/persist/fs"
 	//"github.com/m3db/m3/src/x/ident"
 
@@ -46,6 +48,8 @@ Usage of %s:
 
 
 `, os.Args[0], strings.Join([]string{
+			database.DatabaseFlags.Name(),
+			placements.GetFlags.Name(),
 			namespaces.GetFlags.Name(),
 		}, ", "))
 
@@ -67,9 +71,17 @@ Usage of %s:
 	log := rawLogger.Sugar()
 
 	switch flag.Arg(0) {
+	case database.DatabaseFlags.Name():
+
+		database.Cmd(log)
+
 	case namespaces.GetFlags.Name():
 
 		namespaces.Get(log)
+
+	case placements.GetFlags.Name():
+
+		placements.Get(log)
 
 	default:
 		flag.Usage()
