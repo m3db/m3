@@ -45,10 +45,8 @@ func doShowNames(in io.Reader, log *zap.SugaredLogger) {
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 
 	if err := unmarshaller.Unmarshal(in, &registry); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-
-	log.Debug(registry)
 
 	for k, _ := range registry.Registry.Namespaces {
 		fmt.Println(k)
