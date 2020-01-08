@@ -4,9 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"go.uber.org/zap"
-	"io"
-	"io/ioutil"
-
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/q/main/common"
@@ -41,18 +38,6 @@ Usage of %s:
 	}
 }
 
-func doShow(reader io.Reader, logger *zap.SugaredLogger) {
-
-	dat, err := ioutil.ReadAll(reader)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(string(dat))
-
-	return
-}
-
 func Cmd(log *zap.SugaredLogger) {
 
 	if err := CmdFlags.Parse(flag.Args()[1:]); err != nil {
@@ -74,7 +59,7 @@ func Cmd(log *zap.SugaredLogger) {
 
 	url := fmt.Sprintf("%s%s/create", *common.EndPoint, defaultPath)
 
-	common.DoPost(url, data, log, doShow)
+	common.DoPost(url, data, log, common.DoDump)
 
 	return
 }

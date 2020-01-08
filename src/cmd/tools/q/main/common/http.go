@@ -2,6 +2,7 @@ package common
 
 import (
 	"flag"
+	"fmt"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -81,4 +82,14 @@ func DoDelete(url string, logger *zap.SugaredLogger, getter func(reader io.Reade
 
 	getter(resp.Body, logger)
 
+}
+
+func DoDump(in io.Reader, log *zap.SugaredLogger) {
+
+	dat, err := ioutil.ReadAll(in)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(string(dat))
 }

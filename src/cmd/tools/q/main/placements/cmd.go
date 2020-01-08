@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"go.uber.org/zap"
-	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/q/main/common"
@@ -19,7 +17,8 @@ var (
 	delete      *bool
 	deleteNode  *string
 	initFlag    = flagvar.File{}
-	newNode     = flagvar.File{}
+	newNodeFlag = flagvar.File{}
+	replaceFlag = flagvar.File{}
 )
 
 //curl -s -k -v 'http://localhost:7201/api/v1/placement'
@@ -31,8 +30,8 @@ func init() {
 	delete = CmdFlags.Bool("deleteAll", false, "delete all instances in the placement")
 	deleteNode = CmdFlags.String("deleteNode", "", "delete the specified node in the placement")
 	CmdFlags.Var(&initFlag, "init", "initialize a placement. Specify a yaml file.")
-	CmdFlags.Var(&newNode, "newNode", "add a new node to the placement. Specify the filename of the yaml.")
-	//CmdFlags.Var(&createYaml, "create", "Path to yaml for simplified db creation with sane defaults.")
+	CmdFlags.Var(&newNodeFlag, "newNode", "add a new node to the placement. Specify the filename of the yaml.")
+	CmdFlags.Var(&replaceFlag, "replaceNode", "add a new node to the placement. Specify the filename of the yaml.")
 
 	CmdFlags.Usage = func() {
 		fmt.Fprintf(CmdFlags.Output(), `
@@ -45,16 +44,6 @@ Usage of %s:
 `, CmdFlags.Name())
 		CmdFlags.PrintDefaults()
 	}
-}
-
-func doShowAll(in io.Reader, log *zap.SugaredLogger) {
-
-	dat, err := ioutil.ReadAll(in)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(string(dat))
 }
 
 func Cmd(log *zap.SugaredLogger) {
@@ -73,15 +62,15 @@ func Cmd(log *zap.SugaredLogger) {
 
 		url := fmt.Sprintf("%s%s/%s", *common.EndPoint, defaultPath, *deleteNode)
 
-		common.DoDelete(url, log, doShowAll)
+		common.DoDelete(url, log, common.DoDump)
 
-	} else if len(newNode.Value) > 0 {
+	} else if len(newNodeFlag.Value) > 0 {
 
-		data := common.LoadYaml(newNode.Value, &admin.PlacementInitRequest{}, log)
+		data := common.LoadYaml(newNodeFlag.Value, &admin.PlacementInitRequest{}, log)
 
 		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
 
-		common.DoPost(url, data, log, doShowAll)
+		common.DoPost(url, data, log, common.DoDump)
 
 	} else if len(initFlag.Value) > 0 {
 
@@ -89,19 +78,27 @@ func Cmd(log *zap.SugaredLogger) {
 
 		url := fmt.Sprintf("%s%s%s", *common.EndPoint, defaultPath, "/init")
 
-		common.DoPost(url, data, log, doShowAll)
+		common.DoPost(url, data, log, common.DoDump)
+
+	} else if len(replaceFlag.Value) > 0 {
+
+		data := common.LoadYaml(replaceFlag.Value, &admin.PlacementReplaceRequest{}, log)
+
+		url := fmt.Sprintf("%s%s%s", *common.EndPoint, defaultPath, "/replace")
+
+		common.DoPost(url, data, log, common.DoDump)
 
 	} else if *delete {
 
 		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
 
-		common.DoDelete(url, log, doShowAll)
+		common.DoDelete(url, log, common.DoDump)
 
 	} else {
 
 		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
 
-		common.DoGet(url, log, doShowAll)
+		common.DoGet(url, log, common.DoDump)
 
 	}
 

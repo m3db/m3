@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -14,8 +13,7 @@ import (
 )
 
 var (
-	CmdFlags *flag.FlagSet
-	//endpoint    *string
+	CmdFlags    *flag.FlagSet
 	showAll     *bool
 	defaultPath = "/api/v1/namespace"
 	debugQS     = "debug=true"
@@ -39,16 +37,6 @@ Usage of %s:
 	}
 }
 
-func doShowAll(in io.Reader, log *zap.SugaredLogger) {
-
-	dat, err := ioutil.ReadAll(in)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(string(dat))
-}
-
 //curl -s -k -v 'http://localhost:7201/api/v1/namespace?debug=true' | jq .registry.namespaces\|keys
 func doShowNames(in io.Reader, log *zap.SugaredLogger) {
 
@@ -67,19 +55,6 @@ func doShowNames(in io.Reader, log *zap.SugaredLogger) {
 	}
 }
 
-//curl -v -X DELETE bmcqueen-ld1:7201/api/v1/services/m3db/namespace/metrics_10s_48h
-func doDelete(reader io.Reader, logger *zap.SugaredLogger) {
-
-	dat, err := ioutil.ReadAll(reader)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(string(dat))
-
-	return
-}
-
 func Cmd(log *zap.SugaredLogger) {
 
 	if err := CmdFlags.Parse(flag.Args()[1:]); err != nil {
@@ -96,13 +71,13 @@ func Cmd(log *zap.SugaredLogger) {
 
 	if *showAll {
 
-		common.DoGet(url, log, doShowAll)
+		common.DoGet(url, log, common.DoDump)
 
 	} else if len(*delete) > 0 {
 
 		url = fmt.Sprintf("%s%s/%s", *common.EndPoint, "/api/v1/services/m3db/namespace", *delete)
 
-		common.DoDelete(url, log, doDelete)
+		common.DoDelete(url, log, common.DoDump)
 
 	} else {
 
