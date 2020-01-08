@@ -93,6 +93,7 @@ TOOLS :=               \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
+	m3db_tool            \
 
 .PHONY: setup
 setup:
