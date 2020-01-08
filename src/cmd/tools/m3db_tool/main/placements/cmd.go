@@ -6,8 +6,8 @@ import (
 	"go.uber.org/zap"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/q/main/common"
-	"github.com/m3db/m3/src/cmd/tools/q/main/flagvar"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/common"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/flagvar"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 

@@ -26,13 +26,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/m3db/m3/src/cmd/tools/q/main/database"
-	"github.com/m3db/m3/src/cmd/tools/q/main/namespaces"
-	"github.com/m3db/m3/src/cmd/tools/q/main/placements"
-	//"github.com/m3db/m3/src/dbnode/persist/fs"
-	//"github.com/m3db/m3/src/x/ident"
-
-	//"github.com/pborman/getopt"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/database"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/placements"
 	"go.uber.org/zap"
 )
 
