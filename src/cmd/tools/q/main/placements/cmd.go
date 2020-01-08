@@ -21,10 +21,6 @@ var (
 	replaceFlag = flagvar.File{}
 )
 
-//curl -s -k -v 'http://localhost:7201/api/v1/placement'
-
-//curl -v -X DELETE bmcqueen-ld1:7201/api/v1/services/m3db/placement
-
 func init() {
 	CmdFlags = flag.NewFlagSet("pl", flag.ExitOnError)
 	delete = CmdFlags.Bool("deleteAll", false, "delete all instances in the placement")
@@ -35,13 +31,29 @@ func init() {
 
 	CmdFlags.Usage = func() {
 		fmt.Fprintf(CmdFlags.Output(), `
+This is the subcommand for acting on placements.
+
 Description:
 
-placement tasks
+The subcommand "%s"" provides the ability to:
+
+* delete an entire placement from a node
+* remove a node from a placement
+* add a new node to as existing placement
+* replace a node within an existing placement
+* initialize a placement
+
+Default behaviour (no arguments) is to provide a json dump of the existing placement.
+
+New node creation and node replacement require specification of
+the desired placement parameters, which you are to provide via a yaml
+file, the pathname of which is the argument for the cli option.
+
+Specify only one action at a time.
 
 Usage of %s:
 
-`, CmdFlags.Name())
+`, CmdFlags.Name(), CmdFlags.Name())
 		CmdFlags.PrintDefaults()
 	}
 }
@@ -53,10 +65,11 @@ func Cmd(log *zap.SugaredLogger) {
 		os.Exit(1)
 	}
 
-	//if CmdFlags.NFlag() > 4 {
-	//	CmdFlags.Usage()
-	//	os.Exit(1)
-	//}
+	if CmdFlags.NFlag() > 1 {
+		fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+		CmdFlags.Usage()
+		os.Exit(1)
+	}
 
 	if len(*deleteNode) > 0 {
 

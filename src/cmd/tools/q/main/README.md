@@ -1,45 +1,62 @@
-#https://www.m3db.io/openapi/
+M3DB Tool
+========
 
-per rob https://m3db.slack.com/archives/CKARJDKT2/p1577442957085600
-make it like https://www.vskills.in/certification/tutorial/big-data/apache-cassandra/nodetool/
+This is a CLI tool to do some things that may be desirable for cluster introspection, or for operational purposes.
 
-try to get the curl's and operational tasks from this page into a tool
-https://m3db.github.io/m3/how_to/kubernetes/
+Where configuration data is required its provided via YAML.
 
-^Cbmcqueen-mn2:m3db bmcqueen$ kubectl port-forward svc/m3dbnode-persistent-cluster 9003
+You can:
 
-bmcqueen-mn2:m3db bmcqueen$ curl -v localhost:9003/health
-*   Trying 127.0.0.1...
-* TCP_NODELAY set
-* Connected to localhost (127.0.0.1) port 9003 (#0)
-> GET /health HTTP/1.1
-> Host: localhost:9003
-> User-Agent: curl/7.64.1
-> Accept: */*
-> 
-< HTTP/1.1 200 OK
-< Content-Type: application/json
-< Date: Sat, 04 Jan 2020 03:42:30 GMT
-< Content-Length: 26
-< 
-{"ok":true,"status":"up"}
-* Connection #0 to host localhost left intact
-* Closing connection 0
-bmcqueen-mn2:m3db bmcqueen$ curl -v localhost:9003/health
+* create a database per the simplified database create API
+* list namespaces
+* delete namespaces
+* list placements
+* delete placements
+* add nodes
+* remove nodes
 
+NOTE: This tool can delete namespaces and placements.  It can be quite hazardous if used without adequate understanding of your m3db cluster's topology, or without a decent understanding of how m3db works.
 
-initialize placement
-list placements
+Examples
+-------
 
-#https://m3db.github.io/m3/operational_guide/namespace_configuration/
-#https://www.m3db.io/openapi/#tag/M3DB-Namespace
-list namespaces
-creating a namespace
-delete namespace
+    # show help
+    m3db-tool -h
+    # create a database
+    m3db-tool db -create ./database/examples/devel.yaml
+    # list namespaces
+    m3db-tool ns
+    # delete a namespace
+    m3db-tool ns -delete default
+    # list placements
+    m3db-tool pl
+    # point to some remote and list namespaces
+    m3db-tool -endpoint http://localhost:7201 ns
+    # list the ids of the placements
+    m3db-tool -endpoint http://localhost:7201 pl | jq .placement.instances[].id
 
-db placements
-#https://m3db.github.io/m3/operational_guide/placement_configuration/#removing-a-node
-#https://www.m3db.io/openapi/#tag/M3DB-Placement
-adding a node
-removing a node
-replacing a node
+Some example yaml files are provided in the examples directories. Here's one for database creation:
+
+    ---
+    type: cluster
+    namespace_name: default
+    retention_time: 168h
+    num_shards: 64
+    replication_factor: 1
+    hosts:
+    - id: m3db_seed
+      isolation_group: rack-a
+      zone: embedded
+      weight: 1024
+      endpoint: m3db_seed:9000
+      hostname: m3db_seed
+      port: 9000
+    
+
+See the examples directories below.
+
+References
+==========
+
+[https://m3db.github.io/m3/operational_guide](operational guide)
+[api docs](https://www.m3db.io/openapi/)

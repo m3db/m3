@@ -42,10 +42,11 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
 Usage of %s:
 
-	Specify one of the following subcommands:
+	Specify one of the following subcommands, which are shorthand for database, placement, and namespace:
 
 	%s
 
+Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], strings.Join([]string{
 			database.CmdFlags.Name(),

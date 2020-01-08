@@ -19,21 +19,20 @@ var (
 	debugQS     = "debug=true"
 )
 
-//curl -X POST http://localhost:7201/api/v1/database/create -d
-
 func init() {
 	CmdFlags = flag.NewFlagSet("db", flag.ExitOnError)
 	CmdFlags.Var(&createYaml, "create", "Path to yaml for simplified db creation with sane defaults.")
 	CmdFlags.Usage = func() {
 		fmt.Fprintf(CmdFlags.Output(), `
+This is the "%s" subcommand for database scoped operations.
+
 Description:
 
-database tasks
-
+This subcommand allows the creation of a new database from a yaml specification.
 
 Usage of %s:
 
-`, CmdFlags.Name())
+`, CmdFlags.Name(), CmdFlags.Name())
 		CmdFlags.PrintDefaults()
 	}
 }
@@ -45,10 +44,11 @@ func Cmd(log *zap.SugaredLogger) {
 		os.Exit(1)
 	}
 
-	//if CmdFlags.NFlag() > 4 {
-	//	CmdFlags.Usage()
-	//	os.Exit(1)
-	//}
+	if CmdFlags.NFlag() > 1 {
+		fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+		CmdFlags.Usage()
+		os.Exit(1)
+	}
 
 	if len(createYaml.Value) < 1 {
 		CmdFlags.Usage()

@@ -20,7 +20,7 @@ func LoadYaml(path string, target proto.Message, log *zap.SugaredLogger) io.Read
 	}
 
 	if err = yaml.Unmarshal(content, target); err != nil {
-		log.Fatalf("cannot unmarshal data: %v", err)
+		log.Fatalf("cannot unmarshal data:%v:from yaml file:%s:", err, path)
 	}
 
 	var data *bytes.Buffer

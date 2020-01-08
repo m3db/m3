@@ -26,18 +26,27 @@ func init() {
 	showAll = CmdFlags.Bool("all", false, "show all the standard info for namespaces (otherwise default behaviour lists only the names)")
 	CmdFlags.Usage = func() {
 		fmt.Fprintf(CmdFlags.Output(), `
+This is the subcommand for acting on placements.
+
 Description:
 
-namespace tasks
+The subcommand "%s"" provides the ability to:
+
+* list all namespaces
+* verbosely list all the available information about the namespaces
+* delete a specific namespace
+
+Default behaviour (no arguments) is to print out the names of the namespaces.
+
+Specify only one action at a time.
 
 Usage of %s:
 
-`, CmdFlags.Name())
+`, CmdFlags.Name(), CmdFlags.Name())
 		CmdFlags.PrintDefaults()
 	}
 }
 
-//curl -s -k -v 'http://localhost:7201/api/v1/namespace?debug=true' | jq .registry.namespaces\|keys
 func doShowNames(in io.Reader, log *zap.SugaredLogger) {
 
 	registry := admin.NamespaceGetResponse{}
@@ -60,10 +69,11 @@ func Cmd(log *zap.SugaredLogger) {
 		os.Exit(1)
 	}
 
-	//if CmdFlags.NFlag() > 4 {
-	//	CmdFlags.Usage()
-	//	os.Exit(1)
-	//}
+	if CmdFlags.NFlag() > 1 {
+		fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+		CmdFlags.Usage()
+		os.Exit(1)
+	}
 
 	url := fmt.Sprintf("%s%s?%s", *common.EndPoint, defaultPath, debugQS)
 
