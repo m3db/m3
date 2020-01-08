@@ -1179,10 +1179,17 @@ func (s *dbShard) newShardEntry(
 	seriesTags.NoFinalize()
 
 	uniqueIndex := s.increasingIndex.nextIndex()
-	series := s.seriesPool.Get()
-	series.Reset(seriesID, seriesTags, uniqueIndex, s.seriesBlockRetriever,
-		s.seriesOnRetrieveBlock, s, s.seriesOpts)
-	return lookup.NewEntry(series, uniqueIndex), nil
+	newSeries := s.seriesPool.Get()
+	newSeries.Reset(series.DatabaseSeriesOptions{
+		ID:                     seriesID,
+		Tags:                   seriesTags,
+		UniqueIndex:            uniqueIndex,
+		BlockRetriever:         s.seriesBlockRetriever,
+		OnRetrieveBlock:        s.seriesOnRetrieveBlock,
+		OnEvictedFromWiredList: s,
+		Options:                s.seriesOpts,
+	})
+	return lookup.NewEntry(newSeries, uniqueIndex), nil
 }
 
 type insertAsyncResult struct {

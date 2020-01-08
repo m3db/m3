@@ -75,14 +75,14 @@ type dbSeries struct {
 	pool                        DatabaseSeriesPool
 }
 
-// NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ident.ID, tags ident.Tags, uniqueIndex uint64, opts Options) DatabaseSeries {
+// NewDatabaseSeries creates a new database series.
+func NewDatabaseSeries(opts DatabaseSeriesOptions) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, tags, uniqueIndex, nil, nil, nil, opts)
+	s.Reset(opts)
 	return s
 }
 
-// newPooledDatabaseSeries creates a new pooled database series
+// newPooledDatabaseSeries creates a new pooled database series.
 func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
 	series := newDatabaseSeries()
 	series.pool = pool
@@ -293,12 +293,22 @@ func (s *dbSeries) Write(
 		at := timestamp.Truncate(s.opts.RetentionOptions().BlockSize())
 		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
 		if err != nil {
-			return false, fmt.Errorf(
+			err = fmt.Errorf(
 				"error checking block retrievable for bootstrap write: %v", err)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("bootstrap write invariant", zap.Error(err))
+				})
+			return false, err
 		}
 		if alreadyExists {
-			return false, fmt.Errorf(
+			err = fmt.Errorf(
 				"bootstrap write for block is retrievable: block_start=%s", at)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("bootstrap write invariant", zap.Error(err))
+				})
+			return false, err
 		}
 	}
 
@@ -410,11 +420,21 @@ func (s *dbSeries) LoadBlock(
 		at := block.StartTime()
 		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
 		if err != nil {
-			return fmt.Errorf("error checking block retrievable: %v", err)
+			err = fmt.Errorf("error checking block retrievable: %v", err)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("bootstrap write invariant", zap.Error(err))
+				})
+			return err
 		}
 		if alreadyExists {
-			return fmt.Errorf(
+			err = fmt.Errorf(
 				"block load as warm write is retrievable: block_start=%s", at)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("bootstrap write invariant", zap.Error(err))
+				})
+			return err
 		}
 	}
 
@@ -587,15 +607,7 @@ func (s *dbSeries) Close() {
 	}
 }
 
-func (s *dbSeries) Reset(
-	id ident.ID,
-	tags ident.Tags,
-	uniqueIndex uint64,
-	blockRetriever QueryableBlockRetriever,
-	onRetrieveBlock block.OnRetrieveBlock,
-	onEvictedFromWiredList block.OnEvictedFromWiredList,
-	opts Options,
-) {
+func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	// NB(r): We explicitly do not place the ID back into an
 	// existing pool as high frequency users of series IDs such
 	// as the commit log need to use the reference without the
@@ -614,14 +626,14 @@ func (s *dbSeries) Reset(
 	//
 	// The same goes for the series tags.
 	s.Lock()
-	s.id = id
-	s.tags = tags
-	s.uniqueIndex = uniqueIndex
+	s.id = opts.ID
+	s.tags = opts.Tags
+	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
-	s.buffer.Reset(id, opts)
-	s.opts = opts
-	s.blockRetriever = blockRetriever
-	s.onRetrieveBlock = onRetrieveBlock
-	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
+	s.buffer.Reset(opts.ID, opts.Options)
+	s.opts = opts.Options
+	s.blockRetriever = opts.BlockRetriever
+	s.onRetrieveBlock = opts.OnRetrieveBlock
+	s.blockOnEvictedFromWiredList = opts.OnEvictedFromWiredList
 	s.Unlock()
 }

@@ -194,6 +194,7 @@ func (m *mediator) ongoingFilesystemProcesses() {
 			mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
 			if err != nil {
 				log.Error("error within ongoingFilesystemProcesses waiting for next mediatorTime", zap.Error(err))
+				continue
 			}
 
 			m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
