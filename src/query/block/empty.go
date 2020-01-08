@@ -60,56 +60,23 @@ func (b *emptyBlock) SeriesIter() (SeriesIter, error) {
 
 type emptySeriesIter struct{}
 
-func (it *emptySeriesIter) Close()                   {}
-func (it *emptySeriesIter) Err() error               { return nil }
-func (it *emptySeriesIter) SeriesCount() int         { return 0 }
-func (it *emptySeriesIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{} }
-func (it *emptySeriesIter) Next() bool               { return false }
-func (it *emptySeriesIter) Current() Series          { return Series{} }
+func (it *emptySeriesIter) Close()                        {}
+func (it *emptySeriesIter) Err() error                    { return nil }
+func (it *emptySeriesIter) SeriesCount() int              { return 0 }
+func (it *emptySeriesIter) SeriesMeta() []SeriesMeta      { return []SeriesMeta{} }
+func (it *emptySeriesIter) Next() bool                    { return false }
+func (it *emptySeriesIter) Current() UnconsolidatedSeries { return UnconsolidatedSeries{} }
 
-// Unconsolidated returns the unconsolidated version for the block
-func (b *emptyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	return &ucEmptyBlock{
-		meta: b.meta,
-	}, nil
+func (b *emptyBlock) MultiSeriesIter(
+	concurrency int,
+) ([]SeriesIterBatch, error) {
+	batch := make([]SeriesIterBatch, concurrency)
+	for i := range batch {
+		batch[i] = SeriesIterBatch{
+			Size: 1,
+			Iter: &emptySeriesIter{},
+		}
+	}
+
+	return batch, nil
 }
-
-type ucEmptyBlock struct {
-	meta Metadata
-}
-
-func (b *ucEmptyBlock) Close() error { return nil }
-
-func (b *ucEmptyBlock) Meta() Metadata {
-	return b.meta
-}
-
-func (b *ucEmptyBlock) Consolidate() (Block, error) {
-	return NewEmptyBlock(b.meta), nil
-}
-
-func (b *ucEmptyBlock) StepIter() (UnconsolidatedStepIter, error) {
-	return &ucEmptyStepIter{steps: b.meta.Bounds.Steps()}, nil
-}
-
-type ucEmptyStepIter struct{ steps int }
-
-func (it *ucEmptyStepIter) Close()                      {}
-func (it *ucEmptyStepIter) Err() error                  { return nil }
-func (it *ucEmptyStepIter) StepCount() int              { return it.steps }
-func (it *ucEmptyStepIter) SeriesMeta() []SeriesMeta    { return []SeriesMeta{} }
-func (it *ucEmptyStepIter) Next() bool                  { return false }
-func (it *ucEmptyStepIter) Current() UnconsolidatedStep { return nil }
-
-func (b *ucEmptyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
-	return &ucEmptySeriesIter{}, nil
-}
-
-type ucEmptySeriesIter struct{}
-
-func (it *ucEmptySeriesIter) Close()                        {}
-func (it *ucEmptySeriesIter) Err() error                    { return nil }
-func (it *ucEmptySeriesIter) SeriesCount() int              { return 0 }
-func (it *ucEmptySeriesIter) SeriesMeta() []SeriesMeta      { return []SeriesMeta{} }
-func (it *ucEmptySeriesIter) Next() bool                    { return false }
-func (it *ucEmptySeriesIter) Current() UnconsolidatedSeries { return UnconsolidatedSeries{} }

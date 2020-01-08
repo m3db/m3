@@ -49,7 +49,7 @@ const (
 	CacheLRU
 
 	// DefaultCachePolicy is the default cache policy.
-	DefaultCachePolicy = CacheRecentlyRead
+	DefaultCachePolicy = CacheLRU
 )
 
 // ValidCachePolicies returns the valid series cache policies.

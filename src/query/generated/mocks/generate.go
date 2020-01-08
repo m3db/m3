@@ -23,7 +23,7 @@
 //go:generate sh -c "mockgen -package=storage -destination=$GOPATH/src/$PACKAGE/src/query/storage/storage_mock.go $PACKAGE/src/query/storage Storage"
 //go:generate sh -c "mockgen -package=m3 -destination=$GOPATH/src/$PACKAGE/src/query/storage/m3/m3_mock.go $PACKAGE/src/query/storage/m3 Storage"
 //go:generate sh -c "mockgen -package=ts -destination=$GOPATH/src/$PACKAGE/src/query/ts/ts_mock.go $PACKAGE/src/query/ts Values"
-//go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/src/query/block/block_mock.go $PACKAGE/src/query/block Block,StepIter,SeriesIter,Builder,Step,UnconsolidatedBlock,UnconsolidatedStepIter,UnconsolidatedSeriesIter,UnconsolidatedStep"
+//go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/src/query/block/block_mock.go $PACKAGE/src/query/block Block,StepIter,Builder,Step,SeriesIter"
 //go:generate sh -c "mockgen -package=ingest -destination=$GOPATH/src/$PACKAGE/src/cmd/services/m3coordinator/ingest/write_mock.go $PACKAGE/src/cmd/services/m3coordinator/ingest DownsamplerAndWriter"
 //go:generate sh -c "mockgen -package=transform -destination=$GOPATH/src/$PACKAGE/src/query/executor/transform/types_mock.go $PACKAGE/src/query/executor/transform OpNode"
 //go:generate sh -c "mockgen -package=executor -destination=$GOPATH/src/$PACKAGE/src/query/executor/types_mock.go $PACKAGE/src/query/executor Engine"

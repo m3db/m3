@@ -141,19 +141,31 @@ func truncateBoundsToResolution(
 
 func translateTimeseries(
 	ctx xctx.Context,
-	result *storage.FetchResult,
+	result block.Result,
 	start, end time.Time,
 ) ([]*ts.Series, error) {
-	m3list := result.SeriesList
-	series := make([]*ts.Series, len(m3list))
-	resolutions := result.Metadata.Resolutions
-	if len(series) != len(resolutions) {
-		return nil, fmt.Errorf("number of timeseries %d does not match number of "+
-			"resolutions %d", len(series), len(resolutions))
+	if len(result.Blocks) == 0 {
+		return []*ts.Series{}, nil
 	}
 
-	for i, m3series := range m3list {
-		resolution := time.Duration(resolutions[i])
+	block := result.Blocks[0]
+	defer block.Close()
+
+	iter, err := block.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	seriesMetas := iter.SeriesMeta()
+	resolutions := result.Metadata.Resolutions
+	if len(seriesMetas) != len(resolutions) {
+		return nil, fmt.Errorf("number of timeseries %d does not match number of "+
+			"resolutions %d", len(seriesMetas), len(resolutions))
+	}
+
+	series := make([]*ts.Series, 0, len(seriesMetas))
+	for idx := 0; iter.Next(); idx++ {
+		resolution := time.Duration(resolutions[idx])
 		if resolution <= 0 {
 			return nil, errSeriesNoResolution
 		}
@@ -162,7 +174,10 @@ func translateTimeseries(
 		length := int(end.Sub(start) / resolution)
 		millisPerStep := int(resolution / time.Millisecond)
 		values := ts.NewValues(ctx, millisPerStep, length)
-		for _, datapoint := range m3series.Values().Datapoints() {
+
+		m3series := iter.Current()
+		dps := m3series.Datapoints()
+		for _, datapoint := range dps.Datapoints() {
 			ts := datapoint.Timestamp
 			if ts.Before(start) {
 				// Outside of range requested.
@@ -178,8 +193,12 @@ func translateTimeseries(
 			values.SetValueAt(index, datapoint.Value)
 		}
 
-		name := string(m3series.Name())
-		series[i] = ts.NewSeries(ctx, name, start, values)
+		name := string(seriesMetas[idx].Name)
+		series = append(series, ts.NewSeries(ctx, name, start, values))
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
 	}
 
 	return series, nil
@@ -208,6 +227,8 @@ func (s *m3WrappedStore) FetchByQuery(
 	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
 	defer perQueryEnforcer.Close()
 
+	// NB: ensure single block return.
+	fetchOptions.BlockType = models.TypeSingleBlock
 	fetchOptions.IncludeResolution = true
 	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
@@ -216,16 +237,19 @@ func (s *m3WrappedStore) FetchByQuery(
 		FanoutAggregatedOptimized: storage.FanoutForceDisable,
 	}
 
-	m3result, err := s.m3.Fetch(m3ctx, m3query, fetchOptions)
+	res, err := s.m3.FetchBlocks(m3ctx, m3query, fetchOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	series, err := translateTimeseries(ctx, m3result,
-		opts.StartTime, opts.EndTime)
+	if blockCount := len(res.Blocks); blockCount > 1 {
+		return nil, fmt.Errorf("expected at most one block, received %d", blockCount)
+	}
+
+	series, err := translateTimeseries(ctx, res, opts.StartTime, opts.EndTime)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewFetchResult(ctx, series, m3result.Metadata), nil
+	return NewFetchResult(ctx, series, res.Metadata), nil
 }

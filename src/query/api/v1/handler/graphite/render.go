@@ -29,16 +29,15 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -48,7 +47,7 @@ const (
 )
 
 var (
-	// ReadHTTPMethods is the HTTP methods used with this resource.
+	// ReadHTTPMethods are the HTTP methods used with this resource.
 	ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
@@ -65,17 +64,12 @@ type respError struct {
 }
 
 // NewRenderHandler returns a new render handler around the given storage.
-func NewRenderHandler(
-	storage storage.Storage,
-	queryContextOpts models.QueryContextOptions,
-	enforcer cost.ChainedEnforcer,
-	instrumentOpts instrument.Options,
-) http.Handler {
-	wrappedStore := graphite.NewM3WrappedStorage(storage,
-		enforcer, instrumentOpts)
+func NewRenderHandler(opts options.HandlerOptions) http.Handler {
+	wrappedStore := graphite.NewM3WrappedStorage(opts.Storage(),
+		opts.Enforcer(), opts.InstrumentOpts())
 	return &renderHandler{
 		engine:           native.NewEngine(wrappedStore),
-		queryContextOpts: queryContextOpts,
+		queryContextOpts: opts.QueryContextOptions(),
 	}
 }
 
@@ -104,7 +98,7 @@ func (h *renderHandler) serveHTTP(
 		return respError{err: err, code: http.StatusBadRequest}
 	}
 
-	limit, err := handler.ParseLimit(r, h.queryContextOpts.LimitMaxTimeseries)
+	limit, err := handleroptions.ParseLimit(r, h.queryContextOpts.LimitMaxTimeseries)
 	if err != nil {
 		return respError{err: err, code: http.StatusBadRequest}
 	}
@@ -210,7 +204,7 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
-	handler.AddWarningHeaders(w, meta)
+	handleroptions.AddWarningHeaders(w, meta)
 	err = WriteRenderResponse(w, response, p.Format)
 	return respError{err: err, code: http.StatusOK}
 }

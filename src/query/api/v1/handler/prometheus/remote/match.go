@@ -26,6 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -42,30 +44,26 @@ const (
 )
 
 var (
-	// PromSeriesMatchHTTPMethods are the HTTP methods used with this resource.
+	// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
 	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-// PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
+// PromSeriesMatchHandler represents a handler for
+// the prometheus series matcher endpoint.
 type PromSeriesMatchHandler struct {
 	storage             storage.Storage
 	tagOptions          models.TagOptions
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
-func NewPromSeriesMatchHandler(
-	storage storage.Storage,
-	tagOptions models.TagOptions,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 	return &PromSeriesMatchHandler{
-		tagOptions:          tagOptions,
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		instrumentOpts:      instrumentOpts,
+		tagOptions:          opts.TagOptions(),
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -102,7 +100,7 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		meta = meta.CombineMetadata(result.Metadata)
 	}
 
-	handler.AddWarningHeaders(w, meta)
+	handleroptions.AddWarningHeaders(w, meta)
 	// TODO: Support multiple result types
 	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
 		logger.Error("unable to write matched series", zap.Error(err))

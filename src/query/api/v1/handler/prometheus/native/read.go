@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -54,8 +56,7 @@ const (
 )
 
 var (
-	// PromReadHTTPMethods is the valid HTTP methods used with this
-	// resource.
+	// PromReadHTTPMethods are the HTTP methods for this handler.
 	PromReadHTTPMethods = []string{
 		http.MethodGet,
 		http.MethodPost,
@@ -67,13 +68,13 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine              executor.Engine
-	fetchOptionsBuilder handler.FetchOptionsBuilder
-	tagOpts             models.TagOptions
+	keepEmpty           bool
 	limitsCfg           *config.LimitsConfiguration
-	promReadMetrics     promReadMetrics
 	timeoutOps          *prometheus.TimeoutOpts
-	keepNans            bool
+	engine              executor.Engine
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	tagOpts             models.TagOptions
+	promReadMetrics     promReadMetrics
 	instrumentOpts      instrument.Options
 }
 
@@ -87,9 +88,11 @@ type promReadMetrics struct {
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	return promReadMetrics{
-		fetchSuccess:      scope.Counter("fetch.success"),
-		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("fetch.errors"),
-		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("fetch.errors"),
+		fetchSuccess: scope.Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
+			Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
+			Counter("fetch.errors"),
 		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
 		maxDatapoints:     scope.Gauge("max_datapoints"),
 	}
@@ -112,29 +115,24 @@ type RespError struct {
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(
-	engine executor.Engine,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	tagOpts models.TagOptions,
-	limitsCfg *config.LimitsConfiguration,
-	timeoutOpts *prometheus.TimeoutOpts,
-	keepNans bool,
-	instrumentOpts instrument.Options,
-) *PromReadHandler {
-	taggedScope := instrumentOpts.MetricsScope().
+func NewPromReadHandler(opts options.HandlerOptions) *PromReadHandler {
+	taggedScope := opts.InstrumentOpts().MetricsScope().
 		Tagged(map[string]string{"handler": "native-read"})
+	limits := opts.Config().Limits
+
 	h := &PromReadHandler{
-		engine:              engine,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		tagOpts:             tagOpts,
-		limitsCfg:           limitsCfg,
+		engine:              opts.Engine(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		tagOpts:             opts.TagOptions(),
+		limitsCfg:           &limits,
 		promReadMetrics:     newPromReadMetrics(taggedScope),
-		timeoutOps:          timeoutOpts,
-		keepNans:            keepNans,
-		instrumentOpts:      instrumentOpts,
+		timeoutOps:          opts.TimeoutOpts(),
+		keepEmpty:           opts.Config().ResultOptions.KeepNans,
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 
-	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
+	pointCount := float64(limits.MaxComputedDatapoints())
+	h.promReadMetrics.maxDatapoints.Update(pointCount)
 	return h
 }
 
@@ -177,7 +175,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	timer.Stop()
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, params, h.keepNans)
+	renderResultsJSON(w, result, params, h.keepEmpty)
 }
 
 // ServeHTTPWithEngine returns query results from the storage
@@ -223,7 +221,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	handler.AddWarningHeaders(w, result.meta)
+	handleroptions.AddWarningHeaders(w, result.meta)
 	return result.series, params, nil
 }
 

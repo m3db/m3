@@ -83,12 +83,12 @@ func combineResolutions(a, b []int64) []int64 {
 	} else {
 		if len(b) == 0 {
 			return a
-		} else {
-			combined := make([]int64, 0, len(a)+len(b))
-			combined = append(combined, a...)
-			combined = append(combined, b...)
-			return combined
 		}
+
+		combined := make([]int64, 0, len(a)+len(b))
+		combined = append(combined, a...)
+		combined = append(combined, b...)
+		return combined
 	}
 
 	return nil
@@ -102,11 +102,11 @@ func combineWarnings(a, b Warnings) Warnings {
 	} else {
 		if len(b) == 0 {
 			return a
-		} else {
-			combinedWarnings := make(Warnings, 0, len(a)+len(b))
-			combinedWarnings = append(combinedWarnings, a...)
-			return combinedWarnings.addWarnings(b...)
 		}
+
+		combinedWarnings := make(Warnings, 0, len(a)+len(b))
+		combinedWarnings = append(combinedWarnings, a...)
+		return combinedWarnings.addWarnings(b...)
 	}
 
 	return nil

@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"sync"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -57,28 +60,22 @@ type PromReadHandler struct {
 	engine              executor.Engine
 	promReadMetrics     promReadMetrics
 	timeoutOpts         *prometheus.TimeoutOpts
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	keepEmpty           bool
 	instrumentOpts      instrument.Options
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(
-	engine executor.Engine,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	timeoutOpts *prometheus.TimeoutOpts,
-	keepEmpty bool,
-	instrumentOpts instrument.Options,
-) http.Handler {
-	taggedScope := instrumentOpts.MetricsScope().
+func NewPromReadHandler(opts options.HandlerOptions) http.Handler {
+	taggedScope := opts.InstrumentOpts().MetricsScope().
 		Tagged(map[string]string{"handler": "remote-read"})
 	return &PromReadHandler{
-		engine:              engine,
+		engine:              opts.Engine(),
 		promReadMetrics:     newPromReadMetrics(taggedScope),
-		timeoutOpts:         timeoutOpts,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		keepEmpty:           keepEmpty,
-		instrumentOpts:      instrumentOpts,
+		timeoutOpts:         opts.TimeoutOpts(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		keepEmpty:           opts.Config().ResultOptions.KeepNans,
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -146,7 +143,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
-	handler.AddWarningHeaders(w, readResult.meta)
+	handleroptions.AddWarningHeaders(w, readResult.meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
@@ -178,8 +175,8 @@ func (h *PromReadHandler) parseRequest(
 }
 
 type readResult struct {
-	result []*prompb.QueryResult
 	meta   block.ResultMetadata
+	result []*prompb.QueryResult
 }
 
 func (h *PromReadHandler) read(
@@ -190,10 +187,11 @@ func (h *PromReadHandler) read(
 	fetchOpts *storage.FetchOptions,
 ) (readResult, error) {
 	var (
-		queryCount  = len(r.Queries)
-		promResults = make([]*prompb.QueryResult, queryCount)
-		cancelFuncs = make([]context.CancelFunc, queryCount)
-		queryOpts   = &executor.QueryOptions{
+		queryCount   = len(r.Queries)
+		cancelFuncs  = make([]context.CancelFunc, queryCount)
+		queryResults = make([]*prompb.QueryResult, queryCount)
+		meta         = block.NewResultMetadata()
+		queryOpts    = &executor.QueryOptions{
 			QueryContextOptions: models.QueryContextOptions{
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
@@ -201,7 +199,6 @@ func (h *PromReadHandler) read(
 		wg       sync.WaitGroup
 		mu       sync.Mutex
 		multiErr xerrors.MultiError
-		meta     = block.NewResultMetadata()
 	)
 
 	wg.Add(queryCount)
@@ -221,7 +218,7 @@ func (h *PromReadHandler) read(
 
 			// Detect clients closing connections
 			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			result, err := h.engine.Execute(ctx, query, queryOpts, fetchOpts)
+			result, err := h.engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -229,15 +226,12 @@ func (h *PromReadHandler) read(
 				return
 			}
 
+			result.PromResult.Timeseries = filterResults(
+				result.PromResult.GetTimeseries(), fetchOpts)
 			mu.Lock()
+			queryResults[i] = result.PromResult
 			meta = meta.CombineMetadata(result.Metadata)
 			mu.Unlock()
-			result.SeriesList = prometheus.FilterSeriesByOptions(
-				result.SeriesList,
-				fetchOpts,
-			)
-			promRes := storage.FetchResultToPromResult(result, h.keepEmpty)
-			promResults[i] = promRes
 		}()
 	}
 
@@ -247,8 +241,57 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return readResult{nil, meta}, err
+		return readResult{result: nil, meta: meta}, err
 	}
 
-	return readResult{promResults, meta}, nil
+	return readResult{result: queryResults, meta: meta}, nil
+}
+
+// filterResults removes series tags based on options.
+func filterResults(
+	series []*prompb.TimeSeries,
+	opts *storage.FetchOptions,
+) []*prompb.TimeSeries {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) == 0 {
+		return series
+	}
+
+	for i, s := range series {
+		series[i].Labels = filterLabels(s.Labels, keys)
+	}
+
+	return series
+}
+
+func filterLabels(
+	labels []prompb.Label,
+	filtering [][]byte,
+) []prompb.Label {
+	if len(filtering) == 0 {
+		return labels
+	}
+
+	filtered := labels[:0]
+	for _, l := range labels {
+		skip := false
+		for _, f := range filtering {
+			if bytes.Equal(l.GetName(), f) {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, l)
+	}
+
+	return filtered
 }

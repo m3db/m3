@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -139,13 +140,17 @@ func (l linearRegressionNode) process(
 	return l.fn(slope, intercept)
 }
 
+func subSeconds(from xtime.UnixNano, sub xtime.UnixNano) float64 {
+	return float64(from-sub) / float64(time.Second)
+}
+
 // linearRegression performs a least-square linear regression analysis on the
 // provided datapoints. It returns the slope, and the intercept value at the
 // provided time.
 // Uses this algorithm: https://en.wikipedia.org/wiki/Simple_linear_regression.
 func linearRegression(
 	dps ts.Datapoints,
-	interceptTime time.Time,
+	interceptTime xtime.UnixNano,
 	isDeriv bool,
 ) (float64, float64) {
 	var (
@@ -162,11 +167,11 @@ func linearRegression(
 
 		if valueCount == 0 && isDeriv {
 			// set interceptTime as timestamp of first non-NaN dp
-			interceptTime = dp.Timestamp
+			interceptTime = xtime.ToUnixNano(dp.Timestamp)
 		}
 
 		valueCount++
-		timeDiff := dp.Timestamp.Sub(interceptTime).Seconds()
+		timeDiff := subSeconds(xtime.ToUnixNano(dp.Timestamp), interceptTime)
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff

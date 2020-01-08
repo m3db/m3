@@ -30,8 +30,7 @@ import (
 	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -149,7 +148,7 @@ type Configuration struct {
 
 // WriteForwardingConfiguration is the write forwarding configuration.
 type WriteForwardingConfiguration struct {
-	PromRemoteWrite remote.PromWriteHandlerForwardingOptions `yaml:"promRemoteWrite"`
+	PromRemoteWrite handleroptions.PromWriteHandlerForwardingOptions `yaml:"promRemoteWrite"`
 }
 
 // Filter is a query filter type.
@@ -260,14 +259,14 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 
 // AsFetchOptionsBuilderOptions converts this configuration to
 // handler.FetchOptionsBuilderOptions.
-func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handler.FetchOptionsBuilderOptions {
+func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
 	if l.MaxFetchedSeries <= 0 {
-		return handler.FetchOptionsBuilderOptions{
+		return handleroptions.FetchOptionsBuilderOptions{
 			Limit: defaultStorageQueryLimit,
 		}
 	}
 
-	return handler.FetchOptionsBuilderOptions{
+	return handleroptions.FetchOptionsBuilderOptions{
 		Limit: int(l.MaxFetchedSeries),
 	}
 }
@@ -372,6 +371,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 // ingestion rule.
 type CarbonIngesterRuleConfiguration struct {
 	Pattern     string                                     `yaml:"pattern"`
+	Continue    bool                                       `yaml:"continue"`
 	Aggregation CarbonIngesterAggregationConfiguration     `yaml:"aggregation"`
 	Policies    []CarbonIngesterStoragePolicyConfiguration `yaml:"policies"`
 }

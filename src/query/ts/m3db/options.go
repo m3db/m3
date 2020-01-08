@@ -55,6 +55,7 @@ type encodedBlockOptions struct {
 	pools            encoding.IteratorPools
 	checkedPools     pool.CheckedBytesPool
 	readWorkerPools  xsync.PooledWorkerPool
+	writeWorkerPools xsync.PooledWorkerPool
 }
 
 type nextDetails struct {
@@ -168,6 +169,16 @@ func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Option
 
 func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
 	return o.readWorkerPools
+}
+
+func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.writeWorkerPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
+	return o.writeWorkerPools
 }
 
 func (o *encodedBlockOptions) Validate() error {

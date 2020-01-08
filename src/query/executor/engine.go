@@ -109,14 +109,13 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 	}
 }
 
-func (e *engine) Execute(
+func (e *engine) ExecuteProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	opts *QueryOptions,
 	fetchOpts *storage.FetchOptions,
-) (*storage.FetchResult, error) {
-	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
-	return result, err
+) (storage.PromResult, error) {
+	return e.opts.Store().FetchProm(ctx, query, fetchOpts)
 }
 
 func (e *engine) ExecuteExpr(

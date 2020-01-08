@@ -51,34 +51,36 @@ type SinkNode struct {
 
 // Process processes and stores the last block output in the sink node
 func (s *SinkNode) Process(_ *models.QueryContext, ID parser.NodeID, block block.Block) error {
-	iter, err := block.SeriesIter()
 	s.Meta = block.Meta()
+	iter, err := block.StepIter()
 	if err != nil {
 		return err
 	}
 
-	anySeries := false
-	for iter.Next() {
-		anySeries = true
-		val := iter.Current()
+	seriesCount := len(iter.SeriesMeta())
+	steps := iter.StepCount()
+	s.Values = make([][]float64, seriesCount)
+	bulkAllocValues := make([]float64, seriesCount*steps)
+	for i := 0; i < seriesCount; i++ {
+		s.Values[i] = bulkAllocValues[:steps]
+		bulkAllocValues = bulkAllocValues[steps:]
+	}
 
-		values := make([]float64, val.Len())
-		for i := 0; i < val.Len(); i++ {
-			values[i] = val.ValueAtStep(i)
+	row := 0
+	for iter.Next() {
+		val := iter.Current()
+		for series, v := range val.Values() {
+			s.Values[series][row] = v
 		}
-		s.Values = append(s.Values, values)
-		s.Metas = append(s.Metas, val.Meta)
+
+		row++
 	}
 
 	if err = iter.Err(); err != nil {
 		return err
 	}
 
-	if !anySeries {
-		s.Metas = iter.SeriesMeta()
-	}
-
-	s.Meta = block.Meta()
+	s.Metas = iter.SeriesMeta()
 	s.Info = block.Info()
 
 	return nil

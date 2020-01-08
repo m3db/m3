@@ -13,5 +13,5 @@ COPY ./integrations/grafana/temporal_function_comparison.json /tmp/grafana_dashb
 # JustWorksTM. Use a temporary directory to host the dashboards since the default
 # directory is owned by root.
 COPY ./integrations/grafana/m3db_overlaid_dashboard.json /tmp/m3db_overlaid_dashboard.json
-RUN awk '{gsub(/\${DS_PROMETHEUS}/,"Prometheus");print}' /tmp/m3db_overlaid_dashboard.json \
-  | awk '{gsub(/\${DS_M3QUERY}/,"M3Query - Prometheus");print}' > /tmp/grafana_dashboards/m3db_overlaid_dashboard.json
+RUN awk '{gsub(/DS_PROMETHEUS/,"Prometheus");print}' /tmp/m3db_overlaid_dashboard.json \
+  | awk '{gsub(/DS_M3QUERY/,"M3Query - Prometheus");print}' > /tmp/grafana_dashboards/m3db_overlaid_dashboard.json

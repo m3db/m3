@@ -27,6 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -43,30 +45,25 @@ const (
 )
 
 var (
-	// ListTagsHTTPMethods are the HTTP methods used with this resource.
+	// ListTagsHTTPMethods are the HTTP methods for this handler.
 	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
 	storage             storage.Storage
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	nowFn               clock.NowFn
 	instrumentOpts      instrument.Options
 }
 
 // NewListTagsHandler returns a new instance of handler.
-func NewListTagsHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	nowFn clock.NowFn,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &ListTagsHandler{
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		nowFn:               nowFn,
-		instrumentOpts:      instrumentOpts,
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		nowFn:               opts.NowFn(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -97,7 +94,7 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.AddWarningHeaders(w, result.Metadata)
+	handleroptions.AddWarningHeaders(w, result.Metadata)
 	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)

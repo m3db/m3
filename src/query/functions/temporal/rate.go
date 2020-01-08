@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -60,7 +61,6 @@ func (r rateProcessor) initialize(
 ) processor {
 	return &rateNode{
 		controller: controller,
-		timeSpec:   opts.TimeSpec(),
 		isRate:     r.isRate,
 		isCounter:  r.isCounter,
 		rateFn:     r.rateFn,
@@ -71,12 +71,14 @@ func (r rateProcessor) initialize(
 // NewRateOp creates a new base temporal transform for rate functions
 func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 	if len(args) != 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
+		return emptyOp,
+			fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
 	}
 
 	duration, ok := args[0].(time.Duration)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		return emptyOp,
+			fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
 	}
 
 	var (
@@ -109,28 +111,41 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 	return newBaseOp(duration, optype, r)
 }
 
-type rateFn func(ts.Datapoints, bool, bool, transform.TimeSpec, time.Duration) float64
+type rateFn func(
+	datapoints ts.Datapoints,
+	isRate bool,
+	isCounter bool,
+	rangeStart xtime.UnixNano,
+	rangeEnd xtime.UnixNano,
+	duration time.Duration,
+) float64
 
 type rateNode struct {
 	controller        *transform.Controller
 	isRate, isCounter bool
 	duration          time.Duration
-	timeSpec          transform.TimeSpec
 	rateFn            rateFn
 }
 
 func (r *rateNode) process(datapoints ts.Datapoints, bounds iterationBounds) float64 {
-	ts := r.timeSpec
-	ts.Start = bounds.start
-	ts.End = bounds.end
-	return r.rateFn(datapoints, r.isRate, r.isCounter, ts, r.duration)
+	return r.rateFn(
+		datapoints,
+		r.isRate,
+		r.isCounter,
+		bounds.start,
+		bounds.end,
+		r.duration,
+	)
 }
 
 func standardRateFunc(
 	datapoints ts.Datapoints,
-	isRate, isCounter bool,
-	timeSpec transform.TimeSpec,
-	timeWindow time.Duration) float64 {
+	isRate bool,
+	isCounter bool,
+	rangeStart xtime.UnixNano,
+	rangeEnd xtime.UnixNano,
+	timeWindow time.Duration,
+) float64 {
 	if len(datapoints) < 2 {
 		return math.NaN()
 	}
@@ -139,12 +154,10 @@ func standardRateFunc(
 		counterCorrection   float64
 		firstVal, lastValue float64
 		firstIdx, lastIdx   int
-		firstTS, lastTS     time.Time
+		firstTS, lastTS     xtime.UnixNano
 		foundFirst          bool
 	)
 
-	rangeStart := timeSpec.Start
-	rangeEnd := timeSpec.End
 	for i, dp := range datapoints {
 		if math.IsNaN(dp.Value) {
 			continue
@@ -152,7 +165,7 @@ func standardRateFunc(
 
 		if !foundFirst {
 			firstVal = dp.Value
-			firstTS = dp.Timestamp
+			firstTS = xtime.ToUnixNano(dp.Timestamp)
 			firstIdx = i
 			foundFirst = true
 		}
@@ -162,7 +175,7 @@ func standardRateFunc(
 		}
 
 		lastValue = dp.Value
-		lastTS = dp.Timestamp
+		lastTS = xtime.ToUnixNano(dp.Timestamp)
 		lastIdx = i
 	}
 
@@ -170,12 +183,12 @@ func standardRateFunc(
 		return math.NaN()
 	}
 
-	resultValue := lastValue - firstVal + counterCorrection
-	durationToStart := firstTS.Sub(rangeStart).Seconds()
-	durationToEnd := rangeEnd.Sub(lastTS).Seconds()
-	sampledInterval := lastTS.Sub(firstTS).Seconds()
+	durationToStart := subSeconds(firstTS, rangeStart)
+	durationToEnd := subSeconds(rangeEnd, lastTS)
+	sampledInterval := subSeconds(lastTS, firstTS)
 	averageDurationBetweenSamples := sampledInterval / float64(lastIdx-firstIdx)
 
+	resultValue := lastValue - firstVal + counterCorrection
 	if isCounter && resultValue > 0 && firstVal >= 0 {
 		// Counters cannot be negative. If we have any slope at
 		// all (i.e. resultValue went up), we can extrapolate
@@ -220,9 +233,7 @@ func standardRateFunc(
 func irateFunc(
 	datapoints ts.Datapoints,
 	isRate bool,
-	_ bool,
-	timeSpec transform.TimeSpec,
-	_ time.Duration,
+	_ bool, _ xtime.UnixNano, _ xtime.UnixNano, _ time.Duration,
 ) float64 {
 	dpsLen := len(datapoints)
 	if dpsLen < 2 {

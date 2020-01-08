@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -81,7 +81,8 @@ func parseParams(
 	var params models.RequestParams
 
 	if err := r.ParseForm(); err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(
+			fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
 	}
 
 	params.Now = time.Now()
@@ -89,7 +90,8 @@ func parseParams(
 		var err error
 		params.Now, err = parseTime(r, timeParam, params.Now)
 		if err != nil {
-			return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
+			return params, xhttp.NewParseError(
+				fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
 		}
 	}
 
@@ -101,31 +103,36 @@ func parseParams(
 	params.Timeout = t
 	start, err := parseTime(r, startParam, params.Now)
 	if err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(
+			fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
 	}
 
 	params.Start = start
 	end, err := parseTime(r, endParam, params.Now)
 	if err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(
+			fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
 	}
 
 	if start.After(end) {
-		return params, xhttp.NewParseError(fmt.Errorf("start (%s) must be before end (%s)",
-			start, end), http.StatusBadRequest)
+		return params, xhttp.NewParseError(
+			fmt.Errorf("start (%s) must be before end (%s)",
+				start, end), http.StatusBadRequest)
 	}
 
 	params.End = end
 	step := fetchOpts.Step
 	if step <= 0 {
 		err := fmt.Errorf("expected positive step size, instead got: %d", step)
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, handler.StepParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(
+			fmt.Errorf(formatErrStr, handleroptions.StepParam, err), http.StatusBadRequest)
 	}
 
 	params.Step = fetchOpts.Step
 	query, err := parseQuery(r)
 	if err != nil {
-		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(
+			fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 
 	params.Query = query
@@ -175,19 +182,25 @@ func parseDebugFlag(r *http.Request, instrumentOpts instrument.Options) bool {
 	return debug
 }
 
-func parseBlockType(r *http.Request, instrumentOpts instrument.Options) models.FetchedBlockType {
+func parseBlockType(
+	r *http.Request,
+	instrumentOpts instrument.Options,
+) models.FetchedBlockType {
 	// Use default block type if unable to parse blockTypeParam.
 	useLegacyVal := r.FormValue(blockTypeParam)
 	if useLegacyVal != "" {
 		intVal, err := strconv.ParseInt(r.FormValue(blockTypeParam), 10, 8)
 		if err != nil {
 			logging.WithContext(r.Context(), instrumentOpts).
-				Warn("unable to parse useLegacy flag", zap.Error(err))
+				Warn("cannot parse block type, defaulting to single", zap.Error(err))
+			return models.TypeSingleBlock
 		}
 
 		blockType := models.FetchedBlockType(intVal)
 		// Ignore error from receiving an invalid block type, and return default.
-		if blockType.Validate() != nil {
+		if err := blockType.Validate(); err != nil {
+			logging.WithContext(r.Context(), instrumentOpts).
+				Warn("cannot validate block type, defaulting to single", zap.Error(err))
 			return models.TypeSingleBlock
 		}
 
@@ -206,15 +219,16 @@ func parseInstantaneousParams(
 	instrumentOpts instrument.Options,
 ) (models.RequestParams, *xhttp.ParseError) {
 	if err := r.ParseForm(); err != nil {
-		return models.RequestParams{}, xhttp.NewParseError(err, http.StatusBadRequest)
+		return models.RequestParams{},
+			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	if fetchOpts.Step == 0 {
 		fetchOpts.Step = time.Second
 	}
+
 	r.Form.Set(startParam, nowTimeValue)
 	r.Form.Set(endParam, nowTimeValue)
-
 	params, err := parseParams(r, engineOpts, timeoutOpts,
 		fetchOpts, instrumentOpts)
 	if err != nil {
@@ -322,11 +336,10 @@ func renderResultsJSON(
 				continue
 			}
 
-			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
-			// since we would need to create another block just for the sake of restricting the bounds.
-			// Each series have the same start time so we just need to calculate the correct startIdx once
-			// NB(r): Removing the optimization of computing startIdx once just in case our assumptions are wrong,
-			// we can always add this optimization back later.  Without this code I see datapoints more often.
+			// Skip points before the query boundary. Ideal place to adjust these
+			// would be at the result node but that would make it inefficient since
+			// we would need to create another block just for the sake of restricting
+			// the bounds.
 			if dp.Timestamp.Before(params.Start) {
 				continue
 			}

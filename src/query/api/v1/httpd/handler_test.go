@@ -32,10 +32,11 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -57,8 +58,8 @@ var (
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}
-	svcDefaultOptions         = []handler.ServiceOptionsDefault{
-		func(o handler.ServiceOptions) handler.ServiceOptions {
+	svcDefaultOptions         = []handleroptions.ServiceOptionsDefault{
+		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
 			return o
 		},
 	}
@@ -83,11 +84,14 @@ func newEngine(
 	return executor.NewEngine(engineOpts)
 }
 
-func setupHandler(store storage.Storage) (*Handler, error) {
+func setupHandler(
+	store storage.Storage,
+	customHandlers ...options.CustomHandler,
+) (*Handler, error) {
 	instrumentOpts := instrument.NewOptions()
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
 	engine := newEngine(store, time.Minute, nil, instrumentOpts)
-	return NewHandler(
+	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
@@ -96,12 +100,19 @@ func setupHandler(store storage.Storage) (*Handler, error) {
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
 		nil,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
 		instrumentOpts,
 		defaultCPUProfileduration,
 		defaultPlacementServices,
-		svcDefaultOptions)
+		svcDefaultOptions,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return NewHandler(opts, customHandlers...), nil
 }
 
 func TestHandlerFetchTimeoutError(t *testing.T) {
@@ -113,7 +124,7 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &negValue}}
 	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
-	_, err := NewHandler(
+	_, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
@@ -122,7 +133,7 @@ func TestHandlerFetchTimeoutError(t *testing.T) {
 		cfg,
 		dbconfig,
 		nil,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
 		instrument.NewOptions(),
 		defaultCPUProfileduration,
@@ -141,7 +152,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
 	engine := newEngine(storage, time.Minute, nil, instrument.NewOptions())
 	cfg := config.Configuration{LookbackDuration: &defaultLookbackDuration}
-	h, err := NewHandler(
+	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
@@ -150,14 +161,16 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		cfg,
 		dbconfig,
 		nil,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
+		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{},
 		instrument.NewOptions(),
 		defaultCPUProfileduration,
 		defaultPlacementServices,
 		svcDefaultOptions)
 	require.NoError(t, err)
-	assert.Equal(t, 4*time.Minute, h.timeoutOpts.FetchTimeout)
+
+	h := NewHandler(opts)
+	assert.Equal(t, 4*time.Minute, h.options.TimeoutOpts().FetchTimeout)
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -168,7 +181,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
-	assert.Equal(t, 30*time.Second, h.timeoutOpts.FetchTimeout)
+	assert.Equal(t, 30*time.Second, h.options.TimeoutOpts().FetchTimeout)
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
@@ -299,7 +312,6 @@ func TestCORSMiddleware(t *testing.T) {
 }
 
 func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
-
 	req := httptest.NewRequest("GET", testRoute, nil)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
@@ -315,6 +327,23 @@ func TestTracingMiddleware(t *testing.T) {
 	doTestRequest(handler)
 
 	assert.NotEmpty(t, mtr.FinishedSpans())
+}
+
+func TestCompressionMiddleware(t *testing.T) {
+	mtr := mocktracer.New()
+	router := mux.NewRouter()
+	setupTestRoute(router)
+
+	handler := applyMiddleware(router, mtr)
+	req := httptest.NewRequest("GET", testRoute, nil)
+	req.Header.Add("Accept-Encoding", "gzip")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	enc, found := res.HeaderMap["Content-Encoding"]
+	require.True(t, found)
+	require.Equal(t, 1, len(enc))
+	assert.Equal(t, "gzip", enc[0])
 }
 
 const testRoute = "/foobar"
@@ -339,4 +368,47 @@ func init() {
 	}
 
 	testWorkerPool.Init()
+}
+
+type customHandler struct {
+	t *testing.T
+}
+
+func (h *customHandler) Route() string     { return "/custom" }
+func (h *customHandler) Methods() []string { return []string{http.MethodGet} }
+func (h *customHandler) Handler(
+	opts options.HandlerOptions,
+) (http.Handler, error) {
+	assert.Equal(h.t, "z", string(opts.TagOptions().MetricName()))
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("success!"))
+	}
+
+	return http.HandlerFunc(fn), nil
+}
+
+func TestCustomRoutes(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/custom", nil)
+	res := httptest.NewRecorder()
+	ctrl := gomock.NewController(t)
+	store, _ := m3.NewStorageAndSession(t, ctrl)
+	instrumentOpts := instrument.NewOptions()
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
+	engine := newEngine(store, time.Minute, nil, instrumentOpts)
+	opts, err := options.NewHandlerOptions(
+		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil,
+		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, nil,
+		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
+		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
+		defaultPlacementServices, svcDefaultOptions,
+	)
+
+	require.NoError(t, err)
+	custom := &customHandler{t: t}
+	handler := NewHandler(opts, custom)
+	require.NoError(t, err, "unable to setup handler")
+	err = handler.RegisterRoutes()
+	require.NoError(t, err, "unable to register routes")
+	handler.Router().ServeHTTP(res, req)
+	require.Equal(t, res.Code, http.StatusOK)
 }

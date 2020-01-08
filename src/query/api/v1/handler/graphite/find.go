@@ -27,6 +27,8 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -43,26 +45,22 @@ const (
 )
 
 var (
-	// FindHTTPMethods is the HTTP methods used with this resource.
+	// FindHTTPMethods are the HTTP methods for this handler.
 	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 type grahiteFindHandler struct {
 	storage             storage.Storage
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
 
 // NewFindHandler returns a new instance of handler.
-func NewFindHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewFindHandler(opts options.HandlerOptions) http.Handler {
 	return &grahiteFindHandler{
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		instrumentOpts:      instrumentOpts,
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -162,7 +160,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
-	handler.AddWarningHeaders(w, meta)
+	handleroptions.AddWarningHeaders(w, meta)
 	// TODO: Support multiple result types
 	if err = findResultsJSON(w, prefix, seenMap); err != nil {
 		logger.Error("unable to print find results", zap.Error(err))
