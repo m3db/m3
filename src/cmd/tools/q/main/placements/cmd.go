@@ -22,6 +22,7 @@ var (
 	defaultPath  = "/api/v1/services/m3db/placement"
 	delete *bool
 	deleteNode *string
+	initFlag = flagvar.File{}
 	newNode = flagvar.File{}
 )
 
@@ -33,6 +34,7 @@ func init() {
 	CmdFlags = flag.NewFlagSet("pl", flag.ExitOnError)
 	delete = CmdFlags.Bool("deleteAll", false, "delete all instances in the placement")
 	deleteNode = CmdFlags.String("deleteNode", "", "delete the specified node in the placement")
+	CmdFlags.Var( &initFlag, "init", "initialize a placement. Specify a yaml file.")
 	CmdFlags.Var(&newNode, "newNode", "add a new node to the placement. Specify the filename of the yaml.")
 	//CmdFlags.Var(&createYaml, "create", "Path to yaml for simplified db creation with sane defaults.")
 
@@ -99,6 +101,31 @@ func Cmd(log *zap.SugaredLogger) {
 		}
 
 		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
+
+		common.DoPost(url, data, log, doShowAll)
+
+	} else if len(initFlag.Value) > 0 {
+
+		registry := admin.PlacementInitRequest{}
+
+		content, err := ioutil.ReadFile(initFlag.Value)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err = yaml.Unmarshal(content, &registry); err != nil {
+			log.Fatalf("cannot unmarshal data: %v", err)
+		}
+
+		var data *bytes.Buffer
+		data = bytes.NewBuffer(nil)
+
+		marshaller := &jsonpb.Marshaler{}
+		if err = marshaller.Marshal(data, &registry); err != nil {
+			log.Fatal(err)
+		}
+
+		url := fmt.Sprintf("%s%s%s", *common.EndPoint, defaultPath, "/init")
 
 		common.DoPost(url, data, log, doShowAll)
 

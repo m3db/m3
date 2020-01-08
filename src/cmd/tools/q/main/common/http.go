@@ -54,6 +54,8 @@ func DoPost(url string, data io.Reader, logger *zap.SugaredLogger, getter func(r
 		resp.Body.Close()
 	}()
 
+	logger.Debugf("resp:%d:\n", resp.StatusCode)
+
 	getter(resp.Body, logger)
 
 }
