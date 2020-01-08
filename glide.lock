@@ -1,5 +1,5 @@
-hash: 4841483b89795e7a52fb9f560b5595804b37bdc6baaaf7f24065b23ccb015844
-updated: 2020-01-07T16:57:02.397357273-05:00
+hash: 20bb2ae1705d19e845796e0d2399626c25bb61da1fce7dadce485f31ba62226c
+updated: 2020-01-08T11:27:01.314004768-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -180,7 +180,7 @@ imports:
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/google/go-cmp
-  version: 2d0692c2e9617365a95b295612ac0d4415ba4627
+  version: 5a6f75716e1203a923a78c9efb94089d857df0f6
   subpackages:
   - cmp
   - cmp/cmpopts
@@ -543,6 +543,10 @@ imports:
   - internal/fastwalk
   - internal/gopathwalk
   - internal/semver
+- name: golang.org/x/xerrors
+  version: 9bdfabe68543c54f90421aeb9a60ef8061b5b544
+  subpackages:
+  - internal
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
@@ -564,15 +568,12 @@ imports:
   - protobuf/ptype
   - protobuf/source_context
 - name: google.golang.org/grpc
-  version: 6b51017f791ae1cfbec89c52efdf444b13b550ef
+  version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
   subpackages:
   - balancer
-  - balancer/base
-  - balancer/roundrobin
   - codes
   - connectivity
   - credentials
-  - encoding
   - grpclb/grpc_lb_v1/messages
   - grpclog
   - health/grpc_health_v1
@@ -584,8 +585,6 @@ imports:
   - reflection
   - reflection/grpc_reflection_v1alpha
   - resolver
-  - resolver/dns
-  - resolver/passthrough
   - stats
   - status
   - tap
