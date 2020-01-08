@@ -22,17 +22,22 @@ package peers
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -40,9 +45,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	testShard            = uint32(0)
+	testFileMode         = os.FileMode(0666)
+	testDirMode          = os.ModeDir | os.FileMode(0755)
+	testWriterBufferSize = 10
+)
+
+func newTestFsOptions(filePathPrefix string) fs.Options {
+	return fs.NewOptions().
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize).
+		SetNewFileMode(testFileMode).
+		SetNewDirectoryMode(testDirMode)
+}
+
+func createTempDir(t *testing.T) string {
+	dir, err := ioutil.TempDir("", "foo")
+	require.NoError(t, err)
+	return dir
+}
+
 type testSeriesMetadata struct {
 	id   string
 	tags map[string]string
+	data []byte
 }
 
 func (s testSeriesMetadata) ID() ident.ID {
@@ -69,11 +96,62 @@ func (s testSeriesMetadata) Tags() ident.Tags {
 	return tags
 }
 
+func writeTSDBFiles(
+	t *testing.T,
+	dir string,
+	namespace ident.ID,
+	shard uint32,
+	start time.Time,
+	series []testSeriesMetadata,
+	blockSize time.Duration,
+	fsOpts fs.Options,
+) {
+	w, err := fs.NewWriter(fsOpts)
+	require.NoError(t, err)
+	writerOpts := fs.DataWriterOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:  namespace,
+			Shard:      shard,
+			BlockStart: start,
+		},
+		BlockSize: blockSize,
+	}
+	require.NoError(t, w.Open(writerOpts))
+
+	for _, v := range series {
+		bytes := checked.NewBytes(v.data, nil)
+		bytes.IncRef()
+		require.NoError(t, w.Write(ident.StringID(v.id),
+			sortedTagsFromTagsMap(v.tags), bytes, digest.Checksum(bytes.Bytes())))
+		bytes.DecRef()
+	}
+
+	require.NoError(t, w.Close())
+}
+
+func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
+	var (
+		seriesTags ident.Tags
+		tagNames   []string
+	)
+	for name := range tags {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+	for _, name := range tagNames {
+		seriesTags.Append(ident.StringTag(name, tags[name]))
+	}
+	return seriesTags
+}
+
 func TestBootstrapIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := newTestDefaultOpts(t, ctrl)
+	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
+	require.NoError(t, err)
+	opts = opts.SetPersistManager(pm)
 
 	blockSize := 2 * time.Hour
 	indexBlockSize := 2 * blockSize
@@ -114,27 +192,43 @@ func TestBootstrapIndex(t *testing.T) {
 		{
 			blockStart: start,
 			series: []testSeriesMetadata{
-				{fooSeries.id, fooSeries.tags},
-				{"bar", map[string]string{"eee": "fff", "ggg": "hhh"}},
-				{"baz", map[string]string{"iii": "jjj", "kkk": "lll"}},
+				{fooSeries.id, fooSeries.tags, []byte{0x1}},
+				{"bar", map[string]string{"eee": "fff", "ggg": "hhh"}, []byte{0x1}},
+				{"baz", map[string]string{"iii": "jjj", "kkk": "lll"}, []byte{0x1}},
 			},
 		},
 		{
 			blockStart: start.Add(blockSize),
 			series: []testSeriesMetadata{
-				{fooSeries.id, fooSeries.tags},
-				{"qux", map[string]string{"mmm": "nnn", "ooo": "ppp"}},
-				{"qaz", map[string]string{"qqq": "rrr", "sss": "ttt"}},
+				{fooSeries.id, fooSeries.tags, []byte{0x2}},
+				{"qux", map[string]string{"mmm": "nnn", "ooo": "ppp"}, []byte{0x2}},
+				{"qaz", map[string]string{"qqq": "rrr", "sss": "ttt"}, []byte{0x2}},
 			},
 		},
 		{
 			blockStart: start.Add(2 * blockSize),
 			series: []testSeriesMetadata{
-				{fooSeries.id, fooSeries.tags},
-				{"qan", map[string]string{"uuu": "vvv", "www": "xxx"}},
-				{"qam", map[string]string{"yyy": "zzz", "000": "111"}},
+				{fooSeries.id, fooSeries.tags, []byte{0x3}},
+				{"qan", map[string]string{"uuu": "vvv", "www": "xxx"}, []byte{0x3}},
+				{"qam", map[string]string{"yyy": "zzz", "000": "111"}, []byte{0x3}},
 			},
 		},
+	}
+	// NB(bodu): Write time series to disk.
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+	opts = opts.SetFilesystemOptions(newTestFsOptions(dir))
+	for _, block := range dataBlocks {
+		writeTSDBFiles(
+			t,
+			dir,
+			nsMetadata.ID(),
+			testShard,
+			block.blockStart,
+			block.series,
+			blockSize,
+			opts.FilesystemOptions(),
+		)
 	}
 
 	end := start.Add(ropts.RetentionPeriod())
@@ -146,91 +240,29 @@ func TestBootstrapIndex(t *testing.T) {
 		}),
 	}
 
-	nsID := nsMetadata.ID().String()
-
 	mockAdminSession := client.NewMockAdminSession(ctrl)
-	mockAdminSessionCalls := []*gomock.Call{}
-
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(gomock.Any(),
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(
 			_ namespace.Metadata,
 			_ uint32,
-			_ time.Time,
-			_ time.Time,
+			blockStart time.Time,
+			blockEnd time.Time,
 			_ result.Options,
 		) (result.ShardResult, error) {
 			goodID := ident.StringID("foo")
 			goodResult := result.NewShardResult(0, opts.ResultOptions())
-			fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-				ts.Segment{}, testBlockOpts, namespace.Context{})
-			goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+			for ; blockStart.Before(blockEnd); blockStart = blockStart.Add(blockSize) {
+				fooBlock := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
+					ts.Segment{}, testBlockOpts, namespace.Context{})
+				goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
+			}
 			return goodResult, nil
 		}).AnyTimes()
 
-	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
-		// Find and expect calls for blocks
-		matchedBlock := false
-		for _, dataBlock := range dataBlocks {
-			if !dataBlock.blockStart.Equal(blockStart) {
-				continue
-			}
-
-			matchedBlock = true
-			mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
-			mockIterCalls := []*gomock.Call{}
-			for _, elem := range dataBlock.series {
-				mockIterCalls = append(mockIterCalls,
-					mockIter.EXPECT().Next().Return(true))
-
-				metadata := block.NewMetadata(elem.ID(), elem.Tags(),
-					blockStart, 1, nil, time.Time{})
-
-				mockIterCalls = append(mockIterCalls,
-					mockIter.EXPECT().Current().Return(nil, metadata))
-			}
-
-			mockIterCalls = append(mockIterCalls,
-				mockIter.EXPECT().Next().Return(false),
-				mockIter.EXPECT().Err().Return(nil))
-
-			gomock.InOrder(mockIterCalls...)
-
-			rangeStart := blockStart
-			rangeEnd := rangeStart.Add(blockSize)
-
-			call := mockAdminSession.EXPECT().
-				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any()).
-				Return(mockIter, nil)
-			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
-			break
-		}
-
-		if !matchedBlock {
-			mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
-			gomock.InOrder(
-				mockIter.EXPECT().Next().Return(false),
-				mockIter.EXPECT().Err().Return(nil),
-			)
-
-			rangeStart := blockStart
-			rangeEnd := rangeStart.Add(blockSize)
-
-			call := mockAdminSession.EXPECT().
-				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any()).
-				Return(mockIter, nil)
-			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
-		}
-	}
-
-	gomock.InOrder(mockAdminSessionCalls...)
-
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
-
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	src, err := newPeersSource(opts)
@@ -345,7 +377,10 @@ func TestBootstrapIndexErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := newTestDefaultOpts(t, ctrl)
+	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
+	require.NoError(t, err)
+	opts = opts.SetPersistManager(pm)
 
 	blockSize := 2 * time.Hour
 	indexBlockSize := 2 * blockSize
@@ -386,13 +421,13 @@ func TestBootstrapIndexErr(t *testing.T) {
 		{
 			blockStart: start,
 			series: []testSeriesMetadata{
-				{fooSeries.id, fooSeries.tags},
+				{fooSeries.id, fooSeries.tags, []byte{0x1}},
 			},
 		},
 		{
 			blockStart: start.Add(blockSize),
 			series: []testSeriesMetadata{
-				{fooSeries.id, fooSeries.tags},
+				{fooSeries.id, fooSeries.tags, []byte{0x2}},
 			},
 		},
 	}
@@ -461,7 +496,7 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 			call := mockAdminSession.EXPECT().
 				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any()).
+					testShard, rangeStart, rangeEnd, gomock.Any()).
 				Return(mockIter, nil)
 			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
 			break
@@ -479,7 +514,7 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 			call := mockAdminSession.EXPECT().
 				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
-					uint32(0), rangeStart, rangeEnd, gomock.Any()).
+					testShard, rangeStart, rangeEnd, gomock.Any()).
 				Return(mockIter, nil)
 			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
 		}
@@ -489,7 +524,6 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
-
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	src, err := newPeersSource(opts)

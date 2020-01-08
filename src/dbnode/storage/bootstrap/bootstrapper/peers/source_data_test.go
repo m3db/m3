@@ -33,10 +33,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -72,7 +75,23 @@ var (
 )
 
 func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
+	idxOpts := index.NewOptions()
+	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		idxOpts.SegmentBuilderOptions(),
+		idxOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
 	return testDefaultOpts.
+		SetCompactor(compactor).
+		SetIndexOptions(idxOpts).
 		SetAdminClient(newValidMockClient(t, ctrl)).
 		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
 }
@@ -95,6 +114,11 @@ func newValidMockRuntimeOptionsManager(t *testing.T, ctrl *gomock.Controller) m3
 		ClientBootstrapConsistencyLevel().
 		Return(topology.ReadConsistencyLevelAll).
 		AnyTimes()
+	mockRuntimeOpts.
+		EXPECT().
+		FlushIndexBlockNumSegments().
+		Return(uint(1)).
+		AnyTimes()
 
 	mockRuntimeOptsMgr := m3dbruntime.NewMockOptionsManager(ctrl)
 	mockRuntimeOptsMgr.
@@ -112,7 +136,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
+	opts := newTestDefaultOpts(t, ctrl).
 		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
 
 	src, err := newPeersSource(opts)
@@ -147,7 +171,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
 
-	opts := testDefaultOpts.SetAdminClient(mockAdminClient)
+	opts := newTestDefaultOpts(t, ctrl).SetAdminClient(mockAdminClient)
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
@@ -172,7 +196,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := newTestDefaultOpts(t, ctrl)
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
@@ -236,7 +260,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 
 		testNsMd := testNamespaceMetadata(t)
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
-		opts := testDefaultOpts.SetResultOptions(resultOpts)
+		opts := newTestDefaultOpts(t, ctrl).SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
 		testNsMd.Options()
 		blockSize := ropts.BlockSize()
@@ -422,7 +446,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
+	opts := newTestDefaultOpts(t, ctrl).
 		SetResultOptions(testDefaultOpts.
 			ResultOptions().
 			SetSeriesCachePolicy(series.CacheRecentlyRead),

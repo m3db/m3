@@ -22,6 +22,7 @@ package peers
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -195,10 +196,17 @@ func (s *peersSource) readData(
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.FlushPreparer
 		shouldPersist     = false
+		// TODO(bodu): We should migrate to series.CacheLRU only.
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
 
+	log.Printf(
+		"persistConfig.Enabled: %t, seriesCachePolicy: %t, filesettype?: %t",
+		persistConfig.Enabled,
+		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU),
+		persistConfig.FileSetType == persist.FileSetFlushType,
+	)
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -369,6 +377,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
+			log.Printf("shouldPersist -> %t", shouldPersist)
 			if shouldPersist {
 				persistenceQueue <- persistenceFlush{
 					nsMetadata:        nsMetadata,
@@ -709,6 +718,8 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 		return batch, err
 	}
 
+	log.Printf("readNextEntryAndMaybeIndex doc ID -> %s", d.ID)
+
 	batch = append(batch, d)
 
 	if len(batch) >= index.DocumentArrayPoolCapacity {
@@ -792,9 +803,10 @@ func (s *peersSource) processReaders(
 	// Only persist to disk if the requested ranges were completely fulfilled.
 	// Otherwise, this is the latest index segment and should only exist in mem.
 	if remainingRanges.IsEmpty() {
+		log.Printf("persisting index to disk, requestedRanges -> %s, remainingRanges -> %s", requestedRanges, remainingRanges)
 		if err := bootstrapper.PersistBootstrapIndexSegment(
 			ns,
-			shardsTimeRanges,
+			requestedRanges,
 			r.IndexResults(),
 			builders,
 			s.persistManager,
@@ -804,11 +816,12 @@ func (s *peersSource) processReaders(
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
-					zap.Stringer("requestedRanges", shardsTimeRanges),
+					zap.Stringer("requestedRanges", requestedRanges),
 					zap.Error(err))
 			})
 		}
 	} else {
+		log.Printf("building in memory index, requestedRanges -> %s, remainingRanges -> %s", requestedRanges, remainingRanges)
 		if err := bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			shardsTimeRanges,
@@ -821,7 +834,7 @@ func (s *peersSource) processReaders(
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
-					zap.Stringer("requestedRanges", shardsTimeRanges),
+					zap.Stringer("requestedRanges", requestedRanges),
 					zap.Error(err))
 			})
 		}

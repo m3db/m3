@@ -346,7 +346,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	requestedRanges := timeWindowReaders.Ranges
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
-	log.Printf("requestedRanges: %s", requestedRanges)
 	for shard, shardReaders := range shardReaders {
 		shard := uint32(shard)
 		readers := shardReaders.Readers
