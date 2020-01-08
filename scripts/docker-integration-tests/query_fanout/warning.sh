@@ -86,8 +86,8 @@ function test_range_query {
 }
 
 function test_search {
-  start=$(date -v-1m "+%Y-%m-%dT%H:%M:%SZ")
-  end=$(date -v+1m "+%Y-%m-%dT%H:%M:%SZ")
+  start=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) -1 minute" +%Y-%m-%dT%H:%M:%SZ)
+  end=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) +1 minute" +%Y-%m-%dT%H:%M:%SZ)
 
   curl -D headers -X POST 0.0.0.0:7201/search -d '{
     "start": "'$start'",
