@@ -1,5 +1,5 @@
-hash: 20bb2ae1705d19e845796e0d2399626c25bb61da1fce7dadce485f31ba62226c
-updated: 2020-01-08T11:27:01.314004768-05:00
+hash: 89a085a5d24851860fc6d79e789853cc802bb65b89b412c36aeb5bf7e4a923f8
+updated: 2020-01-08T13:38:18.738124428-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -180,7 +180,7 @@ imports:
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/google/go-cmp
-  version: 5a6f75716e1203a923a78c9efb94089d857df0f6
+  version: 6f77996f0c42f7b84e5a2b252227263f93432e9b
   subpackages:
   - cmp
   - cmp/cmpopts
@@ -543,10 +543,6 @@ imports:
   - internal/fastwalk
   - internal/gopathwalk
   - internal/semver
-- name: golang.org/x/xerrors
-  version: 9bdfabe68543c54f90421aeb9a60ef8061b5b544
-  subpackages:
-  - internal
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:

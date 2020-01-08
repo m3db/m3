@@ -153,7 +153,7 @@ import:
       - errgroup
 
   - package: github.com/google/go-cmp
-    version: ^0.3
+    version: 0.3
     subpackages:
       - cmp
 
