@@ -27,6 +27,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -48,20 +50,16 @@ const (
 // SearchHandler represents a handler for the search endpoint
 type SearchHandler struct {
 	store               storage.Storage
-	fetchOptionsBuilder FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
 
 // NewSearchHandler returns a new instance of handler
-func NewSearchHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder FetchOptionsBuilder,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewSearchHandler(opts options.HandlerOptions) http.Handler {
 	return &SearchHandler{
-		store:               storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		instrumentOpts:      instrumentOpts,
+		store:               opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 

@@ -72,21 +72,6 @@ func (mr *MockEngineMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockEngine)(nil).Close))
 }
 
-// Execute mocks base method
-func (m *MockEngine) Execute(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *QueryOptions, arg3 *storage.FetchOptions) (*storage.FetchResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(*storage.FetchResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Execute indicates an expected call of Execute
-func (mr *MockEngineMockRecorder) Execute(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockEngine)(nil).Execute), arg0, arg1, arg2, arg3)
-}
-
 // ExecuteExpr mocks base method
 func (m *MockEngine) ExecuteExpr(arg0 context.Context, arg1 parser.Parser, arg2 *QueryOptions, arg3 *storage.FetchOptions, arg4 models.RequestParams) (Result, error) {
 	m.ctrl.T.Helper()

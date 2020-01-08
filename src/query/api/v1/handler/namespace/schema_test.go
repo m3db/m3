@@ -34,7 +34,7 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
-	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -96,7 +96,7 @@ message ImportedMessage {
 )
 
 var (
-	svcDefaults = apihandler.ServiceNameAndDefaults{
+	svcDefaults = handleroptions.ServiceNameAndDefaults{
 		ServiceName: "m3db",
 	}
 )

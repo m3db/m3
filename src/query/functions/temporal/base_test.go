@@ -21,7 +21,6 @@
 package temporal
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -34,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
 	"github.com/m3db/m3/src/query/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,11 +92,6 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 			err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 			require.NoError(t, err)
 
-			for i, v := range sink.Values {
-				fmt.Println(i, v)
-				fmt.Println(" ", tt.expected[i])
-			}
-
 			test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
 			// Name should be dropped from series tags.
 			expectedSeriesMetas := []block.SeriesMeta{
@@ -142,8 +137,7 @@ func TestGetIndicesError(t *testing.T) {
 	require.Equal(t, -1, r)
 	require.False(t, ok)
 
-	nowNano := now.UnixNano()
-	pastBound := nowNano + int64(time.Hour)
+	pastBound := xtime.ToUnixNano(now.Add(time.Hour))
 	l, r, ok = getIndices(dps, pastBound, pastBound+10, 0)
 	require.Equal(t, 0, l)
 	require.Equal(t, 10, r)

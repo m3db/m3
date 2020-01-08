@@ -61,11 +61,6 @@ func NewMatcher(t MatchType, n, v []byte) (Matcher, error) {
 		return Matcher{}, errors.New("name must be set unless using MatchAll")
 	}
 
-	if len(v) == 0 && !(t == MatchAll || t == MatchField || t == MatchNotField) {
-		return Matcher{}, errors.New("field must be set unless using one " +
-			"of MatchField, MatchNotField, or MatchAll")
-	}
-
 	if t == MatchRegexp || t == MatchNotRegexp {
 		re, err := regexp.Compile("^(?:" + string(v) + ")$")
 		if err != nil {

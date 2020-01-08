@@ -90,9 +90,9 @@ function prometheus_query_native {
 
 function test_query_mapping_rule {
   now=$(date +"%s")
-  now_truncate_by=$(expr $now % 5)
-  now_truncated=$(expr $now - $now_truncate_by)
-  now_truncated_plus_second=$(expr $now_truncated + 1)
+  now_truncate_by=$(( $now % 5 ))
+  now_truncated=$(( $now - $now_truncate_by ))
+  now_truncated_plus_second=$(( $now_truncated + 1 ))
 
   echo "Test write with mapping rule"
   # nginx metrics
@@ -119,8 +119,8 @@ function test_query_mapping_rule {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
-  start=$(expr $now - 3600)
-  end=$(expr $now + 3600)
+  start=$(( $now - 3600 ))
+  end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
   jq_path=".data.result[0].values[0] | .[1] | select(. != null)"
@@ -148,9 +148,9 @@ function test_query_rollup_rule {
   fi
 
   now=$(date +"%s")
-  now_truncate_by=$(expr $now % 5)
-  now_truncated=$(expr $now - $now_truncate_by)
-  now_truncated_plus_second=$(expr $now_truncated + 1)
+  now_truncate_by=$(( $now % 5 ))
+  now_truncated=$(( $now - $now_truncate_by ))
+  now_truncated_plus_second=$(( $now_truncated + 1 ))
 
   echo "Test write with rollup rule"
 
@@ -186,8 +186,8 @@ function test_query_rollup_rule {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200"
 
-  start=$(expr $now - 3600)
-  end=$(expr $now + 3600)
+  start=$(( $now - 3600 ))
+  end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
   jq_path=".data.result[0].values | .[][1] | select(. != null)"

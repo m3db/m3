@@ -28,10 +28,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -84,7 +83,7 @@ func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	cpuProfileDuration time.Duration,
 	clusterClient clusterclient.Client,
 	placementsOpts placement.HandlerOptions,
-	services []handler.ServiceNameAndDefaults,
+	services []handleroptions.ServiceNameAndDefaults,
 	instrumentOpts instrument.Options,
 ) (ZipWriter, error) {
 	zw, err := NewZipWriterWithDefaultSources(cpuProfileDuration,

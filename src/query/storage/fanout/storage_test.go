@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	errs "github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +66,8 @@ func fakeIterator(t *testing.T) encoding.SeriesIterators {
 		encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 			ID:        id,
 			Namespace: namespace,
-			Tags:      seriesiter.GenerateSingleSampleTagIterator(gomock.NewController(t), seriesiter.GenerateTag()),
+			Tags: seriesiter.GenerateSingleSampleTagIterator(
+				xtest.NewController(t), seriesiter.GenerateTag()),
 		}, nil)}, nil)
 }
 
@@ -78,14 +81,18 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 		response = []*fetchResponse{{err: fmt.Errorf("unable to get response")}}
 	}
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
 
-	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, true, response[0].err)
-	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, true, response[len(response)-1].err)
-	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errs.ErrNotImplemented)
-	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errs.ErrNotImplemented)
+	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(response[0].result, true, response[0].err)
+	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(response[len(response)-1].result, true, response[len(response)-1].err)
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, false, errs.ErrNotImplemented)
+	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, false, errs.ErrNotImplemented)
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 	session2.EXPECT().IteratorPools().
@@ -101,12 +108,12 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 }
 
 func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
 	session1.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(errs[0])
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -115,8 +122,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		Return(nil, true, errs[0]).AnyTimes()
 
 	session2.EXPECT().
-		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(errs[len(errs)-1])
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
 	session2.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 
@@ -130,16 +137,16 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 
 func TestFanoutReadEmpty(t *testing.T) {
 	store := setupFanoutRead(t, false)
-	res, err := store.Fetch(context.TODO(), nil, nil)
-	assert.NoError(t, err, "No error")
-	require.NotNil(t, res, "Non empty result")
-	assert.Len(t, res.SeriesList, 0, "No series")
+	res, err := store.FetchProm(context.TODO(), nil, nil)
+	assert.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, 0, len(res.PromResult.GetTimeseries()))
 }
 
 func TestFanoutReadError(t *testing.T) {
 	store := setupFanoutRead(t, true)
 	opts := storage.NewFetchOptions()
-	_, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, opts)
+	_, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.Error(t, err)
 }
 
@@ -148,7 +155,7 @@ func TestFanoutReadSuccess(t *testing.T) {
 		result: fakeIterator(t)},
 		&fetchResponse{result: fakeIterator(t)},
 	)
-	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{
+	res, err := store.FetchProm(context.TODO(), &storage.FetchQuery{
 		Start: time.Now().Add(-time.Hour),
 		End:   time.Now(),
 	}, storage.NewFetchOptions())
@@ -220,7 +227,7 @@ func TestCompleteTagsError(t *testing.T) {
 
 // Error continuation tests below.
 func TestFanoutSearchErrorContinues(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
@@ -289,7 +296,7 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 }
 
 func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
@@ -337,7 +344,7 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 }
 
 func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
@@ -380,17 +387,27 @@ func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
 }
 
 func TestFanoutFetchErrorContinues(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	filter := func(_ storage.Query, _ storage.Storage) bool { return true }
-	tFilter := func(_ storage.CompleteTagsQuery, _ storage.Storage) bool { return true }
+	filter := func(_ storage.Query, _ storage.Storage) bool {
+		return true
+	}
+
+	tFilter := func(_ storage.CompleteTagsQuery, _ storage.Storage) bool {
+		return true
+	}
+
 	okStore := storage.NewMockStorage(ctrl)
-	okStore.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any()).
+	okStore.EXPECT().FetchProm(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			&storage.FetchResult{
-				SeriesList: ts.SeriesList{
-					ts.NewSeries([]byte("ok"), nil, models.Tags{}),
+			storage.PromResult{
+				PromResult: &prompb.QueryResult{
+					Timeseries: []*prompb.TimeSeries{
+						&prompb.TimeSeries{
+							Labels: []prompb.Label{prompb.Label{Name: []byte("ok")}},
+						},
+					},
 				},
 			},
 			nil,
@@ -398,11 +415,15 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 	okStore.EXPECT().Type().Return(storage.TypeLocalDC).AnyTimes()
 
 	warnStore := storage.NewMockStorage(ctrl)
-	warnStore.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any()).
+	warnStore.EXPECT().FetchProm(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			&storage.FetchResult{
-				SeriesList: ts.SeriesList{
-					ts.NewSeries([]byte("warn"), nil, models.Tags{}),
+			storage.PromResult{
+				PromResult: &prompb.QueryResult{
+					Timeseries: []*prompb.TimeSeries{
+						&prompb.TimeSeries{
+							Labels: []prompb.Label{prompb.Label{Name: []byte("warn")}},
+						},
+					},
 				},
 			},
 			errors.New("e"),
@@ -413,9 +434,12 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 	stores := []storage.Storage{warnStore, okStore}
 	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
 	opts := storage.NewFetchOptions()
-	result, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, opts)
+	result, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
 
-	require.Equal(t, 1, len(result.SeriesList))
-	assert.Equal(t, []byte("ok"), result.SeriesList[0].Name())
+	series := result.PromResult.GetTimeseries()
+	require.Equal(t, 1, len(series))
+	labels := series[0].GetLabels()
+	require.Equal(t, 1, len(labels))
+	assert.Equal(t, "ok", string(labels[0].GetName()))
 }

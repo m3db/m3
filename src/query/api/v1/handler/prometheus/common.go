@@ -89,7 +89,8 @@ func ParsePromCompressedRequest(
 
 	if len(compressed) == 0 {
 		return ParsePromCompressedRequestResult{},
-			xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
+			xhttp.NewParseError(fmt.Errorf("empty request body"),
+				http.StatusBadRequest)
 	}
 
 	reqBuf, err := snappy.Decode(nil, compressed)
@@ -105,7 +106,10 @@ func ParsePromCompressedRequest(
 }
 
 // ParseRequestTimeout parses the input request timeout with a default.
-func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (time.Duration, error) {
+func ParseRequestTimeout(
+	r *http.Request,
+	configFetchTimeout time.Duration,
+) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
 	if timeout == "" {
 		return configFetchTimeout, nil
@@ -113,81 +117,100 @@ func ParseRequestTimeout(r *http.Request, configFetchTimeout time.Duration) (tim
 
 	duration, err := time.ParseDuration(timeout)
 	if err != nil {
-		return 0, fmt.Errorf("%s: invalid 'timeout': %v", xhttp.ErrInvalidParams, err)
+		return 0, fmt.Errorf("%s: invalid 'timeout': %v",
+			xhttp.ErrInvalidParams, err)
 	}
 
 	if duration > maxTimeout {
-		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v", xhttp.ErrInvalidParams, maxTimeout)
+		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v",
+			xhttp.ErrInvalidParams, maxTimeout)
 	}
 
 	return duration, nil
 }
 
-// ParseTagCompletionParamsToQuery parses all params from the GET request.
-func ParseTagCompletionParamsToQuery(
+// TagCompletionQueries are tag completion queries.
+type TagCompletionQueries struct {
+	// Queries are the tag completion queries.
+	Queries []*storage.CompleteTagsQuery
+	// NameOnly indicates name only
+	NameOnly bool
+}
+
+// ParseTagCompletionParamsToQueries parses all params from the GET request.
+// Returns queries, a boolean indicating if the query completes names only, and
+// any errors.
+func ParseTagCompletionParamsToQueries(
 	r *http.Request,
-) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
+) (TagCompletionQueries, *xhttp.ParseError) {
+	tagCompletionQueries := TagCompletionQueries{}
 	start, err := parseTimeWithDefault(r, "start", time.Time{})
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	end, err := parseTimeWithDefault(r, "end", time.Now())
 	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	tagQuery := storage.CompleteTagsQuery{
-		Start: start,
-		End:   end,
-	}
-
-	query, err := parseTagCompletionQuery(r)
-	if err != nil {
-		return nil, xhttp.NewParseError(fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
-	}
-
-	matchers, err := models.MatchersFromString(query)
-	if err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
-	}
-
-	tagQuery.TagMatchers = matchers
 	// If there is a result type field present, parse it and set
 	// complete name only parameter appropriately. Otherwise, default
 	// to returning both completed tag names and values
+	nameOnly := false
 	if result := r.FormValue("result"); result != "" {
 		switch result {
 		case "default":
-			tagQuery.CompleteNameOnly = false
+			// no-op
 		case "tagNamesOnly":
-			tagQuery.CompleteNameOnly = true
+			nameOnly = true
 		default:
-			return nil, xhttp.NewParseError(errors.ErrInvalidResultParamError, http.StatusBadRequest)
+			return tagCompletionQueries, xhttp.NewParseError(
+				errors.ErrInvalidResultParamError, http.StatusBadRequest)
 		}
 	}
 
-	filterNameTags := r.Form[filterNameTagsParam]
-	tagQuery.FilterNameTags = make([][]byte, len(filterNameTags))
-	for i, f := range filterNameTags {
-		tagQuery.FilterNameTags[i] = []byte(f)
+	tagCompletionQueries.NameOnly = nameOnly
+	queries, err := parseTagCompletionQueries(r)
+	if err != nil {
+		return tagCompletionQueries, xhttp.NewParseError(
+			fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
 	}
 
-	return &tagQuery, nil
+	tagQueries := make([]*storage.CompleteTagsQuery, 0, len(queries))
+	for _, query := range queries {
+		tagQuery := &storage.CompleteTagsQuery{
+			Start:            start,
+			End:              end,
+			CompleteNameOnly: nameOnly,
+		}
+
+		matchers, err := models.MatchersFromString(query)
+		if err != nil {
+			return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		tagQuery.TagMatchers = matchers
+		filterNameTags := r.Form[filterNameTagsParam]
+		tagQuery.FilterNameTags = make([][]byte, len(filterNameTags))
+		for i, f := range filterNameTags {
+			tagQuery.FilterNameTags[i] = []byte(f)
+		}
+
+		tagQueries = append(tagQueries, tagQuery)
+	}
+
+	tagCompletionQueries.Queries = tagQueries
+	return tagCompletionQueries, nil
 }
 
-func parseTagCompletionQuery(r *http.Request) (string, error) {
+func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	queries, ok := r.URL.Query()[queryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
-		return "", errors.ErrNoQueryFound
+		return nil, errors.ErrNoQueryFound
 	}
 
-	// TODO: currently, we only support one target at a time
-	if len(queries) > 1 {
-		return "", errors.ErrBatchQuery
-	}
-
-	return queries[0], nil
+	return queries, nil
 }
 
 func parseTimeWithDefault(
@@ -328,9 +351,7 @@ func RenderListTagResultsJSON(
 
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
 func RenderTagCompletionResultsJSON(
-	w io.Writer,
-	result *storage.CompleteTagsResult,
-) error {
+	w io.Writer, result storage.CompleteTagsResult) error {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
 		return renderNameOnlyTagCompletionResultsJSON(w, results)
