@@ -64,7 +64,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	bsm.sleepFn = func(time.Duration) {}
 
 	gomock.InOrder(
-		ns.EXPECT().GetOwnedShards().Return([]databaseShard{}),
+		ns.EXPECT().PrepareBootstrap().Return([]databaseShard{}, nil),
 		ns.EXPECT().Metadata().Return(meta),
 		ns.EXPECT().ID().Return(id),
 		ns.EXPECT().
