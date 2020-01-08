@@ -19,7 +19,7 @@ func init() {
 
 func DoGet(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 
-	logger.Debugf("url:%s:\n", url)
+	logger.Debugf("DoGet:url:%s:\n", url)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -37,7 +37,7 @@ func DoGet(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, 
 
 func DoPost(url string, data io.Reader, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 
-	logger.Debugf("url:%s:\n", url)
+	logger.Debugf("DoPost:url:%s:\n", url)
 
 	client := &http.Client{}
 
@@ -54,7 +54,7 @@ func DoPost(url string, data io.Reader, logger *zap.SugaredLogger, getter func(r
 		resp.Body.Close()
 	}()
 
-	logger.Debugf("resp:%d:\n", resp.StatusCode)
+	logger.Debugf("resp.StatusCode:%d:\n", resp.StatusCode)
 
 	getter(resp.Body, logger)
 
@@ -62,7 +62,7 @@ func DoPost(url string, data io.Reader, logger *zap.SugaredLogger, getter func(r
 
 func DoDelete(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 
-	logger.Debugf("url:%s:\n", url)
+	logger.Debugf("DoDelete:url:%s:\n", url)
 
 	client := &http.Client{}
 
@@ -82,4 +82,3 @@ func DoDelete(url string, logger *zap.SugaredLogger, getter func(reader io.Reade
 	getter(resp.Body, logger)
 
 }
-

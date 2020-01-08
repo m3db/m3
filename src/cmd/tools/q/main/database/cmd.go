@@ -1,29 +1,15 @@
 package database
 
 import (
-	"bytes"
-	"io"
-	//"bytes"
-	//"encoding/json"
 	"flag"
 	"fmt"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
 
-	//"io/ioutil"
-	//"net/http"
-
-	//"k8s.io/gengo/testdata/a/b"
-
-	"github.com/ghodss/yaml"
-
-	//"io/ioutil"
-	//"net/http"
 	"os"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/m3db/m3/src/cmd/tools/q/main/common"
-	//"gopkg.in/yaml.v2"
 	"github.com/m3db/m3/src/cmd/tools/q/main/flagvar"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
@@ -55,7 +41,7 @@ Usage of %s:
 	}
 }
 
-func doShow (reader io.Reader, logger *zap.SugaredLogger) {
+func doShow(reader io.Reader, logger *zap.SugaredLogger) {
 
 	dat, err := ioutil.ReadAll(reader)
 	if err != nil {
@@ -84,24 +70,7 @@ func Cmd(log *zap.SugaredLogger) {
 		os.Exit(1)
 	}
 
-	registry := admin.DatabaseCreateRequest{}
-
-	content, err := ioutil.ReadFile(createYaml.Value)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err = yaml.Unmarshal(content, &registry); err != nil {
-		log.Fatalf("cannot unmarshal data: %v", err)
-	}
-
-	var data *bytes.Buffer
-	data = bytes.NewBuffer(nil)
-
-	marshaller := &jsonpb.Marshaler{}
-	if err = marshaller.Marshal(data, &registry); err != nil {
-		log.Fatal(err)
-	}
+	data := common.LoadYaml(createYaml.Value, &admin.DatabaseCreateRequest{}, log)
 
 	url := fmt.Sprintf("%s%s/create", *common.EndPoint, defaultPath)
 

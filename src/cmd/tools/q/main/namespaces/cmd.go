@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	CmdFlags    *flag.FlagSet
+	CmdFlags *flag.FlagSet
 	//endpoint    *string
 	showAll     *bool
-	defaultPath  = "/api/v1/namespace"
-	debugQS      = "debug=true"
+	defaultPath = "/api/v1/namespace"
+	debugQS     = "debug=true"
 	delete      *string
 )
 
@@ -38,7 +38,6 @@ Usage of %s:
 		CmdFlags.PrintDefaults()
 	}
 }
-
 
 func doShowAll(in io.Reader, log *zap.SugaredLogger) {
 
@@ -110,7 +109,6 @@ func Cmd(log *zap.SugaredLogger) {
 		common.DoGet(url, log, doShowNames)
 
 	}
-
 
 	return
 }
