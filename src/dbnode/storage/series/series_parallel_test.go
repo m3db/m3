@@ -45,8 +45,12 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		numStepsPerWorker = numWorkers * 100
 		opts              = newSeriesTestOptions()
 		curr              = time.Now()
-		series            = NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, 1, opts).(*dbSeries)
-		dbBlock           = block.NewDatabaseBlock(time.Time{}, time.Hour*2,
+		series            = NewDatabaseSeries(DatabaseSeriesOptions{
+			ID:          ident.StringID("foo"),
+			UniqueIndex: 1,
+			Options:     opts,
+		}).(*dbSeries)
+		dbBlock = block.NewDatabaseBlock(time.Time{}, time.Hour*2,
 			ts.Segment{}, block.NewOptions(), namespace.Context{})
 	)
 
