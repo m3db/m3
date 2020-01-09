@@ -251,9 +251,17 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 
 	// All series need to be in the same shard to exercise the regression.
 	foo := ts.Series{
-		Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo"), UniqueIndex: 0}
+		Namespace:   nsCtx.ID,
+		Shard:       0,
+		ID:          ident.StringID("foo"),
+		UniqueIndex: 0,
+	}
 	bar := ts.Series{
-		Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
+		Namespace:   nsCtx.ID,
+		Shard:       0,
+		ID:          ident.StringID("bar"),
+		UniqueIndex: 0,
+	}
 
 	values := testValues{
 		{foo, start, 1.0, xtime.Second, nil},

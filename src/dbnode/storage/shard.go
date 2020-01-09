@@ -1894,10 +1894,21 @@ func (s *dbShard) Bootstrap() error {
 	s.bootstrapState = Bootstrapping
 	s.Unlock()
 
+	multiErr := xerrors.NewMultiError()
+
+	// Initialize the flush states if we haven't called prepare bootstrap.
+	s.flushState.RLock()
+	initialized := s.flushState.initialized
+	s.flushState.RUnlock()
+	if !initialized {
+		if err := s.initializeFlushStates(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
 	// this earlier as block lease verification will fail due to the shards not being bootstrapped
 	// (and as a result no leases can be verified since the flush state is not yet known).
-	multiErr := xerrors.NewMultiError()
 	if err := s.cacheShardIndices(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
