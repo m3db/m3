@@ -80,7 +80,11 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 			SetBufferFuture(5 * time.Minute)
 		blockSize = ropts.BlockSize()
 	)
-	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
+	nsOpts := namespace.NewOptions().
+		SetRetentionOptions(ropts).
+		SetColdWritesEnabled(true)
+
+	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})

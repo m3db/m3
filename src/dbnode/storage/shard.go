@@ -1824,15 +1824,16 @@ func (s *dbShard) PrepareBootstrap() error {
 	// series will load blocks into series with series.LoadBlock(...) which
 	// needs to ask the shard whether certain time windows have been flushed or
 	// not.
-	return s.initializeFlushStates()
+	s.initializeFlushStates()
+	return nil
 }
 
-func (s *dbShard) initializeFlushStates() error {
+func (s *dbShard) initializeFlushStates() {
 	s.flushState.RLock()
 	initialized := s.flushState.initialized
 	s.flushState.RUnlock()
 	if initialized {
-		return errFlushStateAlreadyInitialized
+		return
 	}
 
 	defer func() {
@@ -1842,7 +1843,7 @@ func (s *dbShard) initializeFlushStates() error {
 	}()
 
 	s.UpdateFlushStates()
-	return nil
+	return
 }
 
 func (s *dbShard) UpdateFlushStates() {
@@ -1897,13 +1898,8 @@ func (s *dbShard) Bootstrap() error {
 	multiErr := xerrors.NewMultiError()
 
 	// Initialize the flush states if we haven't called prepare bootstrap.
-	s.flushState.RLock()
-	initialized := s.flushState.initialized
-	s.flushState.RUnlock()
-	if !initialized {
-		if err := s.initializeFlushStates(); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+	if err := s.PrepareBootstrap(); err != nil {
+		multiErr = multiErr.Add(err)
 	}
 
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
