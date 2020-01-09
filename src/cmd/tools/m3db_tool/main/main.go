@@ -23,8 +23,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/flagvar"
 	"os"
-	"strings"
 
 	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/database"
 	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/namespaces"
@@ -32,31 +32,27 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	defaultEndpoint = "http://localhost:7201"
+)
+
 func main() {
-
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), `
-Usage of %s:
-
-	Specify one of the following subcommands, which are shorthand for database, placement, and namespace:
-
-	%s
-
-Each subcommand has its own built-in help provided via "-h".
-
-`, os.Args[0], strings.Join([]string{
-			database.CmdFlags.Name(),
-			placements.CmdFlags.Name(),
-			namespaces.CmdFlags.Name(),
-		}, ", "))
-
-		flag.PrintDefaults()
-	}
 
 	if len(os.Args) < 2 {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	endPoint := flag.String("endpoint", defaultEndpoint, "The url for target m3db backend.")
+
+	createDatabaseYaml := flagvar.File{}
+	databaseCmdFlags := database.SetupDatabaseFlags(&createDatabaseYaml)
+
+	namespaceArgs := namespaces.NamespaceArgs{}
+	namespaceCmdFlags := namespaces.SetupNamespaceFlags(&namespaceArgs)
+
+	placementArgs := placements.PlacementArgs{}
+	placementCmdFlags := placements.SetupPlacementFlags(&placementArgs)
 
 	flag.Parse()
 
@@ -68,17 +64,55 @@ Each subcommand has its own built-in help provided via "-h".
 	log := rawLogger.Sugar()
 
 	switch flag.Arg(0) {
-	case database.CmdFlags.Name():
+	case databaseCmdFlags.Name():
 
-		database.Cmd(log)
+		if err := databaseCmdFlags.Parse(flag.Args()[1:]); err != nil {
+			databaseCmdFlags.Usage()
+			os.Exit(1)
+		}
 
-	case namespaces.CmdFlags.Name():
+		if databaseCmdFlags.NFlag() > 1 {
+			fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+			databaseCmdFlags.Usage()
+			os.Exit(1)
+		}
 
-		namespaces.Cmd(log)
+		if len(createDatabaseYaml.Value) < 1 {
+			databaseCmdFlags.Usage()
+			os.Exit(1)
+		}
 
-	case placements.CmdFlags.Name():
+		database.Cmd(createDatabaseYaml.Value, *endPoint, log)
 
-		placements.Cmd(log)
+	case namespaceCmdFlags.Name():
+
+		if err := namespaceCmdFlags.Parse(flag.Args()[1:]); err != nil {
+			namespaceCmdFlags.Usage()
+			os.Exit(1)
+		}
+
+		if namespaceCmdFlags.NFlag() > 1 {
+			fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+			namespaceCmdFlags.Usage()
+			os.Exit(1)
+		}
+
+		namespaces.Cmd(&namespaceArgs, *endPoint, log)
+
+	case placementCmdFlags.Name():
+
+		if err := placementCmdFlags.Parse(flag.Args()[1:]); err != nil {
+			placementCmdFlags.Usage()
+			os.Exit(1)
+		}
+
+		if placementCmdFlags.NFlag() > 1 {
+			fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+			placementCmdFlags.Usage()
+			os.Exit(1)
+		}
+
+		placements.Cmd(&placementArgs, *endPoint, log)
 
 	default:
 		flag.Usage()

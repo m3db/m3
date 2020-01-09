@@ -1,22 +1,12 @@
 package common
 
 import (
-	"flag"
 	"fmt"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
 )
-
-var (
-	EndPoint *string
-)
-
-// This is used across all the commands
-func init() {
-	EndPoint = flag.String("endpoint", "http://localhost:7201", "The url for target m3db backend.")
-}
 
 func DoGet(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 

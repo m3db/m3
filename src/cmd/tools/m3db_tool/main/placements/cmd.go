@@ -3,34 +3,84 @@ package placements
 import (
 	"flag"
 	"fmt"
-	"go.uber.org/zap"
-	"os"
-
 	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/common"
 	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/flagvar"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"go.uber.org/zap"
 )
 
-var (
-	CmdFlags    *flag.FlagSet
+const (
 	defaultPath = "/api/v1/services/m3db/placement"
-	delete      *bool
-	deleteNode  *string
-	initFlag    = flagvar.File{}
-	newNodeFlag = flagvar.File{}
-	replaceFlag = flagvar.File{}
 )
 
-func init() {
-	CmdFlags = flag.NewFlagSet("pl", flag.ExitOnError)
-	delete = CmdFlags.Bool("deleteAll", false, "delete all instances in the placement")
-	deleteNode = CmdFlags.String("deleteNode", "", "delete the specified node in the placement")
-	CmdFlags.Var(&initFlag, "init", "initialize a placement. Specify a yaml file.")
-	CmdFlags.Var(&newNodeFlag, "newNode", "add a new node to the placement. Specify the filename of the yaml.")
-	CmdFlags.Var(&replaceFlag, "replaceNode", "add a new node to the placement. Specify the filename of the yaml.")
+type PlacementArgs struct {
+	deletePlacement *bool
+	deleteNode      *string
+	initFlag        flagvar.File
+	newNodeFlag     flagvar.File
+	replaceFlag     flagvar.File
+}
 
-	CmdFlags.Usage = func() {
-		fmt.Fprintf(CmdFlags.Output(), `
+func Cmd(flags *PlacementArgs, endpoint string, log *zap.SugaredLogger) {
+
+	if len(*flags.deleteNode) > 0 {
+
+		url := fmt.Sprintf("%s%s/%s", endpoint, defaultPath, *flags.deleteNode)
+
+		common.DoDelete(url, log, common.DoDump)
+
+	} else if len(flags.newNodeFlag.Value) > 0 {
+
+		data := common.LoadYaml(flags.newNodeFlag.Value, &admin.PlacementInitRequest{}, log)
+
+		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
+
+		common.DoPost(url, data, log, common.DoDump)
+
+	} else if len(flags.initFlag.Value) > 0 {
+
+		data := common.LoadYaml(flags.initFlag.Value, &admin.PlacementInitRequest{}, log)
+
+		url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/init")
+
+		common.DoPost(url, data, log, common.DoDump)
+
+	} else if len(flags.replaceFlag.Value) > 0 {
+
+		data := common.LoadYaml(flags.replaceFlag.Value, &admin.PlacementReplaceRequest{}, log)
+
+		url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/replace")
+
+		common.DoPost(url, data, log, common.DoDump)
+
+	} else if *flags.deletePlacement {
+
+		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
+
+		common.DoDelete(url, log, common.DoDump)
+
+	} else {
+
+		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
+
+		common.DoGet(url, log, common.DoDump)
+
+	}
+
+	return
+}
+
+func SetupPlacementFlags(flags *PlacementArgs) *flag.FlagSet {
+
+	placementCmdFlags := flag.NewFlagSet("pl", flag.ExitOnError)
+	flags.deletePlacement = placementCmdFlags.Bool("deleteAll", false, "delete all instances in the placement")
+	flags.deleteNode = placementCmdFlags.String("deleteNode", "", "delete the specified node in the placement")
+	placementCmdFlags.Var(&flags.initFlag, "init", "initialize a placement. Specify a yaml file.")
+	placementCmdFlags.Var(&flags.newNodeFlag, "newNode", "add a new node to the placement. Specify the filename of the yaml.")
+	placementCmdFlags.Var(&flags.replaceFlag, "replaceNode", "add a new node to the placement. Specify the filename of the yaml.")
+
+	placementCmdFlags.Usage = func() {
+		fmt.Fprintf(placementCmdFlags.Output(), `
 This is the subcommand for acting on placements.
 
 Description:
@@ -53,67 +103,9 @@ Specify only one action at a time.
 
 Usage of %s:
 
-`, CmdFlags.Name(), CmdFlags.Name())
-		CmdFlags.PrintDefaults()
-	}
-}
-
-func Cmd(log *zap.SugaredLogger) {
-
-	if err := CmdFlags.Parse(flag.Args()[1:]); err != nil {
-		CmdFlags.Usage()
-		os.Exit(1)
+`, placementCmdFlags.Name(), placementCmdFlags.Name())
+		placementCmdFlags.PrintDefaults()
 	}
 
-	if CmdFlags.NFlag() > 1 {
-		fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
-		CmdFlags.Usage()
-		os.Exit(1)
-	}
-
-	if len(*deleteNode) > 0 {
-
-		url := fmt.Sprintf("%s%s/%s", *common.EndPoint, defaultPath, *deleteNode)
-
-		common.DoDelete(url, log, common.DoDump)
-
-	} else if len(newNodeFlag.Value) > 0 {
-
-		data := common.LoadYaml(newNodeFlag.Value, &admin.PlacementInitRequest{}, log)
-
-		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
-
-		common.DoPost(url, data, log, common.DoDump)
-
-	} else if len(initFlag.Value) > 0 {
-
-		data := common.LoadYaml(initFlag.Value, &admin.PlacementInitRequest{}, log)
-
-		url := fmt.Sprintf("%s%s%s", *common.EndPoint, defaultPath, "/init")
-
-		common.DoPost(url, data, log, common.DoDump)
-
-	} else if len(replaceFlag.Value) > 0 {
-
-		data := common.LoadYaml(replaceFlag.Value, &admin.PlacementReplaceRequest{}, log)
-
-		url := fmt.Sprintf("%s%s%s", *common.EndPoint, defaultPath, "/replace")
-
-		common.DoPost(url, data, log, common.DoDump)
-
-	} else if *delete {
-
-		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
-
-		common.DoDelete(url, log, common.DoDump)
-
-	} else {
-
-		url := fmt.Sprintf("%s%s", *common.EndPoint, defaultPath)
-
-		common.DoGet(url, log, common.DoDump)
-
-	}
-
-	return
+	return placementCmdFlags
 }
