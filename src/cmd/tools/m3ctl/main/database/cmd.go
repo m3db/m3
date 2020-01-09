@@ -3,13 +3,11 @@ package database
 import (
 	"flag"
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/http"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/yaml"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/http"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"go.uber.org/zap"
-	"os"
-	"strings"
 )
 
 const (
@@ -40,23 +38,23 @@ Usage of %s:
 `, databaseFlags.Name(), databaseFlags.Name())
 		databaseFlags.PrintDefaults()
 	}
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), `
-Usage of %s:
-
-	Specify one of the following subcommands, which are shorthand for database, placement, and namespace:
-
-	%s
-
-Each subcommand has its own built-in help provided via "-h".
-
-`, os.Args[0], strings.Join([]string{
-			databaseFlags.Name(),
-			databaseFlags.Name(),
-			databaseFlags.Name(),
-		}, ", "))
-
-		flag.PrintDefaults()
-	}
+	//	flag.Usage = func() {
+	//		fmt.Fprintf(flag.CommandLine.Output(), `
+	//Usage of %s:
+	//
+	//	Specify one of the following subcommands, which are shorthand for database, placement, and namespace:
+	//
+	//	%s
+	//
+	//Each subcommand has its own built-in help provided via "-h".
+	//
+	//`, os.Args[0], strings.Join([]string{
+	//			databaseFlags.Name(),
+	//			databaseFlags.Name(),
+	//			databaseFlags.Name(),
+	//		}, ", "))
+	//
+	//		flag.PrintDefaults()
+	//	}
 	return databaseFlags
 }

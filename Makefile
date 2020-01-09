@@ -93,7 +93,7 @@ TOOLS :=               \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
-	m3db_tool            \
+	m3ctl                \
 
 .PHONY: setup
 setup:
@@ -118,7 +118,7 @@ $(SERVICE)-linux-amd64:
 .PHONY: $(SERVICE)-docker-dev
 $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
 	mkdir -p ./bin/config
-	
+
 	# Hacky way to find all configs and put into ./bin/config/
 	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
 	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/

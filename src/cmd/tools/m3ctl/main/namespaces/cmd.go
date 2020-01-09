@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/http"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/http"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 

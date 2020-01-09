@@ -3,8 +3,8 @@ package placements
 import (
 	"flag"
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/http"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/yaml"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/http"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"go.uber.org/zap"

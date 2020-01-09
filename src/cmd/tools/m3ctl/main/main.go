@@ -24,10 +24,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/database"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/namespaces"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/placements"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/database"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"go.uber.org/zap"
 )
@@ -45,13 +46,31 @@ func main() {
 	createDatabaseYAML := configflag.FlagStringSlice{}
 	databaseFlags := database.SetupDatabaseFlags(&createDatabaseYAML)
 
-	// the namespace-relateed subcommand
+	// the namespace-related subcommand
 	namespaceArgs := namespaces.NamespaceArgs{}
 	namespaceFlags := namespaces.SetupNamespaceFlags(&namespaceArgs)
 
 	// the placement-related subcommand
 	placementArgs := placements.PlacementArgs{}
 	placementFlags := placements.SetupPlacementFlags(&placementArgs)
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), `
+Usage of %s:
+
+	Specify one of the following subcommands, which are shorthand for database, placement, and namespace:
+
+	%s
+
+Each subcommand has its own built-in help provided via "-h".
+
+`, os.Args[0], strings.Join([]string{
+			databaseFlags.Name(),
+			placementFlags.Name(),
+			namespaceFlags.Name(),
+		}, ", "))
+
+		flag.PrintDefaults()
+	}
 
 	flag.Parse()
 

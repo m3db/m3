@@ -21,19 +21,19 @@ Examples
 -------
 
     # show help
-    m3db-tool -h
+    m3ctl -h
     # create a database
-    m3db-tool db -create ./database/examples/devel.yaml
+    m3ctl db -create ./database/examples/devel.yaml
     # list namespaces
-    m3db-tool ns
+    m3ctl ns
     # delete a namespace
-    m3db-tool ns -delete default
+    m3ctl ns -delete default
     # list placements
-    m3db-tool pl
+    m3ctl pl
     # point to some remote and list namespaces
-    m3db-tool -endpoint http://localhost:7201 ns
+    m3ctl -endpoint http://localhost:7201 ns
     # list the ids of the placements
-    m3db-tool -endpoint http://localhost:7201 pl | jq .placement.instances[].id
+    m3ctl -endpoint http://localhost:7201 pl | jq .placement.instances[].id
 
 Some example yaml files are provided in the examples directories. Here's one for database creation:
 
