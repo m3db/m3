@@ -106,3 +106,23 @@ func verifyMetas(
 	assert.Equal(t, 0, sMeta.Tags.Len())
 	assert.Equal(t, []byte(nil), sMeta.Name)
 }
+
+func TestScalarBlockSeriesIter(t *testing.T) {
+	bl := NewScalar(val, Metadata{Bounds: bounds})
+	it, err := bl.SeriesIter()
+	require.NoError(t, err)
+
+	exSize := bounds.Steps()
+	assert.True(t, it.Next())
+	actual := it.Current()
+	assert.False(t, it.Next())
+	dps := actual.Datapoints()
+	require.Equal(t, exSize, len(dps))
+	start := bounds.Start
+	for i, v := range dps {
+		assert.Equal(t, start.Add(time.Duration(i)*bounds.StepSize), v.Timestamp)
+		assert.Equal(t, val, v.Value)
+	}
+
+	require.NoError(t, err)
+}
