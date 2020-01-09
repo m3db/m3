@@ -882,6 +882,7 @@ func (s *commitLogSource) startAccumulateWorker(
 				// series unless they are bootstrapped).
 				MatchUniqueIndex:      true,
 				MatchUniqueIndexValue: entry.UniqueIndex,
+				BootstrapWrite:        true,
 			})
 		if err != nil {
 			// NB(r): Only log first error per worker since this could be very

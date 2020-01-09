@@ -576,7 +576,7 @@ func (s *dbSeries) Close() {
 
 	// Reset (not close) underlying resources because the series will go
 	// back into the pool and be re-used.
-	s.buffer.Reset(nil, s.opts)
+	s.buffer.Reset(databaseBufferResetOptions{Options: s.opts})
 	s.cachedBlocks.Reset()
 
 	if s.pool != nil {
@@ -607,7 +607,11 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	s.tags = opts.Tags
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
-	s.buffer.Reset(opts.ID, opts.Options)
+	s.buffer.Reset(databaseBufferResetOptions{
+		ID:             opts.ID,
+		BlockRetriever: opts.BlockRetriever,
+		Options:        opts.Options,
+	})
 	s.opts = opts.Options
 	s.blockRetriever = opts.BlockRetriever
 	s.onRetrieveBlock = opts.OnRetrieveBlock

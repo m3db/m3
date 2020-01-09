@@ -137,7 +137,13 @@ type databaseBuffer interface {
 
 	Load(bl block.DatabaseBlock, writeType WriteType)
 
-	Reset(id ident.ID, opts Options)
+	Reset(opts databaseBufferResetOptions)
+}
+
+type databaseBufferResetOptions struct {
+	ID             ident.ID
+	BlockRetriever QueryableBlockRetriever
+	Options        Options
 }
 
 type bufferStats struct {
@@ -223,13 +229,7 @@ type dbBuffer struct {
 	inOrderBlockStarts []time.Time
 	bucketVersionsPool *BufferBucketVersionsPool
 	bucketPool         *BufferBucketPool
-
-	blockSize             time.Duration
-	bufferPast            time.Duration
-	bufferFuture          time.Duration
-	coldWritesEnabled     bool
-	retentionPeriod       time.Duration
-	futureRetentionPeriod time.Duration
+	blockRetriever     QueryableBlockRetriever
 }
 
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
@@ -242,19 +242,13 @@ func newDatabaseBuffer() databaseBuffer {
 	return b
 }
 
-func (b *dbBuffer) Reset(id ident.ID, opts Options) {
-	b.id = id
-	b.opts = opts
-	b.nowFn = opts.ClockOptions().NowFn()
-	ropts := opts.RetentionOptions()
-	b.bucketPool = opts.BufferBucketPool()
-	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
-	b.blockSize = ropts.BlockSize()
-	b.bufferPast = ropts.BufferPast()
-	b.bufferFuture = ropts.BufferFuture()
-	b.coldWritesEnabled = opts.ColdWritesEnabled()
-	b.retentionPeriod = ropts.RetentionPeriod()
-	b.futureRetentionPeriod = ropts.FutureRetentionPeriod()
+func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
+	b.id = opts.ID
+	b.opts = opts.Options
+	b.nowFn = opts.Options.ClockOptions().NowFn()
+	b.bucketPool = opts.Options.BufferBucketPool()
+	b.bucketVersionsPool = opts.Options.BufferBucketVersionsPool()
+	b.blockRetriever = opts.BlockRetriever
 }
 
 func (b *dbBuffer) Write(
@@ -266,15 +260,34 @@ func (b *dbBuffer) Write(
 	wOpts WriteOptions,
 ) (bool, error) {
 	var (
-		now         = b.nowFn()
-		pastLimit   = now.Add(-1 * b.bufferPast)
-		futureLimit = now.Add(b.bufferFuture)
-		writeType   WriteType
+		ropts        = b.opts.RetentionOptions()
+		bufferPast   = ropts.BufferPast()
+		bufferFuture = ropts.BufferFuture()
+		now          = b.nowFn()
+		pastLimit    = now.Add(-1 * bufferPast)
+		futureLimit  = now.Add(bufferFuture)
+		blockSize    = ropts.BlockSize()
+		blockStart   = timestamp.Truncate(blockSize)
+		writeType    WriteType
 	)
 	switch {
+	case wOpts.BootstrapWrite:
+		exists, err := b.blockRetriever.IsBlockRetrievable(blockStart)
+		if err != nil {
+			return false, err
+		}
+		// Bootstrap writes are allowed to be outside of time boundaries
+		// and determined as cold or warm writes depending on whether
+		// the block is retrievable or not.
+		if !exists {
+			writeType = WarmWrite
+		} else {
+			writeType = ColdWrite
+		}
+
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
-		if !b.coldWritesEnabled {
+		if !b.opts.ColdWritesEnabled() {
 			return false, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in past: "+
 					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
@@ -287,7 +300,7 @@ func (b *dbBuffer) Write(
 
 	case !futureLimit.After(timestamp):
 		writeType = ColdWrite
-		if !b.coldWritesEnabled {
+		if !b.opts.ColdWritesEnabled() {
 			return false, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in future: "+
 					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
@@ -304,18 +317,17 @@ func (b *dbBuffer) Write(
 	}
 
 	if writeType == ColdWrite {
-		if now.Add(-b.retentionPeriod).After(timestamp) {
+		if now.Add(-ropts.RetentionPeriod()).After(timestamp) {
 			return false, m3dberrors.ErrTooPast
 		}
 
-		if !now.Add(b.futureRetentionPeriod).Add(b.blockSize).After(timestamp) {
+		if !now.Add(ropts.FutureRetentionPeriod()).Add(blockSize).After(timestamp) {
 			return false, m3dberrors.ErrTooFuture
 		}
 
 		b.opts.Stats().IncColdWrites()
 	}
 
-	blockStart := timestamp.Truncate(b.blockSize)
 	buckets := b.bucketVersionsAtCreate(blockStart)
 	b.putBucketVersionsInCache(buckets)
 
@@ -596,11 +608,14 @@ func (b *dbBuffer) ReadEncoded(
 	end time.Time,
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
-	// TODO(r): pool these results arrays
-	var res [][]xio.BlockReader
+	var (
+		blockSize = b.opts.RetentionOptions().BlockSize()
+		// TODO(r): pool these results arrays
+		res [][]xio.BlockReader
+	)
 
 	for _, blockStart := range b.inOrderBlockStarts {
-		if !blockStart.Before(end) || !start.Before(blockStart.Add(b.blockSize)) {
+		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
 			continue
 		}
 
