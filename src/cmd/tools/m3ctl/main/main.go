@@ -44,15 +44,15 @@ func main() {
 
 	// the database-related subcommand
 	createDatabaseYAML := configflag.FlagStringSlice{}
-	databaseFlags := database.SetupDatabaseFlags(&createDatabaseYAML)
+	databaseFlags := database.SetupFlags(&createDatabaseYAML)
 
 	// the namespace-related subcommand
 	namespaceArgs := namespaces.NamespaceArgs{}
-	namespaceFlags := namespaces.SetupNamespaceFlags(&namespaceArgs)
+	namespaceFlags := namespaces.SetupFlags(&namespaceArgs)
 
 	// the placement-related subcommand
 	placementArgs := placements.PlacementArgs{}
-	placementFlags := placements.SetupPlacementFlags(&placementArgs)
+	placementFlags := placements.SetupFlags(&placementArgs)
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
 Usage of %s:
@@ -106,6 +106,7 @@ Each subcommand has its own built-in help provided via "-h".
 				}
 			}
 		})
+		// the below createDatabaseYAML.Value has at least one by this time per the arg parser
 		database.Command(createDatabaseYAML.Value[len(createDatabaseYAML.Value)-1], *endPoint, log)
 	case namespaceFlags.Name():
 		if err := namespaceFlags.Parse(flag.Args()[1:]); err != nil {
