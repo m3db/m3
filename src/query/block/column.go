@@ -134,6 +134,7 @@ func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 
 	return &colSeriesIter{
 		columns:    c.columns,
+		meta:       c.meta,
 		seriesMeta: c.seriesMeta,
 		idx:        -1,
 	}, nil
