@@ -26,6 +26,14 @@ if [[ "$PROVIDER" == "google" ]]; then
     fi
 fi
 
+# Bring up box
+echo "Provision box"
+vagrant up --provider $PROVIDER
+
+# Provision cluster. Single machine ONLY operates on primary.
+echo "Provision k8s cluster"
+vagrant ssh -c 'MACHINE=primary cd provision && ./setup_kube.sh'
+
 # Run tunnels
 echo "Tunnelling"
 echo "Grafana available at http://localhost:3333"
