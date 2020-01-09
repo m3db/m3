@@ -294,7 +294,7 @@ func (s *dbSeries) Write(
 		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
 		if err != nil {
 			err = fmt.Errorf(
-				"error checking block retrievable for bootstrap write: %v", err)
+				"error checking bootstrap write valid: %v", err)
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("bootstrap write invariant", zap.Error(err))
@@ -303,7 +303,7 @@ func (s *dbSeries) Write(
 		}
 		if alreadyExists {
 			err = fmt.Errorf(
-				"bootstrap write for block is retrievable: block_start=%s", at)
+				"bootstrap write for block that exists: block_start=%s", at)
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("bootstrap write invariant", zap.Error(err))
@@ -420,19 +420,19 @@ func (s *dbSeries) LoadBlock(
 		at := block.StartTime()
 		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
 		if err != nil {
-			err = fmt.Errorf("error checking block retrievable: %v", err)
+			err = fmt.Errorf("error checking warm block load valid: %v", err)
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
-					l.Error("bootstrap write invariant", zap.Error(err))
+					l.Error("warm load block invariant", zap.Error(err))
 				})
 			return err
 		}
 		if alreadyExists {
 			err = fmt.Errorf(
-				"block load as warm write is retrievable: block_start=%s", at)
+				"warm block load for block that exists: block_start=%s", at)
 			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
-					l.Error("bootstrap write invariant", zap.Error(err))
+					l.Error("warm load block invariant", zap.Error(err))
 				})
 			return err
 		}

@@ -339,7 +339,7 @@ type databaseNamespace interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	// PrepareBootstrap prepares the namespace for bootstrapping by ensuring
-	// it's shards knows which flushed files reside on disk, so that calls
+	// it's shards know which flushed files reside on disk, so that calls
 	// to series.LoadBlock(...) will succeed.
 	PrepareBootstrap() ([]databaseShard, error)
 
