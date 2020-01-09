@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/common"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/http"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
@@ -21,7 +21,7 @@ type NamespaceArgs struct {
 	delete  *string
 }
 
-func doShowNames(in io.Reader, log *zap.SugaredLogger) {
+func showNames(in io.Reader, log *zap.SugaredLogger) {
 	registry := admin.NamespaceGetResponse{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(in, &registry); err != nil {
@@ -36,12 +36,12 @@ func Command(flags *NamespaceArgs, endpoint string, log *zap.SugaredLogger) {
 	log.Debugf("NamespaceArgs:%+v:\n", flags)
 	url := fmt.Sprintf("%s%s?%s", endpoint, defaultPath, debugQS)
 	if *flags.showAll {
-		common.DoGet(url, log, common.DoDump)
+		http.DoGet(url, log, http.DoDump)
 	} else if len(*flags.delete) > 0 {
 		url = fmt.Sprintf("%s%s/%s", endpoint, "/api/v1/services/m3db/namespace", *flags.delete)
-		common.DoDelete(url, log, common.DoDump)
+		http.DoDelete(url, log, http.DoDump)
 	} else {
-		common.DoGet(url, log, doShowNames)
+		http.DoGet(url, log, showNames)
 	}
 	return
 }

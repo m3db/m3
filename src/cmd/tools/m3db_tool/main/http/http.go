@@ -1,4 +1,4 @@
-package common
+package http
 
 import (
 	"fmt"
@@ -6,11 +6,17 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
+
+const timeout = time.Duration(5 * time.Second)
 
 func DoGet(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 	logger.Debugf("DoGet:url:%s:\n", url)
-	resp, err := http.Get(url)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Get(url)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -24,7 +30,9 @@ func DoGet(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, 
 
 func DoPost(url string, data io.Reader, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 	logger.Debugf("DoPost:url:%s:\n", url)
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: timeout,
+	}
 	req, err := http.NewRequest(http.MethodPost, url, data)
 	req.Header.Add("Content-Type", "application/json")
 	resp, err := client.Do(req)
@@ -42,7 +50,9 @@ func DoPost(url string, data io.Reader, logger *zap.SugaredLogger, getter func(r
 
 func DoDelete(url string, logger *zap.SugaredLogger, getter func(reader io.Reader, logger *zap.SugaredLogger)) {
 	logger.Debugf("DoDelete:url:%s:\n", url)
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: timeout,
+	}
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	req.Header.Add("Content-Type", "application/json")
 	resp, err := client.Do(req)

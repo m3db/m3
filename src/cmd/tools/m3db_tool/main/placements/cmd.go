@@ -3,7 +3,8 @@ package placements
 import (
 	"flag"
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/common"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/http"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/yaml"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"go.uber.org/zap"
@@ -34,25 +35,25 @@ func Command(flags *PlacementArgs, endpoint string, log *zap.SugaredLogger) {
 	log.Debugf("PlacementArgs:%+v:\n", flags)
 	if len(*flags.deleteNode) > 0 {
 		url := fmt.Sprintf("%s%s/%s", endpoint, defaultPath, *flags.deleteNode)
-		common.DoDelete(url, log, common.DoDump)
+		http.DoDelete(url, log, http.DoDump)
 	} else if len(flags.newNodeFlag.Value) > 0 && len(flags.newNodeFlag.Value) > 0 {
-		data := common.LoadYAML(flags.newNodeFlag.Value[0], &admin.PlacementInitRequest{}, log)
+		data := yaml.Load(flags.newNodeFlag.Value[0], &admin.PlacementInitRequest{}, log)
 		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
-		common.DoPost(url, data, log, common.DoDump)
+		http.DoPost(url, data, log, http.DoDump)
 	} else if len(flags.initFlag.Value) > 0 && len(flags.initFlag.Value[0]) > 0 {
-		data := common.LoadYAML(flags.initFlag.Value[0], &admin.PlacementInitRequest{}, log)
+		data := yaml.Load(flags.initFlag.Value[0], &admin.PlacementInitRequest{}, log)
 		url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/init")
-		common.DoPost(url, data, log, common.DoDump)
+		http.DoPost(url, data, log, http.DoDump)
 	} else if len(flags.replaceFlag.Value) > 0 && len(flags.replaceFlag.Value[0]) > 0 {
-		data := common.LoadYAML(flags.replaceFlag.Value[0], &admin.PlacementReplaceRequest{}, log)
+		data := yaml.Load(flags.replaceFlag.Value[0], &admin.PlacementReplaceRequest{}, log)
 		url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/replace")
-		common.DoPost(url, data, log, common.DoDump)
+		http.DoPost(url, data, log, http.DoDump)
 	} else if *flags.deletePlacement {
 		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
-		common.DoDelete(url, log, common.DoDump)
+		http.DoDelete(url, log, http.DoDump)
 	} else {
 		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
-		common.DoGet(url, log, common.DoDump)
+		http.DoGet(url, log, http.DoDump)
 	}
 	return
 }

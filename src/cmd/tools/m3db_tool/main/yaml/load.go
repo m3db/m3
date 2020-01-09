@@ -1,4 +1,4 @@
-package common
+package yaml
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"io/ioutil"
 )
 
-func LoadYAML(path string, target proto.Message, log *zap.SugaredLogger) io.Reader {
+func Load(path string, target proto.Message, log *zap.SugaredLogger) io.Reader {
 	log.Debugf("path:%s:\n", path)
 	content, err := ioutil.ReadFile(path)
 	if err != nil {

@@ -73,6 +73,10 @@ func main() {
 			databaseFlags.Usage()
 			os.Exit(1)
 		}
+		if databaseFlags.NFlag() == 0 {
+			databaseFlags.Usage()
+			os.Exit(1)
+		}
 		databaseFlags.Visit(func(f *flag.Flag) {
 			vals := f.Value.(*configflag.FlagStringSlice)
 			for _, val := range vals.Value {
@@ -83,11 +87,7 @@ func main() {
 				}
 			}
 		})
-		if len(createDatabaseYAML.Value) != 1 {
-			databaseFlags.Usage()
-			os.Exit(1)
-		}
-		database.Command(createDatabaseYAML.Value[0], *endPoint, log)
+		database.Command(createDatabaseYAML.Value[len(createDatabaseYAML.Value)-1], *endPoint, log)
 	case namespaceFlags.Name():
 		if err := namespaceFlags.Parse(flag.Args()[1:]); err != nil {
 			namespaceFlags.Usage()
@@ -114,8 +114,6 @@ func main() {
 			placementFlags.Usage()
 			os.Exit(1)
 		}
-		// all are mutually exclusive
-		// only one can be specified
 		if placementFlags.NFlag() > 1 {
 			fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
 			placementFlags.Usage()

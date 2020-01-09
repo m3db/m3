@@ -3,7 +3,8 @@ package database
 import (
 	"flag"
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/common"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/http"
+	"github.com/m3db/m3/src/cmd/tools/m3db_tool/main/yaml"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"go.uber.org/zap"
@@ -17,9 +18,9 @@ const (
 
 func Command(createYAML string, endpoint string, log *zap.SugaredLogger) {
 	log.Debugf("createYAML:%s:\n", createYAML)
-	data := common.LoadYAML(createYAML, &admin.DatabaseCreateRequest{}, log)
+	data := yaml.Load(createYAML, &admin.DatabaseCreateRequest{}, log)
 	url := fmt.Sprintf("%s%s/create", endpoint, defaultPath)
-	common.DoPost(url, data, log, common.DoDump)
+	http.DoPost(url, data, log, http.DoDump)
 	return
 }
 
