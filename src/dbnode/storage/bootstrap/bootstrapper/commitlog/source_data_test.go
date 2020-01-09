@@ -50,7 +50,6 @@ var (
 	testNamespaceID    = ident.StringID("commitlog_test_ns")
 	testDefaultRunOpts = bootstrap.NewRunOptions().
 				SetInitialTopologyState(&topology.StateSnapshot{})
-	minCommitLogRetention = 10 * time.Minute
 )
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
@@ -132,9 +131,6 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
-	// Request a little after the start of data, because always reading full blocks
-	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start,
@@ -191,9 +187,6 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
-	// Request a little after the start of data, because always reading full blocks
-	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start,
@@ -250,7 +243,6 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
-	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start,
@@ -287,61 +279,6 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	tester.EnsureNoLoadedBlocks()
 }
 
-func TestReadTrimsToRanges(t *testing.T) {
-	opts := testDefaultOpts
-	md := testNsMetadata(t)
-	testReadTrimsToRanges(t, opts, md, nil)
-}
-
-func testReadTrimsToRanges(t *testing.T, opts Options, md namespace.Metadata, setAnn setAnnotation) {
-	nsCtx := namespace.NewContextFrom(md)
-	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
-
-	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
-	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now.Truncate(blockSize)
-
-	// Request a little after the start of data, because always reading full blocks
-	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   end,
-	})
-
-	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
-	values := testValues{
-		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
-		{foo, start, 2.0, xtime.Nanosecond, nil},
-		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
-		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
-	}
-
-	if setAnn != nil {
-		values = setAnn(values)
-	}
-
-	src.newIteratorFn = func(
-		_ commitlog.IteratorOpts,
-	) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
-		return newTestCommitLogIterator(values, nil), nil, nil
-	}
-
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
-	defer tester.Finish()
-
-	tester.TestReadWith(src)
-	tester.TestUnfulfilledForNamespaceIsEmpty(md)
-
-	read := tester.EnsureDumpWritesForNamespace(md)
-	require.Equal(t, 1, len(read))
-	enforceValuesAreCorrect(t, values[1:3], read)
-	tester.EnsureNoLoadedBlocks()
-}
-
 func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	opts := testDefaultOpts
 	md := testNsMetadata(t)
@@ -368,18 +305,11 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
 			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
 			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
-
-			// Should not be present
-			{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
 		}
 	)
 	if setAnn != nil {
 		commitLogValues = setAnn(commitLogValues)
 	}
-
-	// Request a little after the start of data, because always reading full blocks it
-	// should return the entire block beginning from "start".
-	require.True(t, blockSize >= minCommitLogRetention)
 
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start,
