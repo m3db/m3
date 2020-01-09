@@ -253,6 +253,7 @@ func newDefaultBootstrappableTestSetups(
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
+		storageIdxOpts := setup.storageOpts.IndexOptions()
 		if usingPeersBootstrapper {
 			var (
 				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
@@ -264,10 +265,12 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
+				SetIndexOptions(storageIdxOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
 				SetContextPool(setup.storageOpts.ContextPool())
 
@@ -279,27 +282,12 @@ func newDefaultBootstrappableTestSetups(
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
 
-		storageIdxOpts := setup.storageOpts.IndexOptions()
-		compactor, err := compaction.NewCompactor(storageIdxOpts.DocumentArrayPool(),
-			index.DocumentArrayPoolCapacity,
-			storageIdxOpts.SegmentBuilderOptions(),
-			storageIdxOpts.FSTSegmentOptions(),
-			compaction.CompactorOptions{
-				FSTWriterOptions: &fst.WriterOptions{
-					// DisableRegistry is set to true to trade a larger FST size
-					// for a faster FST compaction since we want to reduce the end
-					// to end latency for time to first index a metric.
-					DisableRegistry: true,
-				},
-			})
-		require.NoError(t, err)
-
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
 			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-			SetCompactor(compactor).
+			SetCompactor(newCompactor(t, storageIdxOpts)).
 			SetPersistManager(persistMgr)
 
 		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
@@ -420,4 +408,25 @@ func hasBootstrappedShardsExactly(
 	}
 
 	return true
+}
+
+func newCompactor(
+	t *testing.T,
+	opts index.Options,
+) *compaction.Compactor {
+	compactor, err := compaction.NewCompactor(opts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		opts.SegmentBuilderOptions(),
+		opts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
+	return compactor
+
 }
