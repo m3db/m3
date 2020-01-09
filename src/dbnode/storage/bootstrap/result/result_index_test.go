@@ -52,7 +52,7 @@ func TestIndexResultGetOrAddSegment(t *testing.T) {
 	idxOpts := namespace.NewIndexOptions().SetBlockSize(blockSize)
 	aligned := now.Truncate(blockSize)
 
-	builders := IndexBuilders{}
+	builders := NewIndexBuilders()
 	b, err := builders.GetOrAdd(aligned.Add(time.Minute), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, b.builder == created)
