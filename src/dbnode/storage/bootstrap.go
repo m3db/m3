@@ -306,6 +306,7 @@ func (m *bootstrapManager) bootstrap() error {
 						wg.Done()
 					}()
 				}
+				wg.Wait()
 				return nil
 			},
 		})
