@@ -272,11 +272,6 @@ func (b *dbBuffer) Write(
 		writeType   WriteType
 	)
 	switch {
-	case wOpts.BootstrapWrite:
-		// Bootstrap writes are always warm writes.
-		// NB: callers (series) must validate that block does not reside on disk.
-		writeType = WarmWrite
-
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
 		if !b.coldWritesEnabled {

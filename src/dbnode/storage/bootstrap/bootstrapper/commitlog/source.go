@@ -294,16 +294,13 @@ func (s *commitLogSource) Read(
 	)
 	s.log.Info("read commit logs start")
 	defer func() {
-		datapointsSkippedNotInRange := 0
 		datapointsRead := 0
 		for _, worker := range workers {
-			datapointsSkippedNotInRange += worker.datapointsSkippedNotInRange
 			datapointsRead += worker.datapointsRead
 		}
 		s.log.Info("read finished",
 			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
-			zap.Int("datapointsSkippedNotInRange", datapointsSkippedNotInRange),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
 			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard))
 	}()
@@ -870,16 +867,10 @@ func (s *commitLogSource) startAccumulateWorker(
 		var (
 			namespace  = input.namespace
 			entry      = input.series
-			shard      = input.shard
 			dp         = input.dp
 			unit       = input.unit
 			annotation = input.annotation
 		)
-
-		if !s.shouldAccumulateForTime(namespace, shard, dp.Timestamp) {
-			worker.datapointsSkippedNotInRange++
-			continue
-		}
 
 		worker.datapointsRead++
 		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
@@ -891,7 +882,6 @@ func (s *commitLogSource) startAccumulateWorker(
 				// series unless they are bootstrapped).
 				MatchUniqueIndex:      true,
 				MatchUniqueIndexValue: entry.UniqueIndex,
-				BootstrapWrite:        true,
 			})
 		if err != nil {
 			// NB(r): Only log first error per worker since this could be very
@@ -906,29 +896,6 @@ func (s *commitLogSource) startAccumulateWorker(
 			worker.numErrors++
 		}
 	}
-}
-
-func (s *commitLogSource) shouldAccumulateForTime(
-	ns *bootstrapNamespace,
-	shard uint32,
-	timestamp time.Time,
-) bool {
-	// Check if the shard is one of the shards we're trying to bootstrap.
-	ranges, ok := ns.dataAndIndexShardRanges[shard]
-	if !ok || ranges.IsEmpty() {
-		// Not expecting data for this shard.
-		return false
-	}
-
-	// Check if the value corresponds to the time-range that we're trying to bootstrap.
-	blockStart := timestamp.Truncate(ns.dataBlockSize)
-	blockEnd := blockStart.Add(ns.dataBlockSize)
-	blockRange := xtime.Range{
-		Start: blockStart,
-		End:   blockEnd,
-	}
-
-	return ranges.Overlaps(blockRange)
 }
 
 func (s *commitLogSource) logAccumulateOutcome(

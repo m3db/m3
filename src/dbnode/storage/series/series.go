@@ -289,29 +289,6 @@ func (s *dbSeries) Write(
 	annotation []byte,
 	wOpts WriteOptions,
 ) (bool, error) {
-	if wOpts.BootstrapWrite {
-		at := timestamp.Truncate(s.opts.RetentionOptions().BlockSize())
-		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
-		if err != nil {
-			err = fmt.Errorf(
-				"error checking bootstrap write valid: %v", err)
-			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("bootstrap write invariant", zap.Error(err))
-				})
-			return false, err
-		}
-		if alreadyExists {
-			err = fmt.Errorf(
-				"bootstrap write for block that exists: block_start=%s", at)
-			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("bootstrap write invariant", zap.Error(err))
-				})
-			return false, err
-		}
-	}
-
 	s.Lock()
 	matchUniqueIndex := wOpts.MatchUniqueIndex
 	if matchUniqueIndex {
