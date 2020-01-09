@@ -27,9 +27,13 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	pql "github.com/prometheus/prometheus/promql"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,8 +99,24 @@ var parseTests = []struct {
 }
 
 func TestParse(t *testing.T) {
+	opts := executor.NewEngineOptions().
+		SetInstrumentOptions(instrument.NewOptions())
+
+	count := 0
+	parse := opts.ParseOptions().ParseFn()
+	opts = opts.SetParseOptions(
+		opts.ParseOptions().SetParseFn(
+			func(query string) (pql.Expr, error) {
+				count++
+				return parse(query)
+			},
+		),
+	)
+
+	engine := executor.NewEngine(opts)
 	for i, tt := range parseTests {
-		h := NewPromParseHandler(instrument.NewOptions())
+		handlerOpts := options.EmptyHandlerOptions().SetEngine(engine)
+		h := NewPromParseHandler(handlerOpts)
 		query := fmt.Sprintf("/parse?query=%s", url.QueryEscape(tt.query))
 		req := httptest.NewRequest("GET", query, nil)
 		w := httptest.NewRecorder()
@@ -113,4 +133,7 @@ func TestParse(t *testing.T) {
 		require.Equal(t, ex, actual,
 			fmt.Sprintf("Run %d:\n%s", i, xtest.Diff(ex, actual)))
 	}
+
+	// Assure custom parser has been called for each of these queries.
+	assert.Equal(t, len(parseTests), count)
 }

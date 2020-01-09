@@ -29,11 +29,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -74,9 +74,8 @@ func (m *tagValuesMatcher) Matches(x interface{}) bool {
 	}
 
 	tm := q.TagMatchers[0]
-	return models.MatchRegexp == tm.Type &&
-		bytes.Equal([]byte(m.filterTag), tm.Name) &&
-		bytes.Equal(matchValues, tm.Value)
+	return models.MatchField == tm.Type &&
+		bytes.Equal([]byte(m.filterTag), tm.Name)
 }
 
 var _ gomock.Matcher = &tagValuesMatcher{}
@@ -102,9 +101,14 @@ func TestTagValues(t *testing.T) {
 		return now
 	}
 
-	valueHandler := NewTagValuesHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		nowFn, instrument.NewOptions())
+	fb := handleroptions.
+		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetNowFn(nowFn).
+		SetFetchOptionsBuilder(fb)
+
+	valueHandler := NewTagValuesHandler(opts)
 	names := []struct {
 		name string
 	}{
@@ -153,8 +157,9 @@ func TestTagValues(t *testing.T) {
 		ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, tt.name)
 		assert.Equal(t, ex, string(read))
 
-		warning := rr.Header().Get(handler.LimitHeader)
-		exWarn := fmt.Sprintf("%s,foo_bar", handler.LimitHeaderSeriesLimitApplied)
+		warning := rr.Header().Get(handleroptions.LimitHeader)
+		exWarn := fmt.Sprintf("%s,foo_bar",
+			handleroptions.LimitHeaderSeriesLimitApplied)
 		assert.Equal(t, exWarn, warning)
 	}
 }
@@ -170,9 +175,14 @@ func TestTagValueErrors(t *testing.T) {
 		return now
 	}
 
-	handler := NewTagValuesHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		nowFn, instrument.NewOptions())
+	fb := handleroptions.
+		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetNowFn(nowFn).
+		SetFetchOptionsBuilder(fb)
+
+	handler := NewTagValuesHandler(opts)
 	url := "/label"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

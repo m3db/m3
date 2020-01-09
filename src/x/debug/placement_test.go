@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"testing"
 
-	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ import (
 func TestPlacementSource(t *testing.T) {
 	handlerOpts, _ := newHandlerOptsAndClient(t)
 	iOpts := instrument.NewOptions()
-	svcDefaults := apihandler.ServiceNameAndDefaults{
+	svcDefaults := handleroptions.ServiceNameAndDefaults{
 		ServiceName: "m3db",
 	}
 	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)

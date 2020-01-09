@@ -79,7 +79,6 @@ pages:
     - "Introduction": "query_engine/index.md"
     - "API":
       - "Query": "query_engine/api/index.md"
-    - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
       - "Blocks": "query_engine/architecture/blocks.md"
@@ -118,4 +117,5 @@ pages:
       - "m3query Performance":  "performance/m3query/index.md"
   - "Troubleshooting": "troubleshooting/index.md"
   - "FAQs": "faqs/index.md"
+  - "Glossary": "glossary/index.md"
   - "Tips For Writing Documentation": "misc/writing_docs.md"

@@ -127,16 +127,8 @@ func TestValidOffset(t *testing.T) {
 	err = off.Close()
 	assert.EqualError(t, err, msg)
 
-	b.EXPECT().SeriesIter().Return(nil, e)
-	_, err = off.SeriesIter()
-	assert.EqualError(t, err, msg)
-
 	b.EXPECT().StepIter().Return(nil, e)
 	_, err = off.StepIter()
-	assert.EqualError(t, err, msg)
-
-	b.EXPECT().Unconsolidated().Return(nil, e)
-	_, err = off.Unconsolidated()
 	assert.EqualError(t, err, msg)
 
 	b.EXPECT().Close().Return(nil)
@@ -195,189 +187,18 @@ func TestStepIter(t *testing.T) {
 
 func TestSeriesIter(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
+	defer ctrl.Finish()
 	offset := time.Minute
-	off := NewLazyBlock(b, testLazyOpts(offset, 1.0))
+	offblock := NewLazyBlock(b, testLazyOpts(offset, 1.0))
+	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)
 
+	// ensure functions are marshalled to the underlying unconsolidated block.
 	iter := NewMockSeriesIter(ctrl)
 	b.EXPECT().SeriesIter().Return(iter, nil)
-	it, err := off.SeriesIter()
-	require.NoError(t, err)
-
-	seriesMetas := buildTestSeriesMeta("name")
-	expected := buildTestSeriesMeta("name_mutated")
-
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, expected, it.SeriesMeta())
-
-	// ensure functions are marshalled to the block's underlying series iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().SeriesCount().Return(12)
-	assert.Equal(t, 12, it.SeriesCount())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []float64{1, 2, 3}
-	series := Series{
-		Meta:   SeriesMeta{},
-		values: vals,
-	}
-
-	iter.EXPECT().Current().Return(series)
-	assert.Equal(t, series, it.Current())
-}
-
-func TestUnconsolidated(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	now := time.Now()
-	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	b.EXPECT().Meta().Return(buildMeta(now))
-	ex := buildMeta(now.Add(offset))
-	require.Equal(t, ex, off.Meta())
-
-	b.EXPECT().Close().Return(nil)
-	err = off.Close()
-	assert.NoError(t, err)
-
-	msg := "err"
-	e := errors.New(msg)
-	b.EXPECT().Close().Return(e)
-	err = off.Close()
-	assert.EqualError(t, err, msg)
-
-	b.EXPECT().SeriesIter().Return(nil, e)
-	_, err = off.SeriesIter()
-	assert.EqualError(t, err, msg)
-
-	b.EXPECT().StepIter().Return(nil, e)
-	_, err = off.StepIter()
-	assert.EqualError(t, err, msg)
-
-	b.EXPECT().Consolidate().Return(nil, e)
-	_, err = off.Consolidate()
-	assert.EqualError(t, err, msg)
-
-	// ensure consolidated block uses the new block.
-	b.EXPECT().Consolidate().Return(bb, nil)
-	revert, err := off.Consolidate()
-	assert.NoError(t, err)
-	bb.EXPECT().Close().Return(nil)
-	revert.Close()
-
-	b.EXPECT().Close().Return(nil)
-	err = off.Close()
-	assert.NoError(t, err)
-}
-
-func TestUnconsolidatedStepIter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
-	now := time.Now()
-	msg := "err"
-	e := errors.New(msg)
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	iter := NewMockUnconsolidatedStepIter(ctrl)
-	b.EXPECT().StepIter().Return(iter, nil)
-	it, err := off.StepIter()
-	require.NoError(t, err)
-
-	seriesMetas := buildTestSeriesMeta("name")
-	expected := buildTestSeriesMeta("name_mutated")
-
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, expected, it.SeriesMeta())
-
-	// ensure functions are marshalled to the block's underlying step iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().StepCount().Return(12)
-	assert.Equal(t, 12, it.StepCount())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     12,
-			},
-		},
-	}
-
-	step := NewMockUnconsolidatedStep(ctrl)
-	step.EXPECT().Values().Return(vals).AnyTimes()
-	step.EXPECT().Time().Return(now)
-
-	iter.EXPECT().Current().Return(step)
-	actual := it.Current()
-	xts := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now.Add(offset),
-				Value:     12,
-			},
-		},
-	}
-
-	assert.Equal(t, xts, actual.Values())
-	assert.Equal(t, now.Add(offset), actual.Time())
-}
-
-func TestUnconsolidatedSeriesIter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	offset := time.Minute
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, 1.0))
-	now := time.Now()
-	msg := "err"
-	e := errors.New(msg)
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	iter := NewMockUnconsolidatedSeriesIter(ctrl)
-	b.EXPECT().SeriesIter().Return(iter, nil)
-	it, err := off.SeriesIter()
+	it, err := offblock.SeriesIter()
 	require.NoError(t, err)
 
 	seriesMetas := buildTestSeriesMeta("name")
@@ -468,146 +289,30 @@ func TestStepIterWithNegativeValueOffset(t *testing.T) {
 	assert.Equal(t, now, actual.Time())
 }
 
-func TestSeriesIterWithNegativeValueOffset(t *testing.T) {
+func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 	b := NewMockBlock(ctrl)
+	defer ctrl.Finish()
 	offset := time.Duration(0)
-	off := NewLazyBlock(b, testLazyOpts(offset, -1.0))
+	offblock := NewLazyBlock(b, testLazyOpts(offset, -1.0))
+	now := time.Now()
 	msg := "err"
 	e := errors.New(msg)
 
 	iter := NewMockSeriesIter(ctrl)
 	b.EXPECT().SeriesIter().Return(iter, nil)
-	it, err := off.SeriesIter()
-	require.NoError(t, err)
-
-	// ensure functions are marshalled to the block's underlying series iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().SeriesCount().Return(12)
-	assert.Equal(t, 12, it.SeriesCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []float64{1, 2, 3}
-	series := Series{
-		Meta:   SeriesMeta{},
-		values: vals,
-	}
-
-	expectedVals := []float64{-1, -2, -3}
-	iter.EXPECT().Current().Return(series)
-	assert.Equal(t, expectedVals, it.Current().Values())
-}
-
-func TestUnconsolidatedStepIterWithNegativeValueOffset(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	offset := time.Duration(0)
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, -1.0))
-	now := time.Now()
-	msg := "err"
-	e := errors.New(msg)
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	iter := NewMockUnconsolidatedStepIter(ctrl)
-	b.EXPECT().StepIter().Return(iter, nil)
-	it, err := off.StepIter()
-	require.NoError(t, err)
-
-	// ensure functions are marshalled to the block's underlying step iterator.
-	iter.EXPECT().Close()
-	it.Close()
-
-	iter.EXPECT().Err().Return(e)
-	assert.EqualError(t, it.Err(), msg)
-
-	iter.EXPECT().StepCount().Return(12)
-	assert.Equal(t, 12, it.StepCount())
-
-	seriesMetas := []SeriesMeta{}
-	iter.EXPECT().SeriesMeta().Return(seriesMetas)
-	assert.Equal(t, seriesMetas, it.SeriesMeta())
-
-	iter.EXPECT().Next().Return(true)
-	assert.True(t, it.Next())
-
-	vals := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     12,
-			},
-		},
-	}
-
-	step := NewMockUnconsolidatedStep(ctrl)
-	step.EXPECT().Values().Return(vals).AnyTimes()
-	step.EXPECT().Time().Return(now)
-
-	iter.EXPECT().Current().Return(step)
-	actual := it.Current()
-	expected := []ts.Datapoints{
-		{
-			ts.Datapoint{
-				Timestamp: now,
-				Value:     -12,
-			},
-		},
-	}
-
-	assert.Equal(t, expected, actual.Values())
-	assert.Equal(t, now, actual.Time())
-}
-
-func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	bb := NewMockBlock(ctrl)
-	defer ctrl.Finish()
-	offset := time.Duration(0)
-	offblock := NewLazyBlock(bb, testLazyOpts(offset, -1.0))
-	now := time.Now()
-	msg := "err"
-	e := errors.New(msg)
-
-	// ensure functions are marshalled to the underlying unconsolidated block.
-	b := NewMockUnconsolidatedBlock(ctrl)
-	bb.EXPECT().Unconsolidated().Return(b, nil)
-
-	off, err := offblock.Unconsolidated()
-	assert.NoError(t, err)
-
-	iter := NewMockUnconsolidatedSeriesIter(ctrl)
-	b.EXPECT().SeriesIter().Return(iter, nil)
-	it, err := off.SeriesIter()
+	it, err := offblock.SeriesIter()
 	require.NoError(t, err)
 
 	concurrency := 5
-	batched := []UnconsolidatedSeriesIterBatch{
-		UnconsolidatedSeriesIterBatch{},
-		UnconsolidatedSeriesIterBatch{},
-		UnconsolidatedSeriesIterBatch{},
+	batched := []SeriesIterBatch{
+		SeriesIterBatch{},
+		SeriesIterBatch{},
+		SeriesIterBatch{},
 	}
 
 	b.EXPECT().MultiSeriesIter(concurrency).Return(batched, nil)
-	bs, err := off.MultiSeriesIter(concurrency)
+	bs, err := offblock.MultiSeriesIter(concurrency)
 	require.NoError(t, err)
 	assert.Equal(t, batched, bs)
 

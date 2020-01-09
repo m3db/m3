@@ -24,41 +24,12 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
-	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	xcost "github.com/m3db/m3/src/x/cost"
-	xerrors "github.com/m3db/m3/src/x/errors"
-	xsync "github.com/m3db/m3/src/x/sync"
-	xtime "github.com/m3db/m3/src/x/time"
 )
-
-const (
-	xTimeUnit             = xtime.Millisecond
-	initRawFetchAllocSize = 32
-)
-
-// PromWriteTSToM3 converts a prometheus write query to an M3 one
-func PromWriteTSToM3(
-	timeseries *prompb.TimeSeries,
-	opts models.TagOptions,
-) *WriteQuery {
-	tags := PromLabelsToM3Tags(timeseries.Labels, opts)
-	datapoints := PromSamplesToM3Datapoints(timeseries.Samples)
-
-	return &WriteQuery{
-		Tags:       tags,
-		Datapoints: datapoints,
-		Unit:       xTimeUnit,
-		Annotation: nil,
-	}
-}
 
 // The default name for the name and bucket tags in Prometheus metrics.
 // This can be overwritten by setting tagOptions in the config.
@@ -255,118 +226,4 @@ func SeriesToPromSamples(series *ts.Series) []prompb.Sample {
 	}
 
 	return samples
-}
-
-func iteratorToTsSeries(
-	iter encoding.SeriesIterator,
-	enforcer cost.ChainedEnforcer,
-	tagOptions models.TagOptions,
-) (*ts.Series, error) {
-	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags(), tagOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	r := enforcer.Add(xcost.Cost(len(datapoints)))
-	if r.Error != nil {
-		return nil, r.Error
-	}
-
-	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
-}
-
-// Fall back to sequential decompression if unable to decompress concurrently.
-func decompressSequentially(
-	iters []encoding.SeriesIterator,
-	enforcer cost.ChainedEnforcer,
-	metadata block.ResultMetadata,
-	tagOptions models.TagOptions,
-) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, 0, len(iters))
-	for _, iter := range iters {
-		series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
-		if err != nil {
-			return nil, err
-		}
-		seriesList = append(seriesList, series)
-	}
-
-	return &FetchResult{
-		SeriesList: seriesList,
-		Metadata:   metadata,
-	}, nil
-}
-
-func decompressConcurrently(
-	iters []encoding.SeriesIterator,
-	readWorkerPool xsync.PooledWorkerPool,
-	enforcer cost.ChainedEnforcer,
-	metadata block.ResultMetadata,
-	tagOptions models.TagOptions,
-) (*FetchResult, error) {
-	var (
-		seriesList = make([]*ts.Series, len(iters))
-
-		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
-		mu       sync.Mutex
-	)
-
-	for i, iter := range iters {
-		i, iter := i, iter
-		wg.Add(1)
-		readWorkerPool.Go(func() {
-			defer wg.Done()
-			series, err := iteratorToTsSeries(iter, enforcer, tagOptions)
-			if err != nil {
-				mu.Lock()
-				multiErr = multiErr.Add(err)
-				mu.Unlock()
-			}
-
-			seriesList[i] = series
-		})
-	}
-
-	wg.Wait()
-	if err := multiErr.LastError(); err != nil {
-		return nil, err
-	}
-
-	return &FetchResult{
-		SeriesList: seriesList,
-		Metadata:   metadata,
-	}, nil
-}
-
-// SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
-func SeriesIteratorsToFetchResult(
-	seriesIterators encoding.SeriesIterators,
-	readWorkerPool xsync.PooledWorkerPool,
-	cleanupSeriesIters bool,
-	metadata block.ResultMetadata,
-	enforcer cost.ChainedEnforcer,
-	tagOptions models.TagOptions,
-) (*FetchResult, error) {
-	if cleanupSeriesIters {
-		defer seriesIterators.Close()
-	}
-
-	iters := seriesIterators.Iters()
-	if readWorkerPool == nil {
-		return decompressSequentially(iters, enforcer, metadata, tagOptions)
-	}
-
-	return decompressConcurrently(iters, readWorkerPool,
-		enforcer, metadata, tagOptions)
 }

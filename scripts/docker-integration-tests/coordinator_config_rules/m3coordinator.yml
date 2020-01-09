@@ -1,0 +1,83 @@
+listenAddress:
+  value: "0.0.0.0:7201"
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+clusters:
+  - namespaces:
+      - namespace: agg
+        type: aggregated
+        retention: 24h
+        resolution: 30s
+        downsample:
+          all: false
+      - namespace: agg2d
+        type: aggregated
+        retention: 48h
+        resolution: 1m
+        downsample:
+          all: false
+      - namespace: unagg
+        type: unaggregated
+        retention: 10m
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - dbnode01:2379
+      writeConsistencyLevel: majority
+      readConsistencyLevel: unstrict_majority
+
+downsample:
+  rules:
+    mappingRules:
+      - name: "mysql metrics"
+        filter: "app:mysql*"
+        aggregations: ["Last"]
+        storagePolicies:
+          - resolution: 1m
+            retention: 48h
+      - name: "nginx metrics"
+        filter: "app:nginx*"
+        aggregations: ["Last"]
+        storagePolicies:
+          - resolution: 30s
+            retention: 24h
+    rollupRules:
+      - name: "requests per second by status code"
+        filter: "__name__:http_requests app:* status_code:* endpoint:*"
+        transforms:
+          - transform:
+              type: "PerSecond"
+          - rollup:
+              metricName: "http_requests_by_status_code"
+              groupBy: ["app", "status_code", "endpoint"]
+              aggregations: ["Sum"]
+        storagePolicies:
+          - resolution: 5s
+            retention: 10h
+  # NB(r): Use high buffer past limits for test since we are using
+  # resolution of 5s which races against the timestamps being ingested.
+  bufferPastLimits:
+    - resolution: 0s
+      bufferPast: 90s
+
+tagOptions:
+  idScheme: quoted

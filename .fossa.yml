@@ -90,19 +90,11 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_index_ids/main
     path: src/cmd/tools/read_index_ids/main
+  - name: github.com/m3db/m3/src/cmd/tools/verify_data_files/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/tools/verify_data_files/main
+    path: src/cmd/tools/verify_data_files/main
   - name: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     path: src/cmd/tools/verify_index_files/main
-  - name: github.com/m3db/m3/src/query/benchmark/benchmarker/main
-    type: go
-    target: github.com/m3db/m3/src/query/benchmark/benchmarker/main
-    path: src/query/benchmark/benchmarker/main
-  - name: github.com/m3db/m3/src/query/benchmark/read/main
-    type: go
-    target: github.com/m3db/m3/src/query/benchmark/read/main
-    path: src/query/benchmark/read/main
-  - name: github.com/m3db/m3/src/query/benchmark/write/main
-    type: go
-    target: github.com/m3db/m3/src/query/benchmark/write/main
-    path: src/query/benchmark/write/main

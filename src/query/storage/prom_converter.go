@@ -34,6 +34,8 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
+const initRawFetchAllocSize = 32
+
 func cloneBytes(b []byte) []byte {
 	return append(make([]byte, 0, len(b)), b...)
 }
@@ -105,10 +107,6 @@ func toPromSequentially(
 			return PromResult{}, err
 		}
 
-		if len(series.GetSamples()) == 0 {
-			continue
-		}
-
 		seriesList = append(seriesList, series)
 	}
 
@@ -127,9 +125,9 @@ func toPromConcurrently(
 	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
-	seriesList := make([]*prompb.TimeSeries, len(iters))
-
 	var (
+		seriesList = make([]*prompb.TimeSeries, len(iters))
+
 		wg       sync.WaitGroup
 		multiErr xerrors.MultiError
 		mu       sync.Mutex

@@ -32,6 +32,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+type column struct {
+	Values []float64
+}
+
 // ColumnBlockBuilder builds a block optimized for column iteration.
 type ColumnBlockBuilder struct {
 	block           *columnBlock
@@ -44,11 +48,6 @@ type columnBlock struct {
 	columns    []column
 	meta       Metadata
 	seriesMeta []SeriesMeta
-}
-
-func (c *columnBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	return nil, fmt.
-		Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
 }
 
 func (c *columnBlock) Meta() Metadata {
@@ -70,9 +69,16 @@ func (c *columnBlock) StepIter() (StepIter, error) {
 	}, nil
 }
 
+// SeriesIter is invalid for a columnar block.
 func (c *columnBlock) SeriesIter() (SeriesIter, error) {
-	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
+	return nil, errors.New("series iterator undefined for a scalar block")
 }
+
+// MultiSeriesIter is invalid for a columnar block.
+func (c *columnBlock) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
+	return nil, errors.New("multi series iterator undefined for a scalar block")
+}
+
 func (c *columnBlock) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
@@ -277,76 +283,4 @@ func (cb ColumnBlockBuilder) Build() Block {
 func (cb ColumnBlockBuilder) BuildAsType(blockType BlockType) Block {
 	cb.block.blockType = blockType
 	return NewAccountedBlock(cb.block, cb.enforcer)
-}
-
-type column struct {
-	Values []float64
-}
-
-// columnBlockSeriesIter is used to iterate over a column.
-// Assumes that all columns have the same length.
-type columnBlockSeriesIter struct {
-	idx        int
-	blockMeta  Metadata
-	values     []float64
-	columns    []column
-	seriesMeta []SeriesMeta
-}
-
-func newColumnBlockSeriesIter(
-	columns []column,
-	blockMeta Metadata,
-	seriesMeta []SeriesMeta,
-) SeriesIter {
-	return &columnBlockSeriesIter{
-		columns:    columns,
-		blockMeta:  blockMeta,
-		seriesMeta: seriesMeta,
-		idx:        -1,
-		values:     make([]float64, len(columns)),
-	}
-}
-
-func (m *columnBlockSeriesIter) SeriesMeta() []SeriesMeta {
-	return m.seriesMeta
-}
-
-func (m *columnBlockSeriesIter) SeriesCount() int {
-	cols := m.columns
-	if len(cols) == 0 {
-		return 0
-	}
-
-	return len(cols[0].Values)
-}
-
-func (m *columnBlockSeriesIter) Err() error {
-	// no-op
-	return nil
-}
-
-func (m *columnBlockSeriesIter) Next() bool {
-	m.idx++
-	next := m.idx < m.SeriesCount()
-	if !next {
-		return false
-	}
-
-	cols := m.columns
-	for i, col := range cols {
-		m.values[i] = col.Values[m.idx]
-	}
-
-	return next
-}
-
-func (m *columnBlockSeriesIter) Current() Series {
-	// TODO: pool these
-	vals := make([]float64, len(m.values))
-	copy(vals, m.values)
-	return NewSeries(vals, m.seriesMeta[m.idx])
-}
-
-// TODO: Actually free resources once we do pooling
-func (m *columnBlockSeriesIter) Close() {
 }

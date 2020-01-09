@@ -33,8 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/x/xpool"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
@@ -69,10 +67,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -139,6 +138,8 @@ func Run(runOpts RunOptions) {
 	if runOpts.ConfigFile != "" {
 		var rootCfg config.Configuration
 		if err := xconfig.LoadFile(&rootCfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
+			// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+			// sending stdlib "log" to black hole. Don't remove unless with good reason.
 			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
 			os.Exit(1)
 		}
@@ -150,12 +151,16 @@ func Run(runOpts RunOptions) {
 
 	err := cfg.InitDefaultsAndValidate()
 	if err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "error initializing config defaults and validating config: %v", err)
 		os.Exit(1)
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
@@ -617,12 +622,12 @@ func Run(runOpts RunOptions) {
 					cpuProfileDuration,
 					syncCfg.ClusterClient,
 					handlerOpts,
-					[]handler.ServiceNameAndDefaults{
+					[]handleroptions.ServiceNameAndDefaults{
 						{
-							ServiceName: handler.M3DBServiceName,
-							Defaults: []handler.ServiceOptionsDefault{
-								handler.WithDefaultServiceEnvironment(envCfg.Service.Env),
-								handler.WithDefaultServiceZone(envCfg.Service.Zone),
+							ServiceName: handleroptions.M3DBServiceName,
+							Defaults: []handleroptions.ServiceOptionsDefault{
+								handleroptions.WithDefaultServiceEnvironment(envCfg.Service.Env),
+								handleroptions.WithDefaultServiceZone(envCfg.Service.Zone),
 							},
 						},
 					},
