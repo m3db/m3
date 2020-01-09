@@ -61,7 +61,7 @@ func PersistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
 	indexResults result.IndexResults,
-	indexBuilders result.IndexBuilders,
+	indexBuilders *result.IndexBuilders,
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
 ) error {
@@ -110,7 +110,7 @@ func PersistBootstrapIndexSegment(
 	if !ok {
 		return errIndexBlockNotFound(blockStart)
 	}
-	b, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
+	b, ok := indexBuilders.Get(blockStart)
 	if !ok {
 		return errIndexBuilderNotFound(blockStart)
 	}
@@ -218,7 +218,7 @@ func BuildBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
 	indexResults result.IndexResults,
-	indexBuilders result.IndexBuilders,
+	indexBuilders *result.IndexBuilders,
 	compactor *SharedCompactor,
 	resultOpts result.Options,
 ) error {
@@ -265,7 +265,7 @@ func BuildBootstrapIndexSegment(
 	if !ok {
 		return errIndexBlockNotFound(blockStart)
 	}
-	b, ok := indexBuilders[xtime.ToUnixNano(blockStart)]
+	b, ok := indexBuilders.Get(blockStart)
 	if !ok {
 		return errIndexBuilderNotFound(blockStart)
 	}
@@ -291,6 +291,12 @@ func BuildBootstrapIndexSegment(
 	newFulfilled.AddRanges(expectedRanges)
 	replacedBlock := result.NewIndexBlock(blockStart, segments, newFulfilled)
 	indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
+	log.Printf(
+		"building index blockStart %s, numDocs: %d, replacedBlock numSegs: %d",
+		blockStart,
+		len(b.Builder().Docs()),
+		len(replacedBlock.Segments()),
+	)
 
 	return nil
 }

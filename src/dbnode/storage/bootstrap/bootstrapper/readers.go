@@ -74,40 +74,9 @@ func EnqueueReaders(
 	// Close the readers ch if and only if all readers are enqueued.
 	defer close(readersCh)
 
-	if !shouldPersistIndexBootstrap {
-		// Normal run, open readers
-		enqueueReadersGroupedByBlockSize(ns, runOpts, fsOpts,
-			shardsTimeRanges, readerPool, readersCh, blockSize, logger)
-		return
-	}
-
-	// If the run is an index bootstrap with the persist configuration enabled
-	// then we need to write out the metadata into FSTs that we store on disk,
-	// to avoid creating any one single huge FST at once we bucket the
-	// shards into number of buckets.
-	numSegmentsPerBlock := runtimeOpts.FlushIndexBlockNumSegments()
-
-	buckets := make([]result.ShardTimeRanges, numSegmentsPerBlock)
-	for i := range buckets {
-		buckets[i] = make(result.ShardTimeRanges)
-	}
-
-	i := 0
-	for shard, timeRanges := range shardsTimeRanges {
-		idx := i % int(numSegmentsPerBlock)
-		buckets[idx][shard] = timeRanges
-		i++
-	}
-
-	for _, bucket := range buckets {
-		if len(bucket) == 0 {
-			// Skip potentially empty buckets if num of segments per block is
-			// greater than the number of shards.
-			continue
-		}
-		enqueueReadersGroupedByBlockSize(ns, runOpts, fsOpts,
-			bucket, readerPool, readersCh, blockSize, logger)
-	}
+	// Normal run, open readers
+	enqueueReadersGroupedByBlockSize(ns, runOpts, fsOpts,
+		shardsTimeRanges, readerPool, readersCh, blockSize, logger)
 }
 
 func enqueueReadersGroupedByBlockSize(

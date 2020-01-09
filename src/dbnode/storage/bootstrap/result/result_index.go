@@ -80,12 +80,26 @@ func (r *indexBootstrapResult) NumSeries() int {
 	return int(size)
 }
 
-// GetOrAddIndexBuilder get or create a new documents builder.
-func (b IndexBuilders) GetOrAddIndexBuilder(
+// NewIndexBuilders returns a new set of index builders.
+func NewIndexBuilders() *IndexBuilders {
+	return &IndexBuilders{
+		builders: make(map[xtime.UnixNano]*IndexBuilder),
+	}
+}
+
+// Len is the number of index builders.
+func (b *IndexBuilders) Len() int {
+	return len(b.builders)
+}
+
+// GetOrAdd get or create a new documents builder.
+func (b *IndexBuilders) GetOrAdd(
 	t time.Time,
 	idxopts namespace.IndexOptions,
 	opts Options,
 ) (*IndexBuilder, error) {
+	b.Lock()
+	defer b.Unlock()
 	// NB(r): The reason we can align by the retention block size and guarantee
 	// there is only one entry for this time is because index blocks must be a
 	// positive multiple of the data block size, making it easy to map a data
@@ -93,7 +107,7 @@ func (b IndexBuilders) GetOrAddIndexBuilder(
 	blockStart := t.Truncate(idxopts.BlockSize())
 	blockStartNanos := xtime.ToUnixNano(blockStart)
 
-	builder, exists := b[blockStartNanos]
+	builder, exists := b.builders[blockStartNanos]
 	if !exists {
 		alloc := opts.IndexDocumentsBuilderAllocator()
 		segBuilder, err := alloc()
@@ -103,13 +117,23 @@ func (b IndexBuilders) GetOrAddIndexBuilder(
 		builder = &IndexBuilder{
 			builder: segBuilder,
 		}
-		b[blockStartNanos] = builder
+		b.builders[blockStartNanos] = builder
 	}
 	return builder, nil
 }
 
+// Get attempts to get an index builder.
+func (b *IndexBuilders) Get(t time.Time) (*IndexBuilder, bool) {
+	b.Lock()
+	defer b.Unlock()
+	builder, ok := b.builders[xtime.ToUnixNano(t)]
+	return builder, ok
+}
+
 // FlushBatch flushes a batch of documents to the underlying segment builder.
 func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) {
+	b.Lock()
+	defer b.Unlock()
 	if len(batch) == 0 {
 		// Last flush might not have any docs enqueued
 		return batch, nil
@@ -118,12 +142,10 @@ func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) 
 	// NB(bodu): Prevent concurrent writes.
 	// Although it seems like there's no need to lock on writes since
 	// each block should ONLY be getting built in a single thread.
-	b.Lock()
 	err := b.builder.InsertBatch(index.Batch{
 		Docs:                batch,
 		AllowPartialUpdates: true,
 	})
-	b.Unlock()
 	if err != nil && index.IsBatchPartialError(err) {
 		// If after filtering out duplicate ID errors
 		// there are no errors, then this was a successful

@@ -64,7 +64,10 @@ type IndexBootstrapResult interface {
 type IndexResults map[xtime.UnixNano]IndexBlock
 
 // IndexBuilders is a set of index segment builders indexed by block start.
-type IndexBuilders map[xtime.UnixNano]*IndexBuilder
+type IndexBuilders struct {
+	sync.Mutex
+	builders map[xtime.UnixNano]*IndexBuilder
+}
 
 // IndexBuilder wraps a lockable index segment builder.
 type IndexBuilder struct {

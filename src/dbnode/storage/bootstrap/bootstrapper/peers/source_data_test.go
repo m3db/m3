@@ -114,11 +114,6 @@ func newValidMockRuntimeOptionsManager(t *testing.T, ctrl *gomock.Controller) m3
 		ClientBootstrapConsistencyLevel().
 		Return(topology.ReadConsistencyLevelAll).
 		AnyTimes()
-	mockRuntimeOpts.
-		EXPECT().
-		FlushIndexBlockNumSegments().
-		Return(uint(1)).
-		AnyTimes()
 
 	mockRuntimeOptsMgr := m3dbruntime.NewMockOptionsManager(ctrl)
 	mockRuntimeOptsMgr.
@@ -761,9 +756,8 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		3: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
 	}
 
-	expectedIndexRanges := result.ShardTimeRanges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-	}
+	// NB(bodu): There is no time series data written to disk so all ranges fail to be fulfilled.
+	expectedIndexRanges := target
 
 	tester.TestUnfulfilledForNamespace(testNsMd, expectedRanges, expectedIndexRanges)
 	assert.Equal(t, map[string]int{

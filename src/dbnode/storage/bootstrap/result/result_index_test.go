@@ -53,20 +53,20 @@ func TestIndexResultGetOrAddSegment(t *testing.T) {
 	aligned := now.Truncate(blockSize)
 
 	builders := IndexBuilders{}
-	b, err := builders.GetOrAddIndexBuilder(aligned.Add(time.Minute), idxOpts, opts)
+	b, err := builders.GetOrAdd(aligned.Add(time.Minute), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, b.builder == created)
-	require.Equal(t, 1, len(builders))
+	require.Equal(t, 1, builders.Len())
 
-	b, err = builders.GetOrAddIndexBuilder(aligned.Add(2*time.Minute), idxOpts, opts)
+	b, err = builders.GetOrAdd(aligned.Add(2*time.Minute), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, b.builder == created)
-	require.Equal(t, 1, len(builders))
+	require.Equal(t, 1, builders.Len())
 
-	b, err = builders.GetOrAddIndexBuilder(aligned.Add(blockSize), idxOpts, opts)
+	b, err = builders.GetOrAdd(aligned.Add(blockSize), idxOpts, opts)
 	require.NoError(t, err)
 	require.True(t, b.builder == created)
-	require.Equal(t, 2, len(builders))
+	require.Equal(t, 2, builders.Len())
 
 	// Total allocs should've only been two
 	require.Equal(t, 2, allocated)

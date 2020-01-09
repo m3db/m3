@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
-	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -69,8 +68,6 @@ type fileSystemSource struct {
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
-	dataProcessors    xsync.WorkerPool
-	indexProcessors   xsync.WorkerPool
 	persistManager    *bootstrapper.SharedPersistManager
 	compactor         *bootstrapper.SharedCompactor
 	metrics           fileSystemSourceMetrics
@@ -87,19 +84,12 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 	iopts = iopts.SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iopts)
 
-	dataProcessors := xsync.NewWorkerPool(opts.BoostrapDataNumProcessors())
-	dataProcessors.Init()
-	indexProcessors := xsync.NewWorkerPool(opts.BoostrapIndexNumProcessors())
-	indexProcessors.Init()
-
 	s := &fileSystemSource{
-		opts:            opts,
-		fsopts:          opts.FilesystemOptions(),
-		log:             iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
-		idPool:          opts.IdentifierPool(),
-		newReaderFn:     fs.NewReader,
-		dataProcessors:  dataProcessors,
-		indexProcessors: indexProcessors,
+		opts:        opts,
+		fsopts:      opts.FilesystemOptions(),
+		log:         iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		idPool:      opts.IdentifierPool(),
+		newReaderFn: fs.NewReader,
 		persistManager: &bootstrapper.SharedPersistManager{
 			Mgr: opts.PersistManager(),
 		},
@@ -257,29 +247,13 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	var (
 		runResult  = newRunResult()
 		resultOpts = s.opts.ResultOptions()
-		wg         sync.WaitGroup
-		processors xsync.WorkerPool
 	)
-
-	switch run {
-	case bootstrapDataRunType:
-		processors = s.dataProcessors
-	case bootstrapIndexRunType:
-		processors = s.indexProcessors
-	default:
-		panic(fmt.Errorf("unrecognized run type: %d", run))
-	}
 
 	for timeWindowReaders := range readersCh {
 		timeWindowReaders := timeWindowReaders
-		wg.Add(1)
-		processors.Go(func() {
-			s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
-				runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
-			wg.Done()
-		})
+		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
+			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
 	}
-	wg.Wait()
 
 	return runResult
 }
@@ -785,14 +759,14 @@ type runResult struct {
 	sync.RWMutex
 	data     result.DataBootstrapResult
 	index    result.IndexBootstrapResult
-	builders result.IndexBuilders
+	builders *result.IndexBuilders
 }
 
 func newRunResult() *runResult {
 	return &runResult{
 		data:     result.NewDataBootstrapResult(),
 		index:    result.NewIndexBootstrapResult(),
-		builders: make(result.IndexBuilders),
+		builders: result.NewIndexBuilders(),
 	}
 }
 
@@ -805,7 +779,7 @@ func (r *runResult) getOrAddIndexBuilder(
 	r.Lock()
 	defer r.Unlock()
 
-	builder, err := r.builders.GetOrAddIndexBuilder(start,
+	builder, err := r.builders.GetOrAdd(start,
 		ns.Options().IndexOptions(), ropts)
 	return builder, err
 }

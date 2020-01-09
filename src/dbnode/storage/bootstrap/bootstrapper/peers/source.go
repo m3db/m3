@@ -377,7 +377,6 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			log.Printf("shouldPersist -> %t", shouldPersist)
 			if shouldPersist {
 				persistenceQueue <- persistenceFlush{
 					nsMetadata:        nsMetadata,
@@ -638,14 +637,13 @@ func (s *peersSource) readIndex(
 	// FOLLOWUP(r): Try to reuse any metadata fetched during the ReadData(...)
 	// call rather than going to the network again
 	r := result.NewIndexBootstrapResult()
-	builders := make(result.IndexBuilders)
+	builders := result.NewIndexBuilders()
 	if shardsTimeRanges.IsEmpty() {
 		return r, nil
 	}
 
 	var (
 		count          = len(shardsTimeRanges)
-		concurrency    = s.opts.DefaultShardConcurrency()
 		indexBlockSize = ns.Options().IndexOptions().BlockSize()
 		runtimeOpts    = s.opts.RuntimeOptionsManager().Get()
 		resultOpts     = s.opts.ResultOptions()
@@ -660,41 +658,28 @@ func (s *peersSource) readIndex(
 		resultLock                  = &sync.Mutex{}
 		readersCh                   = make(chan bootstrapper.TimeWindowReaders)
 		shouldPersistIndexBootstrap = true
-		wg                          sync.WaitGroup
 	)
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
 		zap.Int("shards", count),
-		zap.Int("concurrency", concurrency),
 	)
 
 	go bootstrapper.EnqueueReaders(ns, opts, runtimeOpts, fsOpts, shardsTimeRanges, readerPool,
 		readersCh, shouldPersistIndexBootstrap, indexBlockSize, s.log)
 
-	workers := xsync.NewWorkerPool(concurrency)
-	workers.Init()
 	for timeWindowReaders := range readersCh {
-		timeWindowReaders := timeWindowReaders
-		wg.Add(1)
 		// NB(bodu): This is fetching the data for all shards for a block of time.
-		workers.Go(func() {
-			defer wg.Done()
-			remainingRanges, timesWithErrors := s.processReaders(
-				ns,
-				r,
-				timeWindowReaders,
-				shardsTimeRanges,
-				builders,
-				readerPool,
-				resultOpts,
-				idxOpts,
-			)
-			s.markRunResultErrorsAndUnfulfilled(resultLock, r, timeWindowReaders.Ranges,
-				remainingRanges, timesWithErrors)
-
-		})
+		remainingRanges, timesWithErrors := s.processReaders(
+			ns,
+			r,
+			timeWindowReaders,
+			builders,
+			readerPool,
+			resultOpts,
+			idxOpts,
+		)
+		s.markRunResultErrorsAndUnfulfilled(resultLock, r, timeWindowReaders.Ranges,
+			remainingRanges, timesWithErrors)
 	}
-
-	wg.Wait()
 
 	return r, nil
 }
@@ -733,8 +718,7 @@ func (s *peersSource) processReaders(
 	ns namespace.Metadata,
 	r result.IndexBootstrapResult,
 	timeWindowReaders bootstrapper.TimeWindowReaders,
-	shardsTimeRanges result.ShardTimeRanges,
-	builders result.IndexBuilders,
+	builders *result.IndexBuilders,
 	readerPool *bootstrapper.ReaderPool,
 	resultOpts result.Options,
 	idxOpts namespace.IndexOptions,
@@ -760,13 +744,14 @@ func (s *peersSource) processReaders(
 				err       error
 			)
 
-			indexBuilder, err = builders.GetOrAddIndexBuilder(
+			indexBuilder, err = builders.GetOrAdd(
 				start,
 				idxOpts,
 				resultOpts,
 			)
 			numEntries := reader.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
+				log.Printf("readNextEntryAndMaybeIndex called for requestedRanges -> %s", requestedRanges)
 				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, indexBuilder)
 			}
 
@@ -824,7 +809,7 @@ func (s *peersSource) processReaders(
 		log.Printf("building in memory index, requestedRanges -> %s, remainingRanges -> %s", requestedRanges, remainingRanges)
 		if err := bootstrapper.BuildBootstrapIndexSegment(
 			ns,
-			shardsTimeRanges,
+			requestedRanges,
 			r.IndexResults(),
 			builders,
 			s.compactor,
