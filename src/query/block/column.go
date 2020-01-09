@@ -57,10 +57,10 @@ func (c *columnBlock) Meta() Metadata {
 // StepIter returns a step-wise block iterator, giving consolidated values
 // across all series comprising the box at a single time step.
 func (c *columnBlock) StepIter() (StepIter, error) {
-	if len(c.columns) != c.meta.Bounds.Steps() {
-		return nil, fmt.
-			Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v",
-				len(c.columns), c.meta.Bounds)
+	steps := c.meta.Bounds.Steps()
+	if len(c.columns) != steps {
+		return nil, fmt.Errorf("mismatch in step columns and meta bounds, "+
+			"columns: %d steps: %d bounds: %v", len(c.columns), steps, c.meta.Bounds)
 	}
 
 	return &colBlockIter{
@@ -126,10 +126,10 @@ func (it *colSeriesIter) Close() { /* no-op*/ }
 // SeriesIter returns a series-wise block iterator, giving unconsolidated
 // by series.
 func (c *columnBlock) SeriesIter() (SeriesIter, error) {
-	if len(c.columns) != c.meta.Bounds.Steps() {
-		return nil, fmt.
-			Errorf("mismatch in block columns and meta bounds, columns: "+
-				"%d, bounds: %v", len(c.columns), c.meta.Bounds)
+	steps := c.meta.Bounds.Steps()
+	if len(c.columns) != steps {
+		return nil, fmt.Errorf("mismatch in series columns and meta bounds, "+
+			"columns: %d steps: %d bounds: %v", len(c.columns), steps, c.meta.Bounds)
 	}
 
 	return &colSeriesIter{
@@ -164,13 +164,6 @@ func (c *columnBlock) Info() BlockInfo {
 
 // Close frees up any resources.
 func (c *columnBlock) Close() error {
-	for _, col := range c.columns {
-		col = col[:0]
-		col = nil
-	}
-
-	c.columns = c.columns[:0]
-	c.columns = nil
 	return nil
 }
 
