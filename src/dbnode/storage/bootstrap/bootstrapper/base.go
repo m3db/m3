@@ -114,11 +114,6 @@ func (b baseBootstrapper) Bootstrap(
 			currNamespace.IndexRunOptions.ShardTimeRanges = indexAvailable
 		}
 
-		// Run source begin hook.
-		if err := currNamespace.Hooks.BootstrapSourceBegin(); err != nil {
-			return bootstrap.NamespaceResults{}, err
-		}
-
 		// Set the namespace options for the current bootstrapper source.
 		curr.Namespaces.Set(id, currNamespace)
 
