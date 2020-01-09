@@ -1794,6 +1794,18 @@ func (mr *MockdatabaseShardMockRecorder) Bootstrap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap))
 }
 
+// UpdateFlushStates mocks base method
+func (m *MockdatabaseShard) UpdateFlushStates() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateFlushStates")
+}
+
+// UpdateFlushStates indicates an expected call of UpdateFlushStates
+func (mr *MockdatabaseShardMockRecorder) UpdateFlushStates() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFlushStates", reflect.TypeOf((*MockdatabaseShard)(nil).UpdateFlushStates))
+}
+
 // LoadBlocks mocks base method
 func (m *MockdatabaseShard) LoadBlocks(series *result.Map) error {
 	m.ctrl.T.Helper()

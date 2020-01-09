@@ -246,12 +246,13 @@ func (m *bootstrapManager) bootstrap() error {
 		i, namespace := i, namespace
 		prepareWg.Add(1)
 		go func() {
-			defer prepareWg.Done()
-
 			shards, err := namespace.PrepareBootstrap()
 
 			prepareLock.Lock()
-			defer prepareLock.Unlock()
+			defer func() {
+				prepareLock.Unlock()
+				prepareWg.Done()
+			}()
 
 			if err != nil {
 				prepareMultiErr = prepareMultiErr.Add(err)
@@ -289,12 +290,33 @@ func (m *bootstrapManager) bootstrap() error {
 			bootstrapShards = append(bootstrapShards, shard.ID())
 		}
 
+		// Add hooks so that each bootstrapper when it interacts
+		// with the namespace and shards during data accumulation
+		// gets an up to date view of all the file volumes that
+		// actually exist on disk (since bootstrappers can write
+		// new blocks to disk).
+		hooks := bootstrap.NewNamespaceHooks(bootstrap.NamespaceHooksOptions{
+			BootstrapSourceEnd: func() error {
+				var wg sync.WaitGroup
+				for _, shard := range ns.shards {
+					shard := shard
+					wg.Add(1)
+					go func() {
+						shard.UpdateFlushStates()
+						wg.Done()
+					}()
+				}
+				return nil
+			},
+		})
+
 		accumulator := NewDatabaseNamespaceDataAccumulator(ns.namespace)
 		accmulators = append(accmulators, accumulator)
 
 		targets = append(targets, bootstrap.ProcessNamespace{
 			Metadata:        ns.namespace.Metadata(),
 			Shards:          bootstrapShards,
+			Hooks:           hooks,
 			DataAccumulator: accumulator,
 		})
 	}

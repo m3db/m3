@@ -1947,6 +1947,11 @@ func (s *dbShard) bootstrapFlushStates() error {
 		s.Unlock()
 	}()
 
+	s.UpdateFlushStates()
+	return nil
+}
+
+func (s *dbShard) UpdateFlushStates() {
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
@@ -1957,14 +1962,14 @@ func (s *dbShard) bootstrapFlushStates() error {
 				zap.Uint32("shard", s.ID()),
 				zap.Stringer("namespace", s.namespace.ID()),
 				zap.String("filepath", result.Err.Filepath()),
-				zap.Error(err),
-			)
+				zap.Error(err))
 			continue
 		}
+
 		info := result.Info
 		at := xtime.FromNanoseconds(info.BlockStart)
-		fs := s.flushStateNoBootstrapCheck(at)
-		if fs.WarmStatus != fileOpSuccess {
+		currState := s.flushStateNoBootstrapCheck(at)
+		if currState.WarmStatus != fileOpSuccess {
 			s.markWarmFlushStateSuccess(at)
 		}
 
@@ -1975,13 +1980,11 @@ func (s *dbShard) bootstrapFlushStates() error {
 		// Note that there can be multiple info files for the same block, for
 		// example if the database didn't get to clean up compacted filesets
 		// before terminating.
-		if fs.ColdVersionRetrievable < info.VolumeIndex {
+		if currState.ColdVersionRetrievable < info.VolumeIndex {
 			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
 			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
 		}
 	}
-
-	return nil
 }
 
 func (s *dbShard) cacheShardIndices() error {

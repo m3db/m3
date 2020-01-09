@@ -501,6 +501,10 @@ type databaseShard interface {
 	// has been loaded using LoadBootstrapBlocks.
 	Bootstrap() error
 
+	// UpdateFlushStates updates all the flush states for the current shard
+	// by checking the file volumes that exist on disk at a point in time.
+	UpdateFlushStates()
+
 	// LoadBlocks does the same thing as LoadBootstrapBlocks,
 	// except it can be called more than once and after a shard is
 	// bootstrapped already.
