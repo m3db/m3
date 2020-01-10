@@ -22,7 +22,6 @@ package peers
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -201,12 +200,6 @@ func (s *peersSource) readData(
 		persistConfig     = opts.PersistConfig()
 	)
 
-	log.Printf(
-		"persistConfig.Enabled: %t, seriesCachePolicy: %t, filesettype?: %t",
-		persistConfig.Enabled,
-		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU),
-		persistConfig.FileSetType == persist.FileSetFlushType,
-	)
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -703,8 +696,6 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 		return batch, err
 	}
 
-	log.Printf("readNextEntryAndMaybeIndex doc ID -> %s", d.ID)
-
 	batch = append(batch, d)
 
 	if len(batch) >= index.DocumentArrayPoolCapacity {
@@ -752,7 +743,6 @@ func (s *peersSource) processReaders(
 			)
 			numEntries := reader.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
-				log.Printf("readNextEntryAndMaybeIndex called for requestedRanges -> %s", requestedRanges)
 				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, indexBuilder)
 			}
 
@@ -789,7 +779,6 @@ func (s *peersSource) processReaders(
 	// Only persist to disk if the requested ranges were completely fulfilled.
 	// Otherwise, this is the latest index segment and should only exist in mem.
 	if remainingRanges.IsEmpty() {
-		log.Printf("persisting index to disk, requestedRanges -> %s, remainingRanges -> %s", requestedRanges, remainingRanges)
 		if err := bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
@@ -807,7 +796,6 @@ func (s *peersSource) processReaders(
 			})
 		}
 	} else {
-		log.Printf("building in memory index, requestedRanges -> %s, remainingRanges -> %s", requestedRanges, remainingRanges)
 		if err := bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,
