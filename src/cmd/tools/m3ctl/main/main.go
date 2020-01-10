@@ -44,11 +44,11 @@ func main() {
 
 	// the database-related subcommand
 	createDatabaseYAML := configflag.FlagStringSlice{}
-	databaseFlags := database.SetupFlags(&createDatabaseYAML)
+	databaseFlagSets := database.SetupFlags(&createDatabaseYAML)
 
 	// the namespace-related subcommand
 	namespaceArgs := namespaces.NamespaceArgs{}
-	namespaceFlags := namespaces.SetupFlags(&namespaceArgs)
+	namespaceFlagSets := namespaces.SetupFlags(&namespaceArgs)
 
 	// the placement-related subcommand
 	placementArgs := placements.PlacementArgs{}
@@ -64,9 +64,9 @@ Usage of %s:
 Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], strings.Join([]string{
-			databaseFlags.Name(),
+			databaseFlagSets.Database.Name(),
 			placementFlags.Name(),
-			namespaceFlags.Name(),
+			namespaceFlagSets.Namespace.Name(),
 		}, ", "))
 
 		flag.PrintDefaults()
@@ -87,48 +87,109 @@ Each subcommand has its own built-in help provided via "-h".
 	log := rawLogger.Sugar()
 
 	switch flag.Arg(0) {
-	case databaseFlags.Name():
-		if err := databaseFlags.Parse(flag.Args()[1:]); err != nil {
-			databaseFlags.Usage()
+	case databaseFlagSets.Database.Name():
+		if err := databaseFlagSets.Database.Parse(flag.Args()[1:]); err != nil {
+			databaseFlagSets.Database.Usage()
 			os.Exit(1)
 		}
-		if databaseFlags.NFlag() == 0 {
-			databaseFlags.Usage()
+		if databaseFlagSets.Database.NArg() == 0 {
+			databaseFlagSets.Database.Usage()
 			os.Exit(1)
 		}
-		databaseFlags.Visit(func(f *flag.Flag) {
-			vals := f.Value.(*configflag.FlagStringSlice)
-			for _, val := range vals.Value {
-				if len(val) == 0 {
-					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-					databaseFlags.Usage()
-					os.Exit(1)
-				}
+		//databaseFlags.Visit(func(f *flag.Flag) {
+		//	vals := f.Value.(*configflag.FlagStringSlice)
+		//	for _, val := range vals.Value {
+		//		if len(val) == 0 {
+		//			fmt.Println("QQQQ3")
+		//			fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+		//			databaseFlags.Usage()
+		//			os.Exit(1)
+		//		}
+		//	}
+		//})
+
+		//database.Command(createDatabaseYAML.Value[len(createDatabaseYAML.Value)-1], *endPoint, log)
+		switch flag.Arg(1) {
+		case databaseFlagSets.Create.Name():
+			if err := databaseFlagSets.Create.Parse(flag.Args()[2:]); err != nil {
+				databaseFlagSets.Create.Usage()
+				os.Exit(1)
 			}
-		})
-		// the below createDatabaseYAML.Value has at least one by this time per the arg parser
-		database.Command(createDatabaseYAML.Value[len(createDatabaseYAML.Value)-1], *endPoint, log)
-	case namespaceFlags.Name():
-		if err := namespaceFlags.Parse(flag.Args()[1:]); err != nil {
-			namespaceFlags.Usage()
-			os.Exit(1)
-		}
-		if namespaceFlags.NFlag() > 1 {
-			fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
-			namespaceFlags.Usage()
-			os.Exit(1)
-		}
-		namespaceFlags.Visit(func(f *flag.Flag) {
-			vals := f.Value.(*configflag.FlagStringSlice)
-			for _, val := range vals.Value {
-				if len(val) == 0 {
-					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-					namespaceFlags.Usage()
-					os.Exit(1)
-				}
+			if databaseFlagSets.Create.NFlag() == 0 {
+				//fmt.Println("QQQQ5")
+				databaseFlagSets.Create.Usage()
+				os.Exit(1)
 			}
-		})
-		namespaces.Command(&namespaceArgs, *endPoint, log)
+			databaseFlagSets.Create.Visit(func(f *flag.Flag) {
+				vals := f.Value.(*configflag.FlagStringSlice)
+				for _, val := range vals.Value {
+					if len(val) == 0 {
+						//fmt.Println("QQQQ5.5")
+						fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+						databaseFlagSets.Create.Usage()
+						os.Exit(1)
+					}
+				}
+			})
+			// the below createDatabaseYAML.Value has at least one by this time per the arg parser
+			database.Command(createDatabaseYAML.Value[len(createDatabaseYAML.Value)-1], *endPoint, log)
+		default:
+			//fmt.Println("QQQQ6")
+			databaseFlagSets.Database.Usage()
+			os.Exit(1)
+		}
+	case namespaceFlagSets.Namespace.Name():
+		if err := namespaceFlagSets.Namespace.Parse(flag.Args()[1:]); err != nil {
+			namespaceFlagSets.Namespace.Usage()
+			os.Exit(1)
+		}
+		// maybe do the default action which is listing the names
+		if namespaceFlagSets.Namespace.NArg() == 0 {
+			namespaces.Show(&namespaceArgs, *endPoint, log)
+			os.Exit(0)
+		}
+
+		//if namespaceFlagSets.NFlag() > 1 {
+		//	fmt.Fprintf(os.Stderr, "Please specify only one action.  There were too many cli arguments provided.\n")
+		//	namespaceFlagSets.Usage()
+		//	os.Exit(1)
+		//}
+		//namespaceFlagSets.Namespace.Visit(func(f *flag.Flag) {
+		//	vals := f.Value.(*configflag.FlagStringSlice)
+		//	for _, val := range vals.Value {
+		//		if len(val) == 0 {
+		//			fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+		//			namespaceFlagSets.Namespace.Usage()
+		//			os.Exit(1)
+		//		}
+		//	}
+		//})
+		//namespaces.Command(&namespaceArgs, *endPoint, log)
+		switch flag.Arg(1) {
+		case namespaceFlagSets.Delete.Name():
+			if err := namespaceFlagSets.Delete.Parse(flag.Args()[2:]); err != nil {
+				namespaceFlagSets.Delete.Usage()
+				os.Exit(1)
+			}
+			if namespaceFlagSets.Delete.NFlag() == 0 {
+				//fmt.Println("QQQQ5")
+				namespaceFlagSets.Delete.Usage()
+				os.Exit(1)
+			}
+			namespaceFlagSets.Delete.Visit(func(f *flag.Flag) {
+					if len(f.Value.String()) == 0 {
+						//fmt.Println("QQQQ5.5")
+						fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+						namespaceFlagSets.Delete.Usage()
+						os.Exit(1)
+					}
+			})
+			namespaces.Delete(&namespaceArgs, *endPoint, log)
+
+		default:
+			namespaceFlagSets.Namespace.Usage()
+			os.Exit(1)
+		}
 	case placementFlags.Name():
 		if err := placementFlags.Parse(flag.Args()[1:]); err != nil {
 			placementFlags.Usage()
