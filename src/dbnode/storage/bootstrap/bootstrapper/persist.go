@@ -36,9 +36,6 @@ import (
 )
 
 var (
-	errIndexBlockNotFound = func(blockStart xtime.UnixNano) error {
-		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart)
-	}
 	errIndexBuilderNotFound = func(blockStart time.Time) error {
 		return fmt.Errorf("did not find index builder for blocksStart: %d", blockStart.Unix())
 	}
@@ -108,7 +105,14 @@ func PersistBootstrapIndexSegment(
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return errIndexBlockNotFound(xtime.ToUnixNano(blockStart))
+		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
+		// time ranges that have no data and no index block.
+		// For example:
+		// - peers data bootstrap from peer nodes receives peer blocks w/ no data (empty)
+		// - peers data bootstrap writes empty ts data files to disk
+		// - peers index bootstrap reads empty ts data files md from disk
+		// - attempt to bootstrap time ranges that have no index results block
+		return nil
 	}
 	b, ok := indexBuilders.Get(blockStart)
 	if !ok {
@@ -263,7 +267,14 @@ func BuildBootstrapIndexSegment(
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return errIndexBlockNotFound(xtime.ToUnixNano(blockStart))
+		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
+		// time ranges that have no data and no index block.
+		// For example:
+		// - peers data bootstrap from peer nodes receives peer blocks w/ no data (empty)
+		// - peers data bootstrap writes empty ts data files to disk
+		// - peers index bootstrap reads empty ts data files md from disk
+		// - attempt to bootstrap time ranges that have no index results block
+		return nil
 	}
 	b, ok := indexBuilders.Get(blockStart)
 	if !ok {

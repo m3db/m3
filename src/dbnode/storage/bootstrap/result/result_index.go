@@ -22,7 +22,6 @@ package result
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -186,7 +185,6 @@ func (r IndexResults) AddBlockIfNotExists(
 	// block entry to at most one index block entry.
 	blockStart := t.Truncate(idxopts.BlockSize())
 	blockStartNanos := xtime.ToUnixNano(blockStart)
-	log.Printf("AddBlockIfNotExists blockStartNanos: %d", blockStartNanos)
 
 	_, exists := r[blockStartNanos]
 	if !exists {
