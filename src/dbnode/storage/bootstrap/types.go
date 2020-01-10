@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -28,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -63,12 +65,128 @@ type ProcessNamespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
+	// Hooks is a set of namespace bootstrap hooks.
+	Hooks NamespaceHooks
+}
+
+// NamespaceHooks is a set of namespace bootstrap hooks.
+type NamespaceHooks struct {
+	opts NamespaceHooksOptions
+}
+
+// NamespaceHooksOptions is a set of hooks options.
+type NamespaceHooksOptions struct {
+	BootstrapSourceBegin func() error
+	BootstrapSourceEnd   func() error
+}
+
+// NewNamespaceHooks returns a new set of bootstrap hooks.
+func NewNamespaceHooks(opts NamespaceHooksOptions) NamespaceHooks {
+	return NamespaceHooks{opts: opts}
+}
+
+// BootstrapSourceBegin is a hook to call when a bootstrap source starts.
+func (h NamespaceHooks) BootstrapSourceBegin() error {
+	if h.opts.BootstrapSourceBegin == nil {
+		return nil
+	}
+	return h.opts.BootstrapSourceBegin()
+}
+
+// BootstrapSourceEnd is a hook to call when a bootstrap source ends.
+func (h NamespaceHooks) BootstrapSourceEnd() error {
+	if h.opts.BootstrapSourceEnd == nil {
+		return nil
+	}
+	return h.opts.BootstrapSourceEnd()
 }
 
 // Namespaces are a set of namespaces being bootstrapped.
 type Namespaces struct {
 	// Namespaces are the namespaces being bootstrapped.
 	Namespaces *NamespacesMap
+}
+
+// Hooks returns namespaces hooks for the set of namespaces.
+func (n Namespaces) Hooks() NamespacesHooks {
+	return NamespacesHooks{namespaces: n.Namespaces}
+}
+
+// NamespacesHooks is a helper to run hooks for a set of namespaces.
+type NamespacesHooks struct {
+	namespaces *NamespacesMap
+}
+
+// BootstrapSourceBegin is a hook to call when a bootstrap source starts.
+func (h NamespacesHooks) BootstrapSourceBegin() error {
+	if h.namespaces == nil {
+		return nil
+	}
+
+	var (
+		wg           sync.WaitGroup
+		multiErrLock sync.Mutex
+		multiErr     xerrors.MultiError
+	)
+	for _, elem := range h.namespaces.Iter() {
+		ns := elem.Value()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Run bootstrap source end hook.
+			err := ns.Hooks.BootstrapSourceBegin()
+			if err == nil {
+				return
+			}
+
+			multiErrLock.Lock()
+			defer multiErrLock.Unlock()
+
+			multiErr = multiErr.Add(err)
+		}()
+	}
+
+	wg.Wait()
+
+	return multiErr.FinalError()
+}
+
+// BootstrapSourceEnd is a hook to call when a bootstrap source starts.
+func (h NamespacesHooks) BootstrapSourceEnd() error {
+	if h.namespaces == nil {
+		return nil
+	}
+
+	var (
+		wg           sync.WaitGroup
+		multiErrLock sync.Mutex
+		multiErr     xerrors.MultiError
+	)
+	for _, elem := range h.namespaces.Iter() {
+		ns := elem.Value()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Run bootstrap source end hook.
+			err := ns.Hooks.BootstrapSourceEnd()
+			if err == nil {
+				return
+			}
+
+			multiErrLock.Lock()
+			defer multiErrLock.Unlock()
+
+			multiErr = multiErr.Add(err)
+		}()
+	}
+
+	wg.Wait()
+
+	return multiErr.FinalError()
 }
 
 // Namespace is a namespace that is being bootstrapped.
@@ -79,6 +197,8 @@ type Namespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
+	// Hooks is a set of namespace bootstrap hooks.
+	Hooks NamespaceHooks
 	// DataTargetRange is the data target bootstrap range.
 	DataTargetRange TargetRange
 	// IndexTargetRange is the index target bootstrap range.

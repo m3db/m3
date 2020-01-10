@@ -31,12 +31,13 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -64,7 +65,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	bsm.sleepFn = func(time.Duration) {}
 
 	gomock.InOrder(
-		ns.EXPECT().GetOwnedShards().Return([]databaseShard{}),
+		ns.EXPECT().PrepareBootstrap().Return([]databaseShard{}, nil),
 		ns.EXPECT().Metadata().Return(meta),
 		ns.EXPECT().ID().Return(id),
 		ns.EXPECT().
@@ -86,7 +87,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()
@@ -109,7 +110,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().PrepareBootstrap().Return([]databaseShard{}, nil).AnyTimes()
 	ns.EXPECT().Metadata().Return(meta).AnyTimes()
 
 	ns.EXPECT().

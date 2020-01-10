@@ -750,6 +750,37 @@ func (n *dbNamespace) AggregateQuery(
 	return res, err
 }
 
+func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
+	var (
+		wg           sync.WaitGroup
+		multiErrLock sync.Mutex
+		multiErr     xerrors.MultiError
+		shards       = n.GetOwnedShards()
+	)
+	for _, shard := range shards {
+		shard := shard
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			err := shard.PrepareBootstrap()
+			if err != nil {
+				multiErrLock.Lock()
+				multiErr = multiErr.Add(err)
+				multiErrLock.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return shards, nil
+}
+
 func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,

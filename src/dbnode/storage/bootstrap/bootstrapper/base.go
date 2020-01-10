@@ -126,13 +126,27 @@ func (b baseBootstrapper) Bootstrap(
 	nowFn := b.opts.ClockOptions().NowFn()
 	begin := nowFn()
 
+	// Run the bootstrap source begin hook.
+	b.log.Info("bootstrap from source hook begin started", logFields...)
+	if err := namespaces.Hooks().BootstrapSourceBegin(); err != nil {
+		return bootstrap.NamespaceResults{}, err
+	}
+
 	b.log.Info("bootstrap from source started", logFields...)
+
+	// Run the bootstrap source.
 	currResults, err := b.src.Read(curr)
 
 	logFields = append(logFields, zap.Duration("took", nowFn().Sub(begin)))
 	if err != nil {
 		errorLogFields := append(logFieldsCopy(logFields), zap.Error(err))
 		b.log.Error("error bootstrapping from source", errorLogFields...)
+		return bootstrap.NamespaceResults{}, err
+	}
+
+	// Run the bootstrap source end hook.
+	b.log.Info("bootstrap from source hook end started", logFields...)
+	if err := namespaces.Hooks().BootstrapSourceEnd(); err != nil {
 		return bootstrap.NamespaceResults{}, err
 	}
 
