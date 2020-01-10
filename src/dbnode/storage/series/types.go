@@ -420,4 +420,10 @@ type WriteOptions struct {
 	// bootstrappers filling data that they know has not yet been flushed to
 	// disk.
 	BootstrapWrite bool
+	// SkipOutOfRetention allows for skipping writes that are out of retention
+	// by just returning success, this allows for callers to not have to
+	// deal with clock skew when they are trying to write a value that may not
+	// fall into retention but they do not care if it fails to write due to
+	// it just having fallen out of retention (time race).
+	SkipOutOfRetention bool
 }

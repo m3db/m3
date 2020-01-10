@@ -317,11 +317,27 @@ func (b *dbBuffer) Write(
 	}
 
 	if writeType == ColdWrite {
-		if now.Add(-ropts.RetentionPeriod()).After(timestamp) {
+		retentionLimit := now.Add(-ropts.RetentionPeriod())
+		if wOpts.BootstrapWrite {
+			// NB(r): Allow bootstrapping to write to blocks that are
+			// still in retention.
+			retentionLimit = retentionLimit.Truncate(blockSize)
+		}
+		if retentionLimit.After(timestamp) {
+			if wOpts.SkipOutOfRetention {
+				// Allow for datapoint to be skipped since caller does not
+				// want writes out of retention to fail.
+				return false, nil
+			}
 			return false, m3dberrors.ErrTooPast
 		}
 
 		if !now.Add(ropts.FutureRetentionPeriod()).Add(blockSize).After(timestamp) {
+			if wOpts.SkipOutOfRetention {
+				// Allow for datapoint to be skipped since caller does not
+				// want writes out of retention to fail.
+				return false, nil
+			}
 			return false, m3dberrors.ErrTooFuture
 		}
 

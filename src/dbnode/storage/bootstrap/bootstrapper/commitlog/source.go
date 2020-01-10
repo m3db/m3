@@ -107,10 +107,9 @@ type accumulateArg struct {
 }
 
 type accumulateWorker struct {
-	inputCh                     chan accumulateArg
-	datapointsSkippedNotInRange int
-	datapointsRead              int
-	numErrors                   int
+	inputCh        chan accumulateArg
+	datapointsRead int
+	numErrors      int
 }
 
 func newCommitLogSource(
@@ -859,10 +858,10 @@ func (s *commitLogSource) readCommitLogFilePredicate(f commitlog.FileFilterInfo)
 	return ok
 }
 
-func (s *commitLogSource) startAccumulateWorker(
-	worker *accumulateWorker,
-) {
+func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	for input := range worker.inputCh {
 		var (
 			namespace  = input.namespace
@@ -871,8 +870,8 @@ func (s *commitLogSource) startAccumulateWorker(
 			unit       = input.unit
 			annotation = input.annotation
 		)
-
 		worker.datapointsRead++
+
 		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc: namespace.namespaceContext.Schema,
@@ -883,6 +882,7 @@ func (s *commitLogSource) startAccumulateWorker(
 				MatchUniqueIndex:      true,
 				MatchUniqueIndexValue: entry.UniqueIndex,
 				BootstrapWrite:        true,
+				SkipOutOfRetention:    true,
 			})
 		if err != nil {
 			// NB(r): Only log first error per worker since this could be very
