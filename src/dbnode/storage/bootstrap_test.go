@@ -37,7 +37,7 @@ import (
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions()

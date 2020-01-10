@@ -27,35 +27,48 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/stretchr/testify/assert"
+	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3/src/x/test"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSeriesWriteReadParallel is a regression test that was added to capture panics that might
 // arise when many parallel writes and reads are happening at the same time.
 func TestSeriesWriteReadParallel(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	// Assume all data has not been written yet.
+	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	blockRetriever.EXPECT().
+		IsBlockRetrievable(gomock.Any()).
+		Return(false, nil).
+		AnyTimes()
+
 	var (
 		numWorkers        = 100
 		numStepsPerWorker = numWorkers * 100
 		opts              = newSeriesTestOptions()
 		curr              = time.Now()
 		series            = NewDatabaseSeries(DatabaseSeriesOptions{
-			ID:          ident.StringID("foo"),
-			UniqueIndex: 1,
-			Options:     opts,
+			ID:             ident.StringID("foo"),
+			UniqueIndex:    1,
+			BlockRetriever: blockRetriever,
+			Options:        opts,
 		}).(*dbSeries)
 		dbBlock = block.NewDatabaseBlock(time.Time{}, time.Hour*2,
 			ts.Segment{}, block.NewOptions(), namespace.Context{})
 	)
 
 	err := series.LoadBlock(dbBlock, WarmWrite)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
