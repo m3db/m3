@@ -95,7 +95,10 @@ func TestBufferWriteTooFuture(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	ctx := context.NewContext()
 	defer ctx.Close()
 
@@ -118,7 +121,10 @@ func TestBufferWriteTooPast(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	ctx := context.NewContext()
 	defer ctx.Close()
 	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
@@ -143,7 +149,10 @@ func TestBufferWriteError(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	defer ctx.Close()
 
 	timeUnitNotExist := xtime.Unit(127)
@@ -164,7 +173,10 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	data := []DecodedTestValue{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
@@ -200,7 +212,10 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	data := []DecodedTestValue{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
@@ -240,7 +255,10 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	data := []DecodedTestValue{
 		{curr, 1, xtime.Second, nil},
@@ -381,7 +399,10 @@ func newTestBufferWithCustomData(
 	setAnn setAnnotation,
 ) (*dbBuffer, map[xtime.UnixNano][]DecodedTestValue) {
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	expectedMap := make(map[xtime.UnixNano][]DecodedTestValue)
 
 	for _, bd := range blockDatas {
@@ -604,7 +625,10 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	data := []DecodedTestValue{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
@@ -655,7 +679,10 @@ func testBufferFetchBlocks(t *testing.T, opts Options, setAnn setAnnotation) {
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	nsCtx := namespace.Context{}
@@ -737,7 +764,10 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)}, namespace.Context{})
@@ -761,7 +791,10 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	end := b.start.Add(time.Second)
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 	buffer.inOrderBlockStarts = append(buffer.inOrderBlockStarts, b.start)
 
@@ -809,7 +842,10 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	// Perform out of order writes that will create two in order encoders.
 	data := []DecodedTestValue{
@@ -897,7 +933,10 @@ func TestBufferRemoveBucket(t *testing.T) {
 		return curr
 	}))
 	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	// Perform out of order writes that will create two in order encoders.
 	data := []DecodedTestValue{
@@ -992,7 +1031,10 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	// Perform one valid write to setup the state of the buffer.
 	ctx := context.NewContext()
@@ -1063,7 +1105,10 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	// Create test data to perform out of order writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
@@ -1163,7 +1208,10 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer.Reset(ident.StringID("foo"), opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 
 	// Create test data to perform warm writes that will create two in-order
 	// encoders so we can verify that Snapshot will perform a merge.
@@ -1626,7 +1674,10 @@ func TestBufferLoadWarmWrite(t *testing.T) {
 		curr      = time.Now().Truncate(blockSize)
 		nsCtx     = namespace.Context{}
 	)
-	buffer.Reset(nil, opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(encoded))
@@ -1657,7 +1708,10 @@ func TestBufferLoadColdWrite(t *testing.T) {
 		curr      = time.Now().Truncate(blockSize)
 		nsCtx     = namespace.Context{}
 	)
-	buffer.Reset(nil, opts)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
 	encoded, err := buffer.ReadEncoded(context.NewContext(), curr, curr.Add(blockSize), nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(encoded))

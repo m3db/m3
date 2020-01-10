@@ -74,8 +74,8 @@ var (
 	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
 	errShardIsNotBootstrapped              = errors.New("shard is not bootstrapped")
 	errShardAlreadyBootstrapped            = errors.New("shard is already bootstrapped")
-	errFlushStateIsNotBootstrapped         = errors.New("flush state is not bootstrapped")
-	errFlushStateAlreadyBootstrapped       = errors.New("flush state is already bootstrapped")
+	errFlushStateIsNotInitialized          = errors.New("shard flush state is not initialized")
+	errFlushStateAlreadyInitialized        = errors.New("shard flush state is already initialized")
 	errTriedToLoadNilSeries                = errors.New("tried to load nil series into shard")
 
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
@@ -231,7 +231,7 @@ type shardListElement *list.Element
 type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
-	bootstrapped bool
+	initialized  bool
 }
 
 func newShardFlushState() shardFlushState {
@@ -384,16 +384,23 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
 func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
-	s.flushState.RLock()
-	defer s.flushState.RUnlock()
-
-	if !s.flushState.bootstrapped {
+	s.RLock()
+	bootstrapped := s.bootstrapState == Bootstrapped
+	s.RUnlock()
+	if !bootstrapped {
+		// Needs to be bootstrapped.
 		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
 	}
 
-	states := s.flushState.statesByTime
-	snapshot := make(map[xtime.UnixNano]series.BlockState, len(states))
-	for time, state := range states {
+	s.flushState.RLock()
+	defer s.flushState.RUnlock()
+	if !s.flushState.initialized {
+		// Also needs to have the shard flush states initialized.
+		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
+	}
+
+	snapshot := make(map[xtime.UnixNano]series.BlockState, len(s.flushState.statesByTime))
+	for time, state := range s.flushState.statesByTime {
 		snapshot[time] = series.BlockState{
 			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
 			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
@@ -1179,10 +1186,17 @@ func (s *dbShard) newShardEntry(
 	seriesTags.NoFinalize()
 
 	uniqueIndex := s.increasingIndex.nextIndex()
-	series := s.seriesPool.Get()
-	series.Reset(seriesID, seriesTags, uniqueIndex, s.seriesBlockRetriever,
-		s.seriesOnRetrieveBlock, s, s.seriesOpts)
-	return lookup.NewEntry(series, uniqueIndex), nil
+	newSeries := s.seriesPool.Get()
+	newSeries.Reset(series.DatabaseSeriesOptions{
+		ID:                     seriesID,
+		Tags:                   seriesTags,
+		UniqueIndex:            uniqueIndex,
+		BlockRetriever:         s.seriesBlockRetriever,
+		OnRetrieveBlock:        s.seriesOnRetrieveBlock,
+		OnEvictedFromWiredList: s,
+		Options:                s.seriesOpts,
+	})
+	return lookup.NewEntry(newSeries, uniqueIndex), nil
 }
 
 type insertAsyncResult struct {
@@ -1804,6 +1818,70 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	return result, nil, nil
 }
 
+func (s *dbShard) PrepareBootstrap() error {
+	// Iterate flushed time ranges to determine which blocks are retrievable.
+	// NB(r): This must be done before bootstrap since during bootstrapping
+	// series will load blocks into series with series.LoadBlock(...) which
+	// needs to ask the shard whether certain time windows have been flushed or
+	// not.
+	s.initializeFlushStates()
+	return nil
+}
+
+func (s *dbShard) initializeFlushStates() {
+	s.flushState.RLock()
+	initialized := s.flushState.initialized
+	s.flushState.RUnlock()
+	if initialized {
+		return
+	}
+
+	defer func() {
+		s.flushState.Lock()
+		s.flushState.initialized = true
+		s.flushState.Unlock()
+	}()
+
+	s.UpdateFlushStates()
+	return
+}
+
+func (s *dbShard) UpdateFlushStates() {
+	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+
+	for _, result := range readInfoFilesResults {
+		if err := result.Err.Error(); err != nil {
+			s.logger.Error("unable to read info files in shard bootstrap",
+				zap.Uint32("shard", s.ID()),
+				zap.Stringer("namespace", s.namespace.ID()),
+				zap.String("filepath", result.Err.Filepath()),
+				zap.Error(err))
+			continue
+		}
+
+		info := result.Info
+		at := xtime.FromNanoseconds(info.BlockStart)
+		currState := s.flushStateNoBootstrapCheck(at)
+		if currState.WarmStatus != fileOpSuccess {
+			s.markWarmFlushStateSuccess(at)
+		}
+
+		// Cold version needs to get bootstrapped so that the 1:1 relationship
+		// between volume number and cold version is maintained and the volume
+		// numbers / flush versions remain monotonically increasing.
+		//
+		// Note that there can be multiple info files for the same block, for
+		// example if the database didn't get to clean up compacted filesets
+		// before terminating.
+		if currState.ColdVersionRetrievable < info.VolumeIndex {
+			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
+			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
+		}
+	}
+}
+
 func (s *dbShard) Bootstrap() error {
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
@@ -1817,13 +1895,16 @@ func (s *dbShard) Bootstrap() error {
 	s.bootstrapState = Bootstrapping
 	s.Unlock()
 
-	// Iterate flushed time ranges to determine which blocks are retrievable.
-	s.bootstrapFlushStates()
+	multiErr := xerrors.NewMultiError()
+
+	// Initialize the flush states if we haven't called prepare bootstrap.
+	if err := s.PrepareBootstrap(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
 
 	// Now that this shard has finished bootstrapping, attempt to cache all of its seekers. Cannot call
 	// this earlier as block lease verification will fail due to the shards not being bootstrapped
 	// (and as a result no leases can be verified since the flush state is not yet known).
-	multiErr := xerrors.NewMultiError()
 	if err := s.cacheShardIndices(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
@@ -1911,57 +1992,6 @@ func (s *dbShard) LoadBlocks(
 	}
 
 	return multiErr.FinalError()
-}
-
-func (s *dbShard) bootstrapFlushStates() error {
-	s.flushState.RLock()
-	if s.flushState.bootstrapped {
-		s.RUnlock()
-		return errFlushStateAlreadyBootstrapped
-	}
-	s.flushState.RUnlock()
-
-	defer func() {
-		s.Lock()
-		s.flushState.bootstrapped = true
-		s.Unlock()
-	}()
-
-	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
-
-	for _, result := range readInfoFilesResults {
-		if err := result.Err.Error(); err != nil {
-			s.logger.Error("unable to read info files in shard bootstrap",
-				zap.Uint32("shard", s.ID()),
-				zap.Stringer("namespace", s.namespace.ID()),
-				zap.String("filepath", result.Err.Filepath()),
-				zap.Error(err),
-			)
-			continue
-		}
-		info := result.Info
-		at := xtime.FromNanoseconds(info.BlockStart)
-		fs := s.flushStateNoBootstrapCheck(at)
-		if fs.WarmStatus != fileOpSuccess {
-			s.markWarmFlushStateSuccess(at)
-		}
-
-		// Cold version needs to get bootstrapped so that the 1:1 relationship
-		// between volume number and cold version is maintained and the volume
-		// numbers / flush versions remain monotonically increasing.
-		//
-		// Note that there can be multiple info files for the same block, for
-		// example if the database didn't get to clean up compacted filesets
-		// before terminating.
-		if fs.ColdVersionRetrievable < info.VolumeIndex {
-			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
-			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
-		}
-	}
-
-	return nil
 }
 
 func (s *dbShard) cacheShardIndices() error {
@@ -2079,7 +2109,7 @@ func (s *dbShard) ColdFlush(
 	blockStates := s.BlockStatesSnapshot()
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
-		return errFlushStateIsNotBootstrapped
+		return errFlushStateIsNotInitialized
 	}
 
 	var (
@@ -2270,18 +2300,22 @@ func (s *dbShard) Snapshot(
 
 func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
 	s.flushState.RLock()
-	defer s.flushState.RUnlock()
-	if !s.flushState.bootstrapped {
-		return fileOpState{}, errFlushStateIsNotBootstrapped
+	initialized := s.flushState.initialized
+	state := s.flushStateWithRLock(blockStart)
+	s.flushState.RUnlock()
+
+	if !initialized {
+		return fileOpState{}, errFlushStateIsNotInitialized
 	}
 
-	return s.flushStateWithRLock(blockStart), nil
+	return state, nil
 }
 
 func (s *dbShard) flushStateNoBootstrapCheck(blockStart time.Time) fileOpState {
 	s.flushState.RLock()
-	defer s.flushState.RUnlock()
-	return s.flushStateWithRLock(blockStart)
+	check := s.flushStateWithRLock(blockStart)
+	s.flushState.RUnlock()
+	return check
 }
 
 func (s *dbShard) flushStateWithRLock(blockStart time.Time) fileOpState {
@@ -2380,7 +2414,7 @@ func (s *dbShard) CleanupCompactedFileSets() error {
 	blockStates := s.BlockStatesSnapshot()
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
-		return errFlushStateIsNotBootstrapped
+		return errShardIsNotBootstrapped
 	}
 
 	toDelete := fs.FileSetFilesSlice(make([]fs.FileSetFile, 0, len(filesets)))

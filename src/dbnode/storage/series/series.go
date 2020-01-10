@@ -22,6 +22,7 @@ package series
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -74,14 +75,14 @@ type dbSeries struct {
 	pool                        DatabaseSeriesPool
 }
 
-// NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ident.ID, tags ident.Tags, uniqueIndex uint64, opts Options) DatabaseSeries {
+// NewDatabaseSeries creates a new database series.
+func NewDatabaseSeries(opts DatabaseSeriesOptions) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, tags, uniqueIndex, nil, nil, nil, opts)
+	s.Reset(opts)
 	return s
 }
 
-// newPooledDatabaseSeries creates a new pooled database series
+// newPooledDatabaseSeries creates a new pooled database series.
 func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
 	series := newDatabaseSeries()
 	series.pool = pool
@@ -391,6 +392,29 @@ func (s *dbSeries) LoadBlock(
 	block block.DatabaseBlock,
 	writeType WriteType,
 ) error {
+	switch writeType {
+	case WarmWrite:
+		at := block.StartTime()
+		alreadyExists, err := s.blockRetriever.IsBlockRetrievable(at)
+		if err != nil {
+			err = fmt.Errorf("error checking warm block load valid: %v", err)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("warm load block invariant", zap.Error(err))
+				})
+			return err
+		}
+		if alreadyExists {
+			err = fmt.Errorf(
+				"warm block load for block that exists: block_start=%s", at)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("warm load block invariant", zap.Error(err))
+				})
+			return err
+		}
+	}
+
 	s.Lock()
 	s.buffer.Load(block, writeType)
 	s.Unlock()
@@ -552,7 +576,7 @@ func (s *dbSeries) Close() {
 
 	// Reset (not close) underlying resources because the series will go
 	// back into the pool and be re-used.
-	s.buffer.Reset(nil, s.opts)
+	s.buffer.Reset(databaseBufferResetOptions{Options: s.opts})
 	s.cachedBlocks.Reset()
 
 	if s.pool != nil {
@@ -560,15 +584,7 @@ func (s *dbSeries) Close() {
 	}
 }
 
-func (s *dbSeries) Reset(
-	id ident.ID,
-	tags ident.Tags,
-	uniqueIndex uint64,
-	blockRetriever QueryableBlockRetriever,
-	onRetrieveBlock block.OnRetrieveBlock,
-	onEvictedFromWiredList block.OnEvictedFromWiredList,
-	opts Options,
-) {
+func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	// NB(r): We explicitly do not place the ID back into an
 	// existing pool as high frequency users of series IDs such
 	// as the commit log need to use the reference without the
@@ -587,14 +603,18 @@ func (s *dbSeries) Reset(
 	//
 	// The same goes for the series tags.
 	s.Lock()
-	s.id = id
-	s.tags = tags
-	s.uniqueIndex = uniqueIndex
+	s.id = opts.ID
+	s.tags = opts.Tags
+	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
-	s.buffer.Reset(id, opts)
-	s.opts = opts
-	s.blockRetriever = blockRetriever
-	s.onRetrieveBlock = onRetrieveBlock
-	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
+	s.buffer.Reset(databaseBufferResetOptions{
+		ID:             opts.ID,
+		BlockRetriever: opts.BlockRetriever,
+		Options:        opts.Options,
+	})
+	s.opts = opts.Options
+	s.blockRetriever = opts.BlockRetriever
+	s.onRetrieveBlock = opts.OnRetrieveBlock
+	s.blockOnEvictedFromWiredList = opts.OnEvictedFromWiredList
 	s.Unlock()
 }
