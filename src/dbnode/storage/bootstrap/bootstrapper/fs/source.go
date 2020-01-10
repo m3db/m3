@@ -22,7 +22,6 @@ package fs
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -331,7 +330,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				blockSize = ns.Options().RetentionOptions().BlockSize()
 				err       error
 			)
-			log.Printf("reader timeRange -> %s", timeRange)
 			switch run {
 			case bootstrapDataRunType:
 				// Pass, since nothing to do.
@@ -393,7 +391,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 
 			if err == nil {
-				log.Printf("remainingRanges.Subtract")
 				remainingRanges.Subtract(result.ShardTimeRanges{
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				})
@@ -408,7 +405,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		shouldPersist = s.shouldPersist(runOpts)
 		noneRemaining = remainingRanges.IsEmpty()
 	)
-	log.Printf("shouldPersist: %t, noneRemaining: %t, timesWithErrors len: %d, remainingRanges: %s", shouldPersist, noneRemaining, len(timesWithErrors), remainingRanges)
 	if run == bootstrapIndexRunType {
 		if shouldPersist && noneRemaining {
 			if err := bootstrapper.PersistBootstrapIndexSegment(
@@ -430,7 +426,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			// Track success.
 			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
-			log.Printf("bootstrapper.BuildBootstrapIndexSegment called")
 			if err := bootstrapper.BuildBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -534,7 +529,6 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	if err != nil {
 		return batch, err
 	}
-	log.Printf("readNextEntryAndMaybeIndex added doc ID -> %s", string(d.ID))
 
 	batch = append(batch, d)
 
@@ -779,8 +773,10 @@ func (r *runResult) getOrAddIndexBuilder(
 	r.Lock()
 	defer r.Unlock()
 
+	idxOpts := ns.Options().IndexOptions()
+	r.index.IndexResults().AddBlockIfNotExists(start, idxOpts)
 	builder, err := r.builders.GetOrAdd(start,
-		ns.Options().IndexOptions(), ropts)
+		idxOpts, ropts)
 	return builder, err
 }
 

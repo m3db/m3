@@ -22,6 +22,7 @@ package result
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -172,6 +173,25 @@ func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) 
 // Builder returns the underlying index segment docs builder.
 func (b *IndexBuilder) Builder() segment.DocumentsBuilder {
 	return b.builder
+}
+
+// AddBlockIfNotExists adds an index block if it does not already exist to the index results.
+func (r IndexResults) AddBlockIfNotExists(
+	t time.Time,
+	idxopts namespace.IndexOptions,
+) {
+	// NB(r): The reason we can align by the retention block size and guarantee
+	// there is only one entry for this time is because index blocks must be a
+	// positive multiple of the data block size, making it easy to map a data
+	// block entry to at most one index block entry.
+	blockStart := t.Truncate(idxopts.BlockSize())
+	blockStartNanos := xtime.ToUnixNano(blockStart)
+	log.Printf("AddBlockIfNotExists blockStartNanos: %d", blockStartNanos)
+
+	_, exists := r[blockStartNanos]
+	if !exists {
+		r[blockStartNanos] = NewIndexBlock(blockStart, nil, nil)
+	}
 }
 
 // Add will add an index block to the collection, merging if one already

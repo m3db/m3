@@ -36,8 +36,8 @@ import (
 )
 
 var (
-	errIndexBlockNotFound = func(blockStart time.Time) error {
-		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
+	errIndexBlockNotFound = func(blockStart xtime.UnixNano) error {
+		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart)
 	}
 	errIndexBuilderNotFound = func(blockStart time.Time) error {
 		return fmt.Errorf("did not find index builder for blocksStart: %d", blockStart.Unix())
@@ -108,7 +108,7 @@ func PersistBootstrapIndexSegment(
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return errIndexBlockNotFound(blockStart)
+		return errIndexBlockNotFound(xtime.ToUnixNano(blockStart))
 	}
 	b, ok := indexBuilders.Get(blockStart)
 	if !ok {
@@ -263,7 +263,7 @@ func BuildBootstrapIndexSegment(
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
-		return errIndexBlockNotFound(blockStart)
+		return errIndexBlockNotFound(xtime.ToUnixNano(blockStart))
 	}
 	b, ok := indexBuilders.Get(blockStart)
 	if !ok {

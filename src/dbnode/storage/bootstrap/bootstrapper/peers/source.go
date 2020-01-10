@@ -744,6 +744,7 @@ func (s *peersSource) processReaders(
 				err       error
 			)
 
+			r.IndexResults().AddBlockIfNotExists(start, idxOpts)
 			indexBuilder, err = builders.GetOrAdd(
 				start,
 				idxOpts,
