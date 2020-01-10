@@ -1,9 +1,14 @@
-#!/bin/bash 
+#!/bin/bash
 
 # Use with Ubuntu 16.x+
 set -xe
 
 DOCKER_USER=${DOCKER_USER:-$USER}
+
+# Copy over docker daemon config for azure deployments.
+if [[ "$AZURE_TENANT_ID" != "" ]]; then
+    cp -r /home/$DOCKER_USER/docker /etc/docker
+fi
 
 apt-get update
 
@@ -14,8 +19,7 @@ apt-get install -y git
 apt-get install -y tmux curl jq htop
 
 # Install docker
-snap install docker
-groupadd docker
+apt-get install -y containerd docker.io
 usermod -aG docker $DOCKER_USER
 
 # Install kubectl
