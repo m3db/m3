@@ -12,11 +12,15 @@ const (
 	debugQS     = "debug=true"
 )
 
+type NamespaceArgs struct {
+	showAll *bool
+	delete  *string
+}
+
 type NamespaceFlags struct {
 	Namespace *flag.FlagSet
 	Delete    *flag.FlagSet
 }
-
 func SetupFlags(flags *NamespaceArgs) NamespaceFlags {
 	namespaceFlags := flag.NewFlagSet("ns", flag.ExitOnError)
 	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
@@ -62,11 +66,6 @@ Usage of %s:
 		deleteFlags.PrintDefaults()
 	}
 	return NamespaceFlags{Namespace: namespaceFlags, Delete: deleteFlags}
-}
-
-type NamespaceArgs struct {
-	showAll *bool
-	delete  *string
 }
 
 func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string, log *zap.SugaredLogger) {

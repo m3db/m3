@@ -1,7 +1,9 @@
 M3DB Tool
 ========
 
-This is a CLI tool to do some things that may be desirable for cluster introspection, or for operational purposes.
+This is a CLI tool to do some things that may be desirable for
+cluster introspection, or for operational purposes.
+
 
 Where configuration data is required its provided via YAML.
 
@@ -15,7 +17,10 @@ You can:
 * add nodes
 * remove nodes
 
-NOTE: This tool can delete namespaces and placements.  It can be quite hazardous if used without adequate understanding of your m3db cluster's topology, or without a decent understanding of how m3db works.
+NOTE: This tool can delete namespaces and placements.  It can be
+quite hazardous if used without adequate understanding of your m3db
+cluster's topology, or without a decent understanding of how m3db
+works.
 
 Examples
 -------
@@ -23,19 +28,23 @@ Examples
     # show help
     m3ctl -h
     # create a database
-    m3ctl db -create ./database/examples/devel.yaml
+    m3ctl db create -f ./database/examples/devel.yaml
     # list namespaces
     m3ctl ns
     # delete a namespace
-    m3ctl ns -delete default
+    m3ctl ns delete -name default
     # list placements
     m3ctl pl
     # point to some remote and list namespaces
     m3ctl -endpoint http://localhost:7201 ns
+    # check the namespaces in a kubernetes cluster
+    # first setup a tunnel via kubectl port-forward ... 7201 
+    m3ctl -endpoint http://localhost:7201 ns
     # list the ids of the placements
     m3ctl -endpoint http://localhost:7201 pl | jq .placement.instances[].id
 
-Some example yaml files are provided in the examples directories. Here's one for database creation:
+Some example yaml files are provided in the examples directories.
+Here's one for database creation:
 
     ---
     type: cluster

@@ -8,10 +8,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	defaultPath = "/api/v1/database"
-)
-
 func Create(createYAML string, endpoint string, log *zap.SugaredLogger) {
 	log.Debugf("createYAML:%s:\n", createYAML)
 	data := yaml.Load(createYAML, &admin.DatabaseCreateRequest{}, log)

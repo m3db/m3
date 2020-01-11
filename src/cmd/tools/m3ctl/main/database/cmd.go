@@ -8,6 +8,10 @@ import (
 	"os"
 )
 
+const (
+	defaultPath = "/api/v1/database"
+)
+
 type DatabaseFlagSets struct {
 	Database *flag.FlagSet
 	Create   *flag.FlagSet
@@ -46,7 +50,7 @@ Usage of %s:
 
 	return DatabaseFlagSets{Database: databaseFlags, Create: createFlags}
 }
-func ParseAndDo(arg string, flags *DatabaseFlagSets, ep string, log *zap.SugaredLogger) {
+func ParseAndDo(arg *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string, log *zap.SugaredLogger) {
 	if err := flags.Database.Parse(flag.Args()[1:]); err != nil {
 		flags.Database.Usage()
 		os.Exit(1)
@@ -75,8 +79,8 @@ func ParseAndDo(arg string, flags *DatabaseFlagSets, ep string, log *zap.Sugared
 				}
 			}
 		})
-		// the below createDatabaseYAML.Value has at least one by this time per the arg parser
-		Create(arg, ep, log)
+		// the below arg.Value has at least one value by this time per the arg parser
+		Create(arg.Value[len(arg.Value)-1], ep, log)
 	default:
 		flags.Database.Usage()
 		os.Exit(1)

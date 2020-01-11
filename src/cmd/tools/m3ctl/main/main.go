@@ -86,7 +86,7 @@ Each subcommand has its own built-in help provided via "-h".
 
 	switch flag.Arg(0) {
 	case databaseFlagSets.Database.Name():
-		database.ParseAndDo(createDatabaseYAML.Value[len(createDatabaseYAML.Value)-1], &databaseFlagSets, *endPoint, log)
+		database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint, log)
 	case namespaceFlagSets.Namespace.Name():
 		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint, log)
 	case placementFlagSets.Placement.Name():
