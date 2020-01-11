@@ -3,6 +3,13 @@ package namespaces
 import (
 	"flag"
 	"fmt"
+	"go.uber.org/zap"
+	"os"
+)
+
+const (
+	defaultPath = "/api/v1/namespace"
+	debugQS     = "debug=true"
 )
 
 type NamespaceFlags struct {
@@ -60,4 +67,38 @@ Usage of %s:
 type NamespaceArgs struct {
 	showAll *bool
 	delete  *string
+}
+
+func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string, log *zap.SugaredLogger) {
+	if err := flags.Namespace.Parse(flag.Args()[1:]); err != nil {
+		flags.Namespace.Usage()
+		os.Exit(1)
+	}
+	// maybe do the default action which is listing the names
+	if flags.Namespace.NArg() == 0 {
+		Show(args, ep, log)
+		os.Exit(0)
+	}
+	switch flag.Arg(1) {
+	case flags.Delete.Name():
+		if err := flags.Delete.Parse(flag.Args()[2:]); err != nil {
+			flags.Delete.Usage()
+			os.Exit(1)
+		}
+		if flags.Delete.NFlag() == 0 {
+			flags.Delete.Usage()
+			os.Exit(1)
+		}
+		flags.Delete.Visit(func(f *flag.Flag) {
+			if len(f.Value.String()) == 0 {
+				fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+				flags.Delete.Usage()
+				os.Exit(1)
+			}
+		})
+		Delete(args, ep, log)
+	default:
+		flags.Namespace.Usage()
+		os.Exit(1)
+	}
 }

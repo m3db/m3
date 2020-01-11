@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/m3db/m3/src/x/config/configflag"
+	"go.uber.org/zap"
+	"os"
 )
 
 type DatabaseFlagSets struct {
@@ -43,4 +45,40 @@ Usage of %s:
 	}
 
 	return DatabaseFlagSets{Database: databaseFlags, Create: createFlags}
+}
+func ParseAndDo(arg string, flags *DatabaseFlagSets, ep string, log *zap.SugaredLogger) {
+	if err := flags.Database.Parse(flag.Args()[1:]); err != nil {
+		flags.Database.Usage()
+		os.Exit(1)
+	}
+	if flags.Database.NArg() == 0 {
+		flags.Database.Usage()
+		os.Exit(1)
+	}
+	switch flag.Arg(1) {
+	case flags.Create.Name():
+		if err := flags.Create.Parse(flag.Args()[2:]); err != nil {
+			flags.Create.Usage()
+			os.Exit(1)
+		}
+		if flags.Create.NFlag() == 0 {
+			flags.Create.Usage()
+			os.Exit(1)
+		}
+		flags.Create.Visit(func(f *flag.Flag) {
+			vals := f.Value.(*configflag.FlagStringSlice)
+			for _, val := range vals.Value {
+				if len(val) == 0 {
+					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+					flags.Create.Usage()
+					os.Exit(1)
+				}
+			}
+		})
+		// the below createDatabaseYAML.Value has at least one by this time per the arg parser
+		Create(arg, ep, log)
+	default:
+		flags.Database.Usage()
+		os.Exit(1)
+	}
 }

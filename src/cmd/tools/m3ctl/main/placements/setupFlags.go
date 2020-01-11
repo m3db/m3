@@ -4,7 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"github.com/m3db/m3/src/x/config/configflag"
+	"go.uber.org/zap"
 	"os"
+)
+
+const (
+	defaultPath = "/api/v1/services/m3db/placement"
 )
 
 type PlacementArgs struct {
@@ -70,4 +75,97 @@ Usage of %s:
 		placementFlags.PrintDefaults()
 	}
 	return PlacementFlags{Placement: placementFlags, Delete: deleteFlags, Add: addFlags, Init: initFlags, Replace: replaceFlags}
+}
+
+func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string, log *zap.SugaredLogger) {
+	if err := flags.Placement.Parse(flag.Args()[1:]); err != nil {
+		flags.Placement.Usage()
+		os.Exit(1)
+	}
+	if flags.Placement.NArg() == 0 {
+		Get(args, ep, log)
+		os.Exit(0)
+	}
+	switch flag.Arg(1) {
+	case flags.Add.Name():
+		if err := flags.Add.Parse(flag.Args()[2:]); err != nil {
+			flags.Add.Usage()
+			os.Exit(1)
+		}
+		if flags.Add.NFlag() == 0 {
+			flags.Add.Usage()
+			os.Exit(1)
+		}
+		flags.Add.Visit(func(f *flag.Flag) {
+			vals := f.Value.(*configflag.FlagStringSlice)
+			for _, val := range vals.Value {
+				if len(val) == 0 {
+					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+					flags.Add.Usage()
+					os.Exit(1)
+				}
+			}
+		})
+		Add(args, ep, log)
+	case flags.Delete.Name():
+		if err := flags.Delete.Parse(flag.Args()[2:]); err != nil {
+			flags.Delete.Usage()
+			os.Exit(1)
+		}
+		if flags.Delete.NFlag() == 0 {
+			flags.Delete.Usage()
+			os.Exit(1)
+		}
+		flags.Delete.Visit(func(f *flag.Flag) {
+			if len(f.Value.String()) == 0 {
+				fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+				flags.Delete.Usage()
+				os.Exit(1)
+			}
+		})
+		Delete(args, ep, log)
+	case flags.Init.Name():
+		if err := flags.Init.Parse(flag.Args()[2:]); err != nil {
+			flags.Init.Usage()
+			os.Exit(1)
+		}
+		if flags.Init.NFlag() == 0 {
+			flags.Init.Usage()
+			os.Exit(1)
+		}
+		flags.Init.Visit(func(f *flag.Flag) {
+			vals := f.Value.(*configflag.FlagStringSlice)
+			for _, val := range vals.Value {
+				if len(val) == 0 {
+					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+					flags.Init.Usage()
+					os.Exit(1)
+				}
+			}
+		})
+		Init(args, ep, log)
+	case flags.Replace.Name():
+		if err := flags.Replace.Parse(flag.Args()[2:]); err != nil {
+			flags.Replace.Usage()
+			os.Exit(1)
+		}
+		if flags.Replace.NFlag() == 0 {
+			flags.Replace.Usage()
+			os.Exit(1)
+		}
+		flags.Replace.Visit(func(f *flag.Flag) {
+			vals := f.Value.(*configflag.FlagStringSlice)
+			for _, val := range vals.Value {
+				if len(val) == 0 {
+					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
+					flags.Replace.Usage()
+					os.Exit(1)
+				}
+			}
+		})
+		Replace(args, ep, log)
+	default:
+		Get(args, ep, log)
+	}
+
 }
