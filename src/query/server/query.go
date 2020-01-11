@@ -154,9 +154,7 @@ func Run(runOpts RunOptions) {
 
 	tracer, traceCloser, err := cfg.Tracing.NewTracer(serviceName, scope, logger)
 	if err != nil {
-		logger.Info("could not initialize tracing", zap.Error(err))
-		time.Sleep(5 * time.Second)
-		logger.Fatal("exiting")
+		logger.Fatal("could not initialize tracing", zap.Error(err))
 	}
 
 	defer traceCloser.Close()
