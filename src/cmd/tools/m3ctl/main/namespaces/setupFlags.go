@@ -7,7 +7,7 @@ import (
 
 type NamespaceFlags struct {
 	Namespace *flag.FlagSet
-	Delete *flag.FlagSet
+	Delete    *flag.FlagSet
 }
 
 func SetupFlags(flags *NamespaceArgs) NamespaceFlags {
@@ -22,7 +22,7 @@ This is the subcommand for acting on namespaces.
 
 Description:
 
-The subcommand "%s"" provides the ability to:
+The namespaces subcommand "%s"" provides the ability to:
 
 * list all namespaces (default)
 * verbosely list all the available information about the namespaces (-all)
@@ -55,4 +55,9 @@ Usage of %s:
 		deleteFlags.PrintDefaults()
 	}
 	return NamespaceFlags{Namespace: namespaceFlags, Delete: deleteFlags}
+}
+
+type NamespaceArgs struct {
+	showAll *bool
+	delete  *string
 }

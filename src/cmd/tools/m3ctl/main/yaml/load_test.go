@@ -1,10 +1,10 @@
 package yaml
 
 import (
-	"io/ioutil"
-	"testing"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"io/ioutil"
+	"testing"
 )
 
 func TestLoadBasic(t *testing.T) {

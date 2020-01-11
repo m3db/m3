@@ -12,7 +12,7 @@ const (
 	defaultPath = "/api/v1/database"
 )
 
-func Command(createYAML string, endpoint string, log *zap.SugaredLogger) {
+func Create(createYAML string, endpoint string, log *zap.SugaredLogger) {
 	log.Debugf("createYAML:%s:\n", createYAML)
 	data := yaml.Load(createYAML, &admin.DatabaseCreateRequest{}, log)
 	url := fmt.Sprintf("%s%s/create", endpoint, defaultPath)

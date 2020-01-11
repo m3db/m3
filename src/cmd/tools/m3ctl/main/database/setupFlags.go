@@ -8,8 +8,9 @@ import (
 
 type DatabaseFlagSets struct {
 	Database *flag.FlagSet
-	Create * flag.FlagSet
+	Create   *flag.FlagSet
 }
+
 func SetupFlags(createDatabaseYAML *configflag.FlagStringSlice) DatabaseFlagSets {
 	databaseFlags := flag.NewFlagSet("db", flag.ExitOnError)
 	createFlags := flag.NewFlagSet("create", flag.ExitOnError)
@@ -41,5 +42,5 @@ Usage of %s:
 		createFlags.PrintDefaults()
 	}
 
-	return DatabaseFlagSets{Database:databaseFlags, Create:createFlags}
+	return DatabaseFlagSets{Database: databaseFlags, Create: createFlags}
 }

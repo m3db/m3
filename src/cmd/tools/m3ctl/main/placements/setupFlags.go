@@ -7,17 +7,6 @@ import (
 	"os"
 )
 
-const (
-	placementCommandName = "pl"
-
-	// flag names
-	DeleteAllName   = "deleteAll"
-	DeleteNodeName  = "deleteNode"
-	InitName        = "init"
-	NewNodeName     = "newNode"
-	ReplaceNodeName = "replaceNode"
-)
-
 type PlacementArgs struct {
 	deletePlacement *bool
 	deleteNode      *string
@@ -26,21 +15,35 @@ type PlacementArgs struct {
 	replaceFlag     configflag.FlagStringSlice
 }
 
-func SetupFlags(flags *PlacementArgs) *flag.FlagSet {
-	placementFlags := flag.NewFlagSet(placementCommandName, flag.ExitOnError)
-	flags.deletePlacement = placementFlags.Bool(DeleteAllName, false, "delete all instances in the placement")
-	flags.deleteNode = placementFlags.String(DeleteNodeName, "", "delete the specified node in the placement")
-	placementFlags.Var(&flags.initFlag, InitName, "initialize a placement. Specify a yaml file.")
-	placementFlags.Var(&flags.newNodeFlag, NewNodeName, "add a new node to the placement. Specify the filename of the yaml.")
-	placementFlags.Var(&flags.replaceFlag, ReplaceNodeName, "add a new node to the placement. Specify the filename of the yaml.")
+type PlacementFlags struct {
+	Placement *flag.FlagSet
+	Delete    *flag.FlagSet
+	Add       *flag.FlagSet
+	Init      *flag.FlagSet
+	Replace   *flag.FlagSet
+}
+
+func SetupFlags(flags *PlacementArgs) PlacementFlags {
+	placementFlags := flag.NewFlagSet("pl", flag.ExitOnError)
+	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
+	addFlags := flag.NewFlagSet("add", flag.ExitOnError)
+	initFlags := flag.NewFlagSet("init", flag.ExitOnError)
+	replaceFlags := flag.NewFlagSet("replace", flag.ExitOnError)
+
+	flags.deletePlacement = deleteFlags.Bool("all", false, "delete the entire placement")
+	flags.deleteNode = deleteFlags.String("node", "", "delete the specified node in the placement")
+	initFlags.Var(&flags.initFlag, "f", "initialize a placement. Specify a yaml file.")
+	addFlags.Var(&flags.newNodeFlag, "f", "add a new node to the placement. Specify the filename of the yaml.")
+	replaceFlags.Var(&flags.replaceFlag, "f", "add a new node to the placement. Specify the filename of the yaml.")
 	placementFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
 "%s" is for acting on placements.
 
 Description:
 
-The subcommand "%s" provides the ability to:
+The placements subcommand "%s" provides the ability to:
 
+* list the info for the placement
 * delete an entire placement from a node
 * remove a node from a placement
 * add a new node to as existing placement
@@ -55,10 +58,16 @@ file, the pathname of which is the argument for the cli option.
 
 Specify only one action at a time.
 
+It has the following subcommands:
+	%s
+	%s
+	%s
+	%s
+
 Usage of %s:
 
-`, placementFlags.Name(), placementFlags.Name(), placementFlags.Name())
+`, placementFlags.Name(), placementFlags.Name(), deleteFlags.Name(), addFlags.Name(), initFlags.Name(), replaceFlags.Name(), placementFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	return placementFlags
+	return PlacementFlags{Placement: placementFlags, Delete: deleteFlags, Add: addFlags, Init: initFlags, Replace: replaceFlags}
 }

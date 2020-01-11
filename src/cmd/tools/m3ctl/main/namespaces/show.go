@@ -18,7 +18,6 @@ func Show(flags *NamespaceArgs, endpoint string, log *zap.SugaredLogger) {
 	}
 }
 
-
 func showNames(in io.Reader, log *zap.SugaredLogger) {
 	registry := admin.NamespaceGetResponse{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
@@ -29,9 +28,3 @@ func showNames(in io.Reader, log *zap.SugaredLogger) {
 		fmt.Println(k)
 	}
 }
-
-//func ShowNames(flags *NamespaceArgs, endpoint string, log *zap.SugaredLogger) {
-//	url := fmt.Sprintf("%s%s?%s", endpoint, defaultPath, debugQS)
-//	http.DoGet(url, log, showNames)
-//}
-

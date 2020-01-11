@@ -74,4 +74,3 @@ func DoDump(in io.Reader, log *zap.SugaredLogger) {
 	}
 	fmt.Println(string(dat))
 }
-
