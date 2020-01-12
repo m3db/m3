@@ -20,7 +20,7 @@
 
 package election
 
-import "github.com/coreos/etcd/clientv3/concurrency"
+import "go.etcd.io/etcd/clientv3/concurrency"
 
 type clientOpts struct {
 	sessionOpts []concurrency.SessionOption

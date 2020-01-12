@@ -259,8 +259,7 @@ func (s *peersSource) readData(
 	s.log.Info("peers bootstrapper bootstrapping shards for ranges",
 		zap.Int("shards", count),
 		zap.Int("concurrency", concurrency),
-		zap.Bool("shouldPersist", shouldPersist),
-	)
+		zap.Bool("shouldPersist", shouldPersist))
 	if shouldPersist {
 		go s.startPersistenceQueueWorkerLoop(
 			opts, persistenceWorkerDoneCh, persistenceQueue, persistFlush, result, &resultLock)

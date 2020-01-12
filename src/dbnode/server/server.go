@@ -86,7 +86,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
-	"github.com/coreos/etcd/embed"
+	"go.etcd.io/etcd/embed"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"

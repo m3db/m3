@@ -811,7 +811,11 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
-	seriesEntry := series.NewDatabaseSeries(id, ident.Tags{}, 1, shard.seriesOpts)
+	seriesEntry := series.NewDatabaseSeries(series.DatabaseSeriesOptions{
+		ID:          id,
+		UniqueIndex: 1,
+		Options:     shard.seriesOpts,
+	})
 	shard.Lock()
 	entry := lookup.NewEntry(seriesEntry, 0)
 	for i := int32(0); i < count; i++ {

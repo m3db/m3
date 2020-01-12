@@ -23,5 +23,5 @@ The project has also has optimized for the storage and retrieval of float64 valu
 
 [gorilla]: http://www.vldb.org/pvldb/vol8/p1816-teller.pdf
 [cassandra]: http://cassandra.apache.org/
-[etcd]: https://github.com/coreos/etcd
+[etcd]: https://github.com/etcd-io/etcd
 [ubeross]: http://uber.github.io
