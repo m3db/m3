@@ -133,6 +133,10 @@ func (bsc BootstrapConfiguration) New(
 				// to end latency for time to first index a metric.
 				DisableRegistry: true,
 			},
+			// MmapDocsData ensures document data is kept in mmap's to avoid
+			// the need for the document data to be kept by memory allocated
+			// by Go's runtime.
+			MmapDocsData: true,
 		})
 	if err != nil {
 		return nil, err
