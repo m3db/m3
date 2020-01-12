@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/services"
 
-	"github.com/coreos/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/clientv3/concurrency"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

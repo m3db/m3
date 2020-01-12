@@ -21,8 +21,8 @@ import:
   - package: github.com/cespare/xxhash
     version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
-  - package: github.com/coreos/etcd
-    version: 3.2.28
+  - package: go.etcd.io/etcd
+    version: 3.4.3
 
   - package: github.com/pkg/errors
     version: ^0.8

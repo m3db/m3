@@ -23,7 +23,7 @@ package mocks
 import (
 	"sync"
 
-	"github.com/coreos/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3"
 	"golang.org/x/net/context"
 )
 
@@ -61,6 +61,11 @@ func (m *watcher) Watch(ctx context.Context, key string, opts ...clientv3.OpOpti
 	m.Unlock()
 
 	return m.c.Watch(ctx, key, opts...)
+}
+
+// RequestProgress is implementing etcd clientv3 Watcher interface
+func (m *watcher) RequestProgress(ctx context.Context) error {
+	return nil
 }
 
 // Close is implementing etcd clientv3 Watcher interface
