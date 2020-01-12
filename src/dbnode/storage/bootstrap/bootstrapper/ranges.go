@@ -31,7 +31,7 @@ import (
 // ShardTimeRangesTimeWindowGroup represents all time ranges for every shard w/in a block of time.
 type ShardTimeRangesTimeWindowGroup struct {
 	Ranges result.ShardTimeRanges
-	window xtime.Range
+	Window xtime.Range
 }
 
 // NewShardTimeRangesTimeWindowGroups divides shard time ranges into grouped blocks.
@@ -64,7 +64,7 @@ func NewShardTimeRangesTimeWindowGroups(
 
 		entry := ShardTimeRangesTimeWindowGroup{
 			Ranges: group,
-			window: currRange,
+			Window: currRange,
 		}
 
 		grouped = append(grouped, entry)

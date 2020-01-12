@@ -40,12 +40,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
 	"go.uber.org/zap"
 )
 
@@ -118,80 +118,51 @@ func (s *peersSource) Read(
 	// to more clearly deliniate which process is slower than the other.
 	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 	start := nowFn()
-	s.log.Info("bootstrapping time series data start")
+	s.log.Info("bootstrapping start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
 
-		r, err := s.readData(md, namespace.DataAccumulator,
+		dataResult, indexResult, err := s.readData(md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
-		}
-
-		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
-			Metadata:   md,
-			Shards:     namespace.Shards,
-			DataResult: r,
-		})
-	}
-	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", nowFn().Sub(start)))
-
-	start = nowFn()
-	s.log.Info("bootstrapping index metadata start")
-	for _, elem := range namespaces.Namespaces.Iter() {
-		namespace := elem.Value()
-		md := namespace.Metadata
-		if !md.Options().IndexOptions().Enabled() {
-			s.log.Info("skipping bootstrap for namespace based on options",
-				zap.Stringer("namespace", md.ID()))
-
-			// Not bootstrapping for index.
-			continue
-		}
-
-		r, err := s.readIndex(md,
+			namespace.DataRunOptions.RunOptions,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			namespace.IndexRunOptions.RunOptions)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
 
-		result, ok := results.Results.Get(md.ID())
-		if !ok {
-			err = fmt.Errorf("missing expected result for namespace: %s",
-				md.ID().String())
-			return bootstrap.NamespaceResults{}, err
-		}
-
-		result.IndexResult = r
-
-		results.Results.Set(md.ID(), result)
+		results.Results.Set(md.ID(), bootstrap.NamespaceResult{
+			Metadata:    md,
+			Shards:      namespace.Shards,
+			DataResult:  dataResult,
+			IndexResult: indexResult,
+		})
 	}
-	s.log.Info("bootstrapping index metadata success",
+	s.log.Info("bootstrapping success",
 		zap.Duration("took", nowFn().Sub(start)))
 
 	return results, nil
 }
 
 func (s *peersSource) readData(
-	nsMetadata namespace.Metadata,
+	nsMeta namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
+	indexShardsTimeRanges result.ShardTimeRanges,
+	indexOpts bootstrap.RunOptions,
+) (result.DataBootstrapResult, result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if shardsTimeRanges.IsEmpty() {
-		return result.NewDataBootstrapResult(), nil
+	if shardsTimeRanges.IsEmpty() && indexShardsTimeRanges.IsEmpty() {
+		return result.NewDataBootstrapResult(), result.NewIndexBootstrapResult(), nil
 	}
 
 	var (
-		namespace         = nsMetadata.ID()
+		namespace         = nsMeta.ID()
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.FlushPreparer
 		shouldPersist     = false
@@ -199,7 +170,6 @@ func (s *peersSource) readData(
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
-
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
@@ -216,14 +186,14 @@ func (s *peersSource) readData(
 
 		s.log.Info("peers bootstrapper resolving block retriever", zap.Stringer("namespace", namespace))
 
-		r, err := retrieverMgr.Retriever(nsMetadata)
+		r, err := retrieverMgr.Retriever(nsMeta)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		persist, err := persistManager.StartFlushPersist()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		defer persist.DoneFlush()
@@ -233,12 +203,11 @@ func (s *peersSource) readData(
 		persistFlush = persist
 	}
 
-	result := result.NewDataBootstrapResult()
+	dataResult := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
 		s.log.Error("peers bootstrapper cannot get default admin session", zap.Error(err))
-		result.SetUnfulfilled(shardsTimeRanges)
-		return nil, err
+		return nil, nil, err
 	}
 
 	var (
@@ -250,32 +219,96 @@ func (s *peersSource) readData(
 		resultOpts              = s.opts.ResultOptions()
 		count                   = len(shardsTimeRanges)
 		concurrency             = s.opts.DefaultShardConcurrency()
-		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
+		blockSize               = nsMeta.Options().RetentionOptions().BlockSize()
 	)
 	if shouldPersist {
 		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
+	// Determine the windows to slice the fetches by, if doing a
+	// data bootstrap only then slice by data block size, otherwise
+	// slice by the index block size so we can persist an entire index
+	// block together.
+	var (
+		dataAndIndexShardsTimeRanges = shardsTimeRanges.Copy()
+		timeWindowFetchGroups        []bootstrapper.ShardTimeRangesTimeWindowGroup
+		indexEnabled                 = nsMeta.Options().IndexOptions().Enabled()
+		indexNamespaceOpts           = nsMeta.Options().IndexOptions()
+		indexShouldPersist           = indexOpts.PersistConfig().Enabled
+		indexResult                  = result.NewIndexBootstrapResult()
+	)
+	if !indexEnabled {
+		timeWindowFetchGroups = bootstrapper.NewShardTimeRangesTimeWindowGroups(
+			dataAndIndexShardsTimeRanges, blockSize)
+	} else {
+		// Add the index shard time ranges to the merged shard time ranges var.
+		dataAndIndexShardsTimeRanges.AddRanges(indexShardsTimeRanges)
+		// Generate the time windows based on bootstrapping both shard time ranges
+		// grouped by index block size.
+		timeWindowFetchGroups = bootstrapper.NewShardTimeRangesTimeWindowGroups(
+			dataAndIndexShardsTimeRanges, indexNamespaceOpts.BlockSize())
+	}
+
 	s.log.Info("peers bootstrapper bootstrapping shards for ranges",
 		zap.Int("shards", count),
 		zap.Int("concurrency", concurrency),
-		zap.Bool("shouldPersist", shouldPersist))
+		zap.Bool("shouldPersist", shouldPersist),
+		zap.Bool("indexEnabled", indexEnabled),
+		zap.Bool("indexShouldPersist", indexShouldPersist))
 	if shouldPersist {
-		go s.startPersistenceQueueWorkerLoop(
-			opts, persistenceWorkerDoneCh, persistenceQueue, persistFlush, result, &resultLock)
+		go s.startPersistenceQueueWorkerLoop(opts, persistenceWorkerDoneCh,
+			persistenceQueue, persistFlush, dataResult, &resultLock)
 	}
 
 	workers := xsync.NewWorkerPool(concurrency)
 	workers.Init()
-	for shard, ranges := range shardsTimeRanges {
-		shard, ranges := shard, ranges
-		wg.Add(1)
-		workers.Go(func() {
-			defer wg.Done()
-			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
-				accumulator, resultOpts, result, &resultLock, shouldPersist,
-				persistenceQueue, shardRetrieverMgr, blockSize)
-		})
+	indexProcessTimeWindowQueue := make(chan indexProcessTimeWindow,
+		len(timeWindowFetchGroups))
+	for _, timeWindowFetchGroup := range timeWindowFetchGroups {
+		var (
+			timeWindowGroupWg   sync.WaitGroup
+			indexSegmentBuilder segment.DocumentsBuilder
+		)
+		if indexEnabled {
+			// Determine if index shard time ranges overlaps entirely this fetch
+			// group shard time ranges.
+			currShardTimeRanges := timeWindowFetchGroup.Ranges.Copy()
+			currShardTimeRanges.Subtract(indexShardsTimeRanges)
+			if currShardTimeRanges.IsEmpty() {
+				// If so we want to build an index segment.
+				allocBuilder := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
+				indexSegmentBuilder, err = allocBuilder()
+				if err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+		for shard, ranges := range timeWindowFetchGroup.Ranges {
+			wg.Add(1)
+			timeWindowGroupWg.Add(1)
+			workers.Go(func() {
+				s.fetchFromPeers(shard, ranges, nsMeta, session,
+					accumulator, resultOpts, dataResult, &resultLock, shouldPersist,
+					persistenceQueue, shardRetrieverMgr, blockSize, indexSegmentBuilder)
+				wg.Done()
+				timeWindowGroupWg.Done()
+			})
+		}
+
+		if indexSegmentBuilder != nil {
+			go func() {
+				// Wait for this group to finish before enqueing so that the first
+				// window that finishes process first.
+				timeWindowGroupWg.Wait()
+
+				// Enqueue to be processed as a single time window.
+				entry := indexProcessTimeWindow{
+					timeWindowFetchGroup: timeWindowFetchGroup,
+					indexSegmentBuilder:  indexSegmentBuilder,
+				}
+				indexProcessTimeWindowQueue <- entry
+			}()
+		}
 	}
 
 	wg.Wait()
@@ -285,7 +318,12 @@ func (s *peersSource) readData(
 		<-persistenceWorkerDoneCh
 	}
 
-	return result, nil
+	return dataResult, indexResult, nil
+}
+
+type indexProcessTimeWindow struct {
+	timeWindowFetchGroup bootstrapper.ShardTimeRangesTimeWindowGroup
+	indexSegmentBuilder  segment.DocumentsBuilder
 }
 
 // startPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
@@ -326,13 +364,13 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 	close(doneCh)
 }
 
-// fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
-// fetches all the bootstrap blocks from the appropriate peers.
+// fetchFromPeers loops through all the provided ranges for a given shard and
+// fetches all the bootstrap blocks and metadata from the appropriate peers.
 // 		Persistence enabled case: Immediately add the results to the bootstrap result
 // 		Persistence disabled case: Don't add the results yet, but push a flush into the
 // 						  persistenceQueue. The persistenceQueue worker will eventually
 // 						  add the results once its performed the flush.
-func (s *peersSource) fetchBootstrapBlocksFromPeers(
+func (s *peersSource) fetchFromPeers(
 	shard uint32,
 	ranges xtime.Ranges,
 	nsMetadata namespace.Metadata,
@@ -345,6 +383,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	persistenceQueue chan persistenceFlush,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	blockSize time.Duration,
+	indexSegmentBuilder segment.DocumentsBuilder,
 ) {
 	it := ranges.Iter()
 	tagsIter := ident.NewTagsIterator(ident.Tags{})
@@ -358,6 +397,9 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 		currRange := it.Value()
 
 		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
+			// Work out if only bootstrapping for index use case, then if so
+			// use FetchBootstrapBlocksMetadata first.
+
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
 				nsMetadata, shard, blockStart, blockEnd, bopts)
@@ -370,6 +412,10 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			}
 
 			if shouldPersist {
+				if indexSegmentBuilder != nil {
+					// insert into builder
+				}
+
 				persistenceQueue <- persistenceFlush{
 					nsMetadata:        nsMetadata,
 					shard:             shard,
