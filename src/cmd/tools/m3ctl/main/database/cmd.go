@@ -3,6 +3,7 @@ package database
 import (
 	"flag"
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"os"
 )
@@ -50,34 +51,27 @@ Usage of %s:
 	return DatabaseFlagSets{Database: databaseFlags, Create: createFlags}
 }
 
-type flagsError struct {
-	Message string
-}
-
-func (e *flagsError) Error() string {
-	if e == nil {
-		return ""
-	}
-	return e.Message
-}
 func ParseAndDo(arg *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string) {
-	if err := _parseAndDo(flag.Args(), arg, flags, ep, Create); err != nil {
+	args := flag.Args()
+	// right here args should be like "db create -f somefile"
+	if len(args) < 2 {
+		flags.Database.Usage()
+		os.Exit(1)
+	}
+	// pop and parse
+	if err := parseAndDoCreate(args[1:], arg, flags, ep, Create); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
-func _parseAndDo(args []string, finalArgs *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string, doer func(string, string)) error {
-	if len(args) == 0 {
-		// if it gets here i want to see how it got here
-		panic("parser called with no args")
-	}
-	if err := flags.Database.Parse(args[1:]); err != nil {
+func parseAndDoCreate(args []string, finalArgs *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string, doer func(string, string)) error {
+	if err := flags.Database.Parse(args); err != nil {
 		flags.Database.Usage()
 		return err
 	}
 	if flags.Database.NArg() == 0 {
 		flags.Database.Usage()
-		return &flagsError{}
+		return &errors.FlagsError{}
 	}
 	switch flags.Database.Arg(0) {
 	case flags.Create.Name():
@@ -89,12 +83,13 @@ func _parseAndDo(args []string, finalArgs *configflag.FlagStringSlice, flags *Da
 		}
 		if flags.Create.NFlag() == 0 {
 			flags.Create.Usage()
-			return &flagsError{}
+			return &errors.FlagsError{}
 		}
 		// the below finalArgs.Value has at least one value by this time per the finalArgs parser
 		doer(finalArgs.Value[len(finalArgs.Value)-1], ep)
 		return nil
 	default:
-		return &flagsError{}
+		flags.Database.Usage()
+		return &errors.FlagsError{}
 	}
 }
