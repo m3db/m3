@@ -11,7 +11,7 @@ common: &common
 
 steps:
   - name: "Codegen"
-    command: make clean test-all-gen
+    command: make clean install-vendor-m3 test-all-gen
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.12.x
