@@ -35,7 +35,7 @@ Install dependencies:
 ```bash
 cd $working_dir/m3
 
-make install-vendor
+make install-vendor-m3
 ```
 
 If everything is setup correctly you should be able to build `m3dbnode`:

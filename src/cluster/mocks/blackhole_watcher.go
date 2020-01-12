@@ -63,6 +63,11 @@ func (m *watcher) Watch(ctx context.Context, key string, opts ...clientv3.OpOpti
 	return m.c.Watch(ctx, key, opts...)
 }
 
+// RequestProgress is implementing etcd clientv3 Watcher interface
+func (m *watcher) RequestProgress(ctx context.Context) error {
+	return nil
+}
+
 // Close is implementing etcd clientv3 Watcher interface
 func (m *watcher) Close() error {
 	return m.c.Close()
