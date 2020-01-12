@@ -28,8 +28,9 @@ import (
 	"strings"
 	"time"
 
-	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/m3db/m3/src/x/instrument"
+
+	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
@@ -47,14 +48,24 @@ const (
 	spanTagBuildGoVersion = "build.go_version"
 )
 
-// Supported tracing backends. Currently only jaeger is supported.
 var (
-	TracingBackendJaeger    = "jaeger"
+	// TracingBackendJaeger indicates the Jaeger backend should be used.
+	TracingBackendJaeger = "jaeger"
+	// TracingBackendLightstep indices the LightStep backend should be used.
 	TracingBackendLightstep = "lightstep"
 
 	supportedBackends = []string{
 		TracingBackendJaeger,
 		TracingBackendLightstep,
+	}
+
+	tracerSpanTags = map[string]string{
+		spanTagBuildRevision:  instrument.Revision,
+		spanTagBuildBranch:    instrument.Branch,
+		spanTagBuildVersion:   instrument.Version,
+		spanTagBuildDate:      instrument.BuildDate,
+		spanTagBuildTimeUnix:  instrument.BuildTimeUnix,
+		spanTagBuildGoVersion: runtime.Version(),
 	}
 )
 
@@ -95,9 +106,15 @@ func (cfg *TracingConfiguration) newJaegerTracer(defaultServiceName string, scop
 		cfg.Jaeger.ServiceName = defaultServiceName
 	}
 
-	jaegerLog := jaegerzap.NewLogger(logger)
+	for k, v := range tracerSpanTags {
+		cfg.Jaeger.Tags = append(cfg.Jaeger.Tags, opentracing.Tag{
+			Key:   k,
+			Value: v,
+		})
+	}
+
 	tracer, jaegerCloser, err := cfg.Jaeger.NewTracer(
-		jaegercfg.Logger(jaegerLog),
+		jaegercfg.Logger(jaegerzap.NewLogger(logger)),
 		jaegercfg.Metrics(jaegertally.Wrap(scope)))
 
 	if err != nil {
@@ -117,12 +134,9 @@ func (cfg *TracingConfiguration) newLightstepTracer(serviceName string) (opentra
 		tags[lightstep.ComponentNameKey] = serviceName
 	}
 
-	tags[spanTagBuildRevision] = instrument.Revision
-	tags[spanTagBuildBranch] = instrument.Branch
-	tags[spanTagBuildVersion] = instrument.Version
-	tags[spanTagBuildDate] = instrument.BuildDate
-	tags[spanTagBuildTimeUnix] = instrument.BuildTimeUnix
-	tags[spanTagBuildGoVersion] = runtime.Version()
+	for k, v := range tracerSpanTags {
+		tags[k] = v
+	}
 
 	tracer, err := lightstep.CreateTracer(cfg.Lightstep)
 	if err != nil {
@@ -141,7 +155,7 @@ func (l *lightstepCloser) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	l.tracer.Close(ctx)
 	cancel()
-	return nil
+	return ctx.Err()
 }
 
 type noopCloser struct{}
