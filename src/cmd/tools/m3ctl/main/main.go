@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"go.uber.org/zap"
 	"os"
 )
 
@@ -77,20 +76,13 @@ Each subcommand has its own built-in help provided via "-h".
 		os.Exit(1)
 	}
 
-	rawLogger, err := zap.NewDevelopment()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to create logger: %+v", err)
-		os.Exit(1)
-	}
-	log := rawLogger.Sugar()
-
 	switch flag.Arg(0) {
 	case databaseFlagSets.Database.Name():
-		database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint, log)
+		database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint)
 	case namespaceFlagSets.Namespace.Name():
-		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint, log)
+		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
 	case placementFlagSets.Placement.Name():
-		placements.ParseAndDo(&placementArgs, &placementFlagSets, *endPoint, log)
+		placements.ParseAndDo(&placementArgs, &placementFlagSets, *endPoint)
 	default:
 		flag.Usage()
 		os.Exit(1)

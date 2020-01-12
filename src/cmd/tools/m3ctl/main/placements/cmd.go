@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"go.uber.org/zap"
 	"os"
 )
 
@@ -77,13 +76,13 @@ Usage of %s:
 	return PlacementFlags{Placement: placementFlags, Delete: deleteFlags, Add: addFlags, Init: initFlags, Replace: replaceFlags}
 }
 
-func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string, log *zap.SugaredLogger) {
+func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string) {
 	if err := flags.Placement.Parse(flag.Args()[1:]); err != nil {
 		flags.Placement.Usage()
 		os.Exit(1)
 	}
 	if flags.Placement.NArg() == 0 {
-		Get(args, ep, log)
+		Get(args, ep)
 		os.Exit(0)
 	}
 	switch flag.Arg(1) {
@@ -96,17 +95,7 @@ func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string, log *zap.
 			flags.Add.Usage()
 			os.Exit(1)
 		}
-		flags.Add.Visit(func(f *flag.Flag) {
-			vals := f.Value.(*configflag.FlagStringSlice)
-			for _, val := range vals.Value {
-				if len(val) == 0 {
-					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-					flags.Add.Usage()
-					os.Exit(1)
-				}
-			}
-		})
-		Add(args, ep, log)
+		Add(args, ep)
 	case flags.Delete.Name():
 		if err := flags.Delete.Parse(flag.Args()[2:]); err != nil {
 			flags.Delete.Usage()
@@ -116,14 +105,7 @@ func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string, log *zap.
 			flags.Delete.Usage()
 			os.Exit(1)
 		}
-		flags.Delete.Visit(func(f *flag.Flag) {
-			if len(f.Value.String()) == 0 {
-				fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-				flags.Delete.Usage()
-				os.Exit(1)
-			}
-		})
-		Delete(args, ep, log)
+		Delete(args, ep)
 	case flags.Init.Name():
 		if err := flags.Init.Parse(flag.Args()[2:]); err != nil {
 			flags.Init.Usage()
@@ -133,17 +115,7 @@ func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string, log *zap.
 			flags.Init.Usage()
 			os.Exit(1)
 		}
-		flags.Init.Visit(func(f *flag.Flag) {
-			vals := f.Value.(*configflag.FlagStringSlice)
-			for _, val := range vals.Value {
-				if len(val) == 0 {
-					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-					flags.Init.Usage()
-					os.Exit(1)
-				}
-			}
-		})
-		Init(args, ep, log)
+		Init(args, ep)
 	case flags.Replace.Name():
 		if err := flags.Replace.Parse(flag.Args()[2:]); err != nil {
 			flags.Replace.Usage()
@@ -153,19 +125,9 @@ func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string, log *zap.
 			flags.Replace.Usage()
 			os.Exit(1)
 		}
-		flags.Replace.Visit(func(f *flag.Flag) {
-			vals := f.Value.(*configflag.FlagStringSlice)
-			for _, val := range vals.Value {
-				if len(val) == 0 {
-					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-					flags.Replace.Usage()
-					os.Exit(1)
-				}
-			}
-		})
-		Replace(args, ep, log)
+		Replace(args, ep)
 	default:
-		Get(args, ep, log)
+		Get(args, ep)
 	}
 
 }

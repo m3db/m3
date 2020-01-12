@@ -2,13 +2,13 @@ package http
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
-func checkForAndHandleError(url string, resp *http.Response, log *zap.SugaredLogger) {
-	log.Debugf("resp.StatusCode:%d:\n", resp.StatusCode)
+func checkForAndHandleError(url string, resp *http.Response) {
+	log.Printf("resp.StatusCode:%d:\n", resp.StatusCode)
 	if resp.StatusCode > 299 {
 		dat, _ := ioutil.ReadAll(resp.Body)
 		if dat != nil {

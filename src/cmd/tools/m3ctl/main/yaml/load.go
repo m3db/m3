@@ -5,13 +5,13 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
+	"log"
 )
 
-func Load(path string, target proto.Message, log *zap.SugaredLogger) io.Reader {
-	log.Debugf("path:%s:\n", path)
+func Load(path string, target proto.Message) io.Reader {
+	log.Printf("path:%s:\n", path)
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)

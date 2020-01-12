@@ -3,7 +3,6 @@ package namespaces
 import (
 	"flag"
 	"fmt"
-	"go.uber.org/zap"
 	"os"
 )
 
@@ -21,6 +20,7 @@ type NamespaceFlags struct {
 	Namespace *flag.FlagSet
 	Delete    *flag.FlagSet
 }
+
 func SetupFlags(flags *NamespaceArgs) NamespaceFlags {
 	namespaceFlags := flag.NewFlagSet("ns", flag.ExitOnError)
 	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
@@ -68,14 +68,14 @@ Usage of %s:
 	return NamespaceFlags{Namespace: namespaceFlags, Delete: deleteFlags}
 }
 
-func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string, log *zap.SugaredLogger) {
+func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string) {
 	if err := flags.Namespace.Parse(flag.Args()[1:]); err != nil {
 		flags.Namespace.Usage()
 		os.Exit(1)
 	}
 	// maybe do the default action which is listing the names
 	if flags.Namespace.NArg() == 0 {
-		Show(args, ep, log)
+		Show(args, ep)
 		os.Exit(0)
 	}
 	switch flag.Arg(1) {
@@ -95,7 +95,7 @@ func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string, log *zap.
 				os.Exit(1)
 			}
 		})
-		Delete(args, ep, log)
+		Delete(args, ep)
 	default:
 		flags.Namespace.Usage()
 		os.Exit(1)

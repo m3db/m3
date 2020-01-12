@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"go.uber.org/zap"
 	"os"
 )
 
@@ -50,39 +49,52 @@ Usage of %s:
 
 	return DatabaseFlagSets{Database: databaseFlags, Create: createFlags}
 }
-func ParseAndDo(arg *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string, log *zap.SugaredLogger) {
-	if err := flags.Database.Parse(flag.Args()[1:]); err != nil {
-		flags.Database.Usage()
+
+type flagsError struct {
+	Message string
+}
+
+func (e *flagsError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+func ParseAndDo(arg *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string) {
+	if err := _parseAndDo(flag.Args(), arg, flags, ep, Create); err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
+	}
+}
+func _parseAndDo(args []string, finalArgs *configflag.FlagStringSlice, flags *DatabaseFlagSets, ep string, doer func(string, string)) error {
+	if len(args) == 0 {
+		// if it gets here i want to see how it got here
+		panic("parser called with no args")
+	}
+	if err := flags.Database.Parse(args[1:]); err != nil {
+		flags.Database.Usage()
+		return err
 	}
 	if flags.Database.NArg() == 0 {
 		flags.Database.Usage()
-		os.Exit(1)
+		return &flagsError{}
 	}
-	switch flag.Arg(1) {
+	switch flags.Database.Arg(0) {
 	case flags.Create.Name():
-		if err := flags.Create.Parse(flag.Args()[2:]); err != nil {
+		// pop and parse
+		createArgs := flags.Database.Args()[1:]
+		if err := flags.Create.Parse(createArgs); err != nil {
 			flags.Create.Usage()
-			os.Exit(1)
+			return err
 		}
 		if flags.Create.NFlag() == 0 {
 			flags.Create.Usage()
-			os.Exit(1)
+			return &flagsError{}
 		}
-		flags.Create.Visit(func(f *flag.Flag) {
-			vals := f.Value.(*configflag.FlagStringSlice)
-			for _, val := range vals.Value {
-				if len(val) == 0 {
-					fmt.Fprintf(os.Stderr, "%s requires a value.\n", f.Name)
-					flags.Create.Usage()
-					os.Exit(1)
-				}
-			}
-		})
-		// the below arg.Value has at least one value by this time per the arg parser
-		Create(arg.Value[len(arg.Value)-1], ep, log)
+		// the below finalArgs.Value has at least one value by this time per the finalArgs parser
+		doer(finalArgs.Value[len(finalArgs.Value)-1], ep)
+		return nil
 	default:
-		flags.Database.Usage()
-		os.Exit(1)
+		return &flagsError{}
 	}
 }
