@@ -74,7 +74,7 @@ func newTestOptions(filePathPrefix string) Options {
 		SetFilesystemOptions(newTestFsOptions(filePathPrefix))
 }
 
-func newTestOptionsWithPersistManager(t *testing.T, filePathPrefix string) Options {
+func newTestOptionsWithPersistManager(t require.TestingT, filePathPrefix string) Options {
 	opts := newTestOptions(filePathPrefix)
 	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
 	require.NoError(t, err)

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -111,6 +112,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 			var (
 				min     = time.Unix(0, math.MaxInt64)
 				max     = time.Unix(0, 0)
+				ranges  = xtime.NewRanges()
 				entries = fs.ReadInfoFiles(dir, testNamespace, shard,
 					0, msgpack.NewDecodingOptions())
 			)
@@ -118,6 +120,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 				if entry.Err != nil {
 					require.NoError(b, entry.Err.Error())
 				}
+
 				start := time.Unix(0, entry.Info.BlockStart)
 				if start.Before(min) {
 					min = start
@@ -129,12 +132,18 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 					max = end
 				}
 
+				ranges = ranges.AddRange(xtime.Range{Start: start, End: end})
+
 				// Override the block size if different.
 				namespaceOpts := testNamespaceMetadata.Options()
 				retentionOpts := namespaceOpts.RetentionOptions()
 				currBlockSize := retentionOpts.BlockSize()
 				if blockSize > currBlockSize {
-					newRetentionOpts := retentionOpts.SetBlockSize(blockSize)
+					newRetentionOpts := retentionOpts.
+						SetBlockSize(blockSize).
+						// 42yrs of retention to make sure blocks are in retention.
+						// Why 42? Because it's the answer to life, the universe and everything.
+						SetRetentionPeriod(42 * 365 * 24 * time.Hour)
 					newIndexOpts := namespaceOpts.IndexOptions().SetBlockSize(blockSize)
 					newNamespaceOpts := namespaceOpts.
 						SetRetentionOptions(newRetentionOpts).
@@ -143,10 +152,13 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 					require.NoError(b, err)
 				}
 			}
-			times.shardTimeRanges[shard] = xtime.NewRanges(xtime.Range{
-				Start: min,
-				End:   max,
-			})
+
+			if ranges.IsEmpty() {
+				continue // Nothing to bootstrap for shard.
+			}
+
+			times.shardTimeRanges[shard] = ranges
+
 			if min.Before(times.start) {
 				times.start = min
 			}
@@ -158,12 +170,18 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 		writeTSDBGoodTaggedSeriesDataFiles(b, dir, testNamespace, times.start)
 	}
 
-	testOpts := newTestOptions(dir).
+	testOpts := newTestOptionsWithPersistManager(b, dir).
 		SetResultOptions(testDefaultResultOpts.SetSeriesCachePolicy(series.CacheLRU))
 
 	src := newFileSystemSource(testOpts)
 
-	tester := bootstrap.BuildNamespacesTester(b, testDefaultRunOpts,
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{
+			Enabled:     true,
+			FileSetType: persist.FileSetFlushType,
+		})
+
+	tester := bootstrap.BuildNamespacesTester(b, runOpts,
 		times.shardTimeRanges, testNamespaceMetadata)
 	defer tester.Finish()
 
