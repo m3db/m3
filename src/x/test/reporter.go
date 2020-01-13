@@ -23,9 +23,9 @@ package test
 
 import (
 	"fmt"
-	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 // Reporter wraps a *testing.T, and provides a more useful failure mode
@@ -53,7 +53,7 @@ import (
 //     }
 //   }
 type Reporter struct {
-	T *testing.T
+	T require.TestingT
 }
 
 // ensure Reporter implements gomock.TestReporter.
@@ -73,6 +73,6 @@ func (r Reporter) Fatalf(format string, args ...interface{}) {
 // NewController provides a gomock.Controller wrapped with a xtest.Reporter,
 // which gives more useful error modes on unexpected mock calls.
 // See xtest.Reporter for more context.
-func NewController(t *testing.T) *gomock.Controller {
+func NewController(t require.TestingT) *gomock.Controller {
 	return gomock.NewController(Reporter{T: t})
 }
