@@ -1,5 +1,10 @@
 package: github.com/m3db/m3
 import:
+  - package: github.com/influxdata/influxdb
+    version: 01c8dd416270f424ab0c40f9291e269ac6921964
+    subpackages:
+      - models
+
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
