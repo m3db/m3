@@ -46,6 +46,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type runType int
@@ -142,7 +143,11 @@ func (s *fileSystemSource) Read(
 	// to more clearly deliniate which process is slower than the other.
 	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
 	start := nowFn()
-	s.log.Info("bootstrapping time series data start")
+	dataLogFields := []zapcore.Field{
+		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
+	}
+	s.log.Info("bootstrapping time series data start",
+		dataLogFields...)
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -161,7 +166,7 @@ func (s *fileSystemSource) Read(
 		})
 	}
 	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", nowFn().Sub(start)))
+		append(dataLogFields, zap.Duration("took", nowFn().Sub(start)))...)
 
 	start = nowFn()
 	s.log.Info("bootstrapping index metadata start")

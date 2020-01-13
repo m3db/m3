@@ -27,7 +27,6 @@ import (
 	"math"
 	"sort"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -62,7 +61,7 @@ var _ NamespaceDataAccumulator = (*TestDataAccumulator)(nil)
 type TestDataAccumulator struct {
 	sync.Mutex
 
-	t              *testing.T
+	t              require.TestingT
 	ctrl           *gomock.Controller
 	ns             string
 	pool           encoding.MultiReaderIteratorPool
@@ -298,7 +297,7 @@ func (a *TestDataAccumulator) Close() error { return nil }
 
 // NamespacesTester is a utility to assist testing bootstrapping.
 type NamespacesTester struct {
-	t    *testing.T
+	t    require.TestingT
 	ctrl *gomock.Controller
 	pool encoding.MultiReaderIteratorPool
 
@@ -325,7 +324,7 @@ func buildDefaultIterPool() encoding.MultiReaderIteratorPool {
 
 // BuildNamespacesTester builds a NamespacesTester.
 func BuildNamespacesTester(
-	t *testing.T,
+	t require.TestingT,
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	mds ...namespace.Metadata,
@@ -342,7 +341,7 @@ func BuildNamespacesTester(
 // BuildNamespacesTesterWithReaderIteratorPool builds a NamespacesTester with a
 // given MultiReaderIteratorPool.
 func BuildNamespacesTesterWithReaderIteratorPool(
-	t *testing.T,
+	t require.TestingT,
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	iterPool encoding.MultiReaderIteratorPool,
