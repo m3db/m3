@@ -46,6 +46,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type runType int
@@ -406,7 +407,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		noneRemaining = remainingRanges.IsEmpty()
 	)
 	if run == bootstrapIndexRunType {
+		buildIndexLogFields := []zapcore.Field{
+			zap.Bool("shouldPersist", shouldPersist),
+			zap.String("remainingRanges", remainingRanges.SummaryString()),
+		}
 		if shouldPersist && noneRemaining {
+			s.log.Info("building file set index segment", buildIndexLogFields...)
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -418,14 +424,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
+						zap.Error(err),
 						zap.Stringer("namespace", ns.ID()),
-						zap.Stringer("requestedRanges", requestedRanges),
-						zap.Error(err))
+						zap.Stringer("requestedRanges", requestedRanges))
 				})
 			}
 			// Track success.
 			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
+			s.log.Info("building in-memory index segment", buildIndexLogFields...)
 			if err := bootstrapper.BuildBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -437,9 +444,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("build fs index bootstrap failed",
+						zap.Error(err),
 						zap.Stringer("namespace", ns.ID()),
-						zap.Stringer("requestedRanges", requestedRanges),
-						zap.Error(err))
+						zap.Stringer("requestedRanges", requestedRanges))
 				})
 			}
 		}

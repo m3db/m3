@@ -72,7 +72,7 @@ var (
 				SetBoostrapIndexNumProcessors(1)
 )
 
-func newTestOptions(t *testing.T, filePathPrefix string) Options {
+func newTestOptions(t require.TestingT, filePathPrefix string) Options {
 	idxOpts := index.NewOptions()
 	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,
