@@ -22,15 +22,15 @@ type PlacementArgs struct {
 
 type PlacementFlags struct {
 	Placement     *flag.FlagSet
-	PlacementDoer func(*PlacementArgs, string)
+	placementDoer func(*PlacementArgs, string)
 	Delete        *flag.FlagSet
-	DeleteDoer    func(*PlacementArgs, string)
+	deleteDoer    func(*PlacementArgs, string)
 	Add           *flag.FlagSet
-	AddDoer       func(*PlacementArgs, string)
+	addDoer       func(*PlacementArgs, string)
 	Init          *flag.FlagSet
-	InitDoer      func(*PlacementArgs, string)
+	initDoer      func(*PlacementArgs, string)
 	Replace       *flag.FlagSet
-	ReplaceDoer   func(*PlacementArgs, string)
+	replaceDoer   func(*PlacementArgs, string)
 }
 
 func SetupFlags(flags *PlacementArgs) PlacementFlags {
@@ -81,15 +81,15 @@ Usage of %s:
 	}
 	return PlacementFlags{
 		Placement:     placementFlags,
-		PlacementDoer: Get,
+		placementDoer: Get,
 		Delete:        deleteFlags,
-		DeleteDoer:    Delete,
+		deleteDoer:    Delete,
 		Add:           addFlags,
-		AddDoer:       Add,
+		addDoer:       Add,
 		Init:          initFlags,
-		InitDoer:      Init,
+		initDoer:      Init,
 		Replace:       replaceFlags,
-		ReplaceDoer:   Replace,
+		replaceDoer:   Replace,
 	}
 }
 
@@ -114,7 +114,7 @@ func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, 
 		return &errors.FlagsError{}
 	}
 	if flags.Placement.NArg() == 0 {
-		flags.PlacementDoer(finalArgs, ep)
+		flags.placementDoer(finalArgs, ep)
 		return nil
 	}
 	nextArgs := flags.Placement.Args()
@@ -128,7 +128,7 @@ func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, 
 			flags.Add.Usage()
 			return &errors.FlagsError{}
 		}
-		flags.AddDoer(finalArgs, ep)
+		flags.addDoer(finalArgs, ep)
 		return nil
 	case flags.Delete.Name():
 		if err := flags.Delete.Parse(nextArgs[1:]); err != nil {
@@ -139,7 +139,7 @@ func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, 
 			flags.Delete.Usage()
 			return &errors.FlagsError{}
 		}
-		flags.DeleteDoer(finalArgs, ep)
+		flags.deleteDoer(finalArgs, ep)
 		return nil
 	case flags.Init.Name():
 		if err := flags.Init.Parse(nextArgs[1:]); err != nil {
@@ -150,7 +150,7 @@ func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, 
 			flags.Init.Usage()
 			return &errors.FlagsError{}
 		}
-		flags.InitDoer(finalArgs, ep)
+		flags.initDoer(finalArgs, ep)
 		return nil
 	case flags.Replace.Name():
 		if err := flags.Replace.Parse(nextArgs[1:]); err != nil {
@@ -161,10 +161,10 @@ func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, 
 			flags.Replace.Usage()
 			return &errors.FlagsError{}
 		}
-		flags.ReplaceDoer(finalArgs, ep)
+		flags.replaceDoer(finalArgs, ep)
 		return nil
 	case "":
-		flags.PlacementDoer(finalArgs, ep)
+		flags.placementDoer(finalArgs, ep)
 		return nil
 	default:
 		return &errors.FlagsError{}

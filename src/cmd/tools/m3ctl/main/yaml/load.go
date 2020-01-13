@@ -11,7 +11,6 @@ import (
 )
 
 func Load(path string, target proto.Message) io.Reader {
-	log.Printf("path:%s:\n", path)
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)

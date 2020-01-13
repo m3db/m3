@@ -85,7 +85,7 @@ func parseAndDoCreate(args []string, finalArgs *configflag.FlagStringSlice, flag
 			flags.Create.Usage()
 			return &errors.FlagsError{}
 		}
-		// the below finalArgs.Value has at least one value by this time per the finalArgs parser
+		// the below finalArgs.Value has at least one value by this time per the parser
 		doer(finalArgs.Value[len(finalArgs.Value)-1], ep)
 		return nil
 	default:

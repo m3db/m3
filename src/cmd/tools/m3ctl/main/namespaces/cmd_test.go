@@ -8,15 +8,15 @@ func makeStub() (NamespaceArgs, NamespaceFlags) {
 	namespaceArgs := NamespaceArgs{}
 	namespaceFlagSets := SetupFlags(&namespaceArgs)
 
-	namespaceFlagSets.NamespaceDoer = func(*NamespaceArgs, string) { return }
-	namespaceFlagSets.DeleteDoer = func(*NamespaceArgs, string) { return }
+	namespaceFlagSets.namespaceDoer = func(*NamespaceArgs, string) { return }
+	namespaceFlagSets.deleteDoer = func(*NamespaceArgs, string) { return }
 
 	return namespaceArgs, namespaceFlagSets
 }
 func TestBasic(t *testing.T) {
 
 	args, flags := makeStub()
-	if e := parseAndDo([]string{""}, &args, &flags, ""); e != nil {
+	if e := parseAndDo([]string{}, &args, &flags, ""); e != nil {
 		t.Error("It should not return an error on no args")
 	}
 

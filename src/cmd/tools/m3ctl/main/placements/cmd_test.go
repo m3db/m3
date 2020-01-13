@@ -8,11 +8,11 @@ func makeStub() (PlacementArgs, PlacementFlags) {
 	placementArgs := PlacementArgs{}
 	placementFlagSets := SetupFlags(&placementArgs)
 
-	placementFlagSets.PlacementDoer = func(*PlacementArgs, string) { return }
-	placementFlagSets.AddDoer = func(*PlacementArgs, string) { return }
-	placementFlagSets.DeleteDoer = func(*PlacementArgs, string) { return }
-	placementFlagSets.InitDoer = func(*PlacementArgs, string) { return }
-	placementFlagSets.ReplaceDoer = func(*PlacementArgs, string) { return }
+	placementFlagSets.placementDoer = func(*PlacementArgs, string) { return }
+	placementFlagSets.addDoer = func(*PlacementArgs, string) { return }
+	placementFlagSets.deleteDoer = func(*PlacementArgs, string) { return }
+	placementFlagSets.initDoer = func(*PlacementArgs, string) { return }
+	placementFlagSets.replaceDoer = func(*PlacementArgs, string) { return }
 
 	return placementArgs, placementFlagSets
 }
@@ -21,7 +21,7 @@ func TestBasic(t *testing.T) {
 	// default is to list placements
 	// so no args is OK
 	args, flags := makeStub()
-	if err := parseAndDo([]string{""}, &args, &flags, ""); err != nil {
+	if err := parseAndDo([]string{}, &args, &flags, ""); err != nil {
 		t.Error("It should not return error no args")
 	}
 

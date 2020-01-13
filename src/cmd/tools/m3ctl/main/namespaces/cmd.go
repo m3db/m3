@@ -19,9 +19,9 @@ type NamespaceArgs struct {
 
 type NamespaceFlags struct {
 	Namespace     *flag.FlagSet
-	NamespaceDoer func(*NamespaceArgs, string)
+	namespaceDoer func(*NamespaceArgs, string)
 	Delete        *flag.FlagSet
-	DeleteDoer    func(*NamespaceArgs, string)
+	deleteDoer    func(*NamespaceArgs, string)
 }
 
 func SetupFlags(flags *NamespaceArgs) NamespaceFlags {
@@ -67,7 +67,7 @@ Usage of %s:
 `, deleteFlags.Name(), namespaceFlags.Name(), deleteFlags.Name())
 		deleteFlags.PrintDefaults()
 	}
-	return NamespaceFlags{Namespace: namespaceFlags, NamespaceDoer: Show, Delete: deleteFlags, DeleteDoer: Delete}
+	return NamespaceFlags{Namespace: namespaceFlags, namespaceDoer: Show, Delete: deleteFlags, deleteDoer: Delete}
 }
 
 func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string) {
@@ -91,7 +91,7 @@ func parseAndDo(args []string, finalArgs *NamespaceArgs, flags *NamespaceFlags, 
 	}
 	// maybe do "ns -all"
 	if flags.Namespace.NArg() == 0 {
-		flags.NamespaceDoer(finalArgs, ep)
+		flags.namespaceDoer(finalArgs, ep)
 		return nil
 	}
 	nextArgs := flags.Namespace.Args()
@@ -105,10 +105,10 @@ func parseAndDo(args []string, finalArgs *NamespaceArgs, flags *NamespaceFlags, 
 			flags.Delete.Usage()
 			return &errors.FlagsError{}
 		}
-		flags.DeleteDoer(finalArgs, ep)
+		flags.deleteDoer(finalArgs, ep)
 		return nil
 	case "":
-		flags.NamespaceDoer(finalArgs, ep)
+		flags.namespaceDoer(finalArgs, ep)
 		return nil
 	default:
 		flags.Namespace.Usage()
