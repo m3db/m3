@@ -994,22 +994,23 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#configuration" title="Configuration" class="md-nav__link">
-    Configuration
+  <a href="#jaeger" title="Jaeger" class="md-nav__link">
+    Jaeger
   </a>
   
-    <nav class="md-nav">
-      <ul class="md-nav__list">
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lightstep" title="LightStep" class="md-nav__link">
+    LightStep
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#alternative-backends" title="Alternative backends" class="md-nav__link">
     Alternative backends
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1325,22 +1326,23 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#configuration" title="Configuration" class="md-nav__link">
-    Configuration
+  <a href="#jaeger" title="Jaeger" class="md-nav__link">
+    Jaeger
   </a>
   
-    <nav class="md-nav">
-      <ul class="md-nav__list">
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lightstep" title="LightStep" class="md-nav__link">
+    LightStep
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#alternative-backends" title="Alternative backends" class="md-nav__link">
     Alternative backends
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1411,10 +1413,9 @@
 <h2 id="tracing">Tracing</h2>
 <p>M3DB is integrated with <a href="https://opentracing.io/">opentracing</a> to provide
 insight into query performance and errors.</p>
-<h3 id="configuration">Configuration</h3>
-<p>Currently, only <a href="https://www.jaegertracing.io/">Jaeger</a> is supported as a backend.</p>
-<p>To enable it, set tracing.backend to "jaeger" (see also our
-<a href="https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml">sample local config</a>:</p>
+<h3 id="jaeger">Jaeger</h3>
+<p>To enable Jaeger as the tracing backend, set tracing.backend to "jaeger" (see also our <a href="https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml">sample local
+config</a>:</p>
 <div class="highlight"><pre><span></span>tracing:
     backend: jaeger  # enables jaeger with default configs
     jaeger:
@@ -1430,11 +1431,26 @@ insight into query performance and errors.</p>
 using the all-in-one jaeger container, they will be accessible at</p>
 <p><a href="http://localhost:16686">http://localhost:16686</a></p>
 <p>N.B.: for production workloads, you will almost certainly want to use
-sampler.type=remote with 
+sampler.type=remote with
 <a href="https://www.jaegertracing.io/docs/1.10/sampling/#adaptive-sampler">adaptive sampling</a>
 for Jaeger, as write volumes are likely orders of magnitude higher than
 read volumes in most timeseries systems.</p>
-<h4 id="alternative-backends">Alternative backends</h4>
+<h3 id="lightstep">LightStep</h3>
+<p>To use LightStep as the tracing backend, set <code>tracing.backend</code> to <code>"lightstep"</code> and configure necessary information for
+your client under <code>lightstep</code>. Any <a href="https://github.com/lightstep/lightstep-tracer-go/blob/v0.18.1/options.go#L110">options exposed</a> in <code>lightstep-tracer-go</code> can be set in config.
+Any environment variables may be interpolated. For example:</p>
+<div class="highlight"><pre><span></span><span class="nt">tracing</span><span class="p">:</span>
+  <span class="nt">serviceName</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">m3coordinator</span>
+  <span class="nt">backend</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">lightstep</span>
+  <span class="nt">lightstep</span><span class="p">:</span>
+    <span class="nt">access_token</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">${LIGHTSTEP_ACCESS_TOKEN:&quot;&quot;}</span>
+    <span class="nt">collector</span><span class="p">:</span>
+      <span class="nt">scheme</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">https</span>
+      <span class="nt">host</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">my-satellite-address.domain</span>
+      <span class="nt">port</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">8181</span>
+</pre></div>
+
+<h3 id="alternative-backends">Alternative backends</h3>
 <p>If you'd like additional backends, we'd love to support them!</p>
 <p>File an issue against M3 and we can work with you on how best to add
 the backend. The first time's going to be a little rough--opentracing
