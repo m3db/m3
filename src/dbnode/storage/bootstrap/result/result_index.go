@@ -130,6 +130,11 @@ func (b *IndexBuilders) Get(t time.Time) (*IndexBuilder, bool) {
 	return builder, ok
 }
 
+// NewIndexBuilder returns a new index segment builder with lock.
+func NewIndexBuilder(builder segment.DocumentsBuilder) *IndexBuilder {
+	return &IndexBuilder{builder: builder}
+}
+
 // FlushBatch flushes a batch of documents to the underlying segment builder.
 func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) {
 	b.Lock()

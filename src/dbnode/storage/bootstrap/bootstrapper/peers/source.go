@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -266,8 +265,8 @@ func (s *peersSource) readData(
 		len(timeWindowFetchGroups))
 	for _, timeWindowFetchGroup := range timeWindowFetchGroups {
 		var (
-			timeWindowGroupWg   sync.WaitGroup
-			indexSegmentBuilder segment.DocumentsBuilder
+			timeWindowGroupWg sync.WaitGroup
+			indexBuilder      *result.IndexBuilder
 		)
 		if indexEnabled {
 			// Determine if index shard time ranges overlaps entirely this fetch
@@ -276,11 +275,13 @@ func (s *peersSource) readData(
 			currShardTimeRanges.Subtract(indexShardsTimeRanges)
 			if currShardTimeRanges.IsEmpty() {
 				// If so we want to build an index segment.
-				allocBuilder := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
-				indexSegmentBuilder, err = allocBuilder()
+				allocSegmentBuilder := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
+				segmentBuilder, err := allocSegmentBuilder()
 				if err != nil {
 					return nil, nil, err
 				}
+
+				indexBuilder = result.NewIndexBuilder(segmentBuilder)
 			}
 		}
 		for shard, ranges := range timeWindowFetchGroup.Ranges {
@@ -289,13 +290,13 @@ func (s *peersSource) readData(
 			workers.Go(func() {
 				s.fetchFromPeers(shard, ranges, nsMeta, session,
 					accumulator, resultOpts, dataResult, &resultLock, shouldPersist,
-					persistenceQueue, shardRetrieverMgr, blockSize, indexSegmentBuilder)
+					persistenceQueue, shardRetrieverMgr, blockSize, indexBuilder)
 				wg.Done()
 				timeWindowGroupWg.Done()
 			})
 		}
 
-		if indexSegmentBuilder != nil {
+		if indexBuilder != nil {
 			go func() {
 				// Wait for this group to finish before enqueing so that the first
 				// window that finishes process first.
@@ -304,7 +305,7 @@ func (s *peersSource) readData(
 				// Enqueue to be processed as a single time window.
 				entry := indexProcessTimeWindow{
 					timeWindowFetchGroup: timeWindowFetchGroup,
-					indexSegmentBuilder:  indexSegmentBuilder,
+					indexBuilder:         indexBuilder,
 				}
 				indexProcessTimeWindowQueue <- entry
 			}()
@@ -323,7 +324,7 @@ func (s *peersSource) readData(
 
 type indexProcessTimeWindow struct {
 	timeWindowFetchGroup bootstrapper.ShardTimeRangesTimeWindowGroup
-	indexSegmentBuilder  segment.DocumentsBuilder
+	indexBuilder         *result.IndexBuilder
 }
 
 // startPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
@@ -383,15 +384,19 @@ func (s *peersSource) fetchFromPeers(
 	persistenceQueue chan persistenceFlush,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	blockSize time.Duration,
-	indexSegmentBuilder segment.DocumentsBuilder,
+	indexBuilder *result.IndexBuilder,
 ) {
 	it := ranges.Iter()
 	tagsIter := ident.NewTagsIterator(ident.Tags{})
-	unfulfill := func(r xtime.Range) {
+	unfulfill := func(r xtime.Range, err error) {
 		lock.Lock()
 		unfulfilled := bootstrapResult.Unfulfilled()
 		unfulfilled.AddRanges(result.ShardTimeRanges{shard: xtime.NewRanges(r)})
 		lock.Unlock()
+		s.log.Error("unfulfilling range due to bootstrap error",
+			zap.Error(err),
+			zap.Int("shard", int(shard)),
+			zap.Stringer("range", r))
 	}
 	for it.Next() {
 		currRange := it.Value()
@@ -407,15 +412,11 @@ func (s *peersSource) fetchFromPeers(
 
 			if err != nil {
 				// No result to add for this bootstrap.
-				unfulfill(currRange)
+				unfulfill(currRange, err)
 				continue
 			}
 
 			if shouldPersist {
-				if indexSegmentBuilder != nil {
-					// insert into builder
-				}
-
 				persistenceQueue <- persistenceFlush{
 					nsMetadata:        nsMetadata,
 					shard:             shard,
@@ -423,24 +424,32 @@ func (s *peersSource) fetchFromPeers(
 					shardResult:       shardResult,
 					timeRange:         xtime.Range{Start: blockStart, End: blockEnd},
 				}
+
+				if indexBuilder != nil {
+					// Work out if building entire block or not.
+					err := s.addDocsToSegmentBuilder(shardResult, indexBuilder)
+					if err != nil {
+						unfulfill(currRange, err)
+					}
+				}
 				continue
 			}
 
 			// If not waiting to flush, add straight away to bootstrap result.
+			// Note: the accumulator indexes series, so no need to add to 
+			// segment builder.
 			for _, elem := range shardResult.AllSeries().Iter() {
 				entry := elem.Value()
 				tagsIter.Reset(entry.Tags)
 				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
 				if err != nil {
-					unfulfill(currRange)
-					s.log.Error("could not checkout series", zap.Error(err))
+					unfulfill(currRange, err)
 					continue
 				}
 
 				for _, block := range entry.Blocks.AllBlocks() {
 					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
-						unfulfill(currRange)
-						s.log.Error("could not load series block", zap.Error(err))
+						unfulfill(currRange, err)
 					}
 				}
 
@@ -450,6 +459,44 @@ func (s *peersSource) fetchFromPeers(
 			}
 		}
 	}
+}
+
+func (s *peersSource) addDocsToSegmentBuilder(
+	shardResult result.ShardResult,
+	indexBuilder *result.IndexBuilder,
+) error {
+	docsPool := s.opts.IndexOptions().DocumentArrayPool()
+	batch := docsPool.Get()
+	defer docsPool.Put(batch)
+
+	for _, elem := range shardResult.AllSeries().Iter() {
+		entry := elem.Value()
+
+		// NB(r): Need to take a copy of document here since the
+		// entry will be used later and finalized there.
+		doc, err := convert.FromMetric(entry.ID, entry.Tags)
+		if err != nil {
+			return err
+		}
+
+		batch = append(batch, doc)
+		if len(batch) >= index.DocumentArrayPoolCapacity {
+			batch, err = indexBuilder.FlushBatch(batch)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(batch) > 0 {
+		var err error
+		batch, err = indexBuilder.FlushBatch(batch)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
