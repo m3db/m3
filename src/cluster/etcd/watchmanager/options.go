@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 
-	"github.com/coreos/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3"
 )
 
 const (

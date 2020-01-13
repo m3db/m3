@@ -26,8 +26,8 @@ import:
   - package: github.com/cespare/xxhash
     version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
-  - package: github.com/coreos/etcd
-    version: 3.2.28
+  - package: go.etcd.io/etcd
+    version: 3.4.3
 
   - package: github.com/pkg/errors
     version: ^0.8
@@ -59,9 +59,6 @@ import:
 
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
-
-  - package: github.com/opentracing/opentracing-go
-    version: 1.1.0
 
   - package: github.com/spaolacci/murmur3
     version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
@@ -197,19 +194,28 @@ import:
     subpackages:
       - capnslog
 
-  # START_JAEGER_DEPS
+  # START_TRACING_DEPS
+  - package: github.com/opentracing/opentracing-go
+    version: ^1.1.0
+
   - package: github.com/uber/jaeger-lib
     version: ^2.0.0
 
   - package: github.com/uber/jaeger-client-go
     version: ~2.16.0
 
+  - package: github.com/lightstep/lightstep-tracer-go
+    version: ~v0.18.0
+
+  - package: github.com/lightstep/lightstep-tracer-common
+    version: ~1.0.3
+
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
     # the same code.
     version: cf7a6c988dc994e945d2715565026f3cc8718689
 
-  # END_JAEGER_DEPS
+  # END_TRACING_DEPS
 
   # To avoid conflicting packages not resolving the latest GRPC
   - package: google.golang.org/grpc

@@ -33,7 +33,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/retry"
 
-	"github.com/coreos/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3"
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"

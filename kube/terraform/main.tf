@@ -73,7 +73,7 @@ resource "kubernetes_stateful_set" "etcd_stateful_set" {
       spec {
         container {
           name    = "etcd"
-          image   = "quay.io/coreos/etcd:v3.3.3"
+          image   = "quay.io/coreos/etcd:v3.4.3"
           command = ["etcd", "--name", "$(MY_POD_NAME)", "--listen-peer-urls", "http://$(MY_IP):2380", "--listen-client-urls", "http://$(MY_IP):2379,http://127.0.0.1:2379", "--advertise-client-urls", "http://$(MY_POD_NAME).etcd:2379", "--initial-cluster-token", "etcd-cluster-1", "--initial-advertise-peer-urls", "http://$(MY_POD_NAME).etcd:2380", "--initial-cluster", "etcd-0=http://etcd-0.etcd:2380,etcd-1=http://etcd-1.etcd:2380,etcd-2=http://etcd-2.etcd:2380", "--initial-cluster-state", "new", "--data-dir", "/var/lib/etcd"]
           port {
             name           = "client"
