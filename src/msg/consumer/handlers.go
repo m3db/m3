@@ -90,7 +90,7 @@ func (h *messageHandler) Handle(conn net.Conn) {
 		h.mp.Process(msg)
 	}
 	if msgErr != nil && msgErr != io.EOF {
-		h.opts.InstrumentOptions().Logger().With(zap.Error(msgErr)).Error("could not read message from consumer")
+		h.opts.InstrumentOptions().Logger().Error("could not read message from consumer", zap.Error(msgErr))
 	}
 	c.Close()
 }

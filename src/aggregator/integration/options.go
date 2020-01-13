@@ -28,14 +28,20 @@ import (
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	m3msgconfig "github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	producerconfig "github.com/m3db/m3/src/msg/producer/config"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
 	defaultRawTCPAddr                 = "localhost:6000"
 	defaultHTTPAddr                   = "localhost:6001"
+	defaultM3MsgAddr                  = ""
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
 	defaultWorkerPoolSize             = 4
@@ -48,6 +54,68 @@ const (
 	defaultEntryCheckInterval         = time.Second
 	defaultJitterEnabled              = true
 	defaultDiscardNaNAggregatedValues = true
+	m3msgConsumerConfigStr            = `
+server:
+  listenAddress: "localhost:6009"
+  keepAliveEnabled: true
+  keepAlivePeriod: 5s
+handler:
+  protobufDecoderPool:
+    size: 100
+    watermark:
+      low: 0.001
+      high: 0.002
+consumer:
+  messagePool:
+    size: 5
+    maxBufferReuseSize: 65536
+  ackFlushInterval: 100ms
+  ackBufferSize: 100
+  connectionWriteBufferSize: 200
+  connectionReadBufferSize: 300
+  encoder:
+    maxMessageSize: 10485760
+    bytesPool:
+      watermark:
+        low: 0.001
+  decoder:
+    maxMessageSize: 10485760
+    bytesPool:
+      watermark:
+        high: 0.002
+`
+	m3msgProducerConfigStr = `
+buffer:
+  closeCheckInterval: 200ms
+  cleanupRetry:
+    initialBackoff: 100ms
+    maxBackoff: 200ms
+writer:
+  topicName: passthroughTopic
+  topicWatchInitTimeout: 100ms
+  placementWatchInitTimeout: 100ms
+  messagePool:
+    size: 100
+  messageRetry:
+    initialBackoff: 100ms
+    maxBackoff: 500ms
+  messageQueueNewWritesScanInterval: 10ms
+  messageQueueFullScanInterval: 50ms
+  closeCheckInterval: 200ms
+  ackErrorRetry:
+    initialBackoff: 100ms
+    maxBackoff: 500ms
+  connection:
+    dialTimeout: 500ms
+    writeTimeout: 500ms
+    keepAlivePeriod: 2s
+    retry:
+      initialBackoff: 50ms
+      maxBackoff: 200ms
+    flushInterval: 50ms
+    writeBufferSize: 4096
+    resetDelay: 50ms
+`
 )
 
 type testServerOptions interface {
@@ -80,6 +148,12 @@ type testServerOptions interface {
 
 	// HTTPAddr returns the http server address.
 	HTTPAddr() string
+
+	// SetM3MsgAddr sets the m3msg server address.
+	SetM3MsgAddr(value string) testServerOptions
+
+	// M3MsgAddr returns the m3msg server address.
+	M3MsgAddr() string
 
 	// SetInstanceID sets the instance id.
 	SetInstanceID(value string) testServerOptions
@@ -197,6 +271,7 @@ type serverOptions struct {
 	aggTypesOpts                aggregation.TypesOptions
 	rawTCPAddr                  string
 	httpAddr                    string
+	m3msgAddr                   string
 	instanceID                  string
 	electionKeyFmt              string
 	electionCluster             *testCluster
@@ -225,6 +300,7 @@ func newTestServerOptions() testServerOptions {
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
+		m3msgAddr:                   defaultM3MsgAddr,
 		clockOpts:                   clock.NewOptions(),
 		instrumentOpts:              instrument.NewOptions(),
 		aggTypesOpts:                aggTypesOpts,
@@ -296,6 +372,16 @@ func (o *serverOptions) SetHTTPAddr(value string) testServerOptions {
 
 func (o *serverOptions) HTTPAddr() string {
 	return o.httpAddr
+}
+
+func (o *serverOptions) SetM3MsgAddr(value string) testServerOptions {
+	opts := *o
+	opts.m3msgAddr = value
+	return &opts
+}
+
+func (o *serverOptions) M3MsgAddr() string {
+	return o.m3msgAddr
 }
 
 func (o *serverOptions) SetInstanceID(value string) testServerOptions {
@@ -487,4 +573,22 @@ func defaultMaxAllowedForwardingDelayFn(
 	numForwardedTimes int,
 ) time.Duration {
 	return resolution + time.Second*time.Duration(numForwardedTimes)
+}
+
+func mustNewM3MsgConsumerConfig() *m3msgconfig.Configuration {
+	var m3msgServerConfig m3msgconfig.Configuration
+	err := yaml.Unmarshal([]byte(m3msgConsumerConfigStr), &m3msgServerConfig)
+	if err != nil {
+		panic(err.Error())
+	}
+	return &m3msgServerConfig
+}
+
+func mustNewM3MsgProducerConfig() *producerconfig.ProducerConfiguration {
+	var conf producerconfig.ProducerConfiguration
+	err := yaml.Unmarshal([]byte(m3msgProducerConfigStr), &conf)
+	if err != nil {
+		panic(err.Error())
+	}
+	return &conf
 }

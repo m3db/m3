@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package capture
+package config
 
 import (
-	aggr "github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 )
 
-// Aggregator provide an aggregator for testing purposes.
-type Aggregator interface {
-	aggr.Aggregator
+// PassThroughConfiguration contains the knobs for pass-through server.
+type PassThroughConfiguration struct {
+	// Enabled controls whether the passthrough server/writer is enabled.
+	Enabled bool `yaml:"enabled"`
 
-	// NumMetricsAdded returns the number of metrics added.
-	NumMetricsAdded() int
+	// M3Msg server configuration.
+	M3Msg *m3msg.Configuration `yaml:"m3msg"`
 
-	// Snapshot returns a copy of the aggregated data, resets
-	// aggregations and number of metrics added.
-	Snapshot() SnapshotResult
-}
+	// OverrideTopicName allows the destination topic name where outgoing passthrough metrics
+	// are written to be overriden.
+	OverrideTopicName string `yaml:"overrideTopicName"`
 
-// SnapshotResult is the snapshot result.
-type SnapshotResult struct {
-	CountersWithMetadatas         []unaggregated.CounterWithMetadatas
-	BatchTimersWithMetadatas      []unaggregated.BatchTimerWithMetadatas
-	GaugesWithMetadatas           []unaggregated.GaugeWithMetadatas
-	ForwardedMetricsWithMetadata  []aggregated.ForwardedMetricWithMetadata
-	TimedMetricWithMetadata       []aggregated.TimedMetricWithMetadata
-	PassThroughMetricWithMetadata []aggregated.TimedMetricWithMetadata
+	// NumWriters controls the number of passthrough writers used.
+	NumWriters int `yaml:"numWriters"`
 }

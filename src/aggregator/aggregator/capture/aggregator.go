@@ -39,12 +39,13 @@ import (
 type aggregator struct {
 	sync.RWMutex
 
-	numMetricsAdded              int
-	countersWithMetadatas        []unaggregated.CounterWithMetadatas
-	batchTimersWithMetadatas     []unaggregated.BatchTimerWithMetadatas
-	gaugesWithMetadatas          []unaggregated.GaugeWithMetadatas
-	forwardedMetricsWithMetadata []aggregated.ForwardedMetricWithMetadata
-	timedMetricsWithMetadata     []aggregated.TimedMetricWithMetadata
+	numMetricsAdded                int
+	countersWithMetadatas          []unaggregated.CounterWithMetadatas
+	batchTimersWithMetadatas       []unaggregated.BatchTimerWithMetadatas
+	gaugesWithMetadatas            []unaggregated.GaugeWithMetadatas
+	forwardedMetricsWithMetadata   []aggregated.ForwardedMetricWithMetadata
+	timedMetricsWithMetadata       []aggregated.TimedMetricWithMetadata
+	passThroughMetricsWithMetadata []aggregated.TimedMetricWithMetadata
 }
 
 // NewAggregator creates a new capturing aggregator.
@@ -131,6 +132,26 @@ func (agg *aggregator) AddForwarded(
 	return nil
 }
 
+func (agg *aggregator) AddPassThrough(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	// Clone the metric and timed metadata to ensure it cannot be mutated externally.
+	metric = cloneTimedMetric(metric)
+	metadata = cloneTimedMetadata(metadata)
+
+	agg.Lock()
+	defer agg.Unlock()
+
+	tm := aggregated.TimedMetricWithMetadata{
+		Metric:        metric,
+		TimedMetadata: metadata,
+	}
+	agg.passThroughMetricsWithMetadata = append(agg.passThroughMetricsWithMetadata, tm)
+	agg.numMetricsAdded++
+	return nil
+}
+
 func (agg *aggregator) Resign() error              { return nil }
 func (agg *aggregator) Status() aggr.RuntimeStatus { return aggr.RuntimeStatus{} }
 func (agg *aggregator) Close() error               { return nil }
@@ -146,17 +167,19 @@ func (agg *aggregator) Snapshot() SnapshotResult {
 	agg.Lock()
 
 	result := SnapshotResult{
-		CountersWithMetadatas:        agg.countersWithMetadatas,
-		BatchTimersWithMetadatas:     agg.batchTimersWithMetadatas,
-		GaugesWithMetadatas:          agg.gaugesWithMetadatas,
-		ForwardedMetricsWithMetadata: agg.forwardedMetricsWithMetadata,
-		TimedMetricWithMetadata:      agg.timedMetricsWithMetadata,
+		CountersWithMetadatas:         agg.countersWithMetadatas,
+		BatchTimersWithMetadatas:      agg.batchTimersWithMetadatas,
+		GaugesWithMetadatas:           agg.gaugesWithMetadatas,
+		ForwardedMetricsWithMetadata:  agg.forwardedMetricsWithMetadata,
+		TimedMetricWithMetadata:       agg.timedMetricsWithMetadata,
+		PassThroughMetricWithMetadata: agg.passThroughMetricsWithMetadata,
 	}
 	agg.countersWithMetadatas = nil
 	agg.batchTimersWithMetadatas = nil
 	agg.gaugesWithMetadatas = nil
 	agg.forwardedMetricsWithMetadata = nil
 	agg.timedMetricsWithMetadata = nil
+	agg.passThroughMetricsWithMetadata = nil
 	agg.numMetricsAdded = 0
 
 	agg.Unlock()

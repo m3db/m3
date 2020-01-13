@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package capture
+package writer
 
 import (
-	aggr "github.com/m3db/m3/src/aggregator/aggregator"
+	"testing"
+
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-// Aggregator provide an aggregator for testing purposes.
-type Aggregator interface {
-	aggr.Aggregator
+func TestNewShardedWriter(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
 
-	// NumMetricsAdded returns the number of metrics added.
-	NumMetricsAdded() int
+	w1, w2 := NewMockWriter(ctrl), NewMockWriter(ctrl)
+	writers := []Writer{w1, w2}
 
-	// Snapshot returns a copy of the aggregated data, resets
-	// aggregations and number of metrics added.
-	Snapshot() SnapshotResult
-}
+	shardFn := func(_ id.ChunkedID, _ int) uint32 {
+		return 0
+	}
 
-// SnapshotResult is the snapshot result.
-type SnapshotResult struct {
-	CountersWithMetadatas         []unaggregated.CounterWithMetadatas
-	BatchTimersWithMetadatas      []unaggregated.BatchTimerWithMetadatas
-	GaugesWithMetadatas           []unaggregated.GaugeWithMetadatas
-	ForwardedMetricsWithMetadata  []aggregated.ForwardedMetricWithMetadata
-	TimedMetricWithMetadata       []aggregated.TimedMetricWithMetadata
-	PassThroughMetricWithMetadata []aggregated.TimedMetricWithMetadata
+	w, err := NewShardedWriter(writers, shardFn, instrument.NewOptions())
+	require.NoError(t, err)
+
+	metric := aggregated.ChunkedMetricWithStoragePolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: id.ChunkedID{
+				Data: []byte("some-random-id"),
+			},
+		},
+	}
+
+	w1.EXPECT().Write(metric).Return(nil)
+	require.NoError(t, w.Write(metric))
+
+	w1.EXPECT().Flush().Return(nil)
+	w2.EXPECT().Flush().Return(nil)
+	require.NoError(t, w.Flush())
+
+	w1.EXPECT().Close().Return(nil)
+	w2.EXPECT().Close().Return(nil)
+	require.NoError(t, w.Close())
 }

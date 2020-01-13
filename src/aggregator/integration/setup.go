@@ -34,19 +34,30 @@ import (
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
+	"github.com/m3db/m3/src/aggregator/sharding"
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/service"
+	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	m3msgconfig "github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -58,6 +69,8 @@ type testServerSetup struct {
 	opts             testServerOptions
 	rawTCPAddr       string
 	httpAddr         string
+	m3msgAddr        string
+	m3msgServerConf  *m3msgconfig.Configuration
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
 	aggregator       aggregator.Aggregator
@@ -170,7 +183,11 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		resultLock sync.Mutex
 	)
 	handler := &capturingHandler{results: &results, resultLock: &resultLock}
-	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
+	pw, err := handler.NewWriter(tally.NoopScope)
+	if err != nil {
+		panic(err.Error())
+	}
+	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler).SetPassThroughWriter(pw)
 
 	// Set up entry pool.
 	runtimeOpts := runtime.NewOptions()
@@ -199,10 +216,16 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
 	})
 
+	// m3msg consumer configuration.
+	m3msgConf := mustNewM3MsgConsumerConfig()
+	m3msgConf.Server.ListenAddress = opts.M3MsgAddr()
+
 	return &testServerSetup{
 		opts:             opts,
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
+		m3msgAddr:        opts.M3MsgAddr(),
+		m3msgServerConf:  m3msgConf,
 		rawTCPServerOpts: rawTCPServerOpts,
 		httpServerOpts:   httpServerOpts,
 		aggregatorOpts:   aggregatorOpts,
@@ -222,6 +245,90 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 func (ts *testServerSetup) newClient() *client {
 	connectTimeout := ts.opts.ClientConnectionOptions().ConnectionTimeout()
 	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), connectTimeout)
+}
+
+func (ts *testServerSetup) newPassthroughClient(
+	ctrl *gomock.Controller,
+) (*passthroughClient, error) {
+	// nb: this is incredibly ugly, but required because the entire integration test package uses m3cluster mem.Store,
+	// and there is no way to construct a m3cluster cluster.Client from it (that package only works off an actual etcd
+	// server). To get around this, we do a bunch of mock-hackery to pass down the mem.Store to the places that need it
+	// for the passthroughClient. If we want to avoid in the future: we can either start using an etcd.Store (definitely
+	// a good idea), and/or create a cluster.Client implementation backed by mem.Store (also a good idea).
+	store := ts.opts.KVStore()
+	configService := clusterclient.NewMockClient(ctrl)
+	configService.EXPECT().Store(gomock.Any()).Return(store, nil).AnyTimes()
+
+	sd := services.NewMockServices(ctrl)
+	configService.EXPECT().Services(gomock.Any()).Return(sd, nil).AnyTimes()
+
+	m3msgConsumerServiceID := services.NewServiceID().SetName("passthrough-consumer")
+	popts := placement.NewOptions().
+		SetShardStateMode(placement.StableShardStateOnly).
+		SetIsSharded(true)
+
+	psvc := service.NewPlacementService(
+		storage.NewPlacementStorage(store, m3msgConsumerServiceID.String(), popts), popts)
+
+	sd.EXPECT().PlacementService(m3msgConsumerServiceID, gomock.Any()).Return(psvc, nil).AnyTimes()
+
+	hostAddr := ts.opts.M3MsgAddr()
+	instances := []placement.Instance{
+		placement.NewInstance().
+			SetID(hostAddr).
+			SetEndpoint(hostAddr).
+			SetWeight(1),
+	}
+
+	tsvc, err := topic.NewService(topic.NewServiceOptions().SetConfigService(configService))
+	if err != nil {
+		return nil, err
+	}
+
+	const (
+		testShards    = 10
+		replicaFactor = 1
+	)
+
+	_, err = psvc.BuildInitialPlacement(instances, testShards, replicaFactor)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := mustNewM3MsgProducerConfig()
+
+	m3msgConsumerService := topic.NewConsumerService().
+		SetServiceID(m3msgConsumerServiceID).
+		SetConsumptionType(topic.Replicated)
+
+	testTopic := topic.NewTopic().
+		SetName(cfg.Writer.TopicName).
+		SetNumberOfShards(testShards).
+		SetConsumerServices([]topic.ConsumerService{m3msgConsumerService})
+
+	_, err = tsvc.CheckAndSet(testTopic, kv.UninitializedVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	iopts := instrument.NewOptions()
+	logger := iopts.Logger().With(zap.String("from", "passthrough-integrationtest-producer"))
+	iopts.SetLogger(logger)
+	producer, err := cfg.NewProducer(configService, iopts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := producer.Init(); err != nil {
+		return nil, err
+	}
+
+	w := writer.NewProtobufWriter(producer,
+		sharding.Murmur32Hash.MustShardFn(),
+		writer.NewOptions(),
+	)
+
+	return newPassthroughClient(producer, w), nil
 }
 
 func (ts *testServerSetup) waitUntilServerIsUp() error {
@@ -244,6 +351,21 @@ func (ts *testServerSetup) startServer() error {
 		return err
 	}
 
+	var (
+		m3msgServer server.Server
+		err         error
+	)
+	if ts.m3msgAddr != "" {
+		m3msgServer, err = m3msgserver.NewPassThroughServer(
+			ts.m3msgServerConf,
+			ts.aggregator,
+			instrument.NewOptions(),
+		)
+		if err != nil {
+			return err
+		}
+	}
+
 	instrumentOpts := instrument.NewOptions()
 
 	go func() {
@@ -252,6 +374,8 @@ func (ts *testServerSetup) startServer() error {
 			ts.rawTCPServerOpts,
 			ts.httpAddr,
 			ts.httpServerOpts,
+			ts.m3msgAddr,
+			m3msgServer,
 			ts.aggregator,
 			ts.doneCh,
 			instrumentOpts,
