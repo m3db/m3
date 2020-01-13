@@ -2,19 +2,21 @@ package namespaces
 
 import (
 	"fmt"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/http"
-	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"io"
 	"log"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
+	"github.com/m3db/m3/src/query/generated/proto/admin"
+
+	"github.com/gogo/protobuf/jsonpb"
 )
 
 func Show(flags *NamespaceArgs, endpoint string) {
 	url := fmt.Sprintf("%s%s?%s", endpoint, defaultPath, debugQS)
 	if *flags.showAll {
-		http.DoGet(url, http.DoDump)
+		client.DoGet(url, client.DoDump)
 	} else {
-		http.DoGet(url, showNames)
+		client.DoGet(url, showNames)
 	}
 }
 

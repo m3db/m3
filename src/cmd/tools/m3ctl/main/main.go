@@ -23,11 +23,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/database"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"os"
 )
 
 const (

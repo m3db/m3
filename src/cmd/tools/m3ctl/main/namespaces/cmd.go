@@ -3,8 +3,9 @@ package namespaces
 import (
 	"flag"
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 	"os"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 )
 
 const (

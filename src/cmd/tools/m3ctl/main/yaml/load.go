@@ -2,12 +2,13 @@ package yaml
 
 import (
 	"bytes"
-	"github.com/ghodss/yaml"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"log"
+
+	"github.com/ghodss/yaml"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 )
 
 func Load(path string, target proto.Message) io.Reader {

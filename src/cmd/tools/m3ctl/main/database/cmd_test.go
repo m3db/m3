@@ -1,8 +1,9 @@
 package database
 
 import (
-	"github.com/m3db/m3/src/x/config/configflag"
 	"testing"
+
+	"github.com/m3db/m3/src/x/config/configflag"
 )
 
 func TestBasic(t *testing.T) {

@@ -3,9 +3,10 @@ package database
 import (
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 	"github.com/m3db/m3/src/x/config/configflag"
-	"os"
 )
 
 const (
