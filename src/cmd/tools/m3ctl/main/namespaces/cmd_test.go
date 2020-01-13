@@ -16,8 +16,8 @@ func makeStub() (NamespaceArgs, NamespaceFlags) {
 func TestBasic(t *testing.T) {
 
 	args, flags := makeStub()
-	if e := parseAndDo([]string{""}, &args, &flags, ""); e == nil {
-		t.Error("It should return error on no args")
+	if e := parseAndDo([]string{""}, &args, &flags, ""); e != nil {
+		t.Error("It should not return an error on no args")
 	}
 
 	args, flags = makeStub()

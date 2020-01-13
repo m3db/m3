@@ -3,6 +3,7 @@ package placements
 import (
 	"flag"
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"os"
 )
@@ -20,11 +21,16 @@ type PlacementArgs struct {
 }
 
 type PlacementFlags struct {
-	Placement *flag.FlagSet
-	Delete    *flag.FlagSet
-	Add       *flag.FlagSet
-	Init      *flag.FlagSet
-	Replace   *flag.FlagSet
+	Placement     *flag.FlagSet
+	PlacementDoer func(*PlacementArgs, string)
+	Delete        *flag.FlagSet
+	DeleteDoer    func(*PlacementArgs, string)
+	Add           *flag.FlagSet
+	AddDoer       func(*PlacementArgs, string)
+	Init          *flag.FlagSet
+	InitDoer      func(*PlacementArgs, string)
+	Replace       *flag.FlagSet
+	ReplaceDoer   func(*PlacementArgs, string)
 }
 
 func SetupFlags(flags *PlacementArgs) PlacementFlags {
@@ -73,61 +79,95 @@ Usage of %s:
 `, placementFlags.Name(), placementFlags.Name(), deleteFlags.Name(), addFlags.Name(), initFlags.Name(), replaceFlags.Name(), placementFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	return PlacementFlags{Placement: placementFlags, Delete: deleteFlags, Add: addFlags, Init: initFlags, Replace: replaceFlags}
+	return PlacementFlags{
+		Placement:     placementFlags,
+		PlacementDoer: Get,
+		Delete:        deleteFlags,
+		DeleteDoer:    Delete,
+		Add:           addFlags,
+		AddDoer:       Add,
+		Init:          initFlags,
+		InitDoer:      Init,
+		Replace:       replaceFlags,
+		ReplaceDoer:   Replace,
+	}
 }
 
 func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string) {
-	if err := flags.Placement.Parse(flag.Args()[1:]); err != nil {
+	originalArgs := flag.Args()
+	// right here args should be like "ns delete -name someName"
+	if len(originalArgs) < 1 {
 		flags.Placement.Usage()
 		os.Exit(1)
 	}
-	if flags.Placement.NArg() == 0 {
-		Get(args, ep)
-		os.Exit(0)
+	// pop and parse
+	if err := parseAndDo(originalArgs[1:], args, flags, ep); err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
 	}
-	switch flag.Arg(1) {
+
+}
+
+func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, ep string) error {
+	if err := flags.Placement.Parse(args); err != nil {
+		flags.Placement.Usage()
+		return &errors.FlagsError{}
+	}
+	if flags.Placement.NArg() == 0 {
+		flags.PlacementDoer(finalArgs, ep)
+		return nil
+	}
+	nextArgs := flags.Placement.Args()
+	switch nextArgs[0] {
 	case flags.Add.Name():
-		if err := flags.Add.Parse(flag.Args()[2:]); err != nil {
+		if err := flags.Add.Parse(nextArgs[1:]); err != nil {
 			flags.Add.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
 		if flags.Add.NFlag() == 0 {
 			flags.Add.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
-		Add(args, ep)
+		flags.AddDoer(finalArgs, ep)
+		return nil
 	case flags.Delete.Name():
-		if err := flags.Delete.Parse(flag.Args()[2:]); err != nil {
+		if err := flags.Delete.Parse(nextArgs[1:]); err != nil {
 			flags.Delete.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
 		if flags.Delete.NFlag() == 0 {
 			flags.Delete.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
-		Delete(args, ep)
+		flags.DeleteDoer(finalArgs, ep)
+		return nil
 	case flags.Init.Name():
-		if err := flags.Init.Parse(flag.Args()[2:]); err != nil {
+		if err := flags.Init.Parse(nextArgs[1:]); err != nil {
 			flags.Init.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
 		if flags.Init.NFlag() == 0 {
 			flags.Init.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
-		Init(args, ep)
+		flags.InitDoer(finalArgs, ep)
+		return nil
 	case flags.Replace.Name():
-		if err := flags.Replace.Parse(flag.Args()[2:]); err != nil {
+		if err := flags.Replace.Parse(nextArgs[1:]); err != nil {
 			flags.Replace.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
 		if flags.Replace.NFlag() == 0 {
 			flags.Replace.Usage()
-			os.Exit(1)
+			return &errors.FlagsError{}
 		}
-		Replace(args, ep)
+		flags.ReplaceDoer(finalArgs, ep)
+		return nil
+	case "":
+		flags.PlacementDoer(finalArgs, ep)
+		return nil
 	default:
-		Get(args, ep)
+		return &errors.FlagsError{}
 	}
 
 }

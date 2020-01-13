@@ -28,7 +28,6 @@ func SetupFlags(flags *NamespaceArgs) NamespaceFlags {
 	namespaceFlags := flag.NewFlagSet("ns", flag.ExitOnError)
 	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
 	flags.delete = deleteFlags.String("name", "", "name of namespace to delete")
-
 	flags.showAll = namespaceFlags.Bool("all", false, "show all the standard info for namespaces (otherwise default behaviour lists only the names)")
 	namespaceFlags.Usage = func() {
 		fmt.Fprintf(namespaceFlags.Output(), `
@@ -72,14 +71,14 @@ Usage of %s:
 }
 
 func ParseAndDo(args *NamespaceArgs, flags *NamespaceFlags, ep string) {
-	osArgs := flag.Args()
+	originalArgs := flag.Args()
 	// right here args should be like "ns delete -name someName"
-	if len(osArgs) < 1 {
+	if len(originalArgs) < 1 {
 		flags.Namespace.Usage()
 		os.Exit(1)
 	}
 	// pop and parse
-	if err := parseAndDo(osArgs[1:], args, flags, ep); err != nil {
+	if err := parseAndDo(originalArgs[1:], args, flags, ep); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
@@ -107,6 +106,9 @@ func parseAndDo(args []string, finalArgs *NamespaceArgs, flags *NamespaceFlags, 
 			return &errors.FlagsError{}
 		}
 		flags.DeleteDoer(finalArgs, ep)
+		return nil
+	case "":
+		flags.NamespaceDoer(finalArgs, ep)
 		return nil
 	default:
 		flags.Namespace.Usage()
