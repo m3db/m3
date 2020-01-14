@@ -16,7 +16,7 @@ for DISK in $DISKS; do
     mount -t ext4 /dev/$DISK /mnt/$DISK
 done
 MOUNTED_DISKS=$(df -h | grep nvme | awk '{ print $6 }' | paste -sd ',' -)
-if [ -z '$MOUNTED_DISKS' ]; then
+if [[ "$MOUNTED_DISKS" != "" ]]; then
     mkdir /mnt/nvme
     mhddfs $MOUNTED_DISKS /mnt/nvme
     DOCKER_CONFIG_FILE=daemon_nvme.json
