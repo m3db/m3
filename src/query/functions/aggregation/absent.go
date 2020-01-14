@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
@@ -107,8 +106,6 @@ func (n *absentNode) ProcessBlock(
 	}
 
 	// NB: pull any common tags out into the created series.
-	dupeTags, _ := utils.DedupeMetadata(seriesMetas, tagOpts)
-	meta.Tags = meta.Tags.Add(dupeTags).Normalize()
 	emptySeriesMeta := []block.SeriesMeta{
 		block.SeriesMeta{
 			Tags: models.NewTags(0, tagOpts),

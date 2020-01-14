@@ -23,7 +23,6 @@ package binary
 import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 )
 
@@ -181,12 +180,8 @@ func processBothSeries(
 	rSeriesMeta := rIter.SeriesMeta()
 	rMeta, rSeriesMeta = removeNameTags(rMeta, rSeriesMeta)
 
-	lSeriesMeta = utils.FlattenMetadata(lMeta, lSeriesMeta)
-	rSeriesMeta = utils.FlattenMetadata(rMeta, rSeriesMeta)
-
 	takeLeft, correspondingRight, lSeriesMeta := intersect(matching,
 		lSeriesMeta, rSeriesMeta)
-	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta, lMeta.Tags.Opts)
 
 	lMeta.ResultMetadata = lMeta.ResultMetadata.
 		CombineMetadata(rMeta.ResultMetadata)

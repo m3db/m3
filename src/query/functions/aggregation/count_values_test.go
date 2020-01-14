@@ -117,8 +117,6 @@ func TestSimpleProcessCountValuesFunctionUnfiltered(t *testing.T) {
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	ex := test.TagSliceToTags([]models.Tag{{Name: []byte(tagName), Value: []byte("0")}})
-	assert.Equal(t, ex.Tags, sink.Meta.Tags.Tags)
 	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
@@ -141,8 +139,6 @@ func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	exTags := test.TagSliceToTags([]models.Tag{{Name: []byte(tagName), Value: []byte("0")}})
-	assert.Equal(t, exTags.Tags, sink.Meta.Tags.Tags)
 	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
@@ -211,8 +207,6 @@ func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, test.TagSliceToTags([]models.Tag{{Name: []byte(tagName), Value: []byte("0")},
-		{Name: []byte("a"), Value: []byte("1")}}).Tags, sink.Meta.Tags.Tags)
 	test.CompareValuesInOrder(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
@@ -297,7 +291,5 @@ func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	ex := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
-	assert.Equal(t, ex.Tags, sink.Meta.Tags.Tags)
 	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }

@@ -128,7 +128,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 
 	params := n.op.params
 	meta := b.Meta()
-	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
+	seriesMetas := stepIter.SeriesMeta()
 	buckets, _ := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
@@ -137,7 +137,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	)
 
 	// retain original metadatas
-	builder, err := n.controller.BlockBuilder(queryCtx, meta, stepIter.SeriesMeta())
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, seriesMetas)
 	if err != nil {
 		return nil, err
 	}

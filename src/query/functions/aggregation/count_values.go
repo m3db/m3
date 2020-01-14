@@ -161,12 +161,11 @@ func (n *countValuesNode) ProcessBlock(
 	}
 
 	params := n.op.params
-	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
 		[]byte(n.op.opType),
-		seriesMetas,
+		stepIter.SeriesMeta(),
 	)
 
 	stepCount := stepIter.StepCount()
@@ -219,11 +218,7 @@ func (n *countValuesNode) ProcessBlock(
 		previousBucketBlockIndex += bucketBlock.columnLength
 	}
 
-	// Dedupe common metadatas
-	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas, meta.Tags.Opts)
-	meta.Tags = metaTags
-
-	builder, err := n.controller.BlockBuilder(queryCtx, meta, flattenedMeta)
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, blockMetas)
 	if err != nil {
 		return nil, err
 	}

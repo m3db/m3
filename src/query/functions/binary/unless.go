@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 )
 
@@ -49,13 +48,6 @@ func makeUnlessBlock(
 	rSeriesMetas := rIter.SeriesMeta()
 	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
 
-	// NB: need to flatten metadata for cases where
-	// e.g. lhs: common tags {a:b}, series tags: {c:d}, {e:f}
-	// e.g. rhs: common tags {c:d}, series tags: {a:b}, {e:f}
-	// If not flattened before calculating distinct values,
-	// both series on lhs would be added
-	lSeriesMetas = utils.FlattenMetadata(lMeta, lSeriesMetas)
-	rSeriesMetas = utils.FlattenMetadata(rMeta, rSeriesMetas)
 	indices := matchingIndices(matching, lSeriesMetas, rSeriesMetas)
 
 	lMeta.ResultMetadata = lMeta.ResultMetadata.

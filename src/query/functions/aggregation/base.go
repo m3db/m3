@@ -137,15 +137,13 @@ func (n *baseNode) ProcessBlock(
 
 	params := n.op.params
 	meta := b.Meta()
-	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
 		[]byte(n.op.opType),
-		seriesMetas,
+		stepIter.SeriesMeta(),
 	)
 
-	meta.Tags, metas = utils.DedupeMetadata(metas, meta.Tags.Opts)
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err
