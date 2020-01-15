@@ -298,6 +298,15 @@ func RegisterRoutes(
 	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
 	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
 	r.HandleFunc(M3CoordinatorReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+
+	// Set
+	var (
+		setHandler = NewSetHandler(opts)
+		setFn      = applyMiddleware(setHandler.ServeHTTP, defaults, opts.instrumentOptions)
+	)
+	r.HandleFunc(M3DBSetURL, setFn).Methods(SetHTTPMethod)
+	r.HandleFunc(M3AggSetURL, setFn).Methods(SetHTTPMethod)
+	r.HandleFunc(M3CoordinatorSetURL, setFn).Methods(SetHTTPMethod)
 }
 
 func newPlacementCutoverNanosFn(
