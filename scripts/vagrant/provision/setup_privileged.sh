@@ -24,11 +24,9 @@ fi
 
 DOCKER_USER=${DOCKER_USER:-$USER}
 
-# Copy over docker daemon config for azure deployments.
-if [[ "$AZURE_TENANT_ID" != "" ]]; then
-    mkdir /etc/docker
-    cp /home/$DOCKER_USER/docker/$DOCKER_CONFIG_FILE /etc/docker/daemon.json
-fi
+# Copy over docker daemon config
+mkdir /etc/docker
+cp /home/$DOCKER_USER/docker/$DOCKER_CONFIG_FILE /etc/docker/daemon.json
 
 # Install git
 apt-get install -y git
