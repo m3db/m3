@@ -76,7 +76,7 @@ Vagrant.configure("2") do |config|
         do_common_azure.call azure, override
 
         azure.vm_name = "m3-dev-primary-" + $USER + $AZURE_GROUP0
-        azure.vm_size = "Standard_L16s"
+        azure.vm_size = "Standard_L32s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP0
       end
 
@@ -132,7 +132,7 @@ Vagrant.configure("2") do |config|
         do_common_azure.call azure, override
 
         azure.vm_name = "m3-dev-secondary-" + $USER + $AZURE_GROUP1
-        azure.vm_size = "Standard_L16s"
+        azure.vm_size = "Standard_L32s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP1
       end
 
@@ -189,7 +189,7 @@ Vagrant.configure("2") do |config|
 
         azure.vm_name = "m3-dev-benchmarker-" + $USER + $AZURE_GROUP2
 
-        azure.vm_size = "Standard_D2s_v3"
+        azure.vm_size = "Standard_D32s_v3"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP2
       end
 
