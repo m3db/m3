@@ -217,9 +217,8 @@ import:
 
   # END_TRACING_DEPS
 
-  # To avoid conflicting packages not resolving the latest GRPC
   - package: google.golang.org/grpc
-    version: 1.7.5
+    version: 1.23.1
     subpackages:
       - codes
 
