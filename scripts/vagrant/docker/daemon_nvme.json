@@ -1,3 +1,4 @@
 {
- "data-root": "/mnt/nvme/docker"
+ "data-root": "/mnt/nvme/docker",
+ "storage-driver": "vfs"
 }
