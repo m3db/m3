@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -101,15 +102,23 @@ func toPromSequentially(
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	seriesList := make([]*prompb.TimeSeries, 0, len(iters))
-	for _, iter := range iters {
+	resolutions := metadata.Resolutions[:0]
+
+	for i, iter := range iters {
 		series, err := iteratorToPromResult(iter, enforcer, tagOptions)
 		if err != nil {
 			return PromResult{}, err
 		}
 
-		seriesList = append(seriesList, series)
+		if len(series.GetSamples()) > 0 {
+			seriesList = append(seriesList, series)
+			if metadata.Resolutions != nil {
+				resolutions = append(resolutions, metadata.Resolutions[i])
+			}
+		}
 	}
 
+	metadata.Resolutions = resolutions
 	return PromResult{
 		Metadata: metadata,
 		PromResult: &prompb.QueryResult{
@@ -156,16 +165,22 @@ func toPromConcurrently(
 
 	// Filter out empty series inplace.
 	filteredList := seriesList[:0]
-	for _, s := range seriesList {
+	resolutions := metadata.Resolutions[:0]
+
+	for i, s := range seriesList {
 		if len(s.GetSamples()) > 0 {
 			filteredList = append(filteredList, s)
+			if metadata.Resolutions != nil {
+				resolutions = append(resolutions, metadata.Resolutions[i])
+			}
 		}
 	}
 
+	metadata.Resolutions = resolutions
 	return PromResult{
 		Metadata: metadata,
 		PromResult: &prompb.QueryResult{
-			Timeseries: seriesList,
+			Timeseries: filteredList,
 		},
 	}, nil
 }
@@ -182,6 +197,14 @@ func SeriesIteratorsToPromResult(
 	defer seriesIterators.Close()
 
 	iters := seriesIterators.Iters()
+	if metadata.Resolutions != nil {
+		resLength := len(metadata.Resolutions)
+		if resLength != len(iters) {
+			return PromResult{}, fmt.Errorf("length of resolutions (%d) and "+
+				"series iterators (%d) does not match", resLength, len(iters))
+		}
+	}
+
 	if readWorkerPool == nil {
 		return toPromSequentially(iters, enforcer, metadata, tagOptions)
 	}

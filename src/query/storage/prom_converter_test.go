@@ -21,9 +21,12 @@
 package storage
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	dts "github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -35,6 +38,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -192,6 +197,8 @@ func setupTags(name, value string) (ident.Tags, overwrite) {
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	tags := idPool.Tags()
 	tags.Append(idPool.BinaryTag(getFromPool(name), getFromPool(value)))
+	tags.Append(idPool.BinaryTag(getFromPool(name), getFromPool("")))
+	tags.Append(idPool.BinaryTag(getFromPool(""), getFromPool(value)))
 
 	overwrite := func() {
 		tags.Finalize()
@@ -211,12 +218,148 @@ func TestTagIteratorToLabels(t *testing.T) {
 	require.NoError(t, err)
 
 	verifyTags := func() {
-		require.Equal(t, 1, len(labels))
+		for i, l := range labels {
+			fmt.Println(i, string(l.GetName()), ":", string(l.GetValue()))
+		}
+		require.Equal(t, 3, len(labels))
 		assert.Equal(t, name, string(labels[0].GetName()))
 		assert.Equal(t, value, string(labels[0].GetValue()))
+		assert.Equal(t, name, string(labels[1].GetName()))
+		assert.Equal(t, "", string(labels[1].GetValue()))
+		assert.Equal(t, "", string(labels[2].GetName()))
+		assert.Equal(t, value, string(labels[2].GetValue()))
 	}
 
 	verifyTags()
 	overwrite()
 	verifyTags()
+}
+
+func TestConcurrentProm(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	name := "name"
+	now := time.Now()
+	buildIter := func(val string, hasVal bool) encoding.SeriesIterator {
+		iter := encoding.NewMockSeriesIterator(ctrl)
+
+		if hasVal {
+			iter.EXPECT().Next().Return(true)
+			dp := dts.Datapoint{Timestamp: now, Value: 1}
+			iter.EXPECT().Current().Return(dp, xtime.Second, nil)
+		}
+
+		iter.EXPECT().Err().Return(nil)
+		iter.EXPECT().Next().Return(false)
+
+		tag := ident.Tag{
+			Name:  ident.TagName(ident.StringID(name)),
+			Value: ident.TagValue(ident.StringID(val)),
+		}
+
+		tags := ident.NewMockTagIterator(ctrl)
+		tags.EXPECT().Remaining().Return(1)
+		tags.EXPECT().Next().Return(true)
+		tags.EXPECT().Current().Return(tag)
+		tags.EXPECT().Next().Return(false)
+		tags.EXPECT().Err().Return(nil)
+
+		iter.EXPECT().Tags().Return(tags)
+		return iter
+	}
+
+	verifyResult := func(t *testing.T, res PromResult, resolutions ...[]int64) {
+		ts := res.PromResult.GetTimeseries()
+		exSeriesTags := []string{"bar", "qux", "quail"}
+		require.Equal(t, len(exSeriesTags), len(ts))
+		for i, series := range ts {
+			lbs := series.GetLabels()
+			require.Equal(t, 1, len(lbs))
+			assert.Equal(t, name, string(lbs[0].GetName()))
+			assert.Equal(t, exSeriesTags[i], string(lbs[0].GetValue()))
+
+			samples := series.GetSamples()
+			require.Equal(t, 1, len(samples))
+			s := samples[0]
+			assert.Equal(t, float64(1), s.GetValue())
+			assert.Equal(t, now.UnixNano()/int64(time.Millisecond), s.GetTimestamp())
+		}
+
+		if len(resolutions) == 0 {
+			assert.Nil(t, res.Metadata.Resolutions)
+		} else {
+			assert.Equal(t, resolutions[0], res.Metadata.Resolutions)
+		}
+	}
+
+	buildIters := func() encoding.SeriesIterators {
+		iters := []encoding.SeriesIterator{
+			buildIter("foo", false),
+			buildIter("bar", true),
+			buildIter("baz", false),
+			buildIter("qux", true),
+			buildIter("quail", true),
+		}
+
+		it := encoding.NewMockSeriesIterators(ctrl)
+		it.EXPECT().Iters().Return(iters)
+		it.EXPECT().Close()
+		return it
+	}
+
+	md := block.NewResultMetadata()
+	opts := models.NewTagOptions()
+
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Add(gomock.Any()).AnyTimes()
+
+	res, err := SeriesIteratorsToPromResult(buildIters(), nil, md, enforcer, opts)
+	require.NoError(t, err)
+	verifyResult(t, res)
+
+	pool, err := xsync.NewPooledWorkerPool(10, xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+
+	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, enforcer, opts)
+	require.NoError(t, err)
+	verifyResult(t, res)
+
+	// Ensure resolutions are correctly sized.
+	md.Resolutions = []int64{0, 1, 2, 3, 4}
+	res, err = SeriesIteratorsToPromResult(buildIters(), nil, md, enforcer, opts)
+	require.NoError(t, err)
+	verifyResult(t, res, []int64{1, 3, 4})
+
+	md.Resolutions = []int64{0, 1, 2, 3, 4}
+	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, enforcer, opts)
+	require.NoError(t, err)
+	verifyResult(t, res, []int64{1, 3, 4})
+}
+
+func TestInvalidResolutionLength(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	md := block.NewResultMetadata()
+
+	opts := models.NewTagOptions()
+
+	enforcer := cost.NewMockChainedEnforcer(ctrl)
+	enforcer.EXPECT().Add(gomock.Any()).AnyTimes()
+
+	iters := encoding.NewMockSeriesIterators(ctrl)
+	iters.EXPECT().Close().AnyTimes()
+
+	md.Resolutions = []int64{0, 1, 2, 3, 4}
+	its := make([]encoding.SeriesIterator, len(md.Resolutions)-1)
+	iters.EXPECT().Iters().Return(its)
+	_, err := SeriesIteratorsToPromResult(iters, nil, md, enforcer, opts)
+	assert.Error(t, err)
+
+	its = make([]encoding.SeriesIterator, len(md.Resolutions)+1)
+	iters.EXPECT().Iters().Return(its)
+	_, err = SeriesIteratorsToPromResult(iters, nil, md, enforcer, opts)
+	assert.Error(t, err)
 }
