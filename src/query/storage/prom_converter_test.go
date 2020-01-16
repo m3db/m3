@@ -235,7 +235,7 @@ func TestTagIteratorToLabels(t *testing.T) {
 	verifyTags()
 }
 
-func TestConcurrentProm(t *testing.T) {
+func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
