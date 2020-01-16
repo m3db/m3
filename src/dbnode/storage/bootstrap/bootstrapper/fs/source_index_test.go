@@ -118,7 +118,7 @@ func testGoodTaggedSeriesDataBlocks() testSeriesBlocks {
 }
 
 func writeTSDBGoodTaggedSeriesDataFiles(
-	t *testing.T,
+	t require.TestingT,
 	dir string,
 	namespaceID ident.ID,
 	start time.Time,
@@ -191,7 +191,7 @@ type expectedTaggedSeries struct {
 }
 
 func expectedTaggedSeriesWithOptions(
-	t *testing.T,
+	t require.TestingT,
 	start time.Time,
 	opts testTimesOptions,
 ) []expectedTaggedSeries {
@@ -246,7 +246,7 @@ func expectedTaggedSeriesWithOptions(
 }
 
 func validateGoodTaggedSeries(
-	t *testing.T,
+	t require.TestingT,
 	start time.Time,
 	indexResults result.IndexResults,
 	opts testTimesOptions,

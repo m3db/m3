@@ -650,6 +650,10 @@ imports:
   - stylecheck
   - unused
   - version
+- name: github.com/influxdata/influxdb
+  version: 01c8dd416270f424ab0c40f9291e269ac6921964
+  subpackages:
+  - models
 testImports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 98d31706395aaac22e29676617f2ee37bee55b5a
