@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -218,9 +217,6 @@ func TestTagIteratorToLabels(t *testing.T) {
 	require.NoError(t, err)
 
 	verifyTags := func() {
-		for i, l := range labels {
-			fmt.Println(i, string(l.GetName()), ":", string(l.GetValue()))
-		}
 		require.Equal(t, 3, len(labels))
 		assert.Equal(t, name, string(labels[0].GetName()))
 		assert.Equal(t, value, string(labels[0].GetValue()))
