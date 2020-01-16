@@ -71,7 +71,7 @@ func (c *TLSConfig) newOptions() TLSOptions {
 		SetCACrtPath(c.CACrtPath)
 }
 
-// keepAliveConfig configures keepAlive behavior.
+// KeepAliveConfig configures keepAlive behavior.
 type KeepAliveConfig struct {
 	Enabled bool          `yaml:"enabled"`
 	Period  time.Duration `yaml:"period"`
@@ -79,6 +79,7 @@ type KeepAliveConfig struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
+// NewOptions constructs options based on the config.
 func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 	return NewKeepAliveOptions().
 		SetKeepAliveEnabled(c.Enabled).

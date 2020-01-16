@@ -325,7 +325,7 @@ func TestSelectAddingInstanceForNonMirrored(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			selector := newNonMirroredSelector(test.opts)
+			selector := NewNonMirroredSelector(test.opts)
 			added, err := selector.SelectAddingInstances(test.candidates, test.placement)
 			require.NoError(t, err)
 			require.Equal(t, test.expectAdded, added)
@@ -399,7 +399,7 @@ func TestSelectReplaceInstanceForNonMirrored(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			selector := newNonMirroredSelector(test.opts)
+			selector := NewNonMirroredSelector(test.opts)
 			added, err := selector.SelectReplaceInstances(test.candidates, test.leavingIDs, test.placement)
 			if test.expectErr {
 				require.Error(t, err)
