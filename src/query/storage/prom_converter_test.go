@@ -265,7 +265,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		return iter
 	}
 
-	verifyResult := func(t *testing.T, res PromResult, resolutions ...[]int64) {
+	verifyResult := func(t *testing.T, res PromResult) {
 		ts := res.PromResult.GetTimeseries()
 		exSeriesTags := []string{"bar", "qux", "quail"}
 		require.Equal(t, len(exSeriesTags), len(ts))
@@ -280,12 +280,6 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 			s := samples[0]
 			assert.Equal(t, float64(1), s.GetValue())
 			assert.Equal(t, now.UnixNano()/int64(time.Millisecond), s.GetTimestamp())
-		}
-
-		if len(resolutions) == 0 {
-			assert.Nil(t, res.Metadata.Resolutions)
-		} else {
-			assert.Equal(t, resolutions[0], res.Metadata.Resolutions)
 		}
 	}
 
@@ -307,10 +301,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	md := block.NewResultMetadata()
 	opts := models.NewTagOptions()
 
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(gomock.Any()).AnyTimes()
-
-	res, err := SeriesIteratorsToPromResult(buildIters(), nil, md, enforcer, opts)
+	res, err := SeriesIteratorsToPromResult(buildIters(), nil, md, nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -318,44 +309,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, enforcer, opts)
+	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
-
-	// Ensure resolutions are correctly sized.
-	md.Resolutions = []int64{0, 1, 2, 3, 4}
-	res, err = SeriesIteratorsToPromResult(buildIters(), nil, md, enforcer, opts)
-	require.NoError(t, err)
-	verifyResult(t, res, []int64{1, 3, 4})
-
-	md.Resolutions = []int64{0, 1, 2, 3, 4}
-	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, enforcer, opts)
-	require.NoError(t, err)
-	verifyResult(t, res, []int64{1, 3, 4})
-}
-
-func TestInvalidResolutionLength(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	md := block.NewResultMetadata()
-
-	opts := models.NewTagOptions()
-
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(gomock.Any()).AnyTimes()
-
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Close().AnyTimes()
-
-	md.Resolutions = []int64{0, 1, 2, 3, 4}
-	its := make([]encoding.SeriesIterator, len(md.Resolutions)-1)
-	iters.EXPECT().Iters().Return(its)
-	_, err := SeriesIteratorsToPromResult(iters, nil, md, enforcer, opts)
-	assert.Error(t, err)
-
-	its = make([]encoding.SeriesIterator, len(md.Resolutions)+1)
-	iters.EXPECT().Iters().Return(its)
-	_, err = SeriesIteratorsToPromResult(iters, nil, md, enforcer, opts)
-	assert.Error(t, err)
 }

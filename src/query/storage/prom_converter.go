@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -98,13 +97,11 @@ func iteratorToPromResult(
 func toPromSequentially(
 	iters []encoding.SeriesIterator,
 	enforcer cost.ChainedEnforcer,
-	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	seriesList := make([]*prompb.TimeSeries, 0, len(iters))
-	resolutions := metadata.Resolutions[:0]
 
-	for i, iter := range iters {
+	for _, iter := range iters {
 		series, err := iteratorToPromResult(iter, enforcer, tagOptions)
 		if err != nil {
 			return PromResult{}, err
@@ -112,15 +109,10 @@ func toPromSequentially(
 
 		if len(series.GetSamples()) > 0 {
 			seriesList = append(seriesList, series)
-			if metadata.Resolutions != nil {
-				resolutions = append(resolutions, metadata.Resolutions[i])
-			}
 		}
 	}
 
-	metadata.Resolutions = resolutions
 	return PromResult{
-		Metadata: metadata,
 		PromResult: &prompb.QueryResult{
 			Timeseries: seriesList,
 		},
@@ -131,7 +123,6 @@ func toPromConcurrently(
 	iters []encoding.SeriesIterator,
 	readWorkerPool xsync.PooledWorkerPool,
 	enforcer cost.ChainedEnforcer,
-	metadata block.ResultMetadata,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
 	var (
@@ -165,24 +156,33 @@ func toPromConcurrently(
 
 	// Filter out empty series inplace.
 	filteredList := seriesList[:0]
-	resolutions := metadata.Resolutions[:0]
-
-	for i, s := range seriesList {
+	for _, s := range seriesList {
 		if len(s.GetSamples()) > 0 {
 			filteredList = append(filteredList, s)
-			if metadata.Resolutions != nil {
-				resolutions = append(resolutions, metadata.Resolutions[i])
-			}
 		}
 	}
 
-	metadata.Resolutions = resolutions
 	return PromResult{
-		Metadata: metadata,
 		PromResult: &prompb.QueryResult{
 			Timeseries: filteredList,
 		},
 	}, nil
+}
+
+func seriesIteratorsToPromResult(
+	seriesIterators encoding.SeriesIterators,
+	readWorkerPool xsync.PooledWorkerPool,
+	enforcer cost.ChainedEnforcer,
+	tagOptions models.TagOptions,
+) (PromResult, error) {
+	defer seriesIterators.Close()
+
+	iters := seriesIterators.Iters()
+	if readWorkerPool == nil {
+		return toPromSequentially(iters, enforcer, tagOptions)
+	}
+
+	return toPromConcurrently(iters, readWorkerPool, enforcer, tagOptions)
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
@@ -194,21 +194,12 @@ func SeriesIteratorsToPromResult(
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
-	defer seriesIterators.Close()
-
-	iters := seriesIterators.Iters()
-	if metadata.Resolutions != nil {
-		resLength := len(metadata.Resolutions)
-		if resLength != len(iters) {
-			return PromResult{}, fmt.Errorf("length of resolutions (%d) and "+
-				"series iterators (%d) does not match", resLength, len(iters))
-		}
+	if enforcer == nil {
+		enforcer = cost.NoopChainedEnforcer()
 	}
 
-	if readWorkerPool == nil {
-		return toPromSequentially(iters, enforcer, metadata, tagOptions)
-	}
-
-	return toPromConcurrently(iters, readWorkerPool,
-		enforcer, metadata, tagOptions)
+	promResult, err := seriesIteratorsToPromResult(seriesIterators,
+		readWorkerPool, enforcer, tagOptions)
+	promResult.Metadata = metadata
+	return promResult, err
 }

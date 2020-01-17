@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
@@ -107,11 +106,6 @@ func (c *grpcClient) FetchProm(
 	result, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return storage.PromResult{}, err
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
 	}
 
 	return storage.SeriesIteratorsToPromResult(result.SeriesIterators,

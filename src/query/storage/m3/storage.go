@@ -116,25 +116,11 @@ func (s *m3storage) FetchProm(
 		return storage.PromResult{}, err
 	}
 
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
-	}
-
-	if options.IncludeResolution {
-		resolutions := make([]int64, 0, len(attrs))
-		for _, attr := range attrs {
-			resolutions = append(resolutions, int64(attr.Resolution))
-		}
-
-		result.Metadata.Resolutions = resolutions
-	}
-
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result.SeriesIterators,
 		s.opts.ReadWorkerPool(),
 		result.Metadata,
-		enforcer,
+		options.Enforcer,
 		s.opts.TagOptions(),
 	)
 
