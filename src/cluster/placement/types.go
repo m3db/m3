@@ -351,6 +351,14 @@ type Options interface {
 	// SetAddAllCandidates sets AddAllCandidates.
 	SetAddAllCandidates(addAllCandidates bool) Options
 
+	// InstanceSelector defines the strategy used to select new instances from a list of
+	// candidates when adding or replacing nodes in the placement. The default is determined
+	// by IsMirrored(); false => selector.NewNonMirroredSelector, true => NewPortMirroredSelector.
+	InstanceSelector() InstanceSelector
+
+	// SetInstanceSelector -- see InstanceSelector.
+	SetInstanceSelector(s InstanceSelector) Options
+
 	// IsSharded describes whether a placement needs to be sharded,
 	// when set to false, no specific shards will be assigned to any instance.
 	IsSharded() bool
