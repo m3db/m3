@@ -318,10 +318,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		nsCtx             = namespace.NewContextFrom(ns)
 		docsPool          = s.opts.IndexOptions().DocumentArrayPool()
 		batch             = docsPool.Get()
+		totalEntries      int
 	)
 	defer docsPool.Put(batch)
 
 	requestedRanges := timeWindowReaders.Ranges
+	min, max := requestedRanges.MinMax()
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
 	for shard, shardReaders := range shardReaders {
@@ -355,6 +357,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
 					batch, err = s.readNextEntryAndMaybeIndex(r, batch, indexBuilder)
+					if err != nil {
+						s.log.Error("readNextEntryAndMaybeIndex failed",
+							zap.String("error", err.Error()),
+							zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+					}
+					totalEntries++
 				default:
 					// Unreachable unless an internal method calls with a run type casted from int.
 					panic(fmt.Errorf("invalid run type: %d", run))
@@ -363,6 +371,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			// NB(bodu): Only flush if we've experienced no errors up to this point.
 			if err == nil && len(batch) > 0 {
 				batch, err = indexBuilder.FlushBatch(batch)
+				if err != nil {
+					s.log.Error("FlushBatch failed",
+						zap.String("error", err.Error()),
+						zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+				}
 			}
 
 			if err == nil {
@@ -393,6 +406,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				}
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 					ns.Options().IndexOptions())
+				if err != nil {
+					s.log.Error("MarkFulfilled failed",
+						zap.String("error", err.Error()),
+						zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+				}
 			}
 
 			if err == nil {
@@ -400,7 +418,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				})
 			} else {
-				s.log.Error(err.Error())
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -413,6 +430,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	if run == bootstrapIndexRunType {
 		buildIndexLogFields := []zapcore.Field{
 			zap.Bool("shouldPersist", shouldPersist),
+			zap.Int("totalEntries", totalEntries),
+			zap.String("requestedRanges", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("timesWithErrors", fmt.Sprintf("%v", timesWithErrors)),
 			zap.String("remainingRanges", remainingRanges.SummaryString()),
 		}
 		if shouldPersist && noneRemaining {
