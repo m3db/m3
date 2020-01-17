@@ -48,7 +48,7 @@ Vagrant.configure("2") do |config|
     azure.client_secret = $AZURE_CLIENT_SECRET
     azure.subscription_id = $AZURE_SUBSCRIPTION_ID
 
-    azure.location = "eastus2"
+    azure.location = "eastus"
     azure.nsg_name = "network-m3coordinator"
     # azure.vm_image_urn defaults to `canonical:ubuntuserver:16.04-LTS:latest`
 
