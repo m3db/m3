@@ -47,6 +47,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type peersSource struct {
@@ -718,6 +719,7 @@ func (s *peersSource) processReaders(
 		batch           = docsPool.Get()
 		indexBuilder    *result.IndexBuilder
 		timesWithErrors []time.Time
+		totalEntries    int
 	)
 	defer docsPool.Put(batch)
 
@@ -743,6 +745,7 @@ func (s *peersSource) processReaders(
 			numEntries := reader.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
 				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, indexBuilder)
+				totalEntries++
 			}
 
 			// NB(bodu): Only flush if we've experienced no errors up until this point.
@@ -769,7 +772,8 @@ func (s *peersSource) processReaders(
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				})
 			} else {
-				s.log.Error(err.Error())
+				s.log.Error(err.Error(),
+					zap.String("timeRange.start", fmt.Sprintf("%v", start)))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -777,7 +781,17 @@ func (s *peersSource) processReaders(
 
 	// Only persist to disk if the requested ranges were completely fulfilled.
 	// Otherwise, this is the latest index segment and should only exist in mem.
-	if remainingRanges.IsEmpty() {
+	shouldPersist := remainingRanges.IsEmpty()
+	min, max := requestedRanges.MinMax()
+	buildIndexLogFields := []zapcore.Field{
+		zap.Bool("shouldPersist", shouldPersist),
+		zap.Int("totalEntries", totalEntries),
+		zap.String("requestedRanges", fmt.Sprintf("%v - %v", min, max)),
+		zap.String("timesWithErrors", fmt.Sprintf("%v", timesWithErrors)),
+		zap.String("remainingRanges", remainingRanges.SummaryString()),
+	}
+	if shouldPersist {
+		s.log.Info("building file set index segment", buildIndexLogFields...)
 		if err := bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
@@ -795,6 +809,7 @@ func (s *peersSource) processReaders(
 			})
 		}
 	} else {
+		s.log.Info("building in-memory index segment", buildIndexLogFields...)
 		if err := bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,

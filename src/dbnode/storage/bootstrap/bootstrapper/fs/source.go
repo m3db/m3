@@ -323,7 +323,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	defer docsPool.Put(batch)
 
 	requestedRanges := timeWindowReaders.Ranges
-	min, max := requestedRanges.MinMax()
 	remainingRanges := requestedRanges.Copy()
 	shardReaders := timeWindowReaders.Readers
 	for shard, shardReaders := range shardReaders {
@@ -418,6 +417,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					shard: xtime.Ranges{}.AddRange(timeRange),
 				})
 			} else {
+				s.log.Error(err.Error(),
+					zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -428,6 +429,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		noneRemaining = remainingRanges.IsEmpty()
 	)
 	if run == bootstrapIndexRunType {
+		min, max := requestedRanges.MinMax()
 		buildIndexLogFields := []zapcore.Field{
 			zap.Bool("shouldPersist", shouldPersist),
 			zap.Int("totalEntries", totalEntries),
