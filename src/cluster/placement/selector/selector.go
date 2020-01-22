@@ -27,8 +27,8 @@ import (
 // NewInstanceSelector creates an instance selector.
 func NewInstanceSelector(opts placement.Options) placement.InstanceSelector {
 	if opts.IsMirrored() {
-		return newMirroredSelector(opts)
+		return NewPortMirroredSelector(opts)
 	}
 
-	return newNonMirroredSelector(opts)
+	return NewNonMirroredSelector(opts)
 }
