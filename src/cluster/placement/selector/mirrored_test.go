@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,7 +96,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetEndpoint("h4p2e").
 		SetWeight(1)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectInitialInstances(
 		[]placement.Instance{
 			h1p1.SetShardSetID(0),
@@ -200,7 +201,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetEndpoint("h3p3e").
 		SetWeight(2)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectInitialInstances(
 		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3},
 		2,
@@ -365,7 +366,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetEndpoint("h3p3e").
 		SetWeight(1)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectInitialInstances(
 		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3},
 		3,
@@ -454,7 +455,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetEndpoint("h3p2e").
 		SetWeight(1)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectReplaceInstances(
 		[]placement.Instance{h3p1, h3p2},
 		[]string{h1p1.ID(), h1p2.ID()},
@@ -523,7 +524,7 @@ func TestSelectReplaceInstancesWithLeaving(t *testing.T) {
 		SetIsSharded(true).
 		SetReplicaFactor(1)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectReplaceInstances(
 		[]placement.Instance{h1p1, h2p1},
 		[]string{h2p1.ID()},
@@ -612,7 +613,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetEndpoint("h4p2e").
 		SetWeight(1)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectAddingInstances(
 		[]placement.Instance{h3p1, h3p2, h4p1, h4p2},
 		p,
@@ -779,7 +780,7 @@ func TestSelectAddingInstanceForMirrorWithAddAllCandidates(t *testing.T) {
 		SetEndpoint("h6p2e").
 		SetWeight(1)
 
-	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1").SetAddAllCandidates(true))
+	selector := NewPortMirroredSelector(placement.NewOptions().SetValidZone("z1").SetAddAllCandidates(true))
 	res, err := selector.SelectAddingInstances(
 		[]placement.Instance{h3p1, h3p2, h4p1, h4p2, h5p1, h5p2, h6p1, h6p2},
 		p,
@@ -790,4 +791,31 @@ func TestSelectAddingInstanceForMirrorWithAddAllCandidates(t *testing.T) {
 	require.Equal(t, h3p2.ShardSetID(), h4p2.ShardSetID())
 	require.Equal(t, h5p1.ShardSetID(), h6p1.ShardSetID())
 	require.Equal(t, h5p1.ShardSetID(), h6p1.ShardSetID())
+}
+
+func TestGroupInstancesByHostPort(t *testing.T) {
+	t.Run("maintains host order with 2 instances", func(t *testing.T) {
+		port := uint32(5)
+		i1 := newInstanceWithID("i1").SetPort(port).SetHostname("h1")
+		i2 := newInstanceWithID("i2").SetPort(port).SetHostname("h2")
+
+		hosts := [][]host{{{
+			name: "h1",
+			isolationGroup: "g1",
+			portToInstance: map[uint32]placement.Instance{
+				port: i1,
+			},
+		}, {
+			name: "h2",
+			isolationGroup: "g2",
+			portToInstance: map[uint32]placement.Instance{
+				port: i2,
+			},
+		}}}
+
+		groups, err := groupInstancesByHostPort(hosts)
+		require.NoError(t, err)
+
+		assert.Equal(t, [][]placement.Instance{{i1, i2}}, groups)
+	})
 }
