@@ -389,6 +389,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../configuration/node_endpoint/" title="Node Endpoint" class="md-nav__link">
+      Node Endpoint
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -867,6 +879,12 @@
 <td>string</td>
 <td>false</td>
 </tr>
+<tr>
+<td>nodeEndpointFormat</td>
+<td>NodeEndpointFormat allows overriding of the endpoint used for a node in the M3DB placement. Defaults to \"{{ .PodName }}.{{ .M3DBService }}:{{ .Port }}\". Useful if access to the cluster from other namespaces is desired. See \"Node Endpoint\" docs for full variables available.</td>
+<td>string</td>
+<td>false</td>
+</tr>
 </tbody>
 </table>
 <p><a href="#table-of-contents">Back to TOC</a></p>
@@ -1301,7 +1319,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../configuration/node_affinity/" title="Node Affinity & Cluster Topology" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../configuration/node_endpoint/" title="Node Endpoint" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1310,7 +1328,7 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Node Affinity & Cluster Topology
+                Node Endpoint
               </span>
             </div>
           </a>
