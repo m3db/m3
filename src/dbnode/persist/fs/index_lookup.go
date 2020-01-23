@@ -27,9 +27,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/mmap"
 )
+
+const summariesFileMmapName = "summaries-file"
 
 var errCloneShouldNotBeCloned = errors.New("clones should not be cloned")
 
@@ -38,13 +40,13 @@ var errCloneShouldNotBeCloned = errors.New("clones should not be cloned")
 type nearestIndexOffsetLookup struct {
 	summaryIDsOffsets []xmsgpack.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
-	summariesMmap []byte
+	summariesMmap mmap.Descriptor
 	isClone       bool
 }
 
 func newNearestIndexOffsetLookup(
 	summaryIDsOffsets []xmsgpack.IndexSummaryToken,
-	summariesMmap []byte,
+	summariesMmap mmap.Descriptor,
 ) *nearestIndexOffsetLookup {
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
@@ -102,13 +104,13 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(
 
 		idx := (max + min) / 2
 		summaryBytesMetadata := il.summaryIDsOffsets[idx]
-		compBytes := summaryBytesMetadata.ID(il.summariesMmap)
+		compBytes := summaryBytesMetadata.ID(il.summariesMmap.Bytes)
 		comparison := bytes.Compare(idBytes, compBytes)
 
 		// Found it
 		if comparison == 0 {
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
-				il.summariesMmap, resources.byteDecoderStream, resources.msgpackDecoder)
+				il.summariesMmap.Bytes, resources.byteDecoderStream, resources.msgpackDecoder)
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted
 			if err != nil {
@@ -127,7 +129,7 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(
 		if comparison == 1 {
 			min = idx + 1
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
-				il.summariesMmap, resources.byteDecoderStream, resources.msgpackDecoder)
+				il.summariesMmap.Bytes, resources.byteDecoderStream, resources.msgpackDecoder)
 			if err != nil {
 				return -1, err
 			}
@@ -158,8 +160,10 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	decoderStream xmsgpack.ByteDecoderStream,
 	numEntries int,
 	forceMmapMemory bool,
+	reporterOptions mmap.ReporterOptions,
 ) (*nearestIndexOffsetLookup, error) {
-	summariesMmap, err := validateAndMmap(summariesFdWithDigest, expectedDigest, forceMmapMemory)
+	reporterOptions.Context.Name = summariesFileMmapName
+	summariesMmap, err := validateAndMmap(summariesFdWithDigest, expectedDigest, forceMmapMemory, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +174,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 		summaryTokens = make([]xmsgpack.IndexSummaryToken, 0, numEntries)
 		lastReadID    []byte
 	)
-	decoderStream.Reset(summariesMmap)
+	decoderStream.Reset(summariesMmap.Bytes)
 	decoder.Reset(decoderStream)
 
 	for read := 0; read < numEntries; read++ {

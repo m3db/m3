@@ -29,18 +29,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mmapFdFuncType func(fd, offset, length int64, opts Options) (Result, error)
+type mmapFdFuncType func(fd, offset, length int64, opts Options) (Descriptor, error)
 
 func TestMmapFile(t *testing.T) {
 	fd, err := ioutil.TempFile("", "testfile")
 	assert.NoError(t, err)
 
-	result, err := File(fd, Options{})
+	desc, err := File(fd, Options{})
 	assert.NoError(t, err)
-	assert.NoError(t, result.Warning)
-	assert.Equal(t, []byte{}, result.Result)
+	assert.NoError(t, desc.Warning)
+	assert.Equal(t, []byte{}, desc.Bytes)
 
-	Munmap(result.Result)
+	Munmap(desc)
 }
 
 func TestMmapFiles(t *testing.T) {
@@ -100,8 +100,8 @@ func TestMmapFilesHandlesError(t *testing.T) {
 }
 
 func TestMmapFilesHandlesWarnings(t *testing.T) {
-	mmapFdReturnWarn := func(fd, offset, length int64, opts Options) (Result, error) {
-		return Result{Warning: errors.New("some-error"), Result: []byte("a")}, nil
+	mmapFdReturnWarn := func(fd, offset, length int64, opts Options) (Descriptor, error) {
+		return Descriptor{Warning: errors.New("some-error"), Bytes: []byte("a")}, nil
 	}
 	defer mockMmapFdFunc(mmapFdReturnWarn)()
 

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -66,6 +67,7 @@ var (
 	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
 	errIDGenerationDisabled                  = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
+	errMmapReporterNotSet                    = errors.New("mmap reporter is unset")
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
@@ -120,6 +122,7 @@ type opts struct {
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
+	mmapReporter                    mmap.Reporter
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -205,6 +208,9 @@ func (o *opts) Validate() error {
 	}
 	if o.postingsListCache == nil {
 		return errPostingsListCacheUnspecified
+	}
+	if o.mmapReporter == nil {
+		return errMmapReporterNotSet
 	}
 	return nil
 }
@@ -401,4 +407,14 @@ func (o *opts) SetForwardIndexThreshold(value float64) Options {
 
 func (o *opts) ForwardIndexThreshold() float64 {
 	return o.forwardIndexThreshold
+}
+
+func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *opts) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
 }

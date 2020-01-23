@@ -31,65 +31,67 @@ func validateAndMmap(
 	fdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
 	forceMmapMemory bool,
-) ([]byte, error) {
+	reporterOptions mmap.ReporterOptions,
+) (mmap.Descriptor, error) {
+	fd := fdWithDigest.Fd()
+	stat, err := fd.Stat()
+	if err != nil {
+		return mmap.Descriptor{}, err
+	}
+	numBytes := stat.Size()
+	reporterOptions.Context.Size = numBytes
 
 	if forceMmapMemory {
-		return validateAndMmapMemory(fdWithDigest, expectedDigest)
+		return validateAndMmapMemory(fdWithDigest, expectedDigest, numBytes, reporterOptions)
 	}
 
-	return validateAndMmapFile(fdWithDigest, expectedDigest)
+	return validateAndMmapFile(fdWithDigest, expectedDigest, reporterOptions)
 
 }
 
 func validateAndMmapMemory(
 	fdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
-) ([]byte, error) {
-	fd := fdWithDigest.Fd()
-	stat, err := fd.Stat()
-	if err != nil {
-		return nil, err
-	}
-	numBytes := stat.Size()
+	numBytes int64,
+	reporterOptions mmap.ReporterOptions,
+) (mmap.Descriptor, error) {
 
 	// Request an anonymous (non-file-backed) mmap region. Note that we're going
 	// to use the mmap'd region to store the read-only summaries data, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it.
-	mmapResult, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
+	mmapDescriptor, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true, Reporter: reporterOptions})
 	if err != nil {
-		return nil, err
+		return mmap.Descriptor{}, err
 	}
-
-	mmapBytes := mmapResult.Result
 
 	// Validate the bytes on disk using the digest, and read them into
 	// the mmap'd region
-	_, err = fdWithDigest.ReadAllAndValidate(mmapBytes, expectedDigest)
+	_, err = fdWithDigest.ReadAllAndValidate(mmapDescriptor.Bytes, expectedDigest)
 	if err != nil {
-		mmap.Munmap(mmapBytes)
-		return nil, err
+		mmap.Munmap(mmapDescriptor)
+		return mmap.Descriptor{}, err
 	}
 
-	return mmapBytes, nil
+	return mmapDescriptor, nil
 }
 
 func validateAndMmapFile(
 	fdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
-) ([]byte, error) {
+	reporterOptions mmap.ReporterOptions,
+) (mmap.Descriptor, error) {
 	fd := fdWithDigest.Fd()
-	mmapResult, err := mmap.File(fd, mmap.Options{Read: true, Write: false})
+	mmapDescriptor, err := mmap.File(fd, mmap.Options{Read: true, Write: false, Reporter: reporterOptions})
 	if err != nil {
-		return nil, err
+		return mmap.Descriptor{}, err
 	}
 
-	mmapBytes := mmapResult.Result
-	if calculatedDigest := digest.Checksum(mmapBytes); calculatedDigest != expectedDigest {
-		mmap.Munmap(mmapBytes)
-		return nil, fmt.Errorf("expected summaries file digest was: %d, but got: %d",
+	if calculatedDigest := digest.Checksum(mmapDescriptor.Bytes); calculatedDigest != expectedDigest {
+		mmap.Munmap(mmapDescriptor)
+		return mmap.Descriptor{}, fmt.Errorf("expected summaries file digest was: %d, but got: %d",
 			expectedDigest, calculatedDigest)
 	}
 
-	return mmapBytes, nil
+	return mmapDescriptor, nil
 }

@@ -43,6 +43,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -84,6 +85,8 @@ const (
 	defaultAggregateResultsEntryBatchSize = 256
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
+
+	indexBlockMmapName = "index-block"
 )
 
 func (s blockState) String() string {
@@ -344,7 +347,12 @@ func (b *block) backgroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.compact.backgroundCompactor.Compact(segments)
+	compacted, err := b.compact.backgroundCompactor.Compact(segments, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: indexBlockMmapName,
+		},
+		Reporter: b.opts.MmapReporter(),
+	})
 	took := time.Since(start)
 	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
 
@@ -642,7 +650,12 @@ func (b *block) foregroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments)
+	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: indexBlockMmapName,
+		},
+		Reporter: b.opts.MmapReporter(),
+	})
 	took := time.Since(start)
 	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
 

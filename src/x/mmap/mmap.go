@@ -100,13 +100,18 @@ type Reporter interface {
 
 // FilesResult contains the result of calling MmapFiles
 type FilesResult struct {
-	Warning error
+	Descriptors map[string]Descriptor
+	Warning     error
 }
 
 // Files is a utility function for mmap'ing a group of files at once
 func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
+
+	result := FilesResult{
+		Descriptors: make(map[string]Descriptor),
+	}
 
 	for filePath, fileDesc := range files {
 		fd, err := opener(filePath)
@@ -123,13 +128,15 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 		if desc.Warning != nil {
 			multiWarn = multiWarn.Add(errorWithFilename(filePath, desc.Warning))
 		}
+		result.Descriptors[filePath] = desc
 
 		*fileDesc.File = fd
 		*fileDesc.Bytes = desc.Bytes
 	}
 
 	if multiErr.FinalError() == nil {
-		return FilesResult{Warning: multiWarn.FinalError()}, nil
+		result.Warning = multiWarn.FinalError()
+		return result, nil
 	}
 
 	// If we have encountered an error when opening the files,
@@ -138,13 +145,13 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 		if *fileDesc.File != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, (*fileDesc.File).Close()))
 		}
-		if *fileDesc.Bytes != nil {
-			desc := Descriptor{Bytes: *fileDesc.Bytes}
+		if desc, ok := result.Descriptors[filePath]; ok {
 			multiErr = multiErr.Add(errorWithFilename(filePath, Munmap(desc)))
 		}
 	}
 
-	return FilesResult{Warning: multiWarn.FinalError()}, multiErr.FinalError()
+	result.Warning = multiWarn.FinalError()
+	return result, multiErr.FinalError()
 }
 
 // File mmap's a file

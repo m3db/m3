@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/mmap"
 
 	"github.com/stretchr/testify/require"
 )
@@ -81,13 +82,14 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 		msgpack.NewByteDecoderStream(nil),
 		len(outOfOrderSummaries),
 		false,
+		mmap.ReporterOptions{},
 	)
 	expectedErr := fmt.Errorf("summaries file is not sorted: %s", file.Name())
 	require.Equal(t, expectedErr, err)
 }
 
 func TestCloneCannotBeCloned(t *testing.T) {
-	indexLookup := newNearestIndexOffsetLookup(nil, nil)
+	indexLookup := newNearestIndexOffsetLookup(nil, mmap.Descriptor{})
 	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 
@@ -224,6 +226,7 @@ func newIndexLookupWithSummaries(
 		msgpack.NewByteDecoderStream(nil),
 		len(indexSummaries),
 		forceMmapMemory,
+		mmap.ReporterOptions{},
 	)
 	require.NoError(t, err)
 	return indexLookup

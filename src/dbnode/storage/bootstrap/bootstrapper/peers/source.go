@@ -817,6 +817,7 @@ func (s *peersSource) processReaders(
 			builders,
 			s.compactor,
 			s.opts.ResultOptions(),
+			s.opts.IndexOptions().MmapReporter(),
 		); err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {

@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -240,12 +241,16 @@ func (r *indexReader) ReadSegmentFileSet() (
 		if err != nil {
 			return nil, err
 		}
+		desc, ok := mmapResult.Descriptors[filePath]
+		if !ok {
+			return nil, errors.New("Mmap failed")
+		}
 
 		if warning := mmapResult.Warning; warning != nil {
 			r.logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 		}
 
-		file := newReadableIndexSegmentFileMmap(segFileType, fd, bytes)
+		file := newReadableIndexSegmentFileMmap(segFileType, fd, desc)
 		result.files = append(result.files, file)
 		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
 			segmentFileType: segFileType,
@@ -369,21 +374,21 @@ func (s readableIndexSegmentFileSet) Files() []idxpersist.IndexSegmentFile {
 type readableIndexSegmentFileMmap struct {
 	fileType  idxpersist.IndexSegmentFileType
 	fd        *os.File
-	bytesMmap []byte
+	bytesMmap mmap.Descriptor
 	reader    bytes.Reader
 }
 
 func newReadableIndexSegmentFileMmap(
 	fileType idxpersist.IndexSegmentFileType,
 	fd *os.File,
-	bytesMmap []byte,
+	bytesMmap mmap.Descriptor,
 ) idxpersist.IndexSegmentFile {
 	r := &readableIndexSegmentFileMmap{
 		fileType:  fileType,
 		fd:        fd,
 		bytesMmap: bytesMmap,
 	}
-	r.reader.Reset(r.bytesMmap)
+	r.reader.Reset(r.bytesMmap.Bytes)
 	return r
 }
 
@@ -392,7 +397,7 @@ func (f *readableIndexSegmentFileMmap) SegmentFileType() idxpersist.IndexSegment
 }
 
 func (f *readableIndexSegmentFileMmap) Bytes() ([]byte, error) {
-	return f.bytesMmap, nil
+	return f.bytesMmap.Bytes, nil
 }
 
 func (f *readableIndexSegmentFileMmap) Read(b []byte) (int, error) {
@@ -401,11 +406,11 @@ func (f *readableIndexSegmentFileMmap) Read(b []byte) (int, error) {
 
 func (f *readableIndexSegmentFileMmap) Close() error {
 	// Be sure to close the mmap before the file
-	if f.bytesMmap != nil {
+	if f.bytesMmap.Bytes != nil {
 		if err := mmap.Munmap(f.bytesMmap); err != nil {
 			return err
 		}
-		f.bytesMmap = nil
+		f.bytesMmap = mmap.Descriptor{}
 	}
 	if f.fd != nil {
 		if err := f.fd.Close(); err != nil {

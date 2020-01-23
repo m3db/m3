@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 )
@@ -75,6 +76,7 @@ var (
 
 	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
 	errTagDecoderPoolNotSet = errors.New("tag decoder pool is not set")
+	errMmapReporterNotSet   = errors.New("mmap reporter is not set")
 )
 
 type options struct {
@@ -98,6 +100,7 @@ type options struct {
 	forceIndexSummariesMmapMemory        bool
 	forceBloomFilterMmapMemory           bool
 	mmapEnableHugePages                  bool
+	mmapReporter                         mmap.Reporter
 }
 
 // NewOptions creates a new set of fs options
@@ -150,6 +153,9 @@ func (o *options) Validate() error {
 	}
 	if o.tagDecoderPool == nil {
 		return errTagDecoderPoolNotSet
+	}
+	if o.mmapReporter == nil {
+		return errMmapReporterNotSet
 	}
 	return nil
 }
@@ -352,4 +358,14 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
+}
+
+func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *options) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
 }

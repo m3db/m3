@@ -41,6 +41,10 @@ var (
 	errCompactorClosed       = errors.New("compactor is closed")
 )
 
+const (
+	fstSegmentMmapName = "fst-segment"
+)
+
 // Compactor is a compactor.
 type Compactor struct {
 	sync.RWMutex
@@ -103,7 +107,10 @@ func NewCompactor(
 // together first before compacting into an FST segment.
 // Note: This is not thread safe and only a single compaction may happen at a
 // time.
-func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
+func (c *Compactor) Compact(
+	segs []segment.Segment,
+	reporterOptions mmap.ReporterOptions,
+) (segment.Segment, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -116,13 +123,14 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		return nil, err
 	}
 
-	return c.compactFromBuilderWithLock(c.builder)
+	return c.compactFromBuilderWithLock(c.builder, reporterOptions)
 }
 
 // CompactUsingBuilder compacts segments together using a provided segment builder.
 func (c *Compactor) CompactUsingBuilder(
 	builder segment.DocumentsBuilder,
 	segs []segment.Segment,
+	reporterOptions mmap.ReporterOptions,
 ) (segment.Segment, error) {
 	// NB(r): Ensure only single compaction happens at a time since the buffers are
 	// reused between runs.
@@ -139,7 +147,7 @@ func (c *Compactor) CompactUsingBuilder(
 
 	if len(segs) == 0 {
 		// No segments to compact, just compact from the builder
-		return c.compactFromBuilderWithLock(builder)
+		return c.compactFromBuilderWithLock(builder, reporterOptions)
 	}
 
 	// Need to combine segments first
@@ -221,11 +229,12 @@ func (c *Compactor) CompactUsingBuilder(
 		return nil, err
 	}
 
-	return c.compactFromBuilderWithLock(builder)
+	return c.compactFromBuilderWithLock(builder, reporterOptions)
 }
 
 func (c *Compactor) compactFromBuilderWithLock(
 	builder segment.Builder,
+	reporterOptions mmap.ReporterOptions,
 ) (segment.Segment, error) {
 	defer func() {
 		// Release resources regardless of result,
@@ -278,7 +287,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 			return nil, err
 		}
 
-		fstData.DocsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+		fstData.DocsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -288,7 +297,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 			return nil, err
 		}
 
-		fstData.DocsIdxData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+		fstData.DocsIdxData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +308,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		return nil, err
 	}
 
-	fstData.PostingsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	fstData.PostingsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +318,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		return nil, err
 	}
 
-	fstData.FSTTermsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	fstData.FSTTermsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +328,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		return nil, err
 	}
 
-	fstData.FSTFieldsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	fstData.FSTFieldsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -337,22 +346,26 @@ func (c *Compactor) compactFromBuilderWithLock(
 func (c *Compactor) mmapAndAppendCloser(
 	fromBytes []byte,
 	closers *closers,
+	reporterOptions mmap.ReporterOptions,
 ) ([]byte, error) {
 	// Copy bytes to new mmap region to hide from the GC
-	mmapedResult, err := mmap.Bytes(int64(len(fromBytes)), mmap.Options{
-		Read:  true,
-		Write: true,
+	size := int64(len(fromBytes))
+	reporterOptions.Context.Size = size
+	mmapedResult, err := mmap.Bytes(size, mmap.Options{
+		Read:     true,
+		Write:    true,
+		Reporter: reporterOptions,
 	})
 	if err != nil {
 		return nil, err
 	}
-	copy(mmapedResult.Result, fromBytes)
+	copy(mmapedResult.Bytes, fromBytes)
 
 	closers.Append(closer(func() error {
-		return mmap.Munmap(mmapedResult.Result)
+		return mmap.Munmap(mmapedResult)
 	}))
 
-	return mmapedResult.Result, nil
+	return mmapedResult.Bytes, nil
 }
 
 // Close closes the compactor and frees buffered resources.

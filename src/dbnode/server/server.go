@@ -416,6 +416,7 @@ func Run(runOpts RunOptions) {
 	// TODO: actually use the mmap reporter
 	mmapReporter := newMmapReporter(scope)
 	go mmapReporter.Run()
+	opts = opts.SetMmapReporter(mmapReporter)
 
 	policy := cfg.PoolingPolicy
 	tagEncoderPool := serialize.NewTagEncoderPool(
@@ -455,7 +456,8 @@ func Run(runOpts RunOptions) {
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
 		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
-		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault())
+		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault()).
+		SetMmapReporter(mmapReporter)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -1518,7 +1520,8 @@ func withEncodingAndPoolingOptions(
 		SetQueryResultsPool(queryResultsPool).
 		SetAggregateResultsPool(aggregateQueryResultsPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
-		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold).
+		SetMmapReporter(mmapReporter)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so

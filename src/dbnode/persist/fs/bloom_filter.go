@@ -28,13 +28,17 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 )
 
+const (
+	bloomFilterMmapName = "bloom-filter"
+)
+
 // ManagedConcurrentBloomFilter is a container object that implements lifecycle
 // management on-top of a BloomFilter. I.E it wraps a bloom filter such that
 // all resources are released when the Close() method is called. It's also safe
 // for concurrent access
 type ManagedConcurrentBloomFilter struct {
-	bloomFilter *bloom.ConcurrentReadOnlyBloomFilter
-	mmapBytes   []byte
+	bloomFilter    *bloom.ConcurrentReadOnlyBloomFilter
+	mmapDescriptor mmap.Descriptor
 }
 
 // Test tests whether a value is in the bloom filter
@@ -54,16 +58,16 @@ func (bf *ManagedConcurrentBloomFilter) K() uint {
 
 // Close closes the bloom filter, releasing any held resources
 func (bf *ManagedConcurrentBloomFilter) Close() error {
-	return mmap.Munmap(bf.mmapBytes)
+	return mmap.Munmap(bf.mmapDescriptor)
 }
 
 func newManagedConcurrentBloomFilter(
 	bloomFilter *bloom.ConcurrentReadOnlyBloomFilter,
-	mmapBytes []byte,
+	mmapDescriptor mmap.Descriptor,
 ) *ManagedConcurrentBloomFilter {
 	return &ManagedConcurrentBloomFilter{
-		bloomFilter: bloomFilter,
-		mmapBytes:   mmapBytes,
+		bloomFilter:    bloomFilter,
+		mmapDescriptor: mmapDescriptor,
 	}
 }
 
@@ -74,15 +78,17 @@ func newManagedConcurrentBloomFilterFromFile(
 	numElementsM uint,
 	numHashesK uint,
 	forceMmapMemory bool,
+	reporterOptions mmap.ReporterOptions,
 ) (*ManagedConcurrentBloomFilter, error) {
 	// Determine how many bytes to request for the mmap'd region
 	bloomFilterFdWithDigest.Reset(bloomFilterFd)
 
-	bloomFilterMmap, err := validateAndMmap(bloomFilterFdWithDigest, expectedDigest, forceMmapMemory)
+	reporterOptions.Context.Name = bloomFilterMmapName
+	bloomFilterMmap, err := validateAndMmap(bloomFilterFdWithDigest, expectedDigest, forceMmapMemory, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	bloomFilter := bloom.NewConcurrentReadOnlyBloomFilter(numElementsM, numHashesK, bloomFilterMmap)
+	bloomFilter := bloom.NewConcurrentReadOnlyBloomFilter(numElementsM, numHashesK, bloomFilterMmap.Bytes)
 	return newManagedConcurrentBloomFilter(bloomFilter, bloomFilterMmap), nil
 }
