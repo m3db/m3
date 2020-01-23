@@ -11,7 +11,7 @@
 # repo is ever compromised. The manifest of this image can be verified here:
 # https://quay.io/repository/m3/sysctl-setter/manifest/sha256:e003ee817fa573c38507667ca2e22634a1cb039fdb849f8ac0da98cc254a674e
 
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: sysctl-setter-ds
