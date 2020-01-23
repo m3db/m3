@@ -3,7 +3,9 @@
 set -xe
 
 # Use correct kubeconfig
-export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
+# NB(bodu): Provide full path of kind binary for pure ssh scripts (user env not loaded).
+KIND=/home/$(whoami)/bin/kind
+export KUBECONFIG="$($KIND get kubeconfig-path --name="kind")"
 
 forwards="grafana:3000 m3coordinator:7201 m3dbnode:9003 m3dbnode:9004"
 
