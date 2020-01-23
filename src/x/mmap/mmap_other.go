@@ -29,7 +29,7 @@ import (
 )
 
 // Fd mmaps a file
-func Fd(fd, offset, length int64, opts Options) (Result, error) {
+func Fd(fd, offset, length int64, opts Options) (Descriptor, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
 	// Set HugeTLB to disabled because its not supported for files
@@ -38,19 +38,19 @@ func Fd(fd, offset, length int64, opts Options) (Result, error) {
 }
 
 // Bytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
-func Bytes(length int64, opts Options) (Result, error) {
+func Bytes(length int64, opts Options) (Descriptor, error) {
 	// offset is 0 because we're not indexing into a file
 	// fd is -1 and MAP_ANON because we're asking for an anonymous region of memory not tied to a file
 	// MAP_PRIVATE because we don't plan on sharing this region of memory with other processes
 	return mmap(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
 }
 
-func mmap(fd, offset, length int64, flags int, opts Options) (Result, error) {
+func mmap(fd, offset, length int64, flags int, opts Options) (Descriptor, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
 		// get back an actual ref)
-		return Result{Result: make([]byte, 0)}, nil
+		return Descriptor{Bytes: make([]byte, 0)}, nil
 	}
 
 	var prot int
@@ -63,21 +63,38 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Result, error) {
 
 	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
 	if err != nil {
-		return Result{}, fmt.Errorf("mmap error: %v", err)
+		return Descriptor{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	return Result{Result: b}, nil
+	if reporter := opts.Reporter.Reporter; reporter != nil {
+		if err := reporter.ReportMap(opts.Reporter.Context); err != nil {
+			// Allow the reporter to deny an mmap to allow enforcement of proper
+			// reporting if it wants to.
+			syscall.Munmap(b)
+			return Descriptor{}, err
+		}
+	}
+
+	return Descriptor{Bytes: b}, nil
 }
 
 // Munmap munmaps a byte slice that is backed by an mmap
-func Munmap(b []byte) error {
-	if len(b) == 0 {
+func Munmap(desc Descriptor) error {
+	if len(desc.Bytes) == 0 {
 		// Never actually mmapd this, just returned empty slice
 		return nil
 	}
 
-	if err := syscall.Munmap(b); err != nil {
+	if err := syscall.Munmap(desc.Bytes); err != nil {
 		return fmt.Errorf("munmap error: %v", err)
+	}
+
+	if reporter := desc.ReporterOptions.Reporter; reporter != nil {
+		if err := reporter.ReportUnmap(desc.ReporterOptions.Context); err != nil {
+			// Allow the reporter to return an error from unmap to allow
+			// enforcement of proper reporting if it wants to.
+			return err
+		}
 	}
 
 	return nil

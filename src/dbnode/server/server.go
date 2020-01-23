@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -86,9 +87,10 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
-	"go.etcd.io/etcd/embed"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
+	"go.etcd.io/etcd/embed"
+	uatomic "go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -102,6 +104,8 @@ const (
 	defaultServiceName               = "m3dbnode"
 	skipRaiseProcessLimitsEnvVar     = "SKIP_PROCESS_LIMITS_RAISE"
 	skipRaiseProcessLimitsEnvVarTrue = "true"
+	mmapReporterMetricName           = "mmap-mapped-bytes"
+	mmapReporterTagName              = "map-name"
 )
 
 // RunOptions provides options for running the server
@@ -408,6 +412,10 @@ func Run(runOpts RunOptions) {
 			logger.Warn("host doesn't support HugeTLB, proceeding without it")
 		}
 	}
+
+	// TODO: actually use the mmap reporter
+	mmapReporter := newMmapReporter(scope)
+	go mmapReporter.Run()
 
 	policy := cfg.PoolingPolicy
 	tagEncoderPool := serialize.NewTagEncoderPool(
@@ -1708,4 +1716,107 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 	}
 
 	return t.t.Get(), nil
+}
+
+// Ensure mmap reporter implements mmap.Reporter
+var _ mmap.Reporter = (*mmapReporter)(nil)
+
+type mmapReporter struct {
+	sync.Mutex
+	scope   tally.Scope
+	entries map[string]*mmapReporterEntry
+}
+
+type mmapReporterEntry struct {
+	value int64
+	gauge tally.Gauge
+}
+
+func newMmapReporter(scope tally.Scope) *mmapReporter {
+	return *mmapReporter{scope: scope}
+}
+
+func (r *mmapReporter) Run(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.Lock()
+			for _, r := range r.entries {
+				r.gauge.Update(float64(r.value))
+			}
+			r.Unlock()
+		}
+	}
+}
+
+func (r *mmapReporter) entryKeyAndTags(ctx mmap.Context) (string, map[string]string) {
+	numTags := 1
+	if ctx.Metadata != nil {
+		numTags += len(ctx.Metadata)
+	}
+
+	tags := make(map[string]string, numTags)
+	tags[mmapReporterTagName] = ctx.Name
+	if ctx.Metadata != nil {
+		for k, v := range ctx.Metadata {
+			tags[k] = v
+		}
+	}
+
+	entryKey := tally.KeyForStringMap(tags)
+	return entryKey, tags
+}
+
+func (r *mmapReporter) ReportMap(ctx mmap.Context) error {
+	if ctx.Name == "" {
+		return fmt.Errorf("report mmap map missing context name: %+v", ctx)
+	}
+
+	entryKey, entryTags := r.entryKeyAndTags(ctx)
+
+	r.Lock()
+	defer r.Unlock()
+
+	entry, ok := r.entries
+	if !ok {
+		entry = &mmapReporterEntry{
+			atomicValue: uatomic.NewInt64(0),
+			gauge:       r.scope.Tagged(entryTags).Gauge(mmapReporterMetricName),
+		}
+		r.entries[entryKey] = entry
+	}
+
+	entry.value += ctx.Size
+
+	return nil
+}
+
+func (r *mmapReporter) ReportUnmap(ctx mmap.Context) error {
+	if ctx.Name == "" {
+		return fmt.Errorf("report mmap unmap missing context name: %+v", ctx)
+	}
+
+	entryKey, _ := r.entryKeyAndTags(ctx)
+
+	r.Lock()
+	defer r.Unlock()
+
+	entry, ok := r.entries[entryKey]
+	if !ok {
+		return fmt.Errorf("report mmap unmap missing entry for context: %+v", ctx)
+	}
+
+	entry.value -= ctx.Size
+
+	if entry.value == 0 {
+		// No more similar mmaps active for this context name, garbage collect
+		delete(r.entries, entryKey)
+	}
+
+	return nil
 }
