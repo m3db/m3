@@ -69,18 +69,6 @@ type nodeDescriptor struct {
 	hasChildren bool
 }
 
-func (d nodeDescriptor) leafAndChildrenValues() (int, int) {
-	if d.isLeaf {
-		if d.hasChildren {
-			return 1, 1
-		}
-
-		return 1, 0
-	}
-
-	return 0, 1
-}
-
 func mergeTags(
 	terminatedResult *storage.CompleteTagsResult,
 	childResult *storage.CompleteTagsResult,
