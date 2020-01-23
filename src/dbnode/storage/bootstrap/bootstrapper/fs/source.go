@@ -428,16 +428,39 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		shouldPersist = s.shouldPersist(runOpts)
 		noneRemaining = remainingRanges.IsEmpty()
 	)
-	if run == bootstrapIndexRunType {
-		min, max := requestedRanges.MinMax()
+	if run == bootstrapIndexRunType &&
+		shouldPersist &&
+		len(timesWithErrors) == 0 {
+		var (
+			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
+			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
+			beginningOfIndexRetention = time.Now().
+							Truncate(indexBlockSize).
+							Add(-retentionPeriod).
+							Truncate(indexBlockSize)
+			initialIndexRange = xtime.Range{
+				Start: beginningOfIndexRetention,
+				End:   beginningOfIndexRetention.Add(indexBlockSize),
+			}
+			overlapsWithInitalIndexRange = false
+			min, max                     = requestedRanges.MinMax()
+			iopts                        = s.opts.ResultOptions().InstrumentOptions()
+		)
+		for _, remainingRange := range remainingRanges {
+			if remainingRange.Overlaps(initialIndexRange) {
+				overlapsWithInitalIndexRange = true
+			}
+		}
+
 		buildIndexLogFields := []zapcore.Field{
+			zap.Stringer("namespace", ns.ID()),
 			zap.Bool("shouldPersist", shouldPersist),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRanges", fmt.Sprintf("%v - %v", min, max)),
-			zap.String("timesWithErrors", fmt.Sprintf("%v", timesWithErrors)),
 			zap.String("remainingRanges", remainingRanges.SummaryString()),
 		}
-		if shouldPersist && noneRemaining {
+
+		if noneRemaining || overlapsWithInitalIndexRange {
 			s.log.Info("building file set index segment", buildIndexLogFields...)
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
@@ -447,7 +470,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				s.persistManager,
 				s.opts.ResultOptions(),
 			); err != nil {
-				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -458,23 +480,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			// Track success.
 			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
-			s.log.Info("building in-memory index segment", buildIndexLogFields...)
-			if err := bootstrapper.BuildBootstrapIndexSegment(
-				ns,
-				requestedRanges,
-				runResult.index.IndexResults(),
-				runResult.builders,
-				s.compactor,
-				s.opts.ResultOptions(),
-			); err != nil {
-				iopts := s.opts.ResultOptions().InstrumentOptions()
-				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-					l.Error("build fs index bootstrap failed",
-						zap.Error(err),
-						zap.Stringer("namespace", ns.ID()),
-						zap.Stringer("requestedRanges", requestedRanges))
-				})
-			}
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("fs index bootstrap invariant violated, unfulfilled data range",
+					buildIndexLogFields...)
+			})
 		}
 	}
 
