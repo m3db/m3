@@ -21,32 +21,11 @@
 package mmap
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
-
-var (
-	mustHaveMetricsOptions                 = false
-	errMustHaveMetricsOptionsNoReporter    = errors.New("must have metrics options is set and no reporter set")
-	errMustHaveMetricsOptionsNoContextName = errors.New("must have metrics options is set and no context name set")
-)
-
-// SetMustHaveMetricsOptions sets the current value for whether
-// metrics options must be set for mmap calls. This is valuable
-// to enforce reporting of all mmap calls in a process.
-func SetMustHaveMetricsOptions(v bool) {
-	mustHaveMetricsOptions = v
-}
-
-// MustHaveMetricsOptions returns the current value for whether
-// metrics options must be set for mmap calls. This is valuable
-// to enforce reporting of all mmap calls in a process.
-func MustHaveMetricsOptions() bool {
-	return mustHaveMetricsOptions
-}
 
 // FileOpener is the signature of a function that MmapFiles can use
 // to open files
