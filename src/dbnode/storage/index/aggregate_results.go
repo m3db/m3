@@ -238,10 +238,6 @@ func (r *aggregatedResults) addFieldWithLock(
 		return fmt.Errorf(missingDocumentFields, "term")
 	}
 
-	if len(value) == 0 {
-		return fmt.Errorf(missingDocumentFields, "value")
-	}
-
 	// if a term filter is provided, ensure this field matches the filter,
 	// otherwise ignore it.
 	filter := r.aggregateOpts.FieldFilter

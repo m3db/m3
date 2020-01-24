@@ -48,7 +48,7 @@ Vagrant.configure("2") do |config|
     azure.client_secret = $AZURE_CLIENT_SECRET
     azure.subscription_id = $AZURE_SUBSCRIPTION_ID
 
-    azure.location = "eastus2"
+    azure.location = "eastus"
     azure.nsg_name = "network-m3coordinator"
     # azure.vm_image_urn defaults to `canonical:ubuntuserver:16.04-LTS:latest`
 
@@ -76,7 +76,7 @@ Vagrant.configure("2") do |config|
         do_common_azure.call azure, override
 
         azure.vm_name = "m3-dev-primary-" + $USER + $AZURE_GROUP0
-        azure.vm_size = "Standard_L32s_v2"
+        azure.vm_size = "Standard_L80s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP0
       end
 
@@ -100,7 +100,6 @@ Vagrant.configure("2") do |config|
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
       machine.vm.provision "file", source: "../../../kube", destination: "$HOME/provision/kube"
-      # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
       machine.vm.provision "file", source: "../docker", destination: "/$HOME/docker"
 
       machine.vm.provision "shell", privileged: true, inline: <<-SHELL
@@ -132,7 +131,7 @@ Vagrant.configure("2") do |config|
         do_common_azure.call azure, override
 
         azure.vm_name = "m3-dev-secondary-" + $USER + $AZURE_GROUP1
-        azure.vm_size = "Standard_L32s_v2"
+        azure.vm_size = "Standard_L80s_v2"
         azure.resource_group_name = "vagrant-dev" + $AZURE_GROUP1
       end
 
@@ -156,7 +155,6 @@ Vagrant.configure("2") do |config|
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
       machine.vm.provision "file", source: "../../../kube", destination: "$HOME/provision/kube"
-      # azure vms have a small data disk and a large temporary disk mounted at non root path so we need to configure the data root path.
       machine.vm.provision "file", source: "../docker", destination: "/$HOME/docker"
 
       machine.vm.provision "shell", privileged: true, inline: <<-SHELL
@@ -205,6 +203,7 @@ Vagrant.configure("2") do |config|
 
       machine.vm.provision "file", source: "../provision", destination: "$HOME/provision"
       machine.vm.provision "file", source: "../../../kube", destination: "$HOME/provision/kube"
+      machine.vm.provision "file", source: "../docker", destination: "/$HOME/docker"
 
       machine.vm.provision "shell", privileged: true, inline: <<-SHELL
         cd provision && DOCKER_USER=#{$USER} ./setup_privileged.sh

@@ -77,6 +77,7 @@ type options struct {
 	isSharded           bool
 	isMirrored          bool
 	isStaged            bool
+	instanceSelector    InstanceSelector
 }
 
 // NewOptions returns a default Options.
@@ -247,5 +248,14 @@ func (o options) ValidateFnBeforeUpdate() ValidateFn {
 
 func (o options) SetValidateFnBeforeUpdate(fn ValidateFn) Options {
 	o.validateFn = fn
+	return o
+}
+
+func (o options) InstanceSelector() InstanceSelector {
+	return o.instanceSelector
+}
+
+func (o options) SetInstanceSelector(s InstanceSelector) Options {
+	o.instanceSelector = s
 	return o
 }

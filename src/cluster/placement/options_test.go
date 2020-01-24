@@ -38,72 +38,82 @@ func TestDeploymentOptions(t *testing.T) {
 }
 
 func TestPlacementOptions(t *testing.T) {
-	o := NewOptions()
-	assert.True(t, o.AllowPartialReplace())
-	assert.False(t, o.AddAllCandidates())
-	assert.True(t, o.IsSharded())
-	assert.Equal(t, IncludeTransitionalShardStates, o.ShardStateMode())
-	assert.False(t, o.Dryrun())
-	assert.False(t, o.IsMirrored())
-	assert.False(t, o.IsStaged())
-	assert.NotNil(t, o.InstrumentOptions())
-	assert.Equal(t, int64(0), o.PlacementCutoverNanosFn()())
-	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
-	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
+	t.Run("defaults", func(t *testing.T) {
 
-	o = o.SetAllowPartialReplace(false)
-	assert.False(t, o.AllowPartialReplace())
-
-	o = o.SetAddAllCandidates(true)
-	assert.True(t, o.AddAllCandidates())
-
-	o = o.SetIsSharded(false)
-	assert.False(t, o.IsSharded())
-
-	o = o.SetShardStateMode(StableShardStateOnly)
-	assert.Equal(t, StableShardStateOnly, o.ShardStateMode())
-
-	o = o.SetDryrun(true)
-	assert.True(t, o.Dryrun())
-
-	o = o.SetIsMirrored(true)
-	assert.True(t, o.IsMirrored())
-
-	o = o.SetIsStaged(true)
-	assert.True(t, o.IsStaged())
-
-	iopts := instrument.NewOptions().SetMetricsSamplingRate(0.5)
-	o = o.SetInstrumentOptions(iopts)
-	assert.Equal(t, iopts, o.InstrumentOptions())
-
-	o = o.SetPlacementCutoverNanosFn(func() int64 {
-		return int64(10)
+		o := NewOptions()
+		assert.True(t, o.AllowPartialReplace())
+		assert.False(t, o.AddAllCandidates())
+		assert.True(t, o.IsSharded())
+		assert.Equal(t, IncludeTransitionalShardStates, o.ShardStateMode())
+		assert.False(t, o.Dryrun())
+		assert.False(t, o.IsMirrored())
+		assert.False(t, o.IsStaged())
+		assert.NotNil(t, o.InstrumentOptions())
+		assert.Equal(t, int64(0), o.PlacementCutoverNanosFn()())
+		assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
+		assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
+		assert.Nil(t, o.InstanceSelector())
 	})
-	assert.Equal(t, int64(10), o.PlacementCutoverNanosFn()())
 
-	o = o.SetShardCutoverNanosFn(func() int64 {
-		return int64(20)
-	})
-	assert.Equal(t, int64(20), o.ShardCutoverNanosFn()())
+	t.Run("setters", func(t *testing.T) {
+		o := NewOptions()
+		o = o.SetAllowPartialReplace(false)
+		assert.False(t, o.AllowPartialReplace())
 
-	o = o.SetShardCutoffNanosFn(func() int64 {
-		return int64(30)
-	})
-	assert.Equal(t, int64(30), o.ShardCutoffNanosFn()())
+		o = o.SetAddAllCandidates(true)
+		assert.True(t, o.AddAllCandidates())
 
-	now := time.Unix(0, 0)
-	o = o.SetNowFn(func() time.Time {
-		return now
-	})
-	assert.Equal(t, now, o.NowFn()())
+		o = o.SetIsSharded(false)
+		assert.False(t, o.IsSharded())
 
-	o = o.SetIsShardCutoverFn(func(s shard.Shard) error {
-		return nil
-	})
-	assert.Nil(t, o.IsShardCutoverFn()(nil))
+		o = o.SetShardStateMode(StableShardStateOnly)
+		assert.Equal(t, StableShardStateOnly, o.ShardStateMode())
 
-	o = o.SetIsShardCutoffFn(func(s shard.Shard) error {
-		return nil
+		o = o.SetDryrun(true)
+		assert.True(t, o.Dryrun())
+
+		o = o.SetIsMirrored(true)
+		assert.True(t, o.IsMirrored())
+
+		o = o.SetIsStaged(true)
+		assert.True(t, o.IsStaged())
+
+		iopts := instrument.NewOptions().SetMetricsSamplingRate(0.5)
+		o = o.SetInstrumentOptions(iopts)
+		assert.Equal(t, iopts, o.InstrumentOptions())
+
+		o = o.SetPlacementCutoverNanosFn(func() int64 {
+			return int64(10)
+		})
+		assert.Equal(t, int64(10), o.PlacementCutoverNanosFn()())
+
+		o = o.SetShardCutoverNanosFn(func() int64 {
+			return int64(20)
+		})
+		assert.Equal(t, int64(20), o.ShardCutoverNanosFn()())
+
+		o = o.SetShardCutoffNanosFn(func() int64 {
+			return int64(30)
+		})
+		assert.Equal(t, int64(30), o.ShardCutoffNanosFn()())
+
+		now := time.Unix(0, 0)
+		o = o.SetNowFn(func() time.Time {
+			return now
+		})
+		assert.Equal(t, now, o.NowFn()())
+
+		o = o.SetIsShardCutoverFn(func(s shard.Shard) error {
+			return nil
+		})
+		assert.Nil(t, o.IsShardCutoverFn()(nil))
+
+		o = o.SetIsShardCutoffFn(func(s shard.Shard) error {
+			return nil
+		})
+		assert.Nil(t, o.IsShardCutoffFn()(nil))
+
+		o = o.SetInstanceSelector(NewMockInstanceSelector(nil))
+		assert.NotNil(t, o.InstanceSelector())
 	})
-	assert.Nil(t, o.IsShardCutoffFn()(nil))
 }
