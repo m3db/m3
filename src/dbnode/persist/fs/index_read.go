@@ -22,7 +22,6 @@ package fs
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -36,6 +35,10 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 
 	"go.uber.org/zap"
+)
+
+const (
+	mmapPersistFsIndexName = "mmap.persist.fs.index"
 )
 
 type indexReader struct {
@@ -228,24 +231,28 @@ func (r *indexReader) ReadSegmentFileSet() (
 		}
 
 		var (
-			fd    *os.File
-			bytes []byte
+			fd   *os.File
+			desc mmap.Descriptor
 		)
 		mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 			filePath: mmap.FileDesc{
-				File:    &fd,
-				Bytes:   &bytes,
-				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+				File:       &fd,
+				Descriptor: &desc,
+				Options: mmap.Options{
+					Read:    true,
+					HugeTLB: r.hugePagesOpts,
+					ReporterOptions: mmap.ReporterOptions{
+						Context: mmap.Context{
+							Name: mmapPersistFsIndexName,
+						},
+						Reporter: r.opts.MmapReporter(),
+					},
+				},
 			},
 		})
 		if err != nil {
 			return nil, err
 		}
-		desc, ok := mmapResult.Descriptors[filePath]
-		if !ok {
-			return nil, errors.New("Mmap failed")
-		}
-
 		if warning := mmapResult.Warning; warning != nil {
 			r.logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 		}
@@ -254,11 +261,11 @@ func (r *indexReader) ReadSegmentFileSet() (
 		result.files = append(result.files, file)
 		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
 			segmentFileType: segFileType,
-			digest:          digest.Checksum(bytes),
+			digest:          digest.Checksum(desc.Bytes),
 		})
 
 		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.
-		if err := mmap.MadviseDontNeed(bytes); err != nil {
+		if err := mmap.MadviseDontNeed(desc.Bytes); err != nil {
 			return nil, err
 		}
 	}

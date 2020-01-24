@@ -39,7 +39,7 @@ type FileDesc struct {
 	// file is the *os.File ref to store
 	File **os.File
 	// bytes is the []byte slice ref to store the mmap'd address
-	Bytes *[]byte
+	Descriptor *Descriptor
 	// options specifies options to use when mmaping a file
 	Options Options
 }
@@ -52,8 +52,8 @@ type Options struct {
 	Write bool
 	// hugeTLB is the mmap huge TLB options
 	HugeTLB HugeTLBOptions
-	// Reporter is the reporter options
-	Reporter ReporterOptions
+	// ReporterOptions is the reporter options
+	ReporterOptions ReporterOptions
 }
 
 // Descriptor is a descriptor of a successful mmap
@@ -100,18 +100,13 @@ type Reporter interface {
 
 // FilesResult contains the result of calling MmapFiles
 type FilesResult struct {
-	Descriptors map[string]Descriptor
-	Warning     error
+	Warning error
 }
 
 // Files is a utility function for mmap'ing a group of files at once
 func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
-
-	result := FilesResult{
-		Descriptors: make(map[string]Descriptor),
-	}
 
 	for filePath, fileDesc := range files {
 		fd, err := opener(filePath)
@@ -128,15 +123,13 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 		if desc.Warning != nil {
 			multiWarn = multiWarn.Add(errorWithFilename(filePath, desc.Warning))
 		}
-		result.Descriptors[filePath] = desc
 
 		*fileDesc.File = fd
-		*fileDesc.Bytes = desc.Bytes
+		*fileDesc.Descriptor = desc
 	}
 
 	if multiErr.FinalError() == nil {
-		result.Warning = multiWarn.FinalError()
-		return result, nil
+		return FilesResult{Warning: multiWarn.FinalError()}, nil
 	}
 
 	// If we have encountered an error when opening the files,
@@ -145,13 +138,12 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 		if *fileDesc.File != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, (*fileDesc.File).Close()))
 		}
-		if desc, ok := result.Descriptors[filePath]; ok {
-			multiErr = multiErr.Add(errorWithFilename(filePath, Munmap(desc)))
+		if fileDesc.Descriptor != nil {
+			multiErr = multiErr.Add(errorWithFilename(filePath, Munmap(*fileDesc.Descriptor)))
 		}
 	}
 
-	result.Warning = multiWarn.FinalError()
-	return result, multiErr.FinalError()
+	return FilesResult{Warning: multiWarn.FinalError()}, multiErr.FinalError()
 }
 
 // File mmap's a file

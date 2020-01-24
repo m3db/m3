@@ -48,8 +48,7 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Descriptor, error)
 		// use nil to mean something special like not initialized
 		// get back an actual ref)
 		return Descriptor{
-			Bytes:   make([]byte, 0),
-			Metrics: opts.Metrics,
+			Bytes: make([]byte, 0),
 		}, nil
 	}
 
@@ -95,8 +94,8 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Descriptor, error)
 		return Descriptor{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	if reporter := opts.Reporter.Reporter; reporter != nil {
-		if err := reporter.ReportMap(opts.Reporter.Context); err != nil {
+	if reporter := opts.ReporterOptions.Reporter; reporter != nil {
+		if err := reporter.ReportMap(opts.ReporterOptions.Context); err != nil {
 			// Allow the reporter to deny an mmap to allow enforcement of proper
 			// reporting if it wants to.
 			syscall.Munmap(b)
@@ -105,9 +104,9 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Descriptor, error)
 	}
 
 	return Descriptor{
-		Bytes:   b,
-		Warning: warning,
-		Metrics: opts.Metrics,
+		Bytes:           b,
+		Warning:         warning,
+		ReporterOptions: opts.Reporter,
 	}, nil
 }
 

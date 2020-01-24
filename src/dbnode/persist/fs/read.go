@@ -52,6 +52,11 @@ var (
 	errReadNotExpectedSize = errors.New("next read not expected size")
 )
 
+const (
+	mmapPersistFsDataName      = "mmap.persist.fs.data"
+	mmapPersistFsDataIndexName = "mmap.persist.fs.dataindex"
+)
+
 type reader struct {
 	opts          Options
 	hugePagesOpts mmap.HugeTLBOptions
@@ -204,14 +209,32 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 		indexFilepath: mmap.FileDesc{
-			File:    &r.indexFd,
-			Bytes:   &r.indexMmap.Bytes,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			File:       &r.indexFd,
+			Descriptor: &r.indexMmap,
+			Options: mmap.Options{
+				Read:    true,
+				HugeTLB: r.hugePagesOpts,
+				ReporterOptions: mmap.ReporterOptions{
+					Context: mmap.Context{
+						Name: mmapPersistFsDataIndexName,
+					},
+					Reporter: r.opts.MmapReporter(),
+				},
+			},
 		},
 		dataFilepath: mmap.FileDesc{
-			File:    &r.dataFd,
-			Bytes:   &r.dataMmap.Bytes,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			File:       &r.dataFd,
+			Descriptor: &r.dataMmap,
+			Options: mmap.Options{
+				Read:    true,
+				HugeTLB: r.hugePagesOpts,
+				ReporterOptions: mmap.ReporterOptions{
+					Context: mmap.Context{
+						Name: mmapPersistFsDataName,
+					},
+					Reporter: r.opts.MmapReporter(),
+				},
+			},
 		},
 	})
 	if err != nil {

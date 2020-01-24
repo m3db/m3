@@ -60,7 +60,7 @@ func validateAndMmapMemory(
 	// to use the mmap'd region to store the read-only summaries data, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it.
-	mmapDescriptor, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true, Reporter: reporterOptions})
+	mmapDescriptor, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true, ReporterOptions: reporterOptions})
 	if err != nil {
 		return mmap.Descriptor{}, err
 	}
@@ -82,7 +82,7 @@ func validateAndMmapFile(
 	reporterOptions mmap.ReporterOptions,
 ) (mmap.Descriptor, error) {
 	fd := fdWithDigest.Fd()
-	mmapDescriptor, err := mmap.File(fd, mmap.Options{Read: true, Write: false, Reporter: reporterOptions})
+	mmapDescriptor, err := mmap.File(fd, mmap.Options{Read: true, Write: false, ReporterOptions: reporterOptions})
 	if err != nil {
 		return mmap.Descriptor{}, err
 	}

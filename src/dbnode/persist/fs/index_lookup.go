@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 )
 
-const summariesFileMmapName = "summaries-file"
+const mmapPersistFsSummariesFileName = "mmap.persist.fs.summariesfile"
 
 var errCloneShouldNotBeCloned = errors.New("clones should not be cloned")
 
@@ -162,7 +162,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	forceMmapMemory bool,
 	reporterOptions mmap.ReporterOptions,
 ) (*nearestIndexOffsetLookup, error) {
-	reporterOptions.Context.Name = summariesFileMmapName
+	reporterOptions.Context.Name = mmapPersistFsSummariesFileName
 	summariesMmap, err := validateAndMmap(summariesFdWithDigest, expectedDigest, forceMmapMemory, reporterOptions)
 	if err != nil {
 		return nil, err

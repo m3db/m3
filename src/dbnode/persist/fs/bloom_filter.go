@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	bloomFilterMmapName = "bloom-filter"
+	mmapPersistFsBloomFilterName = "mmap.persist.fs.bloomfilter"
 )
 
 // ManagedConcurrentBloomFilter is a container object that implements lifecycle
@@ -83,7 +83,7 @@ func newManagedConcurrentBloomFilterFromFile(
 	// Determine how many bytes to request for the mmap'd region
 	bloomFilterFdWithDigest.Reset(bloomFilterFd)
 
-	reporterOptions.Context.Name = bloomFilterMmapName
+	reporterOptions.Context.Name = mmapPersistFsBloomFilterName
 	bloomFilterMmap, err := validateAndMmap(bloomFilterFdWithDigest, expectedDigest, forceMmapMemory, reporterOptions)
 	if err != nil {
 		return nil, err

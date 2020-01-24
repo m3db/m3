@@ -42,7 +42,7 @@ var (
 )
 
 const (
-	bootstrappedIndexBlockMmapName = "bootstrapped-index-block"
+	mmapBootstrapIndexName = "mmap.bootstrap.index"
 )
 
 // SharedPersistManager is a lockable persist manager that's safe to be shared across threads.
@@ -293,7 +293,7 @@ func BuildBootstrapIndexSegment(
 	defer compactor.Unlock()
 	seg, err := compactor.Compactor.CompactUsingBuilder(b.Builder(), nil, mmap.ReporterOptions{
 		Context: mmap.Context{
-			Name: bootstrappedIndexBlockMmapName,
+			Name: mmapBootstrapIndexName,
 		},
 		Reporter: mmapReporter,
 	})

@@ -86,7 +86,7 @@ const (
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
 
-	indexBlockMmapName = "index-block"
+	mmapIndexBlockName = "mmap.index.block"
 )
 
 func (s blockState) String() string {
@@ -349,7 +349,7 @@ func (b *block) backgroundCompactWithTask(
 	start := time.Now()
 	compacted, err := b.compact.backgroundCompactor.Compact(segments, mmap.ReporterOptions{
 		Context: mmap.Context{
-			Name: indexBlockMmapName,
+			Name: mmapIndexBlockName,
 		},
 		Reporter: b.opts.MmapReporter(),
 	})
@@ -652,7 +652,7 @@ func (b *block) foregroundCompactWithTask(
 	start := time.Now()
 	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments, mmap.ReporterOptions{
 		Context: mmap.Context{
-			Name: indexBlockMmapName,
+			Name: mmapIndexBlockName,
 		},
 		Reporter: b.opts.MmapReporter(),
 	})

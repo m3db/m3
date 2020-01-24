@@ -41,10 +41,6 @@ var (
 	errCompactorClosed       = errors.New("compactor is closed")
 )
 
-const (
-	fstSegmentMmapName = "fst-segment"
-)
-
 // Compactor is a compactor.
 type Compactor struct {
 	sync.RWMutex
@@ -352,9 +348,9 @@ func (c *Compactor) mmapAndAppendCloser(
 	size := int64(len(fromBytes))
 	reporterOptions.Context.Size = size
 	mmapedResult, err := mmap.Bytes(size, mmap.Options{
-		Read:     true,
-		Write:    true,
-		Reporter: reporterOptions,
+		Read:            true,
+		Write:           true,
+		ReporterOptions: reporterOptions,
 	})
 	if err != nil {
 		return nil, err
