@@ -59,21 +59,11 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 	size, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
-
-	dInvalid = genDoc("foo", "")
-	size, err = res.AddDocuments([]doc.Document{dInvalid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
 }
 
 func TestAggResultsInsertEmptyTermValue(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
-	dValidEmptyTerm := doc.Document{
-		ID: []byte("foo_id"),
-		Fields: []doc.Field{
-			{Name: []byte("foo"), Value: nil},
-		},
-	}
+	dValidEmptyTerm := genDoc("foo", "")
 	size, err := res.AddDocuments([]doc.Document{dValidEmptyTerm})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
