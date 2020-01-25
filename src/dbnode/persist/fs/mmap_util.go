@@ -33,28 +33,24 @@ func validateAndMmap(
 	forceMmapMemory bool,
 	reporterOptions mmap.ReporterOptions,
 ) (mmap.Descriptor, error) {
+	if forceMmapMemory {
+		return validateAndMmapMemory(fdWithDigest, expectedDigest, reporterOptions)
+	}
+
+	return validateAndMmapFile(fdWithDigest, expectedDigest, reporterOptions)
+}
+
+func validateAndMmapMemory(
+	fdWithDigest digest.FdWithDigestReader,
+	expectedDigest uint32,
+	reporterOptions mmap.ReporterOptions,
+) (mmap.Descriptor, error) {
 	fd := fdWithDigest.Fd()
 	stat, err := fd.Stat()
 	if err != nil {
 		return mmap.Descriptor{}, err
 	}
 	numBytes := stat.Size()
-	reporterOptions.Context.Size = numBytes
-
-	if forceMmapMemory {
-		return validateAndMmapMemory(fdWithDigest, expectedDigest, numBytes, reporterOptions)
-	}
-
-	return validateAndMmapFile(fdWithDigest, expectedDigest, reporterOptions)
-
-}
-
-func validateAndMmapMemory(
-	fdWithDigest digest.FdWithDigestReader,
-	expectedDigest uint32,
-	numBytes int64,
-	reporterOptions mmap.ReporterOptions,
-) (mmap.Descriptor, error) {
 
 	// Request an anonymous (non-file-backed) mmap region. Note that we're going
 	// to use the mmap'd region to store the read-only summaries data, but the mmap

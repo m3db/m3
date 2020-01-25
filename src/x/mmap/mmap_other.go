@@ -67,6 +67,7 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Descriptor, error)
 	}
 
 	if reporter := opts.ReporterOptions.Reporter; reporter != nil {
+		opts.ReporterOptions.Context.Size = length
 		if err := reporter.ReportMap(opts.ReporterOptions.Context); err != nil {
 			// Allow the reporter to deny an mmap to allow enforcement of proper
 			// reporting if it wants to.
@@ -75,7 +76,10 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Descriptor, error)
 		}
 	}
 
-	return Descriptor{Bytes: b}, nil
+	return Descriptor{
+		Bytes:           b,
+		ReporterOptions: opts.ReporterOptions,
+	}, nil
 }
 
 // Munmap munmaps a byte slice that is backed by an mmap

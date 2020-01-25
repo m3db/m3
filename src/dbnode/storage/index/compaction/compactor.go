@@ -345,9 +345,7 @@ func (c *Compactor) mmapAndAppendCloser(
 	reporterOptions mmap.ReporterOptions,
 ) ([]byte, error) {
 	// Copy bytes to new mmap region to hide from the GC
-	size := int64(len(fromBytes))
-	reporterOptions.Context.Size = size
-	mmapedResult, err := mmap.Bytes(size, mmap.Options{
+	mmapedResult, err := mmap.Bytes(int64(len(fromBytes)), mmap.Options{
 		Read:            true,
 		Write:           true,
 		ReporterOptions: reporterOptions,
