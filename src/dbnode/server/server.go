@@ -21,6 +21,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -74,7 +75,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/context"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
@@ -90,7 +91,6 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.etcd.io/etcd/embed"
-	uatomic "go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -415,7 +415,7 @@ func Run(runOpts RunOptions) {
 
 	// TODO: actually use the mmap reporter
 	mmapReporter := newMmapReporter(scope)
-	go mmapReporter.Run()
+	go mmapReporter.Run(context.Background())
 	opts = opts.SetMmapReporter(mmapReporter)
 
 	policy := cfg.PoolingPolicy
@@ -493,6 +493,7 @@ func Run(runOpts RunOptions) {
 
 	// Apply pooling options.
 	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
+	opts = opts.SetIndexOptions(opts.IndexOptions().SetMmapReporter(mmapReporter))
 
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -1282,7 +1283,7 @@ func withEncodingAndPoolingOptions(
 		policy.ContextPool,
 		scope.SubScope("context-pool"))
 
-	contextPool := context.NewPool(context.NewOptions().
+	contextPool := xcontext.NewPool(xcontext.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
 		SetFinalizerPoolOptions(closersPoolOpts))
 
@@ -1520,8 +1521,7 @@ func withEncodingAndPoolingOptions(
 		SetQueryResultsPool(queryResultsPool).
 		SetAggregateResultsPool(aggregateQueryResultsPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
-		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold).
-		SetMmapReporter(mmapReporter)
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so
@@ -1683,7 +1683,7 @@ func hostSupportsHugeTLB() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("could not mmap anonymous region: %v", err)
 	}
-	defer mmap.Munmap(withHugeTLB.Result)
+	defer mmap.Munmap(withHugeTLB)
 
 	if withHugeTLB.Warning == nil {
 		// If there was no warning, then the host didn't complain about
@@ -1696,7 +1696,7 @@ func hostSupportsHugeTLB() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("could not mmap anonymous region: %v", err)
 	}
-	defer mmap.Munmap(withoutHugeTLB.Result)
+	defer mmap.Munmap(withoutHugeTLB)
 	if withoutHugeTLB.Warning == nil {
 		// The machine doesn't support HugeTLB, proceed without it
 		return false, nil
@@ -1736,7 +1736,7 @@ type mmapReporterEntry struct {
 }
 
 func newMmapReporter(scope tally.Scope) *mmapReporter {
-	return *mmapReporter{scope: scope}
+	return &mmapReporter{scope: scope}
 }
 
 func (r *mmapReporter) Run(ctx context.Context) {
@@ -1785,11 +1785,10 @@ func (r *mmapReporter) ReportMap(ctx mmap.Context) error {
 	r.Lock()
 	defer r.Unlock()
 
-	entry, ok := r.entries
+	entry, ok := r.entries[entryKey]
 	if !ok {
 		entry = &mmapReporterEntry{
-			atomicValue: uatomic.NewInt64(0),
-			gauge:       r.scope.Tagged(entryTags).Gauge(mmapReporterMetricName),
+			gauge: r.scope.Tagged(entryTags).Gauge(mmapReporterMetricName),
 		}
 		r.entries[entryKey] = entry
 	}
