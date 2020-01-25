@@ -60,11 +60,11 @@ type SegmentData struct {
 	Version  Version
 	Metadata []byte
 
-	DocsData      []byte
-	DocsIdxData   []byte
-	PostingsData  []byte
-	FSTTermsData  []byte
-	FSTFieldsData []byte
+	DocsData      mmap.Descriptor
+	DocsIdxData   mmap.Descriptor
+	PostingsData  mmap.Descriptor
+	FSTTermsData  mmap.Descriptor
+	FSTFieldsData mmap.Descriptor
 
 	// DocsReader is an alternative to specifying
 	// the docs data and docs idx data if the documents
@@ -81,24 +81,24 @@ func (sd SegmentData) Validate() error {
 		return err
 	}
 
-	if sd.PostingsData == nil {
+	if sd.PostingsData.Bytes == nil {
 		return errPostingsDataUnset
 	}
 
-	if sd.FSTTermsData == nil {
+	if sd.FSTTermsData.Bytes == nil {
 		return errFSTTermsDataUnset
 	}
 
-	if sd.FSTFieldsData == nil {
+	if sd.FSTFieldsData.Bytes == nil {
 		return errFSTFieldsDataUnset
 	}
 
 	if sd.DocsReader == nil {
-		if sd.DocsData == nil {
+		if sd.DocsData.Bytes == nil {
 			return errDocumentsDataUnset
 		}
 
-		if sd.DocsIdxData == nil {
+		if sd.DocsIdxData.Bytes == nil {
 			return errDocumentsIdxUnset
 		}
 	}
@@ -123,7 +123,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		return nil, fmt.Errorf("unsupported postings format: %v", metadata.PostingsFormat.String())
 	}
 
-	fieldsFST, err := vellum.Load(data.FSTFieldsData)
+	fieldsFST, err := vellum.Load(data.FSTFieldsData.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load fields fst: %v", err)
 	}
@@ -139,8 +139,8 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		startInclusive = docsSliceReader.Base()
 		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
 	} else {
-		docsDataReader = docs.NewDataReader(data.DocsData)
-		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData)
+		docsDataReader = docs.NewDataReader(data.DocsData.Bytes)
+		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData.Bytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
@@ -299,24 +299,24 @@ func (r *fsSegment) FreeMmap() error {
 	multiErr := xerrors.NewMultiError()
 
 	// NB(bodu): PostingsData, FSTTermsData and FSTFieldsData always present.
-	if err := mmap.MadviseDontNeed(r.data.PostingsData); err != nil {
+	if err := mmap.MadviseDontNeed(r.data.PostingsData.Bytes); err != nil {
 		multiErr = multiErr.Add(err)
 	}
-	if err := mmap.MadviseDontNeed(r.data.FSTTermsData); err != nil {
+	if err := mmap.MadviseDontNeed(r.data.FSTTermsData.Bytes); err != nil {
 		multiErr = multiErr.Add(err)
 	}
-	if err := mmap.MadviseDontNeed(r.data.FSTFieldsData); err != nil {
+	if err := mmap.MadviseDontNeed(r.data.FSTFieldsData.Bytes); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
 	// DocsData and DocsIdxData are not always present.
-	if r.data.DocsData != nil {
-		if err := mmap.MadviseDontNeed(r.data.DocsData); err != nil {
+	if r.data.DocsData.Bytes != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsData.Bytes); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
-	if r.data.DocsIdxData != nil {
-		if err := mmap.MadviseDontNeed(r.data.DocsIdxData); err != nil {
+	if r.data.DocsIdxData.Bytes != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsIdxData.Bytes); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -363,7 +363,7 @@ func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset 
 		return errReaderClosed
 	}
 
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, offset)
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
 	if err != nil {
 		return fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
@@ -392,7 +392,7 @@ func (r *fsSegment) MatchField(field []byte) (postings.List, error) {
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData, termsFSTOffset)
+	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -578,7 +578,7 @@ func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
 }
 
 func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, postingsOffset)
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
@@ -596,7 +596,7 @@ func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, 
 		return nil, false, nil
 	}
 
-	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData, termsFSTOffset)
+	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
 	if err != nil {
 		return nil, false, fmt.Errorf("error while decoding terms fst: %v", err)
 	}

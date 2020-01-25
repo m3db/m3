@@ -343,7 +343,7 @@ func (c *Compactor) mmapAndAppendCloser(
 	fromBytes []byte,
 	closers *closers,
 	reporterOptions mmap.ReporterOptions,
-) ([]byte, error) {
+) (mmap.Descriptor, error) {
 	// Copy bytes to new mmap region to hide from the GC
 	mmapedResult, err := mmap.Bytes(int64(len(fromBytes)), mmap.Options{
 		Read:            true,
@@ -359,7 +359,7 @@ func (c *Compactor) mmapAndAppendCloser(
 		return mmap.Munmap(mmapedResult)
 	}))
 
-	return mmapedResult.Bytes, nil
+	return mmapedResult, nil
 }
 
 // Close closes the compactor and frees buffered resources.
