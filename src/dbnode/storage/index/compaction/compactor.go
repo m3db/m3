@@ -351,7 +351,7 @@ func (c *Compactor) mmapAndAppendCloser(
 		ReporterOptions: reporterOptions,
 	})
 	if err != nil {
-		return nil, err
+		return mmap.Descriptor{}, err
 	}
 	copy(mmapedResult.Bytes, fromBytes)
 

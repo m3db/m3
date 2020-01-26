@@ -413,9 +413,10 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	// TODO: actually use the mmap reporter
 	mmapReporter := newMmapReporter(scope)
-	go mmapReporter.Run(context.Background())
+	mmapReporterCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mmapReporter.Run(mmapReporterCtx)
 	opts = opts.SetMmapReporter(mmapReporter)
 
 	policy := cfg.PoolingPolicy

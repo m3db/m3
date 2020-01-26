@@ -403,8 +403,8 @@ func (f *readableIndexSegmentFileMmap) SegmentFileType() idxpersist.IndexSegment
 	return f.fileType
 }
 
-func (f *readableIndexSegmentFileMmap) Bytes() ([]byte, error) {
-	return f.bytesMmap.Bytes, nil
+func (f *readableIndexSegmentFileMmap) Mmap() (mmap.Descriptor, error) {
+	return f.bytesMmap, nil
 }
 
 func (f *readableIndexSegmentFileMmap) Read(b []byte) (int, error) {
