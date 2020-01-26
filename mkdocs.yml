@@ -60,6 +60,7 @@ pages:
     - "Components": "overview/components.md"
     - "Motivation": "overview/motivation.md"
     - "Media":      "overview/media.md"
+    - "Roadmap":    "overview/roadmap.md"
   - "M3DB":
     - "Introduction": "m3db/index.md"
     - "Architecture":
