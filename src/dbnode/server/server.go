@@ -1737,7 +1737,10 @@ type mmapReporterEntry struct {
 }
 
 func newMmapReporter(scope tally.Scope) *mmapReporter {
-	return &mmapReporter{scope: scope}
+	return &mmapReporter{
+		scope:   scope,
+		entries: make(map[string]*mmapReporterEntry),
+	}
 }
 
 func (r *mmapReporter) Run(ctx context.Context) {
