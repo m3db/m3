@@ -93,7 +93,6 @@ var (
 	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
 	errBlockLeaserNotSet          = errors.New("block leaser is not set")
-	errMmapReporterNotSet         = errors.New("mmap reporter is not set")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -280,9 +279,6 @@ func (o *options) Validate() error {
 
 	if o.blockLeaseManager == nil {
 		return errBlockLeaserNotSet
-	}
-	if o.mmapReporter == nil {
-		return errMmapReporterNotSet
 	}
 
 	return nil

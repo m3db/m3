@@ -76,7 +76,6 @@ var (
 
 	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
 	errTagDecoderPoolNotSet = errors.New("tag decoder pool is not set")
-	errMmapReporterNotSet   = errors.New("mmap reporter is not set")
 )
 
 type options struct {
@@ -153,9 +152,6 @@ func (o *options) Validate() error {
 	}
 	if o.tagDecoderPool == nil {
 		return errTagDecoderPoolNotSet
-	}
-	if o.mmapReporter == nil {
-		return errMmapReporterNotSet
 	}
 	return nil
 }
