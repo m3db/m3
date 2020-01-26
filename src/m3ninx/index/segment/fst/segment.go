@@ -299,24 +299,24 @@ func (r *fsSegment) FreeMmap() error {
 	multiErr := xerrors.NewMultiError()
 
 	// NB(bodu): PostingsData, FSTTermsData and FSTFieldsData always present.
-	if err := mmap.MadviseDontNeed(r.data.PostingsData.Bytes); err != nil {
+	if err := mmap.MadviseDontNeed(r.data.PostingsData); err != nil {
 		multiErr = multiErr.Add(err)
 	}
-	if err := mmap.MadviseDontNeed(r.data.FSTTermsData.Bytes); err != nil {
+	if err := mmap.MadviseDontNeed(r.data.FSTTermsData); err != nil {
 		multiErr = multiErr.Add(err)
 	}
-	if err := mmap.MadviseDontNeed(r.data.FSTFieldsData.Bytes); err != nil {
+	if err := mmap.MadviseDontNeed(r.data.FSTFieldsData); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
 	// DocsData and DocsIdxData are not always present.
 	if r.data.DocsData.Bytes != nil {
-		if err := mmap.MadviseDontNeed(r.data.DocsData.Bytes); err != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsData); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 	if r.data.DocsIdxData.Bytes != nil {
-		if err := mmap.MadviseDontNeed(r.data.DocsIdxData.Bytes); err != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsIdxData); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

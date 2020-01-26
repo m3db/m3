@@ -108,12 +108,12 @@ func Munmap(desc Descriptor) error {
 // `MADV_DONTNEED` informs the kernel to free the mmapped pages right away instead of waiting for memory pressure.
 // NB(bodu): DO NOT FREE anonymously mapped memory or else it will null all of the underlying bytes as the
 // memory is not file backed.
-func MadviseDontNeed(b []byte) error {
+func MadviseDontNeed(desc Descriptor) error {
 	// Do nothing if there's no data.
-	if len(b) == 0 {
+	if len(desc.Bytes) == 0 {
 		return nil
 	}
-	return madvise(b, syscall.MADV_DONTNEED)
+	return madvise(desc.Bytes, syscall.MADV_DONTNEED)
 }
 
 // This is required because the unix package does not support the madvise system call.

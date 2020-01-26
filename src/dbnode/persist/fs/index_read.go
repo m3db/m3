@@ -265,7 +265,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 		})
 
 		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.
-		if err := mmap.MadviseDontNeed(desc.Bytes); err != nil {
+		if err := mmap.MadviseDontNeed(desc); err != nil {
 			return nil, err
 		}
 	}
