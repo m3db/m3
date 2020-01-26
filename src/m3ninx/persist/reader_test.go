@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/x/mmap"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -82,7 +83,7 @@ func TestReaderValidateByteAccess(t *testing.T) {
 
 	docsDataFile := NewMockIndexSegmentFile(ctrl)
 	docsDataFile.EXPECT().SegmentFileType().Return(DocumentDataIndexSegmentFileType)
-	docsDataFile.EXPECT().Bytes().Return(nil, fmt.Errorf("random"))
+	docsDataFile.EXPECT().Mmap().Return(mmap.Descriptor{}, fmt.Errorf("random"))
 	docsDataFile.EXPECT().Close()
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile}).AnyTimes()
 
@@ -103,12 +104,12 @@ func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
 	docsDataFile := NewMockIndexSegmentFile(ctrl)
 	docsDataFile.EXPECT().SegmentFileType().Return(DocumentDataIndexSegmentFileType)
 	docsDataFile.EXPECT().Close()
-	docsDataFile.EXPECT().Bytes().Return([]byte{}, nil)
+	docsDataFile.EXPECT().Mmap().Return(mmap.Descriptor{}, nil)
 
 	docsIdxFile := NewMockIndexSegmentFile(ctrl)
 	docsIdxFile.EXPECT().SegmentFileType().Return(DocumentIndexIndexSegmentFileType)
 	docsIdxFile.EXPECT().Close()
-	docsIdxFile.EXPECT().Bytes().Return(nil, fmt.Errorf("random"))
+	docsIdxFile.EXPECT().Mmap().Return(nil, fmt.Errorf("random"))
 
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile, docsIdxFile}).AnyTimes()
 
@@ -147,27 +148,27 @@ func TestReaderValidateAllByteAccess(t *testing.T) {
 
 	docsDataFile := NewMockIndexSegmentFile(ctrl)
 	docsDataFile.EXPECT().SegmentFileType().Return(DocumentDataIndexSegmentFileType)
-	docsDataFile.EXPECT().Bytes().Return([]byte{}, nil)
+	docsDataFile.EXPECT().Mmap().Return(mmap.Descriptor{}, nil)
 	docsDataFile.EXPECT().Close()
 
 	docsIdxFile := NewMockIndexSegmentFile(ctrl)
 	docsIdxFile.EXPECT().SegmentFileType().Return(DocumentIndexIndexSegmentFileType)
-	docsIdxFile.EXPECT().Bytes().Return([]byte{}, nil)
+	docsIdxFile.EXPECT().Mmap().Return(mmap.Descriptor{}, nil)
 	docsIdxFile.EXPECT().Close()
 
 	postingsFile := NewMockIndexSegmentFile(ctrl)
 	postingsFile.EXPECT().SegmentFileType().Return(PostingsIndexSegmentFileType)
-	postingsFile.EXPECT().Bytes().Return([]byte{}, nil)
+	postingsFile.EXPECT().Mmap().Return(mmap.Descriptor{}, nil)
 	postingsFile.EXPECT().Close()
 
 	fstFieldsFile := NewMockIndexSegmentFile(ctrl)
 	fstFieldsFile.EXPECT().SegmentFileType().Return(FSTFieldsIndexSegmentFileType)
-	fstFieldsFile.EXPECT().Bytes().Return([]byte{}, nil)
+	fstFieldsFile.EXPECT().Mmap().Return(mmap.Descriptor{}, nil)
 	fstFieldsFile.EXPECT().Close()
 
 	fstTermsFile := NewMockIndexSegmentFile(ctrl)
 	fstTermsFile.EXPECT().SegmentFileType().Return(FSTTermsIndexSegmentFileType)
-	fstTermsFile.EXPECT().Bytes().Return([]byte{}, nil)
+	fstTermsFile.EXPECT().Mmap().Return(mmap.Descriptor{}, nil)
 	fstTermsFile.EXPECT().Close()
 
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile, docsIdxFile,
