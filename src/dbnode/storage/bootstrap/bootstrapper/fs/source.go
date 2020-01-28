@@ -470,9 +470,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 		}
 
-		shouldPersistSegment := runOpts.PersistConfig().Enabled &&
-			(noneRemaining || overlapsWithInitalIndexRange)
-		if shouldPersistSegment {
+		// Determine if should flush data for range.
+		persistCfg := runOpts.PersistConfig()
+		shouldFlush := persistCfg.Enabled &&
+			persistCfg.FileSetType == persist.FileSetFlushType
+		// Determine all requested ranges were fulfilled or at edge of retention
+		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		if shouldFlush && satisifiedFlushRanges {
 			s.log.Info("building file set index segment", buildIndexLogFields...)
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
