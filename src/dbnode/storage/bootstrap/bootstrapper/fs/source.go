@@ -429,13 +429,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 
 	var (
-		shouldPersist        = s.shouldPersist(runOpts)
-		noneRemaining        = remainingRanges.IsEmpty()
-		shouldPersistSegment = run == bootstrapIndexRunType &&
-			shouldPersist &&
+		noneRemaining      = remainingRanges.IsEmpty()
+		shouldBuildSegment = run == bootstrapIndexRunType &&
 			len(timesWithErrors) == 0
 	)
-	if shouldPersistSegment {
+	if shouldBuildSegment {
 		var (
 			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
 			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
@@ -456,20 +454,25 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 		}
 
+		remainingMin, remainingMax := remainingRanges.MinMax()
 		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
-			zap.Bool("shouldPersist", shouldPersist),
+			zap.Bool("shouldBuildSegment", shouldBuildSegment),
 			zap.Bool("noneRemaining", noneRemaining),
 			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
 			zap.Int("totalEntries", totalEntries),
 			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
 			zap.String("remainingRanges", remainingRanges.SummaryString()),
 			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
 			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
+			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 		}
 
-		if noneRemaining || overlapsWithInitalIndexRange {
+		shouldPersistSegment := runOpts.PersistConfig().Enabled &&
+			(noneRemaining || overlapsWithInitalIndexRange)
+		if shouldPersistSegment {
 			s.log.Info("building file set index segment", buildIndexLogFields...)
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
@@ -660,7 +663,6 @@ func (s *fileSystemSource) read(
 	// hence why its created on demand each time.
 	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
 	readersCh := make(chan bootstrapper.TimeWindowReaders)
-	shouldPersistIndexBootstrap := run == bootstrapIndexRunType && s.shouldPersist(runOpts)
 	var blockSize time.Duration
 	switch run {
 	case bootstrapDataRunType:
@@ -672,7 +674,7 @@ func (s *fileSystemSource) read(
 	}
 	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
 	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
-		readerPool, readersCh, shouldPersistIndexBootstrap, blockSize, s.log)
+		readerPool, readersCh, blockSize, s.log)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh)
 
@@ -807,11 +809,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	return res, nil
-}
-
-func (s *fileSystemSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
-	persistConfig := runOpts.PersistConfig()
-	return persistConfig.Enabled && persistConfig.FileSetType == persist.FileSetFlushType
 }
 
 type runResult struct {

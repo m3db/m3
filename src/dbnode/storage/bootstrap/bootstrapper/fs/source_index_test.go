@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -491,6 +492,9 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	tester.EnsureNoWrites()
 }
 
+// TODO: Make this test actually exercise the case at the retention edge,
+// right now it only builds a partial segment for the second of three index
+// blocks it is trying to build.
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -504,17 +508,37 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
 	opts := newTestOptionsWithPersistManager(t, dir)
+
 	scope := tally.NewTestScope("", nil)
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+	opts = opts.
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	at := time.Now()
+	resultOpts := opts.ResultOptions()
+	clockOpts := resultOpts.ClockOptions().
+		SetNowFn(func() time.Time {
+			return at
+		})
+	opts = opts.SetResultOptions(resultOpts.SetClockOptions(clockOpts))
 
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 
+	retentionPeriod := testBlockSize
+	for {
+		// Make sure that retention is set to end half way through the first block
+		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, at)
+		if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
+			break
+		}
+		retentionPeriod += testBlockSize
+	}
+
 	ropts := testRetentionOptions.
 		SetBlockSize(testBlockSize).
-		SetRetentionPeriod(time.Duration(timesOpts.numBlocks) * testBlockSize)
+		SetRetentionPeriod(retentionPeriod)
 	ns, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
 		SetIndexOptions(testNamespaceIndexOptions.

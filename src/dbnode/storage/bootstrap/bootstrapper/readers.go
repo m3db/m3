@@ -67,7 +67,6 @@ func EnqueueReaders(
 	shardsTimeRanges result.ShardTimeRanges,
 	readerPool *ReaderPool,
 	readersCh chan<- TimeWindowReaders,
-	shouldPersistIndexBootstrap bool,
 	blockSize time.Duration,
 	logger *zap.Logger,
 ) {
