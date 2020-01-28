@@ -138,12 +138,16 @@ type blockMetrics struct {
 	foregroundCompactionTaskRunLatency tally.Timer
 	backgroundCompactionPlanRunLatency tally.Timer
 	backgroundCompactionTaskRunLatency tally.Timer
+	segmentFreeMmapSuccess             tally.Counter
+	segmentFreeMmapError               tally.Counter
+	segmentFreeMmapSkipNotImmutable    tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
 	s = s.SubScope("index").SubScope("block")
 	foregroundScope := s.Tagged(map[string]string{"compaction-type": "foreground"})
 	backgroundScope := s.Tagged(map[string]string{"compaction-type": "background"})
+	segmentFreeMmap := "segment-free-mmap"
 	return blockMetrics{
 		rotateActiveSegment:    s.Counter("rotate-active-segment"),
 		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
@@ -153,6 +157,16 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 		foregroundCompactionTaskRunLatency: foregroundScope.Timer("compaction-task-run-latency"),
 		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
 		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
+		segmentFreeMmapSuccess: s.Tagged(map[string]string{
+			"result": "success",
+		}).Counter(segmentFreeMmap),
+		segmentFreeMmapError: s.Tagged(map[string]string{
+			"result": "error",
+		}).Counter(segmentFreeMmap),
+		segmentFreeMmapSkipNotImmutable: s.Tagged(map[string]string{
+			"result":    "skip",
+			"skip_type": "not-immutable",
+		}).Counter(segmentFreeMmap),
 	}
 }
 
@@ -1204,9 +1218,9 @@ func (b *block) AddResults(
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
 		readThroughSeg := seg
-		if _, ok := seg.(segment.MutableSegment); !ok {
+		if immSeg, ok := seg.(segment.ImmutableSegment); ok {
 			// only wrap the immutable segments with a read through cache.
-			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
+			readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, readThroughSeg)
 	}
@@ -1272,12 +1286,20 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
-			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
-			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
-				if err := immSeg.FreeMmap(); err != nil {
-					multiErr = multiErr.Add(err)
-				}
+
+			immSeg, ok := seg.(segment.ImmutableSegment)
+			if !ok {
+				b.metrics.segmentFreeMmapSkipNotImmutable.Inc(1)
+				continue
 			}
+
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+			if err := immSeg.FreeMmap(); err != nil {
+				multiErr = multiErr.Add(err)
+				b.metrics.segmentFreeMmapError.Inc(1)
+				continue
+			}
+			b.metrics.segmentFreeMmapSuccess.Inc(1)
 		}
 	}
 

@@ -109,7 +109,7 @@ func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
 	docsIdxFile := NewMockIndexSegmentFile(ctrl)
 	docsIdxFile.EXPECT().SegmentFileType().Return(DocumentIndexIndexSegmentFileType)
 	docsIdxFile.EXPECT().Close()
-	docsIdxFile.EXPECT().Mmap().Return(nil, fmt.Errorf("random"))
+	docsIdxFile.EXPECT().Mmap().Return(mmap.Descriptor{}, fmt.Errorf("random"))
 
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile, docsIdxFile}).AnyTimes()
 
