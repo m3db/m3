@@ -2,6 +2,13 @@
   {
     "id": "a",
     "text": "a",
+    "leaf": 1,
+    "expandable": 0,
+    "allowChildren": 0
+  },
+  {
+    "id": "a",
+    "text": "a",
     "leaf": 0,
     "expandable": 1,
     "allowChildren": 1
