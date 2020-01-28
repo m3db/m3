@@ -597,6 +597,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#available-tuning-params" title="Available Tuning Params" class="md-nav__link">
+    Available Tuning Params
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sample-call" title="Sample Call" class="md-nav__link">
     Sample Call
   </a>
@@ -1415,6 +1422,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#available-tuning-params" title="Available Tuning Params" class="md-nav__link">
+    Available Tuning Params
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sample-call" title="Sample Call" class="md-nav__link">
     Sample Call
   </a>
@@ -1532,6 +1546,8 @@ Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integrati
 </ul>
 <h3 id="data-params">Data Params</h3>
 <p>Binary <a href="http://google.github.io/snappy/">snappy compressed</a> Prometheus <a href="https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L22-L24">WriteRequest protobuf message</a>.</p>
+<h3 id="available-tuning-params">Available Tuning Params</h3>
+<p>Refer <a href="https://prometheus.io/docs/practices/remote_write/">here</a> for an up to date list of remote tuning parameters. </p>
 <h3 id="sample-call">Sample Call</h3>
 <p>There isn't a straightforward way to Snappy compress and marshal a Prometheus WriteRequest protobuf message using just shell, so this example uses a specific command line utility instead. </p>
 <p>This sample call is made using <code>promremotecli</code> which is a command line tool that uses a <a href="https://github.com/m3db/prometheus_remote_client_golang">Go client</a> to Prometheus Remote endpoints. For more information visit the <a href="https://github.com/m3db/prometheus_remote_client_golang">GitHub repository</a>.</p>
