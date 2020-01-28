@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
@@ -311,14 +312,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	readerPool *bootstrapper.ReaderPool,
 ) {
 	var (
-		blockPool         = ropts.DatabaseBlockOptions().DatabaseBlockPool()
-		seriesCachePolicy = ropts.SeriesCachePolicy()
-		indexBuilder      *result.IndexBuilder
-		timesWithErrors   []time.Time
-		nsCtx             = namespace.NewContextFrom(ns)
-		docsPool          = s.opts.IndexOptions().DocumentArrayPool()
-		batch             = docsPool.Get()
-		totalEntries      int
+		blockPool            = ropts.DatabaseBlockOptions().DatabaseBlockPool()
+		seriesCachePolicy    = ropts.SeriesCachePolicy()
+		indexBuilder         *result.IndexBuilder
+		timesWithErrors      []time.Time
+		nsCtx                = namespace.NewContextFrom(ns)
+		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
+		batch                = docsPool.Get()
+		totalEntries         int
+		totalFulfilledRanges = result.ShardTimeRanges{}
 	)
 	defer docsPool.Put(batch)
 
@@ -413,9 +415,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 
 			if err == nil {
-				remainingRanges.Subtract(result.ShardTimeRanges{
+				fulfilled := result.ShardTimeRanges{
 					shard: xtime.Ranges{}.AddRange(timeRange),
-				})
+				}
+				totalFulfilledRanges.AddRanges(fulfilled)
+				remainingRanges.Subtract(fulfilled)
 			} else {
 				s.log.Error(err.Error(),
 					zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
@@ -425,19 +429,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 
 	var (
-		shouldPersist = s.shouldPersist(runOpts)
-		noneRemaining = remainingRanges.IsEmpty()
+		noneRemaining      = remainingRanges.IsEmpty()
+		shouldBuildSegment = run == bootstrapIndexRunType &&
+			len(timesWithErrors) == 0
 	)
-	if run == bootstrapIndexRunType &&
-		shouldPersist &&
-		len(timesWithErrors) == 0 {
+	if shouldBuildSegment {
 		var (
 			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
 			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
-			beginningOfIndexRetention = time.Now().
-							Truncate(indexBlockSize).
-							Add(-retentionPeriod).
-							Truncate(indexBlockSize)
+			nowFn                     = s.opts.ResultOptions().ClockOptions().NowFn()
+			beginningOfIndexRetention = retention.FlushTimeStartForRetentionPeriod(
+				retentionPeriod, indexBlockSize, nowFn())
 			initialIndexRange = xtime.Range{
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
@@ -452,15 +454,29 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 		}
 
+		remainingMin, remainingMax := remainingRanges.MinMax()
+		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
 		buildIndexLogFields := []zapcore.Field{
 			zap.Stringer("namespace", ns.ID()),
-			zap.Bool("shouldPersist", shouldPersist),
+			zap.Bool("shouldBuildSegment", shouldBuildSegment),
+			zap.Bool("noneRemaining", noneRemaining),
+			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
 			zap.Int("totalEntries", totalEntries),
-			zap.String("requestedRanges", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
 			zap.String("remainingRanges", remainingRanges.SummaryString()),
+			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
+			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
+			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 		}
 
-		if noneRemaining || overlapsWithInitalIndexRange {
+		// Determine if should flush data for range.
+		persistCfg := runOpts.PersistConfig()
+		shouldFlush := persistCfg.Enabled &&
+			persistCfg.FileSetType == persist.FileSetFlushType
+		// Determine all requested ranges were fulfilled or at edge of retention
+		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+		if shouldFlush && satisifiedFlushRanges {
 			s.log.Info("building file set index segment", buildIndexLogFields...)
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
@@ -480,10 +496,24 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			// Track success.
 			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
-			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
-				l.Error("fs index bootstrap invariant violated, unfulfilled data range",
-					buildIndexLogFields...)
-			})
+			s.log.Info("building in-memory index segment", buildIndexLogFields...)
+			if err := bootstrapper.BuildBootstrapIndexSegment(
+				ns,
+				requestedRanges,
+				runResult.index.IndexResults(),
+				runResult.builders,
+				s.compactor,
+				s.opts.ResultOptions(),
+				s.opts.FilesystemOptions().MmapReporter(),
+			); err != nil {
+				iopts := s.opts.ResultOptions().InstrumentOptions()
+				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+					l.Error("build fs index bootstrap failed",
+						zap.Error(err),
+						zap.Stringer("namespace", ns.ID()),
+						zap.Stringer("requestedRanges", requestedRanges))
+				})
+			}
 		}
 	}
 
@@ -637,7 +667,6 @@ func (s *fileSystemSource) read(
 	// hence why its created on demand each time.
 	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
 	readersCh := make(chan bootstrapper.TimeWindowReaders)
-	shouldPersistIndexBootstrap := run == bootstrapIndexRunType && s.shouldPersist(runOpts)
 	var blockSize time.Duration
 	switch run {
 	case bootstrapDataRunType:
@@ -649,7 +678,7 @@ func (s *fileSystemSource) read(
 	}
 	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
 	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
-		readerPool, readersCh, shouldPersistIndexBootstrap, blockSize, s.log)
+		readerPool, readersCh, blockSize, s.log)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh)
 
@@ -784,11 +813,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	return res, nil
-}
-
-func (s *fileSystemSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
-	persistConfig := runOpts.PersistConfig()
-	return persistConfig.Enabled && persistConfig.FileSetType == persist.FileSetFlushType
 }
 
 type runResult struct {

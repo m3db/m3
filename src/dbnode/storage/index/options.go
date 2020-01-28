@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -120,6 +121,7 @@ type opts struct {
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
+	mmapReporter                    mmap.Reporter
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -401,4 +403,14 @@ func (o *opts) SetForwardIndexThreshold(value float64) Options {
 
 func (o *opts) ForwardIndexThreshold() float64 {
 	return o.forwardIndexThreshold
+}
+
+func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *opts) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
 }

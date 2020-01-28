@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/mmap"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -38,6 +39,10 @@ var (
 	errIndexBuilderNotFound = func(blockStart time.Time) error {
 		return fmt.Errorf("did not find index builder for blocksStart: %d", blockStart.Unix())
 	}
+)
+
+const (
+	mmapBootstrapIndexName = "mmap.bootstrap.index"
 )
 
 // SharedPersistManager is a lockable persist manager that's safe to be shared across threads.
@@ -223,6 +228,7 @@ func BuildBootstrapIndexSegment(
 	indexBuilders *result.IndexBuilders,
 	compactor *SharedCompactor,
 	resultOpts result.Options,
+	mmapReporter mmap.Reporter,
 ) error {
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
@@ -285,7 +291,12 @@ func BuildBootstrapIndexSegment(
 
 	compactor.Lock()
 	defer compactor.Unlock()
-	seg, err := compactor.Compactor.CompactUsingBuilder(b.Builder(), nil)
+	seg, err := compactor.Compactor.CompactUsingBuilder(b.Builder(), nil, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: mmapBootstrapIndexName,
+		},
+		Reporter: mmapReporter,
+	})
 	if err != nil {
 		return err
 	}

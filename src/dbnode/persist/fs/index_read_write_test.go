@@ -246,9 +246,9 @@ func readTestIndexSegments(
 			assert.Equal(t, expected.data, actualData)
 
 			// Assert bytes data (should be mmap'd byte slice) is also correct
-			directBytesData, err := actual.Bytes()
+			directData, err := actual.Mmap()
 			require.NoError(t, err)
-			assert.True(t, bytes.Equal(expected.data, directBytesData))
+			assert.True(t, bytes.Equal(expected.data, directData.Bytes))
 
 			err = actual.Close()
 			require.NoError(t, err)

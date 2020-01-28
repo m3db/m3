@@ -648,16 +648,15 @@ func (s *peersSource) readIndex(
 				return fs.NewReader(bytesPool, fsOpts)
 			},
 		})
-		resultLock                  = &sync.Mutex{}
-		readersCh                   = make(chan bootstrapper.TimeWindowReaders)
-		shouldPersistIndexBootstrap = true
+		resultLock = &sync.Mutex{}
+		readersCh  = make(chan bootstrapper.TimeWindowReaders)
 	)
 	s.log.Info("peers bootstrapper bootstrapping index for ranges",
 		zap.Int("shards", count),
 	)
 
 	go bootstrapper.EnqueueReaders(ns, opts, runtimeOpts, fsOpts, shardsTimeRanges, readerPool,
-		readersCh, shouldPersistIndexBootstrap, indexBlockSize, s.log)
+		readersCh, indexBlockSize, s.log)
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): This is fetching the data for all shards for a block of time.
@@ -817,6 +816,7 @@ func (s *peersSource) processReaders(
 			builders,
 			s.compactor,
 			s.opts.ResultOptions(),
+			s.opts.IndexOptions().MmapReporter(),
 		); err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {

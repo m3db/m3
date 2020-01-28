@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -71,6 +72,8 @@ func newTestBootstrapIndexTimes(
 	case 3:
 		end = at.Truncate(testIndexBlockSize)
 		start = end.Add(time.Duration(-1*opts.numBlocks) * testBlockSize)
+	default:
+		panic("unexpected")
 	}
 
 	shardTimeRanges := map[uint32]xtime.Ranges{
@@ -309,33 +312,11 @@ func TestBootstrapIndex(t *testing.T) {
 
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
-	src := newFileSystemSource(newTestOptions(t, dir))
-	nsMD := testNsMetadata(t)
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
-		times.shardTimeRanges, nsMD)
-	defer tester.Finish()
-
-	tester.TestReadWith(src)
-	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
-	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
-	tester.EnsureNoWrites()
-}
-
-func TestBootstrapIndexWithPersist(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
-
-	timesOpts := testTimesOptions{
-		numBlocks: 2,
-	}
-	times := newTestBootstrapIndexTimes(timesOpts)
-
-	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
-
 	opts := newTestOptionsWithPersistManager(t, dir)
 	scope := tally.NewTestScope("", nil)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
+	// Should always be run with persist enabled.
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
@@ -511,6 +492,9 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	tester.EnsureNoWrites()
 }
 
+// TODO: Make this test actually exercise the case at the retention edge,
+// right now it only builds a partial segment for the second of three index
+// blocks it is trying to build.
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -524,17 +508,37 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
 	opts := newTestOptionsWithPersistManager(t, dir)
+
 	scope := tally.NewTestScope("", nil)
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+	opts = opts.
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	at := time.Now()
+	resultOpts := opts.ResultOptions()
+	clockOpts := resultOpts.ClockOptions().
+		SetNowFn(func() time.Time {
+			return at
+		})
+	opts = opts.SetResultOptions(resultOpts.SetClockOptions(clockOpts))
 
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 
+	retentionPeriod := testBlockSize
+	for {
+		// Make sure that retention is set to end half way through the first block
+		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, at)
+		if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
+			break
+		}
+		retentionPeriod += testBlockSize
+	}
+
 	ropts := testRetentionOptions.
 		SetBlockSize(testBlockSize).
-		SetRetentionPeriod(time.Duration(timesOpts.numBlocks) * testBlockSize)
+		SetRetentionPeriod(retentionPeriod)
 	ns, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
 		SetIndexOptions(testNamespaceIndexOptions.

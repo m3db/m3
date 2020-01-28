@@ -43,6 +43,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -84,6 +85,8 @@ const (
 	defaultAggregateResultsEntryBatchSize = 256
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
+
+	mmapIndexBlockName = "mmap.index.block"
 )
 
 func (s blockState) String() string {
@@ -135,12 +138,16 @@ type blockMetrics struct {
 	foregroundCompactionTaskRunLatency tally.Timer
 	backgroundCompactionPlanRunLatency tally.Timer
 	backgroundCompactionTaskRunLatency tally.Timer
+	segmentFreeMmapSuccess             tally.Counter
+	segmentFreeMmapError               tally.Counter
+	segmentFreeMmapSkipNotImmutable    tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
 	s = s.SubScope("index").SubScope("block")
 	foregroundScope := s.Tagged(map[string]string{"compaction-type": "foreground"})
 	backgroundScope := s.Tagged(map[string]string{"compaction-type": "background"})
+	segmentFreeMmap := "segment-free-mmap"
 	return blockMetrics{
 		rotateActiveSegment:    s.Counter("rotate-active-segment"),
 		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
@@ -150,6 +157,16 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 		foregroundCompactionTaskRunLatency: foregroundScope.Timer("compaction-task-run-latency"),
 		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
 		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
+		segmentFreeMmapSuccess: s.Tagged(map[string]string{
+			"result": "success",
+		}).Counter(segmentFreeMmap),
+		segmentFreeMmapError: s.Tagged(map[string]string{
+			"result": "error",
+		}).Counter(segmentFreeMmap),
+		segmentFreeMmapSkipNotImmutable: s.Tagged(map[string]string{
+			"result":    "skip",
+			"skip_type": "not-immutable",
+		}).Counter(segmentFreeMmap),
 	}
 }
 
@@ -344,7 +361,12 @@ func (b *block) backgroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.compact.backgroundCompactor.Compact(segments)
+	compacted, err := b.compact.backgroundCompactor.Compact(segments, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: mmapIndexBlockName,
+		},
+		Reporter: b.opts.MmapReporter(),
+	})
 	took := time.Since(start)
 	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
 
@@ -642,7 +664,12 @@ func (b *block) foregroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments)
+	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: mmapIndexBlockName,
+		},
+		Reporter: b.opts.MmapReporter(),
+	})
 	took := time.Since(start)
 	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
 
@@ -1191,9 +1218,9 @@ func (b *block) AddResults(
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
 		readThroughSeg := seg
-		if _, ok := seg.(segment.MutableSegment); !ok {
+		if immSeg, ok := seg.(segment.ImmutableSegment); ok {
 			// only wrap the immutable segments with a read through cache.
-			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
+			readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, readThroughSeg)
 	}
@@ -1259,12 +1286,20 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
-			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
-			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
-				if err := immSeg.FreeMmap(); err != nil {
-					multiErr = multiErr.Add(err)
-				}
+
+			immSeg, ok := seg.(segment.ImmutableSegment)
+			if !ok {
+				b.metrics.segmentFreeMmapSkipNotImmutable.Inc(1)
+				continue
 			}
+
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+			if err := immSeg.FreeMmap(); err != nil {
+				multiErr = multiErr.Add(err)
+				b.metrics.segmentFreeMmapError.Inc(1)
+				continue
+			}
+			b.metrics.segmentFreeMmapSuccess.Inc(1)
 		}
 	}
 
