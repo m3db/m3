@@ -3,6 +3,7 @@ package placements
 import (
 	"flag"
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
@@ -21,31 +22,45 @@ type PlacementArgs struct {
 	replaceFlag     configflag.FlagStringSlice
 }
 
-type PlacementFlags struct {
-	Placement     *flag.FlagSet
-	placementDoer func(*PlacementArgs, string)
-	Delete        *flag.FlagSet
-	deleteDoer    func(*PlacementArgs, string)
-	Add           *flag.FlagSet
-	addDoer       func(*PlacementArgs, string)
-	Init          *flag.FlagSet
-	initDoer      func(*PlacementArgs, string)
-	Replace       *flag.FlagSet
-	replaceDoer   func(*PlacementArgs, string)
+type XFlagSet struct {
+	Flagset *flag.FlagSet
 }
+type XPlacementFlags struct {
+	//Args      *PlacementArgs
+	finalArgs *PlacementArgs
+	Globals   []string
+	Placement *flag.FlagSet
+	Add       *flag.FlagSet
+	Delete    *flag.FlagSet
+	Init      *flag.FlagSet
+	Replace   *flag.FlagSet
+}
+//type PlacementFlags struct {
+//	Placement     *flag.FlagSet
+//	placementDoer func(*PlacementArgs, string)
+//	Delete        *flag.FlagSet
+//	deleteDoer    func(*PlacementArgs, string)
+//	Add           *flag.FlagSet
+//	addDoer       func(*PlacementArgs, string)
+//	Init          *flag.FlagSet
+//	initDoer      func(*PlacementArgs, string)
+//	Replace       *flag.FlagSet
+//	replaceDoer   func(*PlacementArgs, string)
+//}
 
-func SetupFlags(flags *PlacementArgs) PlacementFlags {
+//func SetupFlags(flags *PlacementArgs) PlacementFlags {
+func SetupFlags(finalArgs *PlacementArgs) XPlacementFlags {
 	placementFlags := flag.NewFlagSet("pl", flag.ExitOnError)
 	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
 	addFlags := flag.NewFlagSet("add", flag.ExitOnError)
 	initFlags := flag.NewFlagSet("init", flag.ExitOnError)
 	replaceFlags := flag.NewFlagSet("replace", flag.ExitOnError)
 
-	flags.deletePlacement = deleteFlags.Bool("all", false, "delete the entire placement")
-	flags.deleteNode = deleteFlags.String("node", "", "delete the specified node in the placement")
-	initFlags.Var(&flags.initFlag, "f", "initialize a placement. Specify a yaml file.")
-	addFlags.Var(&flags.newNodeFlag, "f", "add a new node to the placement. Specify the filename of the yaml.")
-	replaceFlags.Var(&flags.replaceFlag, "f", "add a new node to the placement. Specify the filename of the yaml.")
+	finalArgs.deletePlacement = deleteFlags.Bool("all", false, "delete the entire placement")
+	finalArgs.deleteNode = deleteFlags.String("node", "", "delete the specified node in the placement")
+	initFlags.Var(&finalArgs.initFlag, "f", "initialize a placement. Specify a yaml file.")
+	addFlags.Var(&finalArgs.newNodeFlag, "f", "add a new node to the placement. Specify the filename of the yaml.")
+	replaceFlags.Var(&finalArgs.replaceFlag, "f", "add a new node to the placement. Specify the filename of the yaml.")
 	placementFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
 "%s" is for acting on placements.
@@ -80,92 +95,85 @@ Usage of %s:
 `, placementFlags.Name(), placementFlags.Name(), deleteFlags.Name(), addFlags.Name(), initFlags.Name(), replaceFlags.Name(), placementFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	return PlacementFlags{
-		Placement:     placementFlags,
-		placementDoer: Get,
-		Delete:        deleteFlags,
-		deleteDoer:    Delete,
-		Add:           addFlags,
-		addDoer:       Add,
-		Init:          initFlags,
-		initDoer:      Init,
-		Replace:       replaceFlags,
-		replaceDoer:   Replace,
+	//return PlacementFlags{
+	//	Placement:     placementFlags,
+	//	placementDoer: Get,
+	//	Delete:        deleteFlags,
+	//	deleteDoer:    Delete,
+	//	Add:           addFlags,
+	//	addDoer:       Add,
+	//	Init:          initFlags,
+	//	initDoer:      Init,
+	//	Replace:       replaceFlags,
+	//	replaceDoer:   Replace,
+	//}
+	return XPlacementFlags{
+		//Args:      nil,
+		finalArgs: finalArgs,
+		Globals:   nil,
+		Placement: placementFlags,
+		Add:       addFlags,
+		Delete:    deleteFlags,
+		Init:      initFlags,
+		Replace:   replaceFlags,
 	}
 }
 
-func ParseAndDo(args *PlacementArgs, flags *PlacementFlags, ep string) {
-	originalArgs := flag.Args()
+func (xflags XPlacementFlags) ParseAndDo(cli []string, args *PlacementArgs, ep string) {
+	//originalArgs := flag.Args()
 	// right here args should be like "ns delete -name someName"
-	if len(originalArgs) < 1 {
-		flags.Placement.Usage()
+	if len(cli) < 1 {
+		xflags.Placement.Usage()
 		os.Exit(1)
 	}
 	// pop and parse
-	if err := parseAndDo(originalArgs[1:], args, flags, ep); err != nil {
+	if err := dispatcher(cli[1:], xflags, ep); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
 }
 
-func parseAndDo(args []string, finalArgs *PlacementArgs, flags *PlacementFlags, ep string) error {
-	if err := flags.Placement.Parse(args); err != nil {
-		flags.Placement.Usage()
+func dispatcher(inArgs []string, xflags XPlacementFlags, ep string) error {
+	if err := xflags.Placement.Parse(inArgs); err != nil {
+		xflags.Placement.Usage()
 		return &errors.FlagsError{}
 	}
-	if flags.Placement.NArg() == 0 {
-		flags.placementDoer(finalArgs, ep)
+	if xflags.Placement.NArg() == 0 {
+		xflags.xget(ep)
 		return nil
 	}
-	nextArgs := flags.Placement.Args()
+	//if err := checkArgs.CheckPerCase(inArgs, xflags.Placement); err != nil {
+	//	return err
+	//}
+	nextArgs := xflags.Placement.Args()
 	switch nextArgs[0] {
-	case flags.Add.Name():
-		if err := flags.Add.Parse(nextArgs[1:]); err != nil {
-			flags.Add.Usage()
-			return &errors.FlagsError{}
+	case xflags.Add.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Add); err != nil {
+			return err
 		}
-		if flags.Add.NFlag() == 0 {
-			flags.Add.Usage()
-			return &errors.FlagsError{}
-		}
-		flags.addDoer(finalArgs, ep)
+		xflags.add(ep)
 		return nil
-	case flags.Delete.Name():
-		if err := flags.Delete.Parse(nextArgs[1:]); err != nil {
-			flags.Delete.Usage()
-			return &errors.FlagsError{}
+	case xflags.Delete.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Delete); err != nil {
+			return err
 		}
-		if flags.Delete.NFlag() == 0 {
-			flags.Delete.Usage()
-			return &errors.FlagsError{}
-		}
-		flags.deleteDoer(finalArgs, ep)
+		xflags.delete(ep)
 		return nil
-	case flags.Init.Name():
-		if err := flags.Init.Parse(nextArgs[1:]); err != nil {
-			flags.Init.Usage()
-			return &errors.FlagsError{}
+	case xflags.Init.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Init); err != nil {
+			return err
 		}
-		if flags.Init.NFlag() == 0 {
-			flags.Init.Usage()
-			return &errors.FlagsError{}
-		}
-		flags.initDoer(finalArgs, ep)
+		xflags.xinit(ep)
 		return nil
-	case flags.Replace.Name():
-		if err := flags.Replace.Parse(nextArgs[1:]); err != nil {
-			flags.Replace.Usage()
-			return &errors.FlagsError{}
+	case xflags.Replace.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Replace); err != nil {
+			return err
 		}
-		if flags.Replace.NFlag() == 0 {
-			flags.Replace.Usage()
-			return &errors.FlagsError{}
-		}
-		flags.replaceDoer(finalArgs, ep)
+		xflags.replace(ep)
 		return nil
 	case "":
-		flags.placementDoer(finalArgs, ep)
+		xflags.xget(ep)
 		return nil
 	default:
 		return &errors.FlagsError{}

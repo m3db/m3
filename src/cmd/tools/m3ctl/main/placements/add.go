@@ -9,9 +9,9 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
-func Add(flags *PlacementArgs, endpoint string) {
-	log.Printf("PlacementArgs:%+v:\n", flags)
-	data := yaml.Load(flags.newNodeFlag.Value[0], &admin.PlacementInitRequest{})
+func (s XPlacementFlags) add(endpoint string) {
+	log.Printf("PlacementArgs:%+v:\n", s.finalArgs)
+	data := yaml.Load(s.finalArgs.newNodeFlag.Value[0], &admin.PlacementInitRequest{})
 	url := fmt.Sprintf("%s%s", endpoint, defaultPath)
 	client.DoPost(url, data, client.DoDump)
 	return

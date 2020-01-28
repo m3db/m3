@@ -64,6 +64,7 @@ Usage of %s:
 Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], databaseFlagSets.Database.Name(),
+			//placementFlagSets.Placement.Name(),
 			placementFlagSets.Placement.Name(),
 			namespaceFlagSets.Namespace.Name())
 
@@ -83,7 +84,7 @@ Each subcommand has its own built-in help provided via "-h".
 	case namespaceFlagSets.Namespace.Name():
 		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
 	case placementFlagSets.Placement.Name():
-		placements.ParseAndDo(&placementArgs, &placementFlagSets, *endPoint)
+		placementFlagSets.ParseAndDo(flag.Args(), &placementArgs, *endPoint)
 	default:
 		flag.Usage()
 		os.Exit(1)
