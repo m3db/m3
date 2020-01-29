@@ -26,30 +26,37 @@ type XFlagSet struct {
 	Flagset *flag.FlagSet
 }
 type XPlacementFlags struct {
-	//Args      *PlacementArgs
-	finalArgs *PlacementArgs
-	Globals   []string
+	Args      *PlacementArgs
+	finalArgs placementHandler
+	//Globals   []string
 	Placement *flag.FlagSet
 	Add       *flag.FlagSet
 	Delete    *flag.FlagSet
 	Init      *flag.FlagSet
 	Replace   *flag.FlagSet
 }
-//type PlacementFlags struct {
-//	Placement     *flag.FlagSet
-//	placementDoer func(*PlacementArgs, string)
-//	Delete        *flag.FlagSet
-//	deleteDoer    func(*PlacementArgs, string)
-//	Add           *flag.FlagSet
-//	addDoer       func(*PlacementArgs, string)
-//	Init          *flag.FlagSet
-//	initDoer      func(*PlacementArgs, string)
-//	Replace       *flag.FlagSet
-//	replaceDoer   func(*PlacementArgs, string)
-//}
+type placementHandler struct {
+	add func(PlacementArgs, string)
+	delete func(PlacementArgs, string)
+	xget func(PlacementArgs, string)
+	xinit func(PlacementArgs, string)
+	replace func(PlacementArgs, string)
+}
 
-//func SetupFlags(flags *PlacementArgs) PlacementFlags {
-func SetupFlags(finalArgs *PlacementArgs) XPlacementFlags {
+func SetupFlags() XPlacementFlags {
+	return _setupFlags(
+		&PlacementArgs{},
+		placementHandler{
+			add:     xadd,
+			delete:  xdelete,
+			xget:    xget,
+			xinit:   xinit,
+			replace: xreplace,
+		},
+	)
+}
+func _setupFlags(finalArgs *PlacementArgs, handler placementHandler) XPlacementFlags {
+
 	placementFlags := flag.NewFlagSet("pl", flag.ExitOnError)
 	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
 	addFlags := flag.NewFlagSet("add", flag.ExitOnError)
@@ -90,27 +97,13 @@ It has the following subcommands:
 	%s
 	%s
 
-Usage of %s:
-
-`, placementFlags.Name(), placementFlags.Name(), deleteFlags.Name(), addFlags.Name(), initFlags.Name(), replaceFlags.Name(), placementFlags.Name())
+`, placementFlags.Name(), placementFlags.Name(), deleteFlags.Name(), addFlags.Name(), initFlags.Name(), replaceFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	//return PlacementFlags{
-	//	Placement:     placementFlags,
-	//	placementDoer: Get,
-	//	Delete:        deleteFlags,
-	//	deleteDoer:    Delete,
-	//	Add:           addFlags,
-	//	addDoer:       Add,
-	//	Init:          initFlags,
-	//	initDoer:      Init,
-	//	Replace:       replaceFlags,
-	//	replaceDoer:   Replace,
-	//}
 	return XPlacementFlags{
-		//Args:      nil,
-		finalArgs: finalArgs,
-		Globals:   nil,
+		Args: finalArgs,
+		finalArgs: handler,
+		//Globals:   nil,
 		Placement: placementFlags,
 		Add:       addFlags,
 		Delete:    deleteFlags,
@@ -119,9 +112,8 @@ Usage of %s:
 	}
 }
 
-func (xflags XPlacementFlags) ParseAndDo(cli []string, args *PlacementArgs, ep string) {
-	//originalArgs := flag.Args()
-	// right here args should be like "ns delete -name someName"
+func (xflags XPlacementFlags) ParseAndDo(cli []string, ep string) {
+	// right here args should be like "pl delete -node someName"
 	if len(cli) < 1 {
 		xflags.Placement.Usage()
 		os.Exit(1)
@@ -140,40 +132,37 @@ func dispatcher(inArgs []string, xflags XPlacementFlags, ep string) error {
 		return &errors.FlagsError{}
 	}
 	if xflags.Placement.NArg() == 0 {
-		xflags.xget(ep)
+		xflags.finalArgs.xget(*xflags.Args, ep)
 		return nil
 	}
-	//if err := checkArgs.CheckPerCase(inArgs, xflags.Placement); err != nil {
-	//	return err
-	//}
 	nextArgs := xflags.Placement.Args()
 	switch nextArgs[0] {
 	case xflags.Add.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Add); err != nil {
 			return err
 		}
-		xflags.add(ep)
+		xflags.finalArgs.add(*xflags.Args, ep)
 		return nil
 	case xflags.Delete.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Delete); err != nil {
 			return err
 		}
-		xflags.delete(ep)
+		xflags.finalArgs.delete(*xflags.Args, ep)
 		return nil
 	case xflags.Init.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Init); err != nil {
 			return err
 		}
-		xflags.xinit(ep)
+		xflags.finalArgs.xinit(*xflags.Args, ep)
 		return nil
 	case xflags.Replace.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Replace); err != nil {
 			return err
 		}
-		xflags.replace(ep)
+		xflags.finalArgs.replace(*xflags.Args, ep)
 		return nil
 	case "":
-		xflags.xget(ep)
+		xflags.finalArgs.xget(*xflags.Args, ep)
 		return nil
 	default:
 		return &errors.FlagsError{}

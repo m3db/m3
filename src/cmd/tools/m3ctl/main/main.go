@@ -49,8 +49,9 @@ func main() {
 	namespaceFlagSets := namespaces.SetupFlags(&namespaceArgs)
 
 	// the placement-related subcommand
-	placementArgs := placements.PlacementArgs{}
-	placementFlagSets := placements.SetupFlags(&placementArgs)
+	//placementArgs := placements.PlacementArgs{}
+	//placementFlagSets := placements.SetupFlags(&placementArgs)
+	placementFlagSets := placements.SetupFlags()
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
 Usage of %s:
@@ -84,7 +85,8 @@ Each subcommand has its own built-in help provided via "-h".
 	case namespaceFlagSets.Namespace.Name():
 		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
 	case placementFlagSets.Placement.Name():
-		placementFlagSets.ParseAndDo(flag.Args(), &placementArgs, *endPoint)
+		//placementFlagSets.ParseAndDo(flag.Args(), &placementArgs, *endPoint)
+		placementFlagSets.ParseAndDo(flag.Args(), *endPoint)
 	default:
 		flag.Usage()
 		os.Exit(1)
