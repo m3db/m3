@@ -25,8 +25,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -93,6 +93,11 @@ func (h *SetHandler) ServeHTTP(
 	}
 
 	curPlacement, err := service.Placement()
+	if err == kv.ErrNotFound {
+		logger.Error("placement not found", zap.Any("req", req), zap.Error(err))
+		xhttp.Error(w, err, http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		logger.Error("unable to get current placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
