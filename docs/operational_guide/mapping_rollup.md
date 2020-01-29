@@ -35,8 +35,8 @@ Similarly, the `nginx metrics` rule will apply to all metrics where the `app` ta
 
 The `aggregations` field determines what functions to apply to the datapoints within a 
 resolution tile. For example, if an application emits a metric every `10sec` and the resolution
-for that metrics's storage policy is `1min`, M3 will need to combine 6 datapoints. 
-The `aggregations` field determines how to combine those datapoints. `aggregations` can be one 
+for that metrics's storage policy is `1min`, M3 will need to combine 6 datapoints. If the `aggregations`
+policy is `Last`, M3 will take the last value in that `1min` bucket. `aggregations` can be one 
 of the following:
 
 ```
