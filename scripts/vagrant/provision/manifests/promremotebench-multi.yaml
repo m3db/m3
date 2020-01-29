@@ -18,6 +18,10 @@ spec:
       containers:
       - name: promremotebench
         image: quay.io/m3db/promremotebench:latest
+        ports:
+          - name: debug
+            containerPort: 7203
+            protocol: TCP
         env:
         - name: PROMREMOTEBENCH_TARGET
           value: "M3COORDINATOR_WRITE_TARGETS"

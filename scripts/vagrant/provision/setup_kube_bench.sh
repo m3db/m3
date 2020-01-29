@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 
 set -xe
 
@@ -9,11 +9,11 @@ set -xe
 # - curl
 # - jq
 
-if [[ "$M3COORDINATOR_PRIMARY_IP" == "" ]]; then 
+if [[ "$M3COORDINATOR_PRIMARY_IP" == "" ]]; then
     echo "M3COORDINATOR_PRIMARY_IP env var not set"
     exit 1
 fi
-if [[ "$M3COORDINATOR_SECONDARY_IP" == "" ]]; then 
+if [[ "$M3COORDINATOR_SECONDARY_IP" == "" ]]; then
     echo "M3COORDINATOR_SECONDARY_IP env var not set"
     exit 1
 fi
@@ -23,6 +23,26 @@ kind create cluster
 
 # Use correct kubeconfig
 export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
+
+# Deploy monitoring with Prometheus
+# Promethues Operator
+kubectl apply -f ./manifests/prometheus-operator.yaml
+
+# Manifests for Operator (prom, grafana, etc)
+set +x
+echo "Applying Prometheus operator manifests"
+while true; do
+    if kubectl apply -f ./manifests/kube-prometheus; then
+        printf "\n"
+        break
+    fi
+    sleep 2
+    printf "."
+done
+set -x
+
+# ServiceMonitor CRD for Promremotebench monitoring
+kubectl apply -f ./manifests/prometheus-servicemonitor-promremotebench.yaml
 
 # Populate m3ccord primary/secondary IPs
 M3COORDINATOR_PRIMARY_WRITE_ADDR="http:\/\/$M3COORDINATOR_PRIMARY_IP:7201\/api\/v1\/prom\/remote\/write"
