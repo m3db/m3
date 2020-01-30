@@ -188,11 +188,26 @@ func (ii *ingestIterator) Next() bool {
 	return false
 }
 
+func copyTagsWithNewName(t models.Tags, name []byte) models.Tags {
+	copiedTags := make([]models.Tag, t.Len())
+	metricName := t.Opts.MetricName()
+	nameHandled := false
+	for i, tag := range t.Tags {
+		if !nameHandled && bytes.Equal(tag.Name, metricName) {
+			copiedTags[i] = models.Tag{Name: metricName, Value: name}
+			nameHandled = true
+		} else {
+			copiedTags[i] = tag
+		}
+	}
+	return models.Tags{Tags: copiedTags, Opts: t.Opts}
+}
+
 func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
 	if ii.pointIndex < len(ii.points) && ii.nextFieldIndex > 0 && len(ii.fields) > (ii.nextFieldIndex-1) {
 		point := ii.points[ii.pointIndex]
 		field := ii.fields[ii.nextFieldIndex-1]
-		tags := ii.tags.SetName(field.name)
+		tags := copyTagsWithNewName(ii.tags, field.name)
 
 		return tags, []ts.Datapoint{ts.Datapoint{Timestamp: point.Time(),
 			Value: field.value}}, xtime.Nanosecond, nil
