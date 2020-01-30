@@ -8,7 +8,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
-func xreplace(s PlacementArgs, endpoint string) {
+func xreplace(s placementArgs, endpoint string) {
 	data := yaml.Load(s.replaceFlag.Value[0], &admin.PlacementReplaceRequest{})
 	url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/replace")
 	client.DoPost(url, data, client.DoDump)

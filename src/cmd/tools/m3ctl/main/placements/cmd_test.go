@@ -4,11 +4,11 @@ import (
 	"testing"
 )
 
-func stub1(s PlacementArgs, endpoint string) { return }
+func stub1(placementArgs, string) { return }
 
-func makeStub() XPlacementFlags {
+func makeStub() Context {
 	return _setupFlags(
-		&PlacementArgs{},
+		&placementArgs{},
 		placementHandler{
 			add:     stub1,
 			delete:  stub1,
@@ -20,41 +20,69 @@ func makeStub() XPlacementFlags {
 }
 func TestBasic(t *testing.T) {
 
-	// default is to list placements
-	// so no args is OK
-	flags := makeStub()
-	if err := dispatcher([]string{}, flags, "http://localhost:13013"); err != nil {
-		t.Error("It should not return error no args")
+	testData := []struct {
+		args []string
+		ep string
+		msg string
+		successCondition func(error) bool
+	}{
+		{
+			// no args not even pl
+			args: []string{},
+			ep: "",
+			msg: "It should return error because we got here without pl",
+			successCondition: func(err error) bool {return err != nil},
+		},
+		{
+			// no args except pl
+			args: []string{"pl"},
+			ep: "",
+			msg: "It should not return error no args",
+			successCondition: func(err error) bool {return err == nil},
+		},
+		{
+			args: []string{"pl", "junk"},
+			ep: "",
+			msg: "It should return error when given junk",
+			successCondition: func(err error) bool {return err != nil},
+		},
+		{
+			args: []string{"pl", "delete", "-all"},
+			ep: "",
+			msg: "It should not return error on sane delete all args",
+			successCondition: func(err error) bool {return err == nil},
+		},
+		{
+			args: []string{"pl", "delete", "-node", "nodeName"},
+			ep: "",
+			msg: "It should not return error on sane delete args",
+			successCondition: func(err error) bool {return err == nil},
+		},
+		{
+			args: []string{"pl", "add", "-f", "someFile"},
+			ep: "",
+			msg: "It should not return error on sane add args",
+			successCondition: func(err error) bool {return err == nil},
+		},
+		{
+			args: []string{"pl", "init", "-f", "someFile"},
+			ep: "",
+			msg: "It should not return error on sane init args",
+			successCondition: func(err error) bool {return err == nil},
+		},
+		{
+			args: []string{"pl", "replace", "-f", "someFile"},
+			ep: "",
+			msg: "It should not return error on sane replace args",
+			successCondition: func(err error) bool {return err == nil},
+		},
 	}
 
-	flags = makeStub()
-	if err := dispatcher([]string{"junk"}, flags, ""); err == nil {
-		t.Error("It should return an error on junk")
-	}
-
-	flags = makeStub()
-	if err := dispatcher([]string{"delete", "-all"},flags, ""); err != nil {
-		t.Error("It should not return error no sane args")
-	}
-
-	flags = makeStub()
-	if err := dispatcher([]string{"delete", "-node", "nodeName"}, flags, ""); err != nil {
-		t.Error("It should not return error no sane args")
-	}
-
-	flags = makeStub()
-	if err := dispatcher([]string{"add", "-f", "somefile"}, flags, ""); err != nil {
-		t.Error("It should not return error no sane args")
-	}
-
-	flags = makeStub()
-	if err := dispatcher([]string{"init", "-f", "somefile"}, flags, ""); err != nil {
-		t.Error("It should not return error no sane args")
-	}
-
-	flags = makeStub()
-	if err := dispatcher([]string{"replace", "-f", "somefile"}, flags, ""); err != nil {
-		t.Error("It should not return error no sane args")
+	for _, v := range testData {
+		ctx := makeStub()
+		if ! v.successCondition(ctx.ParseAndDo(v.args, v.ep))  {
+			t.Error(v.msg)
+		}
 	}
 
 }

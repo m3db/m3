@@ -14,7 +14,9 @@ const (
 	defaultPath = "/api/v1/services/m3db/placement"
 )
 
-type PlacementArgs struct {
+// all the values from the cli args are stored in here
+// for all the placement-related commands
+type placementArgs struct {
 	deletePlacement *bool
 	deleteNode      *string
 	initFlag        configflag.FlagStringSlice
@@ -22,11 +24,9 @@ type PlacementArgs struct {
 	replaceFlag     configflag.FlagStringSlice
 }
 
-type XFlagSet struct {
-	Flagset *flag.FlagSet
-}
-type XPlacementFlags struct {
-	Args      *PlacementArgs
+// this has all that the dispatcher needs to parse the cli
+type Context struct {
+	args      *placementArgs
 	finalArgs placementHandler
 	//Globals   []string
 	Placement *flag.FlagSet
@@ -36,16 +36,16 @@ type XPlacementFlags struct {
 	Replace   *flag.FlagSet
 }
 type placementHandler struct {
-	add func(PlacementArgs, string)
-	delete func(PlacementArgs, string)
-	xget func(PlacementArgs, string)
-	xinit func(PlacementArgs, string)
-	replace func(PlacementArgs, string)
+	add func(placementArgs, string)
+	delete func(placementArgs, string)
+	xget func(placementArgs, string)
+	xinit func(placementArgs, string)
+	replace func(placementArgs, string)
 }
 
-func SetupFlags() XPlacementFlags {
+func InitializeFlags() Context {
 	return _setupFlags(
-		&PlacementArgs{},
+		&placementArgs{},
 		placementHandler{
 			add:     xadd,
 			delete:  xdelete,
@@ -55,7 +55,7 @@ func SetupFlags() XPlacementFlags {
 		},
 	)
 }
-func _setupFlags(finalArgs *PlacementArgs, handler placementHandler) XPlacementFlags {
+func _setupFlags(finalArgs *placementArgs, handler placementHandler) Context {
 
 	placementFlags := flag.NewFlagSet("pl", flag.ExitOnError)
 	deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
@@ -100,8 +100,8 @@ It has the following subcommands:
 `, placementFlags.Name(), placementFlags.Name(), deleteFlags.Name(), addFlags.Name(), initFlags.Name(), replaceFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	return XPlacementFlags{
-		Args: finalArgs,
+	return Context{
+		args: finalArgs,
 		finalArgs: handler,
 		//Globals:   nil,
 		Placement: placementFlags,
@@ -112,57 +112,62 @@ It has the following subcommands:
 	}
 }
 
-func (xflags XPlacementFlags) ParseAndDo(cli []string, ep string) {
+func (ctx Context) ParseAndDo(cli []string, ep string) error {
 	// right here args should be like "pl delete -node someName"
 	if len(cli) < 1 {
-		xflags.Placement.Usage()
-		os.Exit(1)
+		ctx.Placement.Usage()
+		return &errors.FlagsError{}
 	}
-	// pop and parse
-	if err := dispatcher(cli[1:], xflags, ep); err != nil {
+
+	inArgs := cli[1:]
+	if err := ctx.Placement.Parse(inArgs); err != nil {
+		ctx.Placement.Usage()
+		return  &errors.FlagsError{}
+	}
+	if ctx.Placement.NArg() == 0 {
+		ctx.finalArgs.xget(*ctx.args, ep)
+		return nil
+	}
+
+	// pop and dispatch
+	if err := dispatcher(ctx, ep); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 
 }
 
-func dispatcher(inArgs []string, xflags XPlacementFlags, ep string) error {
-	if err := xflags.Placement.Parse(inArgs); err != nil {
-		xflags.Placement.Usage()
-		return &errors.FlagsError{}
-	}
-	if xflags.Placement.NArg() == 0 {
-		xflags.finalArgs.xget(*xflags.Args, ep)
-		return nil
-	}
-	nextArgs := xflags.Placement.Args()
+func dispatcher(ctx Context, ep string) error {
+	nextArgs := ctx.Placement.Args()
 	switch nextArgs[0] {
-	case xflags.Add.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Add); err != nil {
+	case ctx.Add.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Add); err != nil {
 			return err
 		}
-		xflags.finalArgs.add(*xflags.Args, ep)
+		ctx.finalArgs.add(*ctx.args, ep)
 		return nil
-	case xflags.Delete.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Delete); err != nil {
+	case ctx.Delete.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Delete); err != nil {
 			return err
 		}
-		xflags.finalArgs.delete(*xflags.Args, ep)
+		ctx.finalArgs.delete(*ctx.args, ep)
 		return nil
-	case xflags.Init.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Init); err != nil {
+	case ctx.Init.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Init); err != nil {
 			return err
 		}
-		xflags.finalArgs.xinit(*xflags.Args, ep)
+		ctx.finalArgs.xinit(*ctx.args, ep)
 		return nil
-	case xflags.Replace.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], xflags.Replace); err != nil {
+	case ctx.Replace.Name():
+		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Replace); err != nil {
 			return err
 		}
-		xflags.finalArgs.replace(*xflags.Args, ep)
+		ctx.finalArgs.replace(*ctx.args, ep)
 		return nil
 	case "":
-		xflags.finalArgs.xget(*xflags.Args, ep)
+		ctx.finalArgs.xget(*ctx.args, ep)
 		return nil
 	default:
 		return &errors.FlagsError{}

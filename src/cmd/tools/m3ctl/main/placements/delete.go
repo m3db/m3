@@ -6,7 +6,7 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
 )
 
-func xdelete(s PlacementArgs, endpoint string) {
+func xdelete(s placementArgs, endpoint string) {
 	if *s.deletePlacement {
 		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
 		client.DoDelete(url, client.DoDump)
