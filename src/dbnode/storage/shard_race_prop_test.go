@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -132,8 +134,8 @@ func anyIDs() gopter.Gen {
 func TestShardTickWriteRace(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
-	parameters.MinSuccessfulTests = 3
-	parameters.MaxSize = 20
+	parameters.MinSuccessfulTests = 50
+	parameters.MaxSize = 10
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
 
