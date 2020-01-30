@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -59,3 +60,18 @@ spec:
           value: "true"
         - name: PROMREMOTEBENCH_QUERY_DEBUG_LENGTH
           value: "0"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: promremotebench
+  name: promremotebench
+spec:
+  ports:
+  - name: debug
+    port: 7203
+    targetPort: debug
+  selector:
+    app: promremotebench
