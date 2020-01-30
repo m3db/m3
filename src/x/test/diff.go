@@ -20,7 +20,13 @@
 
 package test
 
-import "github.com/sergi/go-diff/diffmatchpatch"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/sergi/go-diff/diffmatchpatch"
+	"github.com/stretchr/testify/require"
+)
 
 // Diff is a helper method to print a terminal pretty diff of two strings
 // for test output purposes.
@@ -28,4 +34,14 @@ func Diff(expected, actual string) string {
 	dmp := diffmatchpatch.New()
 	diffs := dmp.DiffMain(expected, actual, false)
 	return dmp.DiffPrettyText(diffs)
+}
+
+// MustPrettyJSON returns an indented version of the JSON.
+func MustPrettyJSON(t *testing.T, str string) string {
+	var unmarshalled map[string]interface{}
+	err := json.Unmarshal([]byte(str), &unmarshalled)
+	require.NoError(t, err)
+	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
 }
