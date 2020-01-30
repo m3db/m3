@@ -684,10 +684,11 @@ func (s *dbShard) tickAndExpire(
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
-	// Acquire snapshot of block states here to avoid releasing the
-	// RLock and acquiring it right after.
-	blockStates := s.BlockStatesSnapshot()
 	s.RUnlock()
+	// BlockStatesSnapshot acquires its own read lock, so it must not be put in
+	// another read locked block. Nested read locks will cause deadlocks if
+	// there is write lock attempt in between the nested read locks.
+	blockStates := s.BlockStatesSnapshot()
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
 		// to be safe for re-use.
