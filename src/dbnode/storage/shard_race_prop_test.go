@@ -110,7 +110,10 @@ var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) {
 	opts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	shard := testDatabaseShard(t, opts)
-	shard.currRuntimeOptions.tickSleepPerSeries = time.Microsecond
+	// Relatively long tick sleep duration makes race conditions more probable
+	// because it gives the other routines time to work while the tick is still
+	// in progress.
+	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = tickBatchSize
 	return shard, opts
 }
@@ -127,7 +130,29 @@ func anyIDs() gopter.Gen {
 }
 
 func TestShardTickWriteRace(t *testing.T) {
-	shard, opts := propTestDatabaseShard(t, 10)
+	parameters := gopter.DefaultTestParameters()
+	seed := time.Now().UnixNano()
+	parameters.MinSuccessfulTests = 3
+	parameters.MaxSize = 20
+	parameters.Rng = rand.New(rand.NewSource(seed))
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("Concurrent Tick and Write doesn't deadlock", prop.ForAll(
+		func(tickBatchSize int) bool {
+			testShardTickWriteRace(t, int(tickBatchSize))
+			return true
+		},
+		gen.IntRange(1, 10).WithLabel("tickBatchSize"),
+	))
+
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
+func testShardTickWriteRace(t *testing.T, tickBatchSize int) {
+	shard, opts := propTestDatabaseShard(t, tickBatchSize)
 	defer func() {
 		shard.Close()
 		opts.RuntimeOptionsManager().Close()

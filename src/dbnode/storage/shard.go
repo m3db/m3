@@ -385,8 +385,12 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
 func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	s.RLock()
+	defer s.RUnlock()
+	return s.blockStatesSnapshotWithRLock()
+}
+
+func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot {
 	bootstrapped := s.bootstrapState == Bootstrapped
-	s.RUnlock()
 	if !bootstrapped {
 		// Needs to be bootstrapped.
 		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
@@ -684,11 +688,12 @@ func (s *dbShard) tickAndExpire(
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
+	// Use blockStatesSnapshotWithRLock here to prevent nested read locks.
+	// Nested read locks will cause deadlocks if there is write lock attempt in
+	// between the nested read locks, since the write lock attempt will block
+	// future read lock attempts.
+	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
-	// BlockStatesSnapshot acquires its own read lock, so it must not be put in
-	// another read locked block. Nested read locks will cause deadlocks if
-	// there is write lock attempt in between the nested read locks.
-	blockStates := s.BlockStatesSnapshot()
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
 		// to be safe for re-use.
@@ -2097,6 +2102,8 @@ func (s *dbShard) ColdFlush(
 		s.RUnlock()
 		return errShardNotBootstrappedToFlush
 	}
+	// Use blockStatesSnapshotWithRLock to avoid having to re-acquire read lock.
+	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
 
 	resources.reset()
@@ -2107,7 +2114,6 @@ func (s *dbShard) ColdFlush(
 		idElementPool      = resources.idElementPool
 	)
 
-	blockStates := s.BlockStatesSnapshot()
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
 		return errFlushStateIsNotInitialized
