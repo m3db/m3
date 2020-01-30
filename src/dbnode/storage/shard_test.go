@@ -1753,7 +1753,7 @@ func TestShardNewEntryTakesRefToNoFinalizeID(t *testing.T) {
 
 func TestShardIterateBatchSize(t *testing.T) {
 	smaller := shardIterateBatchMinSize - 1
-	require.Equal(t, smaller, iterateBatchSize(smaller))
+	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(smaller))
 
 	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(shardIterateBatchMinSize+1))
 

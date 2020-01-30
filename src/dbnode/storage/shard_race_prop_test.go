@@ -112,10 +112,11 @@ var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) {
 	opts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	shard := testDatabaseShard(t, opts)
-	// Relatively long tick sleep duration makes race conditions more probable
-	// because it gives the other routines time to work while the tick is still
-	// in progress.
-	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
+	// This sleep duration needs to be at the microsecond level because tests
+	// can have a high number of iterations, using a high number of series in
+	// combination with a small batch size, causing frequent timeouts during
+	// execution.
+	shard.currRuntimeOptions.tickSleepPerSeries = time.Microsecond
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = tickBatchSize
 	return shard, opts
 }

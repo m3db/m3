@@ -385,8 +385,10 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
 func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	s.RLock()
-	defer s.RUnlock()
-	return s.blockStatesSnapshotWithRLock()
+	snapshots := s.blockStatesSnapshotWithRLock()
+	s.RUnlock()
+
+	return snapshots
 }
 
 func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot {
