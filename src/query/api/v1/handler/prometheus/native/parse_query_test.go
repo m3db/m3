@@ -128,8 +128,8 @@ func TestParse(t *testing.T) {
 		r, err := ioutil.ReadAll(body)
 		require.NoError(t, err)
 
-		ex := mustPrettyJSON(t, tt.ex)
-		actual := mustPrettyJSON(t, string(r))
+		ex := xtest.MustPrettyJSON(t, tt.ex)
+		actual := xtest.MustPrettyJSON(t, string(r))
 		require.Equal(t, ex, actual,
 			fmt.Sprintf("Run %d:\n%s", i, xtest.Diff(ex, actual)))
 	}
