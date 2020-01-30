@@ -134,7 +134,7 @@ func anyIDs() gopter.Gen {
 func TestShardTickWriteRace(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
-	parameters.MinSuccessfulTests = 50
+	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 10
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)

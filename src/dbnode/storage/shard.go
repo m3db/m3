@@ -513,7 +513,7 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 
 func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
-		return elemsLen
+		return shardIterateBatchMinSize
 	}
 	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
