@@ -21,6 +21,7 @@
 package hostid
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -43,6 +44,24 @@ func TestHostnameResolver(t *testing.T) {
 	expected, err := os.Hostname()
 	require.NoError(t, err)
 
+	assert.Equal(t, expected, value)
+}
+
+func TestHostnameResolverWithFormat(t *testing.T) {
+	cfg := Configuration{
+		Resolver: "hostname",
+		Hostname: &HostnameConfig{
+			Format: `{"name":"{{.Hostname}}"}`,
+		},
+	}
+
+	value, err := cfg.Resolve()
+	require.NoError(t, err)
+
+	expected, err := os.Hostname()
+	require.NoError(t, err)
+
+	expected = fmt.Sprintf("{\"name\":\"%s\"}", expected)
 	assert.Equal(t, expected, value)
 }
 

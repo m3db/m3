@@ -375,6 +375,7 @@ func TestConfiguration(t *testing.T) {
     value: host1
     envVarName: null
     file: null
+    hostname: null
   client:
     config: null
     writeConsistencyLevel: 2

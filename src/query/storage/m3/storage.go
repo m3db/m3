@@ -45,9 +45,7 @@ import (
 var (
 	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both" +
 		" aggregated and unaggregated namespace lookup disabled")
-	errNoNamespacesConfigured  = goerrors.New("no namespaces configured")
-	errMismatchedFetchedLength = goerrors.New("length of fetched attributes and" +
-		" series iterators does not match")
+	errNoNamespacesConfigured = goerrors.New("no namespaces configured")
 )
 
 type queryFanoutType uint
@@ -113,40 +111,21 @@ func (s *m3storage) FetchProm(
 	}
 
 	defer accumulator.Close()
-	result, attrs, err := accumulator.FinalResultWithAttrs()
+	result, _, err := accumulator.FinalResultWithAttrs()
 	if err != nil {
 		return storage.PromResult{}, err
-	}
-
-	enforcer := options.Enforcer
-	if enforcer == nil {
-		enforcer = cost.NoopChainedEnforcer()
 	}
 
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result.SeriesIterators,
 		s.opts.ReadWorkerPool(),
 		result.Metadata,
-		enforcer,
+		options.Enforcer,
 		s.opts.TagOptions(),
 	)
 
 	if err != nil {
 		return storage.PromResult{}, err
-	}
-
-	tsLength := len(fetchResult.PromResult.GetTimeseries())
-	if tsLength != len(attrs) {
-		return storage.PromResult{}, errMismatchedFetchedLength
-	}
-
-	if options.IncludeResolution {
-		resolutions := make([]int64, 0, tsLength)
-		for _, attr := range attrs {
-			resolutions = append(resolutions, int64(attr.Resolution))
-		}
-
-		fetchResult.Metadata.Resolutions = resolutions
 	}
 
 	return fetchResult, nil
