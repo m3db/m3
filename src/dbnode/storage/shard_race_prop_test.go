@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -110,6 +112,10 @@ var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) {
 	opts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	shard := testDatabaseShard(t, opts)
+	// This sleep duration needs to be at the microsecond level because tests
+	// can have a high number of iterations, using a high number of series in
+	// combination with a small batch size, causing frequent timeouts during
+	// execution.
 	shard.currRuntimeOptions.tickSleepPerSeries = time.Microsecond
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = tickBatchSize
 	return shard, opts
@@ -127,7 +133,29 @@ func anyIDs() gopter.Gen {
 }
 
 func TestShardTickWriteRace(t *testing.T) {
-	shard, opts := propTestDatabaseShard(t, 10)
+	parameters := gopter.DefaultTestParameters()
+	seed := time.Now().UnixNano()
+	parameters.MinSuccessfulTests = 100
+	parameters.MaxSize = 10
+	parameters.Rng = rand.New(rand.NewSource(seed))
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("Concurrent Tick and Write doesn't deadlock", prop.ForAll(
+		func(tickBatchSize int) bool {
+			testShardTickWriteRace(t, int(tickBatchSize))
+			return true
+		},
+		gen.IntRange(1, 10).WithLabel("tickBatchSize"),
+	))
+
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
+func testShardTickWriteRace(t *testing.T, tickBatchSize int) {
+	shard, opts := propTestDatabaseShard(t, tickBatchSize)
 	defer func() {
 		shard.Close()
 		opts.RuntimeOptionsManager().Close()
