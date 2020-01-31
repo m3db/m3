@@ -141,11 +141,12 @@ func TestShardTickWriteRace(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("Concurrent Tick and Write doesn't deadlock", prop.ForAll(
-		func(tickBatchSize int) bool {
-			testShardTickWriteRace(t, int(tickBatchSize))
+		func(tickBatchSize, numSeries int) bool {
+			testShardTickWriteRace(t, tickBatchSize, numSeries)
 			return true
 		},
 		gen.IntRange(1, 10).WithLabel("tickBatchSize"),
+		gen.IntRange(1, 100).WithLabel("numSeries"),
 	))
 
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
@@ -154,7 +155,7 @@ func TestShardTickWriteRace(t *testing.T) {
 	}
 }
 
-func testShardTickWriteRace(t *testing.T, tickBatchSize int) {
+func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 	shard, opts := propTestDatabaseShard(t, tickBatchSize)
 	defer func() {
 		shard.Close()
@@ -162,7 +163,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize int) {
 	}()
 
 	ids := []ident.ID{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < numSeries; i++ {
 		ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))
 	}
 
