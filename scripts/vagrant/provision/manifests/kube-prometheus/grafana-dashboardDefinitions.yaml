@@ -2499,7 +2499,7 @@ items:
                       "x": 16,
                       "y": 22
                   },
-                  "id": 39,
+                  "id": 110,
                   "legend": {
                       "avg": false,
                       "current": false,
@@ -2523,17 +2523,20 @@ items:
                   "steppedLine": false,
                   "targets": [
                       {
-                          "expr": "",
+                          "expr": "sum(mmap_mapped_bytes{instance=~\"$instance\"}) by (map_name)",
                           "format": "time_series",
+                          "hide": false,
                           "intervalFactor": 1,
+                          "key": 0.7090064740553321,
+                          "legendFormat": "",
                           "refId": "A",
-                          "textEditor": false
+                          "textEditor": true
                       }
                   ],
                   "thresholds": [],
                   "timeFrom": null,
                   "timeShift": null,
-                  "title": "Disk Free Space - Not Implemented",
+                  "title": "Memory - Mmaps (Anon and File)",
                   "tooltip": {
                       "shared": false,
                       "sort": 0,
@@ -2722,6 +2725,91 @@ items:
                   "yaxes": [
                       {
                           "format": "short",
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      },
+                      {
+                          "format": "short",
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      }
+                  ],
+                  "yaxis": {
+                      "align": false,
+                      "alignLevel": null
+                  }
+              },
+              {
+                  "aliasColors": {},
+                  "bars": false,
+                  "dashLength": 10,
+                  "dashes": false,
+                  "datasource": "$datasource",
+                  "editable": true,
+                  "error": false,
+                  "fill": 0,
+                  "grid": {},
+                  "gridPos": {
+                      "h": 7,
+                      "w": 8,
+                      "x": 16,
+                      "y": 29
+                  },
+                  "id": 39,
+                  "legend": {
+                      "avg": false,
+                      "current": false,
+                      "max": false,
+                      "min": false,
+                      "show": false,
+                      "total": false,
+                      "values": false
+                  },
+                  "lines": true,
+                  "linewidth": 1,
+                  "links": [],
+                  "nullPointMode": "connected",
+                  "percentage": false,
+                  "pointradius": 5,
+                  "points": false,
+                  "renderer": "flot",
+                  "seriesOverrides": [],
+                  "spaceLength": 10,
+                  "stack": false,
+                  "steppedLine": false,
+                  "targets": [
+                      {
+                          "expr": "",
+                          "format": "time_series",
+                          "intervalFactor": 1,
+                          "refId": "A",
+                          "textEditor": false
+                      }
+                  ],
+                  "thresholds": [],
+                  "timeFrom": null,
+                  "timeShift": null,
+                  "title": "Disk Free Space - Not Implemented",
+                  "tooltip": {
+                      "shared": false,
+                      "sort": 0,
+                      "value_type": "cumulative"
+                  },
+                  "type": "graph",
+                  "xaxis": {
+                      "buckets": null,
+                      "mode": "time",
+                      "name": null,
+                      "show": true,
+                      "values": []
+                  },
+                  "yaxes": [
+                      {
+                          "format": "decbytes",
                           "logBase": 1,
                           "max": null,
                           "min": null,
@@ -6911,6 +6999,477 @@ items:
   kind: ConfigMap
   metadata:
     name: grafana-dashboard-m3db-node-details
+    namespace: monitoring
+- apiVersion: v1
+  data:
+    promremotebench.json: |-
+      {
+          "annotations": {
+              "list": [
+                  {
+                      "builtIn": 1,
+                      "datasource": "-- Grafana --",
+                      "enable": true,
+                      "hide": true,
+                      "iconColor": "rgba(0, 211, 255, 1)",
+                      "name": "Annotations & Alerts",
+                      "type": "dashboard"
+                  }
+              ]
+          },
+          "editable": true,
+          "gnetId": null,
+          "graphTooltip": 0,
+          "id": 12,
+          "iteration": 1580489930515,
+          "links": [],
+          "panels": [
+              {
+                  "aliasColors": {},
+                  "bars": false,
+                  "dashLength": 10,
+                  "dashes": false,
+                  "datasource": "prometheus",
+                  "fill": 1,
+                  "gridPos": {
+                      "h": 9,
+                      "w": 12,
+                      "x": 0,
+                      "y": 0
+                  },
+                  "id": 4,
+                  "legend": {
+                      "avg": false,
+                      "current": false,
+                      "max": false,
+                      "min": false,
+                      "show": true,
+                      "total": false,
+                      "values": false
+                  },
+                  "lines": true,
+                  "linewidth": 1,
+                  "links": [],
+                  "nullPointMode": "null",
+                  "paceLength": 10,
+                  "percentage": false,
+                  "pointradius": 2,
+                  "points": false,
+                  "renderer": "flot",
+                  "seriesOverrides": [],
+                  "stack": false,
+                  "steppedLine": false,
+                  "targets": [
+                      {
+                          "expr": "sum(rate(promremotebench_queries_success[$step])) by (url)",
+                          "format": "time_series",
+                          "intervalFactor": 1,
+                          "legendFormat": "success {{ url }}",
+                          "refId": "A"
+                      }
+                  ],
+                  "thresholds": [],
+                  "timeFrom": null,
+                  "timeRegions": [],
+                  "timeShift": null,
+                  "title": "Query Success",
+                  "tooltip": {
+                      "shared": true,
+                      "sort": 0,
+                      "value_type": "individual"
+                  },
+                  "type": "graph",
+                  "xaxis": {
+                      "buckets": null,
+                      "mode": "time",
+                      "name": null,
+                      "show": true,
+                      "values": []
+                  },
+                  "yaxes": [
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      },
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      }
+                  ],
+                  "yaxis": {
+                      "align": false,
+                      "alignLevel": null
+                  }
+              },
+              {
+                  "aliasColors": {},
+                  "bars": false,
+                  "dashLength": 10,
+                  "dashes": false,
+                  "datasource": "prometheus",
+                  "fill": 1,
+                  "gridPos": {
+                      "h": 9,
+                      "w": 12,
+                      "x": 12,
+                      "y": 0
+                  },
+                  "id": 2,
+                  "legend": {
+                      "avg": false,
+                      "current": false,
+                      "max": false,
+                      "min": false,
+                      "show": true,
+                      "total": false,
+                      "values": false
+                  },
+                  "lines": true,
+                  "linewidth": 1,
+                  "links": [],
+                  "nullPointMode": "null",
+                  "paceLength": 10,
+                  "percentage": false,
+                  "pointradius": 2,
+                  "points": false,
+                  "renderer": "flot",
+                  "seriesOverrides": [],
+                  "stack": false,
+                  "steppedLine": false,
+                  "targets": [
+                      {
+                          "expr": "sum(rate(promremotebench_queries_error_validation_failed[$step])) by (url)",
+                          "format": "time_series",
+                          "intervalFactor": 1,
+                          "legendFormat": "error_validation_failed {{ url }}",
+                          "refId": "A"
+                      },
+                      {
+                          "expr": "sum(rate(promremotebench_queries_error_mismatched_response[$step])) by (url)",
+                          "format": "time_series",
+                          "hide": true,
+                          "intervalFactor": 1,
+                          "legendFormat": "error_mismatched_response",
+                          "refId": "B"
+                      },
+                      {
+                          "expr": "sum(rate(promremotebench_queries_error_fanout_failed[$step]))",
+                          "format": "time_series",
+                          "hide": true,
+                          "intervalFactor": 1,
+                          "legendFormat": "error_fanout_failed",
+                          "refId": "C"
+                      },
+                      {
+                          "expr": "sum(rate(promremotebench_queries_error_invalid_response[$step]))",
+                          "format": "time_series",
+                          "hide": true,
+                          "intervalFactor": 1,
+                          "legendFormat": "error_invalid_response",
+                          "refId": "D"
+                      }
+                  ],
+                  "thresholds": [],
+                  "timeFrom": null,
+                  "timeRegions": [],
+                  "timeShift": null,
+                  "title": "Query Errors",
+                  "tooltip": {
+                      "shared": true,
+                      "sort": 0,
+                      "value_type": "individual"
+                  },
+                  "type": "graph",
+                  "xaxis": {
+                      "buckets": null,
+                      "mode": "time",
+                      "name": null,
+                      "show": true,
+                      "values": []
+                  },
+                  "yaxes": [
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      },
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      }
+                  ],
+                  "yaxis": {
+                      "align": false,
+                      "alignLevel": null
+                  }
+              },
+              {
+                  "aliasColors": {},
+                  "bars": false,
+                  "dashLength": 10,
+                  "dashes": false,
+                  "datasource": "prometheus",
+                  "fill": 1,
+                  "gridPos": {
+                      "h": 8,
+                      "w": 12,
+                      "x": 0,
+                      "y": 9
+                  },
+                  "id": 6,
+                  "legend": {
+                      "avg": false,
+                      "current": false,
+                      "max": false,
+                      "min": false,
+                      "show": true,
+                      "total": false,
+                      "values": false
+                  },
+                  "lines": true,
+                  "linewidth": 1,
+                  "links": [],
+                  "nullPointMode": "null",
+                  "paceLength": 10,
+                  "percentage": false,
+                  "pointradius": 2,
+                  "points": false,
+                  "renderer": "flot",
+                  "seriesOverrides": [],
+                  "stack": false,
+                  "steppedLine": false,
+                  "targets": [
+                      {
+                          "expr": "sum(rate(promremotebench_writes_success[$step])) by (url)",
+                          "format": "time_series",
+                          "intervalFactor": 1,
+                          "legendFormat": "success {{ url }}",
+                          "refId": "A"
+                      }
+                  ],
+                  "thresholds": [],
+                  "timeFrom": null,
+                  "timeRegions": [],
+                  "timeShift": null,
+                  "title": "Write Success",
+                  "tooltip": {
+                      "shared": true,
+                      "sort": 0,
+                      "value_type": "individual"
+                  },
+                  "type": "graph",
+                  "xaxis": {
+                      "buckets": null,
+                      "mode": "time",
+                      "name": null,
+                      "show": true,
+                      "values": []
+                  },
+                  "yaxes": [
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      },
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      }
+                  ],
+                  "yaxis": {
+                      "align": false,
+                      "alignLevel": null
+                  }
+              },
+              {
+                  "aliasColors": {},
+                  "bars": false,
+                  "dashLength": 10,
+                  "dashes": false,
+                  "datasource": "prometheus",
+                  "fill": 1,
+                  "gridPos": {
+                      "h": 8,
+                      "w": 12,
+                      "x": 12,
+                      "y": 9
+                  },
+                  "id": 8,
+                  "legend": {
+                      "avg": false,
+                      "current": false,
+                      "max": false,
+                      "min": false,
+                      "show": true,
+                      "total": false,
+                      "values": false
+                  },
+                  "lines": true,
+                  "linewidth": 1,
+                  "links": [],
+                  "nullPointMode": "null",
+                  "paceLength": 10,
+                  "percentage": false,
+                  "pointradius": 2,
+                  "points": false,
+                  "renderer": "flot",
+                  "seriesOverrides": [],
+                  "stack": false,
+                  "steppedLine": false,
+                  "targets": [
+                      {
+                          "expr": "sum(rate(promremotebench_writes_errors[$step])) by (url)",
+                          "format": "time_series",
+                          "intervalFactor": 1,
+                          "legendFormat": "error {{ url }}",
+                          "refId": "A"
+                      }
+                  ],
+                  "thresholds": [],
+                  "timeFrom": null,
+                  "timeRegions": [],
+                  "timeShift": null,
+                  "title": "Write Errors",
+                  "tooltip": {
+                      "shared": true,
+                      "sort": 0,
+                      "value_type": "individual"
+                  },
+                  "type": "graph",
+                  "xaxis": {
+                      "buckets": null,
+                      "mode": "time",
+                      "name": null,
+                      "show": true,
+                      "values": []
+                  },
+                  "yaxes": [
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      },
+                      {
+                          "format": "short",
+                          "label": null,
+                          "logBase": 1,
+                          "max": null,
+                          "min": null,
+                          "show": true
+                      }
+                  ],
+                  "yaxis": {
+                      "align": false,
+                      "alignLevel": null
+                  }
+              }
+          ],
+          "schemaVersion": 18,
+          "style": "dark",
+          "tags": [],
+          "templating": {
+              "list": [
+                  {
+                      "allValue": null,
+                      "current": {
+                          "text": "30s",
+                          "value": "30s"
+                      },
+                      "hide": 0,
+                      "includeAll": false,
+                      "label": "step",
+                      "multi": false,
+                      "name": "step",
+                      "options": [
+                          {
+                              "selected": true,
+                              "text": "30s",
+                              "value": "30s"
+                          },
+                          {
+                              "selected": false,
+                              "text": "1m",
+                              "value": "1m"
+                          },
+                          {
+                              "selected": false,
+                              "text": "5m",
+                              "value": "5m"
+                          },
+                          {
+                              "selected": false,
+                              "text": "10m",
+                              "value": "10m"
+                          }
+                      ],
+                      "query": "30s,1m,5m,10m",
+                      "skipUrlSync": false,
+                      "type": "custom"
+                  }
+              ]
+          },
+          "time": {
+              "from": "now-15m",
+              "to": "now"
+          },
+          "timepicker": {
+              "refresh_intervals": [
+                  "5s",
+                  "10s",
+                  "30s",
+                  "1m",
+                  "5m",
+                  "15m",
+                  "30m",
+                  "1h",
+                  "2h",
+                  "1d"
+              ],
+              "time_options": [
+                  "5m",
+                  "15m",
+                  "1h",
+                  "6h",
+                  "12h",
+                  "24h",
+                  "2d",
+                  "7d",
+                  "30d"
+              ]
+          },
+          "timezone": "",
+          "title": "Promremotebench",
+          "uid": "B4EhM6yWk",
+          "version": 5
+      }
+  kind: ConfigMap
+  metadata:
+    name: grafana-dashboard-promremotebench
     namespace: monitoring
 - apiVersion: v1
   data:
