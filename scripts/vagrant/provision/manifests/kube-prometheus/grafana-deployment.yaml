@@ -111,6 +111,10 @@ spec:
       - configMap:
           name: grafana-dashboard-k8s-resources-pod
         name: grafana-dashboard-k8s-resources-pod
+      - configMap: grafana-dashboard-m3db-node-details
+        name: grafana-dashboard-m3db-node-details
+      - configMap: grafana-dashboard-promremotebench
+        name: grafana-dashboard-promremotebench
       - configMap:
           name: grafana-dashboard-k8s-resources-workload
         name: grafana-dashboard-k8s-resources-workload
