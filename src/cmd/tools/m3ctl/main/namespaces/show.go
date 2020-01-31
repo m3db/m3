@@ -14,7 +14,7 @@ import (
 func Show(flags *NamespaceArgs, endpoint string) {
 	url := fmt.Sprintf("%s%s?%s", endpoint, defaultPath, debugQS)
 	if *flags.showAll {
-		client.DoGet(url, client.DoDump)
+		client.DoGet(url, client.Dumper)
 	} else {
 		client.DoGet(url, showNames)
 	}

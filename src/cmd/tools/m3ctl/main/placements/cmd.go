@@ -26,8 +26,8 @@ type placementArgs struct {
 
 // this has all that the dispatcher needs to parse the cli
 type Context struct {
-	args      *placementArgs
-	finalArgs placementHandler
+	vals     *placementArgs
+	handlers placementHandler
 	//Globals   []string
 	Placement *flag.FlagSet
 	Add       *flag.FlagSet
@@ -47,11 +47,11 @@ func InitializeFlags() Context {
 	return _setupFlags(
 		&placementArgs{},
 		placementHandler{
-			add:     xadd,
-			delete:  xdelete,
-			xget:    xget,
-			xinit:   xinit,
-			replace: xreplace,
+			add:     doAdd,
+			delete:  doDelete,
+			xget:    doGet,
+			xinit:   doInit,
+			replace: doReplace,
 		},
 	)
 }
@@ -101,8 +101,8 @@ It has the following subcommands:
 		placementFlags.PrintDefaults()
 	}
 	return Context{
-		args: finalArgs,
-		finalArgs: handler,
+		vals:     finalArgs,
+		handlers: handler,
 		//Globals:   nil,
 		Placement: placementFlags,
 		Add:       addFlags,
@@ -125,7 +125,7 @@ func (ctx Context) ParseAndDo(cli []string, ep string) error {
 		return  &errors.FlagsError{}
 	}
 	if ctx.Placement.NArg() == 0 {
-		ctx.finalArgs.xget(*ctx.args, ep)
+		ctx.handlers.xget(*ctx.vals, ep)
 		return nil
 	}
 
@@ -146,28 +146,28 @@ func dispatcher(ctx Context, ep string) error {
 		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Add); err != nil {
 			return err
 		}
-		ctx.finalArgs.add(*ctx.args, ep)
+		ctx.handlers.add(*ctx.vals, ep)
 		return nil
 	case ctx.Delete.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Delete); err != nil {
 			return err
 		}
-		ctx.finalArgs.delete(*ctx.args, ep)
+		ctx.handlers.delete(*ctx.vals, ep)
 		return nil
 	case ctx.Init.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Init); err != nil {
 			return err
 		}
-		ctx.finalArgs.xinit(*ctx.args, ep)
+		ctx.handlers.xinit(*ctx.vals, ep)
 		return nil
 	case ctx.Replace.Name():
 		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Replace); err != nil {
 			return err
 		}
-		ctx.finalArgs.replace(*ctx.args, ep)
+		ctx.handlers.replace(*ctx.vals, ep)
 		return nil
 	case "":
-		ctx.finalArgs.xget(*ctx.args, ep)
+		ctx.handlers.xget(*ctx.vals, ep)
 		return nil
 	default:
 		return &errors.FlagsError{}

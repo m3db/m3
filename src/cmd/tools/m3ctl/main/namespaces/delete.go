@@ -8,5 +8,5 @@ import (
 
 func Delete(flags *NamespaceArgs, endpoint string) {
 	url := fmt.Sprintf("%s%s/%s", endpoint, "/api/v1/services/m3db/namespace", *flags.delete)
-	client.DoDelete(url, client.DoDump)
+	client.DoDelete(url, client.Dumper)
 }

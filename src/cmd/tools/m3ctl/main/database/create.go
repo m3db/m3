@@ -13,6 +13,6 @@ func Create(createYAML string, endpoint string) {
 	log.Printf("createYAML:%s:\n", createYAML)
 	data := yaml.Load(createYAML, &admin.DatabaseCreateRequest{})
 	url := fmt.Sprintf("%s%s/create", endpoint, defaultPath)
-	client.DoPost(url, data, client.DoDump)
+	client.DoPost(url, data, client.Dumper)
 	return
 }

@@ -9,10 +9,10 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
-func xinit(s placementArgs, endpoint string) {
+func doInit(s placementArgs, endpoint string) {
 	log.Printf("placementArgs:%+v:\n", s)
 	data := yaml.Load(s.initFlag.Value[0], &admin.PlacementInitRequest{})
 	url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/init")
-	client.DoPost(url, data, client.DoDump)
+	client.DoPost(url, data, client.Dumper)
 	return
 }

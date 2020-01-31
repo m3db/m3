@@ -67,7 +67,7 @@ func DoDelete(url string, getter func(reader io.Reader)) {
 	getter(resp.Body)
 }
 
-func DoDump(in io.Reader) {
+func Dumper(in io.Reader) {
 	dat, err := ioutil.ReadAll(in)
 	if err != nil {
 		log.Fatal(err)
