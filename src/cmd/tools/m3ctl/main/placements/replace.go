@@ -10,7 +10,7 @@ import (
 
 func doReplace(s placementArgs, endpoint string) {
 	data := yaml.Load(s.replaceFlag.Value[0], &admin.PlacementReplaceRequest{})
-	url := fmt.Sprintf("%s%s%s", endpoint, defaultPath, "/replace")
+	url := fmt.Sprintf("%s%s%s", endpoint, DefaultPath, "/replace")
 	client.DoPost(url, data, client.Dumper)
 	return
 }

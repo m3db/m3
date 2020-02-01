@@ -7,7 +7,7 @@ import (
 )
 
 func doGet(s placementArgs, endpoint string) {
-	url := fmt.Sprintf("%s%s", endpoint, defaultPath)
+	url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
 	client.DoGet(url, client.Dumper)
 	return
 }

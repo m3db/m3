@@ -80,7 +80,7 @@ func TestBasic(t *testing.T) {
 
 	for _, v := range testData {
 		ctx := makeStub()
-		if ! v.successCondition(ctx.ParseAndDo(v.args, v.ep))  {
+		if ! v.successCondition(ctx.PopParseAndDo(v.args, v.ep))  {
 			t.Error(v.msg)
 		}
 	}

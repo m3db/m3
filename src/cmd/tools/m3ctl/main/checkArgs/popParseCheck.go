@@ -5,8 +5,10 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 )
 
-func CheckPerCase(args []string, fs *flag.FlagSet) *errors.FlagsError {
-	if err := fs.Parse(args); err != nil {
+func PopParseAndCheck(args []string, fs *flag.FlagSet) *errors.FlagsError {
+
+	thisArgs := args[1:]
+	if err := fs.Parse(thisArgs); err != nil {
 		fs.Usage()
 		return &errors.FlagsError{}
 	}

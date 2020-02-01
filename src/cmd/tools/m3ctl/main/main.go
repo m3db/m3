@@ -23,11 +23,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get"
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/database"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 	"github.com/m3db/m3/src/x/config/configflag"
 )
 
@@ -40,6 +40,7 @@ func main() {
 	// top-level option
 	endPoint := flag.String("endpoint", defaultEndpoint, "The url for target m3db backend.")
 
+	// hooks and context for the next level
 	// the database-related subcommand
 	createDatabaseYAML := configflag.FlagStringSlice{}
 	databaseFlagSets := database.SetupFlags(&createDatabaseYAML)
@@ -48,8 +49,9 @@ func main() {
 	namespaceArgs := namespaces.NamespaceArgs{}
 	namespaceFlagSets := namespaces.SetupFlags(&namespaceArgs)
 
-	// the placement-related subcommand
-	placementFlagSets := placements.InitializeFlags()
+	//placementFlagSets := placements.InitializeFlags()
+	getFlagSets := get.InitializeFlags()
+
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
 Usage of %s:
@@ -63,12 +65,14 @@ Usage of %s:
 Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], databaseFlagSets.Database.Name(),
-			placementFlagSets.Placement.Name(),
+			//placementFlagSets.Placement.Name(),
+			"was pl",
 			namespaceFlagSets.Namespace.Name())
 
 		flag.PrintDefaults()
 	}
 
+	// parse this level
 	flag.Parse()
 
 	if len(os.Args) < 2 {
@@ -76,13 +80,19 @@ Each subcommand has its own built-in help provided via "-h".
 		os.Exit(1)
 	}
 
+	// dispatch to the next level
 	switch flag.Arg(0) {
 	case databaseFlagSets.Database.Name():
 		database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint)
 	case namespaceFlagSets.Namespace.Name():
 		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
-	case placementFlagSets.Placement.Name():
-		if err := placementFlagSets.ParseAndDo(flag.Args(), *endPoint); err != nil {
+	//case placementFlagSets.Placement.Name():
+	//	if err := placementFlagSets.PopParseDispatch(flag.Args(), *endPoint); err != nil {
+	//		os.Exit(1)
+	//	}
+	case getFlagSets.Get.Name():
+		getFlagSets.GlobalOpts.Get.Endpoint = *endPoint
+		if err := getFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			os.Exit(1)
 		}
 	default:

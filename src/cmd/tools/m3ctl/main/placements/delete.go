@@ -8,11 +8,11 @@ import (
 
 func doDelete(s placementArgs, endpoint string) {
 	if *s.deletePlacement {
-		url := fmt.Sprintf("%s%s", endpoint, defaultPath)
+		url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
 		client.DoDelete(url, client.Dumper)
 		return
 	}
-	url := fmt.Sprintf("%s%s/%s", endpoint, defaultPath, *s.deleteNode)
+	url := fmt.Sprintf("%s%s/%s", endpoint, DefaultPath, *s.deleteNode)
 	client.DoDelete(url, client.Dumper)
 	return
 }

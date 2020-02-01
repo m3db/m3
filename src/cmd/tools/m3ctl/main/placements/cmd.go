@@ -10,10 +10,6 @@ import (
 	"github.com/m3db/m3/src/x/config/configflag"
 )
 
-const (
-	defaultPath = "/api/v1/services/m3db/placement"
-)
-
 // all the values from the cli args are stored in here
 // for all the placement-related commands
 type placementArgs struct {
@@ -28,7 +24,7 @@ type placementArgs struct {
 type Context struct {
 	vals     *placementArgs
 	handlers placementHandler
-	//Globals   []string
+	//GlobalOpts   []string
 	Placement *flag.FlagSet
 	Add       *flag.FlagSet
 	Delete    *flag.FlagSet
@@ -103,7 +99,7 @@ It has the following subcommands:
 	return Context{
 		vals:     finalArgs,
 		handlers: handler,
-		//Globals:   nil,
+		//GlobalOpts:   nil,
 		Placement: placementFlags,
 		Add:       addFlags,
 		Delete:    deleteFlags,
@@ -112,13 +108,15 @@ It has the following subcommands:
 	}
 }
 
-func (ctx Context) ParseAndDo(cli []string, ep string) error {
+func (ctx Context) PopParseAndDo(cli []string, ep string) error {
+	fmt.Printf("pl parse and do:args:%v:\n", cli)
 	// right here args should be like "pl delete -node someName"
 	if len(cli) < 1 {
 		ctx.Placement.Usage()
 		return &errors.FlagsError{}
 	}
 
+	// pop and parse
 	inArgs := cli[1:]
 	if err := ctx.Placement.Parse(inArgs); err != nil {
 		ctx.Placement.Usage()
@@ -129,7 +127,6 @@ func (ctx Context) ParseAndDo(cli []string, ep string) error {
 		return nil
 	}
 
-	// pop and dispatch
 	if err := dispatcher(ctx, ep); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
 		return err
@@ -140,28 +137,28 @@ func (ctx Context) ParseAndDo(cli []string, ep string) error {
 }
 
 func dispatcher(ctx Context, ep string) error {
-	nextArgs := ctx.Placement.Args()
-	switch nextArgs[0] {
+	thisArgs := ctx.Placement.Args()
+	switch thisArgs[0] {
 	case ctx.Add.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Add); err != nil {
+		if err := checkArgs.PopParseAndCheck(thisArgs, ctx.Add); err != nil {
 			return err
 		}
 		ctx.handlers.add(*ctx.vals, ep)
 		return nil
 	case ctx.Delete.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Delete); err != nil {
+		if err := checkArgs.PopParseAndCheck(thisArgs, ctx.Delete); err != nil {
 			return err
 		}
 		ctx.handlers.delete(*ctx.vals, ep)
 		return nil
 	case ctx.Init.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Init); err != nil {
+		if err := checkArgs.PopParseAndCheck(thisArgs, ctx.Init); err != nil {
 			return err
 		}
 		ctx.handlers.xinit(*ctx.vals, ep)
 		return nil
 	case ctx.Replace.Name():
-		if err := checkArgs.CheckPerCase(nextArgs[1:], ctx.Replace); err != nil {
+		if err := checkArgs.PopParseAndCheck(thisArgs, ctx.Replace); err != nil {
 			return err
 		}
 		ctx.handlers.replace(*ctx.vals, ep)
