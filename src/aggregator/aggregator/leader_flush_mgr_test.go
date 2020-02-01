@@ -36,6 +36,7 @@ import (
 
 var (
 	testFlushTimes = &schema.ShardSetFlushTimes{
+		LastPersistedNanos: time.Unix(1234, 0).UnixNano(),
 		ByShard: map[uint32]*schema.ShardFlushTimes{
 			0: &schema.ShardFlushTimes{
 				StandardByResolution: map[int64]int64{
@@ -290,7 +291,9 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 	require.Equal(t, time.Second, dur)
 	require.False(t, mgr.flushedSincePersist)
 	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
+	tft := *testFlushTimes
+	tft.LastPersistedNanos = now.UnixNano()
+	validateShardSetFlushTimes(t, &tft, stored)
 }
 
 func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
@@ -335,7 +338,9 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
 	require.Equal(t, time.Second, dur)
 	require.False(t, mgr.flushedSincePersist)
 	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
+	tft := *testFlushTimes
+	tft.LastPersistedNanos = now.UnixNano()
+	validateShardSetFlushTimes(t, &tft, stored)
 
 	// Reset state in preparation for the second persistence.
 	now = time.Unix(1234, 0)
@@ -352,7 +357,9 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
 	require.Equal(t, time.Second, dur)
 	require.False(t, mgr.flushedSincePersist)
 	require.Equal(t, 2, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes2, stored)
+	tft = *testFlushTimes2
+	tft.LastPersistedNanos = now.UnixNano()
+	validateShardSetFlushTimes(t, &tft, stored)
 }
 
 func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
@@ -397,7 +404,9 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	task := flushTask.(*leaderFlushTask)
 	require.Equal(t, buckets[2].flushers, task.flushers)
 	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
+	tft := *testFlushTimes
+	tft.LastPersistedNanos = now.UnixNano()
+	validateShardSetFlushTimes(t, &tft, stored)
 
 	// Validate flush metadatas in the heap match expectation.
 	expectedFlushTimes := []flushMetadata{

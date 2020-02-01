@@ -85,6 +85,7 @@ type leaderFlushManager struct {
 	flushedByShard      map[uint32]*schema.ShardFlushTimes
 	lastPersistAtNanos  int64
 	flushedSincePersist bool
+	flushTimesInitialized bool
 	flushTask           *leaderFlushTask
 	metrics             leaderFlushManagerMetrics
 }
@@ -142,6 +143,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	numFlushTimes := mgr.flushTimes.Len()
 	mgr.metrics.queueSize.Update(float64(numFlushTimes))
 	nowNanos := mgr.nowNanos()
+
 	if numFlushTimes > 0 {
 		earliestFlush := mgr.flushTimes.Min()
 		if nowNanos >= earliestFlush.timeNanos {
@@ -170,18 +172,58 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		}
 	}
 
-	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
-	if mgr.flushedSincePersist && durationSinceLastPersist >= mgr.flushTimesPersistEvery {
-		mgr.lastPersistAtNanos = nowNanos
-		mgr.flushedSincePersist = false
-		flushTimes := mgr.prepareFlushTimesWithLock(buckets)
-		mgr.flushTimesManager.StoreAsync(flushTimes)
-	}
+	mgr.checkPersistFlushTimes(nowNanos, buckets, numFlushTimes > 0)
 
 	if !shouldFlush {
 		return nil, waitFor
 	}
 	return mgr.flushTask, waitFor
+}
+
+func (mgr *leaderFlushManager) checkPersistFlushTimes(
+	nowNanos int64,
+	buckets []*flushBucket,
+	hasPendingFlushes bool,
+) error {
+	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
+
+	if durationSinceLastPersist < mgr.flushTimesPersistEvery {
+		return nil
+	}
+
+
+	if mgr.flushedSincePersist {
+		mgr.flushedSincePersist = false
+		mgr.lastPersistAtNanos = nowNanos
+
+		flushTimes := mgr.prepareFlushTimesWithLock(nowNanos, buckets)
+		return mgr.flushTimesManager.StoreAsync(flushTimes)
+	}
+
+	if hasPendingFlushes {
+		// There's data coming in; wait for it to flush.
+		return nil
+	}
+
+	// There's no data coming in yet. Persist a heartbeat so the leader knows we're up.
+	curTimes, err := mgr.flushTimesManager.Get()
+	if err != nil {
+		return err
+	}
+
+	if curTimes != nil {
+		// flush times already set; don't overwrite them.
+		return nil
+	}
+
+	mgr.lastPersistAtNanos = nowNanos
+	// There is no current data to flush, and we haven't had a real flush persist before.
+	// Heartbeat our timestamp to allow the follower to recognize that it's healthy.
+	// Note: if it so happens that we just haven't received an existing flush times yet,
+	// the persist will fail by design due to the not exists semantics.
+	return mgr.flushTimesManager.StoreAsyncIfNotExists(&schema.ShardSetFlushTimes{
+		LastPersistedNanos: nowNanos,
+	})
 }
 
 // NB(xichen): if the current instance is a leader, we need to update the flush
@@ -224,6 +266,10 @@ func (mgr *leaderFlushManager) OnFlusherAdded(
 // NB(xichen): leader flush manager can always lead.
 func (mgr *leaderFlushManager) CanLead() bool { return true }
 
+func (mgr *leaderFlushManager) LeaderStatus() (bool, LeaderStatus) {
+	return true, LeaderStatusCurLeader
+}
+
 func (mgr *leaderFlushManager) Close() {}
 
 func (mgr *leaderFlushManager) enqueueBucketWithLock(
@@ -248,6 +294,7 @@ func (mgr *leaderFlushManager) computeNextFlushNanos(
 }
 
 func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
+	lastPersistedNanos int64,
 	buckets []*flushBucket,
 ) *schema.ShardSetFlushTimes {
 	// Update internal flush times to the latest flush times of all the flushers in the buckets.
@@ -256,7 +303,10 @@ func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
 	// Make a copy of the updated flush times for asynchronous persistence.
 	cloned := cloneFlushTimesByShard(mgr.flushedByShard)
 
-	return &schema.ShardSetFlushTimes{ByShard: cloned}
+	return &schema.ShardSetFlushTimes{
+		LastPersistedNanos: lastPersistedNanos,
+		ByShard:            cloned,
+	}
 }
 
 func (mgr *leaderFlushManager) updateFlushTimesWithLock(

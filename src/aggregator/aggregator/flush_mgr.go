@@ -64,6 +64,7 @@ type FlushManager interface {
 type FlushStatus struct {
 	ElectionState ElectionState `json:"electionState"`
 	CanLead       bool          `json:"canLead"`
+	LeaderStatus  LeaderStatus `json:"leaderStatus"`
 }
 
 // flushTask is a flush task.
@@ -91,6 +92,7 @@ type roleBasedFlushManager interface {
 	// CanLead returns true if the manager can take over the leader role.
 	CanLead() bool
 
+	LeaderStatus() (bool, LeaderStatus)
 	// Close closes the manager.
 	Close()
 }
@@ -99,6 +101,18 @@ var (
 	errFlushManagerAlreadyOpenOrClosed = errors.New("flush manager is already open or closed")
 	errFlushManagerNotOpenOrClosed     = errors.New("flush manager is not open or closed")
 	errFlushManagerOpen                = errors.New("flush manager is open")
+)
+
+type LeaderStatus string
+
+const (
+	LeaderStatusCurLeader = "CURRENT_LEADER"
+	LeaderStatusFollowerCanLead = "FOLLOWER_CAN_LEAD"
+	LeaderStatusNotCampaigning = "NOT_CAMPAIGNING"
+	LeaderStatusWaitingForFlushTimes = "WAITING_FOR_FLUSH_TIMES"
+	LeaderStatusUpLongerThanHeartBeat = "UP_LONGER_THAN_HEARTBEAT"
+	LeaderStatusUpLessThanHeartBeat = "UP_LESS_THAN_HEARTBEAT"
+	LeaderStatusShardsNotCutover = "SHARDS_NOT_CUTOVER"
 )
 
 type flushManagerState int
@@ -230,12 +244,13 @@ func (mgr *flushManager) Unregister(flusher flushingMetricList) error {
 func (mgr *flushManager) Status() FlushStatus {
 	mgr.RLock()
 	electionState := mgr.electionState
-	canLead := mgr.flushManagerWithLock().CanLead()
+	canLead, status := mgr.flushManagerWithLock().LeaderStatus()
 	mgr.RUnlock()
 
 	return FlushStatus{
 		ElectionState: electionState,
 		CanLead:       canLead,
+		LeaderStatus: status,
 	}
 }
 

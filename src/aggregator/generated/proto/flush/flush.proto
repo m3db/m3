@@ -22,6 +22,7 @@ syntax = "proto3";
 
 message ShardSetFlushTimes {
   map<uint32, ShardFlushTimes> by_shard = 1;
+  int64 last_persisted_nanos = 2;
 }
 
 message ShardFlushTimes {
