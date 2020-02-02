@@ -68,11 +68,10 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 
 	// pop and parse
 	inArgs := cli[1:]
-	//if err := thisFlagset.Parse(inArgs); err != nil {
-	//	thisFlagset.Usage()
-	//	return err
-	//}
-	thisFlagset.Parse(inArgs)
+	if err := thisFlagset.Parse(inArgs); err != nil {
+		thisFlagset.Usage()
+		return err
+	}
 	if thisFlagset.NArg() == 0 {
 		thisFlagset.Usage()
 		return &errors.FlagsError{}

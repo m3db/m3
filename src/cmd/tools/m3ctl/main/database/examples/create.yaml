@@ -1,4 +1,5 @@
 ---
+operation: create
 type: cluster
 namespace_name: 1week_namespace
 retention_time: 168h

@@ -1,4 +1,5 @@
 ---
+operation: new_node
 instances:
   - id: node1
     isolationGroup: isoGroup1

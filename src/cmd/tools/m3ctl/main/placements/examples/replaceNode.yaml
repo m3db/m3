@@ -1,4 +1,5 @@
 ---
+operation: replace_node
 leavingInstanceIDs:
 - oldnodeid1
 candidates:
