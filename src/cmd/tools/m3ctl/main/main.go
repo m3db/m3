@@ -24,10 +24,11 @@ import (
 	"flag"
 	"fmt"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete"
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/database"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
+	//"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
 	"github.com/m3db/m3/src/x/config/configflag"
 )
 
@@ -46,11 +47,12 @@ func main() {
 	databaseFlagSets := database.SetupFlags(&createDatabaseYAML)
 
 	// the namespace-related subcommand
-	namespaceArgs := namespaces.NamespaceArgs{}
-	namespaceFlagSets := namespaces.SetupFlags(&namespaceArgs)
+	//namespaceArgs := namespaces.NamespaceArgs{}
+	//namespaceFlagSets := namespaces.SetupFlags(&namespaceArgs)
 
 	//placementFlagSets := placements.InitializeFlags()
 	getFlagSets := get.InitializeFlags()
+	deleteFlagSets := delete.InitializeFlags()
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
@@ -66,8 +68,8 @@ Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], databaseFlagSets.Database.Name(),
 			//placementFlagSets.Placement.Name(),
-			"was pl",
-			namespaceFlagSets.Namespace.Name())
+			getFlagSets.Get.Name(),
+			deleteFlagSets.Delete.Name())
 
 		flag.PrintDefaults()
 	}
@@ -82,17 +84,24 @@ Each subcommand has its own built-in help provided via "-h".
 
 	// dispatch to the next level
 	switch flag.Arg(0) {
-	case databaseFlagSets.Database.Name():
-		database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint)
-	case namespaceFlagSets.Namespace.Name():
-		namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
+	//case databaseFlagSets.Database.Name():
+	//	database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint)
+	//case namespaceFlagSets.Namespace.Name():
+	//	namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
 	//case placementFlagSets.Placement.Name():
 	//	if err := placementFlagSets.PopParseDispatch(flag.Args(), *endPoint); err != nil {
 	//		os.Exit(1)
 	//	}
 	case getFlagSets.Get.Name():
-		getFlagSets.GlobalOpts.Get.Endpoint = *endPoint
+		getFlagSets.GlobalOpts.Endpoint = *endPoint
 		if err := getFlagSets.PopParseDispatch(flag.Args()); err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+	case deleteFlagSets.Delete.Name():
+		deleteFlagSets.GlobalOpts.Endpoint = *endPoint
+		if err := deleteFlagSets.PopParseDispatch(flag.Args()); err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 	default:

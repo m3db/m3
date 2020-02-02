@@ -3,8 +3,7 @@ package placements
 import (
 	"flag"
 	"fmt"
-	"go.uber.org/zap"
-
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	//"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
 	"os"
 
@@ -26,19 +25,11 @@ type placementArgs struct {
 	//replaceFlag     configflag.FlagStringSlice
 }
 
-type Globals struct {
-Endpoint string
-zap      *zap.SugaredLogger
-}
-
-// this has all that the dispatcher needs to parse the cli
-type Context struct {
-	vals     *placementArgs
-	handlers placementHandlers
-	Globals   struct {
-		Endpoint string
-		zap      *zap.SugaredLogger
-	}
+// this has all that the upper dispatcher needs to parse the cli
+type context struct {
+	vals      *placementArgs
+	handlers  placementHandlers
+	Globals   checkArgs.GlobalOpts
 	Placement *flag.FlagSet
 	//Add       *flag.FlagSet
 	//Delete    *flag.FlagSet
@@ -46,29 +37,29 @@ type Context struct {
 	//Replace   *flag.FlagSet
 }
 type placementHandlers struct {
-	xget func(*placementArgs, Globals)
+	xget func(*placementArgs, checkArgs.GlobalOpts)
 }
 
 // everything needed to prep for this pl command level
 // nothing that's needed below it
 // just the stuff for parsing at the pl level
-func InitializeFlags() Context {
+func InitializeFlags() context {
 	return _setupFlags(
 		&placementArgs{},
 		placementHandlers{
 			//add:     doAdd,
 			//delete:  doDelete,
 			//xget:    func(c *placementArgs, s string) {fmt.Print("deeper fake pl get handler")},
-			xget:    doGet,
+			xget: doGet,
 			//xget:    placements.,
 			//xinit:   doInit,
 			//replace: doReplace,
 		},
 	)
 }
-func _setupFlags(finalArgs *placementArgs, handler placementHandlers) Context {
+func _setupFlags(finalArgs *placementArgs, handler placementHandlers) context {
 
-	placementFlags := flag.NewFlagSet("pl", flag.ExitOnError)
+	placementFlags := flag.NewFlagSet("pl", flag.ContinueOnError)
 	//deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
 	//addFlags := flag.NewFlagSet("add", flag.ExitOnError)
 	//initFlags := flag.NewFlagSet("init", flag.ExitOnError)
@@ -91,7 +82,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 `, placementFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	return Context{
+	return context{
 		vals:     finalArgs,
 		handlers: handler,
 		//GlobalOpts:   nil,
@@ -103,7 +94,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 	}
 }
 
-func (ctx Context) PopParseDispatch(cli []string) error {
+func (ctx context) PopParseDispatch(cli []string) error {
 	// right here args should be like "pl delete -node someName"
 	if len(cli) < 1 {
 		ctx.Placement.Usage()
@@ -113,7 +104,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	inArgs := cli[1:]
 	if err := ctx.Placement.Parse(inArgs); err != nil {
 		ctx.Placement.Usage()
-		return  &errors.FlagsError{}
+		return &errors.FlagsError{}
 	}
 	if ctx.Placement.NArg() == 0 {
 		ctx.handlers.xget(ctx.vals, ctx.Globals)
@@ -129,7 +120,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 
 }
 
-func dispatcher(ctx Context) error {
+func dispatcher(ctx context) error {
 	nextArgs := ctx.Placement.Args()
 	switch nextArgs[0] {
 	case "":

@@ -1,35 +1,21 @@
-package get
+package delete
 
 import (
 	"flag"
 	"fmt"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete/placements"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get/namespaces"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get/placements"
-
-	//"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 	"os"
-
-	//"github.com/m3db/m3/src/x/config/configflag"
 )
-
-// all the values from the cli args are stored in here
-// for all the placement-related commands
-//type getArgs struct {
-//	deletePlacement *bool
-//	deleteNode      *string
-//	initFlag        configflag.FlagStringSlice
-//	newNodeFlag     configflag.FlagStringSlice
-//	replaceFlag     configflag.FlagStringSlice
-//}
 
 // this has all that the upper level needs to dispatch to here
 type Context struct {
 	//vals     *placementArgs
 	//handlers placementHandler
 	GlobalOpts checkArgs.GlobalOpts
-	Get *flag.FlagSet
+	Delete *flag.FlagSet
 	//Add       *flag.FlagSet
 	//Delete    *flag.FlagSet
 	//Init      *flag.FlagSet
@@ -49,8 +35,8 @@ type Context struct {
 // just the stuff for parsing at the get level
 func InitializeFlags() Context {
 	//return _setupFlags(
-		//&placementArgs{},
-		//placementHandler{
+	//&placementArgs{},
+	//placementHandler{
 	//		add:     doAdd,
 	//		delete:  doDelete,
 	//		xget:    doGet,
@@ -63,22 +49,18 @@ func InitializeFlags() Context {
 }
 func _setupFlags() Context {
 
-	getFlags := flag.NewFlagSet("get", flag.ContinueOnError)
-	getFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "help msg here\n")
-		getFlags.PrintDefaults()
+	deleteFlags := flag.NewFlagSet("delete", flag.ContinueOnError)
+	deleteFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "delete help msg here\n")
+		deleteFlags.PrintDefaults()
 	}
 
-	return Context{Get:getFlags}
+	return Context{Delete:deleteFlags}
 }
 
-// parse this level
-// get hooks for the next level
-// dispatch
 func (ctx Context) PopParseDispatch(cli []string) error {
 
-	thisFlagset := ctx.Get
-	// right here args should be like "get ns -all"
+	thisFlagset := ctx.Delete
 	if len(cli) < 1 {
 		thisFlagset.Usage()
 		return &errors.FlagsError{}
@@ -86,19 +68,16 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 
 	// pop and parse
 	inArgs := cli[1:]
-	if err := thisFlagset.Parse(inArgs); err != nil {
-		thisFlagset.Usage()
-		return &errors.FlagsError{}
-	}
+	//if err := thisFlagset.Parse(inArgs); err != nil {
+	//	thisFlagset.Usage()
+	//	return err
+	//}
+	thisFlagset.Parse(inArgs)
 	if thisFlagset.NArg() == 0 {
-		//ctx.handlers.xget(*ctx.vals, ep)
 		thisFlagset.Usage()
-		//fmt.Print("stub get default action or error whatever is appropriate\n")
 		return &errors.FlagsError{}
 	}
 
-	// contexts for next level
-	//plctx := placements.InitializeFlags()
 	plctx := placements.InitializeFlags()
 	nsctx := namespaces.InitializeFlags()
 
@@ -106,29 +85,24 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	fmt.Print(nextArgs)
 	switch nextArgs[0] {
 	case plctx.Placement.Name():
-		fmt.Print("pl case")
+		fmt.Print("delete pl case")
 		plctx.Globals = ctx.GlobalOpts
 		if err := plctx.PopParseDispatch(nextArgs); err != nil {
 			return err
 		}
 	case nsctx.Namespaces.Name():
-		fmt.Print("pl case")
+		fmt.Print("delete ns case")
 		nsctx.Globals = ctx.GlobalOpts
 		if err := nsctx.PopParseDispatch(nextArgs); err != nil {
 			return err
 		}
-	//case plctx.Placement.Name():
-	//	fmt.Print("pl case")
-	//	if err := plctx.PopParseDispatch(nextArgs, "fake endpoint"); err != nil {
-	//		return err
-	//	}
 	default:
-		fmt.Print("default case")
+		fmt.Print("delete default case")
 		thisFlagset.Usage()
 		return &errors.FlagsError{}
 	}
 
-	fmt.Print("done with case")
+	fmt.Print("done delete with case")
 	return nil
 
 }

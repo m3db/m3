@@ -8,11 +8,6 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 )
 
-const (
-	defaultPath = "/api/v1/namespace"
-	debugQS     = "debug=true"
-)
-
 type NamespaceArgs struct {
 	showAll *bool
 	delete  *string

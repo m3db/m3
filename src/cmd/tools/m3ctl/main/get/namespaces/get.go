@@ -2,17 +2,19 @@ package namespaces
 
 import (
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"io"
 	"log"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	common "github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
 
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-func Show(flags *NamespaceArgs, endpoint string) {
-	url := fmt.Sprintf("%s%s?%s", endpoint, DefaultPath, DebugQS)
+func get(flags *namespacesArgs, globals checkArgs.GlobalOpts) {
+	url := fmt.Sprintf("%s%s?%s", globals.Endpoint, common.DefaultPath, common.DebugQS)
 	if *flags.showAll {
 		client.DoGet(url, client.Dumper)
 	} else {
