@@ -26,7 +26,7 @@ type placementArgs struct {
 }
 
 // this has all that the upper dispatcher needs to parse the cli
-type context struct {
+type Context struct {
 	vals      *placementArgs
 	handlers  placementHandlers
 	Globals   checkArgs.GlobalOpts
@@ -43,7 +43,7 @@ type placementHandlers struct {
 // everything needed to prep for this pl command level
 // nothing that's needed below it
 // just the stuff for parsing at the pl level
-func InitializeFlags() context {
+func InitializeFlags() Context {
 	return _setupFlags(
 		&placementArgs{},
 		placementHandlers{
@@ -57,7 +57,7 @@ func InitializeFlags() context {
 		},
 	)
 }
-func _setupFlags(finalArgs *placementArgs, handler placementHandlers) context {
+func _setupFlags(finalArgs *placementArgs, handler placementHandlers) Context {
 
 	placementFlags := flag.NewFlagSet("pl", flag.ContinueOnError)
 	//deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
@@ -82,7 +82,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 `, placementFlags.Name())
 		placementFlags.PrintDefaults()
 	}
-	return context{
+	return Context{
 		vals:     finalArgs,
 		handlers: handler,
 		//GlobalOpts:   nil,
@@ -94,7 +94,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 	}
 }
 
-func (ctx context) PopParseDispatch(cli []string) error {
+func (ctx Context) PopParseDispatch(cli []string) error {
 	// right here args should be like "pl delete -node someName"
 	if len(cli) < 1 {
 		ctx.Placement.Usage()
@@ -120,7 +120,7 @@ func (ctx context) PopParseDispatch(cli []string) error {
 
 }
 
-func dispatcher(ctx context) error {
+func dispatcher(ctx Context) error {
 	nextArgs := ctx.Placement.Args()
 	switch nextArgs[0] {
 	case "":

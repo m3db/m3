@@ -1,0 +1,13 @@
+syntax = "proto3";
+package yaml;
+
+import "github.com/m3db/m3/src/query/generated/proto/admin/database.proto";
+
+message DatabaseCreateRequestYaml {
+  enum OperationType {
+    CREATE = 0;
+    INIT = 1;
+  }
+  OperationType type = 7;
+  admin.DatabaseCreateRequest Request = 15;
+}

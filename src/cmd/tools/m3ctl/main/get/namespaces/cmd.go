@@ -12,7 +12,7 @@ type namespacesArgs struct {
 	showAll *bool
 }
 
-type context struct {
+type Context struct {
 	vals      *namespacesArgs
 	handlers  namespacesHandlers
 	Globals   checkArgs.GlobalOpts
@@ -29,7 +29,7 @@ type namespacesHandlers struct {
 // everything needed to prep for this pl command level
 // nothing that's needed below it
 // just the stuff for parsing at the pl level
-func InitializeFlags() context {
+func InitializeFlags() Context {
 	return _setupFlags(
 		&namespacesArgs{},
 		namespacesHandlers{
@@ -43,7 +43,7 @@ func InitializeFlags() context {
 		},
 	)
 }
-func _setupFlags(finalArgs *namespacesArgs, handler namespacesHandlers) context {
+func _setupFlags(finalArgs *namespacesArgs, handler namespacesHandlers) Context {
 	namespaceFlags := flag.NewFlagSet("ns", flag.ContinueOnError)
 	finalArgs.showAll = namespaceFlags.Bool("all", false, "get all the standard info for namespaces (otherwise default behaviour lists only the names)")
 
@@ -59,7 +59,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 `, namespaceFlags.Name())
 		namespaceFlags.PrintDefaults()
 	}
-	return context{
+	return Context{
 		vals:     finalArgs,
 		handlers: handler,
 		//GlobalOpts:   nil,
@@ -71,7 +71,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 	}
 }
 
-func (ctx context) PopParseDispatch(cli []string) error {
+func (ctx Context) PopParseDispatch(cli []string) error {
 	// right here args should be like "pl delete -node someName"
 	if len(cli) < 1 {
 		ctx.Namespaces.Usage()
@@ -97,7 +97,7 @@ func (ctx context) PopParseDispatch(cli []string) error {
 
 }
 
-func dispatcher(ctx context) error {
+func dispatcher(ctx Context) error {
 
 	nextArgs := ctx.Namespaces.Args()
 	switch nextArgs[0] {

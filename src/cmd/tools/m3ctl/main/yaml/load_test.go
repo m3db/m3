@@ -3,9 +3,7 @@ package yaml
 import (
 	"io/ioutil"
 	"testing"
-
-	"github.com/m3db/m3/src/query/generated/proto/admin"
-
+	pb "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -15,28 +13,33 @@ func TestLoadBasic(t *testing.T) {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
 
-	source := admin.DatabaseCreateRequest{}
+	source := pb.DatabaseCreateRequestYaml{}
 	data, err := _load(content, &source)
 
-	dest := admin.DatabaseCreateRequest{}
+	dest := pb.DatabaseCreateRequestYaml{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
+
 	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
 		t.Fatalf("failed to unmarshal basic test data:%v:\n", err)
 	}
-	if dest.ReplicationFactor != 327 {
-		t.Errorf("in and out ReplicationFactor did not match:expected:%d:got:%d:\n", source.ReplicationFactor, dest.ReplicationFactor)
+
+	if dest.Type != pb.DatabaseCreateRequestYaml_CREATE {
+		t.Errorf("dest type does not have the correct type:expected:%v:got:%v:", pb.DatabaseCreateRequestYaml_CREATE, dest.Type)
 	}
-	if dest.ReplicationFactor != source.ReplicationFactor {
-		t.Errorf("in and out ReplicationFactor did not match:expected:%d:got:%d:\n", source.ReplicationFactor, dest.ReplicationFactor)
+	if dest.Request.ReplicationFactor != 327 {
+		t.Errorf("in and out ReplicationFactor did not match:expected:%d:got:%d:\n", source.Request.ReplicationFactor, dest.Request.ReplicationFactor)
 	}
-	if dest.NamespaceName != "default" {
-		t.Errorf("namespace is wrong:expected:%s:got:%s:\n", "default", dest.NamespaceName)
+	if dest.Request.ReplicationFactor != source.Request.ReplicationFactor {
+		t.Errorf("in and out ReplicationFactor did not match:expected:%d:got:%d:\n", source.Request.ReplicationFactor, dest.Request.ReplicationFactor)
 	}
-	if len(dest.Hosts) != 1 {
-		t.Errorf("number of hosts is wrong:expected:%d:got:%d:\n", 1, len(dest.Hosts))
+	if dest.Request.NamespaceName != "default" {
+		t.Errorf("namespace is wrong:expected:%s:got:%s:\n", "default", dest.Request.NamespaceName)
 	}
-	if dest.Hosts[0].Id != "m3db_seed" {
-		t.Errorf("hostname is wrong:expected:%s:got:%s:\n", "m3db_seed", dest.Hosts[0])
+	if len(dest.Request.Hosts) != 1 {
+		t.Errorf("number of hosts is wrong:expected:%d:got:%d:\n", 1, len(dest.Request.Hosts))
+	}
+	if dest.Request.Hosts[0].Id != "m3db_seed" {
+		t.Errorf("hostname is wrong:expected:%s:got:%s:\n", "m3db_seed", dest.Request.Hosts[0])
 	}
 
 }
