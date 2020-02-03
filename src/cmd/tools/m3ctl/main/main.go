@@ -23,13 +23,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/apply"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get"
 	"os"
-
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/database"
-	//"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
-	"github.com/m3db/m3/src/x/config/configflag"
 )
 
 const (
@@ -43,8 +40,8 @@ func main() {
 
 	// hooks and context for the next level
 	// the database-related subcommand
-	createDatabaseYAML := configflag.FlagStringSlice{}
-	databaseFlagSets := database.SetupFlags(&createDatabaseYAML)
+	//createDatabaseYAML := configflag.FlagStringSlice{}
+	//databaseFlagSets := database.SetupFlags(&createDatabaseYAML)
 
 	// the namespace-related subcommand
 	//namespaceArgs := namespaces.NamespaceArgs{}
@@ -53,6 +50,7 @@ func main() {
 	//placementFlagSets := placements.InitializeFlags()
 	getFlagSets := get.InitializeFlags()
 	deleteFlagSets := delete.InitializeFlags()
+	applyFlagSets := apply.InitializeFlags()
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
@@ -66,7 +64,7 @@ Usage of %s:
 
 Each subcommand has its own built-in help provided via "-h".
 
-`, os.Args[0], databaseFlagSets.Database.Name(),
+`, os.Args[0], applyFlagSets.Apply.Name(),
 			//placementFlagSets.Placement.Name(),
 			getFlagSets.Get.Name(),
 			deleteFlagSets.Delete.Name())
@@ -101,6 +99,12 @@ Each subcommand has its own built-in help provided via "-h".
 	case deleteFlagSets.Delete.Name():
 		deleteFlagSets.GlobalOpts.Endpoint = *endPoint
 		if err := deleteFlagSets.PopParseDispatch(flag.Args()); err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+	case applyFlagSets.Apply.Name():
+		applyFlagSets.GlobalOpts.Endpoint = *endPoint
+		if err := applyFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}

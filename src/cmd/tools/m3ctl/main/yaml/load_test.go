@@ -52,17 +52,28 @@ func TestOperationSelectorPositive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
-	data, err := decodeKnownOps(content)
+	urlpath, pbmessage, err := decodeKnownOps(content)
 	if err != nil {
 		t.Fatalf("operation selector failed to encode the unknown operation yaml test data:%v:\n", err)
 	}
+
+	if urlpath != dbcreatePath {
+		t.Errorf("urlpath is wrong:expected:%s:got:%s:\n", dbcreatePath, urlpath)
+	}
+
+	data, err :=  _load(content, pbmessage)
+	if err != nil {
+		t.Fatalf("failed to encode to protocol:%v:\n", err)
+	}
+
 	dest := pb.DatabaseCreateRequestYaml{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
 		t.Fatalf("operation selector failed to unmarshal unknown operation data:%v:\n", err)
 	}
+
 	if dest.Operation != opCreate {
-		t.Errorf("dest type does not have the correct type via operation selector:expected:%v:got:%v:", opInit, dest.Operation)
+		t.Errorf("dest type does not have the correct type via operation selector:expected:%v:got:%v:", opCreate, dest.Operation)
 	}
 }
 func TestOperationSelectorNegative(t *testing.T) {
@@ -70,7 +81,7 @@ func TestOperationSelectorNegative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
-	if _, err = decodeKnownOps(content); err == nil {
+	if _, _, err := decodeKnownOps(content); err == nil {
 		t.Fatalf("operation selector should have returned an error\n")
 	}
 }

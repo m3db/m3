@@ -5,6 +5,7 @@ const (
 	opInit = "init"
 	opReplace = "replaceNode"
 	opNewNode = "newNode"
+	dbcreatePath = "/api/v1/database/create"
 )
 
 //type OP int

@@ -30,34 +30,47 @@ import (
 // DatabaseCreateRequestYaml_OperationType_value
 // and try to load for each
 // checking the "operation" field
-//func Load(path string, target proto.Message) io.Reader {
-func Load(path string) io.Reader {
+func Load(path string) (string, io.Reader) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	//rv, err := _load(content, target)
-	rv, err := decodeKnownOps(content)
+	url, pbmessage, err := decodeKnownOps(content)
 	if err != nil {
 		log.Fatalf("cannot unmarshal data:%v:from yaml file:%s:", err, path)
 	}
-	return rv
+
+	rv, err :=  _load(content, pbmessage)
+
+	return url, rv
 }
 
-func decodeKnownOps(data []byte) (io.Reader, error) {
+// peek into the yaml to see what it is expected to be
+// don't try to decode the entire thing since its
+// going into something that's currently unknown
+// so just grab the "operation" then dispatch
+//
+// returns the url path, proto.Message, and error
+func decodeKnownOps(data []byte) (string, proto.Message, error) {
 
-	createReq := &pb.DatabaseCreateRequestYaml{}
-	if rv, err := _load(data, createReq); err != nil {
-		return rv, err
-	} else if createReq.Operation == opCreate {
-		return rv, nil
+	type peeker struct {
+		Operation string
 	}
 
-	return nil, fmt.Errorf("Unknown operation specified in the yaml\n")
+	peek := &peeker{}
+	if err := yaml.Unmarshal(data, &peek); err != nil {
+		return "", nil, err
+	}
+
+	switch peek.Operation {
+	case opCreate:
+		return dbcreatePath,  &pb.DatabaseCreateRequestYaml{}, nil
+	default:
+		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
+	}
 
 }
 
-// more easily testable version
 func _load(content []byte, target proto.Message) (io.Reader, error) {
 	// unmarshal it into json
 	if err := yaml.Unmarshal(content, target); err != nil {
