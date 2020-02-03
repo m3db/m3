@@ -2,6 +2,7 @@ package yaml
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -29,23 +30,31 @@ import (
 // DatabaseCreateRequestYaml_OperationType_value
 // and try to load for each
 // checking the "operation" field
-func Load(path string, target proto.Message) io.Reader {
+//func Load(path string, target proto.Message) io.Reader {
+func Load(path string) io.Reader {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	rv, err := _load(content, target)
+	//rv, err := _load(content, target)
+	rv, err := decodeKnownOps(content)
 	if err != nil {
 		log.Fatalf("cannot unmarshal data:%v:from yaml file:%s:", err, path)
 	}
 	return rv
 }
 
-func q() (io.Reader, error) {
+func decodeKnownOps(data []byte) (io.Reader, error) {
 
-	for k := range pb.DatabaseCreateRequestYaml_OperationType_value {
-
+	createReq := &pb.DatabaseCreateRequestYaml{}
+	if rv, err := _load(data, createReq); err != nil {
+		return rv, err
+	} else if createReq.Operation == opCreate {
+		return rv, nil
 	}
+
+	return nil, fmt.Errorf("Unknown operation specified in the yaml\n")
+
 }
 
 // more easily testable version

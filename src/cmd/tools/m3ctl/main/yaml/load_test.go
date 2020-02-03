@@ -16,21 +16,20 @@ func TestLoadBasic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
-
 	// load the yaml and encode it
 	source := pb.DatabaseCreateRequestYaml{}
 	data, err := _load(content, &source)
-
+	if err != nil {
+		t.Fatalf("failed to encode the basic test data:%v:\n", err)
+	}
 	dest := pb.DatabaseCreateRequestYaml{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
-
 	// unmarshal the stream back into a struct and verify it
 	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
 		t.Fatalf("failed to unmarshal basic test data:%v:\n", err)
 	}
-
-	if dest.Type != pb.DatabaseCreateRequestYaml_CREATE {
-		t.Errorf("dest type does not have the correct type:expected:%v:got:%v:", pb.DatabaseCreateRequestYaml_CREATE, dest.Type)
+	if dest.Operation != opCreate {
+		t.Errorf("dest type does not have the correct type:expected:%v:got:%v:", opCreate, dest.Operation)
 	}
 	if dest.Request.ReplicationFactor != 327 {
 		t.Errorf("in and out ReplicationFactor did not match:expected:%d:got:%d:\n", source.Request.ReplicationFactor, dest.Request.ReplicationFactor)
@@ -47,5 +46,31 @@ func TestLoadBasic(t *testing.T) {
 	if dest.Request.Hosts[0].Id != "m3db_seed" {
 		t.Errorf("hostname is wrong:expected:%s:got:%s:\n", "m3db_seed", dest.Request.Hosts[0])
 	}
-
+}
+func TestOperationSelectorPositive(t *testing.T) {
+	content, err := ioutil.ReadFile("./testdata/basicCreate.yaml")
+	if err != nil {
+		t.Fatalf("failed to read yaml test data:%v:\n", err)
+	}
+	data, err := decodeKnownOps(content)
+	if err != nil {
+		t.Fatalf("operation selector failed to encode the unknown operation yaml test data:%v:\n", err)
+	}
+	dest := pb.DatabaseCreateRequestYaml{}
+	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
+	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
+		t.Fatalf("operation selector failed to unmarshal unknown operation data:%v:\n", err)
+	}
+	if dest.Operation != opCreate {
+		t.Errorf("dest type does not have the correct type via operation selector:expected:%v:got:%v:", opInit, dest.Operation)
+	}
+}
+func TestOperationSelectorNegative(t *testing.T) {
+	content, err := ioutil.ReadFile("./testdata/unknownOperation.yaml")
+	if err != nil {
+		t.Fatalf("failed to read yaml test data:%v:\n", err)
+	}
+	if _, err = decodeKnownOps(content); err == nil {
+		t.Fatalf("operation selector should have returned an error\n")
+	}
 }

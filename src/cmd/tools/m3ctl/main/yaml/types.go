@@ -1,13 +1,18 @@
 package yaml
 
-import "github.com/m3db/m3/src/query/generated/proto/admin"
-
-type OP int
 const (
-	Create OP = iota
+	opCreate = "create"
+	opInit = "init"
+	opReplace = "replaceNode"
+	opNewNode = "newNode"
 )
 
-type QQQ struct {
-	operation OP
-	admin.DatabaseCreateRequest
-}
+//type OP int
+//const (
+//	Create OP = iota
+//)
+//
+//type QQQ struct {
+//	operation OP
+//	admin.DatabaseCreateRequest
+//}
