@@ -21,7 +21,6 @@
 package database
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -204,7 +203,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
@@ -362,7 +361,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 func TestLocalWithBlockSizeNanos(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -472,7 +471,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
@@ -587,7 +586,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	`, desiredBlockSize, desiredBlockSize)
 
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestClusterTypeHosts(t *testing.T) {
@@ -845,7 +844,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
@@ -977,7 +976,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 func TestClusterTypeMissingHostnames(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -1046,15 +1045,6 @@ func stripAllWhitespace(str string) string {
 		}
 		return r
 	}, str)
-}
-
-func mustPrettyJSON(t *testing.T, str string) string {
-	var unmarshalled map[string]interface{}
-	err := json.Unmarshal([]byte(str), &unmarshalled)
-	require.NoError(t, err)
-	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
-	require.NoError(t, err)
-	return string(pretty)
 }
 
 func withEndline(str string) string {
