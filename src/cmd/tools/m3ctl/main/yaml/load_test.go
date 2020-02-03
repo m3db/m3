@@ -7,18 +7,24 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 )
 
+// this uses _load to get an encoded stream of the
+// structure, then unmarshals it back into a struct
+// and verifies the unmarshalled struct matches
+// what was specified in the yaml
 func TestLoadBasic(t *testing.T) {
 	content, err := ioutil.ReadFile("./testdata/basicCreate.yaml")
 	if err != nil {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
 
+	// load the yaml and encode it
 	source := pb.DatabaseCreateRequestYaml{}
 	data, err := _load(content, &source)
 
 	dest := pb.DatabaseCreateRequestYaml{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 
+	// unmarshal the stream back into a struct and verify it
 	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
 		t.Fatalf("failed to unmarshal basic test data:%v:\n", err)
 	}
