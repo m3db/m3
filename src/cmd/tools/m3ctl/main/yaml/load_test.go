@@ -52,7 +52,7 @@ func TestOperationSelectorPositive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
-	urlpath, pbmessage, err := decodeKnownOps(content)
+	urlpath, pbmessage, err := peeker(content)
 	if err != nil {
 		t.Fatalf("operation selector failed to encode the unknown operation yaml test data:%v:\n", err)
 	}
@@ -81,7 +81,7 @@ func TestOperationSelectorNegative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read yaml test data:%v:\n", err)
 	}
-	if _, _, err := decodeKnownOps(content); err == nil {
+	if _, _, err := peeker(content); err == nil {
 		t.Fatalf("operation selector should have returned an error\n")
 	}
 }
