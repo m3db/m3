@@ -6,22 +6,19 @@ import (
 )
 
 func makeStub() Context {
-	ctx :=  _setupFlags(
+	ctx := _setupFlags(
 		&namespacesArgs{},
 		namespacesHandlers{
-			xget: func(*namespacesArgs, checkArgs.GlobalOpts) { return },
+			handle: func(*namespacesArgs, checkArgs.GlobalOpts) { return },
 		},
 	)
-
 	ctx.Globals.Endpoint = "nuch"
-
 	return ctx
 }
 func TestBasic(t *testing.T) {
-
 	testData := []struct {
-		args []string
-		msg string
+		args             []string
+		msg              string
 		successCondition func(error) bool
 	}{
 		{
@@ -54,17 +51,12 @@ func TestBasic(t *testing.T) {
 			msg:              "It should return an error because we got an empty val",
 			successCondition: func(err error) bool { return err == nil },
 		},
-
 	}
-
 	for _, v := range testData {
 		ctx := makeStub()
 		rv := ctx.PopParseDispatch(v.args)
-		if ! v.successCondition(rv)  {
+		if !v.successCondition(rv) {
 			t.Error(v.msg)
 		}
 	}
-
 }
-
-

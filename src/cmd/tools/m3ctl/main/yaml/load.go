@@ -28,12 +28,9 @@ func Load(path string) (string, io.Reader) {
 	if err != nil {
 		log.Fatalf("error inspecting the yaml:it might be bad yaml or it might be an unknown operation:%v:from yaml file:%s:", err, path)
 	}
-
-	rv, err :=  _load(content, pbmessage)
-
+	rv, err := _load(content, pbmessage)
 	return url, rv
 }
-
 func _load(content []byte, target proto.Message) (io.Reader, error) {
 	// unmarshal it into json
 	if err := yaml.Unmarshal(content, target); err != nil {

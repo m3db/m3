@@ -38,10 +38,10 @@ func main() {
 	// top-level option
 	endPoint := flag.String("endpoint", defaultEndpoint, "The url for target m3db backend.")
 
+	// flagsets for next level down
 	getFlagSets := get.InitializeFlags()
 	deleteFlagSets := delete.InitializeFlags()
 	applyFlagSets := apply.InitializeFlags()
-
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `
 Usage of %s:
@@ -55,21 +55,17 @@ Usage of %s:
 Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], applyFlagSets.Flags.Name(),
-			//placementFlagSets.Placement.Name(),
 			getFlagSets.Get.Name(),
-			deleteFlagSets.Delete.Name())
+			deleteFlagSets.Flags.Name())
 
 		flag.PrintDefaults()
 	}
-
 	// parse this level
 	flag.Parse()
-
 	if len(os.Args) < 2 {
 		flag.Usage()
 		os.Exit(1)
 	}
-
 	// dispatch to the next level
 	switch flag.Arg(0) {
 	case getFlagSets.Get.Name():
@@ -78,7 +74,7 @@ Each subcommand has its own built-in help provided via "-h".
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-	case deleteFlagSets.Delete.Name():
+	case deleteFlagSets.Flags.Name():
 		deleteFlagSets.GlobalOpts.Endpoint = *endPoint
 		if err := deleteFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())

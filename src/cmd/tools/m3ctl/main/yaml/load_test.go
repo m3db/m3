@@ -1,10 +1,11 @@
 package yaml
 
 import (
-	"github.com/gogo/protobuf/jsonpb"
-	pb "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
 	"io/ioutil"
 	"testing"
+
+	"github.com/gogo/protobuf/jsonpb"
+	pb "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
 )
 
 // this uses _load to get an encoded stream of the

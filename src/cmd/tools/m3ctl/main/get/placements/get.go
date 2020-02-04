@@ -2,8 +2,8 @@ package placements
 
 import (
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
 	common "github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 )

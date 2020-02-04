@@ -6,7 +6,6 @@ import (
 )
 
 func PopParseAndCheck(args []string, fs *flag.FlagSet) error {
-
 	thisArgs := args[1:]
 	if err := fs.Parse(thisArgs); err != nil {
 		fs.Usage()
@@ -16,7 +15,5 @@ func PopParseAndCheck(args []string, fs *flag.FlagSet) error {
 		fs.Usage()
 		return &errors.FlagsError{}
 	}
-
 	return nil
 }
-

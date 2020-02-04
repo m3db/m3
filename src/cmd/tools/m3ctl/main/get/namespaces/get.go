@@ -7,13 +7,13 @@ import (
 	"log"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
-	"github.com/m3db/m3/src/query/generated/proto/admin"
 	common "github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
+	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-func get(flags *namespacesArgs, globals checkArgs.GlobalOpts) {
+func doGet(flags *namespacesArgs, globals checkArgs.GlobalOpts) {
 	url := fmt.Sprintf("%s%s?%s", globals.Endpoint, common.DefaultPath, common.DebugQS)
 	if *flags.showAll {
 		client.DoGet(url, client.Dumper)

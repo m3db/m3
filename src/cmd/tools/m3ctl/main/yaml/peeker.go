@@ -2,9 +2,11 @@ package yaml
 
 import (
 	"fmt"
+
+	yaml2 "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
+
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/proto"
-	yaml2 "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
 )
 
 // peek into the yaml to see what it is expected to be
@@ -14,16 +16,13 @@ import (
 //
 // returns the url path, proto.Message, and error
 func peeker(data []byte) (string, proto.Message, error) {
-
 	type peeker struct {
 		Operation string
 	}
-
 	peek := &peeker{}
 	if err := yaml.Unmarshal(data, &peek); err != nil {
 		return "", nil, err
 	}
-
 	switch peek.Operation {
 	case opCreate:
 		return dbcreatePath, &yaml2.DatabaseCreateRequestYaml{}, nil
@@ -36,6 +35,4 @@ func peeker(data []byte) (string, proto.Message, error) {
 	default:
 		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
 	}
-
 }
-
