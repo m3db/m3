@@ -54,7 +54,7 @@ Usage of %s:
 
 Each subcommand has its own built-in help provided via "-h".
 
-`, os.Args[0], applyFlagSets.Apply.Name(),
+`, os.Args[0], applyFlagSets.Flags.Name(),
 			//placementFlagSets.Placement.Name(),
 			getFlagSets.Get.Name(),
 			deleteFlagSets.Delete.Name())
@@ -84,7 +84,7 @@ Each subcommand has its own built-in help provided via "-h".
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-	case applyFlagSets.Apply.Name():
+	case applyFlagSets.Flags.Name():
 		applyFlagSets.GlobalOpts.Endpoint = *endPoint
 		if err := applyFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())

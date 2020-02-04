@@ -18,10 +18,10 @@ type Context struct {
 	vals       *applyArgs
 	handlers   applyHandlers
 	GlobalOpts checkArgs.GlobalOpts
-	Apply      *flag.FlagSet
+	Flags      *flag.FlagSet
 }
 type applyHandlers struct {
-	xget func(*applyArgs, checkArgs.GlobalOpts)
+	handle func(*applyArgs, checkArgs.GlobalOpts)
 }
 
 func InitializeFlags() Context {
@@ -30,7 +30,7 @@ func InitializeFlags() Context {
 			yamlFlag: &configflag.FlagStringSlice{},
 		},
 		applyHandlers{
-			xget: Apply,
+			handle: doApply,
 		})
 }
 func _setupFlags(finalArgs *applyArgs, handlers applyHandlers) Context {
@@ -45,24 +45,24 @@ func _setupFlags(finalArgs *applyArgs, handlers applyHandlers) Context {
 
 	return Context{
 		vals:     finalArgs,
-		Apply:    applyFlags,
+		Flags:    applyFlags,
 		handlers: handlers,
 	}
 }
 
 func (ctx Context) PopParseDispatch(cli []string) error {
 	if len(cli) < 1 {
-		ctx.Apply.Usage()
+		ctx.Flags.Usage()
 		return &errors.FlagsError{}
 	}
 
 	inArgs := cli[1:]
-	if err := ctx.Apply.Parse(inArgs); err != nil {
-		ctx.Apply.Usage()
+	if err := ctx.Flags.Parse(inArgs); err != nil {
+		ctx.Flags.Usage()
 		return err
 	}
-	if ctx.Apply.NFlag() != 1 {
-		ctx.Apply.Usage()
+	if ctx.Flags.NFlag() != 1 {
+		ctx.Flags.Usage()
 		return &errors.FlagsError{}
 	}
 
@@ -78,6 +78,6 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 // no dispatching here
 // there are no subcommands
 func dispatcher(ctx Context) error {
-	ctx.handlers.xget(ctx.vals, ctx.GlobalOpts)
+	ctx.handlers.handle(ctx.vals, ctx.GlobalOpts)
 	return nil
 }

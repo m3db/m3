@@ -5,7 +5,7 @@ import (
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 )
 
-func PopParseAndCheck(args []string, fs *flag.FlagSet) *errors.FlagsError {
+func PopParseAndCheck(args []string, fs *flag.FlagSet) error {
 
 	thisArgs := args[1:]
 	if err := fs.Parse(thisArgs); err != nil {
