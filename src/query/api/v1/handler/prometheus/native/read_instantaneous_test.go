@@ -130,7 +130,7 @@ func testPromReadInstantHandler(
 	at1, value1, err := result.Data.Result[1].Value.parse()
 	require.NoError(t, err)
 
-	expected := mustPrettyJSON(t, fmt.Sprintf(`
+	expected := xtest.MustPrettyJSON(t, fmt.Sprintf(`
 	{
 		"status": "success",
 		"data": {
@@ -160,7 +160,7 @@ func testPromReadInstantHandler(
 		}
 	}
 	`, at0.Unix(), value0, at1.Unix(), value1))
-	actual := mustPrettyJSON(t, recorder.Body.String())
+	actual := xtest.MustPrettyJSON(t, recorder.Body.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 

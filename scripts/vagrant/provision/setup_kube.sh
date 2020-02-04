@@ -56,10 +56,6 @@ while true; do
 done
 set -x
 
-# Deploy monitoring with Prometheus
-# Promethues Operator
-kubectl apply -f ./manifests/prometheus-operator.yaml
-
 # Manifests for Operator (prom, grafana, etc)
 set +x
 echo "Applying Prometheus operator manifests"
