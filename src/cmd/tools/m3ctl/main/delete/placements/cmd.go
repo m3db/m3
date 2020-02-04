@@ -67,7 +67,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	inArgs := cli[1:]
 	if err := ctx.Placement.Parse(inArgs); err != nil {
 		ctx.Placement.Usage()
-		return &errors.FlagsError{}
+		return err
 	}
 	if ctx.Placement.NFlag() == 0 {
 		fmt.Printf("3:%v:%v:\n", cli, ctx.Placement.NArg())

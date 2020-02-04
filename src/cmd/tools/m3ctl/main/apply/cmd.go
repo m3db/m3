@@ -59,7 +59,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	inArgs := cli[1:]
 	if err := ctx.Apply.Parse(inArgs); err != nil {
 		ctx.Apply.Usage()
-		return &errors.FlagsError{}
+		return err
 	}
 	if ctx.Apply.NFlag() != 1 {
 		ctx.Apply.Usage()

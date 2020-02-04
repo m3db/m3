@@ -38,16 +38,6 @@ func main() {
 	// top-level option
 	endPoint := flag.String("endpoint", defaultEndpoint, "The url for target m3db backend.")
 
-	// hooks and context for the next level
-	// the database-related subcommand
-	//createDatabaseYAML := configflag.FlagStringSlice{}
-	//databaseFlagSets := database.SetupFlags(&createDatabaseYAML)
-
-	// the namespace-related subcommand
-	//namespaceArgs := namespaces.NamespaceArgs{}
-	//namespaceFlagSets := namespaces.SetupFlags(&namespaceArgs)
-
-	//placementFlagSets := placements.InitializeFlags()
 	getFlagSets := get.InitializeFlags()
 	deleteFlagSets := delete.InitializeFlags()
 	applyFlagSets := apply.InitializeFlags()
@@ -82,14 +72,6 @@ Each subcommand has its own built-in help provided via "-h".
 
 	// dispatch to the next level
 	switch flag.Arg(0) {
-	//case databaseFlagSets.Database.Name():
-	//	database.ParseAndDo(&createDatabaseYAML, &databaseFlagSets, *endPoint)
-	//case namespaceFlagSets.Namespace.Name():
-	//	namespaces.ParseAndDo(&namespaceArgs, &namespaceFlagSets, *endPoint)
-	//case placementFlagSets.Placement.Name():
-	//	if err := placementFlagSets.PopParseDispatch(flag.Args(), *endPoint); err != nil {
-	//		os.Exit(1)
-	//	}
 	case getFlagSets.Get.Name():
 		getFlagSets.GlobalOpts.Endpoint = *endPoint
 		if err := getFlagSets.PopParseDispatch(flag.Args()); err != nil {

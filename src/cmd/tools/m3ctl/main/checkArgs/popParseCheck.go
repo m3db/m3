@@ -10,7 +10,7 @@ func PopParseAndCheck(args []string, fs *flag.FlagSet) *errors.FlagsError {
 	thisArgs := args[1:]
 	if err := fs.Parse(thisArgs); err != nil {
 		fs.Usage()
-		return &errors.FlagsError{}
+		return err
 	}
 	if fs.NFlag() == 0 {
 		fs.Usage()

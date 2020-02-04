@@ -17,29 +17,16 @@ type Context struct {
 	handlers  namespacesHandlers
 	Globals   checkArgs.GlobalOpts
 	Namespaces *flag.FlagSet
-	//Add       *flag.FlagSet
-	//Delete    *flag.FlagSet
-	//Init      *flag.FlagSet
-	//Replace   *flag.FlagSet
 }
 type namespacesHandlers struct {
 	xget func(*namespacesArgs, checkArgs.GlobalOpts)
 }
 
-// everything needed to prep for this pl command level
-// nothing that's needed below it
-// just the stuff for parsing at the pl level
 func InitializeFlags() Context {
 	return _setupFlags(
 		&namespacesArgs{},
 		namespacesHandlers{
-			//add:     doAdd,
-			//delete:  doDelete,
-			//xget:    func(c *placementArgs, s string) {fmt.Print("deeper fake pl get handler")},
 			xget: get,
-			//xget:    placements.,
-			//xinit:   doInit,
-			//replace: doReplace,
 		},
 	)
 }
@@ -62,12 +49,7 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 	return Context{
 		vals:     finalArgs,
 		handlers: handler,
-		//GlobalOpts:   nil,
 		Namespaces: namespaceFlags,
-		//Add:       addFlags,
-		//Delete:    deleteFlags,
-		//Init:      initFlags,
-		//Replace:   replaceFlags,
 	}
 }
 
