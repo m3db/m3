@@ -20,7 +20,7 @@ type Context struct {
 	Flags    *flag.FlagSet
 }
 type namespacesHandlers struct {
-	handle func(*namespacesVals, globalopts.GlobalOpts)
+	handle func(*namespacesVals, globalopts.GlobalOpts) error
 }
 
 func InitializeFlags() Context {
@@ -58,8 +58,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 		return &errors.FlagsError{}
 	}
 	if ctx.Flags.NArg() == 0 {
-		ctx.handlers.handle(ctx.vals, ctx.Globals)
-		return nil
+		return ctx.handlers.handle(ctx.vals, ctx.Globals)
 	}
 	if err := dispatcher(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
@@ -71,8 +70,7 @@ func dispatcher(ctx Context) error {
 	nextArgs := ctx.Flags.Args()
 	switch nextArgs[0] {
 	case "":
-		ctx.handlers.handle(ctx.vals, ctx.Globals)
-		return nil
+		return ctx.handlers.handle(ctx.vals, ctx.Globals)
 	default:
 		ctx.Flags.Usage()
 		return &errors.FlagsError{}

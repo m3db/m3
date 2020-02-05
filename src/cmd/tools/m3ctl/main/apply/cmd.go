@@ -20,7 +20,7 @@ type Context struct {
 	Flags      *flag.FlagSet
 }
 type applyHandlers struct {
-	handle func(*applyVals, globalopts.GlobalOpts)
+	handle func(*applyVals, globalopts.GlobalOpts) error
 }
 
 func InitializeFlags() Context {
@@ -104,6 +104,5 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 // no dispatching here
 // there are no subcommands
 func dispatcher(ctx Context) error {
-	ctx.handlers.handle(ctx.vals, ctx.GlobalOpts)
-	return nil
+	return ctx.handlers.handle(ctx.vals, ctx.GlobalOpts)
 }

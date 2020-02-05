@@ -23,7 +23,7 @@ type Context struct {
 	Flags    *flag.FlagSet
 }
 type namespacesHandlers struct {
-	handle func(*namespacesVals, globalopts.GlobalOpts)
+	handle func(*namespacesVals, globalopts.GlobalOpts) error
 }
 
 func InitializeFlags() Context {
@@ -78,7 +78,5 @@ func dispatcher(ctx Context) error {
 		ctx.Flags.Usage()
 		return &errors.FlagsError{"\nextra args supplied. See usage.\n"}
 	}
-	ctx.handlers.handle(ctx.vals, ctx.Globals)
-	return nil
-
+	return ctx.handlers.handle(ctx.vals, ctx.Globals)
 }

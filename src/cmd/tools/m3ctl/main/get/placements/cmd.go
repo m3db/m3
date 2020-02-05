@@ -18,7 +18,7 @@ type Context struct {
 	Flags    *flag.FlagSet
 }
 type placementHandlers struct {
-	handle func(*placementVals, globalopts.GlobalOpts)
+	handle func(*placementVals, globalopts.GlobalOpts) error
 }
 
 func InitializeFlags() Context {
@@ -57,8 +57,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 		return err
 	}
 	if ctx.Flags.NArg() == 0 {
-		ctx.handlers.handle(ctx.vals, ctx.Globals)
-		return nil
+		return ctx.handlers.handle(ctx.vals, ctx.Globals)
 	}
 	if err := dispatcher(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
@@ -71,8 +70,7 @@ func dispatcher(ctx Context) error {
 	nextArgs := ctx.Flags.Args()
 	switch nextArgs[0] {
 	case "":
-		ctx.handlers.handle(ctx.vals, ctx.Globals)
-		return nil
+		return ctx.handlers.handle(ctx.vals, ctx.Globals)
 	default:
 		return &errors.FlagsError{}
 	}

@@ -19,17 +19,17 @@ import (
 //
 // See the examples directories.
 //
-func Load(path string, zl *zap.SugaredLogger) (string, io.Reader) {
+func Load(path string, zl *zap.SugaredLogger) (string, io.Reader, error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
-		zl.Fatal(err)
+		return "", nil, err
 	}
 	url, pbmessage, err := peeker(content)
 	if err != nil {
-		zl.Fatalf("error inspecting the yaml:it might be bad yaml or it might be an unknown operation:%v:from yaml file:%s:", err, path)
+		return "", nil, err
 	}
 	rv, err := _load(content, pbmessage)
-	return url, rv
+	return url, rv, nil
 }
 
 func _load(content []byte, target proto.Message) (io.Reader, error) {

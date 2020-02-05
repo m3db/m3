@@ -26,7 +26,7 @@ func _setupFlags() Context {
 		fmt.Fprintf(os.Stderr, `
 "%s" is for deletiion operations for namespaces and placements.
 
-`)
+`, deleteFlags.Name())
 		deleteFlags.PrintDefaults()
 	}
 	return Context{Flags: deleteFlags}

@@ -10,7 +10,7 @@ func makeStub() Context {
 	ctx := _setupFlags(
 		&namespacesVals{},
 		namespacesHandlers{
-			handle: func(*namespacesVals, globalopts.GlobalOpts) { return },
+			handle: func(*namespacesVals, globalopts.GlobalOpts) error { return nil },
 		},
 	)
 	ctx.Globals.Endpoint = "nuch"

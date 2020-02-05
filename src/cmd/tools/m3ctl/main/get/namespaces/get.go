@@ -13,22 +13,23 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-func doGet(flags *namespacesVals, globals globalopts.GlobalOpts) {
+func doGet(flags *namespacesVals, globals globalopts.GlobalOpts) error {
 	url := fmt.Sprintf("%s%s?%s", globals.Endpoint, namespaces.DefaultPath, namespaces.DebugQS)
 	if *flags.showAll {
-		client.DoGet(url, client.Dumper, globals.Zap)
+		return client.DoGet(url, client.Dumper, globals.Zap)
 	} else {
-		client.DoGet(url, showNames, globals.Zap)
+		return client.DoGet(url, showNames, globals.Zap)
 	}
 }
 
-func showNames(in io.Reader, zl *zap.SugaredLogger) {
+func showNames(in io.Reader, zl *zap.SugaredLogger) error {
 	registry := admin.NamespaceGetResponse{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(in, &registry); err != nil {
-		zl.Fatal(err)
+		return err
 	}
 	for k, _ := range registry.Registry.Namespaces {
 		fmt.Println(k)
 	}
+	return nil
 }

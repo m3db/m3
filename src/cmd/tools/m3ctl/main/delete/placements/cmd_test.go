@@ -10,7 +10,7 @@ func makeStub() Context {
 	ctx := _setupFlags(
 		&placementVals{},
 		placementHandlers{
-			handle: func(*placementVals, globalopts.GlobalOpts) { return },
+			handle: func(*placementVals, globalopts.GlobalOpts) error { return nil },
 		},
 	)
 	ctx.Globals.Endpoint = "nuch"
