@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	"go.etcd.io/etcd/clientv3"
 )
 
 // Options is the Options to create a config service client.
@@ -161,6 +162,13 @@ type Cluster interface {
 
 	DialTimeout() time.Duration
 	SetDialTimeout(value time.Duration) Cluster
+
+	// SetEtcdOptions allows the user to apply a set of transformations to the etcd config
+	// just before it is used. The configs provided to the options will be populated with values
+	// from other fields on Cluster.
+	SetEtcdOptions(opts ...EtcdOption) Cluster
+	// EtcdOptions -- see SetEtcdOptions.
+	EtcdOptions() []EtcdOption
 }
 
 // Client is an etcd-backed m3cluster client.
@@ -169,3 +177,7 @@ type Client interface {
 
 	Clients() []ZoneClient
 }
+
+// EtcdOption applies a modification to the provided etcd config. An option can error if the config
+// provided doesn't work with it.
+type EtcdOption func(config *clientv3.Config) error

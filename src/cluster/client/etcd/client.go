@@ -325,6 +325,14 @@ func (c *csclient) Clients() []ZoneClient {
 }
 
 func newClient(cluster Cluster) (*clientv3.Client, error) {
+	cfg, err := newConfigFromCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+	return clientv3.New(*cfg)
+}
+
+func newConfigFromCluster(cluster Cluster) (*clientv3.Config, error) {
 	tls, err := cluster.TLSOptions().Config()
 	if err != nil {
 		return nil, err
@@ -350,7 +358,13 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		cfg.PermitWithoutStream = true
 	}
 
-	return clientv3.New(cfg)
+	// apply the catch all options
+	for _, opt := range cluster.EtcdOptions() {
+		if err := opt(&cfg); err != nil {
+			return nil, err
+		}
+	}
+	return &cfg, nil
 }
 
 func (c *csclient) cacheFileFn(extraFields ...string) cacheFileForZoneFn {

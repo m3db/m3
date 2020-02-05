@@ -418,6 +418,7 @@ type cluster struct {
 	tlsOpts          TLSOptions
 	autoSyncInterval time.Duration
 	dialTimeout      time.Duration
+	etcdOptions      []EtcdOption
 }
 
 func (c cluster) Zone() string {
@@ -475,4 +476,13 @@ func (c cluster) SetDialTimeout(dialTimeout time.Duration) Cluster {
 	c.dialTimeout = dialTimeout
 
 	return c
+}
+
+func (c cluster) SetEtcdOptions(opts ...EtcdOption) Cluster {
+	c.etcdOptions = opts
+	return c
+}
+
+func (c cluster) EtcdOptions() []EtcdOption {
+	return c.etcdOptions
 }
