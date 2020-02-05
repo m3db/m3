@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete/namespaces"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete/placements"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
 // this has all that the upper level needs to dispatch to here
 type Context struct {
-	GlobalOpts checkArgs.GlobalOpts
+	GlobalOpts globalopts.GlobalOpts
 	Flags      *flag.FlagSet
 }
 

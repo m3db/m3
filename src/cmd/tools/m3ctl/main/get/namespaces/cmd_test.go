@@ -1,15 +1,16 @@
 package namespaces
 
 import (
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"testing"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
 func makeStub() Context {
 	ctx := _setupFlags(
-		&namespacesArgs{},
+		&namespacesVals{},
 		namespacesHandlers{
-			handle: func(*namespacesArgs, checkArgs.GlobalOpts) { return },
+			handle: func(*namespacesVals, globalopts.GlobalOpts) { return },
 		},
 	)
 	ctx.Globals.Endpoint = "nuch"

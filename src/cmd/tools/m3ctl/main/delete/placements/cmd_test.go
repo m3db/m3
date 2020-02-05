@@ -1,15 +1,16 @@
 package placements
 
 import (
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"testing"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
 func makeStub() Context {
 	ctx := _setupFlags(
-		&placementArgs{},
+		&placementVals{},
 		placementHandlers{
-			handle: func(*placementArgs, checkArgs.GlobalOpts) { return },
+			handle: func(*placementVals, globalopts.GlobalOpts) { return },
 		},
 	)
 	ctx.Globals.Endpoint = "nuch"

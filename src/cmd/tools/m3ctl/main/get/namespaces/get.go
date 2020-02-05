@@ -2,31 +2,31 @@ package namespaces
 
 import (
 	"fmt"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
+	"go.uber.org/zap"
 	"io"
-	"log"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
-	common "github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-func doGet(flags *namespacesArgs, globals checkArgs.GlobalOpts) {
-	url := fmt.Sprintf("%s%s?%s", globals.Endpoint, common.DefaultPath, common.DebugQS)
+func doGet(flags *namespacesVals, globals globalopts.GlobalOpts) {
+	url := fmt.Sprintf("%s%s?%s", globals.Endpoint, namespaces.DefaultPath, namespaces.DebugQS)
 	if *flags.showAll {
-		client.DoGet(url, client.Dumper)
+		client.DoGet(url, client.Dumper, globals.Zap)
 	} else {
-		client.DoGet(url, showNames)
+		client.DoGet(url, showNames, globals.Zap)
 	}
 }
 
-func showNames(in io.Reader) {
+func showNames(in io.Reader, zl *zap.SugaredLogger) {
 	registry := admin.NamespaceGetResponse{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(in, &registry); err != nil {
-		log.Fatal(err)
+		zl.Fatal(err)
 	}
 	for k, _ := range registry.Registry.Namespaces {
 		fmt.Println(k)

@@ -5,35 +5,35 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
-
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 	"github.com/m3db/m3/src/x/config/configflag"
 )
 
-type applyArgs struct {
+type applyVals struct {
 	yamlFlag *configflag.FlagStringSlice
 }
 type Context struct {
-	vals       *applyArgs
+	vals       *applyVals
 	handlers   applyHandlers
-	GlobalOpts checkArgs.GlobalOpts
+	GlobalOpts globalopts.GlobalOpts
 	Flags      *flag.FlagSet
 }
 type applyHandlers struct {
-	handle func(*applyArgs, checkArgs.GlobalOpts)
+	handle func(*applyVals, globalopts.GlobalOpts)
 }
 
 func InitializeFlags() Context {
 	return _setupFlags(
-		&applyArgs{
+		&applyVals{
 			yamlFlag: &configflag.FlagStringSlice{},
 		},
 		applyHandlers{
 			handle: doApply,
 		})
 }
-func _setupFlags(finalArgs *applyArgs, handlers applyHandlers) Context {
+
+func _setupFlags(finalArgs *applyVals, handlers applyHandlers) Context {
 	applyFlags := flag.NewFlagSet("apply", flag.ContinueOnError)
 	applyFlags.Var(finalArgs.yamlFlag, "f", "Path to yaml.")
 	applyFlags.Usage = func() {

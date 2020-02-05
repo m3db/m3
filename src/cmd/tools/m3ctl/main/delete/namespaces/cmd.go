@@ -5,36 +5,36 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
 // all the values from the cli args are stored in here
 // for all the placement-related commands
-type namespacesArgs struct {
+type namespacesVals struct {
 	nodeName *string
 }
-
 // this has all that the upper dispatcher needs to parse the cli
 type Context struct {
-	vals     *namespacesArgs
+	vals     *namespacesVals
 	handlers namespacesHandlers
-	Globals  checkArgs.GlobalOpts
+	Globals  globalopts.GlobalOpts
 	Flags    *flag.FlagSet
 }
 type namespacesHandlers struct {
-	handle func(*namespacesArgs, checkArgs.GlobalOpts)
+	handle func(*namespacesVals, globalopts.GlobalOpts)
 }
 
 func InitializeFlags() Context {
 	return _setupFlags(
-		&namespacesArgs{},
+		&namespacesVals{},
 		namespacesHandlers{
 			handle: doDelete,
 		},
 	)
 }
-func _setupFlags(finalArgs *namespacesArgs, handler namespacesHandlers) Context {
+
+func _setupFlags(finalArgs *namespacesVals, handler namespacesHandlers) Context {
 	nsFlags := flag.NewFlagSet("ns", flag.ContinueOnError)
 	finalArgs.nodeName = nsFlags.String("node", "", "delete the specified node in the placement")
 	nsFlags.Usage = func() {
@@ -54,6 +54,7 @@ qqq
 		Flags:    nsFlags,
 	}
 }
+
 func (ctx Context) PopParseDispatch(cli []string) error {
 	if len(cli) < 1 {
 		ctx.Flags.Usage()
@@ -73,6 +74,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	}
 	return nil
 }
+
 func dispatcher(ctx Context) error {
 	nextArgs := ctx.Flags.Args()
 	if len(nextArgs) != 0 {

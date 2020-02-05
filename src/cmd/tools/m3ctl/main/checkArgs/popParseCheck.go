@@ -2,6 +2,7 @@ package checkArgs
 
 import (
 	"flag"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 )
 

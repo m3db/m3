@@ -23,10 +23,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/apply"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get"
-	"os"
+	"go.uber.org/zap"
 )
 
 const (
@@ -55,7 +57,7 @@ Usage of %s:
 Each subcommand has its own built-in help provided via "-h".
 
 `, os.Args[0], applyFlagSets.Flags.Name(),
-			getFlagSets.Get.Name(),
+			getFlagSets.Flags.Name(),
 			deleteFlagSets.Flags.Name())
 
 		flag.PrintDefaults()
@@ -66,22 +68,31 @@ Each subcommand has its own built-in help provided via "-h".
 		flag.Usage()
 		os.Exit(1)
 	}
+	rawLogger, err := zap.NewDevelopment()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	log := rawLogger.Sugar()
 	// dispatch to the next level
 	switch flag.Arg(0) {
-	case getFlagSets.Get.Name():
+	case getFlagSets.Flags.Name():
 		getFlagSets.GlobalOpts.Endpoint = *endPoint
+		getFlagSets.GlobalOpts.Zap = log
 		if err := getFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 	case deleteFlagSets.Flags.Name():
 		deleteFlagSets.GlobalOpts.Endpoint = *endPoint
+		deleteFlagSets.GlobalOpts.Zap = log
 		if err := deleteFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 	case applyFlagSets.Flags.Name():
 		applyFlagSets.GlobalOpts.Endpoint = *endPoint
+		applyFlagSets.GlobalOpts.Zap = log
 		if err := applyFlagSets.PopParseDispatch(flag.Args()); err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)

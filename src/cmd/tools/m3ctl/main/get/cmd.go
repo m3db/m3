@@ -5,30 +5,32 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get/namespaces"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get/placements"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
 type Context struct {
-	GlobalOpts checkArgs.GlobalOpts
-	Get        *flag.FlagSet
+	GlobalOpts globalopts.GlobalOpts
+	Flags      *flag.FlagSet
 }
 
 func InitializeFlags() Context {
 	return _setupFlags()
 }
+
 func _setupFlags() Context {
 	getFlags := flag.NewFlagSet("get", flag.ContinueOnError)
 	getFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "help msg here\n")
 		getFlags.PrintDefaults()
 	}
-	return Context{Get: getFlags}
+	return Context{Flags: getFlags}
 }
+
 func (ctx Context) PopParseDispatch(cli []string) error {
-	thisFlagset := ctx.Get
+	thisFlagset := ctx.Flags
 	if len(cli) < 1 {
 		thisFlagset.Usage()
 		return &errors.FlagsError{}
@@ -36,12 +38,13 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	inArgs := cli[1:]
 	if err := thisFlagset.Parse(inArgs); err != nil {
 		thisFlagset.Usage()
-		return &errors.FlagsError{}
+		return err
 	}
 	if thisFlagset.NArg() == 0 {
 		thisFlagset.Usage()
 		return &errors.FlagsError{}
 	}
+
 	plctx := placements.InitializeFlags()
 	nsctx := namespaces.InitializeFlags()
 	nextArgs := thisFlagset.Args()

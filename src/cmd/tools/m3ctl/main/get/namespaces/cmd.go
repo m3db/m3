@@ -5,33 +5,33 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
-type namespacesArgs struct {
+type namespacesVals struct {
 	showAll *bool
 }
 
 type Context struct {
-	vals     *namespacesArgs
+	vals     *namespacesVals
 	handlers namespacesHandlers
-	Globals  checkArgs.GlobalOpts
+	Globals  globalopts.GlobalOpts
 	Flags    *flag.FlagSet
 }
 type namespacesHandlers struct {
-	handle func(*namespacesArgs, checkArgs.GlobalOpts)
+	handle func(*namespacesVals, globalopts.GlobalOpts)
 }
 
 func InitializeFlags() Context {
 	return _setupFlags(
-		&namespacesArgs{},
+		&namespacesVals{},
 		namespacesHandlers{
 			handle: doGet,
 		},
 	)
 }
-func _setupFlags(finalArgs *namespacesArgs, handler namespacesHandlers) Context {
+func _setupFlags(finalArgs *namespacesVals, handler namespacesHandlers) Context {
 	namespaceFlags := flag.NewFlagSet("ns", flag.ContinueOnError)
 	finalArgs.showAll = namespaceFlags.Bool("all", false, "get all the standard info for namespaces (otherwise default behaviour lists only the names)")
 	namespaceFlags.Usage = func() {

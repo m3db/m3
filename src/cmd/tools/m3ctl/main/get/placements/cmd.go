@@ -5,31 +5,32 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
-type placementArgs struct {
+type placementVals struct {
 }
 type Context struct {
-	vals     *placementArgs
+	vals     *placementVals
 	handlers placementHandlers
-	Globals  checkArgs.GlobalOpts
+	Globals  globalopts.GlobalOpts
 	Flags    *flag.FlagSet
 }
 type placementHandlers struct {
-	handle func(*placementArgs, checkArgs.GlobalOpts)
+	handle func(*placementVals, globalopts.GlobalOpts)
 }
 
 func InitializeFlags() Context {
 	return _setupFlags(
-		&placementArgs{},
+		&placementVals{},
 		placementHandlers{
 			handle: doGet,
 		},
 	)
 }
-func _setupFlags(finalArgs *placementArgs, handler placementHandlers) Context {
+
+func _setupFlags(finalArgs *placementVals, handler placementHandlers) Context {
 	placementFlags := flag.NewFlagSet("pl", flag.ContinueOnError)
 	placementFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
@@ -46,10 +47,10 @@ Default behaviour (no arguments) is to provide a json dump of the existing place
 	return Context{
 		vals:     finalArgs,
 		handlers: handler,
-		//GlobalOpts:   nil,
 		Flags: placementFlags,
 	}
 }
+
 func (ctx Context) PopParseDispatch(cli []string) error {
 	if len(cli) < 1 {
 		ctx.Flags.Usage()
@@ -58,7 +59,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	inArgs := cli[1:]
 	if err := ctx.Flags.Parse(inArgs); err != nil {
 		ctx.Flags.Usage()
-		return &errors.FlagsError{}
+		return err
 	}
 	if ctx.Flags.NArg() == 0 {
 		ctx.handlers.handle(ctx.vals, ctx.Globals)
@@ -70,6 +71,7 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	}
 	return nil
 }
+
 func dispatcher(ctx Context) error {
 	nextArgs := ctx.Flags.Args()
 	switch nextArgs[0] {

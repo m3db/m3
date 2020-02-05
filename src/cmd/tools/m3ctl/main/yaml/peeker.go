@@ -2,6 +2,7 @@ package yaml
 
 import (
 	"fmt"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
 
 	yaml2 "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
 
@@ -27,11 +28,11 @@ func peeker(data []byte) (string, proto.Message, error) {
 	case opCreate:
 		return dbcreatePath, &yaml2.DatabaseCreateRequestYaml{}, nil
 	case opInit:
-		return fmt.Sprintf("%s/init", placementPath), &yaml2.PlacementInitRequestYaml{}, nil
+		return fmt.Sprintf("%s/init", placements.DefaultPath), &yaml2.PlacementInitRequestYaml{}, nil
 	case opReplace:
-		return fmt.Sprintf("%s/replace", placementPath), &yaml2.PlacementReplaceRequestYaml{}, nil
+		return fmt.Sprintf("%s/replace", placements.DefaultPath), &yaml2.PlacementReplaceRequestYaml{}, nil
 	case opNewNode:
-		return fmt.Sprintf("%s", placementPath), &yaml2.PlacementInitRequestYaml{}, nil
+		return fmt.Sprintf("%s", placements.DefaultPath), &yaml2.PlacementInitRequestYaml{}, nil
 	default:
 		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
 	}

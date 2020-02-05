@@ -1,8 +1,8 @@
-package checkArgs
+package globalopts
 
 import "go.uber.org/zap"
 
 type GlobalOpts struct {
 	Endpoint string
-	zap      *zap.SugaredLogger
+	Zap      *zap.SugaredLogger
 }

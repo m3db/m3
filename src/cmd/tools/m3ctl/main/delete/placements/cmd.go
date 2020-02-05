@@ -5,37 +5,37 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/checkArgs"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
 )
 
 // all the values from the cli args are stored in here
 // for all the placement-related commands
-type placementArgs struct {
+type placementVals struct {
 	deleteEntire *bool
 	nodeName     *string
 }
 
 // this has all that the upper dispatcher needs to parse the cli
 type Context struct {
-	vals     *placementArgs
+	vals     *placementVals
 	handlers placementHandlers
-	Globals  checkArgs.GlobalOpts
+	Globals  globalopts.GlobalOpts
 	Flags    *flag.FlagSet
 }
 type placementHandlers struct {
-	handle func(*placementArgs, checkArgs.GlobalOpts)
+	handle func(*placementVals, globalopts.GlobalOpts)
 }
 
 func InitializeFlags() Context {
 	return _setupFlags(
-		&placementArgs{},
+		&placementVals{},
 		placementHandlers{
 			handle: doDelete,
 		},
 	)
 }
-func _setupFlags(finalArgs *placementArgs, handler placementHandlers) Context {
+func _setupFlags(finalArgs *placementVals, handler placementHandlers) Context {
 	placementFlags := flag.NewFlagSet("pl", flag.ContinueOnError)
 	finalArgs.deleteEntire = placementFlags.Bool("all", false, "delete the entire placement")
 	finalArgs.nodeName = placementFlags.String("node", "", "delete the specified node in the placement")

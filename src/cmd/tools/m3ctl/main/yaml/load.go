@@ -2,9 +2,9 @@ package yaml
 
 import (
 	"bytes"
+	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
-	"log"
 
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/jsonpb"
@@ -19,18 +19,19 @@ import (
 //
 // See the examples directories.
 //
-func Load(path string) (string, io.Reader) {
+func Load(path string, zl *zap.SugaredLogger) (string, io.Reader) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Fatal(err)
+		zl.Fatal(err)
 	}
 	url, pbmessage, err := peeker(content)
 	if err != nil {
-		log.Fatalf("error inspecting the yaml:it might be bad yaml or it might be an unknown operation:%v:from yaml file:%s:", err, path)
+		zl.Fatalf("error inspecting the yaml:it might be bad yaml or it might be an unknown operation:%v:from yaml file:%s:", err, path)
 	}
 	rv, err := _load(content, pbmessage)
 	return url, rv
 }
+
 func _load(content []byte, target proto.Message) (io.Reader, error) {
 	// unmarshal it into json
 	if err := yaml.Unmarshal(content, target); err != nil {
