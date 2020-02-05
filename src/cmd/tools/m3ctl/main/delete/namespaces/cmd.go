@@ -14,6 +14,7 @@ import (
 type namespacesVals struct {
 	nodeName *string
 }
+
 // this has all that the upper dispatcher needs to parse the cli
 type Context struct {
 	vals     *namespacesVals

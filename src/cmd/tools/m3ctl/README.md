@@ -1,9 +1,8 @@
-M3DB Tool
-========
+M3DB CLI Tool
+=============
 
 This is a CLI tool to do some things that may be desirable for
 cluster introspection, or for operational purposes.
-
 
 Where configuration data is required its provided via YAML.
 

@@ -42,7 +42,7 @@ func _setupFlags(finalArgs *placementVals, handler placementHandlers) Context {
 	return Context{
 		vals:     finalArgs,
 		handlers: handler,
-		Flags: placementFlags,
+		Flags:    placementFlags,
 	}
 }
 
