@@ -21,11 +21,13 @@
 package etcd
 
 import (
+	"errors"
 	"os"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/stretchr/testify/assert"
 
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
@@ -342,6 +344,28 @@ func TestValidateNamespace(t *testing.T) {
 			require.Error(t, err)
 		}
 	}
+}
+
+func TestNewConfigFromCluster_EtcdOptions(t *testing.T) {
+	t.Run("applies EtcdOptions", func(t *testing.T) {
+		testPassword := "supersecret"
+		cluster := NewCluster().SetEtcdOptions(func(cfg *clientv3.Config) error {
+			cfg.Password = testPassword
+			return nil
+		})
+		cfg, err := newConfigFromCluster(cluster)
+		require.NoError(t, err)
+		assert.Equal(t, testPassword, cfg.Password)
+	})
+
+	t.Run("errors on option err", func(t *testing.T) {
+		testErr := errors.New("some err")
+		cluster := NewCluster().SetEtcdOptions(func(cfg *clientv3.Config) error {
+			return testErr
+		})
+		_, err := newConfigFromCluster(cluster)
+		require.EqualError(t, err, testErr.Error())
+	})
 }
 
 func testOptions() Options {

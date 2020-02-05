@@ -327,6 +327,7 @@ type cluster struct {
 	keepAliveOpts    KeepAliveOptions
 	tlsOpts          TLSOptions
 	autoSyncInterval time.Duration
+	etcdOptions      []EtcdOption
 }
 
 func (c cluster) Zone() string {
@@ -372,4 +373,13 @@ func (c cluster) AutoSyncInterval() time.Duration {
 func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {
 	c.autoSyncInterval = autoSyncInterval
 	return c
+}
+
+func (c cluster) SetEtcdOptions(opts ...EtcdOption) Cluster {
+	c.etcdOptions = opts
+	return c
+}
+
+func (c cluster) EtcdOptions() []EtcdOption {
+	return c.etcdOptions
 }
