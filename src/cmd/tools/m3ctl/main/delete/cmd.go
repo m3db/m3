@@ -23,7 +23,10 @@ func InitializeFlags() Context {
 func _setupFlags() Context {
 	deleteFlags := flag.NewFlagSet("delete", flag.ContinueOnError)
 	deleteFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "delete help msg here\n")
+		fmt.Fprintf(os.Stderr, `
+"%s" is for deletiion operations for namespaces and placements.
+
+`)
 		deleteFlags.PrintDefaults()
 	}
 	return Context{Flags: deleteFlags}
@@ -47,7 +50,6 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	plctx := placements.InitializeFlags()
 	nsctx := namespaces.InitializeFlags()
 	nextArgs := thisFlagset.Args()
-	fmt.Print(nextArgs)
 	switch nextArgs[0] {
 	case plctx.Flags.Name():
 		plctx.Globals = ctx.GlobalOpts

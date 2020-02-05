@@ -36,12 +36,7 @@ func _setupFlags(finalArgs *namespacesVals, handler namespacesHandlers) Context 
 	finalArgs.showAll = namespaceFlags.Bool("all", false, "get all the standard info for namespaces (otherwise default behaviour lists only the names)")
 	namespaceFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-"%s" is for acting on placements.
-
-Description:
-
-Default behaviour (no arguments) is to provide a json dump of the existing placement.
-
+The "%s" subcommand will list the namesspace names, or verbosely dump all details about the namespaces in json format.
 
 `, namespaceFlags.Name())
 		namespaceFlags.PrintDefaults()

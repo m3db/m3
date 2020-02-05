@@ -37,7 +37,40 @@ func _setupFlags(finalArgs *applyVals, handlers applyHandlers) Context {
 	applyFlags := flag.NewFlagSet("apply", flag.ContinueOnError)
 	applyFlags.Var(finalArgs.yamlFlag, "f", "Path to yaml.")
 	applyFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "help msg here for apply\n")
+		fmt.Fprintf(os.Stderr, `
+Usage: m3ctl %s -f somedir/somename.yaml
+
+The "%s" subcommand takes its inputs from a yaml file and knows how to do the
+following operations:
+
+ * create - create a namespace and initialize a topology
+ * init - initializes a placement
+ * newNode - adds a node to a placement
+ * replaceNode - replaces a node in a placement
+
+Example yaml files are included in the yaml/examples directory. Here's an
+example for database creation:
+
+---
+operation: create
+type: cluster
+namespace_name: default
+retention_time: 168h
+num_shards: 64
+replication_factor: 1
+hosts:
+- id: m3db_seed
+  isolation_group: rack-a
+  zone: embedded
+  weight: 1024
+  endpoint: m3db_seed:9000
+  hostname: m3db_seed
+  port: 9000
+
+'
+
+
+`, applyFlags.Name(), applyFlags.Name())
 		applyFlags.PrintDefaults()
 	}
 	return Context{

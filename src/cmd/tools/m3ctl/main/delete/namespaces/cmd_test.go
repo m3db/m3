@@ -23,7 +23,7 @@ func TestBasic(t *testing.T) {
 		successCondition func(error) bool
 	}{
 		{
-			args:             []string{"ns", "-node", "eee"},
+			args:             []string{"ns", "-id", "eee"},
 			msg:              "It should return no error for sane args",
 			successCondition: func(err error) bool { return err == nil },
 		},
@@ -43,17 +43,17 @@ func TestBasic(t *testing.T) {
 			successCondition: func(err error) bool { return err != nil },
 		},
 		{
-			args:             []string{"ns", "-node"},
+			args:             []string{"ns", "-id"},
 			msg:              "It should return error because we ran with -node but no args",
 			successCondition: func(err error) bool { return err != nil },
 		},
 		{
-			args:             []string{"ns", "-node", "eee", "errr"},
+			args:             []string{"ns", "-id", "eee", "errr"},
 			msg:              "It should return error because we got extra args",
 			successCondition: func(err error) bool { return err != nil },
 		},
 		{
-			args:             []string{"ns", "-node", ""},
+			args:             []string{"ns", "-id", ""},
 			msg:              "It should return an error because we got an empty val",
 			successCondition: func(err error) bool { return err == nil },
 		},

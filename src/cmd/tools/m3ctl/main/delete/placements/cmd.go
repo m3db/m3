@@ -41,11 +41,7 @@ func _setupFlags(finalArgs *placementVals, handler placementHandlers) Context {
 	finalArgs.nodeName = placementFlags.String("node", "", "delete the specified node in the placement")
 	placementFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-"%s" is for acting on placements.
-
-Description:
-
-qqq
+The delete "%s" subcommand will delete an entire placement, or the specified node from the placement.
 
 `, placementFlags.Name())
 		placementFlags.PrintDefaults()

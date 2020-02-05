@@ -36,14 +36,10 @@ func InitializeFlags() Context {
 
 func _setupFlags(finalArgs *namespacesVals, handler namespacesHandlers) Context {
 	nsFlags := flag.NewFlagSet("ns", flag.ContinueOnError)
-	finalArgs.nodeName = nsFlags.String("node", "", "delete the specified node in the placement")
+	finalArgs.nodeName = nsFlags.String("id", "", "delete the specified node in the placement")
 	nsFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-"%s" is for acting on placements.
-
-Description:
-
-qqq
+The delete "%s" subcommand will delete namespace.
 
 `, nsFlags.Name())
 		nsFlags.PrintDefaults()

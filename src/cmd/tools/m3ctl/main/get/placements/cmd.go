@@ -34,12 +34,7 @@ func _setupFlags(finalArgs *placementVals, handler placementHandlers) Context {
 	placementFlags := flag.NewFlagSet("pl", flag.ContinueOnError)
 	placementFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-"%s" is for acting on placements.
-
-Description:
-
-Default behaviour (no arguments) is to provide a json dump of the existing placement.
-
+"%s" is for displaying the existing placement.
 
 `, placementFlags.Name())
 		placementFlags.PrintDefaults()

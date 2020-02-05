@@ -23,7 +23,10 @@ func InitializeFlags() Context {
 func _setupFlags() Context {
 	getFlags := flag.NewFlagSet("get", flag.ContinueOnError)
 	getFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "help msg here\n")
+		fmt.Fprintf(os.Stderr, `
+"%s" is for displaying information about the namespaces and placements.
+
+`)
 		getFlags.PrintDefaults()
 	}
 	return Context{Flags: getFlags}
@@ -48,7 +51,6 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	plctx := placements.InitializeFlags()
 	nsctx := namespaces.InitializeFlags()
 	nextArgs := thisFlagset.Args()
-	fmt.Print(nextArgs)
 	switch nextArgs[0] {
 	case plctx.Flags.Name():
 		plctx.Globals = ctx.GlobalOpts
