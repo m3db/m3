@@ -107,6 +107,13 @@ func (h *DeleteHandler) ServeHTTP(
 		return
 	}
 
+	instance, ok := curPlacement.Instance(id)
+	if !ok {
+		err = fmt.Errorf("instance not found: %s", id)
+		xhttp.Error(w, err, http.StatusNotFound)
+		return
+	}
+
 	toRemove := []string{id}
 
 	// There are no unsafe placement changes because M3Coordinator is stateless
@@ -154,12 +161,27 @@ func (h *DeleteHandler) ServeHTTP(
 
 	// Now need to delete aggregator related keys (e.g. for shardsets) if required.
 	if svc.ServiceName == handleroptions.M3AggregatorServiceName {
-		instances := curPlacement.Instances()
-		err := deleteAggregatorInstanceKeys(svc, opts, h.clusterClient, instances)
-		if err != nil {
-			logger.Error("error removing aggregator keys for instances", zap.Error(err))
-			xhttp.Error(w, err, http.StatusInternalServerError)
-			return
+		shardSetID := instance.ShardSetID()
+		existingShardSetIDs := 0
+		for _, elem := range curPlacement.Instances() {
+			if elem.ID() == instance.ID() {
+				continue
+			}
+			if elem.ShardSetID() == shardSetID {
+				existingShardSetIDs++
+			}
+		}
+
+		// Only delete the related shardset keys if no other shardsets left.
+		if existingShardSetIDs == 0 {
+			err := deleteAggregatorShardSetIDRelatedKeys(svc, opts,
+				h.clusterClient, []uint32{shardSetID})
+			if err != nil {
+				logger.Error("error removing aggregator keys for instances",
+					zap.Error(err))
+				xhttp.Error(w, err, http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 

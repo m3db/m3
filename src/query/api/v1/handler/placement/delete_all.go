@@ -107,9 +107,27 @@ func (h *DeleteAllHandler) ServeHTTP(
 	// Now need to delete aggregator related keys (e.g. for shardsets) if required.
 	if svc.ServiceName == handleroptions.M3AggregatorServiceName {
 		instances := curPlacement.Instances()
-		err := deleteAggregatorInstanceKeys(svc, opts, h.clusterClient, instances)
+		shardSetIDs := make([]uint32, 0, len(instances))
+		for _, elem := range instances {
+			value := elem.ShardSetID()
+			found := false
+			for _, existing := range shardSetIDs {
+				if existing == value {
+					found = true
+					break
+				}
+			}
+			if found {
+				continue
+			}
+			shardSetIDs = append(shardSetIDs, value)
+		}
+
+		err := deleteAggregatorShardSetIDRelatedKeys(svc, opts,
+			h.clusterClient, shardSetIDs)
 		if err != nil {
-			logger.Error("error removing aggregator keys for instances", zap.Error(err))
+			logger.Error("error removing aggregator keys for instances",
+				zap.Error(err))
 			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}

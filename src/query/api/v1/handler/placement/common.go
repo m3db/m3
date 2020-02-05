@@ -482,11 +482,11 @@ func isStateless(serviceName string) bool {
 	return false
 }
 
-func deleteAggregatorInstanceKeys(
+func deleteAggregatorShardSetIDRelatedKeys(
 	svc handleroptions.ServiceNameAndDefaults,
 	svcOpts handleroptions.ServiceOptions,
 	clusterClient clusterclient.Client,
-	instances []placement.Instance,
+	shardSetIDs []uint32,
 ) error {
 	if svc.ServiceName != handleroptions.M3AggregatorServiceName {
 		return fmt.Errorf("error deleting aggregator instance keys, bad service: %s",
@@ -504,9 +504,7 @@ func deleteAggregatorInstanceKeys(
 		return fmt.Errorf("cannot get KV store to delete aggregator keys: %v", err)
 	}
 
-	for _, instance := range instances {
-		shardSetID := instance.ShardSetID()
-
+	for _, shardSetID := range shardSetIDs {
 		// Check if flush times key exists, if so delete.
 		flushTimesKey := fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(),
 			shardSetID)

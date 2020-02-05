@@ -66,7 +66,19 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 			inst0 = inst0.SetShardSetID(0)
 		}
 
-		instances := []placement.Instance{inst0}
+		inst1 := placement.NewInstance().
+			SetID("bar").
+			SetEndpoint("bar:123").
+			SetHostname("bar").
+			SetPort(123).
+			SetIsolationGroup("bar-group").
+			SetWeight(1).
+			SetZone("default")
+		if serviceName == handleroptions.M3AggregatorServiceName {
+			inst1 = inst1.SetShardSetID(0)
+		}
+
+		instances := []placement.Instance{inst0, inst1}
 
 		existing := placement.NewPlacement().
 			SetInstances(instances)
