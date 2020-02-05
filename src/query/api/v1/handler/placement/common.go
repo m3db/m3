@@ -28,8 +28,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placement/algo"
 	"github.com/m3db/m3/src/cluster/services"
@@ -478,4 +480,66 @@ func isStateless(serviceName string) bool {
 		return true
 	}
 	return false
+}
+
+func deleteAggregatorInstanceKeys(
+	svc handleroptions.ServiceNameAndDefaults,
+	svcOpts handleroptions.ServiceOptions,
+	clusterClient clusterclient.Client,
+	instances []placement.Instance,
+) error {
+	if svc.ServiceName != handleroptions.M3AggregatorServiceName {
+		return fmt.Errorf("error deleting aggregator instance keys, bad service: %s",
+			svc.ServiceName)
+	}
+
+	kvOpts := kv.NewOverrideOptions().
+		SetEnvironment(svcOpts.ServiceEnvironment).
+		SetZone(svcOpts.ServiceZone)
+
+	flushTimesMgrOpts := aggregator.NewFlushTimesManagerOptions()
+	electionMgrOpts := aggregator.NewElectionManagerOptions()
+	kvStore, err := clusterClient.Store(kvOpts)
+	if err != nil {
+		return fmt.Errorf("cannot get KV store to delete aggregator keys: %v", err)
+	}
+
+	for _, instance := range instances {
+		shardSetID := instance.ShardSetID()
+
+		// Check if flush times key exists, if so delete.
+		flushTimesKey := fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(),
+			shardSetID)
+		_, flushTimesKeyErr := kvStore.Get(flushTimesKey)
+		if flushTimesKeyErr != nil && flushTimesKeyErr != kv.ErrNotFound {
+			return fmt.Errorf(
+				"error check flush times key exists for deleted instance: %v",
+				flushTimesKeyErr)
+		}
+		if flushTimesKeyErr == nil {
+			// Need to delete the flush times key.
+			if _, err := kvStore.Delete(flushTimesKey); err != nil {
+				return fmt.Errorf(
+					"error delete flush times key for deleted instance: %v", err)
+			}
+		}
+
+		// Check if election manager lock key exists, if so delete.
+		electionKey := fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(),
+			shardSetID)
+		_, electionKeyErr := kvStore.Get(electionKey)
+		if electionKeyErr != nil && electionKeyErr != kv.ErrNotFound {
+			return fmt.Errorf(
+				"error checking election key exists for deleted instance: %v", err)
+		}
+		if electionKeyErr == nil {
+			// Need to delete the election key.
+			if _, err := kvStore.Delete(flushTimesKey); err != nil {
+				return fmt.Errorf("error delete election key for deleted instance: %v",
+					err)
+			}
+		}
+	}
+
+	return nil
 }
