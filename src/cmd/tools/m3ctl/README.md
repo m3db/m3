@@ -28,38 +28,50 @@ Examples
     # show help
     m3ctl -h
     # create a database
-    m3ctl db create -f ./database/examples/devel.yaml
+    m3ctl apply -f ./database/examples/dbcreate.yaml
     # list namespaces
-    m3ctl ns
+    m3ctl get ns
     # delete a namespace
-    m3ctl ns delete -name default
+    m3ctl delete ns -id default
     # list placements
-    m3ctl pl
+    m3ctl get pl
     # point to some remote and list namespaces
-    m3ctl -endpoint http://localhost:7201 ns
+    m3ctl -endpoint http://localhost:7201 get ns
     # check the namespaces in a kubernetes cluster
     # first setup a tunnel via kubectl port-forward ... 7201 
-    m3ctl -endpoint http://localhost:7201 ns
+    m3ctl -endpoint http://localhost:7201 get ns
     # list the ids of the placements
-    m3ctl -endpoint http://localhost:7201 pl | jq .placement.instances[].id
+    m3ctl -endpoint http://localhost:7201 get pl | jq .placement.instances[].id
 
-Some example yaml files are provided in the examples directories.
-Here's one for database creation:
+Some example yaml files for the "apply" subcommand are provided in the yaml/examples directory.
+Here's one to initialize a topology:
 
     ---
-    type: cluster
-    namespace_name: default
-    retention_time: 168h
+    operation: init
     num_shards: 64
     replication_factor: 1
-    hosts:
-    - id: m3db_seed
-      isolation_group: rack-a
-      zone: embedded
-      weight: 1024
-      endpoint: m3db_seed:9000
-      hostname: m3db_seed
-      port: 9000
+    instances:
+      - id: nodeid1
+        isolation_group: isogroup1
+        zone: etcd1
+        weight: 100
+        endpoint: node1:9000
+        hostname: node1
+        port: 9000
+      - id: nodeid2
+        isolation_group: isogroup2
+        zone: etcd1
+        weight: 100
+        endpoint: node2:9000
+        hostname: node2
+        port: 9000
+      - id: nodeid3
+        isolation_group: isogroup3
+        zone: etcd1
+        weight: 100
+        endpoint: node3:9000
+        hostname: node3
+        port: 9000
     
 
 See the examples directories below.
