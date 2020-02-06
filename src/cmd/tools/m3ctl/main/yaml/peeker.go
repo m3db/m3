@@ -3,8 +3,7 @@ package yaml
 import (
 	"fmt"
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/placements"
-
-	yaml2 "github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
+	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/proto"
@@ -26,13 +25,13 @@ func peeker(data []byte) (string, proto.Message, error) {
 	}
 	switch peek.Operation {
 	case opCreate:
-		return dbcreatePath, &yaml2.DatabaseCreateRequestYaml{}, nil
+		return dbcreatePath, &admin.DatabaseCreateRequest{}, nil
 	case opInit:
-		return fmt.Sprintf("%s/init", placements.DefaultPath), &yaml2.PlacementInitRequestYaml{}, nil
+		return fmt.Sprintf("%s/init", placements.DefaultPath), &admin.PlacementInitRequest{}, nil
 	case opReplace:
-		return fmt.Sprintf("%s/replace", placements.DefaultPath), &yaml2.PlacementReplaceRequestYaml{}, nil
+		return fmt.Sprintf("%s/replace", placements.DefaultPath), &admin.PlacementReplaceRequest{}, nil
 	case opNewNode:
-		return fmt.Sprintf("%s", placements.DefaultPath), &yaml2.PlacementInitRequestYaml{}, nil
+		return fmt.Sprintf("%s", placements.DefaultPath), &admin.PlacementInitRequest{}, nil
 	default:
 		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
 	}
