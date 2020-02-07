@@ -190,6 +190,7 @@ func (bsc BootstrapConfiguration) New(
 		case peers.PeersBootstrapperName:
 			pOpts := peers.NewOptions().
 				SetResultOptions(rsOpts).
+				SetFilesystemOptions(fsOpts).
 				SetIndexOptions(opts.IndexOptions()).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
