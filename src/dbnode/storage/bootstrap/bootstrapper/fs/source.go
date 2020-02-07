@@ -247,14 +247,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	runOpts bootstrap.RunOptions,
 	readerPool *bootstrapper.ReaderPool,
-	readersCh <-chan bootstrapper.TimeWindowReaders,
+	readers []bootstrapper.TimeWindowReaders,
 ) *runResult {
 	var (
 		runResult  = newRunResult()
 		resultOpts = s.opts.ResultOptions()
 	)
 
-	for timeWindowReaders := range readersCh {
+	for _, timeWindowReaders := range readers {
 		timeWindowReaders := timeWindowReaders
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
 			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
@@ -569,7 +569,8 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("error reading data file: %v", err)
 	}
 
-	ref, err := accumulator.CheckoutSeriesWithLock(shardID, id, tagsIter)
+	ref, err := accumulator.CheckoutSeriesWithLock(shardID, id, tagsIter,
+		bootstrap.NamespaceDataAccumulatorOptions{IsBootstrapping: true})
 	if err != nil {
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}
@@ -666,7 +667,6 @@ func (s *fileSystemSource) read(
 	// allocate and keep around readers outside of the bootstrapping process,
 	// hence why its created on demand each time.
 	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
-	readersCh := make(chan bootstrapper.TimeWindowReaders)
 	var blockSize time.Duration
 	switch run {
 	case bootstrapDataRunType:
@@ -676,11 +676,10 @@ func (s *fileSystemSource) read(
 	default:
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}
-	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
-	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
-		readerPool, readersCh, blockSize, s.log)
+	readers := bootstrapper.EnqueueReaders(md, s.fsopts, shardsTimeRanges,
+		readerPool, blockSize, s.log)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
-		accumulator, runOpts, readerPool, readersCh)
+		accumulator, runOpts, readerPool, readers)
 
 	// Merge any existing results if necessary.
 	setOrMergeResult(bootstrapFromDataReadersResult)

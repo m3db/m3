@@ -43,6 +43,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -435,6 +436,13 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 
 	read = tester.EnsureDumpLoadedBlocksForNamespace(md)
 	enforceValuesAreCorrect(t, snapshotValues, read)
+
+	options := tester.DumpOptions()
+	for _, nsOpt := range options {
+		for _, opt := range nsOpt {
+			assert.True(t, opt.IsBootstrapping)
+		}
+	}
 }
 
 type setAnnotation func(testValues) testValues

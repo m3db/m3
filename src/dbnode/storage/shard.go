@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -983,6 +984,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	id ident.ID,
 	tags ident.TagIterator,
 	opts ShardSeriesReadWriteRefOptions,
+	bootstrapOpts bootstrap.NamespaceDataAccumulatorOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
@@ -1017,6 +1019,7 @@ func (s *dbShard) SeriesReadWriteRef(
 				timestamp:  now,
 				enqueuedAt: now,
 			},
+			isBootstrapInsert: bootstrapOpts.IsBootstrapping,
 		},
 	})
 	if err != nil {
@@ -1856,8 +1859,8 @@ func (s *dbShard) initializeFlushStates() {
 
 func (s *dbShard) UpdateFlushStates() {
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(),
+		s.shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
 
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {

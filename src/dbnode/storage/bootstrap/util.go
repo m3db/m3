@@ -69,7 +69,12 @@ type TestDataAccumulator struct {
 	schema         namespace.SchemaDescr
 	// writeMap is a map to which values are written directly.
 	writeMap DecodedBlockMap
-	results  map[string]CheckoutSeriesResult
+	results  map[string]checkoutResult
+}
+
+type checkoutResult struct {
+	CheckoutSeriesResult
+	options NamespaceDataAccumulatorOptions
 }
 
 // DecodedValues is a slice of series datapoints.
@@ -186,10 +191,11 @@ func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	opts NamespaceDataAccumulatorOptions,
 ) (CheckoutSeriesResult, error) {
 	a.Lock()
 	defer a.Unlock()
-	return a.checkoutSeriesWithLock(shardID, id, tags)
+	return a.checkoutSeriesWithLock(shardID, id, tags, opts)
 }
 
 // CheckoutSeriesWithoutLock will retrieve a series for writing to,
@@ -199,14 +205,16 @@ func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	opts NamespaceDataAccumulatorOptions,
 ) (CheckoutSeriesResult, error) {
-	return a.checkoutSeriesWithLock(shardID, id, tags)
+	return a.checkoutSeriesWithLock(shardID, id, tags, opts)
 }
 
 func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	opts NamespaceDataAccumulatorOptions,
 ) (CheckoutSeriesResult, error) {
 	var decodedTags map[string]string
 	if tags != nil {
@@ -230,7 +238,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 
 	stringID := id.String()
 	if result, found := a.results[stringID]; found {
-		return result, nil
+		return result.CheckoutSeriesResult, nil
 	}
 
 	var streamErr error
@@ -279,14 +287,16 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				return true, nil
 			}).AnyTimes()
 
-	result := CheckoutSeriesResult{
-		Shard:       shardID,
-		Series:      mockSeries,
-		UniqueIndex: uint64(len(a.results) + 1),
+	result := checkoutResult{
+		CheckoutSeriesResult: CheckoutSeriesResult{
+			Shard:       shardID,
+			Series:      mockSeries,
+			UniqueIndex: uint64(len(a.results) + 1),
+		}, options: opts,
 	}
 
 	a.results[stringID] = result
-	return result, streamErr
+	return result.CheckoutSeriesResult, streamErr
 }
 
 // Release is a no-op on the test accumulator.
@@ -366,7 +376,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 			ctrl:           ctrl,
 			pool:           iterPool,
 			ns:             md.ID().String(),
-			results:        make(map[string]CheckoutSeriesResult),
+			results:        make(map[string]checkoutResult),
 			loadedBlockMap: make(ReaderMap),
 			writeMap:       make(DecodedBlockMap),
 			schema:         nsCtx.Schema,
@@ -472,6 +482,23 @@ func (nt *NamespacesTester) EnsureDumpWritesForNamespace(
 // testers accumulators.
 func (nt *NamespacesTester) EnsureNoWrites() {
 	require.Equal(nt.t, 0, len(nt.DumpWrites()))
+}
+
+// NSOptionMap is a map of namespaces to options.
+type NSOptionMap map[string]NamespaceDataAccumulatorOptions
+
+// DumpOptions returns options for series checkouts across all namespaces.
+func (nt *NamespacesTester) DumpOptions() map[string]NSOptionMap {
+	resultMap := make(map[string]NSOptionMap, len(nt.Accumulators))
+	for _, acc := range nt.Accumulators {
+		optionMap := make(NSOptionMap, len(acc.results))
+		for k, v := range acc.results {
+			optionMap[k] = v.options
+		}
+		resultMap[acc.ns] = optionMap
+	}
+
+	return resultMap
 }
 
 // EnsureDumpAllForNamespace dumps all results for a single namespace, and

@@ -388,6 +388,7 @@ type databaseNamespace interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
+		opts bootstrap.NamespaceDataAccumulatorOptions,
 	) (SeriesReadWriteRef, error)
 }
 
@@ -565,6 +566,7 @@ type databaseShard interface {
 		id ident.ID,
 		tags ident.TagIterator,
 		opts ShardSeriesReadWriteRefOptions,
+		bootstrapOpts bootstrap.NamespaceDataAccumulatorOptions,
 	) (SeriesReadWriteRef, error)
 }
 

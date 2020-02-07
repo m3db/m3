@@ -672,6 +672,7 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
+	bootstrapOpts bootstrap.NamespaceDataAccumulatorOptions,
 ) (SeriesReadWriteRef, error) {
 	n.RLock()
 	shard, err := n.shardAtWithRLock(shardID)
@@ -683,7 +684,8 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	opts := ShardSeriesReadWriteRefOptions{
 		ReverseIndex: n.reverseIndex != nil,
 	}
-	return shard.SeriesReadWriteRef(id, tags, opts)
+
+	return shard.SeriesReadWriteRef(id, tags, opts, bootstrapOpts)
 }
 
 func (n *dbNamespace) QueryIDs(

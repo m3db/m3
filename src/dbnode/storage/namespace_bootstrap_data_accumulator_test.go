@@ -50,33 +50,48 @@ func (r *releaser) OnReleaseReadWriteRef() {
 type checkoutFn func(bootstrap.NamespaceDataAccumulator, uint32,
 	ident.ID, ident.TagIterator) (bootstrap.CheckoutSeriesResult, error)
 
-func checkoutWithLock(
-	acc bootstrap.NamespaceDataAccumulator,
-	shardID uint32,
-	id ident.ID,
-	tags ident.TagIterator,
-) (bootstrap.CheckoutSeriesResult, error) {
-	return acc.CheckoutSeriesWithLock(shardID, id, tags)
+func checkoutWithLock(isBootstrap bool) checkoutFn {
+	return func(
+		acc bootstrap.NamespaceDataAccumulator,
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (bootstrap.CheckoutSeriesResult, error) {
+		return acc.CheckoutSeriesWithLock(shardID, id, tags,
+			bootstrap.NamespaceDataAccumulatorOptions{
+				IsBootstrapping: isBootstrap})
+	}
 }
 
-func checkoutWithoutLock(
-	acc bootstrap.NamespaceDataAccumulator,
-	shardID uint32,
-	id ident.ID,
-	tags ident.TagIterator,
-) (bootstrap.CheckoutSeriesResult, error) {
-	return acc.CheckoutSeriesWithoutLock(shardID, id, tags)
+func checkoutWithoutLock(isBootstrap bool) checkoutFn {
+	return func(
+		acc bootstrap.NamespaceDataAccumulator,
+		shardID uint32,
+		id ident.ID,
+		tags ident.TagIterator,
+	) (bootstrap.CheckoutSeriesResult, error) {
+		return acc.CheckoutSeriesWithoutLock(shardID, id, tags,
+			bootstrap.NamespaceDataAccumulatorOptions{
+				IsBootstrapping: isBootstrap})
+	}
+}
+
+func TestCheckoutSeriesBootstrapping(t *testing.T) {
+	testCheckoutSeries(t, checkoutWithoutLock(true), true)
 }
 
 func TestCheckoutSeries(t *testing.T) {
-	testCheckoutSeries(t, checkoutWithoutLock)
+	testCheckoutSeries(t, checkoutWithoutLock(false), false)
+}
+func TestCheckoutSeriesWithLockBootstrapping(t *testing.T) {
+	testCheckoutSeries(t, checkoutWithLock(true), true)
 }
 
 func TestCheckoutSeriesWithLock(t *testing.T) {
-	testCheckoutSeries(t, checkoutWithLock)
+	testCheckoutSeries(t, checkoutWithLock(false), false)
 }
 
-func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
+func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn, isBootstrap bool) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	var (
@@ -94,8 +109,11 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, nil)
-	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter).
+	exOptions := bootstrap.NamespaceDataAccumulatorOptions{
+		IsBootstrapping: isBootstrap}
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter, exOptions).
+		Return(ref, nil)
+	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter, exOptions).
 		Return(SeriesReadWriteRef{}, errors.New("err"))
 
 	_, err := checkoutFn(acc, shardID, idErr, tagIter)
@@ -115,15 +133,22 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 	require.Equal(t, 0, release.calls)
 }
 
+func TestAccumulatorReleaseBootstrapping(t *testing.T) {
+	testAccumulatorRelease(t, checkoutWithoutLock(true), true)
+}
+
 func TestAccumulatorRelease(t *testing.T) {
-	testAccumulatorRelease(t, checkoutWithoutLock)
+	testAccumulatorRelease(t, checkoutWithoutLock(false), false)
 }
 
+func TestAccumulatorReleaseWithLockBootstrapping(t *testing.T) {
+	testAccumulatorRelease(t, checkoutWithLock(true), true)
+}
 func TestAccumulatorReleaseWithLock(t *testing.T) {
-	testAccumulatorRelease(t, checkoutWithLock)
+	testAccumulatorRelease(t, checkoutWithLock(false), false)
 }
 
-func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
+func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn, bs bool) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -141,7 +166,10 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, nil)
+	exOptions := bootstrap.NamespaceDataAccumulatorOptions{
+		IsBootstrapping: bs}
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter, exOptions).
+		Return(ref, nil)
 	_, err = checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
 

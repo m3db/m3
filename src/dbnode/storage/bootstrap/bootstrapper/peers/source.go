@@ -385,7 +385,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			for _, elem := range shardResult.AllSeries().Iter() {
 				entry := elem.Value()
 				tagsIter.Reset(entry.Tags)
-				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
+				ref, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter,
+					bootstrap.NamespaceDataAccumulatorOptions{IsBootstrapping: true})
 				if err != nil {
 					unfulfill(currRange)
 					s.log.Error("could not checkout series", zap.Error(err))
