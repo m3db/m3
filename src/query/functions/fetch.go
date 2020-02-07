@@ -42,23 +42,25 @@ const FetchType = "fetch"
 // FetchOp stores required properties for fetch
 // TODO: Make FetchOp private
 type FetchOp struct {
-	Name     string
-	Range    time.Duration
-	Offset   time.Duration
-	Matchers models.Matchers
+	Name            string
+	Range           time.Duration
+	Offset          time.Duration
+	Matchers        models.Matchers
+	OverrideOptions models.FetchOverrideOptions
 }
 
 // FetchNode is a fetch execution node.
 // TODO: Make FetchNode private
 type FetchNode struct {
-	debug          bool
-	blockType      models.FetchedBlockType
-	op             FetchOp
-	controller     *transform.Controller
-	storage        storage.Storage
-	timespec       transform.TimeSpec
-	fetchOpts      *storage.FetchOptions
-	instrumentOpts instrument.Options
+	debug           bool
+	blockType       models.FetchedBlockType
+	op              FetchOp
+	controller      *transform.Controller
+	storage         storage.Storage
+	timespec        transform.TimeSpec
+	fetchOpts       *storage.FetchOptions
+	instrumentOpts  instrument.Options
+	overrideOptions models.FetchOverrideOptions
 }
 
 // OpType for the operator.
@@ -87,14 +89,15 @@ func (o FetchOp) Node(
 	options transform.Options,
 ) parser.Source {
 	return &FetchNode{
-		op:             o,
-		controller:     controller,
-		storage:        storage,
-		fetchOpts:      options.FetchOptions(),
-		timespec:       options.TimeSpec(),
-		debug:          options.Debug(),
-		blockType:      options.BlockType(),
-		instrumentOpts: options.InstrumentOptions(),
+		op:              o,
+		controller:      controller,
+		storage:         storage,
+		fetchOpts:       options.FetchOptions(),
+		timespec:        options.TimeSpec(),
+		debug:           options.Debug(),
+		blockType:       options.BlockType(),
+		instrumentOpts:  options.InstrumentOptions(),
+		overrideOptions: o.OverrideOptions,
 	}
 }
 
@@ -103,23 +106,32 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "fetch")
 	defer sp.Finish()
 
-	timeSpec := n.timespec
-	// No need to adjust start and ends since physical plan
-	// already considers the offset, range
-	startTime := timeSpec.Start
-	endTime := timeSpec.End
+	var (
+		timeSpec = n.timespec
+		// No need to adjust start and ends since physical plan already considers
+		// the offset, range.
+		startTime = timeSpec.Start
+		endTime   = timeSpec.End
+		step      = timeSpec.Step
+		offset    = n.op.Offset
+	)
+
+	if n.overrideOptions.ShouldOverride {
+		step = n.overrideOptions.Step
+		startTime = startTime.Add(-1 * n.overrideOptions.StartOffset)
+		offset = n.overrideOptions.Offset
+	}
 
 	opts, err := n.fetchOpts.QueryFetchOptions(queryCtx, n.blockType)
 	if err != nil {
 		return block.Result{}, err
 	}
 
-	offset := n.op.Offset
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime.Add(-1 * offset),
 		End:         endTime.Add(-1 * offset),
 		TagMatchers: n.op.Matchers,
-		Interval:    timeSpec.Step,
+		Interval:    step,
 	}, opts)
 }
 
