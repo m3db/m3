@@ -344,6 +344,26 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
+	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
+	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
+	if shouldUseHugeTLB {
+		// Make sure the host supports HugeTLB before proceeding with it to prevent
+		// excessive log spam.
+		shouldUseHugeTLB, err = hostSupportsHugeTLB()
+		if err != nil {
+			logger.Fatal("could not determine if host supports HugeTLB", zap.Error(err))
+		}
+		if !shouldUseHugeTLB {
+			logger.Warn("host doesn't support HugeTLB, proceeding without it")
+		}
+	}
+
+	mmapReporter := newMmapReporter(scope)
+	mmapReporterCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mmapReporter.Run(mmapReporterCtx)
+	opts = opts.SetMmapReporter(mmapReporter)
+
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
 			SetLimitEnabled(true).
@@ -381,7 +401,8 @@ func Run(runOpts RunOptions) {
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-		})
+		}).
+		SetMmapReporter(mmapReporter)
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -398,26 +419,6 @@ func Run(runOpts RunOptions) {
 	defer runtimeOptsMgr.Close()
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
-
-	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
-	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
-	if shouldUseHugeTLB {
-		// Make sure the host supports HugeTLB before proceeding with it to prevent
-		// excessive log spam.
-		shouldUseHugeTLB, err = hostSupportsHugeTLB()
-		if err != nil {
-			logger.Fatal("could not determine if host supports HugeTLB", zap.Error(err))
-		}
-		if !shouldUseHugeTLB {
-			logger.Warn("host doesn't support HugeTLB, proceeding without it")
-		}
-	}
-
-	mmapReporter := newMmapReporter(scope)
-	mmapReporterCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go mmapReporter.Run(mmapReporterCtx)
-	opts = opts.SetMmapReporter(mmapReporter)
 
 	policy := cfg.PoolingPolicy
 	tagEncoderPool := serialize.NewTagEncoderPool(
@@ -494,7 +495,6 @@ func Run(runOpts RunOptions) {
 
 	// Apply pooling options.
 	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
-	opts = opts.SetIndexOptions(opts.IndexOptions().SetMmapReporter(mmapReporter))
 
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
