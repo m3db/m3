@@ -23,11 +23,16 @@ package native
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -45,20 +50,16 @@ const (
 // CompleteTagsHandler represents a handler for search tags endpoint.
 type CompleteTagsHandler struct {
 	storage             storage.Storage
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
 
 // NewCompleteTagsHandler returns a new instance of handler.
-func NewCompleteTagsHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &CompleteTagsHandler{
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		instrumentOpts:      instrumentOpts,
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
@@ -67,7 +68,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set("Content-Type", "application/json")
 
-	query, rErr := prometheus.ParseTagCompletionParamsToQuery(r)
+	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -79,15 +80,51 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := h.storage.CompleteTags(ctx, query, opts)
-	if err != nil {
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+
+		nameOnly      = tagCompletionQueries.NameOnly
+		resultBuilder = storage.NewCompleteTagsResultBuilder(nameOnly)
+		meta          = block.NewResultMetadata()
+	)
+
+	for _, query := range tagCompletionQueries.Queries {
+		wg.Add(1)
+		// Capture variables.
+		query := query
+		go func() {
+			result, err := h.storage.CompleteTags(ctx, query, opts)
+			mu.Lock()
+			defer func() {
+				mu.Unlock()
+				wg.Done()
+			}()
+
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				return
+			}
+
+			meta = meta.CombineMetadata(result.Metadata)
+			err = resultBuilder.Add(result)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			}
+		}()
+	}
+
+	wg.Wait()
+	if err := multiErr.FinalError(); err != nil {
 		logger.Error("unable to complete tags", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	handler.AddWarningHeaders(w, result.Metadata)
-	if err = prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
+	handleroptions.AddWarningHeaders(w, meta)
+	result := resultBuilder.Build()
+	if err := prometheus.RenderTagCompletionResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 	}
 }

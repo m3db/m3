@@ -21,14 +21,8 @@
 package index
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-)
-
-var (
-	errUnableToAddValueMissingID = errors.New("no id for value")
 )
 
 // AggregateValues is a collection of unique identity values backed by a pool.
@@ -83,10 +77,9 @@ func (v *AggregateValues) finalize() {
 }
 
 func (v *AggregateValues) addValue(value ident.ID) error {
+	// NB(r): Allow for empty values to be set, an empty string
+	// is still different from not having the field at all.
 	bytesID := ident.BytesID(value.Bytes())
-	if len(bytesID) == 0 {
-		return errUnableToAddValueMissingID
-	}
 
 	// NB: fine to overwrite the values here.
 	v.valuesMap.Set(bytesID, struct{}{})

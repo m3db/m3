@@ -170,6 +170,7 @@ func (b bootstrapProcess) Run(
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
+			Hooks:            namespace.Hooks,
 			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
 			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
 			DataRunOptions: NamespaceRunOptions{
@@ -187,6 +188,7 @@ func (b bootstrapProcess) Run(
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
+			Hooks:            namespace.Hooks,
 			DataTargetRange:  dataRanges.secondRangeWithPersistFalse,
 			IndexTargetRange: indexRanges.secondRangeWithPersistFalse,
 			DataRunOptions: NamespaceRunOptions{

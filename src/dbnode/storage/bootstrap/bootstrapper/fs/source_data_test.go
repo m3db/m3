@@ -50,7 +50,7 @@ import (
 
 var (
 	testShard                 = uint32(0)
-	testNs1ID                 = ident.StringID("testNs")
+	testNs1ID                 = ident.StringID("test_namespace")
 	testBlockSize             = 2 * time.Hour
 	testIndexBlockSize        = 4 * time.Hour
 	testStart                 = time.Now().Truncate(testBlockSize)
@@ -74,7 +74,7 @@ func newTestOptions(filePathPrefix string) Options {
 		SetFilesystemOptions(newTestFsOptions(filePathPrefix))
 }
 
-func newTestOptionsWithPersistManager(t *testing.T, filePathPrefix string) Options {
+func newTestOptionsWithPersistManager(t require.TestingT, filePathPrefix string) Options {
 	opts := newTestOptions(filePathPrefix)
 	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
 	require.NoError(t, err)
@@ -89,11 +89,11 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 		SetNewDirectoryMode(testDirMode)
 }
 
-func testNsMetadata(t *testing.T) namespace.Metadata {
+func testNsMetadata(t require.TestingT) namespace.Metadata {
 	return testNsMetadataWithIndex(t, true)
 }
 
-func testNsMetadataWithIndex(t *testing.T, indexOn bool) namespace.Metadata {
+func testNsMetadataWithIndex(t require.TestingT, indexOn bool) namespace.Metadata {
 	ropts := testRetentionOptions.SetBlockSize(testBlockSize)
 	md, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
@@ -214,7 +214,7 @@ func (s testSeries) Tags() ident.Tags {
 }
 
 func writeTSDBFiles(
-	t *testing.T,
+	t require.TestingT,
 	dir string,
 	namespace ident.ID,
 	shard uint32,

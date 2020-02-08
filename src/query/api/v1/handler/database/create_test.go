@@ -21,7 +21,6 @@
 package database
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -38,8 +37,8 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -52,8 +51,9 @@ var (
 	testDBCfg = &dbconfig.DBConfiguration{
 		ListenAddress: "0.0.0.0:9000",
 	}
-	svcDefaultOptions = []handler.ServiceOptionsDefault{
-		func(o handler.ServiceOptions) handler.ServiceOptions {
+
+	svcDefaultOptions = []handleroptions.ServiceOptionsDefault{
+		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
 			return o
 		},
 	}
@@ -203,7 +203,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
@@ -361,7 +361,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 func TestLocalWithBlockSizeNanos(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -471,7 +471,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
@@ -586,7 +586,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	`, desiredBlockSize, desiredBlockSize)
 
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestClusterTypeHosts(t *testing.T) {
@@ -844,7 +844,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
@@ -976,7 +976,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 func TestClusterTypeMissingHostnames(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -1045,15 +1045,6 @@ func stripAllWhitespace(str string) string {
 		}
 		return r
 	}, str)
-}
-
-func mustPrettyJSON(t *testing.T, str string) string {
-	var unmarshalled map[string]interface{}
-	err := json.Unmarshal([]byte(str), &unmarshalled)
-	require.NoError(t, err)
-	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
-	require.NoError(t, err)
-	return string(pretty)
 }
 
 func withEndline(str string) string {

@@ -12,32 +12,42 @@ analyze:
     type: go
     target: github.com/m3db/m3/scripts/lockfile
     path: scripts/lockfile
-  - name: github.com/m3db/m3/scripts/md5
-    type: go
-    target: github.com/m3db/m3/scripts/md5
-    path: scripts/md5
-  - name: github.com/m3db/m3/src/cmd/services/m3aggregator/main
-    type: go
-    target: github.com/m3db/m3/src/cmd/services/m3aggregator/main
-    path: src/cmd/services/m3aggregator/main
-  - name: github.com/m3db/m3/src/cmd/services/m3collector/main
-    type: go
-    target: github.com/m3db/m3/src/cmd/services/m3collector/main
-    path: src/cmd/services/m3collector/main
-  - name: github.com/m3db/m3/src/cmd/services/m3coordinator/main
-    type: go
-    target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
-    path: src/cmd/services/m3coordinator/main
     options:
       # FOSSA finds Go dependencies by first finding all dependencies that a project uses and then comparing them to the lockfile to obtain version numbers.
       # It appears that one of the dependencies is choosing to manually vendor a dependency, thereby omitting the version from its lockfile.
       # This results in cryptic FOSSA failures.
       # The solution for this is to allow this dependency to be discovered without a corresponding version.
       allow-unresolved: true
+  - name: github.com/m3db/m3/scripts/md5
+    type: go
+    target: github.com/m3db/m3/scripts/md5
+    path: scripts/md5
+    options:
+      allow-unresolved: true
+  - name: github.com/m3db/m3/src/cmd/services/m3aggregator/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/services/m3aggregator/main
+    path: src/cmd/services/m3aggregator/main
+    options:
+      allow-unresolved: true
+  - name: github.com/m3db/m3/src/cmd/services/m3collector/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/services/m3collector/main
+    path: src/cmd/services/m3collector/main
+    options:
+      allow-unresolved: true
+  - name: github.com/m3db/m3/src/cmd/services/m3coordinator/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
+    path: src/cmd/services/m3coordinator/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3ctl/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3ctl/main
     path: src/cmd/services/m3ctl/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3dbnode/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3dbnode/main
@@ -48,14 +58,20 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3em_agent/main
     path: src/cmd/services/m3em_agent/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3nsch_client/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3nsch_client/main
     path: src/cmd/services/m3nsch_client/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3nsch_server/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3nsch_server/main
     path: src/cmd/services/m3nsch_server/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3query/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3query/main
@@ -66,43 +82,53 @@ analyze:
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3comparator/main
     path: src/cmd/services/m3comparator/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/carbon_load/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/carbon_load/main
     path: src/cmd/tools/carbon_load/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/clone_fileset/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/clone_fileset/main
     path: src/cmd/tools/clone_fileset/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/read_data_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_data_files/main
     path: src/cmd/tools/read_data_files/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/read_ids/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_ids/main
     path: src/cmd/tools/read_ids/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/read_index_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_index_files/main
     path: src/cmd/tools/read_index_files/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/read_index_ids/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/read_index_ids/main
     path: src/cmd/tools/read_index_ids/main
+    options:
+      allow-unresolved: true
+  - name: github.com/m3db/m3/src/cmd/tools/verify_data_files/main
+    type: go
+    target: github.com/m3db/m3/src/cmd/tools/verify_data_files/main
+    path: src/cmd/tools/verify_data_files/main
+    options:
+      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     type: go
     target: github.com/m3db/m3/src/cmd/tools/verify_index_files/main
     path: src/cmd/tools/verify_index_files/main
-  - name: github.com/m3db/m3/src/query/benchmark/benchmarker/main
-    type: go
-    target: github.com/m3db/m3/src/query/benchmark/benchmarker/main
-    path: src/query/benchmark/benchmarker/main
-  - name: github.com/m3db/m3/src/query/benchmark/read/main
-    type: go
-    target: github.com/m3db/m3/src/query/benchmark/read/main
-    path: src/query/benchmark/read/main
-  - name: github.com/m3db/m3/src/query/benchmark/write/main
-    type: go
-    target: github.com/m3db/m3/src/query/benchmark/write/main
-    path: src/query/benchmark/write/main
+    options:
+      allow-unresolved: true

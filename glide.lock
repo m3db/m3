@@ -1,5 +1,5 @@
-hash: 54d750cfc681a3acbdc3a39a51626e0ed1804f93fce5955ca5676d9940eabd6b
-updated: 2019-10-04T13:32:26.527615-04:00
+hash: 89a085a5d24851860fc6d79e789853cc802bb65b89b412c36aeb5bf7e4a923f8
+updated: 2020-01-08T13:38:18.738124428-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -13,6 +13,8 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
+- name: github.com/BurntSushi/toml
+  version: 3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005
 - name: github.com/c2h5oh/datasize
   version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
 - name: github.com/cespare/xxhash
@@ -21,8 +23,8 @@ imports:
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
-- name: github.com/coreos/etcd
-  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
+- name: go.etcd.io/etcd
+  version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
   subpackages:
   - alarm
   - auth
@@ -143,7 +145,7 @@ imports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/gogo/protobuf
-  version: 0ca988a254f991240804bf9821f3450d87ccbb1b
+  version: 5628607bb4c51c3157aacc3a50f0ab707582b805
   subpackages:
   - gogoproto
   - jsonpb
@@ -178,7 +180,7 @@ imports:
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/google/go-cmp
-  version: 2d0692c2e9617365a95b295612ac0d4415ba4627
+  version: 6f77996f0c42f7b84e5a2b252227263f93432e9b
   subpackages:
   - cmp
   - cmp/cmpopts
@@ -233,6 +235,15 @@ imports:
   - commands
   - gen
   - prop
+- name: github.com/lightstep/lightstep-tracer-common
+  version: 082dbbf1b51a87f008f51a6203c269395ac3fe54
+  subpackages:
+  - golang/gogo/collectorpb
+  - golang/gogo/lightsteppb
+- name: github.com/lightstep/lightstep-tracer-go
+  version: 95891af43e111d60f0ae6adaa39c2abe8caad401
+  subpackages:
+  - lightstep/rand
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
@@ -287,7 +298,7 @@ imports:
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
+  version: 659c90643e714681897ec2521c60567dd21da733
   subpackages:
   - ext
   - log
@@ -350,6 +361,7 @@ imports:
   - tsdb/index
   - tsdb/labels
   - tsdb/wal
+  - util/httputil
   - util/stats
   - util/strutil
   - util/teststorage
@@ -387,7 +399,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: b5bf975e5823809fb22c7644d008757f78a4259e
+  version: eabbc68a3ecd5cf8c11a2f84dbda5e7a38493b2f
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
@@ -397,10 +409,12 @@ imports:
   - mock
   - require
   - suite
+- name: github.com/subosito/gotenv
+  version: de67a6614a4de71ad5e380b6946e56ab957d58c5
 - name: github.com/uber-go/atomic
-  version: df976f2515e274675050de7b3f42545de80594fd
+  version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: github.com/uber-go/tally
-  version: 3332297784e46cd346ab6d9894fd4ea027dc9368
+  version: 4292fb62574242de9fb0be278fc17d45defa5d33
   subpackages:
   - m3
   - m3/customtransports
@@ -454,11 +468,18 @@ imports:
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
-  version: df976f2515e274675050de7b3f42545de80594fd
+  version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: go.uber.org/config
-  version: 46dea54a68b3e94c239093186902985c7ced97b5
+  version: c917157c9ba905e1c93f74a2611bc4356abe94d0
+  subpackages:
+  - internal/merge
+  - internal/unreachable
 - name: go.uber.org/multierr
-  version: 71e610a0e48dbda460d9c18adca8b5f2de04a7c1
+  version: 824d08f79702fe5f54aca8400aa0d754318786e7
+- name: go.uber.org/tools
+  version: 2cfd321de3ee5d5f8a5fda2521d1703478334d98
+  subpackages:
+  - update-license
 - name: go.uber.org/zap
   version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
@@ -472,6 +493,10 @@ imports:
   subpackages:
   - bcrypt
   - blowfish
+- name: golang.org/x/lint
+  version: fdd1cda4f05fd1fd86124f0ef9ce31a0b72c8448
+  subpackages:
+  - golint
 - name: golang.org/x/net
   version: ab5485076ff3407ad2d02db054635913f017b0ed
   repo: https://github.com/golang/net
@@ -508,6 +533,25 @@ imports:
   version: c06e80d9300e4443158a03817b8a8cb37d230320
   subpackages:
   - rate
+- name: golang.org/x/tools
+  version: 2aa90c603ae35ab89ce30e45e49d870b7e5e7698
+  subpackages:
+  - go/analysis
+  - go/analysis/passes/inspect
+  - go/ast/astutil
+  - go/ast/inspector
+  - go/buildutil
+  - go/gcexportdata
+  - go/internal/cgo
+  - go/internal/gcimporter
+  - go/internal/packagesdriver
+  - go/loader
+  - go/packages
+  - go/types/objectpath
+  - go/types/typeutil
+  - internal/fastwalk
+  - internal/gopathwalk
+  - internal/semver
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
@@ -558,6 +602,8 @@ imports:
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
   repo: https://github.com/go-playground/validator.git
   vcs: git
+- name: gopkg.in/ini.v1
+  version: 94291fffe2b14f4632ec0e67c1bfecfc1287a168
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
   repo: https://github.com/go-validator/validator.git
@@ -572,6 +618,42 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
   repo: https://github.com/go-yaml/yaml.git
   vcs: git
+- name: honnef.co/go/tools
+  version: 717cd7a0595327ea87bc8016753ce6e0ac546200
+  subpackages:
+  - arg
+  - cmd/staticcheck
+  - code
+  - config
+  - deprecated
+  - edit
+  - facts
+  - functions
+  - go/types/typeutil
+  - internal/cache
+  - internal/passes/buildir
+  - internal/renameio
+  - internal/robustio
+  - internal/sharedcheck
+  - ir
+  - ir/irutil
+  - lint
+  - lint/lintdsl
+  - lint/lintutil
+  - lint/lintutil/format
+  - loader
+  - pattern
+  - printf
+  - report
+  - simple
+  - staticcheck
+  - stylecheck
+  - unused
+  - version
+- name: github.com/influxdata/influxdb
+  version: 01c8dd416270f424ab0c40f9291e269ac6921964
+  subpackages:
+  - models
 testImports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 98d31706395aaac22e29676617f2ee37bee55b5a

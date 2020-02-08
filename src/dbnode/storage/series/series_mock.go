@@ -230,15 +230,15 @@ func (mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2, arg3 int
 }
 
 // Reset mocks base method
-func (m *MockDatabaseSeries) Reset(arg0 ident.ID, arg1 ident.Tags, arg2 uint64, arg3 QueryableBlockRetriever, arg4 block.OnRetrieveBlock, arg5 block.OnEvictedFromWiredList, arg6 Options) {
+func (m *MockDatabaseSeries) Reset(arg0 DatabaseSeriesOptions) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+	m.ctrl.Call(m, "Reset", arg0)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0)
 }
 
 // Snapshot mocks base method

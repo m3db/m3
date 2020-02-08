@@ -1,0 +1,7 @@
+{
+ "data-root": "/mnt/nvme/docker",
+ "log-opts": {
+   "max-size": "100m",
+   "max-file": "10"
+ }
+}

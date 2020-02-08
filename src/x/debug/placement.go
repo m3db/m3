@@ -25,8 +25,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -35,12 +35,12 @@ import (
 
 type placementInfoSource struct {
 	getHandler *placement.GetHandler
-	service    handler.ServiceNameAndDefaults
+	service    handleroptions.ServiceNameAndDefaults
 }
 
 // NewPlacementInfoSource returns a Source for placement information.
 func NewPlacementInfoSource(
-	service handler.ServiceNameAndDefaults,
+	service handleroptions.ServiceNameAndDefaults,
 	placementOpts placement.HandlerOptions,
 	iopts instrument.Options,
 ) (Source, error) {

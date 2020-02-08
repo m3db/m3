@@ -79,7 +79,6 @@ pages:
     - "Introduction": "query_engine/index.md"
     - "API":
       - "Query": "query_engine/api/index.md"
-    - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
       - "Blocks": "query_engine/architecture/blocks.md"
@@ -106,6 +105,7 @@ pages:
     - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
     - "Monitoring": "operational_guide/monitoring.md"
+    - "Configuring Mapping & Rollup Rules": "operational_guide/mapping_rollup.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

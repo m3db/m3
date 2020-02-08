@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -374,7 +374,7 @@ func processInvalidQuantile(
 
 	setValue := math.Inf(sign)
 	outValues := make([]float64, len(bucketedSeries))
-	ts.Memset(outValues, setValue)
+	util.Memset(outValues, setValue)
 	for index := 0; stepIter.Next(); index++ {
 		if err := builder.AppendValues(index, outValues); err != nil {
 			return nil, err

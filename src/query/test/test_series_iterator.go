@@ -23,6 +23,7 @@ package test
 import (
 	"fmt"
 	"io"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -141,6 +142,12 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 	return multiReader, nil
 }
 
+type sortableTags []ident.Tag
+
+func (a sortableTags) Len() int           { return len(a) }
+func (a sortableTags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a sortableTags) Less(i, j int) bool { return a[i].Name.String() < a[j].Name.String() }
+
 // BuildTestSeriesIterator creates a sample SeriesIterator
 // This series iterator has two identical replicas.
 // Each replica has two blocks.
@@ -162,9 +169,15 @@ func BuildTestSeriesIterator(id string) (encoding.SeriesIterator, error) {
 		return nil, err
 	}
 
-	tags := ident.Tags{}
+	sortTags := make(sortableTags, 0, len(TestTags))
 	for name, value := range TestTags {
-		tags.Append(ident.StringTag(name, value))
+		sortTags = append(sortTags, ident.StringTag(name, value))
+	}
+
+	sort.Sort(sortTags)
+	tags := ident.Tags{}
+	for _, t := range sortTags {
+		tags.Append(t)
 	}
 
 	return encoding.NewSeriesIterator(

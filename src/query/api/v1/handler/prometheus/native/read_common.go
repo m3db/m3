@@ -73,7 +73,8 @@ func read(
 	emptyResult := readResult{meta: block.NewResultMetadata()}
 
 	// TODO: Capture timing
-	parser, err := promql.Parse(params.Query, params.Step, tagOpts)
+	parseOpts := engine.Options().ParseOptions()
+	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
 		return emptyResult, err
 	}
@@ -115,13 +116,8 @@ func read(
 				return emptyResult, err
 			}
 
-			firstSeriesIter, err := b.SeriesIter()
-			if err != nil {
-				return emptyResult, err
-			}
-
 			numSteps = firstStepIter.StepCount()
-			numSeries = firstSeriesIter.SeriesCount()
+			numSeries = len(firstStepIter.SeriesMeta())
 			meta = b.Meta().ResultMetadata
 		}
 
@@ -170,28 +166,28 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		commonTags = meta.Tags.Tags
 	)
 
-	firstSeriesIter, err := firstBlock.SeriesIter()
+	firstIter, err := firstBlock.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		numSeries   = firstSeriesIter.SeriesCount()
-		seriesMeta  = firstSeriesIter.SeriesMeta()
-		seriesList  = make([]*ts.Series, 0, numSeries)
-		seriesIters = make([]block.SeriesIter, 0, len(blockList))
+		seriesMeta = firstIter.SeriesMeta()
+		numSeries  = len(seriesMeta)
+		seriesList = make([]*ts.Series, 0, numSeries)
+		iters      = make([]block.StepIter, 0, len(blockList))
 	)
 
 	// To create individual series, we iterate over seriesIterators for each
 	// block in the block list.  For each iterator, the nth current() will
 	// be combined to give the nth series.
 	for _, b := range blockList {
-		seriesIter, err := b.block.SeriesIter()
+		it, err := b.block.StepIter()
 		if err != nil {
 			return nil, err
 		}
 
-		seriesIters = append(seriesIters, seriesIter)
+		iters = append(iters, it)
 	}
 
 	numValues := 0
@@ -204,31 +200,34 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		numValues += b.StepCount()
 	}
 
-	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, numValues,
+	// Initialize data slices.
+	data := make([]ts.FixedResolutionMutableValues, numSeries)
+	for i := range data {
+		data[i] = ts.NewFixedStepValues(bounds.StepSize, numValues,
 			math.NaN(), bounds.Start)
-		valIdx := 0
-		for idx, iter := range seriesIters {
-			if !iter.Next() {
-				if err = iter.Err(); err != nil {
-					return nil, err
-				}
+	}
 
-				return nil, fmt.Errorf(
-					"invalid number of datapoints for series: %d, block: %d", i, idx)
+	stepIndex := 0
+	for _, it := range iters {
+		for it.Next() {
+			step := it.Current()
+			for seriesIndex, v := range step.Values() {
+				// NB: iteration moves by time step across a block, so each value in the
+				// step iterator corresponds to a different series; transform it to
+				// series-based iteration using mutable series values.
+				mutableValuesForSeries := data[seriesIndex]
+				mutableValuesForSeries.SetValueAt(stepIndex, v)
 			}
 
-			if err = iter.Err(); err != nil {
-				return nil, err
-			}
-
-			blockSeries := iter.Current()
-			for j := 0; j < blockSeries.Len(); j++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(j))
-				valIdx++
-			}
+			stepIndex++
 		}
 
+		if err := it.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	for i, values := range data {
 		var (
 			meta   = seriesMeta[i]
 			tags   = meta.Tags.AddTags(commonTags)
@@ -252,7 +251,7 @@ func insertSortedBlock(
 	stepCount,
 	seriesCount int,
 ) (insertBlockResult, error) {
-	blockSeriesIter, err := b.SeriesIter()
+	it, err := b.StepIter()
 	emptyResult := insertBlockResult{meta: b.Meta().ResultMetadata}
 	if err != nil {
 		return emptyResult, err
@@ -271,7 +270,7 @@ func insertSortedBlock(
 		}, nil
 	}
 
-	blockSeriesCount := blockSeriesIter.SeriesCount()
+	blockSeriesCount := len(it.SeriesMeta())
 	if seriesCount != blockSeriesCount {
 		return emptyResult, fmt.Errorf(
 			"mismatch in number of series for the block, wanted: %d, found: %d",

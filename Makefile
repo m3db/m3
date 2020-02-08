@@ -32,6 +32,7 @@ assets_rules_dir     := generated/assets
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
+bad_trace_dep        := go.etcd.io/etcd/vendor/golang.org/x/net/trace
 cache_policy         ?= recently_read
 genny_target         ?= genny-all
 
@@ -89,6 +90,7 @@ TOOLS :=               \
 	read_index_files     \
 	clone_fileset        \
 	dtest                \
+	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
@@ -96,6 +98,30 @@ TOOLS :=               \
 .PHONY: setup
 setup:
 	mkdir -p $(BUILD)
+
+.PHONY: install-vendor-m3
+install-vendor-m3:
+	[ -d $(VENDOR) ] || make install-vendor
+	# See comment for "install-vendor-m3-remove-bad-dep" why required and the TODO.
+	make install-vendor-m3-remove-bad-dep
+
+# Some deps were causing panics when using GRPC and etcd libraries were used.
+# See issue: https://github.com/etcd-io/etcd/issues/9357
+# TODO: Move M3 to go mod to avoid the issue entirely instead of this hack 
+# (which is bad and we should feel bad).
+# $ go test -v
+# panic: /debug/requests is already registered. You may have two independent 
+# copies of golang.org/x/net/trace in your binary, trying to maintain separate 
+# state. This may involve a vendored copy of golang.org/x/net/trace.
+# 
+# goroutine 1 [running]:
+# github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace.init.0()
+#         /Users/r/go/src/github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace/trace.go:123 +0x1cd
+# exit status 2
+# FAIL    github.com/m3db/m3/src/query/remote     0.024s
+.PHONY: install-vendor-m3-remove-bad-dep
+install-vendor-m3-remove-bad-dep:
+	([ -d $(VENDOR)/$(bad_trace_dep) ] && rm -rf $(VENDOR)/$(bad_trace_dep)) || (echo "No bad trace dep" > /dev/null)
 
 define SERVICE_RULES
 
@@ -106,7 +132,7 @@ ifeq ($(SERVICE),m3ctl)
 	make build-ui-ctl-statik-gen
 endif
 	@echo Building $(SERVICE)
-	[ -d $(VENDOR) ] || make install-vendor
+	[ -d $(VENDOR) ] || make install-vendor-m3
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64

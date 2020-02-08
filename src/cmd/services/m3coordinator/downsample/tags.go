@@ -23,6 +23,7 @@ package downsample
 import (
 	"bytes"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/x/ident"
 )
@@ -112,4 +113,23 @@ func (t *tags) Remaining() int {
 
 func (t *tags) Duplicate() ident.TagIterator {
 	return &tags{idx: -1, names: t.names, values: t.values}
+}
+
+func (t *tags) String() string {
+	var str strings.Builder
+	str.WriteString("{")
+	for i, name := range t.names {
+		value := t.values[i]
+
+		str.Write(name)
+		str.WriteString("=\"")
+		str.Write(value)
+		str.WriteString("\"")
+
+		if i != len(t.names)-1 {
+			str.WriteString(",")
+		}
+	}
+	str.WriteString("}")
+	return str.String()
 }

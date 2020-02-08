@@ -37,10 +37,8 @@ func (t BlockType) String() string {
 		return "container"
 	case BlockEmpty:
 		return "empty"
-	case BlockMultiSeries:
-		return "multiseries"
-	case BlockConsolidated:
-		return "consolidated"
+	case BlockTest:
+		return "test"
 	}
 
 	return "unknown"
@@ -63,9 +61,9 @@ func NewWrappedBlockInfo(
 	blockType BlockType,
 	wrap BlockInfo,
 ) BlockInfo {
-	inner := make([]BlockType, len(wrap.inner)+1)
-	copy(inner[:1], wrap.inner)
-	inner[0] = wrap.blockType
+	inner := make([]BlockType, 0, len(wrap.inner)+1)
+	inner = append(inner, wrap.blockType)
+	inner = append(inner, wrap.inner...)
 	return BlockInfo{
 		blockType: blockType,
 		inner:     inner,

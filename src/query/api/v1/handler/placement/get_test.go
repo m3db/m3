@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	apihandler "github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -126,7 +126,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		placementObj, err := placement.NewPlacementFromProto(placementProto)
 		require.NoError(t, err)
 
-		svcDefaults := apihandler.ServiceNameAndDefaults{
+		svcDefaults := handleroptions.ServiceNameAndDefaults{
 			ServiceName: serviceName,
 		}
 

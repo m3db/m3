@@ -27,6 +27,8 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -51,14 +53,10 @@ const (
 	TagValuesHTTPMethod = http.MethodGet
 )
 
-var (
-	matchValues = []byte(".*")
-)
-
 // TagValuesHandler represents a handler for search tags endpoint.
 type TagValuesHandler struct {
 	storage             storage.Storage
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	nowFn               clock.NowFn
 	instrumentOpts      instrument.Options
 }
@@ -69,17 +67,12 @@ type TagValuesResponse struct {
 }
 
 // NewTagValuesHandler returns a new instance of handler.
-func NewTagValuesHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	nowFn clock.NowFn,
-	instrumentOpts instrument.Options,
-) http.Handler {
+func NewTagValuesHandler(options options.HandlerOptions) http.Handler {
 	return &TagValuesHandler{
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		nowFn:               nowFn,
-		instrumentOpts:      instrumentOpts,
+		storage:             options.Storage(),
+		fetchOptionsBuilder: options.FetchOptionsBuilder(),
+		nowFn:               options.NowFn(),
+		instrumentOpts:      options.InstrumentOpts(),
 	}
 }
 
@@ -108,7 +101,7 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.AddWarningHeaders(w, result.Metadata)
+	handleroptions.AddWarningHeaders(w, result.Metadata)
 	// TODO: Support multiple result types
 	err = prometheus.RenderTagValuesResultsJSON(w, result)
 	if err != nil {
@@ -135,9 +128,8 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers: models.Matchers{
 			models.Matcher{
-				Type:  models.MatchRegexp,
-				Name:  nameBytes,
-				Value: matchValues,
+				Type: models.MatchField,
+				Name: nameBytes,
 			},
 		},
 	}, nil

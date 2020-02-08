@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
@@ -82,7 +82,7 @@ func TestPromReadInstantHandler(t *testing.T) {
 	testPromReadInstantHandler(t, block.NewResultMetadata(), "")
 	testPromReadInstantHandler(t, buildWarningMeta("foo", "bar"), "foo_bar")
 	testPromReadInstantHandler(t, block.ResultMetadata{Exhaustive: false},
-		handler.LimitHeaderSeriesLimitApplied)
+		handleroptions.LimitHeaderSeriesLimitApplied)
 }
 
 func testPromReadInstantHandler(
@@ -118,7 +118,7 @@ func testPromReadInstantHandler(
 
 	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 
-	header := recorder.Header().Get(handler.LimitHeader)
+	header := recorder.Header().Get(handleroptions.LimitHeader)
 	assert.Equal(t, ex, header)
 
 	var result vectorResult
@@ -130,7 +130,7 @@ func testPromReadInstantHandler(
 	at1, value1, err := result.Data.Result[1].Value.parse()
 	require.NoError(t, err)
 
-	expected := mustPrettyJSON(t, fmt.Sprintf(`
+	expected := xtest.MustPrettyJSON(t, fmt.Sprintf(`
 	{
 		"status": "success",
 		"data": {
@@ -160,7 +160,7 @@ func testPromReadInstantHandler(
 		}
 	}
 	`, at0.Unix(), value0, at1.Unix(), value1))
-	actual := mustPrettyJSON(t, recorder.Body.String())
+	actual := xtest.MustPrettyJSON(t, recorder.Body.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 

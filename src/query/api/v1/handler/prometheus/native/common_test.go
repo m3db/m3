@@ -22,7 +22,6 @@ package native
 
 import (
 	"bytes"
-	"encoding/json"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -31,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -63,12 +62,13 @@ func defaultParams() url.Values {
 	vals.Add(queryParam, promQuery)
 	vals.Add(startParam, now.Format(time.RFC3339))
 	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
-	vals.Add(handler.StepParam, (time.Duration(10) * time.Second).String())
+	vals.Add(handleroptions.StepParam, (time.Duration(10) * time.Second).String())
 	return vals
 }
 
 func testParseParams(req *http.Request) (models.RequestParams, *xhttp.ParseError) {
-	fetchOpts, err := handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}).
+	fetchOpts, err := handleroptions.
+		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}).
 		NewFetchOptions(req)
 	if err != nil {
 		return models.RequestParams{}, err
@@ -147,7 +147,7 @@ func TestParseBlockType(t *testing.T) {
 		instrument.NewOptions()))
 
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=2", nil)
-	assert.Equal(t, models.TypeDecodedBlock, parseBlockType(r,
+	assert.Equal(t, models.TypeSingleBlock, parseBlockType(r,
 		instrument.NewOptions()))
 
 	r = httptest.NewRequest(http.MethodGet, "/foo?block-type=3", nil)
@@ -186,7 +186,7 @@ func TestRenderResultsJSON(t *testing.T) {
 
 	renderResultsJSON(buffer, series, params, true)
 
-	expected := mustPrettyJSON(t, `
+	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",
 		"data": {
@@ -248,7 +248,7 @@ func TestRenderResultsJSON(t *testing.T) {
 	}
 	`)
 
-	actual := mustPrettyJSON(t, buffer.String())
+	actual := xtest.MustPrettyJSON(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
@@ -285,7 +285,7 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 
 	renderResultsJSON(buffer, series, params, false)
 
-	expected := mustPrettyJSON(t, `
+	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",
 		"data": {
@@ -326,7 +326,7 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	}
 	`)
 
-	actual := mustPrettyJSON(t, buffer.String())
+	actual := xtest.MustPrettyJSON(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
@@ -348,7 +348,7 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 
 	renderResultsInstantaneousJSON(buffer, series)
 
-	expected := mustPrettyJSON(t, `
+	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",
 		"data": {
@@ -378,17 +378,8 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 		}
 	}
 	`)
-	actual := mustPrettyJSON(t, buffer.String())
+	actual := xtest.MustPrettyJSON(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
-}
-
-func mustPrettyJSON(t *testing.T, str string) string {
-	var unmarshalled map[string]interface{}
-	err := json.Unmarshal([]byte(str), &unmarshalled)
-	require.NoError(t, err)
-	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
-	require.NoError(t, err)
-	return string(pretty)
 }
 
 func TestSanitizeSeries(t *testing.T) {

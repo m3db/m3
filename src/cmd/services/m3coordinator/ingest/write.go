@@ -81,7 +81,7 @@ type BatchError interface {
 // WriteOptions contains overrides for the downsampling mapping
 // rules and storage policies for a given write.
 type WriteOptions struct {
-	DownsampleMappingRules []downsample.MappingRule
+	DownsampleMappingRules []downsample.AutoMappingRule
 	WriteStoragePolicies   []policy.StoragePolicy
 
 	DownsampleOverride bool
@@ -182,7 +182,7 @@ func (d *downsamplerAndWriter) shouldDownsample(
 
 func (d *downsamplerAndWriter) downsampleOverrideRules(
 	overrides WriteOptions,
-) ([]downsample.MappingRule, bool) {
+) ([]downsample.AutoMappingRule, bool) {
 	downsampleOverride := overrides.DownsampleOverride && len(overrides.DownsampleMappingRules) > 0
 	if !downsampleOverride {
 		return nil, false
@@ -216,6 +216,10 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 		// through the downsampler in general, but right now the aggregator
 		// does not allow context to be attached to a metric so when it calls
 		// back the context is lost currently.
+		// TODO_FIX_GRAPHITE_TAGGING: Using this string constant to track
+		// all places worth fixing this hack. There is at least one
+		// other path where flows back to the coordinator from the aggregator
+		// and this tag is interpreted, eventually need to handle more cleanly.
 		appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
 			downsample.GraphiteIDSchemeTagValue)
 	}

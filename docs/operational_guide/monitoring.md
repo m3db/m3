@@ -11,11 +11,10 @@ TODO: document how to retrieve logs for M3DB components.
 M3DB is integrated with [opentracing](https://opentracing.io/) to provide
 insight into query performance and errors.
 
-### Configuration
-Currently, only [Jaeger](https://www.jaegertracing.io/) is supported as a backend.
+### Jaeger
 
-To enable it, set tracing.backend to "jaeger" (see also our
-[sample local config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml):
+To enable Jaeger as the tracing backend, set tracing.backend to "jaeger" (see also our [sample local
+config](https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml):
 
 ```
 tracing:
@@ -36,12 +35,30 @@ using the all-in-one jaeger container, they will be accessible at
 http://localhost:16686
 
 N.B.: for production workloads, you will almost certainly want to use
-sampler.type=remote with 
+sampler.type=remote with
 [adaptive sampling](https://www.jaegertracing.io/docs/1.10/sampling/#adaptive-sampler)
 for Jaeger, as write volumes are likely orders of magnitude higher than
 read volumes in most timeseries systems.
 
-#### Alternative backends
+### LightStep
+
+To use LightStep as the tracing backend, set `tracing.backend` to `"lightstep"` and configure necessary information for
+your client under `lightstep`. Any [options exposed][lightstep-options] in `lightstep-tracer-go` can be set in config.
+Any environment variables may be interpolated. For example:
+
+```yaml
+tracing:
+  serviceName: m3coordinator
+  backend: lightstep
+  lightstep:
+    access_token: ${LIGHTSTEP_ACCESS_TOKEN:""}
+    collector:
+      scheme: https
+      host: my-satellite-address.domain
+      port: 8181
+```
+
+### Alternative backends
 
 If you'd like additional backends, we'd love to support them!
 
@@ -78,3 +95,5 @@ http://localhost:16686/search?operation=GET%20%2Fapi%2Fv1%2Fquery_range&service=
 Search for `http.status_code=500`.
 
 http://localhost:16686/search?limit=20&lookback=24h&maxDuration&minDuration&operation=GET%20%2Fapi%2Fv1%2Fquery_range&service=m3query&start=1548802430108000&tags=%7B"http.status_code"%3A"500"%7D
+
+[lightstep-options]: https://github.com/lightstep/lightstep-tracer-go/blob/v0.18.1/options.go#L110

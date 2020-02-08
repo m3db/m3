@@ -156,7 +156,7 @@ var (
 	expectedWriteOptsByPattern = map[string]ingest.WriteOptions{
 		"match-regex1": ingest.WriteOptions{
 			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.MappingRule{
+			DownsampleMappingRules: []downsample.AutoMappingRule{
 				{
 					Aggregations: []aggregation.Type{aggregation.Mean},
 					Policies: []policy.StoragePolicy{
@@ -169,7 +169,7 @@ var (
 		},
 		"match-regex2": ingest.WriteOptions{
 			DownsampleOverride: true,
-			DownsampleMappingRules: []downsample.MappingRule{
+			DownsampleMappingRules: []downsample.AutoMappingRule{
 				{
 					Aggregations: []aggregation.Type{aggregation.Last},
 					Policies:     []policy.StoragePolicy{policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour)},
