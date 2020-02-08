@@ -247,14 +247,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	runOpts bootstrap.RunOptions,
 	readerPool *bootstrapper.ReaderPool,
-	readers []bootstrapper.TimeWindowReaders,
+	readersCh <-chan bootstrapper.TimeWindowReaders,
 ) *runResult {
 	var (
 		runResult  = newRunResult()
 		resultOpts = s.opts.ResultOptions()
 	)
 
-	for _, timeWindowReaders := range readers {
+	for timeWindowReaders := range readersCh {
 		timeWindowReaders := timeWindowReaders
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
 			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
@@ -667,6 +667,7 @@ func (s *fileSystemSource) read(
 	// allocate and keep around readers outside of the bootstrapping process,
 	// hence why its created on demand each time.
 	readerPool := bootstrapper.NewReaderPool(s.newReaderPoolOpts)
+	readersCh := make(chan bootstrapper.TimeWindowReaders)
 	var blockSize time.Duration
 	switch run {
 	case bootstrapDataRunType:
@@ -676,10 +677,11 @@ func (s *fileSystemSource) read(
 	default:
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}
-	readers := bootstrapper.EnqueueReaders(md, s.fsopts, shardsTimeRanges,
-		readerPool, blockSize, s.log)
+	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
+	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
+		readerPool, readersCh, blockSize, s.log)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
-		accumulator, runOpts, readerPool, readers)
+		accumulator, runOpts, readerPool, readersCh)
 
 	// Merge any existing results if necessary.
 	setOrMergeResult(bootstrapFromDataReadersResult)
