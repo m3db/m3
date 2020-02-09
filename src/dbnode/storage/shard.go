@@ -385,8 +385,14 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
 func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	s.RLock()
-	bootstrapped := s.bootstrapState == Bootstrapped
+	snapshots := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
+
+	return snapshots
+}
+
+func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot {
+	bootstrapped := s.bootstrapState == Bootstrapped
 	if !bootstrapped {
 		// Needs to be bootstrapped.
 		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
@@ -509,7 +515,7 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 
 func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
-		return elemsLen
+		return shardIterateBatchMinSize
 	}
 	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
@@ -684,9 +690,11 @@ func (s *dbShard) tickAndExpire(
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
-	// Acquire snapshot of block states here to avoid releasing the
-	// RLock and acquiring it right after.
-	blockStates := s.BlockStatesSnapshot()
+	// Use blockStatesSnapshotWithRLock here to prevent nested read locks.
+	// Nested read locks will cause deadlocks if there is write lock attempt in
+	// between the nested read locks, since the write lock attempt will block
+	// future read lock attempts.
+	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
@@ -1354,10 +1362,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// i.e. we don't have a ref on provided entry, so we check if between the operation being
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
-		existingEntry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
-		if existingEntry != nil {
+		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		if entry != nil {
 			// Already exists so update the entry we're pointed at for this insert
-			inserts[i].entry = existingEntry
+			inserts[i].entry = entry
 		}
 
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {
@@ -1368,7 +1376,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			inserts[i].opts.entryRefCountIncremented = true
 		}
 
-		if existingEntry != nil {
+		if err == nil {
 			// Already inserted
 			continue
 		}
@@ -1384,7 +1392,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		}
 
 		// Insert still pending, perform the insert
-		s.insertNewShardEntryWithLock(inserts[i].entry)
+		entry = inserts[i].entry
+		s.insertNewShardEntryWithLock(entry)
 	}
 	s.Unlock()
 
@@ -2078,6 +2087,8 @@ func (s *dbShard) ColdFlush(
 		s.RUnlock()
 		return errShardNotBootstrappedToFlush
 	}
+	// Use blockStatesSnapshotWithRLock to avoid having to re-acquire read lock.
+	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
 
 	resources.reset()
@@ -2088,7 +2099,6 @@ func (s *dbShard) ColdFlush(
 		idElementPool      = resources.idElementPool
 	)
 
-	blockStates := s.BlockStatesSnapshot()
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
 		return errFlushStateIsNotInitialized

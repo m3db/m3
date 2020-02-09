@@ -166,16 +166,6 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 		require.Equal(t, errNewSeriesInsertRateLimitExceeded, err)
 	}
 
-	// Consecutive bootstrap only should not be rate limtied
-	for i := 0; i < 100; i++ {
-		_, err = q.Insert(dbShardInsert{
-			opts: dbShardInsertAsyncOptions{
-				isBootstrapInsert: true,
-			},
-		})
-		require.NoError(t, err)
-	}
-
 	// Start 2nd second should not be an issue
 	addTime(750 * time.Millisecond)
 	_, err = q.Insert(dbShardInsert{})
