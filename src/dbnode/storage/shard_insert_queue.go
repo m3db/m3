@@ -108,8 +108,6 @@ type dbShardInsertAsyncOptions struct {
 	hasPendingRetrievedBlock bool
 	hasPendingIndexing       bool
 
-	isBootstrapInsert bool
-
 	// NB(prateek): `entryRefCountIncremented` indicates if the
 	// entry provided along with the dbShardInsertAsyncOptions
 	// already has it's ref count incremented. It's used to
@@ -307,8 +305,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 			q.insertPerSecondLimitWindowValues = 0
 		}
 		q.insertPerSecondLimitWindowValues++
-		if q.insertPerSecondLimitWindowValues > limit &&
-			!insert.opts.isBootstrapInsert {
+		if q.insertPerSecondLimitWindowValues > limit {
 			q.Unlock()
 			return nil, errNewSeriesInsertRateLimitExceeded
 		}

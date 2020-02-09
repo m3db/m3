@@ -27,6 +27,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -61,7 +62,7 @@ var _ NamespaceDataAccumulator = (*TestDataAccumulator)(nil)
 type TestDataAccumulator struct {
 	sync.Mutex
 
-	t              require.TestingT
+	t              *testing.T
 	ctrl           *gomock.Controller
 	ns             string
 	pool           encoding.MultiReaderIteratorPool
@@ -69,12 +70,7 @@ type TestDataAccumulator struct {
 	schema         namespace.SchemaDescr
 	// writeMap is a map to which values are written directly.
 	writeMap DecodedBlockMap
-	results  map[string]checkoutResult
-}
-
-type checkoutResult struct {
-	CheckoutSeriesResult
-	options NamespaceDataAccumulatorOptions
+	results  map[string]CheckoutSeriesResult
 }
 
 // DecodedValues is a slice of series datapoints.
@@ -191,11 +187,10 @@ func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-	opts NamespaceDataAccumulatorOptions,
 ) (CheckoutSeriesResult, error) {
 	a.Lock()
 	defer a.Unlock()
-	return a.checkoutSeriesWithLock(shardID, id, tags, opts)
+	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
 // CheckoutSeriesWithoutLock will retrieve a series for writing to,
@@ -205,16 +200,14 @@ func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-	opts NamespaceDataAccumulatorOptions,
 ) (CheckoutSeriesResult, error) {
-	return a.checkoutSeriesWithLock(shardID, id, tags, opts)
+	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
 func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-	opts NamespaceDataAccumulatorOptions,
 ) (CheckoutSeriesResult, error) {
 	var decodedTags map[string]string
 	if tags != nil {
@@ -238,7 +231,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 
 	stringID := id.String()
 	if result, found := a.results[stringID]; found {
-		return result.CheckoutSeriesResult, nil
+		return result, nil
 	}
 
 	var streamErr error
@@ -287,16 +280,14 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				return true, nil
 			}).AnyTimes()
 
-	result := checkoutResult{
-		CheckoutSeriesResult: CheckoutSeriesResult{
-			Shard:       shardID,
-			Series:      mockSeries,
-			UniqueIndex: uint64(len(a.results) + 1),
-		}, options: opts,
+	result := CheckoutSeriesResult{
+		Shard:       shardID,
+		Series:      mockSeries,
+		UniqueIndex: uint64(len(a.results) + 1),
 	}
 
 	a.results[stringID] = result
-	return result.CheckoutSeriesResult, streamErr
+	return result, streamErr
 }
 
 // Release is a no-op on the test accumulator.
@@ -307,7 +298,7 @@ func (a *TestDataAccumulator) Close() error { return nil }
 
 // NamespacesTester is a utility to assist testing bootstrapping.
 type NamespacesTester struct {
-	t    require.TestingT
+	t    *testing.T
 	ctrl *gomock.Controller
 	pool encoding.MultiReaderIteratorPool
 
@@ -334,7 +325,7 @@ func buildDefaultIterPool() encoding.MultiReaderIteratorPool {
 
 // BuildNamespacesTester builds a NamespacesTester.
 func BuildNamespacesTester(
-	t require.TestingT,
+	t *testing.T,
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	mds ...namespace.Metadata,
@@ -351,7 +342,7 @@ func BuildNamespacesTester(
 // BuildNamespacesTesterWithReaderIteratorPool builds a NamespacesTester with a
 // given MultiReaderIteratorPool.
 func BuildNamespacesTesterWithReaderIteratorPool(
-	t require.TestingT,
+	t *testing.T,
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	iterPool encoding.MultiReaderIteratorPool,
@@ -376,7 +367,7 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 			ctrl:           ctrl,
 			pool:           iterPool,
 			ns:             md.ID().String(),
-			results:        make(map[string]checkoutResult),
+			results:        make(map[string]CheckoutSeriesResult),
 			loadedBlockMap: make(ReaderMap),
 			writeMap:       make(DecodedBlockMap),
 			schema:         nsCtx.Schema,
@@ -482,23 +473,6 @@ func (nt *NamespacesTester) EnsureDumpWritesForNamespace(
 // testers accumulators.
 func (nt *NamespacesTester) EnsureNoWrites() {
 	require.Equal(nt.t, 0, len(nt.DumpWrites()))
-}
-
-// NSOptionMap is a map of namespaces to options.
-type NSOptionMap map[string]NamespaceDataAccumulatorOptions
-
-// DumpOptions returns options for series checkouts across all namespaces.
-func (nt *NamespacesTester) DumpOptions() map[string]NSOptionMap {
-	resultMap := make(map[string]NSOptionMap, len(nt.Accumulators))
-	for _, acc := range nt.Accumulators {
-		optionMap := make(NSOptionMap, len(acc.results))
-		for k, v := range acc.results {
-			optionMap[k] = v.options
-		}
-		resultMap[acc.ns] = optionMap
-	}
-
-	return resultMap
 }
 
 // EnsureDumpAllForNamespace dumps all results for a single namespace, and

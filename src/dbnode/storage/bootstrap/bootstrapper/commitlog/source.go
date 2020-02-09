@@ -454,9 +454,6 @@ func (s *commitLogSource) Read(
 					entry.Series.Shard,
 					entry.Series.ID,
 					tagIter,
-					bootstrap.NamespaceDataAccumulatorOptions{
-						IsBootstrapping: true,
-					},
 				)
 
 				if err != nil {
@@ -726,9 +723,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 		nsCtx      = namespace.NewContextFrom(ns)
-		accOpts    = bootstrap.NamespaceDataAccumulatorOptions{
-			IsBootstrapping: true,
-		}
 	)
 
 	// Bootstrap the snapshot file.
@@ -789,7 +783,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags, accOpts)
+		ref, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
 			return err
 		}

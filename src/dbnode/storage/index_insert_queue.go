@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 
 	"github.com/uber-go/tally"
 )
@@ -35,7 +35,6 @@ import (
 var (
 	errIndexInsertQueueNotOpen             = errors.New("index insert queue is not open")
 	errIndexInsertQueueAlreadyOpenOrClosed = errors.New("index insert queue already open or is closed")
-	errNewSeriesIndexRateLimitExceeded     = errors.New("indexing new series exceeds rate limit")
 )
 
 type nsIndexInsertQueueState int
@@ -46,8 +45,7 @@ const (
 	nsIndexInsertQueueStateClosed
 
 	// TODO(prateek): runtime options for this stuff
-	defaultIndexBatchBackoff   = time.Millisecond
-	defaultIndexPerSecondLimit = 1000000
+	defaultIndexBatchBackoff = time.Millisecond
 
 	indexResetAllInsertsEvery = 30 * time.Second
 )
@@ -60,10 +58,7 @@ type nsIndexInsertQueue struct {
 	state nsIndexInsertQueueState
 
 	// rate limits
-	indexBatchBackoff               time.Duration
-	indexPerSecondLimit             int
-	indexPerSecondLimitWindowNanos  int64
-	indexPerSecondLimitWindowValues int
+	indexBatchBackoff time.Duration
 
 	// active batch pending execution
 	currBatch *nsIndexInsertBatch
@@ -89,15 +84,14 @@ func newNamespaceIndexInsertQueue(
 ) namespaceIndexInsertQueue {
 	subscope := scope.SubScope("insert-queue")
 	q := &nsIndexInsertQueue{
-		namespaceMetadata:   namespaceMetadata,
-		indexBatchBackoff:   defaultIndexBatchBackoff,
-		indexPerSecondLimit: defaultIndexPerSecondLimit,
-		indexBatchFn:        indexBatchFn,
-		nowFn:               nowFn,
-		sleepFn:             time.Sleep,
-		notifyInsert:        make(chan struct{}, 1),
-		closeCh:             make(chan struct{}, 1),
-		metrics:             newNamespaceIndexInsertQueueMetrics(subscope),
+		namespaceMetadata: namespaceMetadata,
+		indexBatchBackoff: defaultIndexBatchBackoff,
+		indexBatchFn:      indexBatchFn,
+		nowFn:             nowFn,
+		sleepFn:           time.Sleep,
+		notifyInsert:      make(chan struct{}, 1),
+		closeCh:           make(chan struct{}, 1),
+		metrics:           newNamespaceIndexInsertQueueMetrics(subscope),
 	}
 	q.currBatch = q.newBatch()
 	return q
@@ -172,18 +166,6 @@ func (q *nsIndexInsertQueue) InsertBatch(
 	if q.state != nsIndexInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errIndexInsertQueueNotOpen
-	}
-	if limit := q.indexPerSecondLimit; limit > 0 {
-		if q.indexPerSecondLimitWindowNanos != windowNanos {
-			// Rolled into to a new window
-			q.indexPerSecondLimitWindowNanos = windowNanos
-			q.indexPerSecondLimitWindowValues = 0
-		}
-		q.indexPerSecondLimitWindowValues++
-		if q.indexPerSecondLimitWindowValues > limit {
-			q.Unlock()
-			return nil, errNewSeriesIndexRateLimitExceeded
-		}
 	}
 	batchLen := batch.Len()
 	q.currBatch.shardInserts = append(q.currBatch.shardInserts, batch)

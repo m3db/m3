@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -386,14 +385,8 @@ func (s *dbShard) RetrievableBlockColdVersion(blockStart time.Time) (int, error)
 // BlockStatesSnapshot implements series.QueryableBlockRetriever
 func (s *dbShard) BlockStatesSnapshot() series.ShardBlockStateSnapshot {
 	s.RLock()
-	snapshots := s.blockStatesSnapshotWithRLock()
-	s.RUnlock()
-
-	return snapshots
-}
-
-func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot {
 	bootstrapped := s.bootstrapState == Bootstrapped
+	s.RUnlock()
 	if !bootstrapped {
 		// Needs to be bootstrapped.
 		return series.NewShardBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
@@ -516,7 +509,7 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 
 func iterateBatchSize(elemsLen int) int {
 	if elemsLen < shardIterateBatchMinSize {
-		return shardIterateBatchMinSize
+		return elemsLen
 	}
 	t := math.Ceil(float64(shardIterateBatchPercent) * float64(elemsLen))
 	return int(math.Max(shardIterateBatchMinSize, t))
@@ -691,11 +684,9 @@ func (s *dbShard) tickAndExpire(
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
-	// Use blockStatesSnapshotWithRLock here to prevent nested read locks.
-	// Nested read locks will cause deadlocks if there is write lock attempt in
-	// between the nested read locks, since the write lock attempt will block
-	// future read lock attempts.
-	blockStates := s.blockStatesSnapshotWithRLock()
+	// Acquire snapshot of block states here to avoid releasing the
+	// RLock and acquiring it right after.
+	blockStates := s.BlockStatesSnapshot()
 	s.RUnlock()
 	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
@@ -984,7 +975,6 @@ func (s *dbShard) SeriesReadWriteRef(
 	id ident.ID,
 	tags ident.TagIterator,
 	opts ShardSeriesReadWriteRefOptions,
-	bootstrapOpts bootstrap.NamespaceDataAccumulatorOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
@@ -1002,33 +992,15 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	// NB(r): Insert synchronously so caller has access to the series
+	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
+	// may have no effect if a collision with the same series
+	// being put in the insert queue may cause a block to be loaded to a
+	// series which gets discarded.
+	entry, err := s.insertSeriesSync(id, newTagsIterArg(tags),
+		insertSyncIncReaderWriterCount)
 	if err != nil {
 		return SeriesReadWriteRef{}, err
-	}
-
-	// Increment and let caller call the release when done.
-	entry.IncrementReaderWriterCount()
-
-	now := s.nowFn()
-	wg, err := s.insertQueue.Insert(dbShardInsert{
-		entry: entry,
-		opts: dbShardInsertAsyncOptions{
-			hasPendingIndexing: opts.ReverseIndex,
-			pendingIndex: dbShardPendingIndex{
-				timestamp:  now,
-				enqueuedAt: now,
-			},
-			isBootstrapInsert: bootstrapOpts.IsBootstrapping,
-		},
-	})
-	if err != nil {
-		return SeriesReadWriteRef{}, err
-	}
-
-	if !shardOpts.writeNewSeriesAsync {
-		// Wait if not setup to write new series async.
-		wg.Wait()
 	}
 
 	return SeriesReadWriteRef{
@@ -1382,10 +1354,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// i.e. we don't have a ref on provided entry, so we check if between the operation being
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
-		if entry != nil {
+		existingEntry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		if existingEntry != nil {
 			// Already exists so update the entry we're pointed at for this insert
-			inserts[i].entry = entry
+			inserts[i].entry = existingEntry
 		}
 
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {
@@ -1396,7 +1368,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			inserts[i].opts.entryRefCountIncremented = true
 		}
 
-		if err == nil {
+		if existingEntry != nil {
 			// Already inserted
 			continue
 		}
@@ -1412,8 +1384,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		}
 
 		// Insert still pending, perform the insert
-		entry = inserts[i].entry
-		s.insertNewShardEntryWithLock(entry)
+		s.insertNewShardEntryWithLock(inserts[i].entry)
 	}
 	s.Unlock()
 
@@ -1859,8 +1830,8 @@ func (s *dbShard) initializeFlushStates() {
 
 func (s *dbShard) UpdateFlushStates() {
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(),
-		s.shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
 
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
@@ -2107,8 +2078,6 @@ func (s *dbShard) ColdFlush(
 		s.RUnlock()
 		return errShardNotBootstrappedToFlush
 	}
-	// Use blockStatesSnapshotWithRLock to avoid having to re-acquire read lock.
-	blockStates := s.blockStatesSnapshotWithRLock()
 	s.RUnlock()
 
 	resources.reset()
@@ -2119,6 +2088,7 @@ func (s *dbShard) ColdFlush(
 		idElementPool      = resources.idElementPool
 	)
 
+	blockStates := s.BlockStatesSnapshot()
 	blockStatesSnapshot, bootstrapped := blockStates.UnwrapValue()
 	if !bootstrapped {
 		return errFlushStateIsNotInitialized

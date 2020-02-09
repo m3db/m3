@@ -243,13 +243,6 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, 0, len(points))
 	tester.EnsureNoWrites()
-
-	options := tester.DumpOptions()
-	for _, nsOpt := range options {
-		for _, opt := range nsOpt {
-			assert.True(t, opt.IsBootstrapping)
-		}
-	}
 }
 
 func TestPeersSourceRunWithPersist(t *testing.T) {

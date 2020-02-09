@@ -54,9 +54,8 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-	opts bootstrap.NamespaceDataAccumulatorOptions,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	ref, err := a.namespace.SeriesReadWriteRef(shardID, id, tags, opts)
+	ref, err := a.namespace.SeriesReadWriteRef(shardID, id, tags)
 	if err != nil {
 		return bootstrap.CheckoutSeriesResult{}, err
 	}
@@ -73,10 +72,9 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-	opts bootstrap.NamespaceDataAccumulatorOptions,
 ) (bootstrap.CheckoutSeriesResult, error) {
 	a.Lock()
-	result, err := a.CheckoutSeriesWithoutLock(shardID, id, tags, opts)
+	result, err := a.CheckoutSeriesWithoutLock(shardID, id, tags)
 	a.Unlock()
 	return result, err
 }

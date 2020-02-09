@@ -220,14 +220,6 @@ type NamespaceRunOptions struct {
 	RunOptions RunOptions
 }
 
-// NamespaceDataAccumulatorOptions are options for the namespace
-// data accumulator.
-type NamespaceDataAccumulatorOptions struct {
-	// IsBootstrapping is true if the series is being checked
-	// out while bootstrapping.
-	IsBootstrapping bool
-}
-
 // NamespaceDataAccumulator is the namespace data accumulator.
 // TODO(r): Consider rename this to a better name.
 type NamespaceDataAccumulator interface {
@@ -244,7 +236,6 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-		opts NamespaceDataAccumulatorOptions,
 	) (CheckoutSeriesResult, error)
 
 	// CheckoutSeriesWithLock retrieves a series for writing to
@@ -258,7 +249,6 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-		opts NamespaceDataAccumulatorOptions,
 	) (CheckoutSeriesResult, error)
 
 	// Close will close the data accumulator and will release
