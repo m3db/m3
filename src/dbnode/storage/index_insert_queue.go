@@ -75,6 +75,14 @@ type nsIndexInsertQueue struct {
 type newNamespaceIndexInsertQueueFn func(
 	nsIndexInsertBatchFn, namespace.Metadata, clock.NowFn, tally.Scope) namespaceIndexInsertQueue
 
+// newNamespaceIndexInsertQueue returns a new index insert queue.
+// Note: No limit appears on the index insert queue since any items making
+// it into the index insert queue must first pass through the shard insert
+// queue which has it's own limits in place.
+// Any error returned from this queue would cause the series to not be indexed
+// and there is no way to return this error to the client over the network
+// (unlike the shard insert queue at which point if an error is returned
+// is returned all the way back to the DB node client).
 // FOLLOWUP(prateek): subsequent PR to wire up rate limiting to runtime.Options
 func newNamespaceIndexInsertQueue(
 	indexBatchFn nsIndexInsertBatchFn,
@@ -160,8 +168,6 @@ func (q *nsIndexInsertQueue) insertLoop() {
 func (q *nsIndexInsertQueue) InsertBatch(
 	batch *index.WriteBatch,
 ) (*sync.WaitGroup, error) {
-	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
-
 	q.Lock()
 	if q.state != nsIndexInsertQueueStateOpen {
 		q.Unlock()

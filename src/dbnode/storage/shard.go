@@ -985,7 +985,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
-	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+	entry, _, err := s.tryRetrieveWritableSeries(id)
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
@@ -1005,7 +1005,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	// may have no effect if a collision with the same series
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
-	entry, err := s.insertSeriesSync(id, newTagsIterArg(tags),
+	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags),
 		insertSyncIncReaderWriterCount)
 	if err != nil {
 		return SeriesReadWriteRef{}, err
