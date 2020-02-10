@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
+	"github.com/twotwotwo/sorts"
 )
 
 var (
@@ -239,6 +240,10 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	terms, ok := b.fields.Get(field)
 	if !ok {
 		return nil, fmt.Errorf("field not found: %s", string(field))
+	}
+	if !terms.isSorted {
+		sorts.ByBytes(terms)
+		terms.isSorted = true
 	}
 	return newTermsIter(terms.uniqueTerms), nil
 }

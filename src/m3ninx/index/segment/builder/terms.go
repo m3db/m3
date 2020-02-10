@@ -21,6 +21,8 @@
 package builder
 
 import (
+	"bytes"
+
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
@@ -29,6 +31,7 @@ type terms struct {
 	pool        postings.Pool
 	postings    *PostingsMap
 	uniqueTerms []termElem
+	isSorted    bool
 }
 
 type termElem struct {
@@ -92,4 +95,20 @@ func (t *terms) reset() {
 		t.uniqueTerms[i] = emptyTerm
 	}
 	t.uniqueTerms = t.uniqueTerms[:0]
+}
+
+func (t *terms) Len() int {
+	return len(t.uniqueTerms)
+}
+
+func (t *terms) Less(i, j int) bool {
+	return bytes.Compare(t.uniqueTerms[i].term, t.uniqueTerms[j].term) < 0
+}
+
+func (t *terms) Swap(i, j int) {
+	t.uniqueTerms[i], t.uniqueTerms[j] = t.uniqueTerms[j], t.uniqueTerms[i]
+}
+
+func (t *terms) Key(i int) []byte {
+	return t.uniqueTerms[i].term
 }
