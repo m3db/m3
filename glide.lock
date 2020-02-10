@@ -1,5 +1,5 @@
-hash: 90ba8429798cddf25c50030ea44b32cbd0cb3afe98aeefb1a8592aa29655ce74
-updated: 2020-02-10T14:32:26.905357-05:00
+hash: 89a085a5d24851860fc6d79e789853cc802bb65b89b412c36aeb5bf7e4a923f8
+updated: 2020-01-08T13:38:18.738124428-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -14,11 +14,91 @@ imports:
   subpackages:
   - quantile
 - name: github.com/BurntSushi/toml
-  version: a368813c5e648fee92e5f6c30e3944ff9d5e8895
+  version: 3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005
 - name: github.com/c2h5oh/datasize
   version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
+- name: github.com/cockroachdb/cmux
+  version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
+- name: github.com/coreos/bbolt
+  version: 32c383e75ce054674c53b5a07e55de85332aee14
+- name: go.etcd.io/etcd
+  version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
+  subpackages:
+  - alarm
+  - auth
+  - auth/authpb
+  - client
+  - clientv3
+  - clientv3/concurrency
+  - clientv3/namespace
+  - clientv3/naming
+  - compactor
+  - discovery
+  - embed
+  - error
+  - etcdserver
+  - etcdserver/api
+  - etcdserver/api/etcdhttp
+  - etcdserver/api/v2http
+  - etcdserver/api/v2http/httptypes
+  - etcdserver/api/v3client
+  - etcdserver/api/v3election
+  - etcdserver/api/v3election/v3electionpb
+  - etcdserver/api/v3election/v3electionpb/gw
+  - etcdserver/api/v3lock
+  - etcdserver/api/v3lock/v3lockpb
+  - etcdserver/api/v3lock/v3lockpb/gw
+  - etcdserver/api/v3rpc
+  - etcdserver/api/v3rpc/rpctypes
+  - etcdserver/auth
+  - etcdserver/etcdserverpb
+  - etcdserver/etcdserverpb/gw
+  - etcdserver/membership
+  - etcdserver/stats
+  - integration
+  - lease
+  - lease/leasehttp
+  - lease/leasepb
+  - mvcc
+  - mvcc/backend
+  - mvcc/mvccpb
+  - pkg/adt
+  - pkg/contention
+  - pkg/cors
+  - pkg/cpuutil
+  - pkg/crc
+  - pkg/debugutil
+  - pkg/fileutil
+  - pkg/httputil
+  - pkg/idutil
+  - pkg/ioutil
+  - pkg/logutil
+  - pkg/monotime
+  - pkg/netutil
+  - pkg/pathutil
+  - pkg/pbutil
+  - pkg/runtime
+  - pkg/schedule
+  - pkg/srv
+  - pkg/testutil
+  - pkg/tlsutil
+  - pkg/transport
+  - pkg/types
+  - pkg/wait
+  - proxy/grpcproxy
+  - proxy/grpcproxy/adapter
+  - proxy/grpcproxy/cache
+  - raft
+  - raft/raftpb
+  - rafthttp
+  - snap
+  - snap/snappb
+  - store
+  - version
+  - wal
+  - wal/walpb
 - name: github.com/coreos/go-semver
   version: 8ab6407b697782a06568d4b7f1db25550ec2e4c6
   subpackages:
@@ -26,7 +106,9 @@ imports:
 - name: github.com/coreos/go-systemd
   version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
   subpackages:
+  - daemon
   - journal
+  - util
 - name: github.com/coreos/pkg
   version: 97fdf19511ea361ae1c100dd393cc47f8dcfa1e1
   subpackages:
@@ -40,15 +122,15 @@ imports:
   subpackages:
   - spew
 - name: github.com/dgrijalva/jwt-go
-  version: 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
-- name: github.com/dustin/go-humanize
-  version: 9f541cc9db5d55bce703bd99987c9d5cb8eea45e
+  version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/fsnotify/fsnotify
   version: 1485a34d5d5723fea214f5710708e19a831720e4
+- name: github.com/ghodss/yaml
+  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-kit/kit
   version: dc489b75b9cdbf29c739534c2aa777cabb034954
   subpackages:
@@ -76,11 +158,11 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: 3dcdcb6994c4de42a73bd2e4790178be3ed4554b
+  version: 9fa652df1129bef0e734c9cf9bf6dbae9ef3b9fa
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: d23c5127dc24889085f8ccea5c9d560a57a879d8
+  version: 6c65a5562fc06764971b7c5d05c76c75e84bdbf7
   subpackages:
   - jsonpb
   - proto
@@ -110,10 +192,6 @@ imports:
   version: c2e93f3ae59f2904160ceaab466009f965df46d6
 - name: github.com/gorilla/mux
   version: 00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15
-- name: github.com/gorilla/websocket
-  version: c3e18be99d19e6b3e8f1559eea2c161a665c4b6b
-- name: github.com/grpc-ecosystem/go-grpc-middleware
-  version: 1d961ee6264c871895d92df2601957b7e5d23876
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -138,13 +216,6 @@ imports:
   version: 9b38526d4bdf8e197c31344777fc28f7f48d250d
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
-- name: github.com/influxdata/influxdb
-  version: 01c8dd416270f424ab0c40f9291e269ac6921964
-  subpackages:
-  - models
-  - pkg/escape
-- name: github.com/jfcg/sorty
-  version: 207b4a6e0f2648decb4a9c3a80732c2aafa74442
 - name: github.com/jhump/protoreflect
   version: e0795ed1d1ada047d01e90243863def21db467fc
   subpackages:
@@ -156,10 +227,6 @@ imports:
   - internal
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-- name: github.com/json-iterator/go
-  version: 7acbb404a45be33f136d6f16fe8f86ca30f1008d
-- name: github.com/konsorten/go-windows-terminal-sequences
-  version: f55edac94c9bbba5d6182a4be46d86a2c9b5b50e
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
@@ -213,7 +280,7 @@ imports:
 - name: github.com/magiconair/properties
   version: de8848e004dd33dc07a2947b3d76f618a7fc7ef1
 - name: github.com/matttproud/golang_protobuf_extensions
-  version: 3247c84500bff8d9fb6d579d800f20b3e091582c
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
 - name: github.com/mauricelam/genny
@@ -224,10 +291,6 @@ imports:
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
-- name: github.com/modern-go/concurrent
-  version: bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94
-- name: github.com/modern-go/reflect2
-  version: 94122c33edd36123c84d5368cfb2b69df93a0ec8
 - name: github.com/oklog/ulid
   version: e51a56f2a4c1bf73c967ca6d45d5366bade31943
 - name: github.com/opentracing-contrib/go-stdlib
@@ -252,7 +315,7 @@ imports:
   - logger
   - stats
 - name: github.com/pkg/errors
-  version: 614d223910a179a466c1767a985424175c39b465
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -260,12 +323,11 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 661e31bf844dfca9aeba15f27ea8aa0d485ad212
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
-  - prometheus/promhttp
 - name: github.com/prometheus/client_model
-  version: 99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c
+  version: 6f3806018612930941127f2a7c6c453ba2c527d2
   subpackages:
   - go
 - name: github.com/prometheus/common
@@ -275,10 +337,8 @@ imports:
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: 54d17b57dd7d4a3aa092476596b3f8a933bde349
+  version: a1dba9ce8baed984a2495b658c82687f8157b98f
   subpackages:
-  - internal/util
-  - nfs
   - xfs
 - name: github.com/prometheus/prometheus
   version: 43acd0e2e93f9f70c49b2267efa0124f1e759e86
@@ -322,10 +382,6 @@ imports:
   - diffmatchpatch
 - name: github.com/shurcooL/sanitized_anchor_name
   version: 7bfe4c7ecddb3666a94b053b422cdd8f5aaa3615
-- name: github.com/sirupsen/logrus
-  version: 947831125f318c2fb34bfc6205ee5d74994deb88
-- name: github.com/soheilhy/cmux
-  version: 8a8ea3c53959009183d7914522833c1ed8835020
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/afero
@@ -343,7 +399,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 4525543ce4fe90f7970f5e2cdc300b8ffc8c0582
+  version: eabbc68a3ecd5cf8c11a2f84dbda5e7a38493b2f
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
@@ -355,16 +411,10 @@ imports:
   - suite
 - name: github.com/subosito/gotenv
   version: de67a6614a4de71ad5e380b6946e56ab957d58c5
-- name: github.com/tmc/grpc-websocket-proxy
-  version: 3419fae592fc8d7d2dab776d0e88d6f624ccd4d8
-  subpackages:
-  - wsproxy
-- name: github.com/twotwotwo/sorts
-  version: bf5c1f2b8553dec28372aa6ac5a8bf53a20a4c5b
 - name: github.com/uber-go/atomic
   version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: github.com/uber-go/tally
-  version: 85437d773ad6967edfdf75ce51d35c95133c2f6a
+  version: 4292fb62574242de9fb0be278fc17d45defa5d33
   subpackages:
   - m3
   - m3/customtransports
@@ -409,98 +459,14 @@ imports:
   - tos
   - trand
   - typed
+- name: github.com/ugorji/go
+  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
+  subpackages:
+  - codec
 - name: github.com/willf/bitset
   version: e553b05586428962bf7058d1044519d87ca72d74
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
-- name: go.etcd.io/bbolt
-  version: da442c51f155660701fae446dbe73832ada515ec
-- name: go.etcd.io/etcd
-  version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
-  subpackages:
-  - auth
-  - auth/authpb
-  - client
-  - clientv3
-  - clientv3/balancer
-  - clientv3/balancer/connectivity
-  - clientv3/balancer/picker
-  - clientv3/balancer/resolver/endpoint
-  - clientv3/concurrency
-  - clientv3/credentials
-  - clientv3/namespace
-  - clientv3/naming
-  - embed
-  - etcdserver
-  - etcdserver/api
-  - etcdserver/api/etcdhttp
-  - etcdserver/api/membership
-  - etcdserver/api/rafthttp
-  - etcdserver/api/snap
-  - etcdserver/api/snap/snappb
-  - etcdserver/api/v2auth
-  - etcdserver/api/v2discovery
-  - etcdserver/api/v2error
-  - etcdserver/api/v2http
-  - etcdserver/api/v2http/httptypes
-  - etcdserver/api/v2stats
-  - etcdserver/api/v2store
-  - etcdserver/api/v2v3
-  - etcdserver/api/v3alarm
-  - etcdserver/api/v3client
-  - etcdserver/api/v3compactor
-  - etcdserver/api/v3election
-  - etcdserver/api/v3election/v3electionpb
-  - etcdserver/api/v3election/v3electionpb/gw
-  - etcdserver/api/v3lock
-  - etcdserver/api/v3lock/v3lockpb
-  - etcdserver/api/v3lock/v3lockpb/gw
-  - etcdserver/api/v3rpc
-  - etcdserver/api/v3rpc/rpctypes
-  - etcdserver/etcdserverpb
-  - etcdserver/etcdserverpb/gw
-  - integration
-  - lease
-  - lease/leasehttp
-  - lease/leasepb
-  - mvcc
-  - mvcc/backend
-  - mvcc/mvccpb
-  - pkg/adt
-  - pkg/contention
-  - pkg/cpuutil
-  - pkg/crc
-  - pkg/debugutil
-  - pkg/fileutil
-  - pkg/flags
-  - pkg/httputil
-  - pkg/idutil
-  - pkg/ioutil
-  - pkg/logutil
-  - pkg/netutil
-  - pkg/pathutil
-  - pkg/pbutil
-  - pkg/runtime
-  - pkg/schedule
-  - pkg/srv
-  - pkg/systemd
-  - pkg/testutil
-  - pkg/tlsutil
-  - pkg/traceutil
-  - pkg/transport
-  - pkg/types
-  - pkg/wait
-  - proxy/grpcproxy
-  - proxy/grpcproxy/adapter
-  - proxy/grpcproxy/cache
-  - raft
-  - raft/confchange
-  - raft/quorum
-  - raft/raftpb
-  - raft/tracker
-  - version
-  - wal
-  - wal/walpb
 - name: go.uber.org/atomic
   version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: go.uber.org/config
@@ -523,7 +489,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/crypto
-  version: c3a3ad6d03f7a915c0f7e194b7152974bb73d287
+  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
   subpackages:
   - bcrypt
   - blowfish
@@ -557,14 +523,14 @@ imports:
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: f21a4dfb5e38f5895301dc265a8def02365cc3d0
+  version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
   - secure/bidirule
   - transform
   - unicode/bidi
   - unicode/norm
 - name: golang.org/x/time
-  version: 26559e0f760e39c24d730d3224364aef164ee23f
+  version: c06e80d9300e4443158a03817b8a8cb37d230320
   subpackages:
   - rate
 - name: golang.org/x/tools
@@ -598,7 +564,7 @@ imports:
   - internal/modules
   - internal/remote_api
 - name: google.golang.org/genproto
-  version: ff3583edef7de132f219f0efc00e097cabcc0ec0
+  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
@@ -615,7 +581,6 @@ imports:
   - credentials
   - grpclb/grpc_lb_v1/messages
   - grpclog
-  - health
   - health/grpc_health_v1
   - internal
   - keepalive
@@ -625,8 +590,6 @@ imports:
   - reflection
   - reflection/grpc_reflection_v1alpha
   - resolver
-  - resolver/dns
-  - resolver/passthrough
   - stats
   - status
   - tap
@@ -687,16 +650,18 @@ imports:
   - stylecheck
   - unused
   - version
-- name: sigs.k8s.io/yaml
-  version: 9fc95527decd95bb9d28cc2eab08179b2d0f6971
+- name: github.com/influxdata/influxdb
+  version: 01c8dd416270f424ab0c40f9291e269ac6921964
+  subpackages:
+  - models
 testImports:
 - name: github.com/glycerine/go-unsnap-stream
-  version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
+  version: 98d31706395aaac22e29676617f2ee37bee55b5a
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/tinylib/msgp
-  version: b2b6a672cf1e5b90748f79b8b81fc8c5cf0571a1
+  version: efe20429c9b7b2a358aba9ba2d40ad56d966ce00
   subpackages:
   - msgp
