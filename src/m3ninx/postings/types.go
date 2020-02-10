@@ -87,6 +87,10 @@ type MutableList interface {
 	// this postings list or other.
 	Union(other List) error
 
+	// UnionMany updates this postings list in place to contain those DocIDs which are in
+	// either this postings list or multiple others.
+	UnionMany(others []List) error
+
 	// AddIterator adds all IDs contained in the iterator.
 	AddIterator(iter Iterator) error
 

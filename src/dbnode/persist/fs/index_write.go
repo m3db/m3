@@ -37,6 +37,7 @@ import (
 
 const (
 	indexFileSetMajorVersion = 1
+	indexWriteBufferSize     = 2 << 17 // ~250kb
 )
 
 var (
@@ -86,13 +87,12 @@ func NewIndexWriter(opts Options) (IndexFileSetWriter, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	bufferSize := opts.WriterBufferSize()
 	return &indexWriter{
 		opts:             opts,
 		filePathPrefix:   opts.FilePathPrefix(),
 		newFileMode:      opts.NewFileMode(),
 		newDirectoryMode: opts.NewDirectoryMode(),
-		fdWithDigest:     digest.NewFdWithDigestWriter(bufferSize),
+		fdWithDigest:     digest.NewFdWithDigestWriter(indexWriteBufferSize),
 	}, nil
 }
 

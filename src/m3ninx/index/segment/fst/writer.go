@@ -41,6 +41,7 @@ var (
 	defaultInitialPostingsOffsetsSize    = 1024
 	defaultInitialFSTTermsOffsetsSize    = 1024
 	defaultInitialDocOffsetsSize         = 1024
+	defaultInitialPostingsNeedsUnionSize = 1024
 	defaultInitialIntEncoderSize         = 128
 	defaultPilosaRoaringMaxContainerSize = 128
 )
@@ -65,11 +66,12 @@ type writer struct {
 	termPostingsOffsets []uint64
 
 	// only used by versions >= 1.1
-	fieldPostingsOffsets []uint64
-	fieldsPilosaBitmap   *pilosaroaring.Bitmap
-	fieldsPostingsList   postings.MutableList
-	fieldData            *fswriter.FieldData
-	fieldBuffer          proto.Buffer
+	fieldPostingsOffsets     []uint64
+	fieldsPilosaBitmap       *pilosaroaring.Bitmap
+	fieldsPostingsList       postings.MutableList
+	fieldsPostingsNeedsUnion []postings.List
+	fieldData                *fswriter.FieldData
+	fieldBuffer              proto.Buffer
 }
 
 // WriterOptions is a set of options used when writing an FST.
@@ -111,10 +113,11 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 		fstTermsOffsets:     make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
 		termPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
 
-		fieldPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
-		fieldsPilosaBitmap:   bitmap,
-		fieldsPostingsList:   pl,
-		fieldData:            &fswriter.FieldData{},
+		fieldPostingsOffsets:     make([]uint64, 0, defaultInitialPostingsOffsetsSize),
+		fieldsPilosaBitmap:       bitmap,
+		fieldsPostingsList:       pl,
+		fieldsPostingsNeedsUnion: make([]postings.List, 0, defaultInitialPostingsNeedsUnionSize),
+		fieldData:                &fswriter.FieldData{},
 	}, nil
 }
 
@@ -140,8 +143,16 @@ func (w *writer) clear() {
 	w.fieldPostingsOffsets = w.fieldPostingsOffsets[:0]
 	w.fieldsPilosaBitmap.Reset()
 	w.fieldsPostingsList.Reset()
+	w.resetFieldsPostingsNeedsUnion()
 	w.fieldData.Reset()
 	w.fieldBuffer.Reset()
+}
+
+func (w *writer) resetFieldsPostingsNeedsUnion() {
+	for i := range w.fieldsPostingsNeedsUnion {
+		w.fieldsPostingsNeedsUnion[i] = nil
+	}
+	w.fieldsPostingsNeedsUnion = w.fieldsPostingsNeedsUnion[:0]
 }
 
 func (w *writer) Reset(b sgmt.Builder) error {
@@ -250,7 +261,9 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 			return err
 		}
 
-		w.fieldsPostingsList.Reset()
+		// Reset the fields postings lists needs union slice.
+		w.resetFieldsPostingsNeedsUnion()
+
 		// for each term corresponding to the current field
 		for terms.Next() {
 			_, pl := terms.Current()
@@ -266,14 +279,19 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 
 			// update field level postings list
 			if writeFieldsPostingList {
-				if err := w.fieldsPostingsList.Union(pl); err != nil {
-					return err
-				}
+				w.fieldsPostingsNeedsUnion = append(w.fieldsPostingsNeedsUnion, pl)
 			}
 		}
 
 		// write the field level postings list
 		if writeFieldsPostingList {
+			// Union in a single pass all the postings lists that needs a union.
+			w.fieldsPostingsList.Reset()
+			w.fieldsPostingsList.UnionMany(w.fieldsPostingsNeedsUnion)
+			// Release refs to any postings lists we held refs to with the slice.
+			w.resetFieldsPostingsNeedsUnion()
+
+			// Write the unioned postings list out.
 			n, err := writePL(w.fieldsPostingsList)
 			if err != nil {
 				return err
