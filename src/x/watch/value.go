@@ -172,7 +172,7 @@ func (v *value) watchUpdates(updatable Updatable) {
 			continue
 		}
 		if err = v.processWithLockFn(update); err != nil {
-			v.log.Error("error updating update",
+			v.log.Error("error applying update",
 				zap.String("key", v.opts.Key()),
 				zap.Error(err))
 		}
