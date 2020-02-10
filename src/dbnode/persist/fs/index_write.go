@@ -37,7 +37,11 @@ import (
 
 const (
 	indexFileSetMajorVersion = 1
-	indexWriteBufferSize     = 2 << 17 // ~250kb
+
+	// indexWriteBufferSize is set to 250kb to avoid very frequent
+	// syscall overhead using the default buffer size (lot of large
+	// files written when writing the index).
+	indexWriteBufferSize = 2 << 17 // ~250kb
 )
 
 var (
