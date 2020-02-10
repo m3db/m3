@@ -985,7 +985,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
-	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+	entry, _, err := s.tryRetrieveWritableSeries(id)
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
@@ -1000,32 +1000,22 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
-	if err != nil {
-		return SeriesReadWriteRef{}, err
-	}
-
-	// Increment and let caller call the release when done.
-	entry.IncrementReaderWriterCount()
-
-	now := s.nowFn()
-	wg, err := s.insertQueue.Insert(dbShardInsert{
-		entry: entry,
-		opts: dbShardInsertAsyncOptions{
-			hasPendingIndexing: opts.ReverseIndex,
-			pendingIndex: dbShardPendingIndex{
-				timestamp:  now,
-				enqueuedAt: now,
-			},
+	// NB(r): Insert synchronously so caller has access to the series
+	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
+	// may have no effect if a collision with the same series
+	// being put in the insert queue may cause a block to be loaded to a
+	// series which gets discarded.
+	at := s.nowFn()
+	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
+		insertType:      insertSyncIncReaderWriterCount,
+		hasPendingIndex: opts.ReverseIndex,
+		pendingIndex: dbShardPendingIndex{
+			timestamp:  at,
+			enqueuedAt: at,
 		},
 	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
-	}
-
-	if !shardOpts.writeNewSeriesAsync {
-		// Wait if not setup to write new series async.
-		wg.Wait()
 	}
 
 	return SeriesReadWriteRef{
@@ -1291,10 +1281,16 @@ const (
 	insertSyncIncReaderWriterCount
 )
 
+type insertSyncOptions struct {
+	insertType      insertSyncType
+	hasPendingIndex bool
+	pendingIndex    dbShardPendingIndex
+}
+
 func (s *dbShard) insertSeriesSync(
 	id ident.ID,
 	tagsArgOpts tagsArgOptions,
-	insertType insertSyncType,
+	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
 	var (
 		entry *lookup.Entry
@@ -1302,37 +1298,61 @@ func (s *dbShard) insertSeriesSync(
 	)
 
 	s.Lock()
+	unlocked := false
 	defer func() {
-		// Check if we're making a modification to this entry, be sure
-		// to increment the writer count so it's visible when we release
-		// the lock
-		if entry != nil && insertType == insertSyncIncReaderWriterCount {
-			entry.IncrementReaderWriterCount()
+		if !unlocked {
+			s.Unlock()
 		}
-		s.Unlock()
 	}()
 
 	entry, _, err = s.lookupEntryWithLock(id)
 	if err != nil && err != errShardEntryNotFound {
-		// Shard not taking inserts likely
+		// Shard not taking inserts likely.
 		return nil, err
 	}
 	if entry != nil {
-		// Already inserted
+		// Already inserted.
 		return entry, nil
 	}
 
 	entry, err = s.newShardEntry(id, tagsArgOpts)
 	if err != nil {
 		// should never happen
-		s.logger.Error("[invariant violated] unable to create shardEntry in insertSeriesSync",
-			zap.String("id", id.String()),
-			zap.Error(err),
-		)
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+			func(logger *zap.Logger) {
+				logger.Error("insertSeriesSync error creating shard entry",
+					zap.String("id", id.String()),
+					zap.Error(err))
+			})
 		return nil, err
 	}
 
 	s.insertNewShardEntryWithLock(entry)
+
+	// Track unlocking.
+	unlocked = true
+	s.Unlock()
+
+	// Be sure to enqueue for indexing if requires a pending index.
+	if opts.hasPendingIndex {
+		if _, err := s.insertQueue.Insert(dbShardInsert{
+			entry: entry,
+			opts: dbShardInsertAsyncOptions{
+				hasPendingIndexing: opts.hasPendingIndex,
+				pendingIndex:       opts.pendingIndex,
+			},
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	// Check if we're making a modification to this entry, be sure
+	// to increment the writer count so it's visible when we release
+	// the lock.
+	if opts.insertType == insertSyncIncReaderWriterCount {
+		entry.IncrementReaderWriterCount()
+	}
+
 	return entry, nil
 }
 
@@ -1950,34 +1970,45 @@ func (s *dbShard) LoadBlocks(
 	multiErr := xerrors.NewMultiError()
 	for _, elem := range seriesToLoad.Iter() {
 		dbBlocks := elem.Value()
+		id := dbBlocks.ID
+		tags := dbBlocks.Tags
 
-		// First lookup if series already exists
-		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			continue
-		}
-		if entry == nil {
-			// Synchronously insert to avoid waiting for the insert queue which could potentially
-			// delay the insert.
-			entry, err = s.insertSeriesSync(dbBlocks.ID, newTagsArg(dbBlocks.Tags),
-				insertSyncIncReaderWriterCount)
-			if err != nil {
+		for _, block := range dbBlocks.Blocks.AllBlocks() {
+			timestamp := block.StartTime()
+
+			// First lookup if series already exists.
+			entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+			if err != nil && err != errShardEntryNotFound {
 				multiErr = multiErr.Add(err)
 				continue
 			}
-		} else {
-			// No longer needed as we found the series and we don't require
-			// them for insertion.
-			// FOLLOWUP(r): Audit places that keep refs to the ID from a
-			// bootstrap result, newShardEntry copies it but some of the
-			// bootstrapped blocks when using certain series cache policies
-			// keeps refs to the ID with seriesID, so for now these IDs will
-			// be garbage collected)
-			dbBlocks.Tags.Finalize()
-		}
+			if entry == nil {
+				// Synchronously insert to avoid waiting for the insert queue which could potentially
+				// delay the insert.
+				entry, err = s.insertSeriesSync(id, newTagsArg(tags),
+					insertSyncOptions{
+						insertType:      insertSyncIncReaderWriterCount,
+						hasPendingIndex: s.reverseIndex != nil,
+						pendingIndex: dbShardPendingIndex{
+							timestamp:  timestamp,
+							enqueuedAt: s.nowFn(),
+						},
+					})
+				if err != nil {
+					multiErr = multiErr.Add(err)
+					continue
+				}
+			} else {
+				// No longer needed as we found the series and we don't require
+				// them for insertion.
+				// FOLLOWUP(r): Audit places that keep refs to the ID from a
+				// bootstrap result, newShardEntry copies it but some of the
+				// bootstrapped blocks when using certain series cache policies
+				// keeps refs to the ID with seriesID, so for now these IDs will
+				// be garbage collected)
+				tags.Finalize()
+			}
 
-		for _, block := range dbBlocks.Blocks.AllBlocks() {
 			// NB(rartoul): The data being loaded is not part of the bootstrap process then it needs to be
 			// loaded as a cold write because the load could be happening concurrently with
 			// other processes like the flush (as opposed to bootstrap which cannot happen
@@ -1993,10 +2024,20 @@ func (s *dbShard) LoadBlocks(
 				multiErr = multiErr.Add(err)
 			}
 			// Cannot close blocks once done as series takes ref to them.
-		}
 
-		// Always decrement the writer count, avoid continue on bootstrap error
-		entry.DecrementReaderWriterCount()
+			// Check if needs to be reverse indexed.
+			if s.reverseIndex != nil &&
+				entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
+				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+					shardOpts.writeNewSeriesAsync)
+				if err != nil {
+					multiErr = multiErr.Add(err)
+				}
+			}
+
+			// Always decrement the writer count, avoid continue on bootstrap error.
+			entry.DecrementReaderWriterCount()
+		}
 	}
 
 	return multiErr.FinalError()

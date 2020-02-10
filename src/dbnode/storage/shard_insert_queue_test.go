@@ -1,4 +1,3 @@
-// +build disable_for_now
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,6 +25,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -84,16 +85,16 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 	}()
 
 	// first insert
-	_, err := q.Insert(dbShardInsert{entry: &dbShardEntry{index: 0}})
+	_, err := q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 0}})
 	require.NoError(t, err)
 
 	// wait for first insert batch to complete
 	insertWgs[0].Wait()
 
 	// now next batch will need to wait as we haven't progressed time
-	_, err = q.Insert(dbShardInsert{entry: &dbShardEntry{index: 1}})
+	_, err = q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 1}})
 	require.NoError(t, err)
-	_, err = q.Insert(dbShardInsert{entry: &dbShardEntry{index: 2}})
+	_, err = q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 2}})
 	require.NoError(t, err)
 
 	// allow first insert to finish
@@ -106,7 +107,7 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 	assert.Equal(t, 1, numSleeps)
 
 	// insert third batch, will also need to wait
-	_, err = q.Insert(dbShardInsert{entry: &dbShardEntry{index: 3}})
+	_, err = q.Insert(dbShardInsert{entry: &lookup.Entry{Index: 3}})
 	require.NoError(t, err)
 
 	// allow second batch to finish
