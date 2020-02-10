@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -95,6 +95,7 @@ func (t *terms) reset() {
 		t.uniqueTerms[i] = emptyTerm
 	}
 	t.uniqueTerms = t.uniqueTerms[:0]
+	t.isSorted = false
 }
 
 func (t *terms) Len() int {
