@@ -42,10 +42,14 @@ func TestValueWatchCreateWatchError(t *testing.T) {
 	updatableFn := func() (Updatable, error) {
 		return nil, errWatch
 	}
-	rv := NewValue(testValueOptions().SetNewUpdatableFn(updatableFn)).(*value)
+	rv := NewValue(
+		testValueOptions().
+			SetNewUpdatableFn(updatableFn).
+			SetKey("foobar"),
+	).(*value)
 
 	err := rv.Watch()
-	require.Equal(t, CreateWatchError{innerError: errWatch}, err)
+	require.Equal(t, CreateWatchError{innerError: errWatch, key: "foobar"}, err)
 	require.Equal(t, valueNotWatching, rv.status)
 
 	rv.Unwatch()
@@ -55,7 +59,7 @@ func TestValueWatchCreateWatchError(t *testing.T) {
 func TestValueWatchWatchTimeout(t *testing.T) {
 	_, rv := testWatchableAndValue()
 	err := rv.Watch()
-	require.Equal(t, InitValueError{innerError: errInitWatchTimeout}, err)
+	require.Equal(t, InitValueError{innerError: errInitWatchTimeout, key: "foobar"}, err)
 	require.Equal(t, valueWatching, rv.status)
 
 	rv.Unwatch()
@@ -68,7 +72,7 @@ func TestValueWatchUpdateError(t *testing.T) {
 	require.NoError(t, wa.Update(1))
 	rv.processWithLockFn = func(interface{}) error { return errUpdate }
 
-	require.Equal(t, InitValueError{innerError: errUpdate}, rv.Watch())
+	require.Equal(t, InitValueError{innerError: errUpdate, key: "foobar"}, rv.Watch())
 	require.Equal(t, valueWatching, rv.status)
 
 	rv.Unwatch()
@@ -231,7 +235,9 @@ func testWatchableAndValue() (Watchable, *value) {
 		SetNewUpdatableFn(testUpdatableFn(wa)).
 		SetGetUpdateFn(func(updatable Updatable) (interface{}, error) {
 			return updatable.(Watch).Get(), nil
-		})
+		}).
+		SetKey("foobar")
+
 	return wa, NewValue(opts).(*value)
 }
 
