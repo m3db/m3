@@ -84,11 +84,9 @@
   {
     "queryGroup":"subfunction",
     "queries":[
-      "avg_over_time(sum_over_time(quail[1m])[5m:10m])",
+      "avg_over_time(sum_over_time(quail[1m])[5m:5m])",
       "avg_over_time(rate(quail[1m])[10m:5m])",
-      "avg_over_time(sum_over_time(quail[1m])[10m:5m])",
-      "min_over_time(rate(quail[5m])[30m:1m])",
-      "max_over_time(deriv(rate(quail[1m])[5m:1m])[10m:])"
+      "avg_over_time(sum_over_time(quail[1m])[10m:5m])"
     ],
     "steps" : [
       "5m"
