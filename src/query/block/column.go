@@ -42,16 +42,6 @@ func (c *columnBlock) Meta() Metadata {
 	return c.meta
 }
 
-// SeriesMeta returns the metadata for each series in the block.
-func (c *columnBlock) SeriesMeta() []SeriesMeta {
-	return c.seriesMeta
-}
-
-// SeriesCount returns the number of series.
-func (c *columnBlock) StepCount() int {
-	return len(c.columns)
-}
-
 // Info returns information about the block.
 func (c *columnBlock) Info() BlockInfo {
 	return NewBlockInfo(c.blockType)
@@ -159,9 +149,11 @@ func (c *colBlockIter) Close() { /*no-op*/ }
 type colSeriesIter struct {
 	startIdx   int
 	endIdx     int
+	idx        int
 	meta       Metadata
 	seriesMeta []SeriesMeta
 	columns    []column
+	dps        ts.Datapoints
 }
 
 // SeriesMeta returns the metadata for each series in the block.
@@ -177,30 +169,32 @@ func (it *colSeriesIter) Current() UnconsolidatedSeries {
 		steps  = bounds.Steps()
 		start  = bounds.Start
 		step   = bounds.StepSize
-
-		dps = make(ts.Datapoints, 0, steps)
 	)
 
+	if it.dps == nil {
+		it.dps = make(ts.Datapoints, steps)
+	}
+
 	for i := 0; i < steps; i++ {
-		dps = append(dps, ts.Datapoint{
+		it.dps[i] = ts.Datapoint{
 			Timestamp: start,
-			Value:     it.columns[i][it.startIdx],
-		})
+			Value:     it.columns[i][it.startIdx+it.idx],
+		}
 
 		start = start.Add(step)
 	}
 
 	return UnconsolidatedSeries{
-		datapoints: dps,
-		Meta:       it.seriesMeta[it.startIdx],
+		datapoints: it.dps,
+		Meta:       it.seriesMeta[it.idx],
 	}
 }
 
 // Next moves to the next item in the iterator. It will return false if there
 // are no more items, or if encountering an error.
 func (it *colSeriesIter) Next() bool {
-	it.startIdx = it.startIdx + 1
-	return it.startIdx < it.endIdx
+	it.idx = it.idx + 1
+	return it.startIdx+it.idx < it.endIdx
 }
 
 // Err returns any error encountered during iteration.
@@ -222,8 +216,9 @@ func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 		columns:    c.columns,
 		meta:       c.meta,
 		seriesMeta: c.seriesMeta,
-		startIdx:   -1,
+		startIdx:   0,
 		endIdx:     len(c.seriesMeta),
+		idx:        -1,
 	}, nil
 }
 
@@ -250,7 +245,7 @@ func (c *columnBlock) MultiSeriesIter(
 		chunkSizes[i] = chunkSizes[i] + 1
 	}
 
-	startIdx := -1
+	startIdx := 0
 	for i, size := range chunkSizes {
 		if size == 0 {
 			continue
@@ -261,9 +256,10 @@ func (c *columnBlock) MultiSeriesIter(
 		batch[i].Iter = &colSeriesIter{
 			columns:    c.columns,
 			meta:       c.meta,
-			seriesMeta: c.seriesMeta,
+			seriesMeta: c.seriesMeta[startIdx:endIdx],
 			startIdx:   startIdx,
-			endIdx:     endIdx + 1,
+			endIdx:     endIdx,
+			idx:        -1,
 		}
 
 		startIdx = endIdx

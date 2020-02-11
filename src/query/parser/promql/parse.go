@@ -160,6 +160,40 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	return nil
 }
 
+func (p *parseState) addLazySubqueryTransform(sbq *pql.SubqueryExpr) error {
+	tt := func(t time.Time) time.Time {
+		return t.Add(sbq.Offset)
+	}
+
+	mt := func(meta block.Metadata) block.Metadata {
+		meta.Bounds.Start = meta.Bounds.Start.Add(sbq.Offset)
+		meta.Bounds.Duration = meta.Bounds.Duration + sbq.Range
+		if sbq.Step != 0 {
+			meta.Bounds.StepSize = sbq.Step
+		}
+
+		return meta
+	}
+
+	lazyOpts := block.NewLazyOptions().
+		SetTimeTransform(tt).
+		SetMetaTransform(mt)
+
+	op, err := lazy.NewLazyOp(lazy.OffsetType, lazyOpts)
+	if err != nil {
+		return err
+	}
+
+	opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+	p.edges = append(p.edges, parser.Edge{
+		ParentID: p.lastTransformID(),
+		ChildID:  opTransform.ID,
+	})
+	p.transforms = append(p.transforms, opTransform)
+
+	return nil
+}
+
 func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
 	// handles case where offset is 0 too.
 	align := offset % step
@@ -409,26 +443,17 @@ func (p *parseState) walk(
 		return p.addLazyUnaryTransform(unaryOp)
 
 	case *pql.SubqueryExpr:
-		// op, err := reconsolidated.NewReconsolidatedOp()
-		// if err != nil {
-		// 	return err
-		// }
-
 		opts.FetchRange = n.Range
 		opts.Step = n.Step
 		opts.Offset = opts.Offset + n.Offset
 		opts.StartOffset = opts.StartOffset + n.Range
 		opts.ShouldOverride = true
 
-		return p.walk(n.Expr, opts)
-		// opTransform := parser.NewTransformFromOperation(op, p.transformLen())
-		// p.edges = append(p.edges, parser.Edge{
-		// 	ParentID: p.lastTransformID(),
-		// 	ChildID:  opTransform.ID,
-		// })
-		// p.transforms = append(p.transforms, opTransform)
+		if err := p.walk(n.Expr, opts); err != nil {
+			return err
+		}
 
-		// return err
+		return p.addLazySubqueryTransform(n)
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)

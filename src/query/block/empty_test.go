@@ -31,7 +31,6 @@ import (
 
 var (
 	emptyArgs = []interface{}{}
-	start     = time.Now()
 	steps     = 15
 	testBound = models.Bounds{
 		Start:    start,
