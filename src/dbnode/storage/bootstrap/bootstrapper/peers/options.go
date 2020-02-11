@@ -62,7 +62,7 @@ type options struct {
 	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptionsManager       m3dbruntime.OptionsManager
 	contextPool                 context.Pool
-	fsOpts                      *fs.Options
+	fsOpts                      fs.Options
 	indexOpts                   index.Options
 	compactor                   *compaction.Compactor
 }
@@ -207,12 +207,12 @@ func (o *options) ContextPool() context.Pool {
 
 func (o *options) SetFilesystemOptions(value fs.Options) Options {
 	opts := *o
-	opts.fsOpts = &value
+	opts.fsOpts = value
 	return &opts
 }
 
 func (o *options) FilesystemOptions() fs.Options {
-	return *o.fsOpts
+	return o.fsOpts
 }
 
 func (o *options) SetIndexOptions(value index.Options) Options {

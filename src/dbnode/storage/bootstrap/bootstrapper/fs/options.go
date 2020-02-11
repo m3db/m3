@@ -59,7 +59,7 @@ var (
 type options struct {
 	instrumentOpts              instrument.Options
 	resultOpts                  result.Options
-	fsOpts                      *fs.Options
+	fsOpts                      fs.Options
 	indexOpts                   index.Options
 	persistManager              persist.Manager
 	compactor                   *compaction.Compactor
@@ -126,12 +126,12 @@ func (o *options) ResultOptions() result.Options {
 
 func (o *options) SetFilesystemOptions(value fs.Options) Options {
 	opts := *o
-	opts.fsOpts = &value
+	opts.fsOpts = value
 	return &opts
 }
 
 func (o *options) FilesystemOptions() fs.Options {
-	return *o.fsOpts
+	return o.fsOpts
 }
 
 func (o *options) SetIndexOptions(value index.Options) Options {
