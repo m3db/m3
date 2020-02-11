@@ -21,7 +21,6 @@
 package result
 
 import (
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -63,15 +62,8 @@ type IndexBootstrapResult interface {
 // IndexResults is a set of index blocks indexed by block start.
 type IndexResults map[xtime.UnixNano]IndexBlock
 
-// IndexBuilders is a set of index segment builders indexed by block start.
-type IndexBuilders struct {
-	sync.Mutex
-	builders map[xtime.UnixNano]*IndexBuilder
-}
-
-// IndexBuilder wraps a lockable index segment builder.
+// IndexBuilder wraps a index segment builder w/ batching.
 type IndexBuilder struct {
-	sync.Mutex
 	builder segment.DocumentsBuilder
 }
 

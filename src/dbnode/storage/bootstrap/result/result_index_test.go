@@ -26,51 +26,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestIndexResultGetOrAddSegment(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	created, err := builder.NewBuilderFromDocuments(builder.NewOptions())
-	require.Nil(t, err)
-	allocated := 0
-	opts := NewOptions().
-		SetIndexDocumentsBuilderAllocator(func() (segment.DocumentsBuilder, error) {
-			allocated++
-			return created, nil
-		})
-
-	now := time.Now()
-	blockSize := time.Hour
-	idxOpts := namespace.NewIndexOptions().SetBlockSize(blockSize)
-	aligned := now.Truncate(blockSize)
-
-	builders := NewIndexBuilders()
-	b, err := builders.GetOrAdd(aligned.Add(time.Minute), idxOpts, opts)
-	require.NoError(t, err)
-	require.True(t, b.builder == created)
-	require.Equal(t, 1, builders.Len())
-
-	b, err = builders.GetOrAdd(aligned.Add(2*time.Minute), idxOpts, opts)
-	require.NoError(t, err)
-	require.True(t, b.builder == created)
-	require.Equal(t, 1, builders.Len())
-
-	b, err = builders.GetOrAdd(aligned.Add(blockSize), idxOpts, opts)
-	require.NoError(t, err)
-	require.True(t, b.builder == created)
-	require.Equal(t, 2, builders.Len())
-
-	// Total allocs should've only been two
-	require.Equal(t, 2, allocated)
-}
 
 func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	ctrl := gomock.NewController(t)

@@ -23,7 +23,6 @@ package bootstrapper
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -33,12 +32,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/x/mmap"
 	xtime "github.com/m3db/m3/src/x/time"
-)
-
-var (
-	errIndexBuilderNotFound = func(blockStart time.Time) error {
-		return fmt.Errorf("did not find index builder for blocksStart: %d", blockStart.Unix())
-	}
 )
 
 const (
@@ -62,7 +55,7 @@ func PersistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
 	indexResults result.IndexResults,
-	indexBuilders *result.IndexBuilders,
+	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
 ) error {
@@ -118,11 +111,7 @@ func PersistBootstrapIndexSegment(
 		// - attempt to bootstrap time ranges that have no index results block
 		return nil
 	}
-	b, ok := indexBuilders.Get(blockStart)
-	if !ok {
-		return errIndexBuilderNotFound(blockStart)
-	}
-	if len(b.Builder().Docs()) == 0 {
+	if len(builder.Docs()) == 0 {
 		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
 		return nil
 	}
@@ -200,7 +189,7 @@ func PersistBootstrapIndexSegment(
 		}
 	}()
 
-	if err := preparedPersist.Persist(b.Builder()); err != nil {
+	if err := preparedPersist.Persist(builder); err != nil {
 		return err
 	}
 
@@ -225,7 +214,7 @@ func BuildBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
 	indexResults result.IndexResults,
-	indexBuilders *result.IndexBuilders,
+	builder segment.DocumentsBuilder,
 	compactor *SharedCompactor,
 	resultOpts result.Options,
 	mmapReporter mmap.Reporter,
@@ -280,18 +269,14 @@ func BuildBootstrapIndexSegment(
 		// - attempt to bootstrap time ranges that have no index results block
 		return nil
 	}
-	b, ok := indexBuilders.Get(blockStart)
-	if !ok {
-		return errIndexBuilderNotFound(blockStart)
-	}
-	if len(b.Builder().Docs()) == 0 {
+	if len(builder.Docs()) == 0 {
 		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
 		return nil
 	}
 
 	compactor.Lock()
 	defer compactor.Unlock()
-	seg, err := compactor.Compactor.CompactUsingBuilder(b.Builder(), nil, mmap.ReporterOptions{
+	seg, err := compactor.Compactor.CompactUsingBuilder(builder, nil, mmap.ReporterOptions{
 		Context: mmap.Context{
 			Name: mmapBootstrapIndexName,
 		},
