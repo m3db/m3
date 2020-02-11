@@ -38,9 +38,10 @@ import (
 )
 
 var (
-	errPersistManagerNotSet = errors.New("persist manager not set")
-	errCompactorNotSet      = errors.New("compactor not set")
-	errIndexOptionsNotSet   = errors.New("index options not set")
+	errPersistManagerNotSet    = errors.New("persist manager not set")
+	errCompactorNotSet         = errors.New("compactor not set")
+	errIndexOptionsNotSet      = errors.New("index options not set")
+	errFilesystemOptionsNotSet = errors.New("filesystem options not set")
 
 	// NB(r): Bootstrapping data doesn't use large amounts of memory
 	// that won't be released, so its fine to do this as fast as possible.
@@ -58,7 +59,7 @@ var (
 type options struct {
 	instrumentOpts              instrument.Options
 	resultOpts                  result.Options
-	fsOpts                      fs.Options
+	fsOpts                      *fs.Options
 	indexOpts                   index.Options
 	persistManager              persist.Manager
 	compactor                   *compaction.Compactor
@@ -80,7 +81,6 @@ func NewOptions() Options {
 	return &options{
 		instrumentOpts:              instrument.NewOptions(),
 		resultOpts:                  result.NewOptions(),
-		fsOpts:                      fs.NewOptions(),
 		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
 		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
@@ -97,6 +97,9 @@ func (o *options) Validate() error {
 	}
 	if o.indexOpts == nil {
 		return errIndexOptionsNotSet
+	}
+	if o.fsOpts == nil {
+		return errFilesystemOptionsNotSet
 	}
 	return nil
 }
@@ -123,12 +126,12 @@ func (o *options) ResultOptions() result.Options {
 
 func (o *options) SetFilesystemOptions(value fs.Options) Options {
 	opts := *o
-	opts.fsOpts = value
+	opts.fsOpts = &value
 	return &opts
 }
 
 func (o *options) FilesystemOptions() fs.Options {
-	return o.fsOpts
+	return *o.fsOpts
 }
 
 func (o *options) SetIndexOptions(value index.Options) Options {

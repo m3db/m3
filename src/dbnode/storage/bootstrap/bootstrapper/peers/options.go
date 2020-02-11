@@ -48,6 +48,7 @@ var (
 	errPersistManagerNotSet        = errors.New("persist manager not set")
 	errCompactorNotSet             = errors.New("compactor not set")
 	errIndexOptionsNotSet          = errors.New("index options not set")
+	errFilesystemOptionsNotSet     = errors.New("filesystem options not set")
 	errRuntimeOptionsManagerNotSet = errors.New("runtime options manager not set")
 )
 
@@ -61,7 +62,7 @@ type options struct {
 	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptionsManager       m3dbruntime.OptionsManager
 	contextPool                 context.Pool
-	fsOpts                      fs.Options
+	fsOpts                      *fs.Options
 	indexOpts                   index.Options
 	compactor                   *compaction.Compactor
 }
@@ -77,7 +78,6 @@ func NewOptions() Options {
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
 			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
-		fsOpts: fs.NewOptions(),
 	}
 }
 
@@ -96,6 +96,9 @@ func (o *options) Validate() error {
 	}
 	if o.indexOpts == nil {
 		return errIndexOptionsNotSet
+	}
+	if o.fsOpts == nil {
+		return errFilesystemOptionsNotSet
 	}
 	return nil
 }
@@ -204,12 +207,12 @@ func (o *options) ContextPool() context.Pool {
 
 func (o *options) SetFilesystemOptions(value fs.Options) Options {
 	opts := *o
-	opts.fsOpts = value
+	opts.fsOpts = &value
 	return &opts
 }
 
 func (o *options) FilesystemOptions() fs.Options {
-	return o.fsOpts
+	return *o.fsOpts
 }
 
 func (o *options) SetIndexOptions(value index.Options) Options {
