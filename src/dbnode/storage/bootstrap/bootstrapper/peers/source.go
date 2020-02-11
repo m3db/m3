@@ -67,6 +67,10 @@ type persistenceFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	iopts := opts.ResultOptions().InstrumentOptions()
 	return &peersSource{
 		opts:  opts,

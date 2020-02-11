@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -70,8 +71,6 @@ var (
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts       = NewOptions().
-				SetResultOptions(testDefaultResultOpts)
 )
 
 func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
@@ -89,7 +88,11 @@ func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
 			},
 		})
 	require.NoError(t, err)
-	return testDefaultOpts.
+	return NewOptions().
+		SetResultOptions(testDefaultResultOpts).
+		SetPersistManager(persist.NewMockManager(ctrl)).
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetFilesystemOptions(fs.NewOptions()).
 		SetCompactor(compactor).
 		SetIndexOptions(idxOpts).
 		SetAdminClient(newValidMockClient(t, ctrl)).
@@ -442,7 +445,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newTestDefaultOpts(t, ctrl).
-		SetResultOptions(testDefaultOpts.
+		SetResultOptions(newTestDefaultOpts(t, ctrl).
 			ResultOptions().
 			SetSeriesCachePolicy(series.CacheRecentlyRead),
 		)

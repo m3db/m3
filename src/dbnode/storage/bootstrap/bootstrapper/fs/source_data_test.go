@@ -294,7 +294,8 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected xtime.Ranges) {
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
-	src := newFileSystemSource(newTestOptions(t, "foo"))
+	src, err := newFileSystemSource(newTestOptions(t, "foo"))
+	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
 		map[uint32]xtime.Ranges{0: xtime.Ranges{}},
@@ -306,7 +307,8 @@ func TestAvailableEmptyRangeError(t *testing.T) {
 }
 
 func TestAvailablePatternError(t *testing.T) {
-	src := newFileSystemSource(newTestOptions(t, "[["))
+	src, err := newFileSystemSource(newTestOptions(t, "[["))
+	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
@@ -328,7 +330,8 @@ func TestAvailableReadInfoError(t *testing.T) {
 	// Intentionally corrupt the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
@@ -350,7 +353,8 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	// Intentionally corrupt the digest file
 	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
@@ -368,7 +372,8 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	shard := uint32(0)
 	writeGoodFiles(t, dir, testNs1ID, shard)
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
@@ -394,7 +399,8 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	// Intentionally write a corrupted info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart.Add(4*time.Hour), []byte{0x1, 0x2})
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
@@ -422,7 +428,8 @@ func unfulfilledAndEmpty(t *testing.T, src bootstrap.Source,
 }
 
 func TestReadEmptyRangeErr(t *testing.T) {
-	src := newFileSystemSource(newTestOptions(t, "foo"))
+	src, err := newFileSystemSource(newTestOptions(t, "foo"))
+	require.NoError(t, err)
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, nil, nsMD)
 	defer tester.Finish()
@@ -430,7 +437,8 @@ func TestReadEmptyRangeErr(t *testing.T) {
 }
 
 func TestReadPatternError(t *testing.T) {
-	src := newFileSystemSource(newTestOptions(t, "[["))
+	src, err := newFileSystemSource(newTestOptions(t, "[["))
+	require.NoError(t, err)
 	timeRanges := result.ShardTimeRanges{testShard: xtime.Ranges{}}
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
@@ -483,7 +491,8 @@ func TestReadNilTimeRanges(t *testing.T) {
 	shard := uint32(0)
 	writeGoodFiles(t, dir, testNs1ID, shard)
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
 	timeRanges := result.ShardTimeRanges{
 		testShard: testTimeRanges(),
 		555:       xtime.Ranges{},
@@ -504,7 +513,8 @@ func TestReadOpenFileError(t *testing.T) {
 	// Intentionally truncate the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
 	nsMD := testNsMetadata(t)
 	ranges := testShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
@@ -542,7 +552,9 @@ func testReadDataCorruptionErrorWithIndexEnabled(
 	// Intentionally corrupt the data file
 	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x2})
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
 	strs := testShardTimeRanges()
 
 	nsMD := testNsMetadataWithIndex(t, withIndex)
@@ -560,7 +572,9 @@ func TestReadTimeFilter(t *testing.T) {
 
 	writeGoodFiles(t, dir, testNs1ID, testShard)
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
 	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
@@ -572,7 +586,9 @@ func TestReadPartialError(t *testing.T) {
 	// Intentionally corrupt the data file
 	writeDataFile(t, dir, testNs1ID, testShard, testStart.Add(4*time.Hour), []byte{0x1})
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
 	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
@@ -597,7 +613,13 @@ func testReadValidateErrorWithIndexEnabled(
 	defer os.RemoveAll(dir)
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	src := newFileSystemSource(newTestOptions(t, dir)).(*fileSystemSource)
+
+	fsSrc, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	first := true
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
@@ -668,7 +690,13 @@ func testReadOpenError(
 	defer os.RemoveAll(dir)
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	src := newFileSystemSource(newTestOptions(t, dir)).(*fileSystemSource)
+
+	fsSrc, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	first := true
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
@@ -716,7 +744,13 @@ func TestReadDeleteOnError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	src := newFileSystemSource(newTestOptions(t, dir)).(*fileSystemSource)
+
+	fsSrc, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
@@ -787,7 +821,9 @@ func TestReadTags(t *testing.T) {
 		{id, tags, data},
 	})
 
-	src := newFileSystemSource(newTestOptions(t, dir))
+	src, err := newFileSystemSource(newTestOptions(t, dir))
+	require.NoError(t, err)
+
 	nsMD := testNsMetadata(t)
 	ranges := testShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,

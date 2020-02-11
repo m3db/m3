@@ -173,7 +173,8 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 	testOpts := newTestOptionsWithPersistManager(b, dir).
 		SetResultOptions(testDefaultResultOpts.SetSeriesCachePolicy(series.CacheLRU))
 
-	src := newFileSystemSource(testOpts)
+	src, err := newFileSystemSource(testOpts)
+	require.NoError(b, err)
 
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{

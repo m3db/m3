@@ -320,7 +320,12 @@ func TestBootstrapIndex(t *testing.T) {
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, nsMD)
@@ -391,7 +396,12 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 			FileSetType: persist.FileSetSnapshotType,
 		})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, nsMD)
@@ -455,7 +465,12 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, nsMD)
@@ -524,7 +539,11 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
 
 	retentionPeriod := testBlockSize
 	for {

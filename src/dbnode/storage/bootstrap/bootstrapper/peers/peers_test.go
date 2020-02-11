@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -60,6 +61,7 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := NewOptions().
+		SetFilesystemOptions(fs.NewOptions()).
 		SetIndexOptions(idxOpts).
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetPersistManager(persist.NewMockManager(ctrl)).
@@ -67,6 +69,6 @@ func TestNewPeersBootstrapper(t *testing.T) {
 		SetRuntimeOptionsManager(runtime.NewMockOptionsManager(ctrl))
 
 	b, err := NewPeersBootstrapperProvider(opts, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, PeersBootstrapperName, b.String())
 }

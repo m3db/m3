@@ -79,7 +79,11 @@ type fileSystemSourceMetrics struct {
 	persistedIndexBlocksWrite tally.Counter
 }
 
-func newFileSystemSource(opts Options) bootstrap.Source {
+func newFileSystemSource(opts Options) (bootstrap.Source, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("fs-bootstrapper")
 	iopts = iopts.SetMetricsScope(scope)
@@ -104,7 +108,7 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
 
-	return s
+	return s, nil
 }
 
 func (s *fileSystemSource) AvailableData(
