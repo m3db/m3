@@ -65,6 +65,7 @@ func TestNewPeersBootstrapper(t *testing.T) {
 		SetIndexOptions(idxOpts).
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetPersistManager(persist.NewMockManager(ctrl)).
+		SetFilesystemOptions(fs.NewOptions()).
 		SetCompactor(compactor).
 		SetRuntimeOptionsManager(runtime.NewMockOptionsManager(ctrl))
 

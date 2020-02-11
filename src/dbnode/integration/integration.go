@@ -254,6 +254,7 @@ func newDefaultBootstrappableTestSetups(
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
 		storageIdxOpts := setup.storageOpts.IndexOptions()
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
 			var (
 				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
@@ -266,6 +267,7 @@ func newDefaultBootstrappableTestSetups(
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
 				SetIndexOptions(storageIdxOpts).
+				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
@@ -278,7 +280,6 @@ func newDefaultBootstrappableTestSetups(
 			require.NoError(t, err)
 		}
 
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
 
