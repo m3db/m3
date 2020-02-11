@@ -87,10 +87,14 @@ func newTestOptions(t require.TestingT, filePathPrefix string) Options {
 			},
 		})
 	require.NoError(t, err)
+	fsOpts := newTestFsOptions(filePathPrefix)
+	pm, err := fs.NewPersistManager(fsOpts)
+	require.NoError(t, err)
 	return testDefaultOpts.
 		SetCompactor(compactor).
 		SetIndexOptions(idxOpts).
-		SetFilesystemOptions(newTestFsOptions(filePathPrefix))
+		SetFilesystemOptions(fsOpts).
+		SetPersistManager(pm)
 }
 
 func newTestOptionsWithPersistManager(t require.TestingT, filePathPrefix string) Options {
