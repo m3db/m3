@@ -18,8 +18,7 @@ spec:
   - name: group3
     numInstances: 1
   podIdentityConfig:
-    sources:
-      - PodUID
+    sources: []
   namespaces:
     - name: default
       preset: 10s:2d
