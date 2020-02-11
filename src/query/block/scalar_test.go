@@ -126,3 +126,34 @@ func TestScalarBlockSeriesIter(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestScalarBlockMultiSeriesIter(t *testing.T) {
+	bl := NewScalar(val, Metadata{Bounds: bounds})
+	_, err := bl.MultiSeriesIter(0)
+	require.Error(t, err)
+
+	batch, err := bl.MultiSeriesIter(2)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, len(batch))
+	b := batch[0]
+	assert.Equal(t, 1, b.Size)
+	it := b.Iter
+	exSize := bounds.Steps()
+	assert.True(t, it.Next())
+	actual := it.Current()
+	assert.False(t, it.Next())
+	dps := actual.Datapoints()
+	require.Equal(t, exSize, len(dps))
+	start := bounds.Start
+	for i, v := range dps {
+		assert.Equal(t, start.Add(time.Duration(i)*bounds.StepSize), v.Timestamp)
+		assert.Equal(t, val, v.Value)
+	}
+
+	require.NoError(t, err)
+
+	b = batch[1]
+	assert.Equal(t, 0, b.Size)
+	assert.False(t, b.Iter.Next())
+}

@@ -21,7 +21,6 @@
 package block
 
 import (
-	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
@@ -148,9 +147,24 @@ func (b *Scalar) SeriesIter() (SeriesIter, error) {
 	}, nil
 }
 
-// MultiSeriesIter is invalid for a scalar block.
-func (b *Scalar) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
-	return nil, errors.New("multi series iterator undefined for a scalar block")
+// MultiSeriesIter returns batched series iterators for the block based on
+// given concurrency.
+func (b *Scalar) MultiSeriesIter(concurrency int) ([]SeriesIterBatch, error) {
+	it, err := b.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	// NB: build a batch with the given size in case dowstream operations
+	// expect an element at every index.
+	batch, err := BuildEmptySeriesIteratorBatch(concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	batch[0].Size = 1
+	batch[0].Iter = it
+	return batch, nil
 }
 
 type scalarSeriesIter struct {

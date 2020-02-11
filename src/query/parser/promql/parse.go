@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/lazy"
-	"github.com/m3db/m3/src/query/functions/reconsolidated"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -63,14 +62,14 @@ func Parse(
 	}, nil
 }
 
-func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) { 
+func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
 	state := &parseState{
 		stepSize:          p.stepSize,
 		tagOpts:           p.tagOpts,
 		parseFunctionExpr: p.parseFunctionExpr,
 	}
- 
-	err := state.walk(p.expr, models.FetchOverrideOptions{}) 
+
+	err := state.walk(p.expr, models.FetchOverrideOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,7 +160,6 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	return nil
 }
 
-<<<<<<< HEAD
 func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
 	// handles case where offset is 0 too.
 	align := offset % step
@@ -173,11 +171,11 @@ func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
 	// a 1 minute stepsize gets rounded to a 2 minute offset.
 	return offset + step - align
 }
- 
+
 func (p *parseState) walk(
 	node pql.Node,
 	opts models.FetchOverrideOptions,
-) error { 
+) error {
 	if node == nil {
 		return nil
 	}
@@ -203,10 +201,10 @@ func (p *parseState) walk(
 		// TODO: handle labels, params
 		return nil
 
-	case *pql.MatrixSelector: 
+	case *pql.MatrixSelector:
 		// Align offset to stepSize.
-		n.Offset = adjustOffset(n.Offset, p.stepSize) 
-		operation, err := NewSelectorFromMatrix(n, opts, p.tagOpts) 
+		n.Offset = adjustOffset(n.Offset, p.stepSize)
+		operation, err := NewSelectorFromMatrix(n, opts, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -217,10 +215,10 @@ func (p *parseState) walk(
 		)
 		return p.addLazyOffsetTransform(n.Offset)
 
-	case *pql.VectorSelector: 
+	case *pql.VectorSelector:
 		// Align offset to stepSize.
-		n.Offset = adjustOffset(n.Offset, p.stepSize) 
-		operation, err := NewSelectorFromVector(n, opts, p.tagOpts) 
+		n.Offset = adjustOffset(n.Offset, p.stepSize)
+		operation, err := NewSelectorFromVector(n, opts, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -411,10 +409,10 @@ func (p *parseState) walk(
 		return p.addLazyUnaryTransform(unaryOp)
 
 	case *pql.SubqueryExpr:
-		op, err := reconsolidated.NewReconsolidatedOp()
-		if err != nil {
-			return err
-		}
+		// op, err := reconsolidated.NewReconsolidatedOp()
+		// if err != nil {
+		// 	return err
+		// }
 
 		opts.FetchRange = n.Range
 		opts.Step = n.Step
@@ -422,15 +420,15 @@ func (p *parseState) walk(
 		opts.StartOffset = opts.StartOffset + n.Range
 		opts.ShouldOverride = true
 
-		err = p.walk(n.Expr, opts)
-		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
-		p.edges = append(p.edges, parser.Edge{
-			ParentID: p.lastTransformID(),
-			ChildID:  opTransform.ID,
-		})
-		p.transforms = append(p.transforms, opTransform)
+		return p.walk(n.Expr, opts)
+		// opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+		// p.edges = append(p.edges, parser.Edge{
+		// 	ParentID: p.lastTransformID(),
+		// 	ChildID:  opTransform.ID,
+		// })
+		// p.transforms = append(p.transforms, opTransform)
 
-		return err
+		// return err
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)

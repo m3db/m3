@@ -76,7 +76,7 @@ func TestEmptyBlock(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, concurrency, len(batch))
 	for _, b := range batch {
-		assert.Equal(t, 1, b.Size)
+		assert.Equal(t, 0, b.Size)
 		assert.False(t, b.Iter.Next())
 	}
 

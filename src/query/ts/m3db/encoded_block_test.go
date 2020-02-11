@@ -97,6 +97,7 @@ func TestMultiSeriesIter(t *testing.T) {
 
 		count := 0
 		iterCount := 0.0
+		require.Equal(t, len(tt.sizes), len(batch))
 		for i, b := range batch {
 			require.Equal(t, tt.sizes[i], b.Size)
 			iter := b.Iter
