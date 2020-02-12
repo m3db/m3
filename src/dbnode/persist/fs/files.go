@@ -1254,7 +1254,7 @@ func filesetDirectory(args filesetFilesSelector) (string, error) {
 		case persist.FileSetIndexContentType:
 			return NamespaceIndexDataDirPath(args.filePathPrefix, args.namespace), nil
 		default:
-			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
+			return "", fmt.Errorf("unknown content type: %d", args.contentType)
 		}
 	case persist.FileSetSnapshotType:
 		var dir string
@@ -1264,11 +1264,11 @@ func filesetDirectory(args filesetFilesSelector) (string, error) {
 		case persist.FileSetIndexContentType:
 			dir = NamespaceIndexSnapshotDirPath(args.filePathPrefix, args.namespace)
 		default:
-			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
+			return "", fmt.Errorf("unknown content type: %d", args.contentType)
 		}
 		return dir, nil
 	default:
-		return nil, fmt.Errorf("unknown type: %d", args.fileSetType)
+		return "", fmt.Errorf("unknown type: %d", args.fileSetType)
 	}
 }
 
