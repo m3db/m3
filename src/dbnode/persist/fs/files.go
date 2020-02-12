@@ -1161,36 +1161,18 @@ type filesetFilesSelector struct {
 }
 
 func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
-	var (
-		byTimeAsc []string
-		err       error
-	)
+	dir, err := filesetDirectory(args)
+	if err != nil {
+		return nil, err
+	}
+
+	var byTimeAsc []string
 	switch args.fileSetType {
 	case persist.FileSetFlushType:
-		switch args.contentType {
-		case persist.FileSetDataContentType:
-			dir := ShardDataDirPath(args.filePathPrefix, args.namespace, args.shard)
-			byTimeAsc, err = findFiles(dir, args.pattern, func(files []string) sort.Interface {
-				return dataFileSetFilesByTimeAndVolumeIndexAscending(files)
-			})
-		case persist.FileSetIndexContentType:
-			dir := NamespaceIndexDataDirPath(args.filePathPrefix, args.namespace)
-			byTimeAsc, err = findFiles(dir, args.pattern, func(files []string) sort.Interface {
-				return fileSetFilesByTimeAndVolumeIndexAscending(files)
-			})
-		default:
-			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
-		}
+		byTimeAsc, err = findFiles(dir, args.pattern, func(files []string) sort.Interface {
+			return fileSetFilesByTimeAndVolumeIndexAscending(files)
+		})
 	case persist.FileSetSnapshotType:
-		var dir string
-		switch args.contentType {
-		case persist.FileSetDataContentType:
-			dir = ShardSnapshotsDirPath(args.filePathPrefix, args.namespace, args.shard)
-		case persist.FileSetIndexContentType:
-			dir = NamespaceIndexSnapshotDirPath(args.filePathPrefix, args.namespace)
-		default:
-			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
-		}
 		byTimeAsc, err = findFiles(dir, args.pattern, func(files []string) sort.Interface {
 			return fileSetFilesByTimeAndVolumeIndexAscending(files)
 		})
@@ -1260,6 +1242,34 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 	filesetFiles = append(filesetFiles, latestFileSetFile)
 
 	return filesetFiles, nil
+}
+
+// TODO: use in deletion path directly.
+func filesetDirectory(args filesetFilesSelector) (string, error) {
+	switch args.fileSetType {
+	case persist.FileSetFlushType:
+		switch args.contentType {
+		case persist.FileSetDataContentType:
+			return ShardDataDirPath(args.filePathPrefix, args.namespace, args.shard), nil
+		case persist.FileSetIndexContentType:
+			return NamespaceIndexDataDirPath(args.filePathPrefix, args.namespace), nil
+		default:
+			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
+		}
+	case persist.FileSetSnapshotType:
+		var dir string
+		switch args.contentType {
+		case persist.FileSetDataContentType:
+			dir = ShardSnapshotsDirPath(args.filePathPrefix, args.namespace, args.shard)
+		case persist.FileSetIndexContentType:
+			dir = NamespaceIndexSnapshotDirPath(args.filePathPrefix, args.namespace)
+		default:
+			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
+		}
+		return dir, nil
+	default:
+		return nil, fmt.Errorf("unknown type: %d", args.fileSetType)
+	}
 }
 
 func sortedCommitLogFiles(commitLogsDir string, pattern string) ([]string, error) {

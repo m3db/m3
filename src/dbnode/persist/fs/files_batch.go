@@ -20,11 +20,12 @@
 
 package fs
 
+// FileDeleter deletes files.
 type FileDeleter interface {
 	Delete(pattern string)
 }
 
-// FileDeleter holds reusable memory for filenames to be deleted. This allows
+// BatchFileDeleter holds reusable memory for filenames to be deleted. This allows
 // batch file deletions to be performedf with minimal memory usage.
 type BatchFileDeleter struct {
 	// The actual full byte slice of all file names concatenated.
@@ -33,20 +34,15 @@ type BatchFileDeleter struct {
 	fileNames [][]byte
 }
 
-// New returns a new deleter with a set of bytes to use for batch deletions.
-func New(bytes int) FileDeleter {
-	return FileDeleter{
+// NewBatchFileDeleter returns a new deleter with a set of bytes to use for batch deletions.
+func NewBatchFileDeleter(bytes int) BatchFileDeleter {
+	return BatchFileDeleter{
 		rawFileNames: make([]byte, 0, bytes),
 		fileNames:    [][]byte{},
 	}
 }
 
-// Glob populates current file batch contents given a file path pattern.
-func (fb *FileBatch) Glob(pattern string) error {
-	return nil
-}
-
-// DeleteAll deletes all of the files in the batch.
-func (fb *FileBatch) Delete(pattern string, BatchSize) error {
+// Delete deletes all of the files that match the pattern.
+func (d *BatchFileDeleter) Delete(pattern string) error {
 	return nil
 }
