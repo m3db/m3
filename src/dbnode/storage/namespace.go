@@ -58,6 +58,13 @@ import (
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
 	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
+
+	// ErrNotResponsibleForShard is used as a sentinel error for callers
+	// upstream to make decisions on what to do when this error is encountered.
+	// For example, a commit log bootstrapper should just ignore continue its
+	// bootstrapping if an entry exists for a shard it's not responsible for.
+	ErrNotResponsibleForShard = xerrors.NewRetryableError(
+		errors.New("not responsible for shard"))
 )
 
 type commitLogWriter interface {
@@ -1396,13 +1403,11 @@ func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
 	// NB(r): These errors are retryable as they will occur
 	// during a topology change and must be retried by the client.
 	if int(shardID) >= len(n.shards) {
-		return nil, xerrors.NewRetryableError(
-			fmt.Errorf("not responsible for shard %d", shardID))
+		return nil, ErrNotResponsibleForShard
 	}
 	shard := n.shards[shardID]
 	if shard == nil {
-		return nil, xerrors.NewRetryableError(
-			fmt.Errorf("not responsible for shard %d", shardID))
+		return nil, ErrNotResponsibleForShard
 	}
 	return shard, nil
 }

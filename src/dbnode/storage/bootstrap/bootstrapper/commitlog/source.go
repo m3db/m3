@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -372,6 +373,21 @@ func (s *commitLogSource) Read(
 
 		seriesEntry, ok := commitLogSeries[seriesKey]
 		if !ok {
+			if entry.Series.Namespace == nil {
+				// This will happen if the series for this commit log entry was
+				// skipped in an earlier iteration of this loop. Sometimes the
+				// bootstrapper needs to skip commit log entries, e.g. if it
+				// encounters one for a shard that it does not own, in which case it
+				// should just skip the entry and carry on.
+				//
+				// The reason that skipping this series in an earlier iteration
+				// causes a nil namespace here is that the metadata (including the
+				// series namespace) is only written the first time we come across
+				// it in the commit log. Hence, when we iterate over the commit log
+				// data here, it wouldn't be able to look up metadata from earlier.
+				continue
+			}
+
 			// Resolve the namespace.
 			var (
 				nsID      = entry.Series.Namespace
@@ -457,6 +473,13 @@ func (s *commitLogSource) Read(
 				)
 
 				if err != nil {
+					if err == storage.ErrNotResponsibleForShard {
+						// If we encounter a log entry for a shard that we're
+						// not responsible for, skip this entry. This can occur
+						// when a topology change happens and we bootstrap from
+						// a commit log which contains this data.
+						continue
+					}
 					return bootstrap.NamespaceResults{}, err
 				}
 
