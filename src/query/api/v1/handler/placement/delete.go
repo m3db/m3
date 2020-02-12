@@ -162,18 +162,19 @@ func (h *DeleteHandler) ServeHTTP(
 	// Now need to delete aggregator related keys (e.g. for shardsets) if required.
 	if svc.ServiceName == handleroptions.M3AggregatorServiceName {
 		shardSetID := instance.ShardSetID()
-		existingShardSetIDs := 0
+		anyExistingShardSetIDs := false
 		for _, elem := range curPlacement.Instances() {
 			if elem.ID() == instance.ID() {
 				continue
 			}
 			if elem.ShardSetID() == shardSetID {
-				existingShardSetIDs++
+				anyExistingShardSetIDs = true
+				break
 			}
 		}
 
 		// Only delete the related shardset keys if no other shardsets left.
-		if existingShardSetIDs == 0 {
+		if !anyExistingShardSetIDs {
 			err := deleteAggregatorShardSetIDRelatedKeys(svc, opts,
 				h.clusterClient, []uint32{shardSetID})
 			if err != nil {

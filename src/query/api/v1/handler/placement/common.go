@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -497,28 +498,31 @@ func deleteAggregatorShardSetIDRelatedKeys(
 		SetEnvironment(svcOpts.ServiceEnvironment).
 		SetZone(svcOpts.ServiceZone)
 
-	flushTimesMgrOpts := aggregator.NewFlushTimesManagerOptions()
-	electionMgrOpts := aggregator.NewElectionManagerOptions()
 	kvStore, err := clusterClient.Store(kvOpts)
 	if err != nil {
 		return fmt.Errorf("cannot get KV store to delete aggregator keys: %v", err)
 	}
 
+	var (
+		flushTimesMgrOpts = aggregator.NewFlushTimesManagerOptions()
+		electionMgrOpts   = aggregator.NewElectionManagerOptions()
+		multiErr          = xerrors.NewMultiError()
+	)
 	for _, shardSetID := range shardSetIDs {
 		// Check if flush times key exists, if so delete.
 		flushTimesKey := fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(),
 			shardSetID)
 		_, flushTimesKeyErr := kvStore.Get(flushTimesKey)
 		if flushTimesKeyErr != nil && flushTimesKeyErr != kv.ErrNotFound {
-			return fmt.Errorf(
+			multiErr = multiErr.Add(fmt.Errorf(
 				"error check flush times key exists for deleted instance: %v",
-				flushTimesKeyErr)
+				flushTimesKeyErr))
 		}
 		if flushTimesKeyErr == nil {
 			// Need to delete the flush times key.
 			if _, err := kvStore.Delete(flushTimesKey); err != nil {
-				return fmt.Errorf(
-					"error delete flush times key for deleted instance: %v", err)
+				multiErr = multiErr.Add(fmt.Errorf(
+					"error delete flush times key for deleted instance: %v", err))
 			}
 		}
 
@@ -527,17 +531,17 @@ func deleteAggregatorShardSetIDRelatedKeys(
 			shardSetID)
 		_, electionKeyErr := kvStore.Get(electionKey)
 		if electionKeyErr != nil && electionKeyErr != kv.ErrNotFound {
-			return fmt.Errorf(
-				"error checking election key exists for deleted instance: %v", err)
+			multiErr = multiErr.Add(fmt.Errorf(
+				"error checking election key exists for deleted instance: %v", err))
 		}
 		if electionKeyErr == nil {
 			// Need to delete the election key.
 			if _, err := kvStore.Delete(flushTimesKey); err != nil {
-				return fmt.Errorf("error delete election key for deleted instance: %v",
-					err)
+				multiErr = multiErr.Add(fmt.Errorf(
+					"error delete election key for deleted instance: %v", err))
 			}
 		}
 	}
 
-	return nil
+	return multiErr.FinalError()
 }

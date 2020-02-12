@@ -117,10 +117,9 @@ func (h *DeleteAllHandler) ServeHTTP(
 					break
 				}
 			}
-			if found {
-				continue
+			if !found {
+				shardSetIDs = append(shardSetIDs, value)
 			}
-			shardSetIDs = append(shardSetIDs, value)
 		}
 
 		err := deleteAggregatorShardSetIDRelatedKeys(svc, opts,
