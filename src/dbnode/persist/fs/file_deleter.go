@@ -22,7 +22,6 @@ package fs
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,8 +45,8 @@ type SimpleFileDeleter struct {
 }
 
 // NewEfficientFileDeleter returns a new deleter with a set of bytes to use for batch deletions.
-func NewEfficientFileDeleter(maxMemoryInBytes int) EfficientFileDeleter {
-	return EfficientFileDeleter{
+func NewEfficientFileDeleter(maxMemoryInBytes int) FileDeleter {
+	return &EfficientFileDeleter{
 		fileNames: make([]byte, maxMemoryInBytes),
 	}
 }
@@ -70,15 +69,12 @@ func (d *EfficientFileDeleter) Delete(pattern string) error {
 		return err
 	}
 	defer openDir.Close()
-	fmt.Println("DIR", dir)
-	fmt.Println("FILE", file)
 
 	for i := 0; ; i++ {
 		n, err := syscall.ReadDirent(int(openDir.Fd()), d.fileNames)
 		if err != nil {
 			return err
 		}
-		fmt.Println("BATCH", n)
 		deleteMatchingFiles(dir, d.fileNames[:n], file)
 		if n <= 0 {
 			break

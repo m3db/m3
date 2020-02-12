@@ -82,7 +82,7 @@ var (
 
 func TestFileDeleter(t *testing.T) {
 	deleter := NewEfficientFileDeleter(2048)
-	err := deleter.Delete("/Users/ryan/Dev/testfiles/*.sql")
+	err := deleter.Delete("/Users/ryan/Dev/testfiles/a.go")
 	fmt.Println("ERR", err)
 }
 
