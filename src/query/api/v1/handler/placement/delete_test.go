@@ -22,17 +22,21 @@ package placement
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -55,13 +59,61 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 		}
 
 		// Test remove success
+		inst := placement.NewInstance().
+			SetID("host1").
+			SetEndpoint("host1:123").
+			SetHostname("host1").
+			SetPort(123).
+			SetIsolationGroup("host1-group").
+			SetWeight(1).
+			SetZone("default")
+		if serviceName == handleroptions.M3AggregatorServiceName {
+			inst = inst.SetShardSetID(0)
+		}
+
+		existing := placement.NewPlacement().
+			SetInstances([]placement.Instance{inst})
+
+		mockKVStore := kv.NewMockStore(ctrl)
+
 		w := httptest.NewRecorder()
 		req := httptest.
 			NewRequest(DeleteHTTPMethod, "/placement/host1?force=true", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Placement().Return(existing, nil)
 		mockPlacementService.EXPECT().RemoveInstances([]string{"host1"}).
 			Return(placement.NewPlacement(), nil)
+		if serviceName == handleroptions.M3AggregatorServiceName {
+			flushTimesMgrOpts := aggregator.NewFlushTimesManagerOptions()
+			electionMgrOpts := aggregator.NewElectionManagerOptions()
+			mockClient.EXPECT().Store(gomock.Any()).Return(mockKVStore, nil)
+			mockKVStore.EXPECT().
+				Get(gomock.Any()).
+				DoAndReturn(func(k string) (kv.Value, error) {
+					switch k {
+					case fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(), inst.ShardSetID()):
+						return nil, nil
+					case fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(), inst.ShardSetID()):
+						return nil, nil
+					}
+					return nil, errors.New("unexpected")
+				}).
+				AnyTimes()
+			mockKVStore.EXPECT().
+				Delete(gomock.Any()).
+				DoAndReturn(func(k string) (kv.Value, error) {
+					switch k {
+					case fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(), inst.ShardSetID()):
+						return nil, nil
+					case fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(), inst.ShardSetID()):
+						return nil, nil
+					}
+					return nil, errors.New("unexpected")
+				}).
+				AnyTimes()
+		}
+
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
@@ -75,15 +127,14 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/nope?force=true", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "nope"})
 		require.NotNil(t, req)
-		mockPlacementService.EXPECT().RemoveInstances([]string{"nope"}).
-			Return(placement.NewPlacement(), errors.New("ID does not exist"))
+		mockPlacementService.EXPECT().Placement().Return(existing, nil)
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		require.Equal(t, "{\"error\":\"ID does not exist\"}\n", string(body))
+		require.Equal(t, "{\"error\":\"instance not found: nope\"}\n", string(body))
 	})
 }
 
@@ -96,7 +147,8 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 }
 
 func testDeleteHandlerSafe(t *testing.T, serviceName string) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
+	ctrl = gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
@@ -109,6 +161,43 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 		},
 		instrument.NewOptions())
 	require.NoError(t, err)
+
+	mockKVStore := kv.NewMockStore(ctrl)
+	shardSetIDs := []uint32{0, 1}
+
+	if serviceName == handleroptions.M3AggregatorServiceName {
+		flushTimesMgrOpts := aggregator.NewFlushTimesManagerOptions()
+		electionMgrOpts := aggregator.NewElectionManagerOptions()
+		mockClient.EXPECT().Store(gomock.Any()).Return(mockKVStore, nil).AnyTimes()
+		mockKVStore.EXPECT().
+			Get(gomock.Any()).
+			DoAndReturn(func(k string) (kv.Value, error) {
+				for _, shardSetID := range shardSetIDs {
+					switch k {
+					case fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(), shardSetID):
+						return nil, nil
+					case fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(), shardSetID):
+						return nil, nil
+					}
+				}
+				return nil, errors.New("unexpected")
+			}).
+			AnyTimes()
+		mockKVStore.EXPECT().
+			Delete(gomock.Any()).
+			DoAndReturn(func(k string) (kv.Value, error) {
+				for _, shardSetID := range shardSetIDs {
+					switch k {
+					case fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(), shardSetID):
+						return nil, nil
+					case fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(), shardSetID):
+						return nil, nil
+					}
+				}
+				return nil, errors.New("unexpected")
+			}).
+			AnyTimes()
+	}
 
 	var (
 		handler = NewDeleteHandler(handlerOpts)
@@ -127,9 +216,6 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 		basePlacement = basePlacement.
 			SetIsSharded(false).
 			SetReplicaFactor(1)
-		mockPlacementService.EXPECT().
-			RemoveInstances([]string{"host1"}).
-			Return(placement.NewPlacement(), nil)
 	case handleroptions.M3AggregatorServiceName:
 		basePlacement = basePlacement.
 			SetIsMirrored(true)
@@ -141,30 +227,29 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
-	if !isStateless(serviceName) {
-		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
-	}
+	mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 	handler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
-	switch serviceName {
-	case handleroptions.M3CoordinatorServiceName:
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	default:
-		assert.Contains(t, string(body), "instance host1 not found in placement")
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	}
+	assert.Contains(t, string(body), "instance not found: host1")
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// Test remove host when placement unsafe
 	basePlacement = basePlacement.SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("host1").SetShards(shard.NewShards([]shard.Shard{
-			shard.NewShard(2).SetState(shard.Available),
-		})),
-		placement.NewInstance().SetID("host2").SetShards(shard.NewShards([]shard.Shard{
-			shard.NewShard(1).SetState(shard.Leaving),
-		})),
+		placement.NewInstance().
+			SetID("host1").
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(2).SetState(shard.Available),
+			})).
+			SetShardSetID(shardSetIDs[0]),
+		placement.NewInstance().
+			SetID("host2").
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(1).SetState(shard.Leaving),
+			})).
+			SetShardSetID(shardSetIDs[1]),
 	})
 
 	switch serviceName {
@@ -211,6 +296,7 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 			SetReplicaFactor(1).
 			SetShards(nil).
 			SetInstances([]placement.Instance{placement.NewInstance().SetID("host1")})
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 		mockPlacementService.EXPECT().
 			RemoveInstances([]string{"host1"}).
 			Return(placement.NewPlacement(), nil)
