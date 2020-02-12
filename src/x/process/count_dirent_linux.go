@@ -55,6 +55,7 @@ func countDirent(buf []byte) (consumed int, count int) {
 			break
 		}
 		name := rec[namoff : namoff+namlen]
+
 		for i, c := range name {
 			if c == 0 {
 				name = name[:i]

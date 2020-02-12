@@ -21,17 +21,23 @@
 package fs
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -43,6 +49,13 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	// syscallBatchSize controls the number of syscalls to perform before
+	// triggering a sleep.
+	syscallBatchSize                           = 10
+	defaultSyscallBatchDurationSleepMultiplier = 10
 )
 
 var (
@@ -62,7 +75,61 @@ var (
 		require.NoError(t, err)
 		return md
 	}
+	myFiles        = []string{}
+	dotBytes       = []byte(".")
+	doubleDotBytes = []byte("..")
 )
+
+func TestStuff(t *testing.T) {
+	path := "/Users/ryan/Dev/monorepo/*.log"
+	a, b := filepath.Split(path)
+	fmt.Println("DIR", a)
+	fmt.Println("FILE", b)
+
+	d, err := os.Open("/Users/ryan/Dev/monorepo/")
+	if err != nil {
+		fmt.Println("ERR", err)
+		return
+	}
+	defer d.Close()
+
+	var (
+		buf = make([]byte, 2048)
+	)
+	for i := 0; ; i++ {
+		n, err := syscall.ReadDirent(int(d.Fd()), buf)
+		_, numDirs := countDirent(buf[:n])
+		fmt.Println("NUM", numDirs)
+		if err != nil {
+			return
+		}
+		if n <= 0 {
+			break
+		}
+	}
+	fmt.Println("BUF", string(buf))
+	fmt.Println("BUF", buf)
+	fmt.Println("BUF LEN", len(buf))
+	fmt.Println("BUF", string([]byte{209}))
+}
+
+func TestPerf(t *testing.T) {
+	go func() {
+		printed := false
+		for {
+			matches, err := filepath.Glob("/Users/ryan/Dev/monorepo/*")
+			if !printed {
+				fmt.Println(matches)
+				printed = true
+			}
+			myFiles = append(myFiles, matches...)
+			require.NoError(t, err)
+			time.Sleep(time.Microsecond * 1)
+		}
+	}()
+
+	log.Fatal(http.ListenAndServe("localhost:7777", nil))
+}
 
 func TestOpenFilesFails(t *testing.T) {
 	testFilePath := "/not/a/real/path"
@@ -1304,4 +1371,90 @@ func mustFileExists(t *testing.T, path string) bool {
 	exists, err := FileExists(path)
 	require.NoError(t, err)
 	return exists
+}
+
+func countDirent(buf []byte) (consumed int, count int) {
+	origlen := len(buf)
+	count = 0
+	for len(buf) > 0 {
+		reclen, ok := direntReclen(buf)
+		if !ok || reclen > uint64(len(buf)) {
+			return origlen, count
+		}
+
+		rec := buf[:reclen]
+		buf = buf[reclen:]
+
+		ino, ok := direntIno(rec)
+		if !ok {
+			break
+		}
+		if ino == 0 { // File absent in directory.
+			continue
+		}
+		const namoff = uint64(unsafe.Offsetof(syscall.Dirent{}.Name))
+		namlen, ok := direntNamlen(rec)
+		if !ok || namoff+namlen > uint64(len(rec)) {
+			break
+		}
+		name := rec[namoff : namoff+namlen]
+		for i, c := range name {
+			if c == 0 {
+				name = name[:i]
+				break
+			}
+		}
+		fmt.Println("NAME", string(name))
+
+		if bytes.Equal(name, dotBytes) || bytes.Equal(name, doubleDotBytes) {
+			// Check for useless names before allocating a string.
+			continue
+		}
+		count++
+	}
+
+	return origlen - len(buf), count
+}
+
+func direntReclen(buf []byte) (uint64, bool) {
+	return readInt(buf, unsafe.Offsetof(syscall.Dirent{}.Reclen), unsafe.Sizeof(syscall.Dirent{}.Reclen))
+}
+
+func direntIno(buf []byte) (uint64, bool) {
+	return readInt(buf, unsafe.Offsetof(syscall.Dirent{}.Ino), unsafe.Sizeof(syscall.Dirent{}.Ino))
+}
+
+func direntNamlen(buf []byte) (uint64, bool) {
+	reclen, ok := direntReclen(buf)
+	if !ok {
+		return 0, false
+	}
+	return reclen - uint64(unsafe.Offsetof(syscall.Dirent{}.Name)), true
+}
+
+// readInt returns the size-bytes unsigned integer in native byte order at offset off.
+func readInt(b []byte, off, size uintptr) (u uint64, ok bool) {
+	if len(b) < int(off+size) {
+		return 0, false
+	}
+	return readIntLE(b[off:], size), true
+}
+
+func readIntLE(b []byte, size uintptr) uint64 {
+	switch size {
+	case 1:
+		return uint64(b[0])
+	case 2:
+		_ = b[1] // bounds check hint to compiler; see golang.org/issue/14808
+		return uint64(b[0]) | uint64(b[1])<<8
+	case 4:
+		_ = b[3] // bounds check hint to compiler; see golang.org/issue/14808
+		return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24
+	case 8:
+		_ = b[7] // bounds check hint to compiler; see golang.org/issue/14808
+		return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+			uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+	default:
+		panic("syscall: readInt with unsupported size")
+	}
 }
