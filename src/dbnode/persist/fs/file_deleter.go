@@ -79,7 +79,7 @@ func (d *EfficientFileDeleter) Delete(pattern string) error {
 			return err
 		}
 		fmt.Println("BATCH", n)
-		delete(dir, d.fileNames[:n], file)
+		deleteMatchingFiles(dir, d.fileNames[:n], file)
 		if n <= 0 {
 			break
 		}
@@ -88,15 +88,15 @@ func (d *EfficientFileDeleter) Delete(pattern string) error {
 	return nil
 }
 
-func delete(dir string, file []byte, filePattern string) {
-	for len(file) > 0 {
-		reclen, ok := direntReclen(file)
-		if !ok || reclen > uint64(len(file)) {
+func deleteMatchingFiles(dir string, fileNames []byte, filePattern string) {
+	for len(fileNames) > 0 {
+		reclen, ok := direntReclen(fileNames)
+		if !ok || reclen > uint64(len(fileNames)) {
 			return
 		}
 
-		rec := file[:reclen]
-		file = file[reclen:]
+		rec := fileNames[:reclen]
+		fileNames = fileNames[reclen:]
 
 		ino, ok := direntIno(rec)
 		if !ok {
@@ -136,7 +136,7 @@ func delete(dir string, file []byte, filePattern string) {
 		// that we allocate the directory string since there are very few directories and that gets shared per batch.
 		var pathToDelete strings.Builder
 		pathToDelete.WriteString(dir)
-		pathToDelete.Write(file)
+		pathToDelete.Write(name)
 		os.Remove(pathToDelete.String())
 	}
 }
