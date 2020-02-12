@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -18,6 +19,10 @@ spec:
       containers:
       - name: promremotebench
         image: quay.io/m3db/promremotebench:latest
+        ports:
+          - name: debug
+            containerPort: 7203
+            protocol: TCP
         env:
         - name: PROMREMOTEBENCH_TARGET
           value: "M3COORDINATOR_WRITE_TARGETS"
@@ -55,3 +60,18 @@ spec:
           value: "true"
         - name: PROMREMOTEBENCH_QUERY_DEBUG_LENGTH
           value: "0"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: promremotebench
+  name: promremotebench
+spec:
+  ports:
+  - name: debug
+    port: 7203
+    targetPort: debug
+  selector:
+    app: promremotebench

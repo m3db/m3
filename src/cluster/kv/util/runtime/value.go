@@ -81,7 +81,8 @@ func (v *value) initValue() {
 		SetInitWatchTimeout(v.opts.InitWatchTimeout()).
 		SetNewUpdatableFn(v.newUpdatableFn).
 		SetGetUpdateFn(v.getUpdateFn).
-		SetProcessFn(v.updateFn)
+		SetProcessFn(v.updateFn).
+		SetKey(v.key)
 	v.Value = watch.NewValue(valueOpts)
 }
 

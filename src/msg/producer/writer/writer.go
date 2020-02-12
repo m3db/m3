@@ -137,7 +137,8 @@ func (w *writer) Init() error {
 		SetInstrumentOptions(w.opts.InstrumentOptions()).
 		SetNewUpdatableFn(newUpdatableFn).
 		SetGetUpdateFn(getUpdateFn).
-		SetProcessFn(w.processFn)
+		SetProcessFn(w.processFn).
+		SetKey(w.opts.TopicName())
 	w.value = watch.NewValue(vOptions)
 	if err := w.value.Watch(); err != nil {
 		return fmt.Errorf("writer init error: %v", err)

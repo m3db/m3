@@ -61,6 +61,12 @@ type Options interface {
 
 	// ProcessFn returns the process function.
 	ProcessFn() ProcessFn
+
+	// Key returns the key for the watch.
+	Key() string
+
+	// SetKey sets the key for the watch.
+	SetKey(key string) Options
 }
 
 type options struct {
@@ -69,6 +75,7 @@ type options struct {
 	newUpdatableFn   NewUpdatableFn
 	getUpdateFn      GetUpdateFn
 	processFn        ProcessFn
+	key              string
 }
 
 // NewOptions creates a new set of options.
@@ -127,4 +134,14 @@ func (o *options) SetProcessFn(value ProcessFn) Options {
 
 func (o *options) ProcessFn() ProcessFn {
 	return o.processFn
+}
+
+func (o *options) Key() string {
+	return o.key
+}
+
+func (o *options) SetKey(key string) Options {
+	opts := *o
+	opts.key = key
+	return &opts
 }
