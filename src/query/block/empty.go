@@ -20,6 +20,8 @@
 
 package block
 
+import "fmt"
+
 type emptyBlock struct {
 	meta Metadata
 }
@@ -70,10 +72,20 @@ func (it *emptySeriesIter) Current() UnconsolidatedSeries { return Unconsolidate
 func (b *emptyBlock) MultiSeriesIter(
 	concurrency int,
 ) ([]SeriesIterBatch, error) {
+	return BuildEmptySeriesIteratorBatch(concurrency)
+}
+
+// BuildEmptySeriesIteratorBatch creates a batch of empty series iterators with
+// the given concurrency.
+func BuildEmptySeriesIteratorBatch(concurrency int) ([]SeriesIterBatch, error) {
+	if concurrency < 1 {
+		return nil, fmt.Errorf(errInvalidConcurrency, concurrency)
+	}
+
 	batch := make([]SeriesIterBatch, concurrency)
 	for i := range batch {
 		batch[i] = SeriesIterBatch{
-			Size: 1,
+			Size: 0,
 			Iter: &emptySeriesIter{},
 		}
 	}

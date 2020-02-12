@@ -30,6 +30,8 @@ import (
 // BlockType describes a block type.
 type BlockType uint8
 
+const errInvalidConcurrency = "batch size %d must be greater than 0"
+
 const (
 	// BlockM3TSZCompressed is an M3TSZ compressed block.
 	BlockM3TSZCompressed BlockType = iota
@@ -61,7 +63,8 @@ type Block interface {
 	// by series.
 	SeriesIter() (SeriesIter, error)
 	// MultiSeriesIter returns batched series iterators for the block based on
-	// given concurrency.
+	// given concurrency. Concurrency must be greater than 0.
+	// NB: on success, this will always return a batch of `concurrency` length.
 	MultiSeriesIter(concurrency int) ([]SeriesIterBatch, error)
 	// Meta returns the metadata for the block.
 	Meta() Metadata

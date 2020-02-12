@@ -69,7 +69,7 @@ func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
 		parseFunctionExpr: p.parseFunctionExpr,
 	}
 
-	err := state.walk(p.expr)
+	err := state.walk(p.expr, models.FetchOverrideOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -160,6 +160,40 @@ func (p *parseState) addLazyOffsetTransform(offset time.Duration) error {
 	return nil
 }
 
+func (p *parseState) addLazySubqueryTransform(sbq *pql.SubqueryExpr) error {
+	tt := func(t time.Time) time.Time {
+		return t.Add(sbq.Offset)
+	}
+
+	mt := func(meta block.Metadata) block.Metadata {
+		meta.Bounds.Start = meta.Bounds.Start.Add(sbq.Offset)
+		meta.Bounds.Duration = meta.Bounds.Duration + sbq.Range
+		if sbq.Step != 0 {
+			meta.Bounds.StepSize = sbq.Step
+		}
+
+		return meta
+	}
+
+	lazyOpts := block.NewLazyOptions().
+		SetTimeTransform(tt).
+		SetMetaTransform(mt)
+
+	op, err := lazy.NewLazyOp(lazy.OffsetType, lazyOpts)
+	if err != nil {
+		return err
+	}
+
+	opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+	p.edges = append(p.edges, parser.Edge{
+		ParentID: p.lastTransformID(),
+		ChildID:  opTransform.ID,
+	})
+	p.transforms = append(p.transforms, opTransform)
+
+	return nil
+}
+
 func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
 	// handles case where offset is 0 too.
 	align := offset % step
@@ -172,14 +206,17 @@ func adjustOffset(offset time.Duration, step time.Duration) time.Duration {
 	return offset + step - align
 }
 
-func (p *parseState) walk(node pql.Node) error {
+func (p *parseState) walk(
+	node pql.Node,
+	opts models.FetchOverrideOptions,
+) error {
 	if node == nil {
 		return nil
 	}
 
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
-		err := p.walk(n.Expr)
+		err := p.walk(n.Expr, opts)
 		if err != nil {
 			return err
 		}
@@ -201,7 +238,7 @@ func (p *parseState) walk(node pql.Node) error {
 	case *pql.MatrixSelector:
 		// Align offset to stepSize.
 		n.Offset = adjustOffset(n.Offset, p.stepSize)
-		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
+		operation, err := NewSelectorFromMatrix(n, opts, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -215,7 +252,7 @@ func (p *parseState) walk(node pql.Node) error {
 	case *pql.VectorSelector:
 		// Align offset to stepSize.
 		n.Offset = adjustOffset(n.Offset, p.stepSize)
-		operation, err := NewSelectorFromVector(n, p.tagOpts)
+		operation, err := NewSelectorFromVector(n, opts, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -285,6 +322,11 @@ func (p *parseState) walk(node pql.Node) error {
 		for i := 0; i < numExpectedValues; i++ {
 			argType := argTypes[i]
 			expr := expressions[i]
+			s, ok := expr.(*pql.SubqueryExpr)
+			if ok {
+				argValues = append(argValues, s.Range)
+			}
+
 			if argType == pql.ValueTypeScalar {
 				val, err := resolveScalarArgument(expr)
 				if err != nil {
@@ -299,7 +341,7 @@ func (p *parseState) walk(node pql.Node) error {
 					argValues = append(argValues, e.Range)
 				}
 
-				if err := p.walk(expr); err != nil {
+				if err := p.walk(expr, opts); err != nil {
 					return err
 				}
 			}
@@ -344,13 +386,13 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.BinaryExpr:
-		err := p.walk(n.LHS)
+		err := p.walk(n.LHS, opts)
 		if err != nil {
 			return err
 		}
 
 		lhsID := p.lastTransformID()
-		err = p.walk(n.RHS)
+		err = p.walk(n.RHS, opts)
 		if err != nil {
 			return err
 		}
@@ -385,10 +427,10 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.ParenExpr:
 		// Evaluate inside of paren expressions
-		return p.walk(n.Expr)
+		return p.walk(n.Expr, opts)
 
 	case *pql.UnaryExpr:
-		err := p.walk(n.Expr)
+		err := p.walk(n.Expr, opts)
 		if err != nil {
 			return err
 		}
@@ -400,7 +442,26 @@ func (p *parseState) walk(node pql.Node) error {
 
 		return p.addLazyUnaryTransform(unaryOp)
 
+	case *pql.SubqueryExpr:
+		opts.FetchRange = n.Range
+		opts.Step = n.Step
+		opts.Offset = opts.Offset + n.Offset
+		opts.StartOffset = opts.StartOffset + n.Range
+		opts.ShouldOverride = true
+
+		if err := p.walk(n.Expr, opts); err != nil {
+			return err
+		}
+
+		return p.addLazySubqueryTransform(n)
+
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
 	}
+}
+
+type fetchOverrideOptions struct {
+	timeRange time.Duration
+	offset    time.Duration
+	step      time.Duration
 }

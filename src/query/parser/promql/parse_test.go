@@ -119,11 +119,13 @@ func TestInvalidUnary(t *testing.T) {
 }
 
 func TestGetUnaryOpType(t *testing.T) {
-	unaryOpType, err := getUnaryOpType(promql.ItemADD)
+	promOpType := promql.ItemADD
+	unaryOpType, err := getUnaryOpType(promOpType)
 	require.NoError(t, err)
 	assert.Equal(t, binary.PlusType, unaryOpType)
 
-	_, err = getUnaryOpType(promql.ItemEQL)
+	promOpType = promql.ItemEQL
+	_, err = getUnaryOpType(promOpType)
 	require.Error(t, err)
 }
 
@@ -564,5 +566,20 @@ func TestCustomSort(t *testing.T) {
 		assert.Len(t, edges, 1)
 		assert.Equal(t, tt.ex, transforms[1].Op.OpType())
 		assert.Equal(t, parser.NodeID("1"), transforms[1].ID)
+	}
+}
+
+func TestSubquery(t *testing.T) {
+	queries := []string{
+		"max_over_time(deriv(rate(up[5s])[30s:5s])[10m:])",
+		`holt_winters(rate(up{job="prometheus"}[5m])[30m:1m],0.4,0.6)`,
+		`deriv(rate(up{job="prometheus"}[15m])[120m:10m])`,
+	}
+
+	for _, q := range queries {
+		p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+		require.NoError(t, err)
+		_, _, err = p.DAG()
+		require.NoError(t, err)
 	}
 }

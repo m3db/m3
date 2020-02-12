@@ -21,10 +21,10 @@
 package block
 
 import (
-	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // Scalar is a block containing a single value over a certain bound
@@ -138,12 +138,78 @@ type scalarStep struct {
 func (it *scalarStep) Time() time.Time   { return it.time }
 func (it *scalarStep) Values() []float64 { return it.vals }
 
-// SeriesIter is invalid for a scalar block.
+// SeriesIter returns an iter containing the given value across a single series.
 func (b *Scalar) SeriesIter() (SeriesIter, error) {
-	return nil, errors.New("series iterator undefined for a scalar block")
+	return &scalarSeriesIter{
+		idx:  -1,
+		val:  b.val,
+		meta: b.meta,
+	}, nil
 }
 
-// MultiSeriesIter is invalid for a scalar block.
-func (b *Scalar) MultiSeriesIter(_ int) ([]SeriesIterBatch, error) {
-	return nil, errors.New("multi series iterator undefined for a scalar block")
+// MultiSeriesIter returns batched series iterators for the block based on
+// given concurrency.
+func (b *Scalar) MultiSeriesIter(concurrency int) ([]SeriesIterBatch, error) {
+	it, err := b.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	// NB: build a batch with the given size in case dowstream operations
+	// expect an element at every index.
+	batch, err := BuildEmptySeriesIteratorBatch(concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	batch[0].Size = 1
+	batch[0].Iter = it
+	return batch, nil
 }
+
+type scalarSeriesIter struct {
+	idx  int
+	val  float64
+	meta Metadata
+}
+
+func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta {
+	return []SeriesMeta{buildSeriesMeta(it.meta)}
+}
+
+func (it *scalarSeriesIter) SeriesCount() int {
+	return 1
+}
+
+func (it *scalarSeriesIter) Current() UnconsolidatedSeries {
+	var (
+		bounds = it.meta.Bounds
+		steps  = bounds.Steps()
+		start  = bounds.Start
+		step   = bounds.StepSize
+
+		dps = make(ts.Datapoints, 0, steps)
+	)
+
+	for i := 0; i < steps; i++ {
+		dps = append(dps, ts.Datapoint{
+			Timestamp: start,
+			Value:     it.val,
+		})
+
+		start = start.Add(step)
+	}
+
+	return UnconsolidatedSeries{
+		datapoints: dps,
+		Meta:       buildSeriesMeta(it.meta),
+	}
+}
+
+func (it *scalarSeriesIter) Next() bool {
+	it.idx = it.idx + 1
+	return it.idx < 1
+}
+
+func (it *scalarSeriesIter) Err() error { return nil }
+func (it *scalarSeriesIter) Close()     { /* no-op*/ }

@@ -135,6 +135,8 @@ func (it *lazySeriesIter) Current() UnconsolidatedSeries {
 func (b *lazyBlock) MultiSeriesIter(
 	concurrency int,
 ) ([]SeriesIterBatch, error) {
+	// NB: since this defers to child block for initial mutli series iter access,
+	// it is guaranteed to be of length `concurrency`.
 	batches, err := b.block.MultiSeriesIter(concurrency)
 	if err != nil {
 		return nil, err
