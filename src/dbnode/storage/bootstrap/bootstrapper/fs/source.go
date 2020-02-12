@@ -267,12 +267,12 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	)
 
 	for timeWindowReaders := range readersCh {
-		timeWindowReaders := timeWindowReaders
-		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
-			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
 		s.builder.Builder().Reset(0)
+
+		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
+			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
 	}
 
 	return runResult
