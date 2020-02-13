@@ -1973,70 +1973,18 @@ func (s *dbShard) LoadBlocks(
 		id := dbBlocks.ID
 		tags := dbBlocks.Tags
 
+		canFinalizeTagsAll := true
 		for _, block := range dbBlocks.Blocks.AllBlocks() {
-			timestamp := block.StartTime()
-
-			// First lookup if series already exists.
-			entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
-			if err != nil && err != errShardEntryNotFound {
-				multiErr = multiErr.Add(err)
-				continue
-			}
-			if entry == nil {
-				// Synchronously insert to avoid waiting for the insert queue which could potentially
-				// delay the insert.
-				entry, err = s.insertSeriesSync(id, newTagsArg(tags),
-					insertSyncOptions{
-						insertType:      insertSyncIncReaderWriterCount,
-						hasPendingIndex: s.reverseIndex != nil,
-						pendingIndex: dbShardPendingIndex{
-							timestamp:  timestamp,
-							enqueuedAt: s.nowFn(),
-						},
-					})
-				if err != nil {
-					multiErr = multiErr.Add(err)
-					continue
-				}
-			} else {
-				// No longer needed as we found the series and we don't require
-				// them for insertion.
-				// FOLLOWUP(r): Audit places that keep refs to the ID from a
-				// bootstrap result, newShardEntry copies it but some of the
-				// bootstrapped blocks when using certain series cache policies
-				// keeps refs to the ID with seriesID, so for now these IDs will
-				// be garbage collected)
-				tags.Finalize()
-			}
-
-			// NB(rartoul): The data being loaded is not part of the bootstrap process then it needs to be
-			// loaded as a cold write because the load could be happening concurrently with
-			// other processes like the flush (as opposed to bootstrap which cannot happen
-			// concurrently with a flush) and there is no way to know if this series/block
-			// combination has been warm flushed or not yet since updating the shard block state
-			// doesn't happen until the entire flush completes.
-			//
-			// As a result the only safe operation is to load the block as a cold write which
-			// ensures that the data will eventually be flushed and merged with the existing data
-			// on disk in the two scenarios where the Load() API is used (cold writes and repairs).
-			err = entry.Series.LoadBlock(block, series.ColdWrite)
+			result, err := s.loadBlock(id, tags, block)
 			if err != nil {
 				multiErr = multiErr.Add(err)
 			}
-			// Cannot close blocks once done as series takes ref to them.
 
-			// Check if needs to be reverse indexed.
-			if s.reverseIndex != nil &&
-				entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
-					shardOpts.writeNewSeriesAsync)
-				if err != nil {
-					multiErr = multiErr.Add(err)
-				}
-			}
+			canFinalizeTagsAll = canFinalizeTagsAll && result.canFinalizeTags
+		}
 
-			// Always decrement the writer count, avoid continue on bootstrap error.
-			entry.DecrementReaderWriterCount()
+		if canFinalizeTagsAll {
+			tags.Finalize()
 		}
 	}
 
