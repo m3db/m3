@@ -24,14 +24,15 @@ import (
 	"bytes"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/twotwotwo/sorts"
 )
 
 type terms struct {
-	opts        Options
-	pool        postings.Pool
-	postings    *PostingsMap
-	uniqueTerms []termElem
-	isSorted    bool
+	opts                Options
+	pool                postings.Pool
+	postings            *PostingsMap
+	uniqueTerms         []termElem
+	uniqueTermsIsSorted bool
 }
 
 type termElem struct {
@@ -59,6 +60,7 @@ func (t *terms) post(term []byte, id postings.ID) error {
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
+
 	}
 
 	// If empty posting list, track insertion of this key into the terms
@@ -72,6 +74,7 @@ func (t *terms) post(term []byte, id postings.ID) error {
 			term:     term,
 			postings: postingsList,
 		})
+		t.uniqueTermsIsSorted = false
 	}
 	return nil
 }
@@ -80,6 +83,15 @@ func (t *terms) post(term []byte, id postings.ID) error {
 func (t *terms) get(term []byte) (postings.List, bool) {
 	value, ok := t.postings.Get(term)
 	return value, ok
+}
+
+func (t *terms) sortIfRequired() {
+	if t.uniqueTermsIsSorted {
+		return
+	}
+
+	sorts.ByBytes(t)
+	t.uniqueTermsIsSorted = true
 }
 
 func (t *terms) reset() {
@@ -95,7 +107,7 @@ func (t *terms) reset() {
 		t.uniqueTerms[i] = emptyTerm
 	}
 	t.uniqueTerms = t.uniqueTerms[:0]
-	t.isSorted = false
+	t.uniqueTermsIsSorted = false
 }
 
 func (t *terms) Len() int {

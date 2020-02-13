@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
-	"github.com/twotwotwo/sorts"
 )
 
 var (
@@ -241,9 +240,10 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	if !ok {
 		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
-	if !terms.isSorted {
-		sorts.ByBytes(terms)
-		terms.isSorted = true
-	}
+
+	// NB(r): Ensure always sorted so can be used to build an FST which
+	// requires in order insertion.
+	terms.sortIfRequired()
+
 	return newTermsIter(terms.uniqueTerms), nil
 }
