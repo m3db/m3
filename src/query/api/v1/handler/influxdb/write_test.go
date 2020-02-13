@@ -23,7 +23,9 @@ package influxdb
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	xtime "github.com/m3db/m3/src/x/time"
 	imodels "github.com/influxdata/influxdb/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,4 +95,35 @@ func TestIngestIteratorDuplicateNameTag(t *testing.T) {
 		assert.Equal(t, line, iter.pop(t))
 	}
 	require.EqualError(t, iter.Error(), "non-unique Prometheus label __name__")
+}
+
+func TestIngestIteratorIssue2125(t *testing.T) {
+	// In the issue, the Tags object is reused across Next()+Current() calls
+	s := `measure,lab=foo k1=1,k2=2 1574838670386469800
+`
+	points, err := imodels.ParsePoints([]byte(s))
+	require.NoError(t, err)
+
+	iter := &ingestIterator{points: points, promRewriter: newPromRewriter()}
+	require.NoError(t, iter.Error())
+
+	assert.True(t, iter.Next())
+	t1, _, _, _ := iter.Current()
+
+	assert.True(t, iter.Next())
+	t2, _, _, _ := iter.Current()
+	require.NoError(t, iter.Error())
+
+	assert.Equal(t, t1.String(), "__name__: measure_k1, lab: foo")
+	assert.Equal(t, t2.String(), "__name__: measure_k2, lab: foo")
+}
+
+func TestDetermineTimeUnit(t *testing.T) {
+	now := time.Now()
+	zerot := now.Add(time.Duration(-now.UnixNano() % int64(time.Second)))
+	assert.Equal(t, determineTimeUnit(zerot.Add(1*time.Second)), xtime.Second)
+	assert.Equal(t, determineTimeUnit(zerot.Add(2*time.Millisecond)), xtime.Millisecond)
+	assert.Equal(t, determineTimeUnit(zerot.Add(3*time.Microsecond)), xtime.Microsecond)
+	assert.Equal(t, determineTimeUnit(zerot.Add(4*time.Nanosecond)), xtime.Nanosecond)
+
 }
