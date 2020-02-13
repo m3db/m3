@@ -31,10 +31,12 @@ import (
 )
 
 func TestChunkWriterWrite(t *testing.T) {
-	// This test panics and is shows the issue #2139:
+	// This test panics and shows issue #2139:
 	// https://github.com/m3db/m3/issues/2139
 	// The fundamental cause is that the writer used for the buffered writer
-	// (chunkWriter) writes more bytes than the bytes it is given.
+	// (chunkWriter) writes more bytes than the bytes it is given. This panic
+	// (but not the root cause) is mitigated by pull #2148:
+	// https://github.com/m3db/m3/pull/2148
 	t.SkipNow()
 
 	noopFlushFn := func(err error) {}
