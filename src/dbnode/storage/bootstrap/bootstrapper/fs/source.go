@@ -374,7 +374,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					if err != nil {
 						s.log.Error("readNextEntryAndMaybeIndex failed",
 							zap.String("error", err.Error()),
-							zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+							zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
 					}
 					totalEntries++
 				default:
@@ -388,7 +388,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				if err != nil {
 					s.log.Error("FlushBatch failed",
 						zap.String("error", err.Error()),
-						zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+						zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
 				}
 			}
 
@@ -423,7 +423,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				if err != nil {
 					s.log.Error("MarkFulfilled failed",
 						zap.String("error", err.Error()),
-						zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+						zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
 				}
 			}
 
@@ -435,7 +435,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				remainingRanges.Subtract(fulfilled)
 			} else {
 				s.log.Error(err.Error(),
-					zap.String("timeRange.start", fmt.Sprintf("%v", timeRange.Start)))
+					zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
