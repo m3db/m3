@@ -49,6 +49,7 @@ type indexJob struct {
 	id    postings.ID
 	field doc.Field
 
+	shard    int
 	idx      int
 	batchErr *index.BatchPartialError
 }
@@ -65,7 +66,7 @@ type builder struct {
 	docs         []doc.Document
 	idSet        *IDsMap
 	fields       *fieldsMap
-	uniqueFields [][]byte
+	uniqueFields [][][]byte
 
 	wg          sync.WaitGroup
 	indexQueues []chan indexJob
@@ -89,7 +90,7 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		fields: newFieldsMap(fieldsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
-		uniqueFields: make([][]byte, 0, opts.InitialCapacity()),
+		uniqueFields: make([][][]byte, 0, concurrency),
 		indexQueues:  make([]chan indexJob, 0, concurrency),
 		closed:       atomic.NewBool(false),
 	}
@@ -98,6 +99,14 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		indexQueue := make(chan indexJob, indexQueueSize)
 		b.indexQueues = append(b.indexQueues, indexQueue)
 		go b.indexWorker(indexQueue)
+
+		// Give each shard a fraction of the configured initial capacity.
+		shardInitialCapcity := opts.InitialCapacity()
+		if shardInitialCapcity > 0 {
+			shardInitialCapcity /= concurrency
+		}
+		shardUniqueFields := make([][]byte, 0, shardInitialCapcity)
+		b.uniqueFields = append(b.uniqueFields, shardUniqueFields)
 	}
 
 	return b, nil
@@ -122,10 +131,12 @@ func (b *builder) Reset(offset postings.ID) {
 	}
 
 	// Reset the unique fields slice
-	for i := range b.uniqueFields {
-		b.uniqueFields[i] = nil
+	for i, shardUniqueFields := range b.uniqueFields {
+		for i := range shardUniqueFields {
+			shardUniqueFields[i] = nil
+		}
+		b.uniqueFields[i] = shardUniqueFields[:0]
 	}
-	b.uniqueFields = b.uniqueFields[:0]
 }
 
 func (b *builder) Insert(d doc.Document) ([]byte, error) {
@@ -207,16 +218,17 @@ func (b *builder) index(
 	batchErr *index.BatchPartialError,
 ) {
 	// Do-nothing if we are already closed to avoid send on closed panics.
-	if !b.closed.Load() {
+	if b.closed.Load() {
 		return
 	}
 	b.wg.Add(1)
 	// NB(bodu): To avoid locking inside of the terms, we shard the work
 	// by field name.
-	shard := xxhash.Sum64(f.Name) % uint64(len(b.indexQueues))
+	shard := int(xxhash.Sum64(f.Name) % uint64(len(b.indexQueues)))
 	b.indexQueues[shard] <- indexJob{
 		id:       id,
 		field:    f,
+		shard:    shard,
 		idx:      i,
 		batchErr: batchErr,
 	}
@@ -226,11 +238,17 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 	for job := range indexQueue {
 		terms, ok := b.fields.Get(job.field.Name)
 		if !ok {
-			terms = newTerms(b.opts)
-			b.fields.SetUnsafe(job.field.Name, terms, fieldsMapSetUnsafeOptions{
-				NoCopyKey:     true,
-				NoFinalizeKey: true,
-			})
+			b.Lock()
+			// NB(bodu): Check again within the lock to make sure we aren't making concurrent map writes.
+			terms, ok = b.fields.Get(job.field.Name)
+			if !ok {
+				terms = newTerms(b.opts)
+				b.fields.SetUnsafe(job.field.Name, terms, fieldsMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: true,
+				})
+			}
+			b.Unlock()
 		}
 
 		// If empty field, track insertion of this key into the fields
@@ -241,9 +259,7 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 			job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: job.idx})
 		}
 		if newField {
-			b.Lock()
-			b.uniqueFields = append(b.uniqueFields, job.field.Name)
-			b.Unlock()
+			b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], job.field.Name)
 		}
 		b.wg.Done()
 	}
