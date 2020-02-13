@@ -33,43 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexResultGetOrAddSegment(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	created := segment.NewMockMutableSegment(ctrl)
-	allocated := 0
-	opts := NewOptions().
-		SetIndexMutableSegmentAllocator(func() (segment.MutableSegment, error) {
-			allocated++
-			return created, nil
-		})
-
-	now := time.Now()
-	blockSize := time.Hour
-	idxOpts := namespace.NewIndexOptions().SetBlockSize(blockSize)
-	aligned := now.Truncate(blockSize)
-
-	results := IndexResults{}
-	seg, err := results.GetOrAddSegment(aligned.Add(time.Minute), idxOpts, opts)
-	require.NoError(t, err)
-	require.True(t, seg == created)
-	require.Equal(t, 1, len(results))
-
-	seg, err = results.GetOrAddSegment(aligned.Add(2*time.Minute), idxOpts, opts)
-	require.NoError(t, err)
-	require.True(t, seg == created)
-	require.Equal(t, 1, len(results))
-
-	seg, err = results.GetOrAddSegment(aligned.Add(blockSize), idxOpts, opts)
-	require.NoError(t, err)
-	require.True(t, seg == created)
-	require.Equal(t, 2, len(results))
-
-	// Total allocs should've only been two
-	require.Equal(t, 2, allocated)
-}
-
 func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

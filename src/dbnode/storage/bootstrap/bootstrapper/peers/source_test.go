@@ -146,7 +146,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				Return(mockRuntimeOpts).
 				AnyTimes()
 
-			opts := testDefaultOpts.
+			opts := newTestDefaultOpts(t, ctrl).
 				SetRuntimeOptionsManager(mockRuntimeOptsMgr)
 
 			src, err := newPeersSource(opts)
@@ -177,10 +177,9 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		testNsMd   = testNamespaceMetadata(t)
-		resultOpts = testDefaultResultOpts
-		opts       = testDefaultOpts.SetResultOptions(resultOpts)
-		ropts      = testNsMd.Options().RetentionOptions()
+		testNsMd = testNamespaceMetadata(t)
+		opts     = newTestDefaultOpts(t, ctrl)
+		ropts    = testNsMd.Options().RetentionOptions()
 
 		start = time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end   = start.Add(2 * ropts.BlockSize())

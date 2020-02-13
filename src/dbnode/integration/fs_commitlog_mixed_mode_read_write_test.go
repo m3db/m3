@@ -252,11 +252,14 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
+	storageIdxOpts := setup.storageOpts.IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
+		SetIndexOptions(storageIdxOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-		SetPersistManager(persistMgr)
+		SetPersistManager(persistMgr).
+		SetCompactor(newCompactor(t, storageIdxOpts))
 
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	require.NoError(t, err)

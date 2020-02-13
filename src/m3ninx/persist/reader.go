@@ -79,27 +79,27 @@ func filesetToSegmentData(fileset IndexSegmentFileSet) (fst.SegmentData, error) 
 		fileType := f.SegmentFileType()
 		switch fileType {
 		case DocumentDataIndexSegmentFileType:
-			sd.DocsData, err = f.Bytes()
+			sd.DocsData, err = f.Mmap()
 			if err != nil {
 				return sd, err
 			}
 		case DocumentIndexIndexSegmentFileType:
-			sd.DocsIdxData, err = f.Bytes()
+			sd.DocsIdxData, err = f.Mmap()
 			if err != nil {
 				return sd, err
 			}
 		case PostingsIndexSegmentFileType:
-			sd.PostingsData, err = f.Bytes()
+			sd.PostingsData, err = f.Mmap()
 			if err != nil {
 				return sd, err
 			}
 		case FSTFieldsIndexSegmentFileType:
-			sd.FSTFieldsData, err = f.Bytes()
+			sd.FSTFieldsData, err = f.Mmap()
 			if err != nil {
 				return sd, err
 			}
 		case FSTTermsIndexSegmentFileType:
-			sd.FSTTermsData, err = f.Bytes()
+			sd.FSTTermsData, err = f.Mmap()
 			if err != nil {
 				return sd, err
 			}
