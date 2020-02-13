@@ -194,7 +194,3 @@ func readIntLE(b []byte, size uintptr) uint64 {
 		panic("syscall: readInt with unsupported size")
 	}
 }
-
-func yoloString(b []byte) string {
-	return *((*string)(unsafe.Pointer(&b)))
-}
