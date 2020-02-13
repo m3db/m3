@@ -83,7 +83,7 @@ func (d *testDir) Cleanup() {
 
 func TestDelete(t *testing.T) {
 	simpleDeleter := NewSimpleFileDeleter()
-	efficientDeleter := NewEfficientFileDeleter(2048)
+	efficientDeleter := NewEfficientFileDeleter(256)
 
 	singleExt := map[string]int{
 		".torrent": 123,

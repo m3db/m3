@@ -22,7 +22,6 @@ package fs
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,26 +75,31 @@ func (d *EfficientFileDeleter) Delete(pattern string) error {
 	}
 	defer openDir.Close()
 
+	var namesToDelete []string
 	for i := 0; ; i++ {
 		n, err := syscall.ReadDirent(int(openDir.Fd()), d.fileNames)
 		if err != nil {
 			return err
 		}
-		fmt.Println("BATCH", n)
-		deleteMatchingFiles(dir, d.fileNames[:n], file)
+		namesToDelete = append(namesToDelete, matchFilesToDelete(dir, d.fileNames[:n], file)...)
 		if n <= 0 {
 			break
 		}
 	}
 
-	return nil
+	for _, nameToDelete := range namesToDelete {
+		// Even if we hit an err, we continue deletion attempts in case it is file specific.
+		err = os.Remove(nameToDelete)
+	}
+	return err
 }
 
-func deleteMatchingFiles(dir string, fileNames []byte, filePattern string) {
+func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []string {
+	var namesToDelete []string
 	for len(fileNames) > 0 {
 		reclen, ok := direntReclen(fileNames)
 		if !ok || reclen > uint64(len(fileNames)) {
-			return
+			return namesToDelete
 		}
 
 		rec := fileNames[:reclen]
@@ -130,19 +134,18 @@ func deleteMatchingFiles(dir string, fileNames []byte, filePattern string) {
 		// raw bytes to avoid this yolo cast to call the Match func.
 		nameStr := yoloString(name)
 		matched, _ := filepath.Match(filePattern, nameStr)
-		fmt.Println("FILE ", filePattern, matched, string(nameStr))
 		if !matched {
 			continue
 		}
 
-		// Avoid actually allocating the string for the file path to delete until right before the actual delete
-		// call. This ensures we only allocate what we absolutely must to call native file deletion. Note it is fine
-		// that we allocate the directory string since there are very few directories and that gets shared per batch.
+		// Use only []byte instead of string until we know for sure we will delete the filename.
+		// That way we avoid unnecessary string allocation for filenames we are not going to delete.
 		var pathToDelete strings.Builder
 		pathToDelete.WriteString(dir)
 		pathToDelete.Write(name)
-		os.Remove(pathToDelete.String())
+		namesToDelete = append(namesToDelete, pathToDelete.String())
 	}
+	return namesToDelete
 }
 
 func direntReclen(buf []byte) (uint64, bool) {
