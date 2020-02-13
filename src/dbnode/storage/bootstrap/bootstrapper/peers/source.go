@@ -779,6 +779,10 @@ func (s *peersSource) processReaders(
 			}
 		}
 	}
+	if totalEntries == 0 {
+		// NB(r): Do not try to build a segment if no entries to index.
+		return remainingRanges, timesWithErrors
+	}
 
 	// Only persist to disk if the requested ranges were completely fulfilled.
 	// Otherwise, this is the latest index segment and should only exist in mem.

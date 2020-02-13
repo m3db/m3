@@ -444,6 +444,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	var (
 		noneRemaining      = remainingRanges.IsEmpty()
 		shouldBuildSegment = run == bootstrapIndexRunType &&
+			// NB(r): Do not try to build a segment if no entries to index.
+			totalEntries > 0 &&
 			len(timesWithErrors) == 0
 	)
 	if shouldBuildSegment {
