@@ -132,8 +132,10 @@ func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []stri
 
 		// TODO: consider implementing the wildcard pattern matching on the
 		// raw bytes to avoid this yolo cast to call the Match func.
-		nameStr := yoloString(name)
-		matched, _ := filepath.Match(filePattern, nameStr)
+		matched := false
+		unsafe.WithString(name, func(s string) {
+			matched, _ = filepath.Match(filePattern, s)
+		})
 		if !matched {
 			continue
 		}
