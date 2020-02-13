@@ -2043,6 +2043,86 @@ func (s *dbShard) LoadBlocks(
 	return multiErr.FinalError()
 }
 
+type loadBlockResult struct {
+	canFinalizeTags bool
+}
+
+func (s *dbShard) loadBlock(
+	id ident.ID,
+	tags ident.Tags,
+	block block.DatabaseBlock,
+) (loadBlockResult, error) {
+	var (
+		timestamp = block.StartTime()
+		result    loadBlockResult
+	)
+
+	// First lookup if series already exists.
+	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+	if err != nil && err != errShardEntryNotFound {
+		return result, err
+	}
+	if entry == nil {
+		// Synchronously insert to avoid waiting for the insert queue which could potentially
+		// delay the insert.
+		entry, err = s.insertSeriesSync(id, newTagsArg(tags),
+			insertSyncOptions{
+				// NB(r): Because insertSyncIncReaderWriterCount is used here we
+				// don't need to explicitly increment the reader/writer count and it
+				// will happen while the write lock is held so that it can't immediately
+				// be expired.
+				insertType:      insertSyncIncReaderWriterCount,
+				hasPendingIndex: s.reverseIndex != nil,
+				pendingIndex: dbShardPendingIndex{
+					timestamp:  timestamp,
+					enqueuedAt: s.nowFn(),
+				},
+			})
+		if err != nil {
+			return result, err
+		}
+	} else {
+		// No longer needed as we found the series and we don't require
+		// them for insertion.
+		// FOLLOWUP(r): Audit places that keep refs to the ID from a
+		// bootstrap result, newShardEntry copies it but some of the
+		// bootstrapped blocks when using certain series cache policies
+		// keeps refs to the ID with seriesID, so for now these IDs will
+		// be garbage collected)
+		result.canFinalizeTags = true
+	}
+
+	// Always decrement the reader writer count.
+	defer entry.DecrementReaderWriterCount()
+
+	// NB(rartoul): The data being loaded is not part of the bootstrap process then it needs to be
+	// loaded as a cold write because the load could be happening concurrently with
+	// other processes like the flush (as opposed to bootstrap which cannot happen
+	// concurrently with a flush) and there is no way to know if this series/block
+	// combination has been warm flushed or not yet since updating the shard block state
+	// doesn't happen until the entire flush completes.
+	//
+	// As a result the only safe operation is to load the block as a cold write which
+	// ensures that the data will eventually be flushed and merged with the existing data
+	// on disk in the two scenarios where the Load() API is used (cold writes and repairs).
+	if err := entry.Series.LoadBlock(block, series.ColdWrite); err != nil {
+		return result, err
+	}
+	// Cannot close blocks once done as series takes ref to them.
+
+	// Check if needs to be reverse indexed.
+	if s.reverseIndex != nil &&
+		entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
+		err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+			shardOpts.writeNewSeriesAsync)
+		if err != nil {
+			return result, err
+		}
+	}
+
+	return result, nil
+}
+
 func (s *dbShard) cacheShardIndices() error {
 	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	// May be nil depending on the caching policy.
