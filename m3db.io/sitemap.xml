@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -13,19 +13,19 @@
         
     <url>
      <loc>/overview/components/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/overview/motivation/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/overview/media/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -35,7 +35,7 @@
         
     <url>
      <loc>/m3db/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -51,7 +51,7 @@
         
     <url>
      <loc>/coordinator/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -67,7 +67,7 @@
         
     <url>
      <loc>/query_engine/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -95,31 +95,31 @@
         
     <url>
      <loc>/how_to/single_node/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/how_to/cluster_hard_way/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/how_to/kubernetes/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/how_to/query/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/how_to/use_as_tsdb/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -129,79 +129,79 @@
         
     <url>
      <loc>/operational_guide/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/replication_and_deployment_in_zones/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/replication_between_clusters/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/repairs/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/availability_consistency_durability/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/placement/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/placement_configuration/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/namespace_configuration/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/bootstrapping_crash_recovery/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/kernel_configuration/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/etcd/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/monitoring/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/operational_guide/mapping_rollup/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -211,19 +211,19 @@
         
     <url>
      <loc>/integrations/prometheus/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/integrations/graphite/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/integrations/grafana/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -233,7 +233,7 @@
         
     <url>
      <loc>/performance/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -254,7 +254,7 @@
     
     <url>
      <loc>/troubleshooting/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -262,7 +262,7 @@
     
     <url>
      <loc>/faqs/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -270,7 +270,7 @@
     
     <url>
      <loc>/glossary/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -278,7 +278,7 @@
     
     <url>
      <loc>/misc/writing_docs/</loc>
-     <lastmod>2020-02-12</lastmod>
+     <lastmod>2020-02-13</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
