@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -249,6 +250,13 @@ func (w *writer) Write(
 	w.logEncoderBuff, err = msgpack.EncodeLogEntryFast(w.logEncoderBuff[:0], logEntry)
 	if err != nil {
 		return err
+	}
+	if writeSize, flushSize := len(w.logEncoderBuff), w.opts.FlushSize(); writeSize > flushSize {
+		// If we attempt to do a write with a size greater than the flush size,
+		// we would panic (if we were to not do this check here). This is due to
+		// the size of an underlying buffer being initialized to the flush size.
+		// Further details here: https://github.com/m3db/m3/issues/2139.
+		return fmt.Errorf("write size [%d] larger than flush size [%d]", writeSize, flushSize)
 	}
 
 	if err := w.write(w.logEncoderBuff); err != nil {
