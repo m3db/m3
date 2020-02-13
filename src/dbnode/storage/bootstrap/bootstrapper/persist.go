@@ -109,7 +109,8 @@ func PersistBootstrapIndexSegment(
 		// - peers data bootstrap writes empty ts data files to disk
 		// - peers index bootstrap reads empty ts data files md from disk
 		// - attempt to bootstrap time ranges that have no index results block
-		return nil
+		return fmt.Errorf("could not find index block in results: time=%s, ts=%d",
+			blockStart.String(), blockStart.UnixNano())
 	}
 	if len(builder.Docs()) == 0 {
 		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
@@ -267,7 +268,8 @@ func BuildBootstrapIndexSegment(
 		// - peers data bootstrap writes empty ts data files to disk
 		// - peers index bootstrap reads empty ts data files md from disk
 		// - attempt to bootstrap time ranges that have no index results block
-		return nil
+		return fmt.Errorf("could not find index block in results: time=%s, ts=%d",
+			blockStart.String(), blockStart.UnixNano())
 	}
 	if len(builder.Docs()) == 0 {
 		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
