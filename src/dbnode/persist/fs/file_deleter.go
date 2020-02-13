@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,6 +81,7 @@ func (d *EfficientFileDeleter) Delete(pattern string) error {
 		if err != nil {
 			return err
 		}
+		fmt.Println("BATCH", n)
 		deleteMatchingFiles(dir, d.fileNames[:n], file)
 		if n <= 0 {
 			break
@@ -128,6 +130,7 @@ func deleteMatchingFiles(dir string, fileNames []byte, filePattern string) {
 		// raw bytes to avoid this yolo cast to call the Match func.
 		nameStr := yoloString(name)
 		matched, _ := filepath.Match(filePattern, nameStr)
+		fmt.Println("FILE ", filePattern, matched, string(nameStr))
 		if !matched {
 			continue
 		}
