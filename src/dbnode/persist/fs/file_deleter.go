@@ -46,8 +46,10 @@ type EfficientFileDeleter struct {
 type SimpleFileDeleter struct {
 }
 
-// NewEfficientFileDeleter returns a new deleter with a max allocation of bytes to use when deleting.
-func NewEfficientFileDeleter(maxMemoryInBytes int) FileDeleter {
+// NewEfficientFileDeleter returns a new deleter that will avoid allocating unnecessary memory. Specifically
+// it batch processes the matching of the filenames to be deleted in a fixed buffer with the provided filenameBatchByteSize.
+// It then allocates memory only for the matched string filenames to be deleted, rather than all files in a given directory.
+func NewEfficientFileDeleter(filenameBatchByteSize int) FileDeleter {
 	return &EfficientFileDeleter{
 		fileNames: make([]byte, maxMemoryInBytes),
 	}
