@@ -27,6 +27,8 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
+
+	xunsafe "github.com/m3db/m3/src/x/unsafe"
 )
 
 // FileDeleter deletes files.
@@ -133,7 +135,7 @@ func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []stri
 		// TODO: consider implementing the wildcard pattern matching on the
 		// raw bytes to avoid this yolo cast to call the Match func.
 		matched := false
-		unsafe.WithString(name, func(s string) {
+		xunsafe.WithString(name, func(s string) {
 			matched, _ = filepath.Match(filePattern, s)
 		})
 		if !matched {
