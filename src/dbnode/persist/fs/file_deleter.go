@@ -51,7 +51,7 @@ type SimpleFileDeleter struct {
 // It then allocates memory only for the matched string filenames to be deleted, rather than all files in a given directory.
 func NewEfficientFileDeleter(filenameBatchByteSize int) FileDeleter {
 	return &EfficientFileDeleter{
-		fileNames: make([]byte, maxMemoryInBytes),
+		fileNames: make([]byte, filenameBatchByteSize),
 	}
 }
 
