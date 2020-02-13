@@ -80,12 +80,6 @@ var (
 	doubleDotBytes = []byte("..")
 )
 
-func TestFileDeleter(t *testing.T) {
-	deleter := NewEfficientFileDeleter(2048)
-	err := deleter.Delete("/Users/ryan/Dev/testfiles/a.go")
-	fmt.Println("ERR", err)
-}
-
 func TestStuff(t *testing.T) {
 	path := "/Users/ryan/Dev/monorepo/*.log"
 	a, b := filepath.Split(path)

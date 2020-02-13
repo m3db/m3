@@ -44,11 +44,16 @@ type EfficientFileDeleter struct {
 type SimpleFileDeleter struct {
 }
 
-// NewEfficientFileDeleter returns a new deleter with a set of bytes to use for batch deletions.
+// NewEfficientFileDeleter returns a new deleter with a max allocation of bytes to use when deleting.
 func NewEfficientFileDeleter(maxMemoryInBytes int) FileDeleter {
 	return &EfficientFileDeleter{
 		fileNames: make([]byte, maxMemoryInBytes),
 	}
+}
+
+// NewSimpleFileDeleter returns a new deleter that performs standard native GO file deletion.
+func NewSimpleFileDeleter() FileDeleter {
+	return &SimpleFileDeleter{}
 }
 
 // Delete deletes all of the files that match the pattern.
