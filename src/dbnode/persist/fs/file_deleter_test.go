@@ -93,53 +93,113 @@ func TestDelete(t *testing.T) {
 		"txt": 10,
 		"sql": 1,
 	}
+	expectedMultiEmptyCount := map[string]int{
+		"tmp": 0,
+		"txt": 0,
+		"sql": 0,
+	}
 
 	tests := []struct {
-		name       string
-		deleter    FileDeleter
-		pattern    string
-		filesByExt map[string]int
+		name               string
+		deleter            FileDeleter
+		pattern            string
+		filesByExt         map[string]int
+		expectedFilesByExt map[string]int
 	}{
 		{
-			name:       "simple - zero files",
+			name:               "simple - zero files - all pattern",
+			deleter:            simpleDeleter,
+			pattern:            "*",
+			filesByExt:         map[string]int{},
+			expectedFilesByExt: expectedMultiEmptyCount,
+		},
+		{
+			name:               "efficient - zero files - all pattern",
+			deleter:            efficientDeleter,
+			pattern:            "*",
+			filesByExt:         map[string]int{},
+			expectedFilesByExt: expectedMultiEmptyCount,
+		},
+		{
+			name:               "simple - single extension - all pattern",
+			deleter:            simpleDeleter,
+			pattern:            "*",
+			filesByExt:         singleExt,
+			expectedFilesByExt: expectedMultiEmptyCount,
+		},
+		{
+			name:               "efficient - single extension - all pattern",
+			deleter:            efficientDeleter,
+			pattern:            "*",
+			filesByExt:         singleExt,
+			expectedFilesByExt: expectedMultiEmptyCount,
+		},
+		{
+			name:               "simple - multiple extensions - all pattern",
+			deleter:            simpleDeleter,
+			pattern:            "*",
+			filesByExt:         multiExt,
+			expectedFilesByExt: expectedMultiEmptyCount,
+		},
+		{
+			name:               "efficient - multiple extensions - all pattern",
+			deleter:            efficientDeleter,
+			pattern:            "*",
+			filesByExt:         multiExt,
+			expectedFilesByExt: expectedMultiEmptyCount,
+		},
+		{
+			name:       "simple - multiple extensions - single ext pattern",
 			deleter:    simpleDeleter,
-			pattern:    "*",
-			filesByExt: map[string]int{},
-		},
-		{
-			name:       "efficient - zero files",
-			deleter:    efficientDeleter,
-			pattern:    "*",
-			filesByExt: map[string]int{},
-		},
-		{
-			name:       "simple - single extension",
-			deleter:    simpleDeleter,
-			pattern:    "*",
-			filesByExt: singleExt,
-		},
-		{
-			name:       "efficient - single extension",
-			deleter:    efficientDeleter,
-			pattern:    "*",
-			filesByExt: singleExt,
-		},
-		{
-			name:       "simple - multiple extensions",
-			deleter:    simpleDeleter,
-			pattern:    "*",
+			pattern:    "*.txt",
 			filesByExt: multiExt,
+			expectedFilesByExt: map[string]int{
+				"tmp": 100,
+				// All TXT deleted.
+				"txt": 0,
+				"sql": 1,
+			},
 		},
 		{
-			name:       "efficient - multiple extensions",
+			name:       "efficient - multiple extensions - single ext pattern",
 			deleter:    efficientDeleter,
-			pattern:    "*",
+			pattern:    "*.txt",
 			filesByExt: multiExt,
+			expectedFilesByExt: map[string]int{
+				"tmp": 100,
+				// All TXT deleted.
+				"txt": 0,
+				"sql": 1,
+			},
+		},
+		{
+			name:       "simple - multiple extensions - single file pattern",
+			deleter:    simpleDeleter,
+			pattern:    "testfile_3.txt",
+			filesByExt: multiExt,
+			expectedFilesByExt: map[string]int{
+				"tmp": 100,
+				// Only 1 TXT deleted.
+				"txt": 9,
+				"sql": 1,
+			},
+		},
+		{
+			name:       "efficient - multiple extensions - single file pattern",
+			deleter:    efficientDeleter,
+			pattern:    "testfile_3.txt",
+			filesByExt: multiExt,
+			expectedFilesByExt: map[string]int{
+				"tmp": 100,
+				// Only 1 TXT deleted.
+				"txt": 9,
+				"sql": 1,
+			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			dir, err := newTestDir("test 1", test.filesByExt)
+			dir, err := newTestDir(test.name, test.filesByExt)
 			require.NoError(t, err)
 			defer dir.Cleanup()
 
@@ -159,17 +219,17 @@ func TestDelete(t *testing.T) {
 			err = test.deleter.Delete(pattern)
 			require.NoError(t, err)
 			files = dir.FilesByExtension()
-			require.Equal(t, 0, len(files["tmp"]))
-			require.Equal(t, 0, len(files["txt"]))
-			require.Equal(t, 0, len(files["sql"]))
+			require.Equal(t, test.expectedFilesByExt["tmp"], len(files["tmp"]))
+			require.Equal(t, test.expectedFilesByExt["txt"], len(files["txt"]))
+			require.Equal(t, test.expectedFilesByExt["sql"], len(files["sql"]))
 
-			// Verify safe when already deleted.
+			// Verify idempotent.
 			err = test.deleter.Delete(pattern)
 			require.NoError(t, err)
 			files = dir.FilesByExtension()
-			require.Equal(t, 0, len(files["tmp"]))
-			require.Equal(t, 0, len(files["txt"]))
-			require.Equal(t, 0, len(files["sql"]))
+			require.Equal(t, test.expectedFilesByExt["tmp"], len(files["tmp"]))
+			require.Equal(t, test.expectedFilesByExt["txt"], len(files["txt"]))
+			require.Equal(t, test.expectedFilesByExt["sql"], len(files["sql"]))
 		})
 	}
 }
