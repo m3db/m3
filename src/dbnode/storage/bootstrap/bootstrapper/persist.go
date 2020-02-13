@@ -300,8 +300,3 @@ func BuildBootstrapIndexSegment(
 	indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
 	return nil
 }
-
-type writeLock interface {
-	Lock()
-	Unlock()
-}
