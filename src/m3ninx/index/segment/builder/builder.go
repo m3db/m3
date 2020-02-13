@@ -23,19 +23,39 @@ package builder
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
+	"go.uber.org/atomic"
+
+	"github.com/cespare/xxhash"
 )
 
 var (
 	errDocNotFound = errors.New("doc not found")
 )
 
+const (
+	// Slightly buffer the work to avoid blocking main thread.
+	indexQueueSize = 2 << 7
+)
+
+type indexJob struct {
+	id    postings.ID
+	field doc.Field
+
+	idx      int
+	batchErr *index.BatchPartialError
+}
+
 type builder struct {
+	sync.Mutex
+
 	opts      Options
 	newUUIDFn util.NewUUIDFn
 
@@ -46,18 +66,22 @@ type builder struct {
 	idSet        *IDsMap
 	fields       *fieldsMap
 	uniqueFields [][]byte
+
+	wg          sync.WaitGroup
+	indexQueues []chan indexJob
+	closed      *atomic.Bool
 }
 
 // NewBuilderFromDocuments returns a builder from documents, it is
 // not thread safe and is optimized for insertion speed and a
 // final build step when documents are indexed.
-func NewBuilderFromDocuments(opts Options) (segment.DocumentsBuilder, error) {
-	return &builder{
+func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, error) {
+	concurrency := runtime.NumCPU()
+	b := &builder{
 		opts:      opts,
 		newUUIDFn: opts.NewUUIDFn(),
 		batchSizeOne: index.Batch{
-			Docs:                make([]doc.Document, 1),
-			AllowPartialUpdates: false,
+			Docs: make([]doc.Document, 1),
 		},
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
@@ -66,7 +90,17 @@ func NewBuilderFromDocuments(opts Options) (segment.DocumentsBuilder, error) {
 			InitialSize: opts.InitialCapacity(),
 		}),
 		uniqueFields: make([][]byte, 0, opts.InitialCapacity()),
-	}, nil
+		indexQueues:  make([]chan indexJob, 0, concurrency),
+		closed:       atomic.NewBool(false),
+	}
+
+	for i := 0; i < concurrency; i++ {
+		indexQueue := make(chan indexJob, indexQueueSize)
+		b.indexQueues = append(b.indexQueues, indexQueue)
+		go b.indexWorker(indexQueue)
+	}
+
+	return b, nil
 }
 
 func (b *builder) Reset(offset postings.ID) {
@@ -113,9 +147,6 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 	for i, d := range batch.Docs {
 		// Validate doc
 		if err := d.Validate(); err != nil {
-			if !batch.AllowPartialUpdates {
-				return err
-			}
 			batchErr.Add(index.BatchError{Err: err, Idx: i})
 			continue
 		}
@@ -124,9 +155,6 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 		if !d.HasID() {
 			id, err := b.newUUIDFn()
 			if err != nil {
-				if !batch.AllowPartialUpdates {
-					return err
-				}
 				batchErr.Add(index.BatchError{Err: err, Idx: i})
 				continue
 			}
@@ -139,9 +167,6 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 
 		// Avoid duplicates.
 		if _, ok := b.idSet.Get(d.ID); ok {
-			if !batch.AllowPartialUpdates {
-				return index.ErrDuplicateID
-			}
 			batchErr.Add(index.BatchError{Err: index.ErrDuplicateID, Idx: i})
 			continue
 		}
@@ -158,23 +183,16 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 
 		// Index the terms.
 		for _, f := range d.Fields {
-			if err := b.index(postings.ID(postingsListID), f); err != nil {
-				if !batch.AllowPartialUpdates {
-					return err
-				}
-				batchErr.Add(index.BatchError{Err: err, Idx: i})
-			}
+			b.index(postings.ID(postingsListID), f, i, batchErr)
 		}
-		if err := b.index(postings.ID(postingsListID), doc.Field{
+		b.index(postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
-		}); err != nil {
-			if !batch.AllowPartialUpdates {
-				return err
-			}
-			batchErr.Add(index.BatchError{Err: err, Idx: i})
-		}
+		}, i, batchErr)
 	}
+
+	// Wait for all the concurrent indexing jobs to finish.
+	b.wg.Wait()
 
 	if !batchErr.IsEmpty() {
 		return batchErr
@@ -182,26 +200,53 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 	return nil
 }
 
-func (b *builder) index(id postings.ID, f doc.Field) error {
-	terms, ok := b.fields.Get(f.Name)
-	if !ok {
-		terms = newTerms(b.opts)
-		b.fields.SetUnsafe(f.Name, terms, fieldsMapSetUnsafeOptions{
-			NoCopyKey:     true,
-			NoFinalizeKey: true,
-		})
+func (b *builder) index(
+	id postings.ID,
+	f doc.Field,
+	i int,
+	batchErr *index.BatchPartialError,
+) {
+	// Do-nothing if we are already closed to avoid send on closed panics.
+	if !b.closed.Load() {
+		return
 	}
+	b.wg.Add(1)
+	// NB(bodu): To avoid locking inside of the terms, we shard the work
+	// by field name.
+	shard := xxhash.Sum64(f.Name) % uint64(len(b.indexQueues))
+	b.indexQueues[shard] <- indexJob{
+		id:       id,
+		field:    f,
+		idx:      i,
+		batchErr: batchErr,
+	}
+}
 
-	// If empty field, track insertion of this key into the fields
-	// collection for correct response when retrieving all fields.
-	newField := terms.size() == 0
-	if err := terms.post(f.Value, id); err != nil {
-		return err
+func (b *builder) indexWorker(indexQueue chan indexJob) {
+	for job := range indexQueue {
+		terms, ok := b.fields.Get(job.field.Name)
+		if !ok {
+			terms = newTerms(b.opts)
+			b.fields.SetUnsafe(job.field.Name, terms, fieldsMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			})
+		}
+
+		// If empty field, track insertion of this key into the fields
+		// collection for correct response when retrieving all fields.
+		newField := terms.size() == 0
+		// NB(bodu): Bulk of the cpu time during insertion is spent inside of terms.post().
+		if err := terms.post(job.field.Value, job.id); err != nil {
+			job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: job.idx})
+		}
+		if newField {
+			b.Lock()
+			b.uniqueFields = append(b.uniqueFields, job.field.Name)
+			b.Unlock()
+		}
+		b.wg.Done()
 	}
-	if newField {
-		b.uniqueFields = append(b.uniqueFields, f.Name)
-	}
-	return nil
 }
 
 func (b *builder) AllDocs() (index.IDDocIterator, error) {
@@ -246,4 +291,12 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	terms.sortIfRequired()
 
 	return newTermsIter(terms.uniqueTerms), nil
+}
+
+func (b *builder) Close() error {
+	b.closed.Store(true)
+	for _, q := range b.indexQueues {
+		close(q)
+	}
+	return nil
 }

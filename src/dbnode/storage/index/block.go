@@ -706,18 +706,20 @@ func (b *block) cleanupForegroundCompactWithLock() {
 	b.foregroundSegments = nil
 
 	// Free compactor resources.
-	if b.compact.foregroundCompactor == nil {
-		return
+	if b.compact.foregroundCompactor != nil {
+		if err := b.compact.foregroundCompactor.Close(); err != nil {
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("error closing index block foreground compactor", zap.Error(err))
+			})
+		}
+		b.compact.foregroundCompactor = nil
 	}
 
-	if err := b.compact.foregroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-			l.Error("error closing index block foreground compactor", zap.Error(err))
-		})
+	// Free segment builder resources.
+	if b.compact.segmentBuilder != nil {
+		b.compact.segmentBuilder.Close()
+		b.compact.segmentBuilder = nil
 	}
-
-	b.compact.foregroundCompactor = nil
-	b.compact.segmentBuilder = nil
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
@@ -1484,7 +1486,7 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 
 // blockCompact has several lazily allocated compaction components.
 type blockCompact struct {
-	segmentBuilder       segment.DocumentsBuilder
+	segmentBuilder       segment.CloseableDocumentsBuilder
 	foregroundCompactor  *compaction.Compactor
 	backgroundCompactor  *compaction.Compactor
 	compactingForeground bool
