@@ -1087,6 +1087,21 @@ func IndexFileSetsBefore(filePathPrefix string, namespace ident.ID, t time.Time)
 	return FilesBefore(matched.Filepaths(), t)
 }
 
+// IndexFileSetsDirectory returns the directory for the index files based on the inputs.
+func IndexFileSetsDirectory(filePathPrefix string, namespace ident.ID) (string, error) {
+	dir, err := filesetDirectory(filesetFilesSelector{
+		fileSetType:    persist.FileSetFlushType,
+		contentType:    persist.FileSetIndexContentType,
+		filePathPrefix: filePathPrefix,
+		namespace:      namespace,
+		pattern:        filesetFilePattern,
+	})
+	if err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
 // inputed active directories within the parent directory
 func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []string) error {

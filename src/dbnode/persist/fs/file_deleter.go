@@ -49,7 +49,7 @@ type matchFilter struct {
 
 type minTimeFilter struct {
 	min          time.Time
-	nameToTimeFn func(s string) time.Time
+	nameToTimeFn func(s string) (time.Time, error)
 }
 
 // FilterSetter configures are options to file to specific files to delete.
@@ -64,7 +64,7 @@ func Matches(pattern string) FilterSetter {
 
 // OlderThan filters to files older than the provided min time.
 // A func must be provided to convert from filename to time.
-func OlderThan(min time.Time, nameToTimeFn func(s string) time.Time) FilterSetter {
+func OlderThan(min time.Time, nameToTimeFn func(s string) (time.Time, error)) FilterSetter {
 	return func(f *filterConfig) {
 		f.minTime = &minTimeFilter{
 			min:          min,

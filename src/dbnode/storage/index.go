@@ -123,6 +123,8 @@ type nsIndex struct {
 	// forwardIndexDice determines if an incoming index write should be dual
 	// written to the next block.
 	forwardIndexDice forwardIndexDice
+
+	fileDeleter fs.FileDeleter
 }
 
 type nsIndexState struct {
@@ -310,6 +312,9 @@ func newNamespaceIndexWithOptions(
 
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+
+		// 10 MB allocated for deletion byte buffer.
+		fileDeleter: fs.NewEfficientFileDeleter(10 * 1000 * 1024)
 	}
 
 	// Assign shard set upfront.
@@ -1495,13 +1500,18 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 		pathPrefix = i.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 		nsID       = i.nsMetadata.ID()
 	)
-	filesets, err := i.indexFilesetsBeforeFn(pathPrefix, nsID, earliestBlockStartToRetain)
+	directory, err := fs.IndexFileSetsDirectory(pathPrefix, nsID)
 	if err != nil {
 		return err
 	}
 
 	// and delete them
-	return i.deleteFilesFn(filesets)
+	return i.fileDeleter.Delete(directory, 
+		fs.Matches(filesetFilePattern), 
+		fs.OlderThan(earliestBlockStartToRetain, func(s string){
+			return fs.TimeFromFileName(s)
+		}),
+	)
 }
 
 func (i *nsIndex) Close() error {
