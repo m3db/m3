@@ -2095,10 +2095,15 @@ func (s *service) readEncodedResultSegment(
 		sp.LogFields(
 			opentracinglog.String("id", nsID.String()),
 			opentracinglog.Int("blockCount", len(readers)),
-			opentracinglog.Int64("mergedBlockSize", converted.Segments.Merged.GetBlockSize()),
-			opentracinglog.Int64("mergedStartTime", converted.Segments.Merged.GetStartTime()),
 			opentracinglog.Int("unmergedCount", len(converted.Segments.Unmerged)),
 		)
+
+		if converted.Segments.Merged != nil {
+			sp.LogFields(
+				opentracinglog.Int64("mergedBlockSize", converted.Segments.Merged.GetBlockSize()),
+				opentracinglog.Int64("mergedStartTime", converted.Segments.Merged.GetStartTime()),
+			)
+		}
 	}
 	return nil
 }
