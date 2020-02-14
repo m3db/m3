@@ -208,14 +208,14 @@ func TestDeleteByPattern(t *testing.T) {
 			require.Equal(t, test.filesByExt["tmp"], len(files["tmp"]))
 			require.Equal(t, test.filesByExt["txt"], len(files["txt"]))
 			require.Equal(t, test.filesByExt["sql"], len(files["sql"]))
-			err = test.deleter.Delete(dir.name, Matches("notexists.tmp"))
+			err = test.deleter.Delete(dir.name, MatchesPattern("notexists.tmp"))
 			require.NoError(t, err)
 			require.Equal(t, test.filesByExt["tmp"], len(files["tmp"]))
 			require.Equal(t, test.filesByExt["txt"], len(files["txt"]))
 			require.Equal(t, test.filesByExt["sql"], len(files["sql"]))
 
 			// Verify all deleted.
-			err = test.deleter.Delete(dir.name, Matches(test.pattern))
+			err = test.deleter.Delete(dir.name, MatchesPattern(test.pattern))
 			require.NoError(t, err)
 			files = dir.FilesByExtension()
 			require.Equal(t, test.expectedFilesByExt["tmp"], len(files["tmp"]))
@@ -223,7 +223,7 @@ func TestDeleteByPattern(t *testing.T) {
 			require.Equal(t, test.expectedFilesByExt["sql"], len(files["sql"]))
 
 			// Verify idempotent.
-			err = test.deleter.Delete(dir.name, Matches(test.pattern))
+			err = test.deleter.Delete(dir.name, MatchesPattern(test.pattern))
 			require.NoError(t, err)
 			files = dir.FilesByExtension()
 			require.Equal(t, test.expectedFilesByExt["tmp"], len(files["tmp"]))

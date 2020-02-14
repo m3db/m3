@@ -1507,7 +1507,7 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 
 	// and delete them
 	return i.fileDeleter.Delete(directory, 
-		fs.Matches(filesetFilePattern), 
+		fs.MatchesPattern(filesetFilePattern), 
 		fs.OlderThan(earliestBlockStartToRetain, func(s string){
 			return fs.TimeFromFileName(s)
 		}),

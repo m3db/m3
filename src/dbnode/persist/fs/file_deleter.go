@@ -23,6 +23,7 @@ package fs
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"time"
 	"unsafe"
 
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xunsafe "github.com/m3db/m3/src/x/unsafe"
 )
 
@@ -39,35 +41,35 @@ type FileDeleter interface {
 }
 
 type filterConfig struct {
-	match   *matchFilter
-	minTime *minTimeFilter
+	patternFilter   *patternFilter
+	olderThanFilter *olderThanFilter
 }
 
-type matchFilter struct {
+type patternFilter struct {
 	pattern string
 }
 
-type minTimeFilter struct {
-	min          time.Time
+type olderThanFilter struct {
+	time         time.Time
 	nameToTimeFn func(s string) (time.Time, error)
 }
 
 // FilterSetter configures are options to file to specific files to delete.
 type FilterSetter func(*filterConfig)
 
-// Matches filters to files that match the pattern.
-func Matches(pattern string) FilterSetter {
+// MatchesPattern filters to file names that match the pattern.
+func MatchesPattern(pattern string) FilterSetter {
 	return func(f *filterConfig) {
-		f.match = &matchFilter{pattern: pattern}
+		f.patternFilter = &patternFilter{pattern: pattern}
 	}
 }
 
-// OlderThan filters to files older than the provided min time.
+// OlderThan filters to files older than the provided time.
 // A func must be provided to convert from filename to time.
-func OlderThan(min time.Time, nameToTimeFn func(s string) (time.Time, error)) FilterSetter {
+func OlderThan(time time.Time, nameToTimeFn func(s string) (time.Time, error)) FilterSetter {
 	return func(f *filterConfig) {
-		f.minTime = &minTimeFilter{
-			min:          min,
+		f.olderThanFilter = &olderThanFilter{
+			time:         time,
 			nameToTimeFn: nameToTimeFn,
 		}
 	}
@@ -104,13 +106,32 @@ func (d *SimpleFileDeleter) Delete(directory string, filters ...FilterSetter) er
 	}
 
 	filterConfig := getFilterConfig(filters)
-	pattern := filepath.Join(directory, filePattern(filterConfig))
-	files, err := filepath.Glob(pattern)
+
+	// Default to * since that is the file catch-all for the Glob call.
+	pattern := "*"
+	if filterConfig.patternFilter != nil {
+		pattern = filterConfig.patternFilter.pattern
+	}
+
+	// Read files based on pattern.
+	files, err := filepath.Glob(filepath.Join(directory, pattern))
 	if err != nil {
 		return err
 	}
-	DeleteFiles(files)
-	return nil
+
+	multiErr := xerrors.NewMultiError()
+	for _, file := range files {
+		// Filter out by time.
+		if !filterConfig.olderThanFilter.passes(file) {
+			continue
+		}
+
+		if err := os.Remove(file); err != nil {
+			detailedErr := fmt.Errorf("failed to remove file %s: %v", file, err)
+			multiErr = multiErr.Add(detailedErr)
+		}
+	}
+	return multiErr.FinalError()
 }
 
 // Delete deletes all of the files that match the pattern.
@@ -119,31 +140,34 @@ func (d *EfficientFileDeleter) Delete(directory string, filters ...FilterSetter)
 		return errors.New("invalid empty directory name")
 	}
 
-	filterConfig := getFilterConfig(filters)
 	openDir, err := os.Open(directory)
 	if err != nil {
 		return err
 	}
 	defer openDir.Close()
 
-	var namesToDelete []string
+	var files []string
+	filterConfig := getFilterConfig(filters)
 	for i := 0; ; i++ {
 		n, err := syscall.ReadDirent(int(openDir.Fd()), d.fileNames)
 		if err != nil {
 			return err
 		}
-		newNames := matchFilesToDelete(directory, d.fileNames[:n], filePattern(filterConfig))
-		namesToDelete = append(namesToDelete, newNames...)
+		newFiles := getFileNamesToDelete(directory, d.fileNames[:n], filterConfig)
+		files = append(files, newFiles...)
 		if n <= 0 {
 			break
 		}
 	}
 
-	for _, nameToDelete := range namesToDelete {
-		// Even if we hit an err, we continue deletion attempts in case the err is file specific.
-		err = os.Remove(nameToDelete)
+	multiErr := xerrors.NewMultiError()
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			detailedErr := fmt.Errorf("failed to remove file %s: %v", file, err)
+			multiErr = multiErr.Add(detailedErr)
+		}
 	}
-	return err
+	return multiErr.FinalError()
 }
 
 func getFilterConfig(filters []FilterSetter) *filterConfig {
@@ -154,16 +178,41 @@ func getFilterConfig(filters []FilterSetter) *filterConfig {
 	return config
 }
 
-func filePattern(f *filterConfig) string {
-	// Default to match all files.
-	filePattern := "*"
-	if f.match != nil {
-		filePattern = f.match.pattern
-	}
-	return filePattern
+func (f *filterConfig) passesPatternFilter(name []byte) bool {
+	// TODO: consider implementing the wildcard pattern matching on the
+	// raw bytes to avoid this yolo cast to call the Match func.
+	matched := false
+	xunsafe.WithString(name, func(s string) {
+		matched = f.patternFilter.passes(s)
+	})
+	return matched
 }
 
-func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []string {
+func (f *filterConfig) passesOlderThanFilter(name []byte) bool {
+	older := false
+	xunsafe.WithString(name, func(s string) {
+		older = f.olderThanFilter.passes(s)
+	})
+	return older
+}
+
+func (filter *olderThanFilter) passes(filename string) bool {
+	if filter == nil {
+		return true
+	}
+	time, _ := filter.nameToTimeFn(filename)
+	return time.Before(filter.time)
+}
+
+func (filter *patternFilter) passes(filename string) bool {
+	if filter == nil {
+		return true
+	}
+	matched, _ := filepath.Match(filter.pattern, filename)
+	return matched
+}
+
+func getFileNamesToDelete(dir string, fileNames []byte, filterConfig *filterConfig) []string {
 	var namesToDelete []string
 	for len(fileNames) > 0 {
 		reclen, ok := direntReclen(fileNames)
@@ -199,13 +248,11 @@ func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []stri
 			continue
 		}
 
-		// TODO: consider implementing the wildcard pattern matching on the
-		// raw bytes to avoid this yolo cast to call the Match func.
-		matched := false
-		xunsafe.WithString(name, func(s string) {
-			matched, _ = filepath.Match(filePattern, s)
-		})
-		if !matched {
+		if !filterConfig.passesPatternFilter(name) {
+			continue
+		}
+
+		if !filterConfig.passesOlderThanFilter(name) {
 			continue
 		}
 
@@ -214,6 +261,7 @@ func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []stri
 		var pathToDelete strings.Builder
 		pathToDelete.WriteString(dir)
 		if dir[len(dir)-1] != '/' {
+			// Ensure slash between dir and filename.
 			pathToDelete.WriteRune('/')
 		}
 		pathToDelete.Write(name)
