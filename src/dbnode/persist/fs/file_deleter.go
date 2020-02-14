@@ -22,10 +22,12 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	xunsafe "github.com/m3db/m3/src/x/unsafe"
@@ -33,7 +35,42 @@ import (
 
 // FileDeleter deletes files.
 type FileDeleter interface {
-	Delete(pattern string) error
+	Delete(directory string, filters ...FilterSetter) error
+}
+
+type filterConfig struct {
+	match   *matchFilter
+	minTime *minTimeFilter
+}
+
+type matchFilter struct {
+	pattern string
+}
+
+type minTimeFilter struct {
+	min          time.Time
+	nameToTimeFn func(s string) time.Time
+}
+
+// FilterSetter configures are options to file to specific files to delete.
+type FilterSetter func(*filterConfig)
+
+// Matches filters to files that match the pattern.
+func Matches(pattern string) FilterSetter {
+	return func(f *filterConfig) {
+		f.match = &matchFilter{pattern: pattern}
+	}
+}
+
+// OlderThan filters to files older than the provided min time.
+// A func must be provided to convert from filename to time.
+func OlderThan(min time.Time, nameToTimeFn func(s string) time.Time) FilterSetter {
+	return func(f *filterConfig) {
+		f.minTime = &minTimeFilter{
+			min:          min,
+			nameToTimeFn: nameToTimeFn,
+		}
+	}
 }
 
 // EfficientFileDeleter holds reusable memory for filenames to be deleted. This allows
@@ -61,7 +98,13 @@ func NewSimpleFileDeleter() FileDeleter {
 }
 
 // Delete deletes all of the files that match the pattern.
-func (d *SimpleFileDeleter) Delete(pattern string) error {
+func (d *SimpleFileDeleter) Delete(directory string, filters ...FilterSetter) error {
+	if len(directory) == 0 {
+		return errors.New("invalid empty directory name")
+	}
+
+	filterConfig := getFilterConfig(filters)
+	pattern := filepath.Join(directory, filePattern(filterConfig))
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
@@ -71,9 +114,13 @@ func (d *SimpleFileDeleter) Delete(pattern string) error {
 }
 
 // Delete deletes all of the files that match the pattern.
-func (d *EfficientFileDeleter) Delete(pattern string) error {
-	dir, file := filepath.Split(pattern)
-	openDir, err := os.Open(dir)
+func (d *EfficientFileDeleter) Delete(directory string, filters ...FilterSetter) error {
+	if len(directory) == 0 {
+		return errors.New("invalid empty directory name")
+	}
+
+	filterConfig := getFilterConfig(filters)
+	openDir, err := os.Open(directory)
 	if err != nil {
 		return err
 	}
@@ -85,17 +132,35 @@ func (d *EfficientFileDeleter) Delete(pattern string) error {
 		if err != nil {
 			return err
 		}
-		namesToDelete = append(namesToDelete, matchFilesToDelete(dir, d.fileNames[:n], file)...)
+		newNames := matchFilesToDelete(directory, d.fileNames[:n], filePattern(filterConfig))
+		namesToDelete = append(namesToDelete, newNames...)
 		if n <= 0 {
 			break
 		}
 	}
 
 	for _, nameToDelete := range namesToDelete {
-		// Even if we hit an err, we continue deletion attempts in case it is file specific.
+		// Even if we hit an err, we continue deletion attempts in case the err is file specific.
 		err = os.Remove(nameToDelete)
 	}
 	return err
+}
+
+func getFilterConfig(filters []FilterSetter) *filterConfig {
+	config := &filterConfig{}
+	for _, f := range filters {
+		f(config)
+	}
+	return config
+}
+
+func filePattern(f *filterConfig) string {
+	// Default to match all files.
+	filePattern := "*"
+	if f.match != nil {
+		filePattern = f.match.pattern
+	}
+	return filePattern
 }
 
 func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []string {
@@ -148,6 +213,9 @@ func matchFilesToDelete(dir string, fileNames []byte, filePattern string) []stri
 		// That way we avoid unnecessary string allocation for filenames we are not going to delete.
 		var pathToDelete strings.Builder
 		pathToDelete.WriteString(dir)
+		if dir[len(dir)-1] != '/' {
+			pathToDelete.WriteRune('/')
+		}
 		pathToDelete.Write(name)
 		namesToDelete = append(namesToDelete, pathToDelete.String())
 	}

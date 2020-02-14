@@ -81,7 +81,7 @@ func (d *testDir) Cleanup() {
 	os.RemoveAll(d.name)
 }
 
-func TestDelete(t *testing.T) {
+func TestDeleteByPattern(t *testing.T) {
 	simpleDeleter := NewSimpleFileDeleter()
 	efficientDeleter := NewEfficientFileDeleter(256)
 
@@ -208,15 +208,14 @@ func TestDelete(t *testing.T) {
 			require.Equal(t, test.filesByExt["tmp"], len(files["tmp"]))
 			require.Equal(t, test.filesByExt["txt"], len(files["txt"]))
 			require.Equal(t, test.filesByExt["sql"], len(files["sql"]))
-			err = test.deleter.Delete(filepath.Join(dir.name, "notexists.tmp"))
+			err = test.deleter.Delete(dir.name, Matches("notexists.tmp"))
 			require.NoError(t, err)
 			require.Equal(t, test.filesByExt["tmp"], len(files["tmp"]))
 			require.Equal(t, test.filesByExt["txt"], len(files["txt"]))
 			require.Equal(t, test.filesByExt["sql"], len(files["sql"]))
 
 			// Verify all deleted.
-			pattern := filepath.Join(dir.name, test.pattern)
-			err = test.deleter.Delete(pattern)
+			err = test.deleter.Delete(dir.name, Matches(test.pattern))
 			require.NoError(t, err)
 			files = dir.FilesByExtension()
 			require.Equal(t, test.expectedFilesByExt["tmp"], len(files["tmp"]))
@@ -224,7 +223,7 @@ func TestDelete(t *testing.T) {
 			require.Equal(t, test.expectedFilesByExt["sql"], len(files["sql"]))
 
 			// Verify idempotent.
-			err = test.deleter.Delete(pattern)
+			err = test.deleter.Delete(dir.name, Matches(test.pattern))
 			require.NoError(t, err)
 			files = dir.FilesByExtension()
 			require.Equal(t, test.expectedFilesByExt["tmp"], len(files["tmp"]))

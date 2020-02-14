@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xunsafe "github.com/m3db/m3/src/x/unsafe"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
@@ -353,6 +354,35 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+}
+
+func TestTimeAndVolumeIndexFromFileSetFilename2(t *testing.T) {
+	_, _, err := TimeAndVolumeIndexFromFileSetFilename("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
+
+	_, _, err = TimeAndVolumeIndexFromFileSetFilename("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i int
+	}
+	ts, i, err := TimeAndVolumeIndexFromFileSetFilename("foo-1-0-data.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	validName := []byte("foo/bar/fileset-21234567890-1-data.db")
+	xunsafe.WithString(validName, func(s string) {
+		ts, i, err = TimeAndVolumeIndexFromFileSetFilename(s)
+	})
+	exp = expected{time.Unix(0, 21234567890), 1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), string(validName))
 }
 
 func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
