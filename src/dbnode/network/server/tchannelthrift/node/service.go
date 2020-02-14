@@ -635,11 +635,42 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
 	// but don't serialize yet so that all block reader requests can
 	// be issued at once before waiting for their results.
-	ctx, sp := ctx.StartTraceSpan(tracepoint.FetchReadEncoded)
 	var encodedDataResults [][][]xio.BlockReader
 	if fetchData {
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
+	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+		return nil, err
+	}
+
+	// Step 2: If fetching data read the results of the asynchronuous block readers.
+	if fetchData {
+		s.fetchReadResults(ctx, response, nsID, encodedDataResults)
+	}
+
+	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
+	return response, nil
+}
+
+func (s *service) fetchReadEncoded(ctx context.Context,
+	db storage.Database,
+	response *rpc.FetchTaggedResult_,
+	results index.QueryResults,
+	nsID ident.ID,
+	nsIDBytes []byte,
+	callStart time.Time,
+	opts index.QueryOptions,
+	fetchData bool,
+	encodedDataResults [][][]xio.BlockReader,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadEncoded)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			xopentracing.Time("callStart", callStart),
+		)
+	}
+	defer sp.Finish()
 
 	i := 0
 	for _, entry := range results.Map().Iter() {
@@ -653,7 +684,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		encodedTags, err := s.encodeTags(enc, tags)
 		if err != nil { // This is an invariant, should never happen
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewInternalError(err)
+			return tterrors.NewInternalError(err)
 		}
 
 		elem := &rpc.FetchTaggedIDResult_{
@@ -674,30 +705,36 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 			encodedDataResults[idx] = encoded
 		}
 	}
-	sp.Finish()
+	return nil
+}
 
-	// Step 2: If fetching data read the results of the asynchronuous block readers.
-	if fetchData {
-		ctx, sp := ctx.StartTraceSpan(tracepoint.FetchReadResults)
-		defer sp.Finish()
-
-		for idx, elem := range response.Elements {
-			if elem.Err != nil {
-				continue
-			}
-
-			segments, rpcErr := s.readEncodedResult(ctx, encodedDataResults[idx])
-			if rpcErr != nil {
-				elem.Err = rpcErr
-				continue
-			}
-
-			response.Elements[idx].Segments = segments
-		}
+func (s *service) fetchReadResults(ctx context.Context,
+	response *rpc.FetchTaggedResult_,
+	nsID ident.ID,
+	encodedDataResults [][][]xio.BlockReader,
+) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			opentracinglog.Int("elementCount", len(response.Elements)),
+		)
 	}
+	defer sp.Finish()
 
-	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
-	return response, nil
+	for idx, elem := range response.Elements {
+		if elem.Err != nil {
+			continue
+		}
+
+		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
+		if rpcErr != nil {
+			elem.Err = rpcErr
+			continue
+		}
+
+		response.Elements[idx].Segments = segments
+	}
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
@@ -868,7 +905,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 			continue
 		}
 
-		segments, rpcErr := s.readEncodedResult(ctx, encodedResults[i].result)
+		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedResults[i].result)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -944,7 +981,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 			continue
 		}
 
-		segments, rpcErr := s.readEncodedResult(ctx, encodedResult)
+		segments, rpcErr := s.readEncodedResult(ctx, nsIdx, encodedResult)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -2009,8 +2046,18 @@ func (s *service) newPooledID(
 
 func (s *service) readEncodedResult(
 	ctx context.Context,
+	nsID ident.ID,
 	encoded [][]xio.BlockReader,
 ) ([]*rpc.Segments, *rpc.Error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSingleResult)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			opentracinglog.Int("segmentCount", len(encoded)),
+		)
+	}
+	defer sp.Finish()
+
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
 	segments = segments[:0]
@@ -2019,19 +2066,41 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		_, sp := ctx.StartTraceSpan(tracepoint.FetchReadSegment)
-		converted, err := convert.ToSegments(readers)
-		if err != nil {
-			return nil, convert.ToRPCError(err)
+		if err := s.readEncodedResultSegment(ctx, nsID, readers, segments); err != nil {
+			return nil, err
 		}
-		if converted.Segments == nil {
-			continue
-		}
-		segments = append(segments, converted.Segments)
-		sp.Finish()
 	}
 
 	return segments, nil
+}
+
+func (s *service) readEncodedResultSegment(
+	ctx context.Context,
+	nsID ident.ID,
+	readers []xio.BlockReader,
+	segments []*rpc.Segments,
+) *rpc.Error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSegment)
+	defer sp.Finish()
+	converted, err := convert.ToSegments(readers)
+	if err != nil {
+		return convert.ToRPCError(err)
+	}
+	if converted.Segments == nil {
+		return nil
+	}
+	segments = append(segments, converted.Segments)
+
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			opentracinglog.Int("blockCount", len(readers)),
+			opentracinglog.Int64("mergedBlockSize", converted.Segments.Merged.GetBlockSize()),
+			opentracinglog.Int64("mergedStartTime", converted.Segments.Merged.GetStartTime()),
+			opentracinglog.Int("unmergedCount", len(converted.Segments.Unmerged)),
+		)
+	}
+	return nil
 }
 
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {

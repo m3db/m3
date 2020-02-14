@@ -40,6 +40,9 @@ const (
 	// FetchReadResults is the operation name for the tchannelthrift FetchReadResults path.
 	FetchReadResults = "tchannelthrift/node.service.FetchReadResults"
 
+	// FetchReadSingleResult is the operation name for the tchannelthrift FetchReadSingleResult path.
+	FetchReadSingleResult = "tchannelthrift/node.service.FetchReadSingleResult"
+
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
