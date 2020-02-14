@@ -679,7 +679,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 
 	// Step 2: If fetching data read the results of the asynchronuous block readers.
 	if fetchData {
-		ctx, sp = ctx.StartTraceSpan(tracepoint.FetchReadResults)
+		ctx, sp := ctx.StartTraceSpan(tracepoint.FetchReadResults)
 		defer sp.Finish()
 
 		for idx, elem := range response.Elements {
