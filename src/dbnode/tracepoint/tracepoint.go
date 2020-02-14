@@ -34,6 +34,12 @@ const (
 	// Query is the operation name for the tchannelthrift Query path.
 	Query = "tchannelthrift/node.service.Query"
 
+	// Read is the operation name for the tchannelthrift Read path.
+	Read = "tchannelthrift/node.service.Read"
+
+	// Fetch is the operation name for the tchannelthrift Fetch path.
+	Fetch = "tchannelthrift/node.service.Fetch"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 

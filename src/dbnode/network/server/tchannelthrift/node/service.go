@@ -413,16 +413,18 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.Query)
-	sp.LogFields(
-		opentracinglog.String("query", req.Query.String()),
-		opentracinglog.String("namespace", req.NameSpace),
-		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-		xopentracing.Time("end", time.Unix(0, req.RangeStart)),
-	)
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.Query)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", req.Query.String()),
+			opentracinglog.String("namespace", req.NameSpace),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeStart)),
+		)
+	}
 
 	result, err := s.query(ctx, db, req)
-	if err != nil {
+	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	sp.Finish()
@@ -588,16 +590,18 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.FetchTagged)
-	sp.LogFields(
-		opentracinglog.String("query", string(req.Query)),
-		opentracinglog.String("namespace", string(req.NameSpace)),
-		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-		xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
-	)
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.FetchTagged)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
 
 	result, err := s.fetchTagged(ctx, db, req)
-	if err != nil {
+	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	sp.Finish()
@@ -631,6 +635,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	// NB(r): Step 1 if reading data then read using an asychronuous block reader,
 	// but don't serialize yet so that all block reader requests can
 	// be issued at once before waiting for their results.
+	ctx, sp := ctx.StartTraceSpan(tracepoint.Read)
 	var encodedDataResults [][][]xio.BlockReader
 	if fetchData {
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
@@ -669,9 +674,13 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 			encodedDataResults[idx] = encoded
 		}
 	}
+	sp.Finish()
 
 	// Step 2: If fetching data read the results of the asynchronuous block readers.
 	if fetchData {
+		ctx, sp = ctx.StartTraceSpan(tracepoint.Fetch)
+		defer sp.Finish()
+
 		for idx, elem := range response.Elements {
 			if elem.Err != nil {
 				continue
@@ -2010,6 +2019,7 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
+		// TODO: span per segment
 		converted, err := convert.ToSegments(readers)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
