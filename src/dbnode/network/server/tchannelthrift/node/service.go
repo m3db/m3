@@ -420,7 +420,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 			opentracinglog.String("query", req.Query.String()),
 			opentracinglog.String("namespace", req.NameSpace),
 			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-			xopentracing.Time("end", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
 		)
 	}
 

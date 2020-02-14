@@ -37,6 +37,9 @@ const (
 	// Read is the operation name for the tchannelthrift Read path.
 	Read = "tchannelthrift/node.service.Read"
 
+	// ReadSegment is the operation name for the tchannelthrift Read path.
+	ReadSegment = "tchannelthrift/node.service.ReadSegment"
+
 	// Fetch is the operation name for the tchannelthrift Fetch path.
 	Fetch = "tchannelthrift/node.service.Fetch"
 
