@@ -53,6 +53,7 @@ import (
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	opentracing "github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
@@ -2018,8 +2019,9 @@ func (s *service) readEncodedResult(
 		s.pools.segmentsArray.Put(segments)
 	}))
 
+	var sp opentracing.Span
 	for _, readers := range encoded {
-		// TODO: span per segment
+		ctx, sp = ctx.StartTraceSpan(tracepoint.Read)
 		converted, err := convert.ToSegments(readers)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
@@ -2028,6 +2030,7 @@ func (s *service) readEncodedResult(
 			continue
 		}
 		segments = append(segments, converted.Segments)
+		sp.Finish()
 	}
 
 	return segments, nil
