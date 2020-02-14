@@ -633,10 +633,10 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 	nsID := results.Namespace()
 	nsIDBytes := nsID.Bytes()
 
-	// NB(r): Step 1 if reading data then read using an asychronuous block reader,
+	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
 	// but don't serialize yet so that all block reader requests can
 	// be issued at once before waiting for their results.
-	ctx, sp := ctx.StartTraceSpan(tracepoint.Read)
+	ctx, sp := ctx.StartTraceSpan(tracepoint.FetchReadEncoded)
 	var encodedDataResults [][][]xio.BlockReader
 	if fetchData {
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
@@ -679,7 +679,7 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 
 	// Step 2: If fetching data read the results of the asynchronuous block readers.
 	if fetchData {
-		ctx, sp = ctx.StartTraceSpan(tracepoint.Fetch)
+		ctx, sp = ctx.StartTraceSpan(tracepoint.FetchReadResults)
 		defer sp.Finish()
 
 		for idx, elem := range response.Elements {
