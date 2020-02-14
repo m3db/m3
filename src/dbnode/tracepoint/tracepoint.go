@@ -46,16 +46,16 @@ const (
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
-	// DBAggregateQuery is the operation name for the db DBAggregateQuery path.
+	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
 
-	// DBReadEncoded is the operation name for the db DBReadEncoded path.
+	// DBReadEncoded is the operation name for the db ReadEncoded path.
 	DBReadEncoded = "storage.db.ReadEncoded"
 
-	// DBFetchBlocks is the operation name for the db DBFetchBlocks path.
+	// DBFetchBlocks is the operation name for the db FetchBlocks path.
 	DBFetchBlocks = "storage.db.FetchBlocks"
 
-	// DBFetchBlocksMetadataV2 is the operation name for the db DBFetchBlocks path.
+	// DBFetchBlocksMetadataV2 is the operation name for the db FetchBlocksMetadataV2 path.
 	DBFetchBlocksMetadataV2 = "storage.db.FetchBlocksMetadataV2"
 
 	// DBWriteBatch is the operation name for the db WriteBatch path.

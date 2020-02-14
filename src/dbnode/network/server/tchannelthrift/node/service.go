@@ -2021,7 +2021,7 @@ func (s *service) readEncodedResult(
 
 	var sp opentracing.Span
 	for _, readers := range encoded {
-		ctx, sp = ctx.StartTraceSpan(tracepoint.Read)
+		ctx, sp = ctx.StartTraceSpan(tracepoint.FetchReadSegment)
 		converted, err := convert.ToSegments(readers)
 		if err != nil {
 			return nil, convert.ToRPCError(err)
