@@ -31,7 +31,7 @@ rules:
   verbs: ["create", "get", "deletecollection", "delete"]
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["list", "get", "watch", "update"]
+  verbs: ["list", "get", "watch", "update", "patch"]
 - apiGroups: ["apps"]
   resources: ["statefulsets", "deployments"]
   verbs: ["*"]
