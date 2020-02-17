@@ -2066,9 +2066,11 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		if err := s.readEncodedResultSegment(ctx, nsID, readers, segments); err != nil {
+		segment, err := s.readEncodedResultSegment(ctx, nsID, readers)
+		if err != nil {
 			return nil, err
 		}
+		segments = append(segments, segment)
 	}
 
 	return segments, nil
@@ -2078,18 +2080,16 @@ func (s *service) readEncodedResultSegment(
 	ctx context.Context,
 	nsID ident.ID,
 	readers []xio.BlockReader,
-	segments []*rpc.Segments,
-) *rpc.Error {
+) (*rpc.Segments, *rpc.Error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSegment)
 	defer sp.Finish()
 	converted, err := convert.ToSegments(readers)
 	if err != nil {
-		return convert.ToRPCError(err)
+		return nil, convert.ToRPCError(err)
 	}
 	if converted.Segments == nil {
-		return nil
+		return nil, nil
 	}
-	segments = append(segments, converted.Segments)
 
 	if sampled {
 		sp.LogFields(
@@ -2105,7 +2105,7 @@ func (s *service) readEncodedResultSegment(
 			)
 		}
 	}
-	return nil
+	return converted.Segments, nil
 }
 
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
