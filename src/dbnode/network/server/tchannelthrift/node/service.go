@@ -2070,6 +2070,9 @@ func (s *service) readEncodedResult(
 		if err != nil {
 			return nil, err
 		}
+		if segment == nil {
+			continue
+		}
 		segments = append(segments, segment)
 	}
 
