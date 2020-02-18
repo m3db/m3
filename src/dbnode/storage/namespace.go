@@ -58,13 +58,6 @@ import (
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
 	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
-
-	// ErrNotResponsibleForShard is used as a sentinel error for callers
-	// upstream to make decisions on what to do when this error is encountered.
-	// For example, a commit log bootstrapper should just ignore continue its
-	// bootstrapping if an entry exists for a shard it's not responsible for.
-	ErrNotResponsibleForShard = xerrors.NewRetryableError(
-		errors.New("not responsible for shard"))
 )
 
 type commitLogWriter interface {
@@ -679,18 +672,20 @@ func (n *dbNamespace) SeriesReadWriteRef(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, error) {
+) (SeriesReadWriteRef, bool, error) {
 	n.RLock()
-	shard, err := n.shardAtWithRLock(shardID)
+	shard, owned, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	if err != nil {
-		return SeriesReadWriteRef{}, err
+		return SeriesReadWriteRef{}, owned, err
 	}
 
 	opts := ShardSeriesReadWriteRefOptions{
 		ReverseIndex: n.reverseIndex != nil,
 	}
-	return shard.SeriesReadWriteRef(id, tags, opts)
+
+	res, err := shard.SeriesReadWriteRef(id, tags, opts)
+	return res, true, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -1377,7 +1372,7 @@ func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, namespace.Context, e
 	n.RLock()
 	nsCtx := n.nsContextWithRLock()
 	shardID := n.shardSet.Lookup(id)
-	shard, err := n.shardAtWithRLock(shardID)
+	shard, _, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	return shard, nsCtx, err
 }
@@ -1399,21 +1394,23 @@ func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.
 	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
+func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, bool, error) {
 	// NB(r): These errors are retryable as they will occur
 	// during a topology change and must be retried by the client.
 	if int(shardID) >= len(n.shards) {
-		return nil, ErrNotResponsibleForShard
+		return nil, false, xerrors.NewRetryableError(
+			fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	shard := n.shards[shardID]
 	if shard == nil {
-		return nil, ErrNotResponsibleForShard
+		return nil, false, xerrors.NewRetryableError(
+			fmt.Errorf("not responsible for shard %d", shardID))
 	}
-	return shard, nil
+	return shard, true, nil
 }
 
 func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, error) {
-	shard, err := n.shardAtWithRLock(shardID)
+	shard, _, err := n.shardAtWithRLock(shardID)
 	if err != nil {
 		return nil, err
 	}
@@ -1475,7 +1472,7 @@ func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
 func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
 	n.RLock()
 	defer n.RUnlock()
-	shard, err := n.shardAtWithRLock(shardID)
+	shard, _, err := n.shardAtWithRLock(shardID)
 	if err != nil {
 		return fileOpState{}, err
 	}

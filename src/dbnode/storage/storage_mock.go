@@ -1460,12 +1460,13 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart inte
 }
 
 // SeriesReadWriteRef mocks base method
-func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
+func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesReadWriteRef", shardID, id, tags)
 	ret0, _ := ret[0].(SeriesReadWriteRef)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef

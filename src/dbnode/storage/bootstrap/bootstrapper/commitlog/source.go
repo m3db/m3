@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -466,14 +465,14 @@ func (s *commitLogSource) Read(
 				// Check out the series for writing, no need for concurrency
 				// as commit log bootstrapper does not perform parallel
 				// checking out of series.
-				series, err := accumulator.CheckoutSeriesWithoutLock(
+				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
 					entry.Series.ID,
 					tagIter,
 				)
 
 				if err != nil {
-					if err == storage.ErrNotResponsibleForShard {
+					if !owned {
 						// If we encounter a log entry for a shard that we're
 						// not responsible for, skip this entry. This can occur
 						// when a topology change happens and we bootstrap from
@@ -806,7 +805,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, _, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
 			return err
 		}

@@ -387,7 +387,7 @@ type databaseNamespace interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (result SeriesReadWriteRef, owned bool, err error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,

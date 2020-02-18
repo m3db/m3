@@ -236,7 +236,7 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (CheckoutSeriesResult, error)
+	) (result CheckoutSeriesResult, owned bool, err error)
 
 	// CheckoutSeriesWithLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
@@ -249,7 +249,7 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (CheckoutSeriesResult, error)
+	) (result CheckoutSeriesResult, owned bool, err error)
 
 	// Close will close the data accumulator and will release
 	// all series read/write refs.

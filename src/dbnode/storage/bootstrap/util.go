@@ -186,7 +186,7 @@ func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (CheckoutSeriesResult, error) {
+) (CheckoutSeriesResult, bool, error) {
 	a.Lock()
 	defer a.Unlock()
 	return a.checkoutSeriesWithLock(shardID, id, tags)
@@ -199,7 +199,7 @@ func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (CheckoutSeriesResult, error) {
+) (CheckoutSeriesResult, bool, error) {
 	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
@@ -207,7 +207,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (CheckoutSeriesResult, error) {
+) (CheckoutSeriesResult, bool, error) {
 	var decodedTags map[string]string
 	if tags != nil {
 		decodedTags = make(map[string]string, tags.Len())
@@ -221,7 +221,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 		}
 
 		if err := tags.Err(); err != nil {
-			return CheckoutSeriesResult{}, err
+			return CheckoutSeriesResult{}, false, err
 		}
 	} else {
 		// Ensure the decoded tags aren't nil.
@@ -230,7 +230,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 
 	stringID := id.String()
 	if result, found := a.results[stringID]; found {
-		return result, nil
+		return result, true, nil
 	}
 
 	var streamErr error
@@ -286,7 +286,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	}
 
 	a.results[stringID] = result
-	return result, streamErr
+	return result, true, streamErr
 }
 
 // Release is a no-op on the test accumulator.
