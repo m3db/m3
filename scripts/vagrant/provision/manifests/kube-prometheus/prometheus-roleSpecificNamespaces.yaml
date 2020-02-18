@@ -12,6 +12,7 @@ items:
     - services
     - endpoints
     - pods
+    - podmonitors
     verbs:
     - get
     - list
@@ -28,6 +29,7 @@ items:
     - services
     - endpoints
     - pods
+    - podmonitors
     verbs:
     - get
     - list
@@ -44,6 +46,7 @@ items:
     - services
     - endpoints
     - pods
+    - podmonitors
     verbs:
     - get
     - list
