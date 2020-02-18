@@ -21,6 +21,7 @@
 package rawtcp
 
 import (
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/x/clock"
@@ -79,6 +80,12 @@ type Options interface {
 
 	// ErrorLogLimitPerSecond returns the error log limit per second.
 	ErrorLogLimitPerSecond() int64
+
+	// SetCompressType sets the compression type.
+	SetCompressType(value client.CompressType) Options
+
+	// CompressType returns the compression type.
+	CompressType() client.CompressType
 }
 
 type options struct {
@@ -89,6 +96,7 @@ type options struct {
 	protobufItOpts       protobuf.UnaggregatedOptions
 	readBufferSize       int
 	errLogLimitPerSecond int64
+	compressType         client.CompressType
 }
 
 // NewOptions creates a new set of server options.
@@ -172,4 +180,14 @@ func (o *options) SetErrorLogLimitPerSecond(value int64) Options {
 
 func (o *options) ErrorLogLimitPerSecond() int64 {
 	return o.errLogLimitPerSecond
+}
+
+func (o *options) SetCompressType(value client.CompressType) Options {
+	opts := *o
+	opts.compressType = value
+	return &opts
+}
+
+func (o *options) CompressType() client.CompressType {
+	return o.compressType
 }

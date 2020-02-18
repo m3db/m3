@@ -22,13 +22,18 @@ package consumer
 
 import (
 	"bufio"
+	"compress/flate"
+	"io"
+	"io/ioutil"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 
+	"github.com/golang/snappy"
 	"github.com/uber-go/tally"
 )
 
@@ -85,6 +90,11 @@ func newConsumerMetrics(scope tally.Scope) metrics {
 	}
 }
 
+type connWriter interface {
+	io.Writer
+	Flush() error
+}
+
 type consumer struct {
 	sync.Mutex
 
@@ -92,7 +102,7 @@ type consumer struct {
 	mPool   *messagePool
 	encoder proto.Encoder
 	decoder proto.Decoder
-	w       *bufio.Writer
+	w       connWriter
 	conn    net.Conn
 
 	ackPb  msgpb.Ack
@@ -108,15 +118,37 @@ func newConsumer(
 	opts Options,
 	m metrics,
 ) *consumer {
+	var reader io.Reader
+	switch opts.CompressType() {
+	case client.SnappyCompressType:
+		reader = snappy.NewReader(conn)
+	case client.FlateCompressType:
+		reader = flate.NewReader(conn)
+	default:
+		reader = conn
+	}
+
+	var writer connWriter
+	switch opts.CompressType() {
+	case client.SnappyCompressType:
+		writer = snappy.NewBufferedWriter(conn)
+	case client.FlateCompressType:
+		// NB(r): Valid level is used so will not return an error.
+		flateWriter, _ := flate.NewWriter(ioutil.Discard, flate.DefaultCompression)
+		writer = flateWriter
+	default:
+		writer = bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize())
+	}
+
 	return &consumer{
 		opts:    opts,
 		mPool:   mPool,
 		encoder: proto.NewEncoder(opts.EncoderOptions()),
 		decoder: proto.NewDecoder(
-			bufio.NewReaderSize(conn, opts.ConnectionReadBufferSize()),
+			bufio.NewReaderSize(reader, opts.ConnectionReadBufferSize()),
 			opts.DecoderOptions(),
 		),
-		w:      bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize()),
+		w:      writer,
 		conn:   conn,
 		closed: false,
 		doneCh: make(chan struct{}),

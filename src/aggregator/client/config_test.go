@@ -105,6 +105,7 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, 140, cfg.MaxTimerBatchSize)
 	require.Equal(t, 1000, cfg.QueueSize)
 	require.Equal(t, DropOldest, *cfg.QueueDropType)
+	require.Equal(t, NoCompressType, cfg.Connection.Compress)
 	require.Equal(t, time.Second, cfg.Connection.ConnectionTimeout)
 	require.Equal(t, true, *cfg.Connection.ConnectionKeepAlive)
 	require.Equal(t, time.Second, cfg.Connection.WriteTimeout)

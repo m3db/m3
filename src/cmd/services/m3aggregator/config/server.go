@@ -23,6 +23,7 @@ package config
 import (
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/server/http"
 	"github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
@@ -37,6 +38,9 @@ import (
 type RawTCPServerConfiguration struct {
 	// Raw TCP server listening address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+
+	// Compress options.
+	Compress client.CompressType `yaml:"compress"`
 
 	// Error log limit per second.
 	ErrorLogLimitPerSecond *int64 `yaml:"errorLogLimitPerSecond"`
@@ -64,7 +68,9 @@ type RawTCPServerConfiguration struct {
 func (c *RawTCPServerConfiguration) NewServerOptions(
 	instrumentOpts instrument.Options,
 ) rawtcp.Options {
-	opts := rawtcp.NewOptions().SetInstrumentOptions(instrumentOpts)
+	opts := rawtcp.NewOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetCompressType(c.Compress)
 
 	// Set server options.
 	serverOpts := xserver.NewOptions().

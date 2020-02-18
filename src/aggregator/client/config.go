@@ -141,6 +141,7 @@ func (c *Configuration) newClientOptions(
 
 // ConnectionConfiguration contains the connection configuration.
 type ConnectionConfiguration struct {
+	Compress                     CompressType         `yaml:"compress"`
 	ConnectionTimeout            time.Duration        `yaml:"connectionTimeout"`
 	ConnectionKeepAlive          *bool                `yaml:"connectionKeepAlive"`
 	WriteTimeout                 time.Duration        `yaml:"writeTimeout"`
@@ -153,7 +154,8 @@ type ConnectionConfiguration struct {
 
 // NewConnectionOptions creates new connection options.
 func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) ConnectionOptions {
-	opts := NewConnectionOptions()
+	opts := NewConnectionOptions().
+		SetCompressType(c.Compress)
 	if c.ConnectionTimeout != 0 {
 		opts = opts.SetConnectionTimeout(c.ConnectionTimeout)
 	}

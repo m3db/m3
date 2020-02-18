@@ -24,6 +24,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -105,6 +106,12 @@ type Options interface {
 
 	// SetConnectionWriteBufferSize sets the buffer size.
 	SetConnectionReadBufferSize(value int) Options
+
+	// SetCompressType sets the compression type.
+	SetCompressType(value client.CompressType) Options
+
+	// CompressType returns the compression type.
+	CompressType() client.CompressType
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options

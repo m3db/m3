@@ -21,7 +21,11 @@
 package client
 
 import (
+	"compress/flate"
 	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"sync"
@@ -30,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
 
+	"github.com/golang/snappy"
 	"github.com/uber-go/tally"
 )
 
@@ -44,6 +49,27 @@ var (
 type sleepFn func(time.Duration)
 type connectWithLockFn func() error
 type writeWithLockFn func([]byte) error
+
+type connWriter interface {
+	io.Writer
+	Flush() error
+}
+
+type rawConnWriter struct {
+	writer io.Writer
+}
+
+func newRawConnWriter(w io.Writer) connWriter {
+	return &rawConnWriter{writer: w}
+}
+
+func (w *rawConnWriter) Write(p []byte) (int, error) {
+	return w.writer.Write(p)
+}
+
+func (w *rawConnWriter) Flush() error {
+	return nil
+}
 
 // connection is a persistent connection that retries establishing
 // connection with exponential backoff if the connection goes down.
@@ -60,8 +86,12 @@ type connection struct {
 	maxDuration    time.Duration
 	writeRetryOpts retry.Options
 	rngFn          retry.RngFn
+	compressType   CompressType
 
-	conn                    *net.TCPConn
+	tcpConn                 *net.TCPConn
+	conn                    connWriter
+	snappyWriter            *snappy.Writer
+	flateWriter             *flate.Writer
 	numFailures             int
 	threshold               int
 	lastConnectAttemptNanos int64
@@ -76,6 +106,8 @@ type connection struct {
 
 // newConnection creates a new connection.
 func newConnection(addr string, opts ConnectionOptions) *connection {
+	// NB(r): Valid level is used so will not return an error.
+	flateWriter, _ := flate.NewWriter(ioutil.Discard, flate.DefaultCompression)
 	c := &connection{
 		addr:           addr,
 		connTimeout:    opts.ConnectionTimeout(),
@@ -87,6 +119,9 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		maxDuration:    opts.MaxReconnectDuration(),
 		writeRetryOpts: opts.WriteRetryOptions(),
 		rngFn:          rand.New(rand.NewSource(time.Now().UnixNano())).Int63n,
+		compressType:   opts.CompressType(),
+		snappyWriter:   snappy.NewBufferedWriter(nil),
+		flateWriter:    flateWriter,
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
 		threshold:      opts.InitReconnectThreshold(),
@@ -178,10 +213,26 @@ func (c *connection) connectWithLock() error {
 		c.metrics.setKeepAliveError.Inc(1)
 	}
 
-	if c.conn != nil {
-		c.conn.Close() // nolint: errcheck
+	if c.tcpConn != nil {
+		c.tcpConn.Close() // nolint: errcheck
 	}
-	c.conn = tcpConn
+	c.tcpConn = tcpConn
+
+	var writer connWriter
+	switch c.compressType {
+	case NoCompressType:
+		writer = newRawConnWriter(tcpConn)
+	case SnappyCompressType:
+		c.snappyWriter.Reset(tcpConn)
+		writer = c.snappyWriter
+	case FlateCompressType:
+		c.flateWriter.Reset(tcpConn)
+		writer = c.flateWriter
+	default:
+		return fmt.Errorf("unknown compress type: %d", c.compressType)
+	}
+
+	c.conn = writer
 	return nil
 }
 
@@ -212,10 +263,17 @@ func (c *connection) checkReconnectWithLock() error {
 }
 
 func (c *connection) writeWithLock(data []byte) error {
-	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
+	if err := c.tcpConn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
 		c.metrics.setWriteDeadlineError.Inc(1)
 	}
 	if _, err := c.conn.Write(data); err != nil {
+		c.metrics.writeError.Inc(1)
+		return err
+	}
+	// NB(r): The queue already buffers writes, we want to
+	// immediately write once it should be written to connection
+	// so always flush immediately.
+	if err := c.conn.Flush(); err != nil {
 		c.metrics.writeError.Inc(1)
 		return err
 	}
@@ -228,9 +286,10 @@ func (c *connection) resetWithLock() {
 }
 
 func (c *connection) closeWithLock() {
-	if c.conn != nil {
-		c.conn.Close() // nolint: errcheck
+	if c.tcpConn != nil {
+		c.tcpConn.Close() // nolint: errcheck
 	}
+	c.tcpConn = nil
 	c.conn = nil
 }
 

@@ -22,6 +22,7 @@ package rawtcp
 
 import (
 	"bufio"
+	"compress/flate"
 	"fmt"
 	"io"
 	"math/rand"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/migration"
@@ -40,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	xserver "github.com/m3db/m3/src/x/server"
 
+	"github.com/golang/snappy"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -86,6 +89,7 @@ type handler struct {
 	readBufferSize int
 	msgpackItOpts  msgpack.UnaggregatedIteratorOptions
 	protobufItOpts protobuf.UnaggregatedOptions
+	compressType   client.CompressType
 
 	errLogRateLimiter *rate.Limiter
 	rand              *rand.Rand
@@ -106,6 +110,7 @@ func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler 
 		readBufferSize:    opts.ReadBufferSize(),
 		msgpackItOpts:     opts.MsgpackUnaggregatedIteratorOptions(),
 		protobufItOpts:    opts.ProtobufUnaggregatedIteratorOptions(),
+		compressType:      opts.CompressType(),
 		errLogRateLimiter: limiter,
 		rand:              rand.New(rand.NewSource(nowFn().UnixNano())),
 		metrics:           newHandlerMetrics(iOpts.MetricsScope()),
@@ -118,7 +123,15 @@ func (s *handler) Handle(conn net.Conn) {
 		remoteAddress = remoteAddr.String()
 	}
 
-	reader := bufio.NewReaderSize(conn, s.readBufferSize)
+	connReader := io.Reader(conn)
+	switch s.compressType {
+	case client.SnappyCompressType:
+		connReader = snappy.NewReader(connReader)
+	case client.FlateCompressType:
+		connReader = flate.NewReader(connReader)
+	}
+
+	reader := bufio.NewReaderSize(connReader, s.readBufferSize)
 	it := migration.NewUnaggregatedIterator(reader, s.msgpackItOpts, s.protobufItOpts)
 	defer it.Close()
 

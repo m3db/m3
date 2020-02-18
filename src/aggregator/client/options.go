@@ -51,10 +51,13 @@ const (
 	// By default the oldest metrics in the queue are dropped when it is full.
 	defaultDropType = DropOldest
 
-	// By default set maximum batch size to 32k
-	defaultMaxBatchSize = 2 << 14
+	// By default set maximum batch size to 1mb.
+	// NB(r): This number affects how well compression will work
+	// since a batch is compressed together as it is sent together
+	// as a single Write(...) call to a connection from the queue.
+	defaultMaxBatchSize = 2 << 19
 
-	// By default write at least every 100ms
+	// By default write at least every 100ms.
 	defaultBatchFlushDeadline = 100 * time.Millisecond
 )
 

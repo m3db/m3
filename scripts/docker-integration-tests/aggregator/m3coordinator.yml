@@ -78,6 +78,7 @@ downsample:
             low: 0.7
             high: 1.0
       connection:
+        compress: snappy
         writeTimeout: 250ms
 
 ingest:
@@ -95,3 +96,5 @@ ingest:
       retry:
         maxBackoff: 10s
         jitter: true
+    consumer:
+      compress: snappy

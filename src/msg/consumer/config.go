@@ -23,6 +23,7 @@ package consumer
 import (
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -37,6 +38,7 @@ type Configuration struct {
 	AckBufferSize             *int                      `yaml:"ackBufferSize"`
 	ConnectionWriteBufferSize *int                      `yaml:"connectionWriteBufferSize"`
 	ConnectionReadBufferSize  *int                      `yaml:"connectionReadBufferSize"`
+	Compress                  client.CompressType       `yaml:"compress"`
 }
 
 // MessagePoolConfiguration is the message pool configuration
@@ -70,7 +72,9 @@ func (c MessagePoolConfiguration) NewOptions(
 
 // NewOptions creates consumer options.
 func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
-	opts := NewOptions().SetInstrumentOptions(iOpts)
+	opts := NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetCompressType(c.Compress)
 	if c.Encoder != nil {
 		opts = opts.SetEncoderOptions(c.Encoder.NewOptions(iOpts))
 	}

@@ -18,6 +18,7 @@ http:
 
 rawtcp:
   listenAddress: 0.0.0.0:6000
+  compress: snappy
   keepAliveEnabled: true
   keepAlivePeriod: 1m
   retry:
@@ -252,6 +253,7 @@ aggregator:
                 initialBackoff: 2s
                 maxBackoff: 10s
               connection:
+                compress: snappy
                 dialTimeout: 5s
                 writeTimeout: 5s
                 retry:
