@@ -2,19 +2,20 @@
 
 ## Overview
 
-This guide explains how to upgrade (and downgrade??) M3 from one version to another (e.g. from 0.14.0 to 0.15.0) - both on Kubernetes as well as on bare metal.
+This guide explains how to upgrade M3 from one version to another (e.g. from 0.14.0 to 0.15.0) - both on Kubernetes as well as on bare metal.
 This includes upgrading:
 
 - m3dbnode
-- m3coordinator (coming soon!)
-- m3query (coming soon!)
-- m3aggregator (coming soon!)
+- m3coordinator
+- m3query
+- m3aggregator
 
 ## m3dbnode
 
 ### Graphs to monitor
 
 While upgrading M3DB nodes, it's important to monitor the status of bootstrapping the individual nodes. This can be monitored using the [M3DB Node Details](https://grafana.com/grafana/dashboards/8126) graph.
+Typically, the `Bootstrapped` graph under `Background Tasks` and the graphs within the `CPU and Memory Utilization` give a good understanding of how well bootstrapping is going.
 
 ### Non-Kubernetes
 
@@ -23,17 +24,27 @@ It is very important that for each replica set, only one node gets upgraded at a
 1) Download new binary (linux example below).
 
 ```bash
-wget "https://github.com/m3db/m3/releases/download/v0.15.0-rc.0/m3_0.15.0-rc.0_linux_amd64.tar.gz" && tar xvzf m3_0.15.0-rc.0_linux_amd64.tar.gz && rm m3_0.15.0-rc.0_linux_amd64.tar.gz
+wget "https://github.com/m3db/m3/releases/download/$VERSION/m3_$VERSION_linux_amd64.tar.gz" && tar xvzf m3_$VERSION_linux_amd64.tar.gz && rm m3_$VERSION_linux_amd64.tar.gz
 ```
 
-2) Stop and upgrade one M3DB node at a time per replica set.
+2) Stop and upgrade one M3DB node at a time per replica set using the [systemd unit](https://github.com/m3db/m3/blob/master/integrations/systemd/m3dbnode.service).
 
 ```bash
-# locate m3dbnode process
-ps aux | grep m3dbnode
+# stop m3dbnode
+sudo systemctl stop m3dbnode
 
-# kill and restart m3dbnode with new binary
-kill -9 <m3dbnode_pid> && ./m3_0.15.0-rc.0_linux_amd64/m3dbnode -f <config-name.yml>
+# start m3dbnode with new binary
+./m3_$VERSION_linux_amd64/m3dbnode -f <config-name.yml>
+```
+
+*Note:* If unable to stop `m3dbnode` using `systemctl`, use `pkill` instead.
+
+```bash
+# stop m3dbnode
+pkill m3dbnode
+
+# start m3dbnode with new binary
+./m3_$VERSION_linux_amd64/m3dbnode -f <config-name.yml>
 ```
 
 3) Confirm m3dbnode has finished bootstrapping.
@@ -55,7 +66,7 @@ kill -9 <m3dbnode_pid> && ./m3_0.15.0-rc.0_linux_amd64/m3dbnode -f <config-name.
 
 ### Kubernetes
 
-If running M3DB on Kubernetes, upgrading is simple. 
+If running `M3DB` on Kubernetes, upgrade by completing the following steps. 
 
 1. Identify the version of m3dbnode to upgrade to [on Quay](https://quay.io/repository/m3db/m3dbnode?tab=tags).
 
@@ -63,7 +74,7 @@ If running M3DB on Kubernetes, upgrading is simple.
 
 ```yaml
 spec:
-  image: <m3dbnode_image> (e.g. quay.io/m3db/m3dbnode:latest)
+  image: quay.io/m3db/m3dbnode:latest
 ```
 
 3. Once updated, apply the updated manifest and a rolling restart will be performed.
@@ -71,3 +82,20 @@ spec:
 ```bash
 kubectl apply -f <m3dbnode_manifest>
 ```
+
+### Downgrading
+
+The `upgrading` steps above can also be used to downgrade M3DB. However, it is important to refer to the release notes to make sure that versions are
+backwards compatible.
+
+## m3coordinator
+
+`m3coordinator` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3coordinator) instead.
+
+## m3query
+
+`m3query` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3query) instead.
+
+## m3aggregator
+
+`m3aggregator` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3aggregator) instead.
