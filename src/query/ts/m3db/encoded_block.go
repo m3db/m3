@@ -92,6 +92,7 @@ func newEncodedBlock(
 		lastBlock:            lastBlock,
 		resultMeta:           resultMeta,
 		options:              options,
+		instrumented:         true,
 	}
 }
 

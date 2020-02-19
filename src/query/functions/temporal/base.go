@@ -35,10 +35,9 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 var emptyOp = baseOp{}
