@@ -805,8 +805,12 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, _, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
+			}
 			return err
 		}
 
