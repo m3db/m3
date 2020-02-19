@@ -120,13 +120,13 @@ func (it *lazySeriesIter) SeriesMeta() []SeriesMeta {
 func (it *lazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c      = it.it.Current()
-		values = c.datapoints
+		values = c.opts.Datapoints
 		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
 	for i, v := range values {
-		c.datapoints[i].Timestamp = tt(v.Timestamp)
-		c.datapoints[i].Value = vt(v.Value)
+		c.opts.Datapoints[i].Timestamp = tt(v.Timestamp)
+		c.opts.Datapoints[i].Value = vt(v.Value)
 	}
 
 	return c
