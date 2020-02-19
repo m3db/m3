@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to upgrade M3 from one version to another (e.g. from 0.14.0 to 0.15.0) - both on Kubernetes as well as on bare metal.
+This guide explains how to upgrade (and downgrade??) M3 from one version to another (e.g. from 0.14.0 to 0.15.0) - both on Kubernetes as well as on bare metal.
 This includes upgrading:
 
 - m3dbnode
@@ -55,3 +55,19 @@ kill -9 <m3dbnode_pid> && ./m3_0.15.0-rc.0_linux_amd64/m3dbnode -f <config-name.
 
 ### Kubernetes
 
+If running M3DB on Kubernetes, upgrading is simple. 
+
+1. Identify the version of m3dbnode to upgrade to [on Quay](https://quay.io/repository/m3db/m3dbnode?tab=tags).
+
+2. Replace the Docker image in the `StatefulSet` manifest (or `m3db-operator` manifest) to be the new version of m3dbnode.
+
+```yaml
+spec:
+  image: <m3dbnode_image> (e.g. quay.io/m3db/m3dbnode:latest)
+```
+
+3. Once updated, apply the updated manifest and a rolling restart will be performed.
+
+```bash
+kubectl apply -f <m3dbnode_manifest>
+```
