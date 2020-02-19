@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to upgrade M3 from one version to another (e.g. from 0.14.0 to 0.15.0) - both on Kubernetes as well as on bare metal.
+This guide explains how to upgrade M3 from one version to another (e.g. from 0.14.0 to 0.15.0).
 This includes upgrading:
 
 - m3dbnode
@@ -33,8 +33,8 @@ wget "https://github.com/m3db/m3/releases/download/$VERSION/m3_$VERSION_linux_am
 # stop m3dbnode
 sudo systemctl stop m3dbnode
 
-# start m3dbnode with new binary
-./m3_$VERSION_linux_amd64/m3dbnode -f <config-name.yml>
+# start m3dbnode with the new binary (which should be placed in the path specified in the systemd unit)
+sudo systemctl start m3dbnode
 ```
 
 *Note:* If unable to stop `m3dbnode` using `systemctl`, use `pkill` instead.
