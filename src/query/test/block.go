@@ -132,9 +132,12 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 
 func (m *multiSeriesBlockSeriesIter) Current() block.UnconsolidatedSeries {
 	s := m.block.seriesList[m.index]
-	return block.NewUnconsolidatedSeries(s.Values().Datapoints(), block.SeriesMeta{
-		Tags: s.Tags,
-		Name: s.Name(),
+	return block.NewUnconsolidatedSeries(block.UnconsolidatedSeriesOptions{
+		Datapoints: s.Values().Datapoints(),
+		Meta: block.SeriesMeta{
+			Tags: s.Tags,
+			Name: s.Name(),
+		},
 	})
 }
 

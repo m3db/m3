@@ -96,9 +96,9 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	}, nil)
 	require.NotNil(t, asyncSession)
 
-	results, exhaustive, err := asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
+	results, meta, err := asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
 	assert.Nil(t, results)
-	assert.Equal(t, false, exhaustive)
+	assert.False(t, meta.Exhaustive)
 	assert.Equal(t, err, errSessionUninitialized)
 
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})

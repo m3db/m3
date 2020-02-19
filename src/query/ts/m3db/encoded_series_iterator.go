@@ -37,6 +37,7 @@ type encodedSeriesIter struct {
 	series           block.UnconsolidatedSeries
 	seriesMeta       []block.SeriesMeta
 	seriesIters      []encoding.SeriesIterator
+	instrumented     bool
 }
 
 func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
@@ -46,6 +47,7 @@ func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
 		seriesMeta:       b.seriesMetas,
 		seriesIters:      b.seriesBlockIterators,
 		lookbackDuration: b.options.LookbackDuration(),
+		instrumented:     b.instrumented,
 	}, nil
 }
 
@@ -75,6 +77,14 @@ func (it *encodedSeriesIter) Next() bool {
 		it.datapoints = it.datapoints[:0]
 	}
 
+	var (
+		decodeTime  time.Duration
+		decodeStart time.Time
+	)
+	if it.instrumented {
+		decodeStart = time.Now()
+	}
+
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		it.datapoints = append(it.datapoints,
@@ -84,14 +94,22 @@ func (it *encodedSeriesIter) Next() bool {
 			})
 	}
 
+	if it.instrumented {
+		decodeTime = time.Since(decodeStart)
+	}
+
 	if it.err = iter.Err(); it.err != nil {
 		return false
 	}
 
-	it.series = block.NewUnconsolidatedSeries(
-		it.datapoints,
-		it.seriesMeta[it.idx],
-	)
+	it.series = block.NewUnconsolidatedSeries(block.UnconsolidatedSeriesOptions{
+		Datapoints:   it.datapoints,
+		Meta:         it.seriesMeta[it.idx],
+		StatsEnabled: it.instrumented,
+		Stats: block.UnconsolidatedSeriesStats{
+			DecodeTime: decodeTime,
+		},
+	})
 
 	return next
 }

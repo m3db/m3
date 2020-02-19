@@ -64,7 +64,10 @@ func makeBlockResult(
 	addOp(it.EXPECT().SeriesMeta().Return(metas))
 	for i, series := range results.SeriesList {
 		addOp(it.EXPECT().Next().Return(true))
-		c := block.NewUnconsolidatedSeries(series.Values().Datapoints(), metas[i])
+		c := block.NewUnconsolidatedSeries(block.UnconsolidatedSeriesOptions{
+			Datapoints: series.Values().Datapoints(),
+			Meta:       metas[i],
+		})
 		addOp(it.EXPECT().Current().Return(c))
 	}
 

@@ -21,6 +21,8 @@
 package block
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/query/ts"
 )
 
@@ -52,24 +54,38 @@ func (s Series) Len() int {
 
 // UnconsolidatedSeries is the series with raw datapoints.
 type UnconsolidatedSeries struct {
-	datapoints ts.Datapoints
-	Meta       SeriesMeta
+	opts UnconsolidatedSeriesOptions
+}
+
+// UnconsolidatedSeriesOptions is options for creating an unconsolidated series.
+type UnconsolidatedSeriesOptions struct {
+	Datapoints   ts.Datapoints
+	Meta         SeriesMeta
+	StatsEnabled bool
+	Stats        UnconsolidatedSeriesStats
+}
+
+// UnconsolidatedSeriesStats is stats about an unconsolidated series.
+type UnconsolidatedSeriesStats struct {
+	DecodeTime time.Duration
 }
 
 // NewUnconsolidatedSeries creates a new series with raw datapoints.
-func NewUnconsolidatedSeries(
-	datapoints ts.Datapoints,
-	meta SeriesMeta,
-) UnconsolidatedSeries {
-	return UnconsolidatedSeries{datapoints: datapoints, Meta: meta}
+func NewUnconsolidatedSeries(opts UnconsolidatedSeriesOptions) UnconsolidatedSeries {
+	return UnconsolidatedSeries{opts: opts}
 }
 
 // Datapoints returns the internal datapoints slice.
 func (s UnconsolidatedSeries) Datapoints() ts.Datapoints {
-	return s.datapoints
+	return s.opts.Datapoints
 }
 
 // Len returns the number of datapoints slices in the series.
 func (s UnconsolidatedSeries) Len() int {
-	return len(s.datapoints)
+	return len(s.opts.Datapoints)
+}
+
+// Stats returns statistics about the unconsolidated series if they were supplied.
+func (s UnconsolidatedSeries) Stats() (UnconsolidatedSeriesStats, bool) {
+	return s.opts.Stats, s.opts.StatsEnabled
 }

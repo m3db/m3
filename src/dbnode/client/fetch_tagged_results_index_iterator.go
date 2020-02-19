@@ -21,8 +21,8 @@
 package client
 
 import (
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 // FOLLOWUP(prateek): add pooling for taggedIDsIterator(s).
@@ -73,6 +73,14 @@ func (i *taggedIDsIterator) Next() bool {
 	i.current.nsID = ident.BytesID(i.backing.nses[i.currentIdx])
 	i.current.tags = dec
 	return true
+}
+
+func (i *taggedIDsIterator) Remaining() int {
+	at := i.currentIdx
+	if at < 0 {
+		at = 0
+	}
+	return len(i.backing.ids) - at
 }
 
 func (i *taggedIDsIterator) addBacking(nsID, tsID, tags []byte) {
