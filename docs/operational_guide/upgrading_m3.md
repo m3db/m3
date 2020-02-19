@@ -24,7 +24,7 @@ It is very important that for each replica set, only one node gets upgraded at a
 1) Download new binary (linux example below).
 
 ```bash
-wget "https://github.com/m3db/m3/releases/download/$VERSION/m3_$VERSION_linux_amd64.tar.gz" && tar xvzf m3_$VERSION_linux_amd64.tar.gz && rm m3_$VERSION_linux_amd64.tar.gz
+wget "https://github.com/m3db/m3/releases/download/v$VERSION/m3_$VERSION_linux_amd64.tar.gz" && tar xvzf m3_$VERSION_linux_amd64.tar.gz && rm m3_$VERSION_linux_amd64.tar.gz
 ```
 
 2) Stop and upgrade one M3DB node at a time per replica set using the [systemd unit](https://github.com/m3db/m3/blob/master/integrations/systemd/m3dbnode.service).
