@@ -74,7 +74,7 @@ If running `M3DB` on Kubernetes, upgrade by completing the following steps.
 
 ```yaml
 spec:
-  image: quay.io/m3db/m3dbnode:latest
+  image: quay.io/m3db/m3dbnode:$VERSION
 ```
 
 3. Once updated, apply the updated manifest and a rolling restart will be performed.
