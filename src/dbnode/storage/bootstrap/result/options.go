@@ -32,23 +32,23 @@ const (
 )
 
 type options struct {
-	clockOpts               clock.Options
-	instrumentOpts          instrument.Options
-	blockOpts               block.Options
-	newBlocksLen            int
-	seriesCachePolicy       series.CachePolicy
-	mutableSegmentAllocator MutableSegmentAllocator
+	clockOpts                 clock.Options
+	instrumentOpts            instrument.Options
+	blockOpts                 block.Options
+	newBlocksLen              int
+	seriesCachePolicy         series.CachePolicy
+	documentsBuilderAllocator DocumentsBuilderAllocator
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		clockOpts:               clock.NewOptions(),
-		instrumentOpts:          instrument.NewOptions(),
-		blockOpts:               block.NewOptions(),
-		newBlocksLen:            defaultNewBlocksLen,
-		seriesCachePolicy:       series.DefaultCachePolicy,
-		mutableSegmentAllocator: NewDefaultMutableSegmentAllocator(),
+		clockOpts:                 clock.NewOptions(),
+		instrumentOpts:            instrument.NewOptions(),
+		blockOpts:                 block.NewOptions(),
+		newBlocksLen:              defaultNewBlocksLen,
+		seriesCachePolicy:         series.DefaultCachePolicy,
+		documentsBuilderAllocator: NewDefaultDocumentsBuilderAllocator(),
 	}
 }
 
@@ -102,12 +102,12 @@ func (o *options) SeriesCachePolicy() series.CachePolicy {
 	return o.seriesCachePolicy
 }
 
-func (o *options) SetIndexMutableSegmentAllocator(value MutableSegmentAllocator) Options {
+func (o *options) SetIndexDocumentsBuilderAllocator(value DocumentsBuilderAllocator) Options {
 	opts := *o
-	opts.mutableSegmentAllocator = value
+	opts.documentsBuilderAllocator = value
 	return &opts
 }
 
-func (o *options) IndexMutableSegmentAllocator() MutableSegmentAllocator {
-	return o.mutableSegmentAllocator
+func (o *options) IndexDocumentsBuilderAllocator() DocumentsBuilderAllocator {
+	return o.documentsBuilderAllocator
 }

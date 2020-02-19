@@ -52,6 +52,11 @@ var (
 	errReadNotExpectedSize = errors.New("next read not expected size")
 )
 
+const (
+	mmapPersistFsDataName      = "mmap.persist.fs.data"
+	mmapPersistFsDataIndexName = "mmap.persist.fs.dataindex"
+)
+
 type reader struct {
 	opts          Options
 	hugePagesOpts mmap.HugeTLBOptions
@@ -67,12 +72,12 @@ type reader struct {
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	indexFd                 *os.File
-	indexMmap               []byte
+	indexMmap               mmap.Descriptor
 	indexDecoderStream      dataFileSetReaderDecoderStream
 	indexEntriesByOffsetAsc []schema.IndexEntry
 
 	dataFd     *os.File
-	dataMmap   []byte
+	dataMmap   mmap.Descriptor
 	dataReader digest.ReaderWithDigest
 
 	bloomFilterFd *os.File
@@ -204,14 +209,32 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 		indexFilepath: mmap.FileDesc{
-			File:    &r.indexFd,
-			Bytes:   &r.indexMmap,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			File:       &r.indexFd,
+			Descriptor: &r.indexMmap,
+			Options: mmap.Options{
+				Read:    true,
+				HugeTLB: r.hugePagesOpts,
+				ReporterOptions: mmap.ReporterOptions{
+					Context: mmap.Context{
+						Name: mmapPersistFsDataIndexName,
+					},
+					Reporter: r.opts.MmapReporter(),
+				},
+			},
 		},
 		dataFilepath: mmap.FileDesc{
-			File:    &r.dataFd,
-			Bytes:   &r.dataMmap,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			File:       &r.dataFd,
+			Descriptor: &r.dataMmap,
+			Options: mmap.Options{
+				Read:    true,
+				HugeTLB: r.hugePagesOpts,
+				ReporterOptions: mmap.ReporterOptions{
+					Context: mmap.Context{
+						Name: mmapPersistFsDataName,
+					},
+					Reporter: r.opts.MmapReporter(),
+				},
+			},
 		},
 	})
 	if err != nil {
@@ -223,8 +246,8 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 	}
 
-	r.indexDecoderStream.Reset(r.indexMmap)
-	r.dataReader.Reset(bytes.NewReader(r.dataMmap))
+	r.indexDecoderStream.Reset(r.indexMmap.Bytes)
+	r.dataReader.Reset(bytes.NewReader(r.dataMmap.Bytes))
 
 	if err := r.readDigest(); err != nil {
 		// Try to close if failed to read
@@ -385,6 +408,9 @@ func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 		uint(r.bloomFilterInfo.NumElementsM),
 		uint(r.bloomFilterInfo.NumHashesK),
 		r.opts.ForceBloomFilterMmapMemory(),
+		mmap.ReporterOptions{
+			Reporter: r.opts.MmapReporter(),
+		},
 	)
 }
 

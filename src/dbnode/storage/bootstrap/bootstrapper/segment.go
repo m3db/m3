@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,60 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package builder
+package bootstrapper
 
-import (
-	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/postings"
-)
+import "github.com/m3db/m3/src/m3ninx/index/segment"
 
-type termsIter struct {
-	err  error
-	done bool
-
-	currentIdx int
-	current    termElem
-	terms      []termElem
+// Segment wraps an index segment so we can easily determine whether or not the segment is persisted to disk.
+type Segment struct {
+	persisted bool
+	segment.Segment
 }
 
-var _ segment.TermsIterator = &termsIter{}
-
-func newTermsIter(
-	orderedTerms []termElem,
-) *termsIter {
-	return &termsIter{
-		currentIdx: -1,
-		terms:      orderedTerms,
+// NewSegment returns an index segment w/ persistence metadata.
+func NewSegment(segment segment.Segment, persisted bool) *Segment {
+	return &Segment{
+		persisted: persisted,
+		Segment:   segment,
 	}
 }
 
-func (b *termsIter) Next() bool {
-	if b.done || b.err != nil {
-		return false
-	}
-	b.currentIdx++
-	if b.currentIdx >= len(b.terms) {
-		b.done = true
-		return false
-	}
-	b.current = b.terms[b.currentIdx]
-	return true
-}
-
-func (b *termsIter) Current() ([]byte, postings.List) {
-	return b.current.term, b.current.postings
-}
-
-func (b *termsIter) Err() error {
-	return nil
-}
-
-func (b *termsIter) Len() int {
-	return len(b.terms)
-}
-
-func (b *termsIter) Close() error {
-	b.current = termElem{}
-	b.terms = nil
-	return nil
+// IsPersisted returns whether or not the underlying segment was persisted to disk.
+func (s *Segment) IsPersisted() bool {
+	return s.persisted
 }

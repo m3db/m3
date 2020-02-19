@@ -43,7 +43,7 @@ type DataBootstrapResult interface {
 
 // IndexBootstrapResult is the result of a bootstrap of series index metadata.
 type IndexBootstrapResult interface {
-	// Blocks returns a map of all index block results.
+	// IndexResults returns a map of all index block results.
 	IndexResults() IndexResults
 
 	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
@@ -62,6 +62,11 @@ type IndexBootstrapResult interface {
 // IndexResults is a set of index blocks indexed by block start.
 type IndexResults map[xtime.UnixNano]IndexBlock
 
+// IndexBuilder wraps a index segment builder w/ batching.
+type IndexBuilder struct {
+	builder segment.DocumentsBuilder
+}
+
 // IndexBlock contains the bootstrap data structures for an index block.
 type IndexBlock struct {
 	blockStart time.Time
@@ -69,9 +74,9 @@ type IndexBlock struct {
 	fulfilled  ShardTimeRanges
 }
 
-// MutableSegmentAllocator allocates a new MutableSegment type when
+// DocumentsBuilderAllocator allocates a new DocumentsBuilder type when
 // creating a bootstrap result to return to the index.
-type MutableSegmentAllocator func() (segment.MutableSegment, error)
+type DocumentsBuilderAllocator func() (segment.DocumentsBuilder, error)
 
 // ShardResult returns the bootstrap result for a shard.
 type ShardResult interface {
@@ -152,9 +157,9 @@ type Options interface {
 	// SeriesCachePolicy returns the series cache policy.
 	SeriesCachePolicy() series.CachePolicy
 
-	// SetIndexMutableSegmentAllocator sets the index mutable segment allocator.
-	SetIndexMutableSegmentAllocator(value MutableSegmentAllocator) Options
+	// SetIndexDocumentsBuilderAllocator sets the index mutable segment allocator.
+	SetIndexDocumentsBuilderAllocator(value DocumentsBuilderAllocator) Options
 
-	// IndexMutableSegmentAllocator returns the index mutable segment allocator.
-	IndexMutableSegmentAllocator() MutableSegmentAllocator
+	// IndexDocumentsBuilderAllocator returns the index documents builder allocator.
+	IndexDocumentsBuilderAllocator() DocumentsBuilderAllocator
 }

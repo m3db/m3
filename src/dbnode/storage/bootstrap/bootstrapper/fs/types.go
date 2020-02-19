@@ -26,6 +26,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -60,6 +62,12 @@ type Options interface {
 	// PersistManager returns the persistence manager used to flush blocks
 	// when performing a bootstrap run with persistence enabled.
 	PersistManager() persist.Manager
+
+	// SetCompactor sets the compactor used to compact segment builders into segments.
+	SetCompactor(value *compaction.Compactor) Options
+
+	// Compactor returns the compactor used to compact segment builders into segments.
+	Compactor() *compaction.Compactor
 
 	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
 	// work for bootstrapping data file sets.
@@ -105,4 +113,10 @@ type Options interface {
 
 	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
+
+	// SetIndexOptions set the indexing options.
+	SetIndexOptions(value index.Options) Options
+
+	// IndexOptions returns the indexing options.
+	IndexOptions() index.Options
 }
