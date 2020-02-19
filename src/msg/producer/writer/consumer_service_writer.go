@@ -215,7 +215,8 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 		SetInstrumentOptions(w.opts.InstrumentOptions()).
 		SetNewUpdatableFn(updatableFn).
 		SetGetUpdateFn(getFn).
-		SetProcessFn(w.processFn)
+		SetProcessFn(w.processFn).
+		SetKey(w.opts.TopicName())
 	w.value = watch.NewValue(vOptions)
 	err := w.value.Watch()
 	if err == nil {

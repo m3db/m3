@@ -27,13 +27,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -71,11 +71,14 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
+	storageIdxOpts := setup.storageOpts.IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
+		SetIndexOptions(storageIdxOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-		SetPersistManager(persistMgr)
+		SetPersistManager(persistMgr).
+		SetCompactor(newCompactor(t, storageIdxOpts))
 
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)

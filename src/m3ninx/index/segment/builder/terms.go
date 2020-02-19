@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +21,18 @@
 package builder
 
 import (
+	"bytes"
+
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/twotwotwo/sorts"
 )
 
 type terms struct {
-	opts        Options
-	pool        postings.Pool
-	postings    *PostingsMap
-	uniqueTerms []termElem
+	opts                Options
+	pool                postings.Pool
+	postings            *PostingsMap
+	uniqueTerms         []termElem
+	uniqueTermsIsSorted bool
 }
 
 type termElem struct {
@@ -56,6 +60,7 @@ func (t *terms) post(term []byte, id postings.ID) error {
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
+
 	}
 
 	// If empty posting list, track insertion of this key into the terms
@@ -69,6 +74,7 @@ func (t *terms) post(term []byte, id postings.ID) error {
 			term:     term,
 			postings: postingsList,
 		})
+		t.uniqueTermsIsSorted = false
 	}
 	return nil
 }
@@ -77,6 +83,15 @@ func (t *terms) post(term []byte, id postings.ID) error {
 func (t *terms) get(term []byte) (postings.List, bool) {
 	value, ok := t.postings.Get(term)
 	return value, ok
+}
+
+func (t *terms) sortIfRequired() {
+	if t.uniqueTermsIsSorted {
+		return
+	}
+
+	sorts.ByBytes(t)
+	t.uniqueTermsIsSorted = true
 }
 
 func (t *terms) reset() {
@@ -92,4 +107,21 @@ func (t *terms) reset() {
 		t.uniqueTerms[i] = emptyTerm
 	}
 	t.uniqueTerms = t.uniqueTerms[:0]
+	t.uniqueTermsIsSorted = false
+}
+
+func (t *terms) Len() int {
+	return len(t.uniqueTerms)
+}
+
+func (t *terms) Less(i, j int) bool {
+	return bytes.Compare(t.uniqueTerms[i].term, t.uniqueTerms[j].term) < 0
+}
+
+func (t *terms) Swap(i, j int) {
+	t.uniqueTerms[i], t.uniqueTerms[j] = t.uniqueTerms[j], t.uniqueTerms[i]
+}
+
+func (t *terms) Key(i int) []byte {
+	return t.uniqueTerms[i].term
 }

@@ -17,9 +17,17 @@ spec:
     numInstances: 1
   - name: group3
     numInstances: 1
-  podIdentityConfig:
-    sources:
-      - PodUID
   namespaces:
     - name: default
       preset: 10s:2d
+  podIdentityConfig:
+    sources: []
+  dataDirVolumeClaimTemplate:
+    metadata:
+      name: m3db-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2000Gi

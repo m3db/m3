@@ -81,7 +81,8 @@ func NewTrafficEnabler(opts Options) Controller {
 		SetInstrumentOptions(iOpts).
 		SetNewUpdatableFn(newUpdatableFn).
 		SetGetUpdateFn(getFn).
-		SetProcessFn(processFn)
+		SetProcessFn(processFn).
+		SetKey(opts.RuntimeKey())
 	return &trafficEnabler{
 		enabled: enabled,
 		value:   watch.NewValue(vOptions),

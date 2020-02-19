@@ -240,5 +240,10 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	if !ok {
 		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
+
+	// NB(r): Ensure always sorted so can be used to build an FST which
+	// requires in order insertion.
+	terms.sortIfRequired()
+
 	return newTermsIter(terms.uniqueTerms), nil
 }
