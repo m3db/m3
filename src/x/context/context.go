@@ -371,8 +371,8 @@ func spanIsSampled(sp opentracing.Span) bool {
 	if ok && jaegerSpCtx.IsSampled() {
 		return true
 	}
-
-	spanCtxType := reflect.TypeOf(spanCtx).Elem()
+	fmt.Println("CTX", spanCtx)
+	spanCtxType := reflect.ValueOf(spanCtx)
 	lightstepSpCtx, ok := spanCtx.(lightstep.SpanContext)
 	if ok {
 		fmt.Println("LS", lightstepSpCtx)
@@ -394,13 +394,13 @@ func spanIsSampled(sp opentracing.Span) bool {
 func printStruct(v reflect.Value) {
 	s := v
 	typeOfT := s.Type()
-	for i := 0; i < s.NumField(); i++ {
+	for i := 0; i < typeOfT.NumField(); i++ {
 		f := s.Field(i)
 		fmt.Printf("%d: %s %s = %v\n", i,
 			typeOfT.Field(i).Name, f.Type(), f.Interface())
 
 		if f.Kind().String() == "struct" {
-			x1 := reflect.TypeOf(f.Interface())
+			x1 := reflect.ValueOf(f.Interface())
 			fmt.Printf("type2: %s\n", x1)
 			printStruct(x1)
 		}
