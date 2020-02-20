@@ -20,16 +20,18 @@ TESTS=(
 # Some systems, including our default Buildkite hosts, don't come with netcat
 # installed and we may not have perms to install it. "Install" it in the worst
 # possible way.
-if ! command -v nc; then
+if ! command -v nc && [[ "$BUILDKITE" == "true" ]]; then
 	echo "installing netcat"
 	NCDIR="$(mktemp -d)"
-	docker run --rm debian:latest bash -c 'apt-get update &>/dev/null &&
-		apt-get install -y netcat &>/dev/null &&
-		cat $(which nc)' \
-		> "${NCDIR}/nc"
 
-	chmod +x "${NCDIR}/nc"
-	export PATH="$PATH:$NCDIR"
+	yumdownloader --destdir "$NCDIR" --resolve nc
+	(
+		cd "$NCDIR"
+		RPM=$(find . -maxdepth 1 -name '*.rpm' | tail -n1)
+		rpm2cpio "$RPM" | cpio -id
+	)
+
+	export PATH="$PATH:$NCDIR/usr/bin"
 
 	function cleanup_nc() {
 		rm -rf "$NCDIR"
@@ -37,6 +39,8 @@ if ! command -v nc; then
 
 	trap cleanup_nc EXIT
 fi
+
+command -v nc
 
 scripts/docker-integration-tests/setup.sh
 
