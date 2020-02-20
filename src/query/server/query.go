@@ -70,7 +70,6 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -540,13 +539,12 @@ func newDownsampler(
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
-		Storage:          storage,
-		ClusterClient:    clusterManagementClient,
-		RulesKVStore:     kvStore,
-		AutoMappingRules: autoMappingRules,
-		ClockOptions:     clock.NewOptions(),
-		// TODO: remove after https://github.com/m3db/m3/issues/992 is fixed
-		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
+		Storage:               storage,
+		ClusterClient:         clusterManagementClient,
+		RulesKVStore:          kvStore,
+		AutoMappingRules:      autoMappingRules,
+		ClockOptions:          clock.NewOptions(),
+		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
