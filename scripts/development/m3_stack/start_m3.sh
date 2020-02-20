@@ -185,7 +185,7 @@ echo "Done validating topology"
 
 echo "Waiting until shards are marked as available"
 ATTEMPTS=100 TIMEOUT=2 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
+  '[ "$(curl -sSf 127.0.0.1:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     echo "Initializing M3Coordinator topology"

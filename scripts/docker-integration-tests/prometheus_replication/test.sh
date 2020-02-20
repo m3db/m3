@@ -74,9 +74,9 @@ function test_replication_forwarding {
   # Make sure both are up (otherwise forwarding could fail).
   echo "Test both clusters responding to queries"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=any | jq -r ".data.result | length") -eq 0 ]]'
+    '[[ $(curl -s 127.0.0.1:7201/api/v1/query?query=any | jq -r ".data.result | length") -eq 0 ]]'
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:17201/api/v1/query?query=any | jq -r ".data.result | length") -eq 0 ]]'
+    '[[ $(curl -s 127.0.0.1:17201/api/v1/query?query=any | jq -r ".data.result | length") -eq 0 ]]'
 
   # Test writing.
   echo  "Test write data to first cluster"
@@ -89,7 +89,7 @@ function test_replication_forwarding {
   # cluster using port 17201 from the second cluster's coordinator
   echo "Test read replicated data"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:17201/api/v1/query?query=foo_replicate | jq -r ".data.result | length") -gt 0 ]]'
+    '[[ $(curl -s 127.0.0.1:17201/api/v1/query?query=foo_replicate | jq -r ".data.result | length") -gt 0 ]]'
 }
 
 # Run all tests

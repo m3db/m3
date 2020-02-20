@@ -7,11 +7,11 @@ t=$(date +%s)
 function write_metrics {
   NUM=$1
   EXTRA=${2:-default}
-  echo "Writing $NUM metrics to [0.0.0.0:9003]"
+  echo "Writing $NUM metrics to [127.0.0.1:9003]"
   set +x
   for (( i=0; i<$NUM; i++ ))
   do
-    curl -X POST 0.0.0.0:9003/writetagged -d '{
+    curl -X POST 127.0.0.1:9003/writetagged -d '{
       "namespace": "unagg",
       "id": "{__name__=\"'$METRIC_NAME'\",'$EXTRA'=\"extra\",val=\"'$i'\"}",
       "tags": [

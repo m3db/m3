@@ -38,7 +38,7 @@ DBNODE_HOST=dbnode-cluster-c DBDNODE_PORT=29000 DBNODE_HEALTH_PORT=29002 COORDIN
  setup_single_m3db_node
 
 echo "Write data to cluster a"
-curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
+curl -vvvsS -X POST 127.0.0.1:9003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-a\",endpoint=\"/request\"}",
   "tags": [
@@ -62,7 +62,7 @@ curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
 }'
 
 echo "Write data to cluster b"
-curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
+curl -vvvsS -X POST 127.0.0.1:19003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-b\",endpoint=\"/request\"}",
   "tags": [
@@ -86,7 +86,7 @@ curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
 }'
 
 echo "Write data to cluster c"
-curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
+curl -vvvsS -X POST 127.0.0.1:29003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-c\",endpoint=\"/request\"}",
   "tags": [
@@ -110,7 +110,7 @@ curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
 }'
 
 function read {
-  RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=test_metric")
+  RESPONSE=$(curl "http://127.0.0.1:7201/api/v1/query?query=test_metric")
   ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster | sort)
   test "$(echo $ACTUAL)" = '"cluster-a" "cluster-b" "cluster-c"'
 }
@@ -118,7 +118,7 @@ function read {
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff read
 
 function read_sum {
-  RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=sum(test_metric)")
+  RESPONSE=$(curl "http://127.0.0.1:7201/api/v1/query?query=sum(test_metric)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[].value[1])
   test $ACTUAL = '"126.370370367"'
 }
@@ -126,7 +126,7 @@ function read_sum {
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff read_sum
 
 echo "Write local tagged data to cluster a"
-curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
+curl -vvvsS -X POST 127.0.0.1:19003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-b\",endpoint=\"/request\",local-only=\"local\"}",
   "tags": [
@@ -154,7 +154,7 @@ curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
 }'
 
 echo "Write remote tagged data to cluster b"
-curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
+curl -vvvsS -X POST 127.0.0.1:19003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-b\",endpoint=\"/request\",remote-only=\"remote\"}",
   "tags": [
@@ -182,7 +182,7 @@ curl -vvvsS -X POST 0.0.0.0:19003/writetagged -d '{
 }'
 
 echo "Write remote tagged data to cluster c"
-curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
+curl -vvvsS -X POST 127.0.0.1:29003/writetagged -d '{
   "namespace": "unagg",
   "id": "{__name__=\"test_metric\",cluster=\"cluster-c\",endpoint=\"/request\",third-cluster=\"third\"}",
   "tags": [
@@ -210,7 +210,7 @@ curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
 }'
 
 function complete_tags {
-  RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/labels")
+  RESPONSE=$(curl "http://127.0.0.1:7201/api/v1/labels")
   ACTUAL=$(echo $RESPONSE | jq .data[])
   test "$(echo $ACTUAL)" = '"__name__" "cluster" "endpoint" "local-only" "remote-only" "third-cluster"'
 }

@@ -17,7 +17,7 @@ TESTS=(
 	scripts/docker-integration-tests/coordinator_config_rules/test.sh
 )
 
-# Some systems, including our default Buildkite host, don't come with netcat
+# Some systems, including our default Buildkite hosts, don't come with netcat
 # installed and we may not have perms to install it. "Install" it in the worst
 # possible way.
 if ! command -v nc; then

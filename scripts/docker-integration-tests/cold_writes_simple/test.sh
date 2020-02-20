@@ -26,7 +26,7 @@ function write_data {
   timestamp=$3
   value=$4
 
-  respCode=$(curl -s -o /dev/null -X POST -w "%{http_code}" 0.0.0.0:9003/write -d '{
+  respCode=$(curl -s -o /dev/null -X POST -w "%{http_code}" 127.0.0.1:9003/write -d '{
     "namespace": "'"$namespace"'",
     "id": "'"$id"'",
     "datapoint": {
@@ -47,7 +47,7 @@ function read_all {
   id=$2
   expected_datapoints=$3
 
-  received_datapoints=$(curl -sSf -X POST 0.0.0.0:9003/fetch -d '{
+  received_datapoints=$(curl -sSf -X POST 127.0.0.1:9003/fetch -d '{
     "namespace": "'"$namespace"'",
     "id": "'"$id"'",
     "rangeStart": 0,
@@ -79,7 +79,7 @@ docker-compose -f ${COMPOSE_FILE} restart dbnode01
 
 echo "Wait until bootstrapped"
 ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
-  '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
+  '[ "$(curl -sSf 127.0.0.1:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Expect to read 2 datapoints"
 read_all "coldWritesRepairAndNoIndex" "foo" 2
