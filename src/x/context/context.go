@@ -22,6 +22,7 @@ package context
 
 import (
 	stdctx "context"
+	"fmt"
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -349,7 +350,9 @@ func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
 // return whether it was sampled or not.
 func StartSampledTraceSpan(ctx stdctx.Context, name string) (stdctx.Context, opentracing.Span, bool) {
 	sp, spCtx := xopentracing.StartSpanFromContext(ctx, name)
-	if !spanIsSampled(sp) {
+	sampled := spanIsSampled(sp)
+	fmt.Println("SAMPLED", sampled)
+	if !sampled {
 		return ctx, noopTracer.StartSpan(name), false
 	}
 	return spCtx, sp, true
