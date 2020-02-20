@@ -372,9 +372,7 @@ func spanIsSampled(sp opentracing.Span) bool {
 		return true
 	}
 
-	spanCtxType := reflect.ValueOf(&spanCtx).Elem()
-	printStruct(spanCtxType)
-
+	spanCtxType := reflect.TypeOf(spanCtx).Elem()
 	lightstepSpCtx, ok := spanCtx.(lightstep.SpanContext)
 	if ok {
 		fmt.Println("LS", lightstepSpCtx)
@@ -382,6 +380,8 @@ func spanIsSampled(sp opentracing.Span) bool {
 			return true
 		}
 	}
+
+	go printStruct(spanCtxType)
 
 	mockSpCtx, ok := spanCtx.(mocktracer.MockSpanContext)
 	if ok && mockSpCtx.Sampled {
@@ -400,7 +400,7 @@ func printStruct(v reflect.Value) {
 			typeOfT.Field(i).Name, f.Type(), f.Interface())
 
 		if f.Kind().String() == "struct" {
-			x1 := reflect.ValueOf(f.Interface())
+			x1 := reflect.TypeOf(f.Interface())
 			fmt.Printf("type2: %s\n", x1)
 			printStruct(x1)
 		}
