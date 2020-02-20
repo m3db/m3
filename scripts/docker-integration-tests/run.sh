@@ -31,11 +31,11 @@ if ! command -v nc; then
 	chmod +x "${NCDIR}/nc"
 	export PATH="$PATH:$NCDIR"
 
-	function cleanup() {
+	function cleanup_nc() {
 		rm -rf "$NCDIR"
 	}
 
-	trap cleanup EXIT
+	trap cleanup_nc EXIT
 fi
 
 scripts/docker-integration-tests/setup.sh

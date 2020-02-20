@@ -169,7 +169,7 @@ function write_carbon {
   set +x
   for (( i=0; i<$NUM; i++ ))
   do
-    echo "$GRAPHITE.$i.$CLUSTER 1 $t" | nc 0.0.0.0 $PORT
+    echo "$GRAPHITE.$i.$CLUSTER 1 $t" | nc 127.0.0.1 $PORT
   done
   set -x
 }
