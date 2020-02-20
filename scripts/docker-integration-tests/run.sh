@@ -21,6 +21,7 @@ TESTS=(
 # installed and we may not have perms to install it. "Install" it in the worst
 # possible way.
 if ! command -v nc; then
+	echo "installing netcat"
 	NCDIR="$(mktemp -d)"
 	docker run --rm debian:latest bash -c 'apt-get update &>/dev/null &&
 		apt-get install -y netcat &>/dev/null &&
