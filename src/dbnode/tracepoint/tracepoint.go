@@ -34,8 +34,35 @@ const (
 	// Query is the operation name for the tchannelthrift Query path.
 	Query = "tchannelthrift/node.service.Query"
 
+	// FetchReadEncoded is the operation name for the tchannelthrift FetchReadEncoded path.
+	FetchReadEncoded = "tchannelthrift/node.service.FetchReadEncoded"
+
+	// FetchReadResults is the operation name for the tchannelthrift FetchReadResults path.
+	FetchReadResults = "tchannelthrift/node.service.FetchReadResults"
+
+	// FetchReadSingleResult is the operation name for the tchannelthrift FetchReadSingleResult path.
+	FetchReadSingleResult = "tchannelthrift/node.service.FetchReadSingleResult"
+
+	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
+	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
+
+	// DBAggregateQuery is the operation name for the db AggregateQuery path.
+	DBAggregateQuery = "storage.db.AggregateQuery"
+
+	// DBReadEncoded is the operation name for the db ReadEncoded path.
+	DBReadEncoded = "storage.db.ReadEncoded"
+
+	// DBFetchBlocks is the operation name for the db FetchBlocks path.
+	DBFetchBlocks = "storage.db.FetchBlocks"
+
+	// DBFetchBlocksMetadataV2 is the operation name for the db FetchBlocksMetadataV2 path.
+	DBFetchBlocksMetadataV2 = "storage.db.FetchBlocksMetadataV2"
+
+	// DBWriteBatch is the operation name for the db WriteBatch path.
+	DBWriteBatch = "storage.db.WriteBatch"
 
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
