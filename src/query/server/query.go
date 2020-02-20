@@ -146,7 +146,14 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, err := cfg.Metrics.NewRootScope()
+	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			OnError: func(e error) {
+				// NB(r): Required otherwise collisions when registering metrics will
+				// cause a panic.
+				logger.Error("register metric error", zap.Error(err))
+			},
+		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
