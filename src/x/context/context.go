@@ -22,8 +22,6 @@ package context
 
 import (
 	stdctx "context"
-	"fmt"
-	"reflect"
 	"sync"
 
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
@@ -352,7 +350,6 @@ func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
 func StartSampledTraceSpan(ctx stdctx.Context, name string) (stdctx.Context, opentracing.Span, bool) {
 	sp, spCtx := xopentracing.StartSpanFromContext(ctx, name)
 	sampled := spanIsSampled(sp)
-	fmt.Println("SAMPLED", sampled)
 	if !sampled {
 		return ctx, noopTracer.StartSpan(name), false
 	}
@@ -371,17 +368,11 @@ func spanIsSampled(sp opentracing.Span) bool {
 	if ok && jaegerSpCtx.IsSampled() {
 		return true
 	}
-	fmt.Println("CTX", spanCtx)
-	spanCtxType := reflect.ValueOf(spanCtx)
-	lightstepSpCtx, ok := spanCtx.(lightstep.SpanContext)
-	if ok {
-		fmt.Println("LS", lightstepSpCtx)
-		if lightstepSpCtx.Sampled == "true" || lightstepSpCtx.Sampled == "1" {
-			return true
-		}
-	}
 
-	go printStruct(spanCtxType)
+	lightstepSpCtx, ok := spanCtx.(lightstep.SpanContext)
+	if ok && lightstepSpCtx.TraceID != 0 {
+		return true
+	}
 
 	mockSpCtx, ok := spanCtx.(mocktracer.MockSpanContext)
 	if ok && mockSpCtx.Sampled {
@@ -389,20 +380,4 @@ func spanIsSampled(sp opentracing.Span) bool {
 	}
 
 	return false
-}
-
-func printStruct(v reflect.Value) {
-	s := v
-	typeOfT := s.Type()
-	for i := 0; i < typeOfT.NumField(); i++ {
-		f := s.Field(i)
-		fmt.Printf("%d: %s %s = %v\n", i,
-			typeOfT.Field(i).Name, f.Type(), f.Interface())
-
-		if f.Kind().String() == "struct" {
-			x1 := reflect.ValueOf(f.Interface())
-			fmt.Printf("type2: %s\n", x1)
-			printStruct(x1)
-		}
-	}
 }
