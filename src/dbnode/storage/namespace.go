@@ -691,15 +691,16 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSQueryIDs)
-	sp.LogFields(
-		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", n.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
-		xopentracing.Time("start", opts.StartInclusive),
-		xopentracing.Time("end", opts.EndExclusive),
-	)
-
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSQueryIDs)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", query.String()),
+			opentracinglog.String("namespace", n.ID().String()),
+			opentracinglog.Int("limit", opts.Limit),
+			xopentracing.Time("start", opts.StartInclusive),
+			xopentracing.Time("end", opts.EndExclusive),
+		)
+	}
 	defer sp.Finish()
 
 	callStart := n.nowFn()
