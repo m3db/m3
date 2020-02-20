@@ -184,6 +184,7 @@ func (b *encodedBlock) MultiSeriesIter(
 			seriesMeta:       b.seriesMetas[start:end],
 			seriesIters:      b.seriesBlockIterators[start:end],
 			lookbackDuration: b.options.LookbackDuration(),
+			instrumented:     b.instrumented,
 		}
 
 		iters = append(iters, block.SeriesIterBatch{
