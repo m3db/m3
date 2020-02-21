@@ -40,8 +40,6 @@ if ! command -v nc && [[ "$BUILDKITE" == "true" ]]; then
 	trap cleanup_nc EXIT
 fi
 
-command -v nc
-
 scripts/docker-integration-tests/setup.sh
 
 NUM_TESTS=${#TESTS[@]}
