@@ -26,6 +26,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/mock/gomock"
@@ -46,7 +47,7 @@ func validateEqualTopicProto(t *testing.T, this, other topicpb.Topic) {
 }
 
 func testServiceFn(s topic.Service) serviceFn {
-	return func(clusterClient clusterclient.Client) (topic.Service, error) {
+	return func(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error) {
 		return s, nil
 	}
 }
