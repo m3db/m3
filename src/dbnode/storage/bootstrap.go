@@ -136,8 +136,6 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	}
 	m.Unlock()
 
-	startTime := m.nowFn()
-
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
 	m.mediator.DisableFileOps()
@@ -191,9 +189,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 
-	completionTime := m.nowFn()
-	m.bootstrapDuration.Record(completionTime.Sub(startTime))
-	m.lastBootstrapCompletionTime = completionTime
+	m.lastBootstrapCompletionTime = m.nowFn()
 	return result, nil
 }
 
@@ -336,8 +332,10 @@ func (m *bootstrapManager) bootstrap() error {
 	// Run the bootstrap.
 	bootstrapResult, err := process.Run(start, targets)
 
+	bootstrapDuration := m.nowFn().Sub(start)
+	m.bootstrapDuration.Record(bootstrapDuration)
 	logFields = append(logFields,
-		zap.Duration("bootstrapDuration", m.nowFn().Sub(start)))
+		zap.Duration("bootstrapDuration", bootstrapDuration))
 
 	if err != nil {
 		m.log.Error("bootstrap failed",
