@@ -82,6 +82,7 @@ type bootstrapManager struct {
 	state                       BootstrapState
 	hasPending                  bool
 	status                      tally.Gauge
+	bootstrapDuration           tally.Timer
 	lastBootstrapCompletionTime time.Time
 }
 
@@ -92,14 +93,15 @@ func newBootstrapManager(
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
 	m := &bootstrapManager{
-		database:        database,
-		mediator:        mediator,
-		opts:            opts,
-		log:             opts.InstrumentOptions().Logger(),
-		nowFn:           opts.ClockOptions().NowFn(),
-		sleepFn:         time.Sleep,
-		processProvider: opts.BootstrapProcessProvider(),
-		status:          scope.Gauge("bootstrapped"),
+		database:          database,
+		mediator:          mediator,
+		opts:              opts,
+		log:               opts.InstrumentOptions().Logger(),
+		nowFn:             opts.ClockOptions().NowFn(),
+		sleepFn:           time.Sleep,
+		processProvider:   opts.BootstrapProcessProvider(),
+		status:            scope.Gauge("bootstrapped"),
+		bootstrapDuration: scope.Timer("bootstrap-duration"),
 	}
 	m.bootstrapFn = m.bootstrap
 	return m
@@ -133,6 +135,8 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		m.state = Bootstrapping
 	}
 	m.Unlock()
+
+	startTime := m.nowFn()
 
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
@@ -187,7 +191,9 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 
-	m.lastBootstrapCompletionTime = m.nowFn()
+	completionTime := m.nowFn()
+	m.bootstrapDuration.Record(completionTime.Sub(startTime))
+	m.lastBootstrapCompletionTime = completionTime
 	return result, nil
 }
 
