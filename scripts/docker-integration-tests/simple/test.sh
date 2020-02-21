@@ -30,14 +30,14 @@ docker start "${CONTAINER_NAME}"
 # as the endpoint in the placement instead of being able to use dbnode01.
 echo "Wait for DB to be up"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  'curl -vvvsSf 127.0.0.1:9002/bootstrappedinplacementornoplacement'
+  'curl -vvvsSf 0.0.0.0:9002/bootstrappedinplacementornoplacement'
 
 echo "Wait for coordinator API to be up"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  'curl -vvvsSf 127.0.0.1:7201/health'
+  'curl -vvvsSf 0.0.0.0:7201/health'
 
 echo "Adding namespace"
-curl -vvvsSf -X POST 127.0.0.1:7201/api/v1/namespace -d '{
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
   "name": "agg",
   "options": {
     "bootstrapEnabled": true,
@@ -63,9 +63,9 @@ curl -vvvsSf -X POST 127.0.0.1:7201/api/v1/namespace -d '{
 
 echo "Sleep until namespace is init'd"
 ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 127.0.0.1:7201/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
 
-curl -vvvsSf -X POST 127.0.0.1:7201/api/v1/namespace -d '{
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
   "name": "unagg",
   "options": {
     "bootstrapEnabled": true,
@@ -91,10 +91,10 @@ curl -vvvsSf -X POST 127.0.0.1:7201/api/v1/namespace -d '{
 
 echo "Sleep until namespace is init'd"
 ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 127.0.0.1:7201/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
 echo "Placement initialization"
-curl -vvvsSf -X POST 127.0.0.1:7201/api/v1/placement/init -d '{
+curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/placement/init -d '{
     "num_shards": 4,
     "replication_factor": 1,
     "instances": [
@@ -112,18 +112,18 @@ curl -vvvsSf -X POST 127.0.0.1:7201/api/v1/placement/init -d '{
 
 echo "Sleep until placement is init'd"
 ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 127.0.0.1:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
 
 echo "Sleep until bootstrapped"
 ATTEMPTS=7 TIMEOUT=2 retry_with_backoff  \
-  '[ "$(curl -sSf 127.0.0.1:9002/health | jq .bootstrapped)" == true ]'
+  '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Waiting until shards are marked as available"
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
-  '[ "$(curl -sSf 127.0.0.1:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 echo "Write data"
-curl -vvvsS -X POST 127.0.0.1:9003/writetagged -d '{
+curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
   "namespace": "unagg",
   "id": "foo",
   "tags": [
@@ -143,7 +143,7 @@ curl -vvvsS -X POST 127.0.0.1:9003/writetagged -d '{
 }'
 
 echo "Read data"
-queryResult=$(curl -sSf -X POST 127.0.0.1:9003/query -d '{
+queryResult=$(curl -sSf -X POST 0.0.0.0:9003/query -d '{
   "namespace": "unagg",
   "query": {
     "regexp": {
@@ -163,7 +163,7 @@ else
 fi
 
 echo "Deleting placement"
-curl -vvvsSf -X DELETE 127.0.0.1:7201/api/v1/placement
+curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/placement
 
 echo "Deleting namespace"
-curl -vvvsSf -X DELETE 127.0.0.1:7201/api/v1/namespace/unagg
+curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/namespace/unagg

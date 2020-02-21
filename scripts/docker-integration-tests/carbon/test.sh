@@ -50,8 +50,8 @@ t=$(date +%s)
 # behave incorrectly if the values end up in separate flushes due to the bufferPast
 # configuration of the downsampler, but we set reasonable values for bufferPast so that
 # should not happen.
-echo "foo.min.aggregate.baz 41 $t" | nc 127.0.0.1 7204
-echo "foo.min.aggregate.baz 42 $t" | nc 127.0.0.1 7204
+echo "foo.min.aggregate.baz 41 $t" | nc 0.0.0.0 7204
+echo "foo.min.aggregate.baz 42 $t" | nc 0.0.0.0 7204
 echo "Attempting to read min aggregated carbon metric"
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.aggregate.baz 41
 
@@ -61,32 +61,32 @@ t=$(date +%s)
 # semantics are not always guaranteed, it is guaranteed for a minimum time window
 # that is as large as bufferPast/bufferFuture which should be much more than enough
 # time for these two commands to complete.
-echo "foo.min.already-aggregated.baz 42 $t" | nc 127.0.0.1 7204
-echo "foo.min.already-aggregated.baz 43 $t" | nc 127.0.0.1 7204
+echo "foo.min.already-aggregated.baz 42 $t" | nc 0.0.0.0 7204
+echo "foo.min.already-aggregated.baz 43 $t" | nc 0.0.0.0 7204
 echo "Attempting to read unaggregated carbon metric"
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.already-aggregated.baz 43
 
 echo "Writing out a carbon metric that should should use the default mean aggregation"
 t=$(date +%s)
 # Mean of 10 and 20 is 15. Same comment as the min aggregation test above.
-echo "foo.min.catch-all.baz 10 $t" | nc 127.0.0.1 7204
-echo "foo.min.catch-all.baz 20 $t" | nc 127.0.0.1 7204
+echo "foo.min.catch-all.baz 10 $t" | nc 0.0.0.0 7204
+echo "foo.min.catch-all.baz 20 $t" | nc 0.0.0.0 7204
 echo "Attempting to read mean aggregated carbon metric"
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch-all.baz 15
 
 # Test writing and reading IDs with colons in them.
 t=$(date +%s)
-echo "foo.bar:baz.qux 42 $t" | nc 127.0.0.1 7204
+echo "foo.bar:baz.qux 42 $t" | nc 0.0.0.0 7204
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'foo.bar:*.*' 42
 
 t=$(date +%s)
-echo "a 0 $t"             | nc 127.0.0.1 7204
-echo "a.bar 0 $t"         | nc 127.0.0.1 7204
-echo "a.biz 0 $t"         | nc 127.0.0.1 7204
-echo "a.biz.cake 0 $t"    | nc 127.0.0.1 7204
-echo "a.bar.caw.daz 0 $t" | nc 127.0.0.1 7204
-echo "a.bag 0 $t"         | nc 127.0.0.1 7204
-echo "c:bar.c:baz 0 $t"   | nc 127.0.0.1 7204
+echo "a 0 $t"             | nc 0.0.0.0 7204
+echo "a.bar 0 $t"         | nc 0.0.0.0 7204
+echo "a.biz 0 $t"         | nc 0.0.0.0 7204
+echo "a.biz.cake 0 $t"    | nc 0.0.0.0 7204
+echo "a.bar.caw.daz 0 $t" | nc 0.0.0.0 7204
+echo "a.bag 0 $t"         | nc 0.0.0.0 7204
+echo "c:bar.c:baz 0 $t"   | nc 0.0.0.0 7204
 ATTEMPTS=10 TIMEOUT=1 retry_with_backoff find_carbon a* a.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.b* a.b.json
 ATTEMPTS=2 TIMEOUT=1 retry_with_backoff find_carbon a.ba[rg] a.ba.json

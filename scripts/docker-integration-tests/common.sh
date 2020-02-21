@@ -53,10 +53,10 @@ function setup_single_m3db_node_long_namespaces {
 
   echo "Wait for API to be available"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
-  curl -vvvsSf -X POST 127.0.0.1:${coordinator_port}/api/v1/database/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
     "retentionTime": "24h",
@@ -76,24 +76,24 @@ function setup_single_m3db_node_long_namespaces {
 
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
 
   wait_for_namespaces
 
   echo "Adding agg2d namespace"
-  curl -vvvsSf -X POST 127.0.0.1:${coordinator_port}/api/v1/database/namespace/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/namespace/create -d '{
     "namespaceName": "agg2d",
     "retentionTime": "48h"
   }'
 
   echo "Wait until agg2d namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.agg2d.indexOptions.enabled)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.agg2d.indexOptions.enabled)" == true ]'
 
 
   echo "Wait until bootstrapped"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
 }
 
 function setup_single_m3db_node {
@@ -106,10 +106,10 @@ function setup_single_m3db_node {
 
   echo "Wait for API to be available"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
-  curl -vvvsSf -X POST 127.0.0.1:${coordinator_port}/api/v1/database/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
     "retentionTime": "6h",
@@ -129,13 +129,13 @@ function setup_single_m3db_node {
 
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'${dbnode_id}'.id)" == \"'${dbnode_id}'\" ]'
 
   wait_for_namespaces
 
   echo "Wait until bootstrapped"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${dbnode_health_port}"'/health | jq .bootstrapped)" == true ]'
 }
 
 function setup_two_m3db_nodes {
@@ -150,10 +150,10 @@ function setup_two_m3db_nodes {
 
   echo "Wait for API to be available"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq ".namespaces | length")" == "0" ]'
 
   echo "Adding placement and agg namespace"
-  curl -vvvsSf -X POST 127.0.0.1:${coordinator_port}/api/v1/database/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/create -d '{
     "type": "cluster",
     "namespaceName": "agg",
     "retentionTime": "6h",
@@ -181,15 +181,15 @@ function setup_two_m3db_nodes {
 
   echo "Wait until placement is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'"${dbnode_id_1}"'.id)" == \"'"${dbnode_id_1}"'\" ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/placement | jq .placement.instances.'"${dbnode_id_1}"'.id)" == \"'"${dbnode_id_1}"'\" ]'
 
   wait_for_namespaces
 
   echo "Wait until bootstrapped"
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${dbnode_host_1_health_port}"'/health | jq .bootstrapped)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${dbnode_host_1_health_port}"'/health | jq .bootstrapped)" == true ]'
   ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${dbnode_host_2_health_port}"'/health | jq .bootstrapped)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${dbnode_host_2_health_port}"'/health | jq .bootstrapped)" == true ]'
 }
 
 function wait_for_namespaces {
@@ -197,20 +197,20 @@ function wait_for_namespaces {
 
   echo "Wait until agg namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.agg.indexOptions.enabled)" == true ]'
 
   echo "Adding unagg namespace"
-  curl -vvvsSf -X POST 127.0.0.1:${coordinator_port}/api/v1/database/namespace/create -d '{
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/database/namespace/create -d '{
     "namespaceName": "unagg",
     "retentionTime": "6h"
   }'
 
   echo "Wait until unagg namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
   echo "Adding coldWritesRepairAndNoIndex namespace"
-  curl -vvvsSf -X POST 127.0.0.1:${coordinator_port}/api/v1/services/m3db/namespace -d '{
+  curl -vvvsSf -X POST 0.0.0.0:${coordinator_port}/api/v1/services/m3db/namespace -d '{
     "name": "coldWritesRepairAndNoIndex",
     "options": {
       "bootstrapEnabled": true,
@@ -233,6 +233,6 @@ function wait_for_namespaces {
 
   echo "Wait until coldWritesRepairAndNoIndex namespace is init'd"
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-    '[ "$(curl -sSf 127.0.0.1:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.coldWritesRepairAndNoIndex.coldWritesEnabled)" == true ]'
+    '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/namespace | jq .registry.namespaces.coldWritesRepairAndNoIndex.coldWritesEnabled)" == true ]'
 }
 

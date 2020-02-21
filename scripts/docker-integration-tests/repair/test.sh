@@ -28,7 +28,7 @@ function write_data {
   value=$4
   port=$5
 
-  respCode=$(curl -s -o /dev/null -X POST -w "%{http_code}" 127.0.0.1:"$port"/write -d '{
+  respCode=$(curl -s -o /dev/null -X POST -w "%{http_code}" 0.0.0.0:"$port"/write -d '{
     "namespace": "'"$namespace"'",
     "id": "'"$id"'",
     "datapoint": {
@@ -51,7 +51,7 @@ function read_all {
   expected_datapoints=$3
   port=$4
 
-  received_datapoints=$(curl -sSf -X POST 127.0.0.1:"$port"/fetch -d '{
+  received_datapoints=$(curl -sSf -X POST 0.0.0.0:"$port"/fetch -d '{
     "namespace": "'"$namespace"'",
     "id": "'"$id"'",
     "rangeStart": 0,

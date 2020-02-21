@@ -21,11 +21,11 @@ function write_metrics {
   esac
 
   NUM=$2
-  echo "Writing $NUM metrics to $1 [127.0.0.1:$PORT]"
+  echo "Writing $NUM metrics to $1 [0.0.0.0:$PORT]"
   set +x
   for (( i=0; i<$NUM; i++ ))
   do
-    curl -X POST 127.0.0.1:$PORT/writetagged -d '{
+    curl -X POST 0.0.0.0:$PORT/writetagged -d '{
       "namespace": "unagg",
       "id": "{__name__=\"'$METRIC_NAME'\",cluster=\"'$CLUSTER'\",val=\"'$i'\"}",
       "tags": [
@@ -61,7 +61,7 @@ function test_instant_query {
   EXPECTED_HEADER=$3||""
   trap clean_headers EXIT
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://127.0.0.1:7201/api/v1/query?query=count($METRIC_NAME)")
+    "http://0.0.0.0:7201/api/v1/query?query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].value[1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
@@ -79,7 +79,7 @@ function test_range_query {
   end=$(($start+9))
 
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://127.0.0.1:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
+    "http://0.0.0.0:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].values[0][1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
@@ -89,7 +89,7 @@ function test_search {
   start=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) -1 minute" +%Y-%m-%dT%H:%M:%SZ)
   end=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) +1 minute" +%Y-%m-%dT%H:%M:%SZ)
 
-  curl -D headers -X POST 127.0.0.1:7201/search -d '{
+  curl -D headers -X POST 0.0.0.0:7201/search -d '{
     "start": "'$start'",
     "end": "'$end'",
     "matchers": [
@@ -107,7 +107,7 @@ function test_search {
   trap clean_headers EXIT
 
    curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://127.0.0.1:7201/api/v1/search?query=val:.*"
+    "http://0.0.0.0:7201/api/v1/search?query=val:.*"
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
@@ -118,7 +118,7 @@ function test_labels {
   trap clean_headers EXIT
 
    curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://127.0.0.1:7201/api/v1/labels"
+    "http://0.0.0.0:7201/api/v1/labels"
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
@@ -129,7 +129,7 @@ function test_match {
   EXPECTED_HEADER=$3
   trap clean_headers EXIT
   RESPONSE=$(curl -gsSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://127.0.0.1:7201/api/v1/series?match[]=$METRIC_NAME")
+    "http://0.0.0.0:7201/api/v1/series?match[]=$METRIC_NAME")
 
   ACTUAL=$(echo $RESPONSE | jq '.data | length')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
@@ -145,7 +145,7 @@ function test_label_values {
   trap clean_headers EXIT
 
    curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://127.0.0.1:7201/api/v1/label/val/values"
+    "http://0.0.0.0:7201/api/v1/label/val/values"
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
@@ -165,11 +165,11 @@ function write_carbon {
   esac
 
   NUM=$2
-  echo "Writing $NUM metrics to $1 [127.0.0.1:$PORT]"
+  echo "Writing $NUM metrics to $1 [0.0.0.0:$PORT]"
   set +x
   for (( i=0; i<$NUM; i++ ))
   do
-    echo "$GRAPHITE.$i.$CLUSTER 1 $t" | nc 127.0.0.1 $PORT
+    echo "$GRAPHITE.$i.$CLUSTER 1 $t" | nc 0.0.0.0 $PORT
   done
   set -x
 }
