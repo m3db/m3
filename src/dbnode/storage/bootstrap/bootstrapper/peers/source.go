@@ -398,12 +398,13 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				tagsIter.Reset(entry.Tags)
 				ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
 				if err != nil {
-					if owned {
+					if !owned {
 						// Only if we own this shard do we care consider this an
-						// error in bootstrapping. Otherwise, we just continue.
-						unfulfill(currRange)
-						s.log.Error("could not checkout series", zap.Error(err))
+						// error in bootstrapping.
+						continue
 					}
+					unfulfill(currRange)
+					s.log.Error("could not checkout series", zap.Error(err))
 					continue
 				}
 

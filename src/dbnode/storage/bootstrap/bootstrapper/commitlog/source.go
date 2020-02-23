@@ -91,8 +91,9 @@ type seriesMapKey struct {
 }
 
 type seriesMapEntry struct {
-	namespace *bootstrapNamespace
-	series    bootstrap.CheckoutSeriesResult
+	shardNoLongerOwned bool
+	namespace          *bootstrapNamespace
+	series             bootstrap.CheckoutSeriesResult
 }
 
 // accumulateArg contains all the information a worker go-routine needs to
@@ -372,21 +373,6 @@ func (s *commitLogSource) Read(
 
 		seriesEntry, ok := commitLogSeries[seriesKey]
 		if !ok {
-			if entry.Series.Namespace == nil {
-				// This will happen if the series for this commit log entry was
-				// skipped in an earlier iteration of this loop. Sometimes the
-				// bootstrapper needs to skip commit log entries, e.g. if it
-				// encounters one for a shard that it does not own, in which case it
-				// should just skip the entry and carry on.
-				//
-				// The reason that skipping this series in an earlier iteration
-				// causes a nil namespace here is that the metadata (including the
-				// series namespace) is only written the first time we come across
-				// it in the commit log. Hence, when we iterate over the commit log
-				// data here, it wouldn't be able to look up metadata from earlier.
-				continue
-			}
-
 			// Resolve the namespace.
 			var (
 				nsID      = entry.Series.Namespace
@@ -468,15 +454,14 @@ func (s *commitLogSource) Read(
 				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
 					entry.Series.ID,
-					tagIter,
-				)
-
+					tagIter)
 				if err != nil {
 					if !owned {
 						// If we encounter a log entry for a shard that we're
 						// not responsible for, skip this entry. This can occur
 						// when a topology change happens and we bootstrap from
 						// a commit log which contains this data.
+						commitLogSeries[seriesKey] = seriesMapEntry{shardNoLongerOwned: true}
 						continue
 					}
 					return bootstrap.NamespaceResults{}, err
@@ -496,12 +481,13 @@ func (s *commitLogSource) Read(
 			datapointsSkippedNotBootstrappingNamespace++
 			continue
 		}
+
 		// If not bootstrapping shard for this series then also skip.
 		// NB(r): This can occur when a topology change happens then we
 		// bootstrap from the commit log data that the node no longer owns.
 		shard := seriesEntry.series.Shard
 		_, bootstrapping := seriesEntry.namespace.dataAndIndexShardRanges[shard]
-		if !bootstrapping {
+		if !bootstrapping || seriesEntry.shardNoLongerOwned {
 			datapointsSkippedNotBootstrappingShard++
 			continue
 		}
