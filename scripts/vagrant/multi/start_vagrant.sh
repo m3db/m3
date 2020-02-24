@@ -75,7 +75,7 @@ if [[ "$PROVIDER" == "azure" ]]; then
         RESOURCE_GROUP=$1
         MAYBE_RESOURCE_GROUP=$(az group list -o table 2> /dev/null | tail -n +3 | awk '{ print $1 };' | grep "\<$RESOURCE_GROUP\>") || true
         if  [[ "$MAYBE_RESOURCE_GROUP" != "$RESOURCE_GROUP" ]]; then
-            az group create -n $RESOURCE_GROUP -l eastus2
+            az group create -n $RESOURCE_GROUP -l eastus
         fi
     }
     create_resource_group_if_not_exists vagrant-dev$GROUP0
@@ -119,8 +119,8 @@ if [[ "$PROVIDER" == "google" ]]; then
     M3COORDINATOR_SECONDARY_IP=$(gcloud --project=studious-saga-237001 compute instances list | grep "\<secondary-$USER$GROUP1\>" | awk '{ print $5 }')
 fi
 if [[ "$PROVIDER" == "azure" ]]; then
-    M3COORDINATOR_PRIMARY_IP=$(az vm list-ip-addresses -o table | grep primary-$USER | awk '{ print $2 }')
-    M3COORDINATOR_SECONDARY_IP=$(az vm list-ip-addresses -o table | grep secondary-$USER | awk '{ print $2 }')
+    M3COORDINATOR_PRIMARY_IP=$(az vm list-ip-addresses -o table | grep primary-$USER$GROUP0 | awk '{ print $2 }')
+    M3COORDINATOR_SECONDARY_IP=$(az vm list-ip-addresses -o table | grep secondary-$USER$GROUP1 | awk '{ print $2 }')
 fi
 
 # Provision clusters

@@ -1539,7 +1539,7 @@
         "x": 16,
         "y": 22
       },
-      "id": 39,
+      "id": 110,
       "legend": {
         "avg": false,
         "current": false,
@@ -1563,17 +1563,20 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "",
+          "expr": "sum(mmap_mapped_bytes{instance=~\"$instance\"}) by (map_name)",
           "format": "time_series",
+          "hide": false,
           "intervalFactor": 1,
+          "key": 0.7090064740553321,
+          "legendFormat": "",
           "refId": "A",
-          "textEditor": false
+          "textEditor": true
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Disk Free Space - Not Implemented",
+      "title": "Memory - Mmaps (Anon and File)",
       "tooltip": {
         "shared": false,
         "sort": 0,
@@ -1762,6 +1765,91 @@
       "yaxes": [
         {
           "format": "short",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$datasource",
+      "editable": true,
+      "error": false,
+      "fill": 0,
+      "grid": {},
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 29
+      },
+      "id": 39,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "connected",
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "refId": "A",
+          "textEditor": false
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Disk Free Space - Not Implemented",
+      "tooltip": {
+        "shared": false,
+        "sort": 0,
+        "value_type": "cumulative"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
           "logBase": 1,
           "max": null,
           "min": null,

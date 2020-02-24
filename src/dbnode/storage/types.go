@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -387,7 +388,7 @@ type databaseNamespace interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (result SeriesReadWriteRef, owned bool, err error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -1052,6 +1053,12 @@ type Options interface {
 
 	// MemoryTracker returns the MemoryTracker.
 	MemoryTracker() MemoryTracker
+
+	// SetMmapReporter sets the mmap reporter.
+	SetMmapReporter(mmapReporter mmap.Reporter) Options
+
+	// MmapReporter returns the mmap reporter.
+	MmapReporter() mmap.Reporter
 }
 
 // MemoryTracker tracks memory.

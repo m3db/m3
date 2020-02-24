@@ -272,8 +272,10 @@ func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string)
 
 	expected := results{
 		makeNoChildrenResult("bar"),
+		makeNoChildrenResult("baz"),
 		makeWithChildrenResult("baz"),
 		makeWithChildrenResult("bix"),
+		makeNoChildrenResult("bug"),
 		makeWithChildrenResult("bug"),
 	}
 

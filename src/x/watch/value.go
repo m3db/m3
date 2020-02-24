@@ -71,6 +71,7 @@ type value struct {
 	getUpdateFn       GetUpdateFn
 	processFn         ProcessFn
 	processWithLockFn processWithLockFn
+	key               string
 
 	updatable Updatable
 	status    valueStatus
@@ -100,7 +101,10 @@ func (v *value) Watch() error {
 	}
 	updatable, err := v.newUpdatableFn()
 	if err != nil {
-		return CreateWatchError{innerError: err}
+		return CreateWatchError{
+			innerError: err,
+			key:        v.opts.Key(),
+		}
 	}
 	v.status = valueWatching
 	v.updatable = updatable
@@ -113,16 +117,25 @@ func (v *value) Watch() error {
 	select {
 	case <-v.updatable.C():
 	case <-time.After(v.opts.InitWatchTimeout()):
-		return InitValueError{innerError: errInitWatchTimeout}
+		return InitValueError{
+			innerError: errInitWatchTimeout,
+			key:        v.opts.Key(),
+		}
 	}
 
 	update, err := v.getUpdateFn(v.updatable)
 	if err != nil {
-		return InitValueError{innerError: err}
+		return InitValueError{
+			innerError: err,
+			key:        v.opts.Key(),
+		}
 	}
 
 	if err = v.processWithLockFn(update); err != nil {
-		return InitValueError{innerError: err}
+		return InitValueError{
+			innerError: err,
+			key:        v.opts.Key(),
+		}
 	}
 	return nil
 }
@@ -152,12 +165,16 @@ func (v *value) watchUpdates(updatable Updatable) {
 		}
 		update, err := v.getUpdateFn(updatable)
 		if err != nil {
-			v.log.Error("error getting update", zap.Error(err))
+			v.log.Error("error getting update",
+				zap.String("key", v.opts.Key()),
+				zap.Error(err))
 			v.Unlock()
 			continue
 		}
 		if err = v.processWithLockFn(update); err != nil {
-			v.log.Error("error updating update", zap.Error(err))
+			v.log.Error("error applying update",
+				zap.String("key", v.opts.Key()),
+				zap.Error(err))
 		}
 		v.Unlock()
 	}
@@ -173,17 +190,19 @@ func (v *value) processWithLock(update interface{}) error {
 // CreateWatchError is returned when encountering an error creating a watch.
 type CreateWatchError struct {
 	innerError error
+	key        string
 }
 
 func (e CreateWatchError) Error() string {
-	return fmt.Sprintf("create watch error:%v", e.innerError)
+	return fmt.Sprintf("create watch error (key='%s'): %v", e.key, e.innerError)
 }
 
 // InitValueError is returned when encountering an error when initializing a value.
 type InitValueError struct {
 	innerError error
+	key        string
 }
 
 func (e InitValueError) Error() string {
-	return fmt.Sprintf("initializing value error:%v", e.innerError)
+	return fmt.Sprintf("initializing value error (key='%s'): %v", e.key, e.innerError)
 }

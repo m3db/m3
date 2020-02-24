@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/fortytw2/leaktest"
@@ -112,81 +112,6 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	assert.Equal(t, 1, insertedBatches[0].Len())
 	assert.Equal(t, testID(1).Bytes(), insertedBatches[0].PendingDocs()[0].ID)
 	assert.Equal(t, now.UnixNano(), int64(insertedBatches[0].PendingEntries()[0].Timestamp.UnixNano()))
-}
-
-func TestIndexInsertQueueRateLimit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, time.Second)()
-	var (
-		currTime = time.Now().Truncate(time.Second)
-		timeLock = sync.Mutex{}
-		addTime  = func(d time.Duration) {
-			timeLock.Lock()
-			defer timeLock.Unlock()
-			currTime = currTime.Add(d)
-		}
-	)
-	q := newTestIndexInsertQueue(newTestNamespaceMetadata(t))
-	q.nowFn = func() time.Time {
-		timeLock.Lock()
-		defer timeLock.Unlock()
-		return currTime
-	}
-
-	q.indexPerSecondLimit = 2
-	callback := index.NewMockOnIndexSeries(ctrl)
-
-	assert.NoError(t, q.Start())
-	defer func() {
-		assert.NoError(t, q.Stop())
-	}()
-
-	_, err := q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(1),
-		testTags(1), time.Time{}, callback)))
-	assert.NoError(t, err)
-
-	addTime(250 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(2),
-		testTags(2), time.Time{}, callback)))
-	assert.NoError(t, err)
-
-	// Consecutive should be all rate limited
-	for i := 0; i < 100; i++ {
-		_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(i+2),
-			testTags(i+2), time.Time{}, callback)))
-		assert.Error(t, err)
-		assert.Equal(t, errNewSeriesIndexRateLimitExceeded, err)
-	}
-
-	// Start 2nd second should not be an issue
-	addTime(750 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(110),
-		testTags(100), time.Time{}, callback)))
-	assert.NoError(t, err)
-
-	addTime(100 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(111),
-		testTags(111), time.Time{}, callback)))
-	assert.NoError(t, err)
-
-	addTime(100 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(112),
-		testTags(112), time.Time{}, callback)))
-	assert.Error(t, err)
-	assert.Equal(t, errNewSeriesIndexRateLimitExceeded, err)
-
-	// Start 3rd second
-	addTime(800 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatch(testWriteBatchEntry(testID(113),
-		testTags(113), time.Time{}, callback)))
-	assert.NoError(t, err)
-
-	q.Lock()
-	expectedCurrWindow := currTime.Truncate(time.Second).UnixNano()
-	assert.Equal(t, expectedCurrWindow, q.indexPerSecondLimitWindowNanos)
-	assert.Equal(t, 1, q.indexPerSecondLimitWindowValues)
-	q.Unlock()
 }
 
 func TestIndexInsertQueueBatchBackoff(t *testing.T) {

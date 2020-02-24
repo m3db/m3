@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/mmap"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -120,7 +121,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		decoderStream := msgpack.NewByteDecoderStream(nil)
 		indexLookup, err := newNearestIndexOffsetLookupFromSummariesFile(
 			summariesFdWithDigest, expectedSummariesDigest,
-			decoder, decoderStream, len(writes), input.forceMmapMemory)
+			decoder, decoderStream, len(writes), input.forceMmapMemory, mmap.ReporterOptions{})
 		if err != nil {
 			return false, fmt.Errorf("err reading index lookup from summaries file: %v, ", err)
 		}

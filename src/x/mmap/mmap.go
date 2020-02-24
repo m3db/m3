@@ -39,7 +39,7 @@ type FileDesc struct {
 	// file is the *os.File ref to store
 	File **os.File
 	// bytes is the []byte slice ref to store the mmap'd address
-	Bytes *[]byte
+	Descriptor *Descriptor
 	// options specifies options to use when mmaping a file
 	Options Options
 }
@@ -52,12 +52,15 @@ type Options struct {
 	Write bool
 	// hugeTLB is the mmap huge TLB options
 	HugeTLB HugeTLBOptions
+	// ReporterOptions is the reporter options
+	ReporterOptions ReporterOptions
 }
 
-// Result contains the results of a successful mmap
-type Result struct {
-	Result  []byte
-	Warning error
+// Descriptor is a descriptor of a successful mmap
+type Descriptor struct {
+	Bytes           []byte
+	Warning         error
+	ReporterOptions ReporterOptions
 }
 
 // HugeTLBOptions contains all options related to huge TLB
@@ -70,6 +73,31 @@ type HugeTLBOptions struct {
 	Threshold int64
 }
 
+// ReporterOptions contains all options to tracking mmap calls
+type ReporterOptions struct {
+	// Context is the context to report to reporter for this
+	Context Context
+	// Reporter if set will receive events for reporting
+	Reporter Reporter
+}
+
+// Context provides context about the current mmap for reporting purposes
+type Context struct {
+	Size     int64
+	Name     string
+	Metadata map[string]string
+}
+
+// Reporter implements the reporting of mmap.
+type Reporter interface {
+	// ReportMap reports the mapping of an mmap and allows an error to be
+	// returned in case the reporter want's to deny allowing this map call.
+	ReportMap(ctx Context) error
+	// ReportUnmap reports the unmapping of an mmap and allows an error to be
+	// returned in case the reporter want's to deny allowing this unmap call.
+	ReportUnmap(ctx Context) error
+}
+
 // FilesResult contains the result of calling MmapFiles
 type FilesResult struct {
 	Warning error
@@ -80,24 +108,24 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
-	for filePath, desc := range files {
+	for filePath, fileDesc := range files {
 		fd, err := opener(filePath)
 		if err != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, err))
 			break
 		}
 
-		result, err := File(fd, desc.Options)
+		desc, err := File(fd, fileDesc.Options)
 		if err != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, err))
 			break
 		}
-		if result.Warning != nil {
-			multiWarn = multiWarn.Add(errorWithFilename(filePath, result.Warning))
+		if desc.Warning != nil {
+			multiWarn = multiWarn.Add(errorWithFilename(filePath, desc.Warning))
 		}
 
-		*desc.File = fd
-		*desc.Bytes = result.Result
+		*fileDesc.File = fd
+		*fileDesc.Descriptor = desc
 	}
 
 	if multiErr.FinalError() == nil {
@@ -106,12 +134,12 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 
 	// If we have encountered an error when opening the files,
 	// close the ones that have been opened.
-	for filePath, desc := range files {
-		if *desc.File != nil {
-			multiErr = multiErr.Add(errorWithFilename(filePath, (*desc.File).Close()))
+	for filePath, fileDesc := range files {
+		if *fileDesc.File != nil {
+			multiErr = multiErr.Add(errorWithFilename(filePath, (*fileDesc.File).Close()))
 		}
-		if *desc.Bytes != nil {
-			multiErr = multiErr.Add(errorWithFilename(filePath, Munmap(*desc.Bytes)))
+		if fileDesc.Descriptor != nil {
+			multiErr = multiErr.Add(errorWithFilename(filePath, Munmap(*fileDesc.Descriptor)))
 		}
 	}
 
@@ -119,14 +147,14 @@ func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 }
 
 // File mmap's a file
-func File(file *os.File, opts Options) (Result, error) {
+func File(file *os.File, opts Options) (Descriptor, error) {
 	name := file.Name()
 	stat, err := os.Stat(name)
 	if err != nil {
-		return Result{}, fmt.Errorf("mmap file could not stat %s: %v", name, err)
+		return Descriptor{}, fmt.Errorf("mmap file could not stat %s: %v", name, err)
 	}
 	if stat.IsDir() {
-		return Result{}, fmt.Errorf("mmap target is directory: %s", name)
+		return Descriptor{}, fmt.Errorf("mmap target is directory: %s", name)
 	}
 	return mmapFdFn(int64(file.Fd()), 0, stat.Size(), opts)
 }

@@ -12,9 +12,6 @@ set -xe
 # Create cluster
 kind create cluster --config ./manifests/kind-kube-cluster.yaml
 
-# Use correct kubeconfig
-export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
-
 # Apply common kube manifests
 kubectl apply -f ./kube/sysctl-daemonset.yaml
 
@@ -55,10 +52,6 @@ while true; do
     printf "."
 done
 set -x
-
-# Deploy monitoring with Prometheus
-# Promethues Operator
-kubectl apply -f ./manifests/prometheus-operator.yaml
 
 # Manifests for Operator (prom, grafana, etc)
 set +x

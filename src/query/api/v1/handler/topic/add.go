@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -73,7 +74,9 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service, err := h.serviceFn(h.client)
+	serviceCfg := handleroptions.ServiceNameAndDefaults{}
+	svcOpts := handleroptions.NewServiceOptions(serviceCfg, r.Header, nil)
+	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -121,6 +121,32 @@ func testSetupMetadatas(
 		namespace, testSetup.shardSet.AllIDs(), start, end, level)
 	require.NoError(t, err)
 	return metadatasByShard
+}
+
+func filterSeriesByShard(
+	testSetup *testSetup,
+	seriesMap map[xtime.UnixNano]generate.SeriesBlock,
+	desiredShards []uint32,
+) map[xtime.UnixNano]generate.SeriesBlock {
+	filteredMap := make(map[xtime.UnixNano]generate.SeriesBlock)
+	for blockStart, series := range seriesMap {
+		filteredSeries := make([]generate.Series, 0, len(series))
+		for _, serie := range series {
+			shard := testSetup.shardSet.Lookup(serie.ID)
+			for _, ss := range desiredShards {
+				if ss == shard {
+					filteredSeries = append(filteredSeries, serie)
+					break
+				}
+			}
+		}
+
+		if len(filteredSeries) > 0 {
+			filteredMap[blockStart] = filteredSeries
+		}
+	}
+
+	return filteredMap
 }
 
 func verifySeriesMapsEqual(

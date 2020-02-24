@@ -805,13 +805,13 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
+	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
 		time.Time{}, 1.0, xtime.Second, nil).Return(s, true, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
-	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
+	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
 		time.Time{}, 1.0, xtime.Second, nil).Return(s, false, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
@@ -836,11 +836,11 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
 	require.Error(t, err)
 
-	ns.EXPECT().AggregateQuery(ctx, q, aggOpts).Return(aggRes, nil)
+	ns.EXPECT().AggregateQuery(gomock.Any(), q, aggOpts).Return(aggRes, nil)
 	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.NoError(t, err)
 
-	ns.EXPECT().AggregateQuery(ctx, q, aggOpts).
+	ns.EXPECT().AggregateQuery(gomock.Any(), q, aggOpts).
 		Return(aggRes, fmt.Errorf("random err"))
 	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.Error(t, err)
@@ -853,10 +853,12 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 3)
+	require.Len(t, spans, 5)
 	assert.Equal(t, tracepoint.DBQueryIDs, spans[0].OperationName)
 	assert.Equal(t, tracepoint.DBQueryIDs, spans[1].OperationName)
-	assert.Equal(t, "root", spans[2].OperationName)
+	assert.Equal(t, tracepoint.DBAggregateQuery, spans[2].OperationName)
+	assert.Equal(t, tracepoint.DBAggregateQuery, spans[3].OperationName)
+	assert.Equal(t, "root", spans[4].OperationName)
 }
 
 func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
@@ -876,7 +878,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(nil, notExistNamespace, nil, nil)
+	err = d.WriteBatch(context.NewContext(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -899,7 +901,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil)
+	err = d.WriteTaggedBatch(context.NewContext(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
