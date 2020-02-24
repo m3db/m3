@@ -49,14 +49,14 @@ var (
 )
 
 // Unit represents a time unit.
-type Unit uint16
+type Unit byte
 
 // Value is the time duration of the time unit.
 func (tu Unit) Value() (time.Duration, error) {
-	if tu < 1 || int(tu) > len(unitsToDuration) {
-		return 0, errUnrecognizedTimeUnit
+	if d, found := unitsToDuration[tu]; found {
+		return d, nil
 	}
-	return time.Duration(unitsToDuration[tu]), nil
+	return 0, errUnrecognizedTimeUnit
 }
 
 // Count returns the number of units contained within the duration.
@@ -65,12 +65,12 @@ func (tu Unit) Count(d time.Duration) (int, error) {
 		return 0, errNegativeDuraton
 	}
 
-	if tu < 1 || int(tu) > len(unitsToDuration) {
-		return 0, errUnrecognizedTimeUnit
+	if dur, found := unitsToDuration[tu]; found {
+		return int(d / dur), nil
 	}
 
-	dur := unitsToDuration[tu]
-	return int(d / dur), nil
+	// Invalid unit.
+	return 0, errUnrecognizedTimeUnit
 }
 
 // MustCount is like Count but panics if d is negative or if tu is not
@@ -86,16 +86,17 @@ func (tu Unit) MustCount(d time.Duration) int {
 
 // IsValid returns whether the given time unit is valid / supported.
 func (tu Unit) IsValid() bool {
-	return tu > 0 && int(tu) < len(unitsToDuration)
+	_, valid := unitsToDuration[tu]
+	return valid
 }
 
 // String returns the string representation for the time unit
 func (tu Unit) String() string {
-	if tu < 1 || int(tu) > len(unitsToDuration) {
-		return "unknown"
+	if s, found := unitStrings[tu]; found {
+		return s
 	}
 
-	return unitStrings[tu]
+	return "unknown"
 }
 
 // UnitFromDuration creates a time unit from a time duration.
@@ -109,11 +110,11 @@ func UnitFromDuration(d time.Duration) (Unit, error) {
 
 // DurationFromUnit creates a time duration from a time unit.
 func DurationFromUnit(u Unit) (time.Duration, error) {
-	if u < 1 || int(u) > len(unitsToDuration) {
-		return 0, errConvertUnitToDuration
+	if duration, found := unitsToDuration[u]; found {
+		return duration, nil
 	}
 
-	return unitsToDuration[u], nil
+	return 0, errConvertUnitToDuration
 }
 
 // MaxUnitForDuration determines the maximum unit for which
@@ -152,33 +153,28 @@ func MaxUnitForDuration(d time.Duration) (int64, Unit) {
 }
 
 var (
-	unitStrings = []string{
-		"unknown",
-		"s",
-		"ms",
-		"us",
-		"ns",
-		"m",
-		"h",
-		"d",
-		"y",
+	unitStrings = map[Unit]string{
+		Second:      "s",
+		Millisecond: "ms",
+		Nanosecond:  "ns",
+		Microsecond: "us",
+		Minute:      "m",
+		Hour:        "h",
+		Day:         "d",
+		Year:        "y",
 	}
 
 	durationsToUnit = make(map[time.Duration]Unit)
-	unitsToDuration = []time.Duration{
-		time.Duration(0),
-		time.Second,
-		time.Millisecond,
-		time.Microsecond,
-		time.Nanosecond,
-		time.Minute,
-		time.Hour,
-		time.Hour * 24,
-		time.Hour * 24 * 365,
+	unitsToDuration = map[Unit]time.Duration{
+		Second:      time.Second,
+		Millisecond: time.Millisecond,
+		Nanosecond:  time.Nanosecond,
+		Microsecond: time.Microsecond,
+		Minute:      time.Minute,
+		Hour:        time.Hour,
+		Day:         time.Hour * 24,
+		Year:        time.Hour * 24 * 365,
 	}
-
-	unitNum = len(unitsToDuration)
-
 	unitsByDurationDesc []Unit
 )
 
@@ -197,12 +193,7 @@ func (b byDurationDesc) Less(i, j int) bool {
 
 func init() {
 	unitsByDurationDesc = make([]Unit, 0, len(unitsToDuration))
-	for uu, d := range unitsToDuration {
-		u := Unit(uu)
-		if u == None {
-			continue
-		}
-
+	for u, d := range unitsToDuration {
 		durationsToUnit[d] = u
 		unitsByDurationDesc = append(unitsByDurationDesc, u)
 	}
