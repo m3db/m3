@@ -25,7 +25,7 @@ echo "Setup DB node"
 setup_single_m3db_node
 
 echo "Initializing aggregator topology"
-curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+curl -vvvsSf -X POST -H "Cluster-Environment-Name: override_test_env" localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 2,
     "instances": [
@@ -51,7 +51,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init 
 }'
 
 echo "Initializing m3msg topic for m3coordinator ingestion from m3aggregators"
-curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+curl -vvvsSf -X POST -H "Cluster-Environment-Name: override_test_env" localhost:7201/api/v1/topic/init -d '{
     "numberOfShards": 64
 }'
 
@@ -75,7 +75,7 @@ echo "Done validating topology"
 
 # Do this after placement for m3coordinator is created.
 echo "Adding m3coordinator as a consumer to the aggregator topic"
-curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
+curl -vvvsSf -X POST -H "Cluster-Environment-Name: override_test_env" localhost:7201/api/v1/topic -d '{
   "consumerService": {
     "serviceId": {
       "name": "m3coordinator",

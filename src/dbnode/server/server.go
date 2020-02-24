@@ -1225,6 +1225,7 @@ func withEncodingAndPoolingOptions(
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
+
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
 		var b pool.Bucket
@@ -1234,10 +1235,12 @@ func withEncodingAndPoolingOptions(
 			SetRefillLowWatermark(bucket.RefillLowWaterMarkOrDefault()).
 			SetRefillHighWatermark(bucket.RefillHighWaterMarkOrDefault())
 		buckets[i] = b
-		logger.Sugar().Infof("bytes pool registering bucket capacity=%d, size=%d, "+
-			"refillLowWatermark=%f, refillHighWatermark=%f",
-			bucket.Capacity, bucket.Size,
-			bucket.RefillLowWaterMarkOrDefault(), bucket.RefillHighWaterMarkOrDefault())
+
+		logger.Info("bytes pool configured",
+			zap.Int("capacity", bucket.CapacityOrDefault()),
+			zap.Int("size", bucket.SizeOrDefault()),
+			zap.Float64("refillLowWaterMark", bucket.RefillLowWaterMarkOrDefault()),
+			zap.Float64("refillHighWaterMark", bucket.RefillHighWaterMarkOrDefault()))
 	}
 
 	var bytesPool pool.CheckedBytesPool
@@ -1260,9 +1263,9 @@ func withEncodingAndPoolingOptions(
 			l = l.With(zap.String("policy", string(*t)))
 		}
 
-		l.Info("bytes pool init")
+		l.Info("bytes pool init start")
 		bytesPool.Init()
-		l.Info("bytes pool init done")
+		l.Info("bytes pool init end")
 	}
 
 	segmentReaderPool := xio.NewSegmentReaderPool(

@@ -54,10 +54,10 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (bootstrap.CheckoutSeriesResult, error) {
-	ref, err := a.namespace.SeriesReadWriteRef(shardID, id, tags)
+) (bootstrap.CheckoutSeriesResult, bool, error) {
+	ref, owned, err := a.namespace.SeriesReadWriteRef(shardID, id, tags)
 	if err != nil {
-		return bootstrap.CheckoutSeriesResult{}, err
+		return bootstrap.CheckoutSeriesResult{}, owned, err
 	}
 
 	a.needsRelease = append(a.needsRelease, ref.ReleaseReadWriteRef)
@@ -65,18 +65,18 @@ func (a *namespaceDataAccumulator) CheckoutSeriesWithoutLock(
 		Series:      ref.Series,
 		Shard:       ref.Shard,
 		UniqueIndex: ref.UniqueIndex,
-	}, nil
+	}, true, nil
 }
 
 func (a *namespaceDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (bootstrap.CheckoutSeriesResult, error) {
+) (bootstrap.CheckoutSeriesResult, bool, error) {
 	a.Lock()
-	result, err := a.CheckoutSeriesWithoutLock(shardID, id, tags)
+	result, owned, err := a.CheckoutSeriesWithoutLock(shardID, id, tags)
 	a.Unlock()
-	return result, err
+	return result, owned, err
 }
 
 func (a *namespaceDataAccumulator) Close() error {

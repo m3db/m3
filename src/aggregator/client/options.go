@@ -37,7 +37,9 @@ const (
 	// By default there is no limit on the timer batch size.
 	defaultMaxTimerBatchSize = 0
 
-	defaultInstanceQueueSize = 4096
+	// defaultInstanceQueueSize determines how many metrics can be buffered
+	// before it must wait for an existing batch to be flushed to an instance.
+	defaultInstanceQueueSize = 2 << 15 // ~65k
 
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
@@ -51,10 +53,10 @@ const (
 	// By default the oldest metrics in the queue are dropped when it is full.
 	defaultDropType = DropOldest
 
-	// By default set maximum batch size to 32k
-	defaultMaxBatchSize = 2 << 14
+	// By default set maximum batch size to 8mb.
+	defaultMaxBatchSize = 2 << 22
 
-	// By default write at least every 100ms
+	// By default write at least every 100ms.
 	defaultBatchFlushDeadline = 100 * time.Millisecond
 )
 

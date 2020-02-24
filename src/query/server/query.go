@@ -70,7 +70,6 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -147,7 +146,14 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, err := cfg.Metrics.NewRootScope()
+	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			OnError: func(err error) {
+				// NB(r): Required otherwise collisions when registering metrics will
+				// cause a panic.
+				logger.Error("register metric error", zap.Error(err))
+			},
+		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
@@ -517,6 +523,10 @@ func newDownsampler(
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
+	// Namespace the downsampler metrics.
+	instrumentOpts = instrumentOpts.SetMetricsScope(
+		instrumentOpts.MetricsScope().SubScope("downsampler"))
+
 	if clusterManagementClient == nil {
 		return nil, fmt.Errorf("no configured cluster management config, " +
 			"must set this config for downsampler")
@@ -540,13 +550,12 @@ func newDownsampler(
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
-		Storage:          storage,
-		ClusterClient:    clusterManagementClient,
-		RulesKVStore:     kvStore,
-		AutoMappingRules: autoMappingRules,
-		ClockOptions:     clock.NewOptions(),
-		// TODO: remove after https://github.com/m3db/m3/issues/992 is fixed
-		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
+		Storage:               storage,
+		ClusterClient:         clusterManagementClient,
+		RulesKVStore:          kvStore,
+		AutoMappingRules:      autoMappingRules,
+		ClockOptions:          clock.NewOptions(),
+		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
