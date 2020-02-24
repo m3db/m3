@@ -290,6 +290,7 @@ func (s *commitLogSource) Read(
 		}
 		datapointsSkippedNotBootstrappingNamespace = 0
 		datapointsSkippedNotBootstrappingShard     = 0
+		datapointsSkippedShardNoLongerOwned        = 0
 		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
@@ -302,7 +303,8 @@ func (s *commitLogSource) Read(
 			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
-			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard))
+			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
+			zap.Int("datapointsSkippedShardNoLongerOwned", datapointsSkippedShardNoLongerOwned))
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -476,6 +478,13 @@ func (s *commitLogSource) Read(
 			commitLogSeries[seriesKey] = seriesEntry
 		}
 
+		// If series is no longer owned, then we can safely skip trying to
+		// bootstrap the result.
+		if seriesEntry.shardNoLongerOwned {
+			datapointsSkippedShardNoLongerOwned++
+			continue
+		}
+
 		// If not bootstrapping this namespace then skip this result.
 		if !seriesEntry.namespace.bootstrapping {
 			datapointsSkippedNotBootstrappingNamespace++
@@ -487,7 +496,7 @@ func (s *commitLogSource) Read(
 		// bootstrap from the commit log data that the node no longer owns.
 		shard := seriesEntry.series.Shard
 		_, bootstrapping := seriesEntry.namespace.dataAndIndexShardRanges[shard]
-		if !bootstrapping || seriesEntry.shardNoLongerOwned {
+		if !bootstrapping {
 			datapointsSkippedNotBootstrappingShard++
 			continue
 		}
