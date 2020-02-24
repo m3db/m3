@@ -148,7 +148,7 @@ func Run(runOpts RunOptions) {
 
 	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
-			OnError: func(e error) {
+			OnError: func(err error) {
 				// NB(r): Required otherwise collisions when registering metrics will
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
