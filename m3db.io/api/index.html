@@ -891,6 +891,18 @@
 <td>string</td>
 <td>false</td>
 </tr>
+<tr>
+<td>hostNetwork</td>
+<td>HostNetwork indicates whether M3DB pods should run in the same network namespace as the node its on. This option should be used sparingly due to security concerns outlined in the linked documentation. <a href="https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces">https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces</a></td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>dnsPolicy</td>
+<td>DNSPolicy allows the user to set the pod's DNSPolicy. This is often used in conjunction with HostNetwork.+optional</td>
+<td>*corev1.DNSPolicy</td>
+<td>false</td>
+</tr>
 </tbody>
 </table>
 <p><a href="#table-of-contents">Back to TOC</a></p>
