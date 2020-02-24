@@ -71,7 +71,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(m3aggregator_aggregator_client_writeForwarded_success[$step]))",
+          "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writeForwarded_success[$step]))",
           "refId": "A"
         }
       ],
@@ -155,7 +155,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(m3aggregator_aggregator_client_writeForwarded_errors[$step]))",
+          "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writeForwarded_errors[$step]))",
           "refId": "A"
         }
       ],
@@ -239,7 +239,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(m3aggregator_aggregator_client_writer_manager_writer_queue_successes[$step]))",
+          "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writer_manager_writer_queue_successes[$step]))",
           "refId": "A"
         }
       ],
@@ -323,11 +323,11 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(m3aggregator_aggregator_client_writer_manager_writer_queue_dropped[$step]))",
+          "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writer_manager_writer_queue_dropped[$step]))",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(m3aggregator_aggregator_client_writer_manager_writer_queue_errors[$step]))",
+          "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writer_manager_writer_queue_errors[$step]))",
           "refId": "B"
         }
       ],

@@ -523,6 +523,10 @@ func newDownsampler(
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
+	// Namespace the downsampler metrics.
+	instrumentOpts = instrumentOpts.SetMetricsScope(
+		instrumentOpts.MetricsScope().SubScope("downsampler"))
+
 	if clusterManagementClient == nil {
 		return nil, fmt.Errorf("no configured cluster management config, " +
 			"must set this config for downsampler")
