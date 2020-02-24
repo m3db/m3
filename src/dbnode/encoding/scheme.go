@@ -44,7 +44,11 @@ var (
 
 	// TODO(xichen): set more reasonable defaults once we have more knowledge
 	// of the use cases for time units other than seconds.
-	defaultTimeEncodingSchemes = map[xtime.Unit]TimeEncodingScheme{
+	/*
+		here be dragons
+	*/
+	defaultTimeEncodingSchemes = []TimeEncodingScheme{
+		nil,
 		xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
 		xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
 		xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
@@ -153,7 +157,21 @@ func (tes *timeEncodingScheme) Buckets() []TimeBucket     { return tes.buckets }
 func (tes *timeEncodingScheme) DefaultBucket() TimeBucket { return tes.defaultBucket }
 
 // TimeEncodingSchemes defines the time encoding schemes for different time units.
-type TimeEncodingSchemes map[xtime.Unit]TimeEncodingScheme
+type TimeEncodingSchemes []TimeEncodingScheme
+
+// SchemeForUnit SchemeForUnit
+func (s TimeEncodingSchemes) SchemeForUnit(u xtime.Unit) (TimeEncodingScheme, bool) {
+	if u < 1 || int(u) > len(s) {
+		return nil, false
+	}
+
+	scheme := s[u]
+	if scheme == nil {
+		return nil, false
+	}
+
+	return s[u], true
+}
 
 // Marker represents the markers.
 type Marker byte
