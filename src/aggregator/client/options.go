@@ -39,7 +39,7 @@ const (
 
 	// defaultInstanceQueueSize determines how many metrics can be buffered
 	// before it must wait for an existing batch to be flushed to an instance.
-	defaultInstanceQueueSize = 4096
+	defaultInstanceQueueSize = 2 << 15 // ~65k
 
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
