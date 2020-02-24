@@ -45,6 +45,7 @@ type Configuration struct {
 	ShardCutoffLingerDuration  *time.Duration                 `yaml:"shardCutoffLingerDuration"`
 	Encoder                    EncoderConfiguration           `yaml:"encoder"`
 	FlushSize                  int                            `yaml:"flushSize"`
+	MaxBatchSize               int                            `yaml:"maxBatchSize"`
 	MaxTimerBatchSize          int                            `yaml:"maxTimerBatchSize"`
 	QueueSize                  int                            `yaml:"queueSize"`
 	QueueDropType              *DropType                      `yaml:"queueDropType"`
@@ -126,6 +127,9 @@ func (c *Configuration) newClientOptions(
 	}
 	if c.FlushSize != 0 {
 		opts = opts.SetFlushSize(c.FlushSize)
+	}
+	if c.MaxBatchSize != 0 {
+		opts = opts.SetMaxBatchSize(c.MaxBatchSize)
 	}
 	if c.MaxTimerBatchSize != 0 {
 		opts = opts.SetMaxTimerBatchSize(c.MaxTimerBatchSize)
