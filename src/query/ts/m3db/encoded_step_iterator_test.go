@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -373,6 +375,7 @@ const (
 	stepSequential iterType = iota
 	stepParallel
 	seriesSequential
+	seriesParallel
 )
 
 func (t iterType) name(name string) string {
@@ -384,6 +387,8 @@ func (t iterType) name(name string) string {
 		n = "sequential"
 	case seriesSequential:
 		n = "series"
+	case seriesParallel:
+		n = "series_parallel"
 	default:
 		panic(fmt.Sprint("bad iter type", t))
 	}
@@ -515,6 +520,43 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
 
+	if t == seriesParallel {
+		b.ResetTimer()
+
+		var wg sync.WaitGroup
+		bl, err := NewEncodedBlock(iters, models.Bounds{
+			Start:    start,
+			Duration: window,
+			StepSize: stepSize,
+		}, false, block.NewResultMetadata(), NewOptions())
+		require.NoError(b, err)
+
+		for i := 0; i < b.N; i++ {
+			for _, reset := range itersReset {
+				reset()
+			}
+
+			batch, err := bl.MultiSeriesIter(runtime.NumCPU())
+			require.NoError(b, err)
+
+			b.StartTimer()
+			for _, bb := range batch {
+				wg.Add(1)
+				bb := bb
+				go func() {
+					for bb.Iter.Next() {
+					}
+					wg.Done()
+				}()
+			}
+
+			wg.Wait()
+			b.StopTimer()
+		}
+
+		return
+	}
+
 	if t == seriesSequential {
 		sm := make([]block.SeriesMeta, seriesCount)
 		for i := range iters {
@@ -544,8 +586,10 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 				reset()
 			}
 
+			b.StartTimer()
 			for it.Next() {
 			}
+			b.StopTimer()
 			require.NoError(b, it.Err())
 		}
 
@@ -638,9 +682,10 @@ func BenchmarkNextIteration(b *testing.B) {
 		stepSequential,
 		stepParallel,
 		seriesSequential,
+		// seriesParallel,
 	}
 
-	for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
+	for _, s := range []int{1, 100, 200, 500, 1000, 2000} {
 		for _, t := range iterTypes {
 			name := t.name(fmt.Sprintf("%d", s))
 			b.Run(name, func(b *testing.B) {
