@@ -180,7 +180,7 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	tes, exists := enc.Options.TimeEncodingSchemes()[timeUnit]
+	tes, exists := enc.Options.TimeEncodingSchemes().SchemeForUnit(timeUnit)
 	if !exists {
 		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
 	}
