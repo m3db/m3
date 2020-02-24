@@ -210,7 +210,7 @@ func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (
 		}
 	}
 
-	tes, exists := it.Opts.TimeEncodingSchemes()[it.TimeUnit]
+	tes, exists := it.Opts.TimeEncodingSchemes().SchemeForUnit(it.TimeUnit)
 	if !exists {
 		return 0, fmt.Errorf("time encoding scheme for time unit %v doesn't exist", it.TimeUnit)
 	}
