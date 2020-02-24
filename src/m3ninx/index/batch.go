@@ -143,12 +143,12 @@ func (e *BatchPartialError) Add(err BatchError) {
 
 // AddWithLock adds an error to e with a lock. Any nil errors are ignored.
 func (e *BatchPartialError) AddWithLock(err BatchError) {
-	e.Lock()
-	defer e.Unlock()
 	if err.Err == nil {
 		return
 	}
+	e.Lock()
 	e.errs = append(e.errs, err)
+	e.Unlock()
 }
 
 // Errs returns the errors with the indexes of the documents in the batch

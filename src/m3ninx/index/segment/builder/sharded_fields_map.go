@@ -41,8 +41,7 @@ func newShardedFieldsMap(
 
 func (s *shardedFieldsMap) Get(k []byte) (*terms, bool) {
 	for _, fieldMap := range s.data {
-		t, found := fieldMap.Get(k)
-		if found {
+		if t, found := fieldMap.Get(k); found {
 			return t, found
 		}
 	}
@@ -65,7 +64,7 @@ func (s *shardedFieldsMap) ShardedSetUnsafe(
 	s.data[shard].SetUnsafe(k, v, opts)
 }
 
-// ResetTerms keeps fields around but resets the terms set for each one.
+// ResetTermsSets keeps fields around but resets the terms set for each one.
 func (s *shardedFieldsMap) ResetTermsSets() {
 	for _, fieldMap := range s.data {
 		for _, entry := range fieldMap.Iter() {

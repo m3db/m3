@@ -36,7 +36,7 @@ type OrderedBytesSliceIter struct {
 
 	currentIdx    int
 	current       []byte
-	backingSlices *sortableSliceOfSliceOfByteSlices
+	backingSlices *sortableSliceOfSliceOfByteSlicesAsc
 }
 
 var _ segment.FieldsIterator = &OrderedBytesSliceIter{}
@@ -46,7 +46,7 @@ var _ segment.FieldsIterator = &OrderedBytesSliceIter{}
 func NewOrderedBytesSliceIter(
 	maybeUnorderedSlices [][][]byte,
 ) *OrderedBytesSliceIter {
-	sortable := &sortableSliceOfSliceOfByteSlices{data: maybeUnorderedSlices}
+	sortable := &sortableSliceOfSliceOfByteSlicesAsc{data: maybeUnorderedSlices}
 	sorts.ByBytes(sortable)
 	return &OrderedBytesSliceIter{
 		currentIdx:    -1,
@@ -90,43 +90,43 @@ func (b *OrderedBytesSliceIter) Close() error {
 	return nil
 }
 
-type sortableSliceOfSliceOfByteSlices struct {
+type sortableSliceOfSliceOfByteSlicesAsc struct {
 	data   [][][]byte
-	length *int
+	length int
 }
 
-func (s *sortableSliceOfSliceOfByteSlices) Len() int {
-	if s.length != nil {
-		return *s.length
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Len() int {
+	if s.length > 0 {
+		return s.length
 	}
 
 	totalLen := 0
 	for _, innerSlice := range s.data {
 		totalLen += len(innerSlice)
 	}
-	s.length = &totalLen
+	s.length = totalLen
 
-	return *s.length
+	return s.length
 }
 
-func (s *sortableSliceOfSliceOfByteSlices) Less(i, j int) bool {
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Less(i, j int) bool {
 	iOuter, iInner := s.getIndices(i)
 	jOuter, jInner := s.getIndices(j)
 	return bytes.Compare(s.data[iOuter][iInner], s.data[jOuter][jInner]) < 0
 }
 
-func (s *sortableSliceOfSliceOfByteSlices) Swap(i, j int) {
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Swap(i, j int) {
 	iOuter, iInner := s.getIndices(i)
 	jOuter, jInner := s.getIndices(j)
 	s.data[iOuter][iInner], s.data[jOuter][jInner] = s.data[jOuter][jInner], s.data[iOuter][iInner]
 }
 
-func (s *sortableSliceOfSliceOfByteSlices) Key(i int) []byte {
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Key(i int) []byte {
 	iOuter, iInner := s.getIndices(i)
 	return s.data[iOuter][iInner]
 }
 
-func (s *sortableSliceOfSliceOfByteSlices) getIndices(idx int) (int, int) {
+func (s *sortableSliceOfSliceOfByteSlicesAsc) getIndices(idx int) (int, int) {
 	currentSliceIdx := 0
 	for idx >= len(s.data[currentSliceIdx]) {
 		idx -= len(s.data[currentSliceIdx])

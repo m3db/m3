@@ -23,7 +23,6 @@ package builder
 import (
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -42,10 +41,12 @@ var (
 
 const (
 	// Slightly buffer the work to avoid blocking main thread.
-	indexQueueSize = 2 << 7
+	indexQueueSize = 2 << 9 // 1024
 )
 
 type indexJob struct {
+	wg *sync.WaitGroup
+
 	id    postings.ID
 	field doc.Field
 
@@ -75,7 +76,7 @@ type builder struct {
 // not thread safe and is optimized for insertion speed and a
 // final build step when documents are indexed.
 func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, error) {
-	concurrency := runtime.NumCPU()
+	concurrency := opts.Concurrency()
 	b := &builder{
 		opts:      opts,
 		newUUIDFn: opts.NewUUIDFn(),
@@ -148,6 +149,7 @@ func (b *builder) Insert(d doc.Document) ([]byte, error) {
 func (b *builder) InsertBatch(batch index.Batch) error {
 	// NB(r): This is all kept in a single method to make the
 	// insertion path fast.
+	var wg sync.WaitGroup
 	batchErr := index.NewBatchPartialError()
 	for i, d := range batch.Docs {
 		// Validate doc
@@ -188,9 +190,9 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 
 		// Index the terms.
 		for _, f := range d.Fields {
-			b.index(postings.ID(postingsListID), f, i, batchErr)
+			b.index(&wg, postings.ID(postingsListID), f, i, batchErr)
 		}
-		b.index(postings.ID(postingsListID), doc.Field{
+		b.index(&wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
 		}, i, batchErr)
@@ -206,6 +208,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 }
 
 func (b *builder) index(
+	wg *sync.WaitGroup,
 	id postings.ID,
 	f doc.Field,
 	i int,
@@ -215,11 +218,12 @@ func (b *builder) index(
 	if b.closed.Load() {
 		return
 	}
-	b.wg.Add(1)
+	wg.Add(1)
 	// NB(bodu): To avoid locking inside of the terms, we shard the work
 	// by field name.
 	shard := int(xxhash.Sum64(f.Name) % uint64(len(b.indexQueues)))
 	b.indexQueues[shard] <- indexJob{
+		wg:       wg,
 		id:       id,
 		field:    f,
 		shard:    shard,
@@ -244,13 +248,15 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 		// collection for correct response when retrieving all fields.
 		newField := terms.size() == 0
 		// NB(bodu): Bulk of the cpu time during insertion is spent inside of terms.post().
-		if err := terms.post(job.field.Value, job.id); err != nil {
+		err := terms.post(job.field.Value, job.id)
+		if err == nil {
+			if newField {
+				b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], job.field.Name)
+			}
+		} else {
 			job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: job.idx})
 		}
-		if newField {
-			b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], job.field.Name)
-		}
-		b.wg.Done()
+		job.wg.Done()
 	}
 }
 
