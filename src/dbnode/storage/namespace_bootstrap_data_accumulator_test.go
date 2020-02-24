@@ -56,7 +56,8 @@ func checkoutWithLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	return acc.CheckoutSeriesWithLock(shardID, id, tags)
+	res, _, err := acc.CheckoutSeriesWithLock(shardID, id, tags)
+	return res, err
 }
 
 func checkoutWithoutLock(
@@ -65,7 +66,8 @@ func checkoutWithoutLock(
 	id ident.ID,
 	tags ident.TagIterator,
 ) (bootstrap.CheckoutSeriesResult, error) {
-	return acc.CheckoutSeriesWithoutLock(shardID, id, tags)
+	res, _, err := acc.CheckoutSeriesWithoutLock(shardID, id, tags)
+	return res, err
 }
 
 func TestCheckoutSeries(t *testing.T) {
@@ -94,9 +96,9 @@ func testCheckoutSeries(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, nil)
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
 	ns.EXPECT().SeriesReadWriteRef(shardID, idErr, tagIter).
-		Return(SeriesReadWriteRef{}, errors.New("err"))
+		Return(SeriesReadWriteRef{}, false, errors.New("err"))
 
 	_, err := checkoutFn(acc, shardID, idErr, tagIter)
 	require.Error(t, err)
@@ -141,7 +143,7 @@ func testAccumulatorRelease(t *testing.T, checkoutFn checkoutFn) {
 		}
 	)
 
-	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, nil)
+	ns.EXPECT().SeriesReadWriteRef(shardID, id, tagIter).Return(ref, true, nil)
 	_, err = checkoutFn(acc, shardID, id, tagIter)
 	require.NoError(t, err)
 

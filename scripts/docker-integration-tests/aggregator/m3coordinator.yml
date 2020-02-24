@@ -56,6 +56,7 @@ downsample:
     client:
       placementKV:
         namespace: /placement
+        environment: override_test_env
       placementWatcher:
         key: m3aggregator
         initWatchTimeout: 10s

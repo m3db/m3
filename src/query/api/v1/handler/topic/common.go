@@ -25,8 +25,10 @@ import (
 	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -43,7 +45,7 @@ const (
 	HeaderTopicName = "topic-name"
 )
 
-type serviceFn func(clusterClient clusterclient.Client) (topic.Service, error)
+type serviceFn func(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error)
 
 // Handler represents a generic handler for topic endpoints.
 // nolint: structcheck
@@ -57,11 +59,14 @@ type Handler struct {
 }
 
 // Service gets a topic service from m3cluster client
-func Service(clusterClient clusterclient.Client) (topic.Service, error) {
-	return topic.NewService(
-		topic.NewServiceOptions().
-			SetConfigService(clusterClient),
-	)
+func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error) {
+	kvOverride := kv.NewOverrideOptions().
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+	topicOpts := topic.NewServiceOptions().
+		SetConfigService(clusterClient).
+		SetKVOverrideOptions(kvOverride)
+	return topic.NewService(topicOpts)
 }
 
 // RegisterRoutes registers the topic routes

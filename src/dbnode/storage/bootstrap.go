@@ -82,6 +82,7 @@ type bootstrapManager struct {
 	state                       BootstrapState
 	hasPending                  bool
 	status                      tally.Gauge
+	bootstrapDuration           tally.Timer
 	lastBootstrapCompletionTime time.Time
 }
 
@@ -92,14 +93,15 @@ func newBootstrapManager(
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
 	m := &bootstrapManager{
-		database:        database,
-		mediator:        mediator,
-		opts:            opts,
-		log:             opts.InstrumentOptions().Logger(),
-		nowFn:           opts.ClockOptions().NowFn(),
-		sleepFn:         time.Sleep,
-		processProvider: opts.BootstrapProcessProvider(),
-		status:          scope.Gauge("bootstrapped"),
+		database:          database,
+		mediator:          mediator,
+		opts:              opts,
+		log:               opts.InstrumentOptions().Logger(),
+		nowFn:             opts.ClockOptions().NowFn(),
+		sleepFn:           time.Sleep,
+		processProvider:   opts.BootstrapProcessProvider(),
+		status:            scope.Gauge("bootstrapped"),
+		bootstrapDuration: scope.Timer("bootstrap-duration"),
 	}
 	m.bootstrapFn = m.bootstrap
 	return m
@@ -330,8 +332,10 @@ func (m *bootstrapManager) bootstrap() error {
 	// Run the bootstrap.
 	bootstrapResult, err := process.Run(start, targets)
 
+	bootstrapDuration := m.nowFn().Sub(start)
+	m.bootstrapDuration.Record(bootstrapDuration)
 	logFields = append(logFields,
-		zap.Duration("bootstrapDuration", m.nowFn().Sub(start)))
+		zap.Duration("bootstrapDuration", bootstrapDuration))
 
 	if err != nil {
 		m.log.Error("bootstrap failed",
