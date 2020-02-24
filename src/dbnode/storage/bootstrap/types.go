@@ -226,8 +226,14 @@ type NamespaceDataAccumulator interface {
 	// CheckoutSeriesWithoutLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
+	//
 	// If indexing is not enabled, tags is still required, simply pass
 	// ident.EmptyTagIterator.
+	//
+	// Returns the result, whether the node owns the specified shard, along with
+	// an error if any. This allows callers to handle unowned shards differently
+	// than other errors. If owned == false, err should not be nil.
+	//
 	// Note: Without lock variant does not perform any locking and callers
 	// must ensure non-parallel access themselves, this helps avoid
 	// overhead of the lock for the commit log bootstrapper which reads
@@ -236,20 +242,17 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (CheckoutSeriesResult, error)
+	) (result CheckoutSeriesResult, owned bool, err error)
 
-	// CheckoutSeriesWithLock retrieves a series for writing to
-	// and when the accumulator is closed it will ensure that the
-	// series is released.
-	// If indexing is not enabled, tags is still required, simply pass
-	// ident.EmptyTagIterator.
-	// Note: With lock variant perform locking and callers do not need
+	// CheckoutSeriesWithLock is the "with lock" version of
+	// CheckoutSeriesWithoutLock.
+	// Note: With lock variant performs locking and callers do not need
 	// to be concerned about parallel access.
 	CheckoutSeriesWithLock(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (CheckoutSeriesResult, error)
+	) (result CheckoutSeriesResult, owned bool, err error)
 
 	// Close will close the data accumulator and will release
 	// all series read/write refs.

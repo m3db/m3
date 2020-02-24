@@ -91,8 +91,9 @@ type seriesMapKey struct {
 }
 
 type seriesMapEntry struct {
-	namespace *bootstrapNamespace
-	series    bootstrap.CheckoutSeriesResult
+	shardNoLongerOwned bool
+	namespace          *bootstrapNamespace
+	series             bootstrap.CheckoutSeriesResult
 }
 
 // accumulateArg contains all the information a worker go-routine needs to
@@ -289,6 +290,7 @@ func (s *commitLogSource) Read(
 		}
 		datapointsSkippedNotBootstrappingNamespace = 0
 		datapointsSkippedNotBootstrappingShard     = 0
+		datapointsSkippedShardNoLongerOwned        = 0
 		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
@@ -301,7 +303,8 @@ func (s *commitLogSource) Read(
 			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
-			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard))
+			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
+			zap.Int("datapointsSkippedShardNoLongerOwned", datapointsSkippedShardNoLongerOwned))
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -450,13 +453,19 @@ func (s *commitLogSource) Read(
 				// Check out the series for writing, no need for concurrency
 				// as commit log bootstrapper does not perform parallel
 				// checking out of series.
-				series, err := accumulator.CheckoutSeriesWithoutLock(
+				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
 					entry.Series.ID,
-					tagIter,
-				)
-
+					tagIter)
 				if err != nil {
+					if !owned {
+						// If we encounter a log entry for a shard that we're
+						// not responsible for, skip this entry. This can occur
+						// when a topology change happens and we bootstrap from
+						// a commit log which contains this data.
+						commitLogSeries[seriesKey] = seriesMapEntry{shardNoLongerOwned: true}
+						continue
+					}
 					return bootstrap.NamespaceResults{}, err
 				}
 
@@ -469,11 +478,19 @@ func (s *commitLogSource) Read(
 			commitLogSeries[seriesKey] = seriesEntry
 		}
 
+		// If series is no longer owned, then we can safely skip trying to
+		// bootstrap the result.
+		if seriesEntry.shardNoLongerOwned {
+			datapointsSkippedShardNoLongerOwned++
+			continue
+		}
+
 		// If not bootstrapping this namespace then skip this result.
 		if !seriesEntry.namespace.bootstrapping {
 			datapointsSkippedNotBootstrappingNamespace++
 			continue
 		}
+
 		// If not bootstrapping shard for this series then also skip.
 		// NB(r): This can occur when a topology change happens then we
 		// bootstrap from the commit log data that the node no longer owns.
@@ -783,8 +800,12 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
+			}
 			return err
 		}
 
