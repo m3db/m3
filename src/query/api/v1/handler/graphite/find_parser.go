@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // parseFindParamsToQueries parses an incoming request to two find queries,
@@ -57,7 +57,6 @@ func parseFindParamsToQueries(r *http.Request) (
 	_rawQueryString string,
 	_err *xhttp.ParseError,
 ) {
-	values := r.URL.Query()
 	query := r.FormValue("query")
 	if query == "" {
 		return nil, nil, "",
