@@ -53,8 +53,8 @@ const (
 	// By default the oldest metrics in the queue are dropped when it is full.
 	defaultDropType = DropOldest
 
-	// By default set maximum batch size to 16mb.
-	defaultMaxBatchSize = 2 << 23
+	// By default set maximum batch size to 8mb.
+	defaultMaxBatchSize = 2 << 22
 
 	// By default write at least every 100ms.
 	defaultBatchFlushDeadline = 100 * time.Millisecond
