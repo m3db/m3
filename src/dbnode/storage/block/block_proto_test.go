@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -124,7 +123,7 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+	require.Equal(t, seg.Checksum, mergedChecksum)
 
 	depCtx.BlockingClose()
 	block1.Close()

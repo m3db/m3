@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -35,9 +34,9 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
@@ -189,7 +188,7 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+	require.Equal(t, seg.Checksum, mergedChecksum)
 
 	// Make sure each segment reader was only finalized once
 	require.Equal(t, 3, len(segmentReaders))
@@ -383,7 +382,7 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+	require.Equal(t, seg.Checksum, mergedChecksum)
 
 	// Make sure each segment reader was only finalized once
 	require.Equal(t, 5, len(segmentReaders))
@@ -492,7 +491,7 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	// Make sure the new checksum is correct
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+	require.Equal(t, seg.Checksum, mergedChecksum)
 }
 
 func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {

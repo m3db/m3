@@ -480,7 +480,7 @@ func assertPersistedAsExpected(
 		id := actualData.id
 		data, exists := expectedData.Get(id)
 		require.True(t, exists)
-		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+		seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 
 		expectedDPs := datapointsFromSegment(t, seg)
 		actualDPs := datapointsFromSegment(t, actualData.segment)
@@ -624,7 +624,7 @@ func blockReaderFromData(
 	startTime time.Time,
 	blockSize time.Duration,
 ) xio.BlockReader {
-	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	seg := ts.NewSegmentWithGeneratedChecksum(data, nil, ts.FinalizeHead)
 	segReader.Reset(seg)
 	return xio.BlockReader{
 		SegmentReader: segReader,

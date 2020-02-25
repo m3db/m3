@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
@@ -1116,9 +1115,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		seg, err := streams[id].Segment()
 		require.NoError(t, err)
 
-		checksum := digest.SegmentChecksum(seg)
-		checksums[id] = checksum
-
+		checksums[id] = seg.Checksum
 		expectedBlockReader := []xio.BlockReader{
 			xio.BlockReader{
 				SegmentReader: stream,

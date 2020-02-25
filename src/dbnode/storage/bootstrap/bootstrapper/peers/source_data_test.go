@@ -269,10 +269,10 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()), ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, 2, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "rab")), barBlock)
@@ -280,7 +280,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.NewTags(ident.StringTag("baz", "zab")), bazBlock)
 
@@ -483,7 +483,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	addResult(0, "foo", fooBlocks[0], true)
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(0, "foo", fooBlocks[1], false)
 
@@ -502,31 +502,31 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	addResult(1, "bar", barBlocks[0], false)
 
 	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, 2, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(1, "bar", barBlocks[1], false)
 
 	// baz results
 	var bazBlocks [2]block.DatabaseBlock
 	bazBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(2, "baz", bazBlocks[0], false)
 
 	bazBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, 4, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(2, "baz", bazBlocks[1], false)
 
 	// qux results
 	var quxBlocks [2]block.DatabaseBlock
 	quxBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, 5, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(3, "qux", quxBlocks[0], false)
 
 	quxBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, 6, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(3, "qux", quxBlocks[1], false)
 

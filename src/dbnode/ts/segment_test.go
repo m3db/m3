@@ -50,12 +50,14 @@ var (
 
 type byteFunc func(d []byte) checked.Bytes
 
+var testChecksum uint32 = 2
+
 func testSegmentCloneWithPools(
 	t *testing.T,
 	checkd byteFunc,
 	pool pool.CheckedBytesPool,
 ) {
-	seg := NewSegment(checkd(head), checkd(tail), FinalizeNone)
+	seg := NewSegment(checkd(head), checkd(tail), testChecksum, FinalizeNone)
 
 	assert.Equal(t, len(expected), seg.Len())
 	cloned := seg.Clone(pool)
@@ -69,6 +71,7 @@ func testSegmentCloneWithPools(
 	assert.Equal(t, len(expected), cloned.Len())
 	assert.True(t, cloned.Flags|FinalizeHead > 0)
 	assert.True(t, cloned.Flags|FinalizeTail > 0)
+	assert.Equal(t, testChecksum, cloned.Checksum)
 
 	cloned.Finalize()
 	seg.Finalize()
