@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -593,7 +594,8 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}
 
-	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	seg := ts.NewSegmentWithChecksumFunction(data, nil,
+		digest.SegmentChecksum, ts.FinalizeHead)
 	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
 	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)

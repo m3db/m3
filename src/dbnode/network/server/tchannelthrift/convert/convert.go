@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -138,13 +137,14 @@ func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
 		}
 		startTime := xtime.ToNormalizedTime(blocks[0].Start, time.Nanosecond)
 		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
+		checksum := seg.Checksum
 		s.Merged = &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),
 			StartTime: &startTime,
 			BlockSize: &blockSize,
+			Checksum:  &checksum,
 		}
-		checksum := int64(digest.SegmentChecksum(seg))
 		return ToSegmentsResult{
 			Segments: s,
 			Checksum: &checksum,
@@ -161,11 +161,13 @@ func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
 		}
 		startTime := xtime.ToNormalizedTime(block.Start, time.Nanosecond)
 		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
+		checksum := seg.Checksum
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),
 			StartTime: &startTime,
 			BlockSize: &blockSize,
+			Checksum:  &checksum,
 		})
 	}
 	if len(s.Unmerged) == 0 {

@@ -24,7 +24,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -203,7 +202,8 @@ func (m *merger) Merge(
 		idsToFinalize = append(idsToFinalize, id)
 
 		segmentReaders = segmentReaders[:0]
-		segmentReaders = append(segmentReaders, segmentReaderFromData(data, segReader))
+		seg := segmentReaderFromData(data, checksum, segReader)
+		segmentReaders = append(segmentReaders, seg)
 
 		// Check if this series is in memory (and thus requires merging).
 		ctx.Reset()
@@ -282,9 +282,10 @@ func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xi
 
 func segmentReaderFromData(
 	data checked.Bytes,
+	checksum int64,
 	segReader xio.SegmentReader,
 ) xio.SegmentReader {
-	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	seg := ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
 	segReader.Reset(seg)
 	return segReader
 }
@@ -352,8 +353,7 @@ func persistSegment(
 	segment ts.Segment,
 	persistFn persist.DataFn,
 ) error {
-	checksum := digest.SegmentChecksum(segment)
-	return persistFn(id, tags, segment, checksum)
+	return persistFn(id, tags, segment, segment.Checksum)
 }
 
 func persistSegmentWithChecksum(

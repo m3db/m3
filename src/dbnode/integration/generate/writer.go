@@ -23,7 +23,6 @@ package generate
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	ns "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -219,7 +218,7 @@ func writeToDiskWithPredicate(
 			}
 			data[0] = segment.Head
 			data[1] = segment.Tail
-			checksum := digest.SegmentChecksum(segment)
+			checksum := segment.Checksum
 			err = writer.WriteAll(series.ID, series.Tags, data, checksum)
 			if err != nil {
 				return err

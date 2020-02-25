@@ -69,6 +69,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 		Tail:      segment.Tail.Bytes(),
 		StartTime: xtime.ToNanoseconds(br.Start),
 		BlockSize: int64(br.BlockSize),
+		Checksum:  segment.Checksum,
 	}, nil
 }
 
@@ -238,7 +239,7 @@ func blockReaderFromCompressedSegment(
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) xio.BlockReader {
 	head, tail := segmentBytesFromCompressedSegment(seg.GetHead(), seg.GetTail(), opts, checkedBytesWrapperPool)
-	segment := ts.NewSegment(head, tail, ts.FinalizeNone)
+	segment := ts.NewSegment(head, tail, seg.GetChecksum(), ts.FinalizeNone)
 	segmentReader := xio.NewSegmentReader(segment)
 
 	return xio.BlockReader{

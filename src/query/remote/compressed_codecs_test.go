@@ -161,6 +161,7 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 		assert.NotEmpty(t, merged.GetTail())
 		assert.Equal(t, start.UnixNano(), merged.GetStartTime())
 		assert.Equal(t, int64(blockSize), merged.GetBlockSize())
+		assert.Equal(t, checksum, merged.GetChecksum())
 
 		seg = segments[1]
 		assert.Nil(t, seg.GetMerged())

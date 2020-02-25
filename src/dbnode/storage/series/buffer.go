@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -542,7 +541,7 @@ func (b *dbBuffer) Snapshot(
 		return nil
 	}
 
-	checksum := digest.SegmentChecksum(segment)
+	checksum := segment.Checksum
 	return persistFn(id, tags, segment, checksum)
 }
 
@@ -603,7 +602,7 @@ func (b *dbBuffer) WarmFlush(
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
-	checksum := digest.SegmentChecksum(segment)
+	checksum := segment.Checksum
 	err = persistFn(id, tags, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
@@ -1253,8 +1252,7 @@ func (b *BufferBucket) checksumIfSingleStream(ctx context.Context) (*uint32, err
 			return nil, nil
 		}
 
-		checksum := digest.SegmentChecksum(segment)
-		return &checksum, nil
+		return &segment.Checksum, nil
 	}
 
 	if b.hasJustSingleLoadedBlock() {

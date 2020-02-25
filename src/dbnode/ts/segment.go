@@ -32,12 +32,12 @@ import (
 type Segment struct {
 	// Head is the head of the segment.
 	Head checked.Bytes
-
 	// Tail is the tail of the segment.
 	Tail checked.Bytes
-
 	// SegmentFlags declares whether to finalize when finalizing the segment.
 	Flags SegmentFlags
+	// Checksum is the checksum for the segment.
+	Checksum int64
 }
 
 // SegmentFlags describes the option to finalize or not finalize
@@ -53,11 +53,39 @@ const (
 	FinalizeTail SegmentFlags = 1 << 2
 )
 
+// SegmentChecksumFn is a function that calculates a checksum for the segment.
+type SegmentChecksumFn func(segment Segment) uint32
+
+// NewSegmentWithChecksumFunction will create a new segment with a checksum
+// calculation function, and increment the refs to  head and tail if they
+// are non-nil. When  finalized the segment will also finalize the byte
+// slices if FinalizeBytes is passed.
+func NewSegmentWithChecksumFunction(
+	head, tail checked.Bytes,
+	fn SegmentChecksumFn,
+	flags SegmentFlags,
+) Segment {
+	if head != nil {
+		head.IncRef()
+	}
+	if tail != nil {
+		tail.IncRef()
+	}
+	seg := Segment{
+		Head:  head,
+		Tail:  tail,
+		Flags: flags,
+	}
+	seg.Checksum = int64(fn(seg))
+	return seg
+}
+
 // NewSegment will create a new segment and increment the refs to
 // head and tail if they are non-nil. When finalized the segment will
 // also finalize the byte slices if FinalizeBytes is passed.
 func NewSegment(
 	head, tail checked.Bytes,
+	checksum int64,
 	flags SegmentFlags,
 ) Segment {
 	if head != nil {
@@ -67,9 +95,10 @@ func NewSegment(
 		tail.IncRef()
 	}
 	return Segment{
-		Head:  head,
-		Tail:  tail,
-		Flags: flags,
+		Head:     head,
+		Tail:     tail,
+		Flags:    flags,
+		Checksum: checksum,
 	}
 }
 
@@ -162,5 +191,6 @@ func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 	}
 
 	// NB: new segment is always finalizeable.
-	return NewSegment(checkedHead, checkedTail, FinalizeHead&FinalizeTail)
+	return NewSegment(checkedHead, checkedTail,
+		s.Checksum, FinalizeHead&FinalizeTail)
 }

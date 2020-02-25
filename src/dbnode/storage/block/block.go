@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -288,7 +287,8 @@ func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) 
 		data.AppendAll(b.segment.Tail.Bytes())
 	}
 	data.DecRef()
-	segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
+	checksum := b.segment.Checksum
+	segmentReader.Reset(ts.NewSegment(data, nil, checksum, ts.FinalizeHead))
 	ctx.RegisterFinalizer(segmentReader)
 
 	blockReader := xio.BlockReader{
@@ -331,7 +331,7 @@ func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Dur
 func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
-	b.checksum = digest.SegmentChecksum(seg)
+	b.checksum = seg.Checksum
 	b.seriesID = nil
 	b.wasRetrievedFromDisk = false
 }

@@ -787,16 +787,17 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		dbBlock := blocksPool.Get()
 		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegment(data, nil, ts.FinalizeHead), nsCtx)
+			ts.NewSegmentWithCalculatedChecksum(data, nil, ts.FinalizeHead), nsCtx)
 
-		// Resetting the block will trigger a checksum calculation, so use that instead
-		// of calculating it twice.
+		// Resetting the block will trigger a checksum calculation, so use
+		// that instead of calculating it twice.
 		checksum, err := dbBlock.Checksum()
 		if err != nil {
 			return err
 		}
 		if checksum != expectedChecksum {
-			return fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+			return fmt.Errorf("checksum for series: %s was %d but expected %d",
+				id, checksum, expectedChecksum)
 		}
 
 		// NB(r): No parallelization required to checkout the series.

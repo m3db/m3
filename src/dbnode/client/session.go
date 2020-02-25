@@ -1578,6 +1578,8 @@ func (s *session) fetchIDsAttempt(
 					// Avoid decoding more data than is required to satisfy the consistency guarantees.
 					numItersToInclude = numDesired
 				}
+
+				// arnikola Optionally dedupe here instead before removing.
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
 
@@ -3261,7 +3263,8 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 		tail.AppendAll(seg.Tail)
 		tail.DecRef()
 	}
-	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
+	checksum := *seg.Checksum
+	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {

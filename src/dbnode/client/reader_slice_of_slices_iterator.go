@@ -60,7 +60,7 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	if len(it.blockReaders) < currLen {
 		diff := currLen - len(it.blockReaders)
 		for i := 0; i < diff; i++ {
-			seg := ts.NewSegment(nil, nil, ts.FinalizeNone)
+			seg := ts.NewSegment(nil, nil, 0, ts.FinalizeNone)
 			sr := xio.NewSegmentReader(seg)
 			br := xio.BlockReader{
 				SegmentReader: sr,
@@ -112,7 +112,9 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	} else {
 		tail.Reset(seg.Tail)
 	}
-	r.ResetWindowed(ts.NewSegment(head, tail, ts.FinalizeNone), start, end)
+
+	newSeg := ts.NewSegment(head, tail, seg.Checksum, ts.FinalizeNone)
+	r.ResetWindowed(newSeg, start, end)
 }
 
 func (it *readerSliceOfSlicesIterator) currentLen() int {
