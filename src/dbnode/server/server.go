@@ -86,11 +86,11 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
-	"github.com/uber/tchannel-go"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
 )
