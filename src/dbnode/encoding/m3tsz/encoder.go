@@ -25,7 +25,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -403,8 +402,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	return ts.NewSegmentWithChecksumFunction(head, tail,
-		digest.SegmentChecksum, ts.FinalizeHead)
+	return ts.NewSegmentWithGeneratedChecksum(head, tail, ts.FinalizeHead)
 }
 
 func (enc *encoder) segmentTakeOwnership() ts.Segment {
@@ -432,6 +430,5 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	return ts.NewSegmentWithChecksumFunction(head, tail,
-		digest.SegmentChecksum, ts.FinalizeHead)
+	return ts.NewSegmentWithGeneratedChecksum(head, tail, ts.FinalizeHead)
 }

@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -260,8 +259,7 @@ func (enc *Encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	tail := tails[lastByte]
 
 	// Only discard the head since tails are shared for process life time.
-	return ts.NewSegmentWithChecksumFunction(head, tail,
-		digest.SegmentChecksum, ts.FinalizeHead)
+	return ts.NewSegmentWithGeneratedChecksum(head, tail, ts.FinalizeHead)
 }
 
 func (enc *Encoder) segmentTakeOwnership() ts.Segment {
@@ -273,8 +271,7 @@ func (enc *Encoder) segmentTakeOwnership() ts.Segment {
 	// Take ref from the ostream.
 	head := enc.stream.Discard()
 
-	return ts.NewSegmentWithChecksumFunction(head, nil,
-		digest.SegmentChecksum, ts.FinalizeHead)
+	return ts.NewSegmentWithGeneratedChecksum(head, nil, ts.FinalizeHead)
 }
 
 // NumEncoded returns the number of encoded messages.

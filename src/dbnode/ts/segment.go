@@ -25,6 +25,8 @@ import (
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/pool"
+
+	"github.com/m3db/stackadler32"
 )
 
 // Segment represents a binary blob consisting of two byte slices and
@@ -53,16 +55,25 @@ const (
 	FinalizeTail SegmentFlags = 1 << 2
 )
 
-// SegmentChecksumFn is a function that calculates a checksum for the segment.
-type SegmentChecksumFn func(segment Segment) uint32
+// segmentChecksum returns the 32-bit checksum for a segment
+// avoiding any allocations.
+func (s Segment) segmentChecksum() uint32 {
+	d := stackadler32.NewDigest()
+	if s.Head != nil {
+		d = d.Update(s.Head.Bytes())
+	}
+	if s.Tail != nil {
+		d = d.Update(s.Tail.Bytes())
+	}
+	return d.Sum32()
+}
 
-// NewSegmentWithChecksumFunction will create a new segment with a checksum
-// calculation function, and increment the refs to  head and tail if they
+// NewSegmentWithGeneratedChecksum will create a new segment with a generated
+// checksum value, and increment the refs to  head and tail if they
 // are non-nil. When  finalized the segment will also finalize the byte
 // slices if FinalizeBytes is passed.
-func NewSegmentWithChecksumFunction(
+func NewSegmentWithGeneratedChecksum(
 	head, tail checked.Bytes,
-	fn SegmentChecksumFn,
 	flags SegmentFlags,
 ) Segment {
 	if head != nil {
@@ -76,7 +87,7 @@ func NewSegmentWithChecksumFunction(
 		Tail:  tail,
 		Flags: flags,
 	}
-	seg.Checksum = fn(seg)
+	seg.Checksum = seg.segmentChecksum()
 	return seg
 }
 
