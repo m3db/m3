@@ -113,7 +113,12 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 		tail.Reset(seg.Tail)
 	}
 
-	newSeg := ts.NewSegment(head, tail, seg.Checksum, ts.FinalizeNone)
+	var checksum int64
+	if seg.Checksum != nil {
+		checksum = *seg.Checksum
+	}
+
+	newSeg := ts.NewSegment(head, tail, checksum, ts.FinalizeNone)
 	r.ResetWindowed(newSeg, start, end)
 }
 

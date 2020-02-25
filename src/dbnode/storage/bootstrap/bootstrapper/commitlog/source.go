@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -787,7 +788,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		dbBlock := blocksPool.Get()
 		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegmentWithCalculatedChecksum(data, nil, ts.FinalizeHead), nsCtx)
+			ts.NewSegmentWithChecksumFunction(data, nil,
+				digest.SegmentChecksum, ts.FinalizeHead), nsCtx)
 
 		// Resetting the block will trigger a checksum calculation, so use
 		// that instead of calculating it twice.

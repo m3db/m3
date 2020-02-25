@@ -38,6 +38,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -322,7 +323,8 @@ func (r *blockRetriever) fetchBatch(
 			seg, onRetrieveSeg ts.Segment
 		)
 		if data != nil {
-			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
+			seg = ts.NewSegmentWithChecksumFunction(data, nil,
+				digest.SegmentChecksum, ts.FinalizeHead)
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
@@ -333,7 +335,8 @@ func (r *blockRetriever) fetchBatch(
 			// consequent fetches.
 			if data != nil {
 				dataCopy := r.bytesPool.Get(data.Len())
-				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
+				onRetrieveSeg = ts.NewSegmentWithChecksumFunction(dataCopy, nil,
+					digest.SegmentChecksum, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
 			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {

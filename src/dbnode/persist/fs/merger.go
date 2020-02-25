@@ -202,7 +202,7 @@ func (m *merger) Merge(
 		idsToFinalize = append(idsToFinalize, id)
 
 		segmentReaders = segmentReaders[:0]
-		seg := segmentReaderFromData(data, checksum, segReader)
+		seg := segmentReaderFromData(data, int64(checksum), segReader)
 		segmentReaders = append(segmentReaders, seg)
 
 		// Check if this series is in memory (and thus requires merging).
@@ -353,7 +353,7 @@ func persistSegment(
 	segment ts.Segment,
 	persistFn persist.DataFn,
 ) error {
-	return persistFn(id, tags, segment, segment.Checksum)
+	return persistFn(id, tags, segment, uint32(segment.Checksum))
 }
 
 func persistSegmentWithChecksum(
