@@ -57,7 +57,8 @@ func testSegmentReader(
 	checkd byteFunc,
 	pool pool.CheckedBytesPool,
 ) {
-	segment := ts.NewSegment(checkd(head), checkd(tail), ts.FinalizeNone)
+	checksum := uint32(10)
+	segment := ts.NewSegment(checkd(head), checkd(tail), checksum, ts.FinalizeNone)
 	r := NewSegmentReader(segment)
 	var b [100]byte
 	n, err := r.Read(b[:])
@@ -73,6 +74,7 @@ func testSegmentReader(
 	require.NoError(t, err)
 	require.Equal(t, head, seg.Head.Bytes())
 	require.Equal(t, tail, seg.Tail.Bytes())
+	require.Equal(t, checksum, seg.Checksum)
 
 	// Ensure cloned segment reader does not share original head and tail.
 	cloned, err := r.Clone(pool)
@@ -85,6 +87,7 @@ func testSegmentReader(
 	require.NoError(t, err)
 	require.Equal(t, head, seg.Head.Bytes())
 	require.Equal(t, tail, seg.Tail.Bytes())
+	require.Equal(t, checksum, seg.Checksum)
 
 	cloned.Finalize()
 	segment.Finalize()

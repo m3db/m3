@@ -90,6 +90,7 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 		}
 	}
 	segment := encoder.Discard()
+	segment.Checksum = uint32(0)
 	mergedReader := xio.BlockReader{
 		SegmentReader: xio.NewSegmentReader(segment),
 		Start:         Start,
@@ -118,7 +119,9 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 	}
 
 	segment = encoder.Discard()
+	segment.Checksum = uint32(1)
 	segmentTwo := encoderTwo.Discard()
+	segmentTwo.Checksum = uint32(2)
 	unmergedReaders := []xio.BlockReader{
 		{
 			SegmentReader: xio.NewSegmentReader(segment),
@@ -211,7 +214,7 @@ func BuildCustomIterator(
 	// Build a merged BlockReader
 	readers := make([][]xio.BlockReader, 0, len(dps))
 	currentStart := start
-	for _, datapoints := range dps {
+	for i, datapoints := range dps {
 		encoder := m3tsz.NewEncoder(currentStart, checked.NewBytes(nil, nil), true, encoding.NewOptions())
 		// NB: empty datapoints should skip this block reader but still increase time
 		if len(datapoints) > 0 {
@@ -239,6 +242,7 @@ func BuildCustomIterator(
 			}
 
 			segment := encoder.Discard()
+			segment.Checksum = uint32(i)
 			readers = append(readers, []xio.BlockReader{{
 				SegmentReader: xio.NewSegmentReader(segment),
 				Start:         currentStart,

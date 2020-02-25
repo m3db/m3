@@ -144,7 +144,7 @@ message M3Segment {
 	bytes tail      = 2;
 	int64 startTime = 3;
 	int64 blockSize = 4;
-	int64 checksum  = 5;
+	uint32 checksum = 5;
 }
 
 message SearchRequest {

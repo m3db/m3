@@ -113,9 +113,9 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 		tail.Reset(seg.Tail)
 	}
 
-	var checksum int64
+	var checksum uint32
 	if seg.Checksum != nil {
-		checksum = *seg.Checksum
+		checksum = uint32(*seg.Checksum)
 	}
 
 	newSeg := ts.NewSegment(head, tail, checksum, ts.FinalizeNone)

@@ -37,7 +37,7 @@ type Segment struct {
 	// SegmentFlags declares whether to finalize when finalizing the segment.
 	Flags SegmentFlags
 	// Checksum is the checksum for the segment.
-	Checksum int64
+	Checksum uint32
 }
 
 // SegmentFlags describes the option to finalize or not finalize
@@ -76,7 +76,7 @@ func NewSegmentWithChecksumFunction(
 		Tail:  tail,
 		Flags: flags,
 	}
-	seg.Checksum = int64(fn(seg))
+	seg.Checksum = fn(seg)
 	return seg
 }
 
@@ -85,7 +85,7 @@ func NewSegmentWithChecksumFunction(
 // also finalize the byte slices if FinalizeBytes is passed.
 func NewSegment(
 	head, tail checked.Bytes,
-	checksum int64,
+	checksum uint32,
 	flags SegmentFlags,
 ) Segment {
 	if head != nil {

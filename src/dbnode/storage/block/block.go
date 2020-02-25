@@ -331,7 +331,7 @@ func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Dur
 func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
-	b.checksum = uint32(seg.Checksum)
+	b.checksum = seg.Checksum
 	b.seriesID = nil
 	b.wasRetrievedFromDisk = false
 }

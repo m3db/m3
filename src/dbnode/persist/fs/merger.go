@@ -202,7 +202,7 @@ func (m *merger) Merge(
 		idsToFinalize = append(idsToFinalize, id)
 
 		segmentReaders = segmentReaders[:0]
-		seg := segmentReaderFromData(data, int64(checksum), segReader)
+		seg := segmentReaderFromData(data, checksum, segReader)
 		segmentReaders = append(segmentReaders, seg)
 
 		// Check if this series is in memory (and thus requires merging).
@@ -282,7 +282,7 @@ func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xi
 
 func segmentReaderFromData(
 	data checked.Bytes,
-	checksum int64,
+	checksum uint32,
 	segReader xio.SegmentReader,
 ) xio.SegmentReader {
 	seg := ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
@@ -353,7 +353,7 @@ func persistSegment(
 	segment ts.Segment,
 	persistFn persist.DataFn,
 ) error {
-	return persistFn(id, tags, segment, uint32(segment.Checksum))
+	return persistFn(id, tags, segment, segment.Checksum)
 }
 
 func persistSegmentWithChecksum(

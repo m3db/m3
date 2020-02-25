@@ -3263,7 +3263,11 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 		tail.AppendAll(seg.Tail)
 		tail.DecRef()
 	}
-	checksum := *seg.Checksum
+	var checksum uint32
+	if seg.Checksum != nil {
+		checksum = uint32(*seg.Checksum)
+	}
+
 	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
