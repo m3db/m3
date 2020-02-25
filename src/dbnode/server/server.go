@@ -86,6 +86,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	"github.com/uber/tchannel-go"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -599,6 +600,10 @@ func Run(runOpts RunOptions) {
 		// SetDatabase() once we've initialized it.
 		service = ttnode.NewService(nil, ttopts)
 	)
+	if cfg.Tchannel.MaxIdleTime > 0 && cfg.Tchannel.IdleCheckInterval > 0 {
+		tchannelOpts.MaxIdleTime = cfg.Tchannel.MaxIdleTime
+		tchannelOpts.IdleCheckInterval = cfg.Tchannel.IdleCheckInterval
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
@@ -694,7 +699,7 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
+		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer, runtimeOptsMgr,
 		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
@@ -729,7 +734,7 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
+				clientCfg, iopts, tchannelOpts, topologyInitializer, runtimeOptsMgr,
 				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
 			if err != nil {
 				logger.Fatal(
@@ -1544,6 +1549,7 @@ func withEncodingAndPoolingOptions(
 func newAdminClient(
 	config client.Configuration,
 	iopts instrument.Options,
+	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	origin topology.Host,
@@ -1563,6 +1569,9 @@ func newAdminClient(
 			InstrumentOptions: iopts.
 				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topologyInitializer,
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetChannelOptions(tchannelOpts).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)

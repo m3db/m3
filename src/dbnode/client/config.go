@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -297,7 +296,6 @@ func (c Configuration) NewAdminClient(
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
-		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
 		SetInstrumentOptions(iopts)
 
 	if c.UseV2BatchAPIs != nil {
