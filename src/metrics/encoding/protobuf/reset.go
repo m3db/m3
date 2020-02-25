@@ -32,13 +32,13 @@ func resetAggregatedMetricProto(pb *metricpb.AggregatedMetric) {
 	pb.EncodeNanos = 0
 }
 
-// resetMetricWithMetadatasProto resets the metric with metadatas proto, and
+// ResetMetricWithMetadatasProto resets the metric with metadatas proto, and
 // in particular message fields that are slices because the `Unmarshal` generated
 // from gogoprotobuf simply append a new entry at the end of the slice, and
 // as such, the fields with slice types need to be reset to be zero-length.
 // NB: reset only needs to be done to the top-level slice fields as the individual
 // items in the slice are created afresh during unmarshaling.
-func resetMetricWithMetadatasProto(pb *metricpb.MetricWithMetadatas) {
+func ResetMetricWithMetadatasProto(pb *metricpb.MetricWithMetadatas) {
 	if pb == nil {
 		return
 	}

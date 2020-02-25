@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package client
 
 import (
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
+	"errors"
+
+	"github.com/m3db/m3/src/msg/producer"
 )
 
-// Configuration contains top-level configuration.
-type Configuration struct {
-	// Logging configuration.
-	Logging log.Configuration `yaml:"logging"`
+var (
+	errM3MsgOptionsNoProducer = errors.New("no producer set")
+)
 
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+// M3MsgOptions is a set of M3Msg client options.
+type M3MsgOptions interface {
+	// Validate validates the M3Msg client options.
+	Validate() error
 
-	// M3Msg server configuration.
-	// Optional.
-	M3Msg *M3MsgServerConfiguration `yaml:"m3msg"`
+	// SetProducer sets the producer.
+	SetProducer(value producer.Producer) M3MsgOptions
 
-	// Raw TCP server configuration.
-	// Optional.
-	RawTCP *RawTCPServerConfiguration `yaml:"rawtcp"`
+	// Producer gets the producer.
+	Producer() producer.Producer
+}
 
-	// HTTP server configuration.
-	// Optional.
-	HTTP *HTTPServerConfiguration `yaml:"http"`
+type m3msgOptions struct {
+	producer producer.Producer
+}
 
-	// Client configuration for key value store.
-	KVClient KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`
+// NewM3MsgOptions returns a new set of M3Msg options.
+func NewM3MsgOptions() M3MsgOptions {
+	return &m3msgOptions{}
+}
 
-	// Runtime options configuration.
-	RuntimeOptions RuntimeOptionsConfiguration `yaml:"runtimeOptions"`
+func (o *m3msgOptions) Validate() error {
+	if o.producer == nil {
+		return errM3MsgOptionsNoProducer
+	}
+	return nil
+}
 
-	// Aggregator configuration.
-	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+func (o *m3msgOptions) SetProducer(value producer.Producer) M3MsgOptions {
+	opts := *o
+	opts.producer = value
+	return &opts
+}
+
+func (o *m3msgOptions) Producer() producer.Producer {
+	return o.producer
 }

@@ -29,6 +29,9 @@ import (
 	"time"
 
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/server/http"
+	"github.com/m3db/m3/src/aggregator/server/m3msg"
+	"github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	xconfig "github.com/m3db/m3/src/x/config"
@@ -83,19 +86,46 @@ func main() {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
-	// Create the raw TCP server options.
-	rawTCPAddr := cfg.RawTCP.ListenAddress
-	rawTCPServerScope := scope.SubScope("rawtcp-server").Tagged(map[string]string{"server": "rawtcp"})
-	iOpts := instrumentOpts.SetMetricsScope(rawTCPServerScope)
-	rawTCPServerOpts := cfg.RawTCP.NewServerOptions(iOpts)
+	var (
+		m3msgAddr        string
+		m3msgServerOpts  m3msg.Options
+		rawTCPAddr       string
+		rawTCPServerOpts rawtcp.Options
+		httpAddr         string
+		httpServerOpts   http.Options
+	)
+	if cfg.M3Msg != nil {
+		// Create the M3Msg server options.
+		m3msgAddr = cfg.M3Msg.ListenAddress
+		m3msgInsrumentOpts := instrumentOpts.
+			SetMetricsScope(scope.
+				SubScope("m3msg-server").
+				Tagged(map[string]string{"server": "m3msg"}))
+		m3msgServerOpts, err = cfg.M3Msg.NewServerOptions(m3msgInsrumentOpts)
+		if err != nil {
+			logger.Fatal("could not create m3msg server options", zap.Error(err))
+		}
+	}
 
-	// Create the http server options.
-	httpAddr := cfg.HTTP.ListenAddress
-	httpServerOpts := cfg.HTTP.NewServerOptions()
+	if cfg.RawTCP != nil {
+		// Create the raw TCP server options.
+		rawTCPAddr = cfg.RawTCP.ListenAddress
+		rawTCPInstrumentOpts := instrumentOpts.
+			SetMetricsScope(scope.
+				SubScope("rawtcp-server").
+				Tagged(map[string]string{"server": "rawtcp"}))
+		rawTCPServerOpts = cfg.RawTCP.NewServerOptions(rawTCPInstrumentOpts)
+	}
+
+	if cfg.HTTP != nil {
+		// Create the http server options.
+		httpAddr = cfg.HTTP.ListenAddress
+		httpServerOpts = cfg.HTTP.NewServerOptions()
+	}
 
 	// Create the kv client.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kv-client"))
-	client, err := cfg.KVClient.NewKVClient(iOpts)
+	client, err := cfg.KVClient.NewKVClient(instrumentOpts.
+		SetMetricsScope(scope.SubScope("kv-client")))
 	if err != nil {
 		logger.Fatal("error creating the kv client", zap.Error(err))
 	}
@@ -104,8 +134,9 @@ func main() {
 	runtimeOptsManager := cfg.RuntimeOptions.NewRuntimeOptionsManager()
 
 	// Create the aggregator.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
-	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(rawTCPAddr, client, runtimeOptsManager, iOpts)
+	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(rawTCPAddr,
+		client, runtimeOptsManager,
+		instrumentOpts.SetMetricsScope(scope.SubScope("aggregator")))
 	if err != nil {
 		logger.Fatal("error creating aggregator options", zap.Error(err))
 	}
@@ -122,6 +153,8 @@ func main() {
 	closedCh := make(chan struct{})
 	go func() {
 		if err := serve.Serve(
+			m3msgAddr,
+			m3msgServerOpts,
 			rawTCPAddr,
 			rawTCPServerOpts,
 			httpAddr,

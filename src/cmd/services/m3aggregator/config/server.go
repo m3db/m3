@@ -24,14 +24,41 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/server/http"
+	"github.com/m3db/m3/src/aggregator/server/m3msg"
 	"github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
 )
+
+// M3MsgServerConfiguration contains M3Msg server configuration.
+type M3MsgServerConfiguration struct {
+	// ListenAddress is the server listen address.
+	ListenAddress string `yaml:"listenAddress"`
+
+	// Server is the server configuration.
+	Server xserver.Configuration `yaml:"server"`
+
+	// Consumer is the M3Msg consumer configuration.
+	Consumer consumer.Configuration `yaml:"consumer"`
+}
+
+// NewServerOptions creates a new set of M3Msg server options.
+func (c *M3MsgServerConfiguration) NewServerOptions(
+	instrumentOpts instrument.Options,
+) (m3msg.Options, error) {
+	opts := m3msg.NewOptions().
+		SetServerOptions(c.Server.NewOptions(instrumentOpts)).
+		SetConsumerOptions(c.Consumer.NewOptions(instrumentOpts))
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return opts, nil
+}
 
 // RawTCPServerConfiguration contains raw TCP server configuration.
 type RawTCPServerConfiguration struct {

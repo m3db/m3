@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
+	producerconfig "github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -38,6 +39,7 @@ import (
 
 // Configuration contains client configuration.
 type Configuration struct {
+	Type                       AggregatorClientType           `yaml:"type"`
 	PlacementKV                kv.OverrideConfiguration       `yaml:"placementKV" validate:"nonzero"`
 	PlacementWatcher           placement.WatcherConfiguration `yaml:"placementWatcher"`
 	HashType                   *sharding.HashType             `yaml:"hashType"`
@@ -50,6 +52,7 @@ type Configuration struct {
 	QueueSize                  int                            `yaml:"queueSize"`
 	QueueDropType              *DropType                      `yaml:"queueDropType"`
 	Connection                 ConnectionConfiguration        `yaml:"connection"`
+	M3Msg                      *M3MsgConfiguration            `yaml:"m3msg"`
 }
 
 // NewAdminClient creates a new admin client.
@@ -75,7 +78,7 @@ func (c *Configuration) NewClient(
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(opts), nil
+	return NewClient(opts)
 }
 
 func (c *Configuration) newClientOptions(
@@ -112,6 +115,7 @@ func (c *Configuration) newClientOptions(
 	}
 
 	opts := NewOptions().
+		SetAggregatorClientType(c.Type).
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetStagedPlacementWatcherOptions(watcherOpts).
@@ -139,6 +143,20 @@ func (c *Configuration) newClientOptions(
 	}
 	if c.QueueDropType != nil {
 		opts = opts.SetQueueDropType(*c.QueueDropType)
+	}
+
+	if c.M3Msg != nil {
+		m3msgOpts, err := c.M3Msg.NewM3MsgOptions(kvClient, instrumentOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = opts.SetM3MsgOptions(m3msgOpts)
+	}
+
+	// Validate the options.
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
 	return opts, nil
 }
@@ -212,4 +230,30 @@ func (c *EncoderConfiguration) NewEncoderOptions(
 		bytesPool.Init()
 	}
 	return opts
+}
+
+// M3MsgConfiguration contains the M3Msg client configuration, required
+// if using M3Msg client type.
+type M3MsgConfiguration struct {
+	Producer producerconfig.ProducerConfiguration `yaml:"producer"`
+}
+
+// NewM3MsgOptions returns new M3Msg options from configuration.
+func (c *M3MsgConfiguration) NewM3MsgOptions(
+	kvClient m3clusterclient.Client,
+	instrumentOpts instrument.Options,
+) (M3MsgOptions, error) {
+	producer, err := c.Producer.NewProducer(kvClient, instrumentOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := NewM3MsgOptions().
+		SetProducer(producer)
+
+	// Validate the options.
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return opts, nil
 }

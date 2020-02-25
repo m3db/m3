@@ -128,7 +128,7 @@ func (it *unaggregatedIterator) decodeMessage(size int) error {
 		it.err = err
 		return err
 	}
-	resetMetricWithMetadatasProto(&it.pb)
+	ResetMetricWithMetadatasProto(&it.pb)
 	if err := it.pb.Unmarshal(it.buf[:size]); err != nil {
 		it.err = err
 		return err
