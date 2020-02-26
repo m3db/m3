@@ -183,15 +183,15 @@ func (it *readerIterator) readBits(numBits int) uint64 {
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	if !it.intOptimized || it.isFloat {
 		return ts.Datapoint{
-			Timestamp:      xtime.FromNanoseconds(it.tsIterator.PrevTimeNanos),
-			TimestampNanos: it.tsIterator.PrevTimeNanos,
+			Timestamp:      it.tsIterator.PrevTime.ToTime(),
+			TimestampNanos: it.tsIterator.PrevTime,
 			Value:          math.Float64frombits(it.floatIter.PrevFloatBits),
 		}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 	}
 
 	return ts.Datapoint{
-		Timestamp:      xtime.FromNanoseconds(it.tsIterator.PrevTimeNanos),
-		TimestampNanos: it.tsIterator.PrevTimeNanos,
+		Timestamp:      it.tsIterator.PrevTime.ToTime(),
+		TimestampNanos: it.tsIterator.PrevTime,
 		Value:          convertFromIntFloat(it.intVal, it.mult),
 	}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 }

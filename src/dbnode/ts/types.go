@@ -95,7 +95,7 @@ type Series struct {
 // A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
 	Timestamp      time.Time
-	TimestampNanos int64
+	TimestampNanos xtime.UnixNano
 	Value          float64
 }
 

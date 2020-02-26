@@ -479,8 +479,8 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 				Namespace:      namespaceID,
 				Tags:           tags,
 				Replicas:       replicasIters,
-				StartInclusive: xtime.ToNanoseconds(start),
-				EndExclusive:   xtime.ToNanoseconds(end),
+				StartInclusive: xtime.ToUnixNano(start),
+				EndExclusive:   xtime.ToUnixNano(end),
 			})
 		}
 	}

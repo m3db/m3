@@ -292,8 +292,8 @@ func seriesBlocksFromBlockReplicas(
 			ID:             clonedID,
 			Namespace:      clonedNamespace,
 			Tags:           clonedTags.Duplicate(),
-			StartInclusive: xtime.ToNanoseconds(filterValuesStart),
-			EndExclusive:   xtime.ToNanoseconds(filterValuesEnd),
+			StartInclusive: xtime.ToUnixNano(filterValuesStart),
+			EndExclusive:   xtime.ToUnixNano(filterValuesEnd),
 			Replicas:       block.replicas,
 		}, nil)
 

@@ -243,8 +243,8 @@ type SeriesIteratorOptions struct {
 	Namespace                     ident.ID
 	Tags                          ident.TagIterator
 	Replicas                      []MultiReaderIterator
-	StartInclusive                int64
-	EndExclusive                  int64
+	StartInclusive                xtime.UnixNano
+	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
 }
 

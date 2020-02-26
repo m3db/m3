@@ -182,8 +182,8 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 				ID:             ident.StringID(iterDetails.id.String()),
 				Namespace:      ident.StringID(iterDetails.ns.String()),
 				Tags:           tags,
-				StartInclusive: xtime.ToNanoseconds(iterDetails.start),
-				EndExclusive:   xtime.ToNanoseconds(iterDetails.end),
+				StartInclusive: xtime.ToUnixNano(iterDetails.start),
+				EndExclusive:   xtime.ToUnixNano(iterDetails.end),
 			}, nil)
 
 			block := bl.block

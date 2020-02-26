@@ -35,7 +35,7 @@ var (
 	// will occur when performing comparisons like time.Before() and they
 	// will not work correctly.
 	timeMax      = time.Unix(1<<63-62135596801, 999999999)
-	timeMaxNanos = int64(math.MaxInt64)
+	timeMaxNanos = xtime.UnixNano(math.MaxInt64)
 )
 
 // iterators is a collection of iterators, and allows for reading in order values
@@ -43,9 +43,9 @@ var (
 type iterators struct {
 	values             []Iterator
 	earliest           []Iterator
-	earliestAt         int64
-	filterStart        int64
-	filterEnd          int64
+	earliestAt         xtime.UnixNano
+	filterStart        xtime.UnixNano
+	filterEnd          xtime.UnixNano
 	filtering          bool
 	equalTimesStrategy IterateEqualTimestampStrategy
 
@@ -108,7 +108,7 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return i.earliest[numIters-1].Current()
 }
 
-func (i *iterators) at() int64 {
+func (i *iterators) at() xtime.UnixNano {
 	return i.earliestAt
 }
 
@@ -220,7 +220,7 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	return i.validateNext(true, prevAt)
 }
 
-func (i *iterators) validateNext(next bool, prevAt int64) (bool, error) {
+func (i *iterators) validateNext(next bool, prevAt xtime.UnixNano) (bool, error) {
 	if i.earliestAt < prevAt {
 		// Out of order datapoint
 		i.reset()
@@ -242,7 +242,7 @@ func (i *iterators) reset() {
 	i.earliestAt = timeMaxNanos
 }
 
-func (i *iterators) setFilter(start, end int64) {
+func (i *iterators) setFilter(start, end xtime.UnixNano) {
 	i.filtering = true
 	i.filterStart = start
 	i.filterEnd = end

@@ -263,7 +263,7 @@ func (enc *encoder) Reset(start time.Time, capacity int, schema namespace.Schema
 func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 
-	timeUnit := initialTimeUnit(xtime.ToNanoseconds(start), enc.opts.DefaultTimeUnit())
+	timeUnit := initialTimeUnit(xtime.ToUnixNano(start), enc.opts.DefaultTimeUnit())
 	enc.tsEncoderState = NewTimestampEncoder(start, timeUnit, enc.opts)
 
 	enc.floatEnc = FloatEncoderAndIterator{}
