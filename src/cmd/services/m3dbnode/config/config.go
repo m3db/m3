@@ -157,6 +157,9 @@ type DBConfiguration struct {
 	// Limits contains configuration for limits that can be applied to M3DB for the purposes
 	// of applying back-pressure or protecting the db nodes.
 	Limits Limits `yaml:"limits"`
+
+	// TChannel exposes TChannel config options.
+	TChannel *TChannelConfiguration `yaml:"tchannel"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -572,4 +575,10 @@ func IsSeedNode(initialCluster []environment.SeedNode, hostID string) bool {
 	}
 
 	return false
+}
+
+// TChannelConfiguration holds TChannel config options.
+type TChannelConfiguration struct {
+	MaxIdleTime       time.Duration `yaml:"maxIdleTime"`
+	IdleCheckInterval time.Duration `yaml:"idleCheckInterval"`
 }

@@ -31,11 +31,19 @@ import (
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/uber/tchannel-go"
 )
 
 var (
 	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
 	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
+)
+
+// TODO(bodu): Could make these configurable at some point.
+const (
+	idleCheckInterval = 5 * time.Minute
+	maxIdleTime       = 5 * time.Minute
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -187,9 +195,16 @@ func (c ClustersStaticConfiguration) NewClusters(
 
 		if opts.ProvidedSession == nil {
 			// NB(r): Only create client session if not already provided.
-			result, err = clusterCfg.newClient(client.ConfigurationParameters{
-				InstrumentOptions: instrumentOpts,
-			})
+			result, err = clusterCfg.newClient(
+				client.ConfigurationParameters{
+					InstrumentOptions: instrumentOpts,
+				},
+				func(opts client.Options) client.Options {
+					return opts.SetChannelOptions(&tchannel.ChannelOptions{
+						IdleCheckInterval: idleCheckInterval,
+						MaxIdleTime:       maxIdleTime,
+					})
+				})
 			if err != nil {
 				return nil, err
 			}
