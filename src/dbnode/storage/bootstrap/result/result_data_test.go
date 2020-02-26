@@ -375,13 +375,9 @@ func TestShardTimeRangesString(t *testing.T) {
 	}
 
 	str := ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{
-			Start: ts[0][0],
-			End:   ts[0][1],
-		}).AddRange(xtime.Range{
-			Start: ts[1][0],
-			End:   ts[1][1],
-		}),
+		0: xtime.NewRanges(
+			xtime.Range{Start: ts[0][0], End: ts[0][1]},
+			xtime.Range{Start: ts[1][0], End: ts[1][1]}),
 		1: xtime.NewRanges(xtime.Range{
 			Start: ts[2][0],
 			End:   ts[2][1],
@@ -400,13 +396,9 @@ func TestShardTimeRangesSummaryString(t *testing.T) {
 	start := time.Unix(1472824800, 0)
 
 	str := ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{
-			Start: start,
-			End:   start.Add(testBlockSize),
-		}).AddRange(xtime.Range{
-			Start: start.Add(2 * testBlockSize),
-			End:   start.Add(4 * testBlockSize),
-		}),
+		0: xtime.NewRanges(
+			xtime.Range{Start: start, End: start.Add(testBlockSize)},
+			xtime.Range{Start: start.Add(2 * testBlockSize), End: start.Add(4 * testBlockSize)}),
 		1: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(2 * testBlockSize),

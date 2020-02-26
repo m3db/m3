@@ -132,7 +132,7 @@ func BenchmarkBootstrapIndex(b *testing.B) {
 					max = end
 				}
 
-				ranges = ranges.AddRange(xtime.Range{Start: start, End: end})
+				ranges.AddRange(xtime.Range{Start: start, End: end})
 
 				// Override the block size if different.
 				namespaceOpts := testNamespaceMetadata.Options()

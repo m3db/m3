@@ -247,7 +247,7 @@ func (s *fileSystemSource) shardAvailability(
 		w := time.Duration(info.BlockSize)
 		currRange := xtime.Range{Start: t, End: t.Add(w)}
 		if targetRangesForShard.Overlaps(currRange) {
-			tr = tr.AddRange(currRange)
+			tr.AddRange(currRange)
 		}
 	}
 	return tr
@@ -416,7 +416,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if err == nil && run == bootstrapIndexRunType {
 				// Mark index block as fulfilled.
 				fulfilled := result.ShardTimeRanges{
-					shard: xtime.Ranges{}.AddRange(timeRange),
+					shard: xtime.NewRanges(timeRange),
 				}
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 					ns.Options().IndexOptions())
@@ -429,7 +429,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 			if err == nil {
 				fulfilled := result.ShardTimeRanges{
-					shard: xtime.Ranges{}.AddRange(timeRange),
+					shard: xtime.NewRanges(timeRange),
 				}
 				totalFulfilledRanges.AddRanges(fulfilled)
 				remainingRanges.Subtract(fulfilled)
@@ -722,7 +722,8 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 			continue
 		}
 		availability := s.shardAvailability(md.ID(), shard, ranges)
-		remaining := ranges.RemoveRanges(availability)
+		remaining := ranges.Clone()
+		remaining.RemoveRanges(availability)
 		if !remaining.IsEmpty() {
 			unfulfilled.AddRanges(result.ShardTimeRanges{
 				shard: remaining,
@@ -782,7 +783,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 				if !intersects {
 					continue
 				}
-				willFulfill[shard] = willFulfill[shard].AddRange(intersection)
+				willFulfill[shard].AddRange(intersection)
 			}
 		}
 

@@ -767,7 +767,7 @@ func (s *peersSource) processReaders(
 			if err == nil {
 				// Mark index block as fulfilled.
 				fulfilled := result.ShardTimeRanges{
-					shard: xtime.Ranges{}.AddRange(timeRange),
+					shard: xtime.NewRanges(timeRange),
 				}
 				err = r.IndexResults().MarkFulfilled(start, fulfilled,
 					idxOpts)
@@ -775,7 +775,7 @@ func (s *peersSource) processReaders(
 
 			if err == nil {
 				remainingRanges.Subtract(result.ShardTimeRanges{
-					shard: xtime.Ranges{}.AddRange(timeRange),
+					shard: xtime.NewRanges(timeRange),
 				})
 			} else {
 				s.log.Error(err.Error(),

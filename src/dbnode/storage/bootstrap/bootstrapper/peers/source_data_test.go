@@ -734,18 +734,18 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	target := result.ShardTimeRanges{
-		0: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		1: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		2: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		3: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
+		0: xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+		1: xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+		2: xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+		3: xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
 	}
 
 	tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
@@ -753,10 +753,10 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	tester.TestReadWith(src)
 
 	expectedRanges := result.ShardTimeRanges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-		2: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-		3: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
+		0: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+		1: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+		2: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+		3: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
 	}
 
 	// NB(bodu): There is no time series data written to disk so all ranges fail to be fulfilled.

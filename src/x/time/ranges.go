@@ -32,11 +32,11 @@ type Ranges struct {
 
 // NewRanges constructs a new Ranges object comprising the provided ranges.
 func NewRanges(ranges ...Range) Ranges {
-	var result Ranges
+	res := Ranges{sortedRanges: list.New()}
 	for _, r := range ranges {
-		result = result.AddRange(r)
+		res.AddRange(r)
 	}
-	return result
+	return res
 }
 
 // Len returns the number of ranges included.
@@ -66,42 +66,45 @@ func (tr Ranges) Overlaps(r Range) bool {
 }
 
 // AddRange adds the time range to the collection of ranges.
-func (tr Ranges) AddRange(r Range) Ranges {
-	res := tr.clone()
-	res.addRangeInPlace(r)
-	return res
+func (tr Ranges) AddRange(r Range) {
+	if tr.sortedRanges == nil {
+		tr.sortedRanges = list.New()
+	}
+	tr.addRangeInPlace(r)
 }
 
 // AddRanges adds the time ranges.
-func (tr Ranges) AddRanges(other Ranges) Ranges {
-	res := tr.clone()
+func (tr Ranges) AddRanges(other Ranges) {
+	if tr.sortedRanges == nil {
+		tr.sortedRanges = list.New()
+	}
 	it := other.Iter()
 	for it.Next() {
-		res.addRangeInPlace(it.Value())
+		tr.addRangeInPlace(it.Value())
 	}
-	return res
 }
 
 // RemoveRange removes the time range from the collection of ranges.
-func (tr Ranges) RemoveRange(r Range) Ranges {
-	res := tr.clone()
-	res.removeRangeInPlace(r)
-	return res
+func (tr Ranges) RemoveRange(r Range) {
+	tr.removeRangeInPlace(r)
 }
 
 // RemoveRanges removes the given time ranges from the current one.
-func (tr Ranges) RemoveRanges(other Ranges) Ranges {
-	res := tr.clone()
+func (tr Ranges) RemoveRanges(other Ranges) {
 	it := other.Iter()
 	for it.Next() {
-		res.removeRangeInPlace(it.Value())
+		tr.removeRangeInPlace(it.Value())
 	}
-	return res
 }
 
 // Iter returns an iterator that iterates over the time ranges included.
 func (tr Ranges) Iter() *RangeIter {
 	return newRangeIter(tr.sortedRanges)
+}
+
+// Clone makes a clone of the time ranges.
+func (tr Ranges) Clone() Ranges {
+	return tr.clone()
 }
 
 // String returns the string representation of the range.

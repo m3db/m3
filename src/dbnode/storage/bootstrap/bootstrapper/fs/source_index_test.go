@@ -77,7 +77,7 @@ func newTestBootstrapIndexTimes(
 	}
 
 	shardTimeRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
@@ -567,7 +567,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 
 	// NB(bodu): Simulate requesting bootstrapping of two whole index blocks instead of 3 data blocks (1.5 index blocks).
 	times.shardTimeRanges = map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: firstIndexBlockStart,
 			End:   times.end,
 		}),

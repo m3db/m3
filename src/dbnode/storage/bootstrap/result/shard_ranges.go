@@ -80,7 +80,9 @@ func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
 func (r ShardTimeRanges) Copy() ShardTimeRanges {
 	result := make(map[uint32]xtime.Ranges, len(r))
 	for shard, ranges := range r {
-		result[shard] = xtime.Ranges{}.AddRanges(ranges)
+		newRanges := xtime.NewRanges()
+		newRanges.AddRanges(ranges)
+		result[shard] = newRanges
 	}
 	return result
 }
@@ -92,7 +94,8 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 			continue
 		}
 		if existing, ok := r[shard]; ok {
-			r[shard] = existing.AddRanges(ranges)
+			existing.AddRanges(ranges)
+			r[shard] = existing
 		} else {
 			r[shard] = ranges
 		}
@@ -123,7 +126,8 @@ func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
 			continue
 		}
 
-		subtractedRanges := ranges.RemoveRanges(otherRanges)
+		subtractedRanges := ranges.Clone()
+		subtractedRanges.RemoveRanges(otherRanges)
 		if subtractedRanges.IsEmpty() {
 			delete(r, shard)
 		} else {

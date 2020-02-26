@@ -58,7 +58,7 @@ func NewShardTimeRangesTimeWindowGroups(
 					continue
 				}
 				// Add to this range.
-				group[shard] = group[shard].AddRange(intersection)
+				group[shard].AddRange(intersection)
 			}
 		}
 

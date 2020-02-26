@@ -94,7 +94,7 @@ func PersistBootstrapIndexSegment(
 	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
 	for shard := range requestedRanges {
 		shards[shard] = struct{}{}
-		expectedRanges[shard] = xtime.Ranges{}.AddRange(xtime.Range{
+		expectedRanges[shard] = xtime.NewRanges(xtime.Range{
 			Start: expectedRangeStart,
 			End:   expectedRangeEnd,
 		})
@@ -253,7 +253,7 @@ func BuildBootstrapIndexSegment(
 
 	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
 	for shard := range requestedRanges {
-		expectedRanges[shard] = xtime.Ranges{}.AddRange(xtime.Range{
+		expectedRanges[shard] = xtime.NewRanges(xtime.Range{
 			Start: expectedRangeStart,
 			End:   expectedRangeEnd,
 		})

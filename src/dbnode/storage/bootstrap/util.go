@@ -551,14 +551,16 @@ func (nt *NamespacesTester) TestReadWith(s Source) {
 
 func validateRanges(ac xtime.Ranges, ex xtime.Ranges) error {
 	// Make range eclipses expected.
-	removedRange := ex.RemoveRanges(ac)
+	removedRange := ex.Clone()
+	removedRange.RemoveRanges(ac)
 	if !removedRange.IsEmpty() {
 		return fmt.Errorf("actual range %v does not match expected range %v "+
 			"diff: %v", ac, ex, removedRange)
 	}
 
 	// Now make sure no ranges outside of expected.
-	expectedWithAddedRanges := ex.AddRanges(ac)
+	expectedWithAddedRanges := ex.Clone()
+	expectedWithAddedRanges.AddRanges(ac)
 	if ex.Len() != expectedWithAddedRanges.Len() {
 		return fmt.Errorf("expected with re-added ranges not equal")
 	}

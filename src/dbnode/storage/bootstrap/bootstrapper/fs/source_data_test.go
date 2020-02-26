@@ -181,7 +181,7 @@ func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
 	// `testBlockSize` rather than `testIndexSize` since the files generated
 	// by this test use 2 hour (which is `testBlockSize`) reader blocks.
 	return map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: testStart.Add(testBlockSize),
 			End:   testStart.Add(11 * time.Hour),
 		}),
@@ -284,10 +284,13 @@ func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
 
 func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected xtime.Ranges) {
 	// Make range eclipses expected
-	require.True(t, expected.RemoveRanges(tr).IsEmpty())
+	expectedWithRemovedRanges := expected.Clone()
+	expectedWithRemovedRanges.RemoveRanges(tr)
+	require.True(t, expectedWithRemovedRanges.IsEmpty())
 
 	// Now make sure no ranges outside of expected
-	expectedWithAddedRanges := expected.AddRanges(tr)
+	expectedWithAddedRanges := expected.Clone()
+	expectedWithAddedRanges.AddRanges(tr)
 
 	require.Equal(t, expected.Len(), expectedWithAddedRanges.Len())
 	iter := expected.Iter()
@@ -388,9 +391,9 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
 
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).
-		AddRange(xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
+	expected := xtime.NewRanges(
+		xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)},
+		xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
 	validateTimeRanges(t, res[testShard], expected)
 }
 
@@ -415,9 +418,9 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
 
-	expected := xtime.Ranges{}.
-		AddRange(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).
-		AddRange(xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
+	expected := xtime.NewRanges(
+		xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)},
+		xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
 	validateTimeRanges(t, res[testShard], expected)
 }
 
