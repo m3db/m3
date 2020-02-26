@@ -53,6 +53,7 @@ type Unit uint16
 
 // Value is the time duration of the time unit.
 func (tu Unit) Value() (time.Duration, error) {
+	// Skip zero-length time.
 	if tu < 1 || int(tu) > len(unitsToDuration) {
 		return 0, errUnrecognizedTimeUnit
 	}
@@ -166,15 +167,15 @@ var (
 
 	durationsToUnit = make(map[time.Duration]Unit)
 	unitsToDuration = []time.Duration{
-		time.Duration(0),
-		time.Second,
-		time.Millisecond,
-		time.Microsecond,
-		time.Nanosecond,
-		time.Minute,
-		time.Hour,
-		time.Hour * 24,
-		time.Hour * 24 * 365,
+		None:        time.Duration(0),
+		Second:      time.Second,
+		Millisecond: time.Millisecond,
+		Microsecond: time.Microsecond,
+		Nanosecond:  time.Nanosecond,
+		Minute:      time.Minute,
+		Hour:        time.Hour,
+		Day:         time.Hour * 24,
+		Year:        time.Hour * 24 * 365,
 	}
 
 	unitNum = len(unitsToDuration)

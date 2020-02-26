@@ -44,11 +44,7 @@ var (
 
 	// TODO(xichen): set more reasonable defaults once we have more knowledge
 	// of the use cases for time units other than seconds.
-	/*
-		here be dragons
-	*/
 	defaultTimeEncodingSchemes = []TimeEncodingScheme{
-		nil,
 		xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
 		xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
 		xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
