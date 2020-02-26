@@ -21,8 +21,6 @@
 package encoding
 
 import (
-	"fmt"
-	"reflect"
 	"sort"
 	"time"
 
@@ -35,8 +33,7 @@ var (
 	// use max int64 for the seconds component only then integer overflow
 	// will occur when performing comparisons like time.Before() and they
 	// will not work correctly.
-	timeMax      = time.Unix(1<<63-62135596801, 999999999)
-	timeMaxNanos = xtime.ToNanoseconds(timeMax)
+	timeMax = time.Unix(1<<63-62135596801, 999999999)
 )
 
 // iterators is a collection of iterators, and allows for reading in order values
@@ -44,7 +41,7 @@ var (
 type iterators struct {
 	values             []Iterator
 	earliest           []Iterator
-	earliestAt         int64
+	earliestAt         time.Time
 	filterStart        int64
 	filterEnd          int64
 	filtering          bool
@@ -83,9 +80,6 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		}
 		for _, iter := range i.earliest {
 			curr, _, _ := iter.Current()
-			if curr.TimestampNanos == 0 {
-				panic("ZERO")
-			}
 			i.valueFrequencies[curr.Value]++
 		}
 
@@ -108,11 +102,11 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		// as this is an internal data structure and this option is validated at a
 		// layer above.
 	}
-	fmt.Println("NUM", numIters)
+
 	return i.earliest[numIters-1].Current()
 }
 
-func (i *iterators) at() int64 {
+func (i *iterators) at() time.Time {
 	return i.earliestAt
 }
 
@@ -127,34 +121,26 @@ func (i *iterators) push(iter Iterator) bool {
 
 func (i *iterators) tryAddEarliest(iter Iterator) {
 	dp, _, _ := iter.Current()
-	if dp.TimestampNanos == 0 {
-		panic("ZERO")
-	}
-	if dp.TimestampNanos == i.earliestAt {
+	if dp.Timestamp.Equal(i.earliestAt) {
 		// Push equal earliest
 		i.earliest = append(i.earliest, iter)
-	} else if dp.TimestampNanos < i.earliestAt {
+	} else if dp.Timestamp.Before(i.earliestAt) {
 		// Reset earliest and push new iter
 		i.earliest = append(i.earliest[:0], iter)
-		i.earliestAt = dp.TimestampNanos
+		i.earliestAt = dp.Timestamp
 	}
 }
 
 func (i *iterators) moveIteratorToFilterNext(iter Iterator) bool {
 	next := true
 	for next {
-		fmt.Println("ITER", reflect.TypeOf(iter).String())
 		dp, _, _ := iter.Current()
-		if dp.TimestampNanos == 0 {
-			panic("ZERO")
-		}
-		dp.TimestampNanos = xtime.ToNanoseconds(dp.Timestamp)
 		if dp.TimestampNanos < i.filterStart {
 			// Filter out any before start
 			next = iter.Next()
 			continue
 		}
-		if dp.TimestampNanos >= i.filterEnd {
+		if !dp.Timestamp.Before(xtime.FromNanoseconds(i.filterEnd)) {
 			// Filter out completely if after end
 			next = false
 			break
@@ -215,15 +201,15 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	}
 
 	// Force first to be new earliest, evaluate rest
-	i.earliestAt = timeMaxNanos
+	i.earliestAt = timeMax
 	for _, iter := range i.values {
 		i.tryAddEarliest(iter)
 	}
 
 	// Apply filter to new earliest if necessary
 	if i.filtering {
-		inFilter := i.earliestAt < i.filterEnd &&
-			i.earliestAt >= i.filterStart
+		inFilter := i.earliestAt.Before(xtime.FromNanoseconds(i.filterEnd)) &&
+			!i.earliestAt.Before(xtime.FromNanoseconds(i.filterStart))
 		if !inFilter {
 			return i.moveToValidNext()
 		}
@@ -232,8 +218,8 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	return i.validateNext(true, prevAt)
 }
 
-func (i *iterators) validateNext(next bool, prevAt int64) (bool, error) {
-	if i.earliestAt < prevAt {
+func (i *iterators) validateNext(next bool, prevAt time.Time) (bool, error) {
+	if i.earliestAt.Before(prevAt) {
 		// Out of order datapoint
 		i.reset()
 		return false, errOutOfOrderIterator
@@ -242,7 +228,6 @@ func (i *iterators) validateNext(next bool, prevAt int64) (bool, error) {
 }
 
 func (i *iterators) reset() {
-	fmt.Println("LEN ", len(i.values), len(i.earliest))
 	for idx := range i.values {
 		i.values[idx].Close()
 		i.values[idx] = nil
@@ -252,7 +237,7 @@ func (i *iterators) reset() {
 		i.earliest[idx] = nil
 	}
 	i.earliest = i.earliest[:0]
-	i.earliestAt = timeMaxNanos
+	i.earliestAt = timeMax
 }
 
 func (i *iterators) setFilter(start, end int64) {
