@@ -33,10 +33,11 @@ var (
 
 type w struct {
 	kv.ValueWatch
+	opts placement.Options
 }
 
-func newPlacementWatch(vw kv.ValueWatch) placement.Watch {
-	return &w{vw}
+func newPlacementWatch(vw kv.ValueWatch, opts placement.Options) placement.Watch {
+	return &w{ValueWatch: vw, opts: opts}
 }
 
 func (w *w) Get() (placement.Placement, error) {
@@ -44,9 +45,15 @@ func (w *w) Get() (placement.Placement, error) {
 	if v == nil {
 		return nil, errPlacementNotAvailable
 	}
-	p, err := placementFromValue(v)
-	if err != nil {
-		return nil, err
+
+	if w.opts.IsStaged() {
+		p, err := placementsFromValue(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return p[len(p)-1], nil
 	}
-	return p, nil
+
+	return placementFromValue(v)
 }

@@ -125,6 +125,8 @@ func newConsumerServiceWriter(
 	opts Options,
 ) (consumerServiceWriter, error) {
 	ps, err := opts.ServiceDiscovery().PlacementService(cs.ServiceID(), nil)
+	ps, err := opts.ServiceDiscovery().
+		PlacementService(cs.ServiceID(), opts.PlacementOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +231,7 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("consumer service writer init error: %v", err)
+	return fmt.Errorf("consumer service writer init error: %w", err)
 }
 
 func (w *consumerServiceWriterImpl) process(update interface{}) error {

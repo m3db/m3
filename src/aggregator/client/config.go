@@ -21,6 +21,8 @@
 package client
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -39,20 +41,20 @@ import (
 
 // Configuration contains client configuration.
 type Configuration struct {
-	Type                       AggregatorClientType           `yaml:"type"`
-	PlacementKV                kv.OverrideConfiguration       `yaml:"placementKV" validate:"nonzero"`
-	PlacementWatcher           placement.WatcherConfiguration `yaml:"placementWatcher"`
-	HashType                   *sharding.HashType             `yaml:"hashType"`
-	ShardCutoverWarmupDuration *time.Duration                 `yaml:"shardCutoverWarmupDuration"`
-	ShardCutoffLingerDuration  *time.Duration                 `yaml:"shardCutoffLingerDuration"`
-	Encoder                    EncoderConfiguration           `yaml:"encoder"`
-	FlushSize                  int                            `yaml:"flushSize"`
-	MaxBatchSize               int                            `yaml:"maxBatchSize"`
-	MaxTimerBatchSize          int                            `yaml:"maxTimerBatchSize"`
-	QueueSize                  int                            `yaml:"queueSize"`
-	QueueDropType              *DropType                      `yaml:"queueDropType"`
-	Connection                 ConnectionConfiguration        `yaml:"connection"`
-	M3Msg                      *M3MsgConfiguration            `yaml:"m3msg"`
+	Type                       AggregatorClientType            `yaml:"type"`
+	M3Msg                      *M3MsgConfiguration             `yaml:"m3msg"`
+	PlacementKV                *kv.OverrideConfiguration       `yaml:"placementKV"`
+	PlacementWatcher           *placement.WatcherConfiguration `yaml:"placementWatcher"`
+	HashType                   *sharding.HashType              `yaml:"hashType"`
+	ShardCutoverWarmupDuration *time.Duration                  `yaml:"shardCutoverWarmupDuration"`
+	ShardCutoffLingerDuration  *time.Duration                  `yaml:"shardCutoffLingerDuration"`
+	Encoder                    EncoderConfiguration            `yaml:"encoder"`
+	FlushSize                  int                             `yaml:"flushSize"`
+	MaxBatchSize               int                             `yaml:"maxBatchSize"`
+	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
+	QueueSize                  int                             `yaml:"queueSize"`
+	QueueDropType              *DropType                       `yaml:"queueDropType"`
+	Connection                 ConnectionConfiguration         `yaml:"connection"`
 }
 
 // NewAdminClient creates a new admin client.
@@ -81,77 +83,101 @@ func (c *Configuration) NewClient(
 	return NewClient(opts)
 }
 
+var (
+	errLegacyClientNoPlacementKVConfig      = errors.New("no placement KV config set")
+	errLegacyClientNoPlacementWatcherConfig = errors.New("no placement watcher config set")
+)
+
 func (c *Configuration) newClientOptions(
 	kvClient m3clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (Options, error) {
-	scope := instrumentOpts.MetricsScope()
-	connectionOpts := c.Connection.NewConnectionOptions(scope.SubScope("connection"))
-	kvOpts, err := c.PlacementKV.NewOverrideOptions()
-	if err != nil {
-		return nil, err
-	}
-
-	placementStore, err := kvClient.Store(kvOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("encoder"))
-	encoderOpts := c.Encoder.NewEncoderOptions(iOpts)
-
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	watcherOpts := c.PlacementWatcher.NewOptions(placementStore, iOpts)
-
-	// Get the shard fn.
-	hashType := sharding.DefaultHash
-	if c.HashType != nil {
-		hashType = *c.HashType
-	}
-	shardFn, err := hashType.ShardFn()
-	if err != nil {
-		return nil, err
-	}
-
 	opts := NewOptions().
 		SetAggregatorClientType(c.Type).
 		SetClockOptions(clockOpts).
-		SetInstrumentOptions(instrumentOpts).
-		SetStagedPlacementWatcherOptions(watcherOpts).
-		SetShardFn(shardFn).
-		SetEncoderOptions(encoderOpts).
-		SetConnectionOptions(connectionOpts)
+		SetInstrumentOptions(instrumentOpts)
 
-	if c.ShardCutoverWarmupDuration != nil {
-		opts = opts.SetShardCutoverWarmupDuration(*c.ShardCutoverWarmupDuration)
-	}
-	if c.ShardCutoffLingerDuration != nil {
-		opts = opts.SetShardCutoffLingerDuration(*c.ShardCutoffLingerDuration)
-	}
-	if c.FlushSize != 0 {
-		opts = opts.SetFlushSize(c.FlushSize)
-	}
-	if c.MaxBatchSize != 0 {
-		opts = opts.SetMaxBatchSize(c.MaxBatchSize)
-	}
-	if c.MaxTimerBatchSize != 0 {
-		opts = opts.SetMaxTimerBatchSize(c.MaxTimerBatchSize)
-	}
-	if c.QueueSize != 0 {
-		opts = opts.SetInstanceQueueSize(c.QueueSize)
-	}
-	if c.QueueDropType != nil {
-		opts = opts.SetQueueDropType(*c.QueueDropType)
-	}
+	switch c.Type {
+	case M3MsgAggregatorClient:
+		m3msgCfg := c.M3Msg
+		if m3msgCfg == nil {
+			return nil, fmt.Errorf("m3msg aggregator client: missing m3msg options")
+		}
 
-	if c.M3Msg != nil {
-		m3msgOpts, err := c.M3Msg.NewM3MsgOptions(kvClient, instrumentOpts)
+		m3msgOpts, err := m3msgCfg.NewM3MsgOptions(kvClient, instrumentOpts)
 		if err != nil {
 			return nil, err
 		}
 
 		opts = opts.SetM3MsgOptions(m3msgOpts)
+	case LegacyAggregatorClient:
+		placementKV := c.PlacementKV
+		if placementKV == nil {
+			return nil, errLegacyClientNoPlacementKVConfig
+		}
+
+		placementWatcher := c.PlacementWatcher
+		if placementWatcher == nil {
+			return nil, errLegacyClientNoPlacementWatcherConfig
+		}
+
+		scope := instrumentOpts.MetricsScope()
+		connectionOpts := c.Connection.NewConnectionOptions(scope.SubScope("connection"))
+		kvOpts, err := placementKV.NewOverrideOptions()
+		if err != nil {
+			return nil, err
+		}
+
+		placementStore, err := kvClient.Store(kvOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("encoder"))
+		encoderOpts := c.Encoder.NewEncoderOptions(iOpts)
+
+		iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
+		watcherOpts := placementWatcher.NewOptions(placementStore, iOpts)
+
+		// Get the shard fn.
+		hashType := sharding.DefaultHash
+		if c.HashType != nil {
+			hashType = *c.HashType
+		}
+		shardFn, err := hashType.ShardFn()
+		if err != nil {
+			return nil, err
+		}
+
+		opts = opts.SetStagedPlacementWatcherOptions(watcherOpts).
+			SetShardFn(shardFn).
+			SetEncoderOptions(encoderOpts).
+			SetConnectionOptions(connectionOpts)
+
+		if c.ShardCutoverWarmupDuration != nil {
+			opts = opts.SetShardCutoverWarmupDuration(*c.ShardCutoverWarmupDuration)
+		}
+		if c.ShardCutoffLingerDuration != nil {
+			opts = opts.SetShardCutoffLingerDuration(*c.ShardCutoffLingerDuration)
+		}
+		if c.FlushSize != 0 {
+			opts = opts.SetFlushSize(c.FlushSize)
+		}
+		if c.MaxBatchSize != 0 {
+			opts = opts.SetMaxBatchSize(c.MaxBatchSize)
+		}
+		if c.MaxTimerBatchSize != 0 {
+			opts = opts.SetMaxTimerBatchSize(c.MaxTimerBatchSize)
+		}
+		if c.QueueSize != 0 {
+			opts = opts.SetInstanceQueueSize(c.QueueSize)
+		}
+		if c.QueueDropType != nil {
+			opts = opts.SetQueueDropType(*c.QueueDropType)
+		}
+	default:
+		return nil, fmt.Errorf("unknown client type: %v", c.Type)
 	}
 
 	// Validate the options.

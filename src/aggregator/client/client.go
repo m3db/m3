@@ -133,23 +133,26 @@ func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
 type client struct {
 	sync.RWMutex
 
-	aggregatorClientType       AggregatorClientType
-	opts                       Options
+	opts                 Options
+	aggregatorClientType AggregatorClientType
+	state                clientState
+
+	m3msg m3msgClient
+
 	nowFn                      clock.NowFn
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
 	writerMgr                  instanceWriterManager
 	shardFn                    sharding.ShardFn
 	placementWatcher           placement.StagedPlacementWatcher
-	state                      clientState
-	m3msg                      m3msgClient
-	metrics                    clientMetrics
+
+	metrics clientMetrics
 }
 
 type m3msgClient struct {
-	messagePool *messagePool
 	producer    producer.Producer
 	numShards   uint32
+	messagePool *messagePool
 }
 
 // NewClient creates a new client.
@@ -159,42 +162,13 @@ func NewClient(opts Options) (Client, error) {
 	}
 
 	var (
-		instrumentOpts = opts.InstrumentOptions()
-		writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
-		writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-		writerMgr      = newInstanceWriterManager(writerMgrOpts)
+		clientType       = opts.AggregatorClientType()
+		instrumentOpts   = opts.InstrumentOptions()
+		msgClient        m3msgClient
+		writerMgr        instanceWriterManager
+		placementWatcher placement.StagedPlacementWatcher
 	)
-	onPlacementsAddedFn := func(placements []placement.Placement) {
-		for _, placement := range placements {
-			writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
-		}
-	}
-	onPlacementsRemovedFn := func(placements []placement.Placement) {
-		for _, placement := range placements {
-			writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
-		}
-	}
-	activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
-		SetClockOptions(opts.ClockOptions()).
-		SetOnPlacementsAddedFn(onPlacementsAddedFn).
-		SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
-	placementWatcherOpts := opts.StagedPlacementWatcherOptions().SetActiveStagedPlacementOptions(activeStagedPlacementOpts)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
-
-	c := &client{
-		aggregatorClientType:       opts.AggregatorClientType(),
-		opts:                       opts,
-		nowFn:                      opts.ClockOptions().NowFn(),
-		shardCutoverWarmupDuration: opts.ShardCutoverWarmupDuration(),
-		shardCutoffLingerDuration:  opts.ShardCutoffLingerDuration(),
-		writerMgr:                  writerMgr,
-		shardFn:                    opts.ShardFn(),
-		placementWatcher:           placementWatcher,
-		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
-	}
-	switch c.aggregatorClientType {
-	case LegacyAggregatorClient:
-		// Nothing more to do.
+	switch clientType {
 	case M3MsgAggregatorClient:
 		m3msgOpts := opts.M3MsgOptions()
 		if err := m3msgOpts.Validate(); err != nil {
@@ -206,13 +180,48 @@ func NewClient(opts Options) (Client, error) {
 			return nil, err
 		}
 
-		c.m3msg = m3msgClient{
-			messagePool: newMessagePool(c.opts.EncoderOptions()),
+		msgClient = m3msgClient{
 			producer:    producer,
 			numShards:   producer.NumShards(),
+			messagePool: newMessagePool(opts.EncoderOptions()),
 		}
+	case LegacyAggregatorClient:
+		var (
+			writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
+			writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
+			writerMgr      = newInstanceWriterManager(writerMgrOpts)
+		)
+		onPlacementsAddedFn := func(placements []placement.Placement) {
+			for _, placement := range placements {
+				writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
+			}
+		}
+		onPlacementsRemovedFn := func(placements []placement.Placement) {
+			for _, placement := range placements {
+				writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
+			}
+		}
+		activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
+			SetClockOptions(opts.ClockOptions()).
+			SetOnPlacementsAddedFn(onPlacementsAddedFn).
+			SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
+		placementWatcherOpts := opts.StagedPlacementWatcherOptions().
+			SetActiveStagedPlacementOptions(activeStagedPlacementOpts)
+		placementWatcher = placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	default:
-		return nil, fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
+		return nil, fmt.Errorf("unrecognized client type: %v", clientType)
+	}
+	c := &client{
+		aggregatorClientType:       clientType,
+		m3msg:                      msgClient,
+		opts:                       opts,
+		nowFn:                      opts.ClockOptions().NowFn(),
+		shardCutoverWarmupDuration: opts.ShardCutoverWarmupDuration(),
+		shardCutoffLingerDuration:  opts.ShardCutoffLingerDuration(),
+		writerMgr:                  writerMgr,
+		shardFn:                    opts.ShardFn(),
+		placementWatcher:           placementWatcher,
+		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
 	}
 
 	return c, nil
@@ -225,8 +234,20 @@ func (c *client) Init() error {
 	if c.state != clientUninitialized {
 		return errClientIsInitializedOrClosed
 	}
+
+	switch c.aggregatorClientType {
+	case M3MsgAggregatorClient:
+		// Nothing more to do.
+	case LegacyAggregatorClient:
+		if err := c.placementWatcher.Watch(); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
+	}
+
 	c.state = clientInitialized
-	return c.placementWatcher.Watch()
+	return nil
 }
 
 func (c *client) WriteUntimedCounter(
@@ -315,15 +336,23 @@ func (c *client) WriteForwarded(
 }
 
 func (c *client) Flush() error {
-	callStart := c.nowFn()
+	var (
+		callStart = c.nowFn()
+		err       error
+	)
 	c.RLock()
+	defer c.RUnlock()
+
 	if c.state != clientInitialized {
-		c.RUnlock()
 		return errClientIsUninitializedOrClosed
 	}
-	err := c.writerMgr.Flush()
-	c.RUnlock()
-	c.metrics.flush.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+
+	switch c.aggregatorClientType {
+	case LegacyAggregatorClient:
+		err = c.writerMgr.Flush()
+		c.metrics.flush.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	}
+
 	return err
 }
 

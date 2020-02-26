@@ -37,9 +37,6 @@ import (
 
 // M3MsgServerConfiguration contains M3Msg server configuration.
 type M3MsgServerConfiguration struct {
-	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress"`
-
 	// Server is the server configuration.
 	Server xserver.Configuration `yaml:"server"`
 

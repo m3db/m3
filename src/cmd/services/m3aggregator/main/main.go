@@ -96,7 +96,7 @@ func main() {
 	)
 	if cfg.M3Msg != nil {
 		// Create the M3Msg server options.
-		m3msgAddr = cfg.M3Msg.ListenAddress
+		m3msgAddr = cfg.M3Msg.Server.ListenAddress
 		m3msgInsrumentOpts := instrumentOpts.
 			SetMetricsScope(scope.
 				SubScope("m3msg-server").

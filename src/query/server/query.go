@@ -178,9 +178,6 @@ func Run(runOpts RunOptions) {
 
 	// Close metrics scope
 	defer func() {
-		if e := recover(); e != nil {
-			logger.Warn("recovered from panic", zap.String("e", fmt.Sprintf("%v", e)))
-		}
 		logger.Info("closing metrics scope")
 		if err := closer.Close(); err != nil {
 			logger.Error("unable to close metrics scope", zap.Error(err))
@@ -563,7 +560,7 @@ func newDownsampler(
 		TagOptions:            tagOptions,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create downsampler")
+		return nil, fmt.Errorf("unable to create downsampler: %w", err)
 	}
 
 	return downsampler, nil

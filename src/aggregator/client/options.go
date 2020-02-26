@@ -80,7 +80,8 @@ var (
 		M3MsgAggregatorClient,
 	}
 
-	errM3MsgClientNoOptions = errors.New("m3msg aggregator client: no m3msg options set")
+	errLegacyClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
+	errM3MsgClientNoOptions         = errors.New("m3msg aggregator client: no m3msg options set")
 )
 
 func (t AggregatorClientType) String() string {
@@ -245,7 +246,6 @@ func NewOptions() Options {
 		shardFn:                    sharding.DefaultHash.MustShardFn(),
 		shardCutoverWarmupDuration: defaultShardCutoverWarmupDuration,
 		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
-		watcherOpts:                placement.NewStagedPlacementWatcherOptions(),
 		connOpts:                   NewConnectionOptions(),
 		flushSize:                  defaultFlushSize,
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
@@ -258,14 +258,17 @@ func NewOptions() Options {
 
 func (o *options) Validate() error {
 	switch o.aggregatorClientType {
-	case LegacyAggregatorClient:
-		return nil
 	case M3MsgAggregatorClient:
 		opts := o.m3msgOptions
 		if opts == nil {
 			return errM3MsgClientNoOptions
 		}
 		return opts.Validate()
+	case LegacyAggregatorClient:
+		if o.watcherOpts == nil {
+			return errLegacyClientNoWatcherOptions
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown client type: %v", o.aggregatorClientType)
 	}

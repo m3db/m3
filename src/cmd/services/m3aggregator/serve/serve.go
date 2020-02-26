@@ -28,6 +28,7 @@ import (
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/x/instrument"
+	"go.uber.org/zap"
 )
 
 // Serve starts serving RPC traffic.
@@ -42,7 +43,7 @@ func Serve(
 	doneCh chan struct{},
 	iOpts instrument.Options,
 ) error {
-	log := rawTCPServerOpts.InstrumentOptions().Logger().Sugar()
+	log := iOpts.Logger()
 	defer aggregator.Close()
 
 	if m3msgAddr != "" {
@@ -54,7 +55,7 @@ func Serve(
 			return fmt.Errorf("could not start m3msg server at %s: %v", rawTCPAddr, err)
 		}
 		defer m3msgServer.Close()
-		log.Infof("m3msg server: listening on %s", rawTCPAddr)
+		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
 	}
 
 	if rawTCPAddr != "" {
@@ -63,7 +64,7 @@ func Serve(
 			return fmt.Errorf("could not start raw TCP server at %s: %v", rawTCPAddr, err)
 		}
 		defer rawTCPServer.Close()
-		log.Infof("raw TCP server: listening on %s", rawTCPAddr)
+		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
 	}
 
 	if httpAddr != "" {
@@ -72,7 +73,7 @@ func Serve(
 			return fmt.Errorf("could not start http server at %s: %v", httpAddr, err)
 		}
 		defer httpServer.Close()
-		log.Infof("http server: listening on %s", httpAddr)
+		log.Info("http server listening", zap.String("addr", httpAddr))
 	}
 
 	// Wait for exit signal.
