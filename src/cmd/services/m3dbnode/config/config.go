@@ -158,8 +158,8 @@ type DBConfiguration struct {
 	// of applying back-pressure or protecting the db nodes.
 	Limits Limits `yaml:"limits"`
 
-	// Tchannel exposes tchannel config options.
-	Tchannel TchannelConfiguration `yaml:"tchannel"`
+	// TChannel exposes tchannel config options.
+	TChannel *TChannelConfiguration `yaml:"tchannel"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -577,8 +577,8 @@ func IsSeedNode(initialCluster []environment.SeedNode, hostID string) bool {
 	return false
 }
 
-// TchannelConfiguration holds tchannel config options.
-type TchannelConfiguration struct {
+// TChannelConfiguration holds tchannel config options.
+type TChannelConfiguration struct {
 	MaxIdleTime       time.Duration `yaml:"maxIdleTime"`
 	IdleCheckInterval time.Duration `yaml:"idleCheckInterval"`
 }

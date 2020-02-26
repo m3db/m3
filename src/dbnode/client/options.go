@@ -199,7 +199,7 @@ var (
 			SetJitter(true),
 	)
 
-	// defaultChannelOptions are tchannel channel options defaults.
+	// defaultChannelOptions are default tchannel channel options.
 	defaultChannelOptions = &tchannel.ChannelOptions{
 		MaxIdleTime:       5 * time.Minute,
 		IdleCheckInterval: 5 * time.Minute,

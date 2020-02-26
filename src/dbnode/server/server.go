@@ -600,9 +600,9 @@ func Run(runOpts RunOptions) {
 		// SetDatabase() once we've initialized it.
 		service = ttnode.NewService(nil, ttopts)
 	)
-	if cfg.Tchannel.MaxIdleTime > 0 && cfg.Tchannel.IdleCheckInterval > 0 {
-		tchannelOpts.MaxIdleTime = cfg.Tchannel.MaxIdleTime
-		tchannelOpts.IdleCheckInterval = cfg.Tchannel.IdleCheckInterval
+	if cfg.TChannel != nil {
+		tchannelOpts.MaxIdleTime = cfg.TChannel.MaxIdleTime
+		tchannelOpts.IdleCheckInterval = cfg.TChannel.IdleCheckInterval
 	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
