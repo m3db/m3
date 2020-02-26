@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/uber/tchannel-go"
 )
 
