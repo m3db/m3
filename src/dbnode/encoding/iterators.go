@@ -108,8 +108,8 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return i.earliest[numIters-1].Current()
 }
 
-func (i *iterators) at() time.Time {
-	return xtime.FromNanoseconds(i.earliestAt)
+func (i *iterators) at() int64 {
+	return i.earliestAt
 }
 
 func (i *iterators) push(iter Iterator) bool {
