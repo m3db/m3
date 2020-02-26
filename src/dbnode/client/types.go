@@ -533,6 +533,12 @@ type Options interface {
 
 	// UseV2BatchAPIs returns whether the V2 batch APIs should be used.
 	UseV2BatchAPIs() bool
+
+	// SetIterationOptions sets experimental iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns experimental iteration options.
+	IterationOptions() index.IterationOptions
 }
 
 // AdminOptions is a set of administration client options.

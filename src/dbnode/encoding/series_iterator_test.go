@@ -25,7 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -220,6 +222,35 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 	})
 	assert.Equal(t, iter.iters.equalTimesStrategy,
 		DefaultIterateEqualTimestampStrategy)
+}
+
+func TestSeriesIteratorSetDeduplicationFunction(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	test := testSeries{
+		id:   "foo",
+		nsID: "bar",
+	}
+
+	iter := newTestSeriesIterator(t, test).iter
+	newIter := NewMockMultiReaderIterator(ctrl)
+	newIter.EXPECT().Next().Return(true)
+	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil)
+
+	dedupe := func(iter []MultiReaderIterator) []MultiReaderIterator {
+		return []MultiReaderIterator{newIter}
+	}
+
+	oldIter := NewMockMultiReaderIterator(ctrl)
+	oldIters := []MultiReaderIterator{oldIter}
+	iter.multiReaderIters = oldIters
+	assert.Equal(t, oldIter, iter.multiReaderIters[0])
+	iter.Reset(SeriesIteratorOptions{
+		Replicas:              oldIters,
+		DeduplicationFunction: dedupe,
+	})
+	assert.Equal(t, newIter, iter.multiReaderIters[0])
 }
 
 type newTestSeriesIteratorResult struct {

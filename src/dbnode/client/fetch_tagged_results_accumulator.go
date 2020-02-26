@@ -29,10 +29,11 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type fetchTaggedResultAccumulatorOpts struct {
@@ -247,6 +248,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	pools fetchTaggedPools,
 	elems fetchTaggedIDResults,
 	descr namespace.SchemaDescr,
+	opts index.IterationOptions,
 ) encoding.SeriesIterator {
 	numElems := len(elems)
 	iters := pools.MultiReaderIteratorArray().Get(numElems)[:numElems]
@@ -271,19 +273,21 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	nsID := pools.CheckedBytesWrapper().Get(elem.NameSpace)
 	seriesIter := pools.SeriesIterator().Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
-		ID:             pools.ID().BinaryID(tsID),
-		Namespace:      pools.ID().BinaryID(nsID),
-		Tags:           decoder,
-		StartInclusive: accum.startTime,
-		EndExclusive:   accum.endTime,
-		Replicas:       iters,
+		ID:                    pools.ID().BinaryID(tsID),
+		Namespace:             pools.ID().BinaryID(nsID),
+		Tags:                  decoder,
+		StartInclusive:        accum.startTime,
+		EndExclusive:          accum.endTime,
+		Replicas:              iters,
+		DeduplicationFunction: opts.DeduplicationFunction,
 	})
 
 	return seriesIter
 }
 
 func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
-	limit int, pools fetchTaggedPools, descr namespace.SchemaDescr,
+	limit int, pools fetchTaggedPools,
+	descr namespace.SchemaDescr, opts index.IterationOptions,
 ) (encoding.SeriesIterators, bool, error) {
 	results := fetchTaggedIDResultsSortedByID(accum.fetchResponses)
 	sort.Sort(results)
@@ -300,7 +304,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	count := 0
 	moreElems := false
 	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
-		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems, descr)
+		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems, descr, opts)
 		result.SetAt(count, seriesIter)
 		count++
 		moreElems = hasMore

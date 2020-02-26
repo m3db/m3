@@ -237,6 +237,10 @@ type SeriesIterator interface {
 	Replicas() []MultiReaderIterator
 }
 
+// DeduplicationFunction is an experimental function that allows
+// for deduplication of internal iterators.
+type DeduplicationFunction func([]MultiReaderIterator) []MultiReaderIterator
+
 // SeriesIteratorOptions is a set of options for using a series iterator.
 type SeriesIteratorOptions struct {
 	ID                            ident.ID
@@ -246,6 +250,7 @@ type SeriesIteratorOptions struct {
 	StartInclusive                time.Time
 	EndExclusive                  time.Time
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
+	DeduplicationFunction         DeduplicationFunction
 }
 
 // SeriesIterators is a collection of SeriesIterator that can close all iterators

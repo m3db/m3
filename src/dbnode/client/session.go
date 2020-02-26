@@ -1297,7 +1297,8 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
+	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(
+		s.pools, nsCtx.Schema, s.opts.IterationOptions())
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1591,11 +1592,12 @@ func (s *session) fetchIDsAttempt(
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
 				iter.Reset(encoding.SeriesIteratorOptions{
-					ID:             seriesID,
-					Namespace:      namespaceID,
-					StartInclusive: startInclusive,
-					EndExclusive:   endExclusive,
-					Replicas:       itersToInclude,
+					ID:                    seriesID,
+					Namespace:             namespaceID,
+					StartInclusive:        startInclusive,
+					EndExclusive:          endExclusive,
+					Replicas:              itersToInclude,
+					DeduplicationFunction: s.opts.IterationOptions().DeduplicationFunction,
 				})
 				iters.SetAt(idx, iter)
 			}

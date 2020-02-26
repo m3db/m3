@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -259,6 +260,7 @@ type options struct {
 	asyncWriteWorkerPool                    xsync.PooledWorkerPool
 	asyncWriteMaxConcurrency                int
 	useV2BatchAPIs                          bool
+	iterationOptions                        index.IterationOptions
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -953,4 +955,14 @@ func (o *options) SetUseV2BatchAPIs(value bool) Options {
 
 func (o *options) UseV2BatchAPIs() bool {
 	return o.useV2BatchAPIs
+}
+
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
 }
