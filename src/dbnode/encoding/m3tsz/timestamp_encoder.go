@@ -54,7 +54,7 @@ func NewTimestampEncoder(
 	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
 	return TimestampEncoder{
 		PrevTime: start,
-		TimeUnit: initialTimeUnit(start.UnixNano(), timeUnit),
+		TimeUnit: initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
 		Options:  opts,
 	}
 }
@@ -205,15 +205,15 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	return nil
 }
 
-func initialTimeUnit(startInNano int64, tu xtime.Unit) xtime.Unit {
+func initialTimeUnit(start xtime.UnixNano, tu xtime.Unit) xtime.Unit {
 	tv, err := tu.Value()
 	if err != nil {
 		return xtime.None
 	}
 	// If we want to use tu as the time unit for start, start must
 	// be a multiple of tu.
-	tvInNano := xtime.ToNormalizedDuration(tv, time.Nanosecond)
-	if startInNano%tvInNano == 0 {
+	tvInNano := xtime.UnixNano(xtime.ToNormalizedDuration(tv, time.Nanosecond))
+	if start%tvInNano == 0 {
 		return tu
 	}
 	return xtime.None

@@ -23,7 +23,6 @@ package m3tsz
 import (
 	"encoding/binary"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -33,9 +32,9 @@ import (
 // TimestampIterator encapsulates all the state required for iterating over
 // delta-of-delta compresed timestamps.
 type TimestampIterator struct {
-	PrevTimeNanos      int64
-	PrevTimeDeltaNanos int64
-	PrevAnt            ts.Annotation
+	PrevTime      xtime.UnixNano
+	PrevTimeDelta xtime.UnixNano
+	PrevAnt       ts.Annotation
 
 	TimeUnit xtime.Unit
 
@@ -66,7 +65,7 @@ func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool,
 		first = false
 		err   error
 	)
-	if it.PrevTimeNanos == 0 {
+	if it.PrevTime == 0 {
 		first = true
 		err = it.readFirstTimestamp(stream)
 	} else {
@@ -79,7 +78,7 @@ func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool,
 	// NB(xichen): reset time delta to 0 when there is a time unit change to be
 	// consistent with the encoder.
 	if it.TimeUnitChanged {
-		it.PrevTimeDeltaNanos = 0
+		it.PrevTimeDelta = 0
 		it.TimeUnitChanged = false
 	}
 
@@ -110,11 +109,10 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	nt := int64(ntBits)
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
-	st := xtime.FromNormalizedTime(nt, time.Nanosecond).UnixNano()
+	nt := xtime.UnixNano(ntBits)
 	if it.TimeUnit == xtime.None {
-		it.TimeUnit = initialTimeUnit(st, it.Opts.DefaultTimeUnit())
+		it.TimeUnit = initialTimeUnit(nt, it.Opts.DefaultTimeUnit())
 	}
 
 	err = it.readNextTimestamp(stream)
@@ -122,7 +120,7 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	it.PrevTimeNanos = st + it.PrevTimeDeltaNanos
+	it.PrevTime = nt + it.PrevTimeDelta
 	return nil
 }
 
@@ -132,12 +130,12 @@ func (it *TimestampIterator) readNextTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	it.PrevTimeDeltaNanos += dod
-	it.PrevTimeNanos = it.PrevTimeNanos + it.PrevTimeDeltaNanos
+	it.PrevTimeDelta += dod
+	it.PrevTime = it.PrevTime + it.PrevTimeDelta
 	return nil
 }
 
-func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (int64, bool, error) {
+func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (xtime.UnixNano, bool, error) {
 	mes := it.Opts.MarkerEncodingScheme()
 	numBits := mes.NumOpcodeBits() + mes.NumValueBits()
 	opcodeAndValue, success := it.tryPeekBits(stream, numBits)
@@ -195,7 +193,7 @@ func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (int64, bool
 	}
 }
 
-func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (int64, error) {
+func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (xtime.UnixNano, error) {
 	if !it.SkipMarkers {
 		dod, success, err := it.tryReadMarker(stream)
 		if err != nil {
@@ -219,7 +217,7 @@ func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (
 }
 
 func (it *TimestampIterator) readDeltaOfDelta(
-	stream encoding.IStream, tes encoding.TimeEncodingScheme) (int64, error) {
+	stream encoding.IStream, tes encoding.TimeEncodingScheme) (xtime.UnixNano, error) {
 	if it.TimeUnitChanged {
 		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
 		// dod in nanoseconds.
@@ -229,7 +227,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 		}
 
 		dod := encoding.SignExtend(dodBits, 64)
-		return dod, nil
+		return xtime.UnixNano(dod), nil
 	}
 
 	cb, err := stream.ReadBits(1)
@@ -260,7 +258,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 				return 0, nil
 			}
 
-			return int64(xtime.FromNormalizedDuration(dod, timeUnit)), nil
+			return xtime.ToUnixNanoDuration(xtime.FromNormalizedDuration(dod, timeUnit)), nil
 		}
 	}
 
@@ -275,7 +273,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 		return 0, nil
 	}
 
-	return int64(xtime.FromNormalizedDuration(dod, timeUnit)), nil
+	return xtime.ToUnixNanoDuration(xtime.FromNormalizedDuration(dod, timeUnit)), nil
 }
 
 func (it *TimestampIterator) readAnnotation(stream encoding.IStream) error {
