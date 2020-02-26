@@ -479,8 +479,8 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 				Namespace:      namespaceID,
 				Tags:           tags,
 				Replicas:       replicasIters,
-				StartInclusive: start,
-				EndExclusive:   end,
+				StartInclusive: xtime.ToNanoseconds(start),
+				EndExclusive:   xtime.ToNanoseconds(end),
 			})
 		}
 	}
@@ -635,12 +635,13 @@ var (
 // BenchmarkNextIteration/series_2000-12	   		207				5744589 ns/op
 func BenchmarkNextIteration(b *testing.B) {
 	iterTypes := []iterType{
-		stepSequential,
-		stepParallel,
+		//stepSequential,
+		//stepParallel,
 		seriesSequential,
 	}
 
-	for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
+	// 10, 100, 200, 500, 1000,
+	for _, s := range []int{2000} {
 		for _, t := range iterTypes {
 			name := t.name(fmt.Sprintf("%d", s))
 			b.Run(name, func(b *testing.B) {

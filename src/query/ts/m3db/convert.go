@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -291,8 +292,8 @@ func seriesBlocksFromBlockReplicas(
 			ID:             clonedID,
 			Namespace:      clonedNamespace,
 			Tags:           clonedTags.Duplicate(),
-			StartInclusive: filterValuesStart,
-			EndExclusive:   filterValuesEnd,
+			StartInclusive: xtime.ToNanoseconds(filterValuesStart),
+			EndExclusive:   xtime.ToNanoseconds(filterValuesEnd),
 			Replicas:       block.replicas,
 		}, nil)
 

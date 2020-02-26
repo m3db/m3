@@ -145,7 +145,7 @@ func (it *multiReaderIterator) moveIteratorsToNext() {
 		}
 
 		curr := it.iters.at()
-		if !curr.Equal(prev) {
+		if curr != prev {
 			return
 		}
 
