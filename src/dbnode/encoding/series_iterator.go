@@ -197,3 +197,16 @@ func (it *seriesIterator) moveToNext() {
 		// Dedupe by continuing
 	}
 }
+
+func (it *seriesIterator) Digest() (SeriesIteratorDigest, error) {
+	approx := 0
+	for _, readerIter := range it.multiReaderIters {
+		readers := readerIter.Readers()
+		size, err := readers.Size()
+		if err != nil {
+			return SeriesIteratorDigest{}, err
+		}
+		approx += size
+	}
+	return SeriesIteratorDigest{ApproximateSize: approx}, nil
+}
