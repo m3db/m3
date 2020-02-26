@@ -20,11 +20,22 @@
 
 package xtchannel
 
-import tchannel "github.com/uber/tchannel-go"
+import (
+	"time"
+
+	tchannel "github.com/uber/tchannel-go"
+)
+
+const (
+	defaultIdleCheckInterval = 5 * time.Minute
+	defaultMaxIdleTime       = 5 * time.Minute
+)
 
 // NewDefaultChannelOptions returns the default tchannel options used.
 func NewDefaultChannelOptions() *tchannel.ChannelOptions {
 	return &tchannel.ChannelOptions{
-		Logger: NewNoopLogger(),
+		Logger:            NewNoopLogger(),
+		MaxIdleTime:       defaultMaxIdleTime,
+		IdleCheckInterval: defaultIdleCheckInterval,
 	}
 }

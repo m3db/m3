@@ -714,6 +714,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
+  tchannel: null
 coordinator: null
 `
 

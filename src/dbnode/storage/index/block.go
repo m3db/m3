@@ -158,10 +158,12 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
 		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
 		segmentFreeMmapSuccess: s.Tagged(map[string]string{
-			"result": "success",
+			"result":    "success",
+			"skip_type": "none",
 		}).Counter(segmentFreeMmap),
 		segmentFreeMmapError: s.Tagged(map[string]string{
-			"result": "error",
+			"result":    "error",
+			"skip_type": "none",
 		}).Counter(segmentFreeMmap),
 		segmentFreeMmapSkipNotImmutable: s.Tagged(map[string]string{
 			"result":    "skip",
