@@ -67,7 +67,6 @@ type builder struct {
 	fields       *shardedFieldsMap
 	uniqueFields [][][]byte
 
-	wg          sync.WaitGroup
 	indexQueues []chan indexJob
 	closed      *atomic.Bool
 }
@@ -199,7 +198,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 	}
 
 	// Wait for all the concurrent indexing jobs to finish.
-	b.wg.Wait()
+	wg.Wait()
 
 	if !batchErr.IsEmpty() {
 		return batchErr
