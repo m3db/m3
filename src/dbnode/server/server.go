@@ -133,6 +133,9 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// CustomOptions are custom options to apply to the session.
+	CustomOptions []client.CustomAdminOption
 }
 
 // Run runs the server programmatically given a filename for the
@@ -695,7 +698,8 @@ func Run(runOpts RunOptions) {
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
 		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
-		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+		origin, protoEnabled, schemaRegistry, syncCfg.KVStore,
+		logger, runOpts.CustomOptions)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -730,7 +734,8 @@ func Run(runOpts RunOptions) {
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
 				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
-				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+				origin, protoEnabled, schemaRegistry, syncCfg.KVStore,
+				logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -1551,6 +1556,7 @@ func newAdminClient(
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
 	logger *zap.Logger,
+	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
 	if config.EnvironmentConfig != nil {
 		// If the user has provided an override for the dynamic client configuration
@@ -1558,12 +1564,8 @@ func newAdminClient(
 		topologyInitializer = nil
 	}
 
-	m3dbClient, err := config.NewAdminClient(
-		client.ConfigurationParameters{
-			InstrumentOptions: iopts.
-				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
-			TopologyInitializer: topologyInitializer,
-		},
+	// NB: append custom options coming from run options to existing options.
+	options := []client.CustomAdminOption{
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},
@@ -1582,6 +1584,16 @@ func newAdminClient(
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetSchemaRegistry(schemaRegistry).(client.AdminOptions)
 		},
+	}
+
+	options = append(options, custom...)
+	m3dbClient, err := config.NewAdminClient(
+		client.ConfigurationParameters{
+			InstrumentOptions: iopts.
+				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
+			TopologyInitializer: topologyInitializer,
+		},
+		options...,
 	)
 	if err != nil {
 		return nil, err

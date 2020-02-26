@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -175,7 +176,8 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	matcher := newTestSerieses(1, 15).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools, nil)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools,
+		nil, index.IterationOptions{})
 	require.NoError(t, err)
 	require.False(t, exhaust)
 	newTestSerieses(1, 15).assertMatchesEncodingIters(t, iters)
@@ -229,7 +231,8 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools,
+		nil, index.IterationOptions{})
 	require.NoError(t, err)
 	require.False(t, exhaust)
 	append(sg0, sg1...).assertMatchesEncodingIters(t, iters)
@@ -283,7 +286,8 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
+	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools,
+		nil, index.IterationOptions{})
 	require.NoError(t, err)
 	require.True(t, exhaust)
 	// ensure iters are valid after the lifecycle of the accumulator

@@ -131,7 +131,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {
 	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
+	assert.True(t, strings.Contains(err.Error(), "invariant_violated"))
 	assert.NoError(t, session.Close())
 }
 
