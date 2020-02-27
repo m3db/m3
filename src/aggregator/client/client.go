@@ -501,13 +501,13 @@ type message struct {
 	pool    *messagePool
 	shard   uint32
 	encoder protobuf.UnaggregatedEncoder
-	metric  metricpb.MetricWithMetadatas
 
-	cm metricpb.CounterWithMetadatas
-	bm metricpb.BatchTimerWithMetadatas
-	gm metricpb.GaugeWithMetadatas
-	fm metricpb.ForwardedMetricWithMetadata
-	tm metricpb.TimedMetricWithMetadata
+	metric metricpb.MetricWithMetadatas
+	cm     metricpb.CounterWithMetadatas
+	bm     metricpb.BatchTimerWithMetadatas
+	gm     metricpb.GaugeWithMetadatas
+	fm     metricpb.ForwardedMetricWithMetadata
+	tm     metricpb.TimedMetricWithMetadata
 
 	buf []byte
 }
@@ -528,7 +528,6 @@ func (m *message) Encode(
 ) error {
 	m.shard = shard
 
-	var pb metricpb.MetricWithMetadatas
 	switch payload.payloadType {
 	case untimedType:
 		switch payload.untimed.metric.Type {
@@ -541,7 +540,7 @@ func (m *message) Encode(
 				return err
 			}
 
-			pb = metricpb.MetricWithMetadatas{
+			m.metric = metricpb.MetricWithMetadatas{
 				Type:                 metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS,
 				CounterWithMetadatas: &m.cm,
 			}
@@ -554,7 +553,7 @@ func (m *message) Encode(
 				return err
 			}
 
-			pb = metricpb.MetricWithMetadatas{
+			m.metric = metricpb.MetricWithMetadatas{
 				Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 				BatchTimerWithMetadatas: &m.bm,
 			}
@@ -567,7 +566,7 @@ func (m *message) Encode(
 				return err
 			}
 
-			pb = metricpb.MetricWithMetadatas{
+			m.metric = metricpb.MetricWithMetadatas{
 				Type:               metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 				GaugeWithMetadatas: &m.gm,
 			}
@@ -584,7 +583,7 @@ func (m *message) Encode(
 			return err
 		}
 
-		pb = metricpb.MetricWithMetadatas{
+		m.metric = metricpb.MetricWithMetadatas{
 			Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 			ForwardedMetricWithMetadata: &m.fm,
 		}
@@ -597,7 +596,7 @@ func (m *message) Encode(
 			return err
 		}
 
-		pb = metricpb.MetricWithMetadatas{
+		m.metric = metricpb.MetricWithMetadatas{
 			Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 			TimedMetricWithMetadata: &m.tm,
 		}
@@ -606,7 +605,7 @@ func (m *message) Encode(
 			payload.payloadType)
 	}
 
-	size := pb.Size()
+	size := m.metric.Size()
 	if size > cap(m.buf) {
 		const growthFactor = 1.5
 		m.buf = make([]byte, int(growthFactor*float64(size)))
@@ -615,7 +614,7 @@ func (m *message) Encode(
 	// Resize buffer to exactly how long we need for marshalling.
 	m.buf = m.buf[:size]
 
-	_, err := pb.MarshalTo(m.buf)
+	_, err := m.metric.MarshalTo(m.buf)
 	return err
 }
 

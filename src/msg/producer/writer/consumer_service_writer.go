@@ -124,7 +124,6 @@ func newConsumerServiceWriter(
 	numShards uint32,
 	opts Options,
 ) (consumerServiceWriter, error) {
-	ps, err := opts.ServiceDiscovery().PlacementService(cs.ServiceID(), nil)
 	ps, err := opts.ServiceDiscovery().
 		PlacementService(cs.ServiceID(), opts.PlacementOptions())
 	if err != nil {
