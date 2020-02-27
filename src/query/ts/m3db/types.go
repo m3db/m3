@@ -76,7 +76,7 @@ type Options interface {
 	WriteWorkerPool() xsync.PooledWorkerPool
 	// SetIteratorBatchingFn sets the batching function for the converter.
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
-	// IteratorBatchingFn returns the batching function fro the converter.
+	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
 	// Validate ensures that the given block options are valid.
 	Validate() error
