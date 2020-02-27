@@ -1191,8 +1191,8 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		ID:             id,
 		Namespace:      nsID,
 		Tags:           ident.NewTagsIterator(tags),
-		StartInclusive: qStart,
-		EndExclusive:   qEnd,
+		StartInclusive: xtime.ToUnixNano(qStart),
+		EndExclusive:   xtime.ToUnixNano(qEnd),
 		Replicas:       []encoding.MultiReaderIterator{multiIt},
 	}, nil)
 	defer it.Close()

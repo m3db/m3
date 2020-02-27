@@ -244,8 +244,8 @@ func newTestSeriesIterator(
 		ID:             ident.StringID(series.id),
 		Namespace:      ident.StringID(series.nsID),
 		Tags:           ident.EmptyTagIterator,
-		StartInclusive: series.start,
-		EndExclusive:   series.end,
+		StartInclusive: xtime.ToUnixNano(series.start),
+		EndExclusive:   xtime.ToUnixNano(series.end),
 		Replicas:       iters,
 	}, nil)
 
