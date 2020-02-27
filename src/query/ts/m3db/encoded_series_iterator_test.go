@@ -25,12 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/ident"
-	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,36 +137,5 @@ func TestSeriesIteratorBatch(t *testing.T) {
 		}
 
 		assert.Equal(t, 3, count)
-	}
-}
-
-func TestMutableEncodedSeriesIterator(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	toMeta := func(i int) block.SeriesMeta {
-		return block.SeriesMeta{Name: []byte(fmt.Sprint(i))}
-	}
-
-	toIter := func(i int) encoding.SeriesIterator {
-		it := encoding.NewMockSeriesIterator(ctrl)
-		it.EXPECT().ID().Return(ident.StringID(fmt.Sprint(i)))
-		return it
-	}
-
-	meta := block.Metadata{}
-	iters := []encoding.SeriesIterator{toIter(1), toIter(2)}
-	metas := []block.SeriesMeta{toMeta(1), toMeta(2)}
-	it := NewEncodedSeriesIter(meta, metas, iters, time.Minute)
-
-	it.Append(toIter(3), toMeta(3))
-	enc, ok := it.(*encodedSeriesIter)
-	require.True(t, ok)
-	for i, iter := range enc.seriesIters {
-		assert.Equal(t, fmt.Sprint(i+1), iter.ID().String())
-	}
-
-	for i, meta := range enc.SeriesMeta() {
-		assert.Equal(t, fmt.Sprint(i+1), string(meta.Name))
 	}
 }

@@ -36,7 +36,7 @@ func NewEncodedSeriesIter(
 	seriesMetas []block.SeriesMeta,
 	seriesIters []encoding.SeriesIterator,
 	lookback time.Duration,
-) MutableEncodedSeriesIterator {
+) block.SeriesIter {
 	return &encodedSeriesIter{
 		idx:              -1,
 		meta:             meta,
@@ -121,14 +121,6 @@ func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 func (it *encodedSeriesIter) Close() {
 	// noop, as the resources at the step may still be in use;
 	// instead call Close() on the encodedBlock that generated this
-}
-
-func (it *encodedSeriesIter) Append(
-	iter encoding.SeriesIterator,
-	meta block.SeriesMeta,
-) {
-	it.seriesIters = append(it.seriesIters, iter)
-	it.seriesMeta = append(it.seriesMeta, meta)
 }
 
 // MultiSeriesIter returns batched series iterators for the block based on

@@ -82,14 +82,6 @@ type Options interface {
 	Validate() error
 }
 
-// MutableEncodedSeriesIterator  iterates through a block horizontally,
-// and can have further series appended to it.
-type MutableEncodedSeriesIterator interface {
-	block.SeriesIter
-	// Append adds an iterator and series metadata to the series block iterator.
-	Append(encoding.SeriesIterator, block.SeriesMeta)
-}
-
 // IteratorBatchingFn determines how the iterator is split into batches.
 type IteratorBatchingFn func(
 	concurrency int,
