@@ -54,7 +54,7 @@ type Unit uint16
 // Value is the time duration of the time unit.
 func (tu Unit) Value() (time.Duration, error) {
 	// Skip zero-length time.
-	if tu < 1 || int(tu) > len(unitsToDuration) {
+	if tu < 1 || int(tu) > unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
 	return time.Duration(unitsToDuration[tu]), nil
@@ -66,7 +66,8 @@ func (tu Unit) Count(d time.Duration) (int, error) {
 		return 0, errNegativeDuraton
 	}
 
-	if tu < 1 || int(tu) > len(unitsToDuration) {
+	// Skip zero-length time.
+	if tu < 1 || int(tu) > unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
 
@@ -178,7 +179,7 @@ var (
 		Year:        time.Hour * 24 * 365,
 	}
 
-	unitNum = len(unitsToDuration)
+	unitCount = len(unitsToDuration)
 
 	unitsByDurationDesc []Unit
 )
