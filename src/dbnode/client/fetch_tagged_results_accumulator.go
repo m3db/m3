@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/apache/thrift/lib/go/thrift"
 )
@@ -297,8 +298,8 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 		ID:             pools.ID().BinaryID(tsID),
 		Namespace:      pools.ID().BinaryID(nsID),
 		Tags:           decoder,
-		StartInclusive: accum.startTime,
-		EndExclusive:   accum.endTime,
+		StartInclusive: xtime.ToUnixNano(accum.startTime),
+		EndExclusive:   xtime.ToUnixNano(accum.endTime),
 		Replicas:       iters,
 	})
 
