@@ -208,5 +208,5 @@ func (it *seriesIterator) Stats() (SeriesIteratorStats, error) {
 		}
 		approx += size
 	}
-	return SeriesIteratorStats{ApproximateSize: approx}, nil
+	return SeriesIteratorStats{ApproximateSizeInBytes: approx}, nil
 }

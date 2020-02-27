@@ -338,5 +338,5 @@ func TestSeriesIteratorStats(t *testing.T) {
 	}
 	stats, err := iter.Stats()
 	require.NoError(t, err)
-	assert.Equal(t, 24, stats.ApproximateSize)
+	assert.Equal(t, 24, stats.ApproximateSizeInBytes)
 }

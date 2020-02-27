@@ -247,15 +247,15 @@ type SeriesIterator interface {
 	// for this SeriesIterator.
 	Replicas() []MultiReaderIterator
 
-	// Stat sprovides information for this SeriesIterator.
+	// Stats provides information for this SeriesIterator.
 	Stats() (SeriesIteratorStats, error)
 }
 
 // SeriesIteratorStats contains information about a SeriesIterator.
 type SeriesIteratorStats struct {
-	// ApproximateSize approximates how much data is contained within the
-	// SeriesIterator.
-	ApproximateSize int
+	// ApproximateSizeInBytes approximates how much data is contained within the
+	// SeriesIterator, in bytes.
+	ApproximateSizeInBytes int
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
