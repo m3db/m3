@@ -79,7 +79,9 @@ var (
 func TestBuilderFields(t *testing.T) {
 	builder, err := NewBuilderFromDocuments(testOptions)
 	require.NoError(t, err)
-	defer require.NoError(t, builder.Close())
+	defer func() {
+		require.NoError(t, builder.Close())
+	}()
 
 	for i := 0; i < 10; i++ {
 		builder.Reset(0)
@@ -107,7 +109,9 @@ func TestBuilderFields(t *testing.T) {
 func TestBuilderTerms(t *testing.T) {
 	builder, err := NewBuilderFromDocuments(testOptions)
 	require.NoError(t, err)
-	defer require.NoError(t, builder.Close())
+	defer func() {
+		require.NoError(t, builder.Close())
+	}()
 
 	for i := 0; i < 10; i++ {
 		builder.Reset(0)
