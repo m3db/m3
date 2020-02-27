@@ -95,7 +95,7 @@ type Options interface {
 	DefaultTimeUnit() xtime.Unit
 
 	// SetTimeEncodingSchemes sets the time encoding schemes for different time units.
-	SetTimeEncodingSchemes(value TimeEncodingSchemes) Options
+	SetTimeEncodingSchemes(value map[xtime.Unit]TimeEncodingScheme) Options
 
 	// TimeEncodingSchemes returns the time encoding schemes for different time units.
 	TimeEncodingSchemes() TimeEncodingSchemes

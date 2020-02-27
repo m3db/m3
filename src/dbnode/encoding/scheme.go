@@ -44,12 +44,14 @@ var (
 
 	// TODO(xichen): set more reasonable defaults once we have more knowledge
 	// of the use cases for time units other than seconds.
-	defaultTimeEncodingSchemes = []TimeEncodingScheme{
-		xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
-		xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
-		xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
-		xtime.Nanosecond:  newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
-	}
+	defaultTimeEncodingSchemes = NewTimeEncodingSchemes(
+		map[xtime.Unit]TimeEncodingScheme{
+			xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
+			xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
+			xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
+			xtime.Nanosecond:  newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
+		},
+	)
 
 	// default marker encoding scheme
 	defaultMarkerEncodingScheme = newMarkerEncodingScheme(
@@ -123,6 +125,21 @@ type timeEncodingScheme struct {
 	zeroBucket    TimeBucket
 	buckets       []TimeBucket
 	defaultBucket TimeBucket
+}
+
+// NewTimeEncodingSchemes converts the unit-to-scheme mapping
+// to the underlying TimeEncodingSchemes used for lookups.
+func NewTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
+	encodingSchemes := make(TimeEncodingSchemes, int(xtime.Year))
+	for k, v := range schemes {
+		if k <= xtime.None || k > xtime.Year {
+			continue
+		}
+
+		encodingSchemes[k] = v
+	}
+
+	return encodingSchemes
 }
 
 // newTimeEncodingScheme creates a new time encoding scheme.
