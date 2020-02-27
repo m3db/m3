@@ -40,6 +40,10 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
+const (
+	encodingInstrumented = true
+)
+
 var emptyOp = baseOp{}
 
 type iterationBounds struct {

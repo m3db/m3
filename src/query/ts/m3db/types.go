@@ -78,6 +78,10 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
+	// SetIteratorBatchingFn sets the batching function for the converter.
+	SetInstrumented(bool) Options
+	// IteratorBatchingFn returns the batching function for the converter.
+	Instrumented() bool
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }
