@@ -224,7 +224,7 @@ func (it *iterator) Next() bool {
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	var (
 		dp = ts.Datapoint{
-			Timestamp: it.tsIterator.PrevTime,
+			Timestamp: it.tsIterator.PrevTime.ToTime(),
 		}
 		unit = it.tsIterator.TimeUnit
 	)
