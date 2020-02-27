@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/etcd"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/server"
-
 	"go.uber.org/zap"
 )
 

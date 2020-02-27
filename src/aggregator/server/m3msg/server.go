@@ -52,7 +52,8 @@ func newPassThroughWriteFn(
 		sp policy.StoragePolicy,
 		callback m3msg.Callbackable,
 	) {
-		// The type of a pass-through metric does not matter.
+		// The metric type is set to gauge because all passthrough metrics need no further
+		// aggregation and will be stored directly regardless of the type.
 		metric := aggregated.Metric{
 			Type:      metric.GaugeType,
 			ID:        id,

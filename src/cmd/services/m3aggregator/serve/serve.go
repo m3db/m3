@@ -28,7 +28,6 @@ import (
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/server"
-
 	"github.com/pkg/errors"
 )
 
