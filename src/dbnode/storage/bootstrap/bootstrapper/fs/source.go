@@ -223,13 +223,13 @@ func (s *fileSystemSource) shardAvailability(
 	targetRangesForShard xtime.Ranges,
 ) xtime.Ranges {
 	if targetRangesForShard.IsEmpty() {
-		return xtime.Ranges{}
+		return xtime.NewRanges()
 	}
 
 	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 
-	var tr xtime.Ranges
+	tr := xtime.NewRanges()
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
 		if err := result.Err.Error(); err != nil {

@@ -331,11 +331,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 			// Determine time range to bootstrap
 			end := input.currentTime.Add(blockSize)
-			ranges := xtime.Ranges{}
-			ranges = ranges.AddRange(xtime.Range{
-				Start: start,
-				End:   end,
-			})
+			ranges := xtime.NewRanges(xtime.Range{Start: start, End: end})
 
 			// Determine which shards we need to bootstrap (based on the randomly
 			// generated data)

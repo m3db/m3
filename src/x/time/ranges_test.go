@@ -27,16 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func validateResult(t *testing.T, tr Ranges, expected []Range) {
-	l := tr.sortedRanges
-	require.Equal(t, len(expected), l.Len())
-	idx := 0
-	for e := l.Front(); e != nil; e = e.Next() {
-		require.Equal(t, e.Value.(Range), expected[idx])
-		idx++
-	}
-}
-
 func validateIter(t *testing.T, it *RangeIter, expected []Range) {
 	idx := 0
 	for it.Next() {
@@ -79,7 +69,7 @@ func TestIsEmpty(t *testing.T) {
 	tr := NewRanges()
 	require.True(t, tr.IsEmpty())
 
-	tr.sortedRanges.PushBack(Range{})
+	tr.AddRange(getRangesToAdd()[0])
 	require.False(t, tr.IsEmpty())
 }
 
@@ -99,18 +89,18 @@ func TestClone(t *testing.T) {
 	tr := getPopulatedRanges(rangesToAdd, 0, 4)
 
 	expectedResults := []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[0], rangesToAdd[1]}
-	validateResult(t, tr, expectedResults)
+	validateIter(t, tr.Iter(), expectedResults)
 
-	cloned := tr.clone()
+	cloned := tr.Clone()
 	tr.RemoveRange(rangesToAdd[0])
-	validateResult(t, cloned, expectedResults)
-	validateResult(t, tr, []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[1]})
+	validateIter(t, cloned.Iter(), expectedResults)
+	validateIter(t, tr.Iter(), []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[1]})
 }
 
 func TestAddRange(t *testing.T) {
 	tr := NewRanges()
 	tr.AddRange(Range{})
-	validateResult(t, tr, []Range{})
+	validateIter(t, tr.Iter(), []Range{})
 
 	rangestoAdd := getRangesToAdd()
 	expectedResults := [][]Range{
@@ -126,27 +116,27 @@ func TestAddRange(t *testing.T) {
 	saved := tr.Clone()
 	for i, r := range rangestoAdd {
 		tr.AddRange(r)
-		validateResult(t, tr, expectedResults[i])
+		validateIter(t, tr.Iter(), expectedResults[i])
 	}
-	validateResult(t, saved, []Range{})
+	validateIter(t, saved.Iter(), []Range{})
 }
 
 func TestAddRanges(t *testing.T) {
 	rangesToAdd := getRangesToAdd()
 
 	tr := getPopulatedRanges(rangesToAdd, 0, 4)
-	tr.AddRanges(Ranges{})
+	tr.AddRanges(NewRanges())
 
 	expectedResults := []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[0], rangesToAdd[1]}
-	validateResult(t, tr, expectedResults)
+	validateIter(t, tr.Iter(), expectedResults)
 
 	tr2 := getPopulatedRanges(rangesToAdd, 4, 7)
 	saved := tr.Clone()
 	tr.AddRanges(tr2)
 
 	expectedResults2 := []Range{{Start: testStart.Add(-10 * time.Second), End: testStart.Add(15 * time.Second)}}
-	validateResult(t, tr, expectedResults2)
-	validateResult(t, saved, expectedResults)
+	validateIter(t, tr.Iter(), expectedResults2)
+	validateIter(t, saved.Iter(), expectedResults)
 }
 
 func TestRemoveRange(t *testing.T) {
@@ -178,23 +168,23 @@ func TestRemoveRange(t *testing.T) {
 	saved := tr.Clone()
 	for i, r := range rangesToRemove {
 		tr.RemoveRange(r)
-		validateResult(t, tr, expectedResults[i])
+		validateIter(t, tr.Iter(), expectedResults[i])
 	}
 
 	tr.RemoveRange(Range{})
-	validateResult(t, tr, expectedResults[3])
+	validateIter(t, tr.Iter(), expectedResults[3])
 
 	tr.RemoveRange(Range{
 		Start: testStart.Add(-10 * time.Second),
 		End:   testStart.Add(15 * time.Second),
 	})
 	require.True(t, tr.IsEmpty())
-	validateResult(t, saved, expectedResults[0])
+	validateIter(t, saved.Iter(), expectedResults[0])
 }
 
 func TestRemoveRanges(t *testing.T) {
 	tr := getPopulatedRanges(getRangesToAdd(), 0, 4)
-	tr.RemoveRanges(Ranges{})
+	tr.RemoveRanges(NewRanges())
 
 	expectedResults := []Range{
 		{Start: testStart.Add(-8 * time.Second), End: testStart.Add(-5 * time.Second)},
@@ -202,7 +192,7 @@ func TestRemoveRanges(t *testing.T) {
 		{Start: testStart, End: testStart.Add(time.Second)},
 		{Start: testStart.Add(10 * time.Second), End: testStart.Add(15 * time.Second)},
 	}
-	validateResult(t, tr, expectedResults)
+	validateIter(t, tr.Iter(), expectedResults)
 
 	saved := tr.Clone()
 	tr2 := getPopulatedRanges(getRangesToRemove(), 0, 4)
@@ -212,8 +202,8 @@ func TestRemoveRanges(t *testing.T) {
 		{Start: testStart.Add(-8 * time.Second), End: testStart.Add(-6 * time.Second)},
 		{Start: testStart.Add(13 * time.Second), End: testStart.Add(15 * time.Second)},
 	}
-	validateResult(t, tr, expectedResults2)
-	validateResult(t, saved, expectedResults)
+	validateIter(t, tr.Iter(), expectedResults2)
+	validateIter(t, saved.Iter(), expectedResults)
 }
 
 func TestOverlaps(t *testing.T) {

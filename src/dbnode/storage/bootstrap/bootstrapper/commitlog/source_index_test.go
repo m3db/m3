@@ -156,19 +156,10 @@ func TestBootstrapIndex(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   start.Add(dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(dataBlockSize),
-		End:   start.Add(2 * dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(2 * dataBlockSize),
-		End:   start.Add(3 * dataBlockSize),
-	})
+	ranges := xtime.NewRanges(
+		xtime.Range{Start: start, End: start.Add(dataBlockSize)},
+		xtime.Range{Start: start.Add(dataBlockSize), End: start.Add(2 * dataBlockSize)},
+		xtime.Range{Start: start.Add(2 * dataBlockSize), End: start.Add(3 * dataBlockSize)})
 
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
 	targetRanges := result.ShardTimeRanges{
@@ -382,19 +373,10 @@ func TestBootstrapIndexFailsForDecodedTags(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   start.Add(dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(dataBlockSize),
-		End:   start.Add(2 * dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(2 * dataBlockSize),
-		End:   start.Add(3 * dataBlockSize),
-	})
+	ranges := xtime.NewRanges(
+		xtime.Range{Start: start, End: start.Add(dataBlockSize)},
+		xtime.Range{Start: start.Add(dataBlockSize), End: start.Add(2 * dataBlockSize)},
+		xtime.Range{Start: start.Add(2 * dataBlockSize), End: start.Add(3 * dataBlockSize)})
 
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
 	targetRanges := result.ShardTimeRanges{

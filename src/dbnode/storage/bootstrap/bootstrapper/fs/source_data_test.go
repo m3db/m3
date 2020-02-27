@@ -305,7 +305,7 @@ func TestAvailableEmptyRangeError(t *testing.T) {
 	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
-		map[uint32]xtime.Ranges{0: xtime.Ranges{}},
+		map[uint32]xtime.Ranges{0: xtime.NewRanges()},
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -446,7 +446,7 @@ func TestReadEmptyRangeErr(t *testing.T) {
 func TestReadPatternError(t *testing.T) {
 	src, err := newFileSystemSource(newTestOptions(t, "[["))
 	require.NoError(t, err)
-	timeRanges := result.ShardTimeRanges{testShard: xtime.Ranges{}}
+	timeRanges := result.ShardTimeRanges{testShard: xtime.NewRanges()}
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
 		timeRanges, nsMD)
@@ -502,7 +502,7 @@ func TestReadNilTimeRanges(t *testing.T) {
 	require.NoError(t, err)
 	timeRanges := result.ShardTimeRanges{
 		testShard: testTimeRanges(),
-		555:       xtime.Ranges{},
+		555:       xtime.NewRanges(),
 	}
 
 	validateReadResults(t, src, dir, timeRanges)

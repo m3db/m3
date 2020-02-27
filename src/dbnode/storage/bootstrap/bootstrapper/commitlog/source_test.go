@@ -49,7 +49,7 @@ func TestAvailableData(t *testing.T) {
 		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
-		bootstrapRanges            = xtime.Ranges{}.AddRange(xtime.Range{
+		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})

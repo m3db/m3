@@ -97,11 +97,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		return nil, nil, errors.New("an error")
 	}
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: time.Now(),
-		End:   time.Now().Add(time.Hour),
-	})
+	ranges := xtime.NewRanges(xtime.Range{Start: time.Now(), End: time.Now().Add(time.Hour)})
 
 	md := testNsMetadata(t)
 	target := result.ShardTimeRanges{0: ranges}
@@ -131,11 +127,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   end,
-	})
+	ranges := xtime.NewRanges(xtime.Range{Start: start, End: end})
 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 	bar := ts.Series{Namespace: nsCtx.ID, Shard: 1, ID: ident.StringID("bar")}
@@ -187,11 +179,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   end,
-	})
+	ranges := xtime.NewRanges(xtime.Range{Start: start, End: end})
 
 	foo := ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 
@@ -243,11 +231,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now.Truncate(blockSize)
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   end,
-	})
+	ranges := xtime.NewRanges(xtime.Range{Start: start, End: end})
 
 	// All series need to be in the same shard to exercise the regression.
 	foo := ts.Series{
@@ -306,7 +290,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		now       = time.Now()
 		start     = now.Truncate(blockSize).Add(-blockSize)
 		end       = now.Truncate(blockSize)
-		ranges    = xtime.Ranges{}
+		ranges    = xtime.NewRanges()
 
 		foo             = ts.Series{Namespace: nsCtx.ID, Shard: 0, ID: ident.StringID("foo")}
 		commitLogValues = testValues{
@@ -319,7 +303,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		commitLogValues = setAnn(commitLogValues)
 	}
 
-	ranges = ranges.AddRange(xtime.Range{
+	ranges.AddRange(xtime.Range{
 		Start: start,
 		End:   end,
 	})
