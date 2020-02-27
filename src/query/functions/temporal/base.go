@@ -264,8 +264,10 @@ func parallelProcess(
 
 			series     = iter.Current()
 			datapoints = series.Datapoints()
+			stats      = series.Stats()
 		)
-		if stats, ok := series.Stats(); ok {
+
+		if stats.Enabled {
 			decodeTime += stats.DecodeTime
 		}
 
@@ -336,8 +338,10 @@ func singleProcess(
 
 			series     = seriesIter.Current()
 			datapoints = series.Datapoints()
+			stats      = series.Stats()
 		)
-		if stats, ok := series.Stats(); ok {
+
+		if stats.Enabled {
 			decodeTime += stats.DecodeTime
 		}
 

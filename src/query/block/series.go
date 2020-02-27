@@ -54,38 +54,41 @@ func (s Series) Len() int {
 
 // UnconsolidatedSeries is the series with raw datapoints.
 type UnconsolidatedSeries struct {
-	opts UnconsolidatedSeriesOptions
-}
-
-// UnconsolidatedSeriesOptions is options for creating an unconsolidated series.
-type UnconsolidatedSeriesOptions struct {
-	Datapoints   ts.Datapoints
-	Meta         SeriesMeta
-	StatsEnabled bool
-	Stats        UnconsolidatedSeriesStats
+	datapoints ts.Datapoints
+	Meta       SeriesMeta
+	stats      UnconsolidatedSeriesStats
 }
 
 // UnconsolidatedSeriesStats is stats about an unconsolidated series.
 type UnconsolidatedSeriesStats struct {
+	Enabled    bool
 	DecodeTime time.Duration
 }
 
 // NewUnconsolidatedSeries creates a new series with raw datapoints.
-func NewUnconsolidatedSeries(opts UnconsolidatedSeriesOptions) UnconsolidatedSeries {
-	return UnconsolidatedSeries{opts: opts}
+func NewUnconsolidatedSeries(
+	datapoints ts.Datapoints,
+	meta SeriesMeta,
+	stats UnconsolidatedSeriesStats,
+) UnconsolidatedSeries {
+	return UnconsolidatedSeries{
+		datapoints: datapoints,
+		Meta:       meta,
+		stats:      stats,
+	}
 }
 
 // Datapoints returns the internal datapoints slice.
 func (s UnconsolidatedSeries) Datapoints() ts.Datapoints {
-	return s.opts.Datapoints
+	return s.datapoints
 }
 
 // Len returns the number of datapoints slices in the series.
 func (s UnconsolidatedSeries) Len() int {
-	return len(s.opts.Datapoints)
+	return len(s.datapoints)
 }
 
 // Stats returns statistics about the unconsolidated series if they were supplied.
-func (s UnconsolidatedSeries) Stats() (UnconsolidatedSeriesStats, bool) {
-	return s.opts.Stats, s.opts.StatsEnabled
+func (s UnconsolidatedSeries) Stats() UnconsolidatedSeriesStats {
+	return s.stats
 }
