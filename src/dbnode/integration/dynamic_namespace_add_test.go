@@ -23,14 +23,17 @@
 package integration
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +42,8 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	// test options
 	testOpts := newTestOptions(t).
@@ -86,10 +91,39 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	require.NoError(t, testSetup.startServer())
 
 	// Stop the server
+	stopped := false
 	defer func() {
+		stopped = true
 		require.NoError(t, testSetup.stopServer())
 		log.Info("server is now down")
 	}()
+
+	// NB(bodu): concurrently do work on the leaseManager to ensure no race cond deadlock regressions by
+	// calling OpenLease or OpenLatestLease (blocked on DB lock).
+	var wg sync.WaitGroup
+	leaser := block.NewMockLeaser(ctrl)
+	leaseState := block.LeaseState{}
+	for i := 0; i < 100; i++ {
+		leaseDescriptor := block.LeaseDescriptor{
+			Namespace:  ns0.ID(),
+			Shard:      uint32(0),
+			BlockStart: time.Now().Truncate(ns0.Options().RetentionOptions().BlockSize()),
+		}
+		wg.Add(2)
+		go func() {
+			wg.Done()
+			for !stopped {
+				testSetup.blockLeaseManager.OpenLease(leaser, leaseDescriptor, leaseState)
+			}
+		}()
+		go func() {
+			wg.Done()
+			for !stopped {
+				testSetup.blockLeaseManager.OpenLatestLease(leaser, leaseDescriptor)
+			}
+		}()
+	}
+	wg.Wait()
 
 	// Write test data
 	blockSize := ns0.Options().RetentionOptions().BlockSize()
