@@ -126,7 +126,13 @@ type RunOptions struct {
 
 	// CustomPromQLParseFunction is a custom PromQL parsing function.
 	CustomPromQLParseFunction promql.ParseFn
+
+	// ApplyCustomTSDBOptions is a transform that allows for custom tsdb options.
+	ApplyCustomTSDBOptions CustomTSDBOptionsFn
 }
+
+// CustomTSDBOptionsFn is a transformation function for TSDB Options.
+type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
@@ -239,6 +245,10 @@ func Run(runOpts RunOptions) {
 		SetConsolidationFunc(consolidators.TakeLast).
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool)
+
+	if runOpts.ApplyCustomTSDBOptions != nil {
+		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts)
+	}
 
 	if cfg.Backend == config.GRPCStorageType {
 		// For grpc backend, we need to setup only the grpc client and a storage

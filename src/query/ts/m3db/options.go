@@ -44,6 +44,7 @@ var (
 	defaultIterAlloc        = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
+	defaultIteratorBatchingFn = iteratorBatchingFn
 )
 
 type encodedBlockOptions struct {
@@ -56,6 +57,7 @@ type encodedBlockOptions struct {
 	checkedPools     pool.CheckedBytesPool
 	readWorkerPools  xsync.PooledWorkerPool
 	writeWorkerPools xsync.PooledWorkerPool
+	batchingFn       IteratorBatchingFn
 }
 
 type nextDetails struct {
@@ -88,6 +90,7 @@ func NewOptions() Options {
 		iterAlloc:        defaultIterAlloc,
 		pools:            pools.BuildIteratorPools(),
 		checkedPools:     bytesPool,
+		batchingFn:       defaultIteratorBatchingFn,
 	}
 }
 
@@ -179,6 +182,16 @@ func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Optio
 
 func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
 	return o.writeWorkerPools
+}
+
+func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Options {
+	opts := *o
+	opts.batchingFn = fn
+	return &opts
+}
+
+func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
+	return o.batchingFn
 }
 
 func (o *encodedBlockOptions) Validate() error {
