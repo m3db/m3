@@ -166,7 +166,7 @@ var (
 		"y",
 	}
 
-	durationsToUnit = make(map[time.Duration]Unit)
+	// Using an array here to avoid map access cost.
 	unitsToDuration = []time.Duration{
 		None:        time.Duration(0),
 		Second:      time.Second,
@@ -178,6 +178,7 @@ var (
 		Day:         time.Hour * 24,
 		Year:        time.Hour * 24 * 365,
 	}
+	durationsToUnit = make(map[time.Duration]Unit)
 
 	unitCount = len(unitsToDuration)
 
