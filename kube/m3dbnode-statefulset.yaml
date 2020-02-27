@@ -83,6 +83,13 @@ spec:
       containers:
       - name: m3db
         image: quay.io/m3/m3dbnode:latest
+        # Allows m3dbnode to raise its own file limits. Comment this out if you
+        # have a restrictive Pod Security Policy or similar enforcement
+        # mechanisms.
+        securityContext:
+          capabilities:
+            add:
+            - SYS_RESOURCE
         imagePullPolicy: Always
         # resources:
         #   limits:
