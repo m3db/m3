@@ -228,7 +228,9 @@ func TestSeriesIter(t *testing.T) {
 	}
 
 	unconsolidated := UnconsolidatedSeries{
-		datapoints: vals,
+		opts: UnconsolidatedSeriesOptions{
+			Datapoints: vals,
+		},
 	}
 
 	iter.EXPECT().Current().Return(unconsolidated)
@@ -341,7 +343,9 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 	}
 
 	unconsolidated := UnconsolidatedSeries{
-		datapoints: vals,
+		opts: UnconsolidatedSeriesOptions{
+			Datapoints: vals,
+		},
 	}
 
 	iter.EXPECT().Current().Return(unconsolidated)
