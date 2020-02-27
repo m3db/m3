@@ -57,6 +57,7 @@ type replicatedSessionMetrics struct {
 	replicateExecuted    tally.Counter
 	replicateNotExecuted tally.Counter
 	replicateError       tally.Counter
+	replicateSuccess     tally.Counter
 }
 
 func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
@@ -64,6 +65,7 @@ func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
 		replicateExecuted:    scope.Counter("replicate.executed"),
 		replicateNotExecuted: scope.Counter("replicate.not-executed"),
 		replicateError:       scope.Counter("replicate.error"),
+		replicateSucess:      scope.Counter("replicate.success"),
 	}
 }
 
@@ -166,6 +168,8 @@ func (s replicatedSession) replicate(params replicatedParams) error {
 				if err != nil {
 					s.metrics.replicateError.Inc(1)
 					s.log.Error("could not replicate write", zap.Error(err))
+				} else {
+					s.metrics.replicateSuccess.Inc(1)
 				}
 				if s.outCh != nil {
 					s.outCh <- err
