@@ -45,7 +45,6 @@ type encodedBlock struct {
 	seriesBlockIterators []encoding.SeriesIterator
 	options              Options
 	resultMeta           block.ResultMetadata
-	instrumented         bool
 }
 
 // NewEncodedBlock builds an encoded block.
@@ -90,7 +89,6 @@ func newEncodedBlock(
 		lastBlock:            lastBlock,
 		resultMeta:           resultMeta,
 		options:              options,
-		instrumented:         true,
 	}
 }
 

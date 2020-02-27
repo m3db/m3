@@ -92,7 +92,7 @@ type IteratorBatchingFn func(
 	seriesBlockIterators []encoding.SeriesIterator,
 	seriesMetas []block.SeriesMeta,
 	meta block.Metadata,
-	lookback time.Duration,
+	opts Options,
 ) ([]block.SeriesIterBatch, error)
 
 type peekValue struct {
