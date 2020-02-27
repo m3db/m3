@@ -198,15 +198,15 @@ func (it *seriesIterator) moveToNext() {
 	}
 }
 
-func (it *seriesIterator) Digest() (SeriesIteratorDigest, error) {
+func (it *seriesIterator) Stats() (SeriesIteratorStats, error) {
 	approx := 0
 	for _, readerIter := range it.multiReaderIters {
 		readers := readerIter.Readers()
 		size, err := readers.Size()
 		if err != nil {
-			return SeriesIteratorDigest{}, err
+			return SeriesIteratorStats{}, err
 		}
 		approx += size
 	}
-	return SeriesIteratorDigest{ApproximateSize: approx}, nil
+	return SeriesIteratorStats{ApproximateSize: approx}, nil
 }

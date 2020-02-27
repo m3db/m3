@@ -305,7 +305,7 @@ func assertTestSeriesIterator(
 	}
 }
 
-func TestSeriesIteratorDigest(t *testing.T) {
+func TestSeriesIteratorStats(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -336,7 +336,7 @@ func TestSeriesIteratorDigest(t *testing.T) {
 			&multiReaderIterator{slicesIter: readerTwo},
 		},
 	}
-	digest, err := iter.Digest()
+	stats, err := iter.Stats()
 	require.NoError(t, err)
-	assert.Equal(t, 24, digest.ApproximateSize)
+	assert.Equal(t, 24, stats.ApproximateSize)
 }

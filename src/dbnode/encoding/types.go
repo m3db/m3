@@ -247,12 +247,12 @@ type SeriesIterator interface {
 	// for this SeriesIterator.
 	Replicas() []MultiReaderIterator
 
-	// Digest provides information for this SeriesIterator.
-	Digest() (SeriesIteratorDigest, error)
+	// Stat sprovides information for this SeriesIterator.
+	Stats() (SeriesIteratorStats, error)
 }
 
-// SeriesIteratorDigest is a digest with information about a SeriesIterator.
-type SeriesIteratorDigest struct {
+// SeriesIteratorStats contains information about a SeriesIterator.
+type SeriesIteratorStats struct {
 	// ApproximateSize approximates how much data is contained within the
 	// SeriesIterator.
 	ApproximateSize int
