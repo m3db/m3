@@ -1434,6 +1434,9 @@ manifests.</p>
 <h3 id="kernel-configuration">Kernel Configuration</h3>
 <p>We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the <a href="../../operational_guide/kernel_configuration/">kernel</a> docs
 for more.</p>
+<p>Note that our default StatefulSet spec will give the M3DB container <code>CAP_SYS_RESOURCE</code> so it may raise its file limits.
+Uncomment the <code>securityContext</code> on the <code>m3db</code> container in the StatefulSet if running with a Pod Security Policy or
+similar enforcement mechanism that prevents adding capabilities to containers.</p>
 <h2 id="deploying">Deploying</h2>
 <p>Apply the following manifest to create your cluster:
 <div class="highlight"><pre><span></span>kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/bundle.yaml
