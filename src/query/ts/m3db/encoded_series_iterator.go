@@ -21,12 +21,30 @@
 package m3db
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
+
+// NewEncodedSeriesIter creates a new encoded series iterator.
+func NewEncodedSeriesIter(
+	meta block.Metadata,
+	seriesMetas []block.SeriesMeta,
+	seriesIters []encoding.SeriesIterator,
+	lookback time.Duration,
+) block.SeriesIter {
+	return &encodedSeriesIter{
+		idx:              -1,
+		meta:             meta,
+		seriesMeta:       seriesMetas,
+		seriesIters:      seriesIters,
+		lookbackDuration: lookback,
+	}
+}
 
 type encodedSeriesIter struct {
 	idx              int
@@ -40,13 +58,9 @@ type encodedSeriesIter struct {
 }
 
 func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
-	return &encodedSeriesIter{
-		idx:              -1,
-		meta:             b.meta,
-		seriesMeta:       b.seriesMetas,
-		seriesIters:      b.seriesBlockIterators,
-		lookbackDuration: b.options.LookbackDuration(),
-	}, nil
+	return NewEncodedSeriesIter(
+		b.meta, b.seriesMetas, b.seriesBlockIterators, b.options.LookbackDuration(),
+	), nil
 }
 
 func (it *encodedSeriesIter) Current() block.UnconsolidatedSeries {
@@ -107,4 +121,70 @@ func (it *encodedSeriesIter) SeriesMeta() []block.SeriesMeta {
 func (it *encodedSeriesIter) Close() {
 	// noop, as the resources at the step may still be in use;
 	// instead call Close() on the encodedBlock that generated this
+}
+
+// MultiSeriesIter returns batched series iterators for the block based on
+// given concurrency.
+func (b *encodedBlock) MultiSeriesIter(
+	concurrency int,
+) ([]block.SeriesIterBatch, error) {
+	fn := iteratorBatchingFn
+	if b.options != nil && b.options.IteratorBatchingFn() != nil {
+		fn = b.options.IteratorBatchingFn()
+	}
+
+	return fn(
+		concurrency,
+		b.seriesBlockIterators,
+		b.seriesMetas,
+		b.meta,
+		b.options.LookbackDuration(),
+	)
+}
+
+func iteratorBatchingFn(
+	concurrency int,
+	seriesBlockIterators []encoding.SeriesIterator,
+	seriesMetas []block.SeriesMeta,
+	meta block.Metadata,
+	lookback time.Duration,
+) ([]block.SeriesIterBatch, error) {
+	if concurrency < 1 {
+		return nil, fmt.Errorf("batch size %d must be greater than 0", concurrency)
+	}
+
+	var (
+		iterCount  = len(seriesBlockIterators)
+		iters      = make([]block.SeriesIterBatch, 0, concurrency)
+		chunkSize  = iterCount / concurrency
+		remainder  = iterCount % concurrency
+		chunkSizes = make([]int, concurrency)
+	)
+
+	util.MemsetInt(chunkSizes, chunkSize)
+	for i := 0; i < remainder; i++ {
+		chunkSizes[i] = chunkSizes[i] + 1
+	}
+
+	start := 0
+	for _, chunkSize := range chunkSizes {
+		end := start + chunkSize
+
+		if end > iterCount {
+			end = iterCount
+		}
+
+		iter := NewEncodedSeriesIter(
+			meta, seriesMetas[start:end], seriesBlockIterators[start:end], lookback,
+		)
+
+		iters = append(iters, block.SeriesIterBatch{
+			Iter: iter,
+			Size: end - start,
+		})
+
+		start = end
+	}
+
+	return iters, nil
 }
