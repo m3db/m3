@@ -40,6 +40,10 @@ manifests.
 We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][kernel] docs
 for more.
 
+Note that our default StatefulSet spec will give the M3DB container `CAP_SYS_RESOURCE` so it may raise its file limits.
+Uncomment the `securityContext` on the `m3db` container in the StatefulSet if running with a Pod Security Policy or
+similar enforcement mechanism that prevents adding capabilities to containers.
+
 ## Deploying
 
 Apply the following manifest to create your cluster:
