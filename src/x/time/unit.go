@@ -198,14 +198,14 @@ func (b byDurationDesc) Less(i, j int) bool {
 
 func init() {
 	unitsByDurationDesc = make([]Unit, 0, len(unitsToDuration))
-	for uu, d := range unitsToDuration {
-		u := Unit(uu)
-		if u == None {
+	for u, d := range unitsToDuration {
+		unit := Unit(u)
+		if unit == None {
 			continue
 		}
 
-		durationsToUnit[d] = u
-		unitsByDurationDesc = append(unitsByDurationDesc, u)
+		durationsToUnit[d] = unit
+		unitsByDurationDesc = append(unitsByDurationDesc, unit)
 	}
 	sort.Sort(byDurationDesc(unitsByDurationDesc))
 }

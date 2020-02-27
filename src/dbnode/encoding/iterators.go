@@ -23,18 +23,13 @@ package encoding
 import (
 	"math"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
-	// time is stored as an int64 plus an int32 nanosecond value, but if you
-	// use max int64 for the seconds component only then integer overflow
-	// will occur when performing comparisons like time.Before() and they
-	// will not work correctly.
-	timeMax      = time.Unix(1<<63-62135596801, 999999999)
+	// UnixNano is an int64, so the max time is the max of that type.
 	timeMaxNanos = xtime.UnixNano(math.MaxInt64)
 )
 
