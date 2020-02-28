@@ -56,7 +56,7 @@ type options struct {
 func newOptions() Options {
 	return &options{
 		defaultTimeUnit:        defaultDefaultTimeUnit,
-		timeEncodingSchemes:    defaultTimeEncodingSchemes,
+		timeEncodingSchemes:    NewTimeEncodingSchemes(defaultTimeEncodingSchemes),
 		markerEncodingScheme:   defaultMarkerEncodingScheme,
 		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
 		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,

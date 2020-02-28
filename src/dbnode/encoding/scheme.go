@@ -44,14 +44,12 @@ var (
 
 	// TODO(xichen): set more reasonable defaults once we have more knowledge
 	// of the use cases for time units other than seconds.
-	defaultTimeEncodingSchemes = NewTimeEncodingSchemes(
-		map[xtime.Unit]TimeEncodingScheme{
-			xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
-			xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
-			xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
-			xtime.Nanosecond:  newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
-		},
-	)
+	defaultTimeEncodingSchemes = map[xtime.Unit]TimeEncodingScheme{
+		xtime.Second:      newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
+		xtime.Millisecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 32),
+		xtime.Microsecond: newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
+		xtime.Nanosecond:  newTimeEncodingScheme(defaultNumValueBitsForBuckets, 64),
+	}
 
 	// default marker encoding scheme
 	defaultMarkerEncodingScheme = newMarkerEncodingScheme(
@@ -132,7 +130,7 @@ type timeEncodingScheme struct {
 func NewTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
 	encodingSchemes := make(TimeEncodingSchemes, int(xtime.Year))
 	for k, v := range schemes {
-		if k <= xtime.None || k > xtime.Year {
+		if !k.IsValid() {
 			continue
 		}
 
@@ -172,9 +170,10 @@ func (tes *timeEncodingScheme) DefaultBucket() TimeBucket { return tes.defaultBu
 // TimeEncodingSchemes defines the time encoding schemes for different time units.
 type TimeEncodingSchemes []TimeEncodingScheme
 
-// SchemeForUnit SchemeForUnit
+// SchemeForUnit returns the corresponding TimeEncodingScheme for the provided unit.
+// Returns false if the unit does not match a scheme or is invalid.
 func (s TimeEncodingSchemes) SchemeForUnit(u xtime.Unit) (TimeEncodingScheme, bool) {
-	if u < 1 || int(u) > len(s) {
+	if !u.IsValid() {
 		return nil, false
 	}
 
