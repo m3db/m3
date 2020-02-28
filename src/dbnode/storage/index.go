@@ -748,10 +748,10 @@ func (i *nsIndex) Flush(
 
 	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions()
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
-	defer builder.Close()
 	if err != nil {
 		return err
 	}
+	defer builder.Close()
 
 	var evicted int
 	for _, block := range flushable {

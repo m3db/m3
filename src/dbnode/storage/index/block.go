@@ -717,7 +717,11 @@ func (b *block) cleanupForegroundCompactWithLock() {
 
 	// Free segment builder resources.
 	if b.compact.segmentBuilder != nil {
-		b.compact.segmentBuilder.Close()
+		if err := b.compact.segmentBuilder.Close(); err != nil {
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("error closing index block segment builder", zap.Error(err))
+			})
+		}
 		b.compact.segmentBuilder = nil
 	}
 }

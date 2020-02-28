@@ -39,15 +39,6 @@ func newShardedFieldsMap(
 	}
 }
 
-func (s *shardedFieldsMap) Get(k []byte) (*terms, bool) {
-	for _, fieldMap := range s.data {
-		if t, found := fieldMap.Get(k); found {
-			return t, found
-		}
-	}
-	return nil, false
-}
-
 func (s *shardedFieldsMap) ShardedGet(
 	shard int,
 	k []byte,

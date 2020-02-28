@@ -30,13 +30,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
-	"go.uber.org/atomic"
 
 	"github.com/cespare/xxhash"
 )
 
 var (
 	errDocNotFound = errors.New("doc not found")
+	errClosed      = errors.New("builder closed")
 )
 
 const (
@@ -55,6 +55,11 @@ type indexJob struct {
 	batchErr *index.BatchPartialError
 }
 
+type builderStatus struct {
+	sync.RWMutex
+	closed bool
+}
+
 type builder struct {
 	opts      Options
 	newUUIDFn util.NewUUIDFn
@@ -68,7 +73,7 @@ type builder struct {
 	uniqueFields [][][]byte
 
 	indexQueues []chan indexJob
-	closed      *atomic.Bool
+	status      builderStatus
 }
 
 // NewBuilderFromDocuments returns a builder from documents, it is
@@ -87,7 +92,6 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		}),
 		uniqueFields: make([][][]byte, 0, concurrency),
 		indexQueues:  make([]chan indexJob, 0, concurrency),
-		closed:       atomic.NewBool(false),
 	}
 
 	for i := 0; i < concurrency; i++ {
@@ -146,6 +150,13 @@ func (b *builder) Insert(d doc.Document) ([]byte, error) {
 }
 
 func (b *builder) InsertBatch(batch index.Batch) error {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
+	if b.status.closed {
+		return errClosed
+	}
+
 	// NB(r): This is all kept in a single method to make the
 	// insertion path fast.
 	var wg sync.WaitGroup
@@ -213,10 +224,6 @@ func (b *builder) index(
 	i int,
 	batchErr *index.BatchPartialError,
 ) {
-	// Do-nothing if we are already closed to avoid send on closed panics.
-	if b.closed.Load() {
-		return
-	}
 	wg.Add(1)
 	// NB(bodu): To avoid locking inside of the terms, we shard the work
 	// by field name.
@@ -291,7 +298,9 @@ func (b *builder) Fields() (segment.FieldsIterator, error) {
 }
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
-	terms, ok := b.fields.Get(field)
+	// NB(bodu): The # of indexQueues and field map shards are equal.
+	shard := int(xxhash.Sum64(field) % uint64(len(b.indexQueues)))
+	terms, ok := b.fields.ShardedGet(shard, field)
 	if !ok {
 		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
@@ -304,9 +313,11 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 }
 
 func (b *builder) Close() error {
-	b.closed.Store(true)
+	b.status.Lock()
+	defer b.status.Unlock()
 	for _, q := range b.indexQueues {
 		close(q)
 	}
+	b.status.closed = true
 	return nil
 }
