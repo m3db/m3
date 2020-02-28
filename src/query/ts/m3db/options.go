@@ -45,6 +45,7 @@ var (
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	defaultIteratorBatchingFn = iteratorBatchingFn
+	defaultInstrumented       = true
 )
 
 type encodedBlockOptions struct {
@@ -92,6 +93,7 @@ func NewOptions() Options {
 		pools:            pools.BuildIteratorPools(),
 		checkedPools:     bytesPool,
 		batchingFn:       defaultIteratorBatchingFn,
+		instrumented:     defaultInstrumented,
 	}
 }
 

@@ -40,10 +40,6 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-const (
-	encodingInstrumented = true
-)
-
 var emptyOp = baseOp{}
 
 type iterationBounds struct {
@@ -245,13 +241,15 @@ func parallelProcess(
 		start      = time.Now()
 		decodeTime time.Duration
 	)
-	_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeParallel)
+
 	defer func() {
 		if decodeTime == 0 {
 			return // Do not record this span if instrumentation is not turned on.
 		}
+
 		// Simulate as if we did all the decoding up front so we can visualize
 		// how much decoding takes relative to the entire processing of the function.
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
 		sp.FinishWithOptions(opentracing.FinishOptions{
 			FinishTime: start.Add(decodeTime),
 		})

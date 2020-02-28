@@ -347,8 +347,8 @@ func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
 
 // StartSampledTraceSpan starts a span that may or may not be sampled and will
 // return whether it was sampled or not.
-func StartSampledTraceSpan(ctx stdctx.Context, name string) (stdctx.Context, opentracing.Span, bool) {
-	sp, spCtx := xopentracing.StartSpanFromContext(ctx, name)
+func StartSampledTraceSpan(ctx stdctx.Context, name string, opts ...opentracing.StartSpanOption) (stdctx.Context, opentracing.Span, bool) {
+	sp, spCtx := xopentracing.StartSpanFromContext(ctx, name, opts...)
 	sampled := spanIsSampled(sp)
 	if !sampled {
 		return ctx, noopTracer.StartSpan(name), false

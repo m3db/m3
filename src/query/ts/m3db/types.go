@@ -78,9 +78,9 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
-	// SetIteratorBatchingFn sets the batching function for the converter.
+	// SetInstrumented marks if the encoding step should have instrumentation enabled.
 	SetInstrumented(bool) Options
-	// IteratorBatchingFn returns the batching function for the converter.
+	// Instrumented returns if the encoding step should have instrumentation enabled.
 	Instrumented() bool
 	// Validate ensures that the given block options are valid.
 	Validate() error

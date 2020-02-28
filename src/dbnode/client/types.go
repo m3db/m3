@@ -96,8 +96,12 @@ type Session interface {
 
 // FetchResponseMetadata is metadata about a fetch response.
 type FetchResponseMetadata struct {
-	Exhaustive         bool
-	Responses          int
+	// Exhaustive indicates whether the underlying data set presents a full
+	// collection of retrieved data.
+	Exhaustive bool
+	// Responses is the count of responses.
+	Responses int
+	// EstimateTotalBytes is an approximation of the total byte size of the response.
 	EstimateTotalBytes int
 }
 
