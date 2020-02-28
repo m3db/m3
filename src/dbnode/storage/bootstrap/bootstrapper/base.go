@@ -22,7 +22,6 @@ package bootstrapper
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -101,8 +100,6 @@ func (b baseBootstrapper) Bootstrap(
 			return bootstrap.NamespaceResults{}, err
 		}
 
-		log.Println("dataAvailable:", dataAvailable)
-		log.Println("currNamespace.DataRunOptions.ShardTimeRanges.Copy():", currNamespace.DataRunOptions.ShardTimeRanges.Copy())
 		currNamespace.DataRunOptions.ShardTimeRanges = dataAvailable
 
 		// Prepare index if required.
