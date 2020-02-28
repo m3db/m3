@@ -356,13 +356,13 @@ func StartSampledTraceSpan(ctx stdctx.Context, name string, opts ...opentracing.
 	return spCtx, sp, true
 }
 
-// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger span.
-// See https://github.com/opentracing/specification/issues/92 for more information.
 func spanIsSampled(sp opentracing.Span) bool {
 	if sp == nil {
 		return false
 	}
 
+	// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger/Lightstep/etc. spans.
+	// See https://github.com/opentracing/specification/issues/92 for more information.
 	spanCtx := sp.Context()
 	jaegerSpCtx, ok := spanCtx.(jaeger.SpanContext)
 	if ok && jaegerSpCtx.IsSampled() {
