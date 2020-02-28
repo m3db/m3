@@ -238,12 +238,11 @@ func parallelProcess(
 	mu *sync.Mutex,
 ) error {
 	var (
-		start      = time.Now()
-		decodeTime time.Duration
+		start          = time.Now()
+		decodeDuration time.Duration
 	)
-
 	defer func() {
-		if decodeTime == 0 {
+		if decodeDuration == 0 {
 			return // Do not record this span if instrumentation is not turned on.
 		}
 
@@ -251,7 +250,7 @@ func parallelProcess(
 		// how much decoding takes relative to the entire processing of the function.
 		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
 		sp.FinishWithOptions(opentracing.FinishOptions{
-			FinishTime: start.Add(decodeTime),
+			FinishTime: start.Add(decodeDuration),
 		})
 	}()
 
@@ -270,7 +269,7 @@ func parallelProcess(
 		)
 
 		if stats.Enabled {
-			decodeTime += stats.DecodeTime
+			decodeDuration += stats.DecodeDuration
 		}
 
 		values = values[:0]
@@ -315,18 +314,18 @@ func singleProcess(
 	p processor,
 ) error {
 	var (
-		start      = time.Now()
-		decodeTime time.Duration
+		start          = time.Now()
+		decodeDuration time.Duration
 	)
 	_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeSingle)
 	defer func() {
-		if decodeTime == 0 {
+		if decodeDuration == 0 {
 			return // Do not record this span if instrumentation is not turned on.
 		}
 		// Simulate as if we did all the decoding up front so we can visualize
 		// how much decoding takes relative to the entire processing of the function.
 		sp.FinishWithOptions(opentracing.FinishOptions{
-			FinishTime: start.Add(decodeTime),
+			FinishTime: start.Add(decodeDuration),
 		})
 	}()
 
@@ -344,7 +343,7 @@ func singleProcess(
 		)
 
 		if stats.Enabled {
-			decodeTime += stats.DecodeTime
+			decodeDuration += stats.DecodeDuration
 		}
 
 		for i := 0; i < m.steps; i++ {
