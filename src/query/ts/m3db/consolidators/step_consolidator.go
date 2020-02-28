@@ -48,6 +48,7 @@ type StepLookbackConsolidator struct {
 	stepSize         time.Duration
 	earliestLookback time.Time
 	datapoints       []ts.Datapoint
+	buffer           []float64
 	unconsumed       []float64
 	fn               ConsolidationFunc
 }
@@ -69,6 +70,7 @@ func NewStepLookbackConsolidator(
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
+		buffer:           buffer,
 		unconsumed:       buffer[:0],
 		fn:               fn,
 	}
@@ -106,7 +108,6 @@ func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	}
 
 	val := c.unconsumed[0]
-	copy(c.unconsumed, c.unconsumed[1:])
-	c.unconsumed = c.unconsumed[:len(c.unconsumed)-1]
+	c.unconsumed = c.unconsumed[1:]
 	return val
 }
