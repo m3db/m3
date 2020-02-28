@@ -230,3 +230,15 @@ func (it *singleSlicesOfSlicesIterator) Close() {
 	}
 	it.closed = true
 }
+
+func (it *singleSlicesOfSlicesIterator) Size() (int, error) {
+	size := 0
+	for _, reader := range it.readers {
+		seg, err := reader.Segment()
+		if err != nil {
+			return 0, err
+		}
+		size += seg.Len()
+	}
+	return size, nil
+}

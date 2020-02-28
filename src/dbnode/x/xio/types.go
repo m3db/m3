@@ -29,7 +29,8 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 )
 
-// BlockReader represents a block reader backed by a SegmentReader with start time and block size.
+// BlockReader represents a block reader backed by a
+// SegmentReader with start time and block size.
 type BlockReader struct {
 	SegmentReader
 	Start     time.Time
@@ -67,7 +68,8 @@ type SegmentReaderPool interface {
 	Put(sr SegmentReader)
 }
 
-// ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays.
+// ReaderSliceOfSlicesIterator is an iterator that iterates
+// through an array of reader arrays.
 type ReaderSliceOfSlicesIterator interface {
 	// Next moves to the next item.
 	Next() bool
@@ -75,14 +77,19 @@ type ReaderSliceOfSlicesIterator interface {
 	// CurrentReaders returns the current length, start time, and block size.
 	CurrentReaders() (length int, start time.Time, blockSize time.Duration)
 
-	// CurrentReaderAt returns the current reader in the slice of readers at an index.
+	// CurrentReaderAt returns the current reader in the slice
+	// of readers at an index.
 	CurrentReaderAt(idx int) BlockReader
 
 	// Close closes the iterator.
 	Close()
+
+	// Size gives the size of bytes in this iterator.
+	Size() (int, error)
 }
 
-// ReaderSliceOfSlicesFromBlockReadersIterator is an iterator that iterates through an array of reader arrays.
+// ReaderSliceOfSlicesFromBlockReadersIterator is an iterator
+// that iterates through an array of reader arrays.
 type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 	ReaderSliceOfSlicesIterator
 

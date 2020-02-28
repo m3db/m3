@@ -167,7 +167,11 @@ func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query,
 }
 
 // Aggregate aggregates values from the database for the given set of constraints.
-func (s *AsyncSession) Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
+func (s *AsyncSession) Aggregate(
+	namespace ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
+) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {

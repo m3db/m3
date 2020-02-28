@@ -154,9 +154,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err := session.Aggregate(ns1.ID(),
+	iter, fetchResponse, err := session.Aggregate(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive := fetchResponse.Exhaustive
 	require.True(t, exhaustive)
 	defer iter.Finalize()
 
@@ -177,9 +178,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
+	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive = fetchResponse.Exhaustive
 	defer iter.Finalize()
 
 	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
@@ -197,9 +199,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("foo")})
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
+	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive = fetchResponse.Exhaustive
 	require.True(t, exhaustive)
 	defer iter.Finalize()
 
@@ -218,9 +221,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("city")})
 	queryOpts.Type = index.AggregateTagNames
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
+	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive = fetchResponse.Exhaustive
 	require.True(t, exhaustive)
 	defer iter.Finalize()
 
