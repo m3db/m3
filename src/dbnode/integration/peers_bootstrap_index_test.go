@@ -156,23 +156,23 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
-		exhaustive: fetchResponse.Exhaustive,
+		exhaustive: true,
 		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
+	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
-		exhaustive: fetchResponse.Exhaustive,
+		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries},
 	})
 }
