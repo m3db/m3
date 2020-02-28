@@ -375,7 +375,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("passthrough-writer"))
-	passThroughWriter, err := c.newPassThroughWriter(passthruCfg, client, iOpts, aggShardFn)
+	passThroughWriter, err := c.newPassThroughWriter(passthruCfg, flushHandler, client, iOpts, aggShardFn)
 	if err != nil {
 		return nil, err
 	}
@@ -867,6 +867,7 @@ func setMetricPrefix(
 
 func (c *AggregatorConfiguration) newPassThroughWriter(
 	passthruCfg PassThroughConfiguration,
+	flushHandler handler.Handler,
 	cs client.Client,
 	iOpts instrument.Options,
 	shardFn sharding.AggregatedShardFn,
@@ -875,23 +876,6 @@ func (c *AggregatorConfiguration) newPassThroughWriter(
 	if !passthruCfg.Enabled {
 		iOpts.Logger().Info("passthrough writer disabled, blackholing all passthrough writes")
 		return writer.NewBlackholeWriter(), nil
-	}
-
-	flushCfg := (*c).Flush // making a copy to avoid mutating original.
-	if len(flushCfg.Handlers) != 1 || flushCfg.Handlers[0].DynamicBackend == nil {
-		return nil, fmt.Errorf(
-			"expected to find a single dynamicBackend flush handler for passthrough config, found: %+v",
-			flushCfg.Handlers)
-	}
-
-	// optional override for m3msg topic for pass-through metrics during the migration.
-	if passthruCfg.OverrideTopicName != "" {
-		flushCfg.Handlers[0].DynamicBackend.Producer.Writer.TopicName = passthruCfg.OverrideTopicName
-	}
-
-	handler, err := flushCfg.NewHandler(cs, iOpts)
-	if err != nil {
-		return nil, err
 	}
 
 	count := defaultNumPassThroughWriters

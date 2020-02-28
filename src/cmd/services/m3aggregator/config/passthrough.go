@@ -32,10 +32,6 @@ type PassThroughConfiguration struct {
 	// M3Msg server configuration.
 	M3Msg *m3msg.Configuration `yaml:"m3msg"`
 
-	// OverrideTopicName allows the destination topic name where outgoing passthrough metrics
-	// are written to be overriden.
-	OverrideTopicName string `yaml:"overrideTopicName"`
-
 	// NumWriters controls the number of passthrough writers used.
 	NumWriters int `yaml:"numWriters"`
 }
