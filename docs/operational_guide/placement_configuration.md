@@ -269,6 +269,7 @@ complete placement information needs to be passed into the body of the request. 
 
 ```bash
 curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
+  "placement": {
     "num_shards": <DESIRED_NUMBER_OF_SHARDS>,
     "replication_factor": <DESIRED_REPLICATION_FACTOR>(recommended 3),
     "instances": [
@@ -298,8 +299,11 @@ curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
             "endpoint": "<NODE_3_HOST_NAME>:<NODE_3_PORT>",
             "hostname": "<NODE_3_HOST_NAME>",
             "port": <NODE_3_PORT>
-        },
-    ]
+        }
+      ]
+    },
+    "version": <version>,
+    "confirm": <true/false>
 }'
 ```
 
