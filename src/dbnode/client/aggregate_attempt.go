@@ -28,8 +28,7 @@ import (
 )
 
 var (
-	aggregateAttemptArgsZeroed  aggregateAttemptArgs
-	fetchResponseMetadataZeroed FetchResponseMetadata
+	aggregateAttemptArgsZeroed aggregateAttemptArgs
 )
 
 type aggregateAttempt struct {
@@ -50,7 +49,7 @@ type aggregateAttemptArgs struct {
 func (f *aggregateAttempt) reset() {
 	f.args = aggregateAttemptArgsZeroed
 	f.resultIter = nil
-	f.resultMetadata = fetchResponseMetadataZeroed
+	f.resultMetadata = FetchResponseMetadata{}
 }
 
 func (f *aggregateAttempt) performAttempt() error {

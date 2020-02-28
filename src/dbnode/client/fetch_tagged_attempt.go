@@ -54,9 +54,9 @@ func (f *fetchTaggedAttempt) reset() {
 	f.args = fetchTaggedAttemptArgsZeroed
 
 	f.idsResultIter = nil
-	f.idsResultMetadata = fetchResponseMetadataZeroed
+	f.idsResultMetadata = FetchResponseMetadata{}
 	f.dataResultIters = nil
-	f.dataResultMetadata = fetchResponseMetadataZeroed
+	f.dataResultMetadata = FetchResponseMetadata{}
 }
 
 func (f *fetchTaggedAttempt) performIDsAttempt() error {
