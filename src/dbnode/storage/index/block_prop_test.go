@@ -184,7 +184,7 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 		memSeg = testSegment(t, lotsTestDocuments...).(segment.MutableSegment)
 		fstSeg = fst.ToTestSegment(t, memSeg, testFstOptions)
 		// Need at least one shard to look fulfilled.
-		fulfilled  = result.NewShardTimeRanges(blockStart, blockStart.Add(testBlockSize), uint32(1))
+		fulfilled  = result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(testBlockSize), uint32(1))
 		indexBlock = result.NewIndexBlock(blockStart, []segment.Segment{fstSeg}, fulfilled)
 	)
 	// Use the AddResults API because thats the only scenario in which we'll wrap a segment
