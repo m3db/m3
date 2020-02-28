@@ -260,7 +260,7 @@ This endpoint is unsafe since it creates a brand new placement and therefore sho
 Some use cases for using this endpoint include:
 
 - Changing IP addresses of seed nodes
-- Modifying isolation groups
+- Rebalancing shards
 
 If the placement for `M3DB` needs to be recreated, the `/api/v1/services/m3db/placement/set` can be used to do so.
 Please note, a placement already needs to exist to use this endpoint. If no placement exists, use the `Placement Initialization`
