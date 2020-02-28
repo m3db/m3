@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -330,4 +332,40 @@ func assertTestSeriesIterator(
 			assert.Equal(t, true, iter.(*testMultiIterator).closed)
 		}
 	}
+}
+
+func TestSeriesIteratorStats(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	segReader := func(head, tail int) xio.SegmentReader {
+		var h, t checked.Bytes
+		if head > 0 {
+			h = checked.NewBytes(make([]byte, head), nil)
+			h.IncRef()
+		}
+		if tail > 0 {
+			t = checked.NewBytes(make([]byte, tail), nil)
+			t.IncRef()
+		}
+		return xio.NewSegmentReader(ts.Segment{
+			Head: h,
+			Tail: t,
+		})
+	}
+	readerOne := &singleSlicesOfSlicesIterator{
+		readers: []xio.SegmentReader{segReader(0, 5), segReader(5, 5)},
+	}
+	readerTwo := &singleSlicesOfSlicesIterator{
+		readers: []xio.SegmentReader{segReader(2, 2), segReader(5, 0)},
+	}
+	iter := seriesIterator{
+		multiReaderIters: []MultiReaderIterator{
+			&multiReaderIterator{slicesIter: readerOne},
+			&multiReaderIterator{slicesIter: readerTwo},
+		},
+	}
+	stats, err := iter.Stats()
+	require.NoError(t, err)
+	assert.Equal(t, 24, stats.ApproximateSizeInBytes)
 }

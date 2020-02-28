@@ -90,6 +90,7 @@ import (
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
 )
@@ -602,6 +603,10 @@ func Run(runOpts RunOptions) {
 		// SetDatabase() once we've initialized it.
 		service = ttnode.NewService(nil, ttopts)
 	)
+	if cfg.TChannel != nil {
+		tchannelOpts.MaxIdleTime = cfg.TChannel.MaxIdleTime
+		tchannelOpts.IdleCheckInterval = cfg.TChannel.IdleCheckInterval
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
@@ -697,9 +702,10 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
-		origin, protoEnabled, schemaRegistry, syncCfg.KVStore,
-		logger, runOpts.CustomOptions)
+		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
+		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
+		syncCfg.KVStore, logger, runOpts.CustomOptions)
+
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -733,9 +739,9 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
-				origin, protoEnabled, schemaRegistry, syncCfg.KVStore,
-				logger, runOpts.CustomOptions)
+				clientCfg, iopts, tchannelOpts, topologyInitializer,
+				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
+				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -1549,6 +1555,7 @@ func withEncodingAndPoolingOptions(
 func newAdminClient(
 	config client.Configuration,
 	iopts instrument.Options,
+	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	origin topology.Host,
@@ -1566,6 +1573,9 @@ func newAdminClient(
 
 	// NB: append custom options coming from run options to existing options.
 	options := []client.CustomAdminOption{
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetChannelOptions(tchannelOpts).(client.AdminOptions)
+		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},

@@ -192,3 +192,15 @@ func (it *readerSliceOfSlicesIterator) Reset(segments []*rpc.Segments) {
 	it.idx = -1
 	it.closed = false
 }
+
+func (it *readerSliceOfSlicesIterator) Size() (int, error) {
+	size := 0
+	for _, reader := range it.blockReaders {
+		seg, err := reader.Segment()
+		if err != nil {
+			return 0, err
+		}
+		size += seg.Len()
+	}
+	return size, nil
+}

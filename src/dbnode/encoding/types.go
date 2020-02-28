@@ -184,46 +184,56 @@ type ReaderIterator interface {
 	Reset(reader io.Reader, schema namespace.SchemaDescr)
 }
 
-// MultiReaderIterator is an iterator that iterates in order over a list of sets of
-// internally ordered but not collectively in order readers, it also deduplicates datapoints.
+// MultiReaderIterator is an iterator that iterates in order over
+// a list of sets of internally ordered but not collectively in order
+// readers, it also deduplicates datapoints.
 type MultiReaderIterator interface {
 	Iterator
 
-	// Reset resets the iterator to read from a slice of readers with a new schema (for schema aware iterators).
-	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration, schema namespace.SchemaDescr)
+	// Reset resets the iterator to read from a slice of readers
+	// with a new schema (for schema aware iterators).
+	Reset(readers []xio.SegmentReader, start time.Time,
+		blockSize time.Duration, schema namespace.SchemaDescr)
 
-	// Reset resets the iterator to read from a slice of slice readers with a new schema (for schema aware iterators).
-	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator, schema namespace.SchemaDescr)
+	// Reset resets the iterator to read from a slice of slice readers
+	// with a new schema (for schema aware iterators).
+	ResetSliceOfSlices(
+		readers xio.ReaderSliceOfSlicesIterator,
+		schema namespace.SchemaDescr,
+	)
 
-	// Readers exposes the underlying ReaderSliceOfSlicesIterator for this MultiReaderIterator
+	// Readers exposes the underlying ReaderSliceOfSlicesIterator
+	// for this MultiReaderIterator.
 	Readers() xio.ReaderSliceOfSlicesIterator
 }
 
-// SeriesIterator is an iterator that iterates over a set of iterators from different replicas
-// and de-dupes & merges results from the replicas for a given series while also applying a time
-// filter on top of the values in case replicas returned values out of range on either end
+// SeriesIterator is an iterator that iterates over a set of iterators from
+// different replicas and de-dupes & merges results from the replicas for a
+// given series while also applying a time filter on top of the values in
+// case replicas returned values out of range on either end.
 type SeriesIterator interface {
 	Iterator
 
-	// ID gets the ID of the series
+	// ID gets the ID of the series.
 	ID() ident.ID
 
-	// Namespace gets the namespace of the series
+	// Namespace gets the namespace of the series.
 	Namespace() ident.ID
 
 	// Tags returns an iterator over the tags associated with the ID.
 	Tags() ident.TagIterator
 
-	// Start returns the start time filter specified for the iterator
+	// Start returns the start time filter specified for the iterator.
 	Start() time.Time
 
-	// End returns the end time filter specified for the iterator
+	// End returns the end time filter specified for the iterator.
 	End() time.Time
 
-	// Reset resets the iterator to read from a set of iterators from different replicas, one
-	// must note that this can be an array with nil entries if some replicas did not return successfully.
-	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
-	// iter.Close().
+	// Reset resets the iterator to read from a set of iterators from different
+	// replicas, one  must note that this can be an array with nil entries if
+	// some replicas did not return successfully.
+	// NB: the SeriesIterator assumes ownership of the provided ids, this
+	// includes calling `id.Finalize()` upon iter.Close().
 	Reset(opts SeriesIteratorOptions)
 
 	// SetIterateEqualTimestampStrategy sets the equal timestamp strategy of how
@@ -233,8 +243,19 @@ type SeriesIterator interface {
 	// from the iterator immediately.
 	SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy)
 
-	// Replicas exposes the underlying MultiReaderIterator slice for this SeriesIterator
+	// Replicas exposes the underlying MultiReaderIterator slice
+	// for this SeriesIterator.
 	Replicas() []MultiReaderIterator
+
+	// Stats provides information for this SeriesIterator.
+	Stats() (SeriesIteratorStats, error)
+}
+
+// SeriesIteratorStats contains information about a SeriesIterator.
+type SeriesIteratorStats struct {
+	// ApproximateSizeInBytes approximates how much data is contained within the
+	// SeriesIterator, in bytes.
+	ApproximateSizeInBytes int
 }
 
 // DeduplicationFunction is an experimental function that allows

@@ -202,3 +202,16 @@ func (it *seriesIterator) moveToNext() {
 		// Dedupe by continuing
 	}
 }
+
+func (it *seriesIterator) Stats() (SeriesIteratorStats, error) {
+	approx := 0
+	for _, readerIter := range it.multiReaderIters {
+		readers := readerIter.Readers()
+		size, err := readers.Size()
+		if err != nil {
+			return SeriesIteratorStats{}, err
+		}
+		approx += size
+	}
+	return SeriesIteratorStats{ApproximateSizeInBytes: approx}, nil
+}

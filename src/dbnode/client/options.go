@@ -200,6 +200,12 @@ var (
 			SetJitter(true),
 	)
 
+	// defaultChannelOptions are default tchannel channel options.
+	defaultChannelOptions = &tchannel.ChannelOptions{
+		MaxIdleTime:       5 * time.Minute,
+		IdleCheckInterval: 5 * time.Minute,
+	}
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -314,6 +320,7 @@ func newOptions() *options {
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
 		instrumentOpts:                          instrument.NewOptions(),
+		channelOptions:                          defaultChannelOptions,
 		writeConsistencyLevel:                   defaultWriteConsistencyLevel,
 		readConsistencyLevel:                    defaultReadConsistencyLevel,
 		bootstrapConsistencyLevel:               defaultBootstrapConsistencyLevel,
