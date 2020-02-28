@@ -257,12 +257,12 @@ func TestIndexEnabledServer(t *testing.T) {
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
-	iters, exhaustive, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
+	iters, fetchResponse, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})
 	assert.NoError(t, err)
-	assert.True(t, exhaustive)
+	assert.True(t, fetchResponse.Exhaustive)
 	assert.Equal(t, 1, iters.Len())
 	iter := iters.Iters()[0]
 	assert.Equal(t, namespaceID, iter.Namespace().String())
@@ -279,12 +279,12 @@ func TestIndexEnabledServer(t *testing.T) {
 		assert.Equal(t, v.unit, unit)
 	}
 
-	resultsIter, resultsExhaustive, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
+	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})
 	assert.NoError(t, err)
-	assert.True(t, resultsExhaustive)
+	assert.True(t, resultsFetchResponse.Exhaustive)
 	assert.True(t, resultsIter.Next())
 	nsID, tsID, tags := resultsIter.Current()
 	assert.Equal(t, namespaceID, nsID.String())
