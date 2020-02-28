@@ -19,6 +19,12 @@ type calcTransport struct {
 func (t *calcTransport) reset() {
 	t.size = 0
 }
+func (t *calcTransport) GetSize() int {
+	if t == nil {
+		return 0
+	}
+	return t.size
+}
 func (t *calcTransport) WriteMessageBegin(name string, typeID thrift.TMessageType, seqid int32) error {
 	return nil
 }

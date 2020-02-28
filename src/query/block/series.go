@@ -61,8 +61,8 @@ type UnconsolidatedSeries struct {
 
 // UnconsolidatedSeriesStats is stats about an unconsolidated series.
 type UnconsolidatedSeriesStats struct {
-	Enabled    bool
-	DecodeTime time.Duration
+	Enabled        bool
+	DecodeDuration time.Duration
 }
 
 // NewUnconsolidatedSeries creates a new series with raw datapoints.

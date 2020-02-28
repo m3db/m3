@@ -331,7 +331,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	return result, FetchResponseMetadata{
 		Exhaustive:         exhaustive,
 		Responses:          len(accum.fetchResponses),
-		EstimateTotalBytes: accum.calcTransport.size,
+		EstimateTotalBytes: accum.calcTransport.GetSize(),
 	}, nil
 }
 
@@ -358,7 +358,7 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 	return iter, FetchResponseMetadata{
 		Exhaustive:         exhaustive,
 		Responses:          len(accum.aggResponses),
-		EstimateTotalBytes: accum.calcTransport.size,
+		EstimateTotalBytes: accum.calcTransport.GetSize(),
 	}, nil
 }
 
@@ -469,7 +469,7 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 	return iter, FetchResponseMetadata{
 		Exhaustive:         exhaustive,
 		Responses:          len(accum.aggResponses),
-		EstimateTotalBytes: accum.calcTransport.size,
+		EstimateTotalBytes: accum.calcTransport.GetSize(),
 	}, nil
 }
 

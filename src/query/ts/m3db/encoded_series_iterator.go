@@ -93,8 +93,8 @@ func (it *encodedSeriesIter) Next() bool {
 	}
 
 	var (
-		decodeTime  time.Duration
-		decodeStart time.Time
+		decodeDuration time.Duration
+		decodeStart    time.Time
 	)
 	if it.instrumented {
 		decodeStart = time.Now()
@@ -110,7 +110,7 @@ func (it *encodedSeriesIter) Next() bool {
 	}
 
 	if it.instrumented {
-		decodeTime = time.Since(decodeStart)
+		decodeDuration = time.Since(decodeStart)
 	}
 
 	if it.err = iter.Err(); it.err != nil {
@@ -121,8 +121,8 @@ func (it *encodedSeriesIter) Next() bool {
 		it.datapoints,
 		it.seriesMeta[it.idx],
 		block.UnconsolidatedSeriesStats{
-			Enabled:    it.instrumented,
-			DecodeTime: decodeTime,
+			Enabled:        it.instrumented,
+			DecodeDuration: decodeDuration,
 		})
 
 	return next
