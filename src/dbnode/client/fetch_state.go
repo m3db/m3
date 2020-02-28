@@ -27,11 +27,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 type fetchStateType byte
@@ -175,66 +175,66 @@ func (f *fetchState) markDoneWithLock(err error) {
 	f.Signal()
 }
 
-func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsIterator, bool, error) {
+func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 
 	if expected := fetchTaggedFetchState; f.stateType != expected {
-		return nil, false,
+		return nil, FetchResponseMetadata{},
 			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
 				expected, f.stateType)
 	}
 
 	if !f.done {
-		return nil, false, errFetchStateStillProcessing
+		return nil, FetchResponseMetadata{}, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	limit := f.fetchTaggedOp.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
-func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools, descr namespace.SchemaDescr) (encoding.SeriesIterators, bool, error) {
+func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools, descr namespace.SchemaDescr) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 
 	if expected := fetchTaggedFetchState; f.stateType != expected {
-		return nil, false,
+		return nil, FetchResponseMetadata{},
 			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
 				expected, f.stateType)
 	}
 
 	if !f.done {
-		return nil, false, errFetchStateStillProcessing
+		return nil, FetchResponseMetadata{}, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	limit := f.fetchTaggedOp.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr)
 }
 
-func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, bool, error) {
+func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 
 	if expected := aggregateFetchState; f.stateType != expected {
-		return nil, false,
+		return nil, FetchResponseMetadata{},
 			fmt.Errorf("unexpected fetch state: expected=%v, actual=%v",
 				expected, f.stateType)
 	}
 
 	if !f.done {
-		return nil, false, errFetchStateStillProcessing
+		return nil, FetchResponseMetadata{}, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	limit := f.aggregateOp.requestLimit(maxInt)

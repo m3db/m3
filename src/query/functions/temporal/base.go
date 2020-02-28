@@ -21,6 +21,7 @@
 package temporal
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"sync"
@@ -30,10 +31,13 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 var emptyOp = baseOp{}
@@ -114,7 +118,7 @@ func (c *baseNode) Process(
 	id parser.NodeID,
 	b block.Block,
 ) error {
-	sp, _ := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
+	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
 	meta := b.Meta()
@@ -161,9 +165,9 @@ func (c *baseNode) Process(
 	if err != nil {
 		// NB: If the unconsolidated block does not support multi series iteration,
 		// fallback to processing series one by one.
-		singleProcess(seriesIter, builder, m, c.processor)
+		singleProcess(ctx, seriesIter, builder, m, c.processor)
 	} else {
-		batchProcess(batches, builder, m, c.processor)
+		batchProcess(ctx, batches, builder, m, c.processor)
 	}
 
 	// NB: safe to close the block here.
@@ -185,6 +189,7 @@ type blockMeta struct {
 }
 
 func batchProcess(
+	ctx context.Context,
 	iterBatches []block.SeriesIterBatch,
 	builder block.Builder,
 	m blockMeta,
@@ -207,8 +212,8 @@ func batchProcess(
 		batch := batch
 		idx = idx + batch.Size
 		go func() {
-			if err := buildBlockBatch(loopIndex, batch.Iter,
-				builder, m, p, &mu); err != nil {
+			err := parallelProcess(ctx, loopIndex, batch.Iter, builder, m, p, &mu)
+			if err != nil {
 				mu.Lock()
 				// NB: this no-ops if the error is nil.
 				multiErr = multiErr.Add(err)
@@ -223,7 +228,8 @@ func batchProcess(
 	return multiErr.FinalError()
 }
 
-func buildBlockBatch(
+func parallelProcess(
+	ctx context.Context,
 	idx int,
 	iter block.SeriesIter,
 	builder block.Builder,
@@ -231,6 +237,23 @@ func buildBlockBatch(
 	processor processor,
 	mu *sync.Mutex,
 ) error {
+	var (
+		start          = time.Now()
+		decodeDuration time.Duration
+	)
+	defer func() {
+		if decodeDuration == 0 {
+			return // Do not record this span if instrumentation is not turned on.
+		}
+
+		// Simulate as if we did all the decoding up front so we can visualize
+		// how much decoding takes relative to the entire processing of the function.
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
+		sp.FinishWithOptions(opentracing.FinishOptions{
+			FinishTime: start.Add(decodeDuration),
+		})
+	}()
+
 	values := make([]float64, 0, blockMeta.steps)
 	for iter.Next() {
 		var (
@@ -242,7 +265,12 @@ func buildBlockBatch(
 
 			series     = iter.Current()
 			datapoints = series.Datapoints()
+			stats      = series.Stats()
 		)
+
+		if stats.Enabled {
+			decodeDuration += stats.DecodeDuration
+		}
 
 		values = values[:0]
 		for i := 0; i < blockMeta.steps; i++ {
@@ -279,11 +307,28 @@ func buildBlockBatch(
 }
 
 func singleProcess(
+	ctx context.Context,
 	seriesIter block.SeriesIter,
 	builder block.Builder,
 	m blockMeta,
 	p processor,
 ) error {
+	var (
+		start          = time.Now()
+		decodeDuration time.Duration
+	)
+	defer func() {
+		if decodeDuration == 0 {
+			return // Do not record this span if instrumentation is not turned on.
+		}
+		// Simulate as if we did all the decoding up front so we can visualize
+		// how much decoding takes relative to the entire processing of the function.
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeSingle, opentracing.StartTime(start))
+		sp.FinishWithOptions(opentracing.FinishOptions{
+			FinishTime: start.Add(decodeDuration),
+		})
+	}()
+
 	for seriesIter.Next() {
 		var (
 			newVal float64
@@ -294,7 +339,12 @@ func singleProcess(
 
 			series     = seriesIter.Current()
 			datapoints = series.Datapoints()
+			stats      = series.Stats()
 		)
+
+		if stats.Enabled {
+			decodeDuration += stats.DecodeDuration
+		}
 
 		for i := 0; i < m.steps; i++ {
 			iterBounds := iterationBounds{

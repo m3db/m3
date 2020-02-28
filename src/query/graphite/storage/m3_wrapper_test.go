@@ -123,7 +123,7 @@ func buildResult(
 	for i := 0; i < size; i++ {
 		addOp(it.EXPECT().Next().Return(true))
 		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		c := block.NewUnconsolidatedSeries(vals.Datapoints(), metas[i])
+		c := block.NewUnconsolidatedSeries(vals.Datapoints(), metas[i], block.UnconsolidatedSeriesStats{})
 		addOp(it.EXPECT().Current().Return(c))
 	}
 
