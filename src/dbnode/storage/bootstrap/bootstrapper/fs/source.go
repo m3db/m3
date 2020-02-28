@@ -210,9 +210,9 @@ func (s *fileSystemSource) availability(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) (result.ShardTimeRanges, error) {
-	result := make(map[uint32]xtime.Ranges, len(shardsTimeRanges))
-	for shard, ranges := range shardsTimeRanges {
-		result[shard] = s.shardAvailability(md.ID(), shard, ranges)
+	result := result.NewShardTimeRangesFromSize(shardsTimeRanges.Len())
+	for shard, ranges := range shardsTimeRanges.Iter() {
+		result.Set(shard, s.shardAvailability(md.ID(), shard, ranges))
 	}
 	return result, nil
 }
@@ -334,7 +334,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		docsPool             = s.opts.IndexOptions().DocumentArrayPool()
 		batch                = docsPool.Get()
 		totalEntries         int
-		totalFulfilledRanges = result.ShardTimeRanges{}
+		totalFulfilledRanges = result.NewShardTimeRanges()
 	)
 	defer docsPool.Put(batch)
 
@@ -415,9 +415,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 			if err == nil && run == bootstrapIndexRunType {
 				// Mark index block as fulfilled.
-				fulfilled := result.ShardTimeRanges{
-					shard: xtime.NewRanges(timeRange),
-				}
+				fulfilled := result.NewShardTimeRanges().Set(shard, xtime.NewRanges(timeRange))
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 					ns.Options().IndexOptions())
 				if err != nil {
@@ -428,9 +426,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 
 			if err == nil {
-				fulfilled := result.ShardTimeRanges{
-					shard: xtime.NewRanges(timeRange),
-				}
+				fulfilled := result.NewShardTimeRanges().Set(shard, xtime.NewRanges(timeRange))
 				totalFulfilledRanges.AddRanges(fulfilled)
 				remainingRanges.Subtract(fulfilled)
 			} else {
@@ -463,7 +459,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			min, max                     = requestedRanges.MinMax()
 			iopts                        = s.opts.ResultOptions().InstrumentOptions()
 		)
-		for _, remainingRange := range remainingRanges {
+		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
 				overlapsWithInitalIndexRange = true
 			}
@@ -717,7 +713,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 ) *runResult {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
-	for shard, ranges := range shardsTimeRanges {
+	for shard, ranges := range shardsTimeRanges.Iter() {
 		if ranges.IsEmpty() {
 			continue
 		}
@@ -725,9 +721,10 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 		remaining := ranges.Clone()
 		remaining.RemoveRanges(availability)
 		if !remaining.IsEmpty() {
-			unfulfilled.AddRanges(result.ShardTimeRanges{
-				shard: remaining,
-			})
+			unfulfilled.AddRanges(result.NewShardTimeRanges().Set(
+				shard,
+				remaining,
+			))
 		}
 	}
 	runResult.data.SetUnfulfilled(unfulfilled)
@@ -744,7 +741,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	shardsTimeRanges result.ShardTimeRanges,
 ) (bootstrapFromIndexPersistedBlocksResult, error) {
 	res := bootstrapFromIndexPersistedBlocksResult{
-		fulfilled: result.ShardTimeRanges{},
+		fulfilled: result.NewShardTimeRanges(),
 	}
 
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
@@ -768,12 +765,15 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			Start: indexBlockStart,
 			End:   indexBlockStart.Add(indexBlockSize),
 		}
-		willFulfill := result.ShardTimeRanges{}
+		willFulfill := result.NewShardTimeRanges()
 		for _, shard := range info.Shards {
-			tr, ok := shardsTimeRanges[shard]
-			if !ok {
+			tr := shardsTimeRanges.Get(shard)
+			if tr == nil {
 				// No ranges match for this shard.
 				continue
+			}
+			if willFulfill.Get(shard) == nil {
+				willFulfill.Set(shard, xtime.NewRanges())
 			}
 
 			iter := tr.Iter()
@@ -783,7 +783,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 				if !intersects {
 					continue
 				}
-				willFulfill[shard].AddRange(intersection)
+				willFulfill.GetOrAdd(shard).AddRange(intersection)
 			}
 		}
 

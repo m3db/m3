@@ -48,8 +48,8 @@ func NewShardTimeRangesTimeWindowGroups(
 			End:   minTime(t.Add(windowSize), max),
 		}
 
-		group := make(result.ShardTimeRanges)
-		for shard, tr := range shardTimeRanges {
+		group := result.NewShardTimeRanges()
+		for shard, tr := range shardTimeRanges.Iter() {
 			iter := tr.Iter()
 			for iter.Next() {
 				evaluateRange := iter.Value()
@@ -58,7 +58,7 @@ func NewShardTimeRangesTimeWindowGroups(
 					continue
 				}
 				// Add to this range.
-				group[shard].AddRange(intersection)
+				group.GetOrAdd(shard).AddRange(intersection)
 			}
 		}
 

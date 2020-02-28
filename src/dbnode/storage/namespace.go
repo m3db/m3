@@ -939,7 +939,7 @@ func (n *dbNamespace) Bootstrap(
 		bootstrapType string,
 		unfulfilled result.ShardTimeRanges,
 	) error {
-		shardsUnfulfilled := int64(len(unfulfilled))
+		shardsUnfulfilled := int64(unfulfilled.Len())
 		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
 		if shardsUnfulfilled == 0 {
 			return nil

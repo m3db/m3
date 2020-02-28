@@ -51,7 +51,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		blockSize                  = 2 * time.Hour
 		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
-		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
+		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
@@ -63,7 +63,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < int(numShards); i++ {
-		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
+		shardTimeRangesToBootstrap.Set(uint32(i), bootstrapRanges)
 	}
 
 	testCases := []struct {
@@ -101,7 +101,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				tu.SelfID: tu.ShardsRange(0, numShards, shard.Leaving),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace.
@@ -111,7 +111,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				tu.SelfID: tu.ShardsRange(0, numShards, shard.Available),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		// Snould return that it can bootstrap everything because
 		// it's a new namespace.
@@ -148,7 +148,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				notSelfID2: tu.ShardsRange(0, numShards, shard.Available),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace, we're just doing a node replace.
@@ -161,7 +161,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				notSelfID3: tu.ShardsRange(0, numShards, shard.Initializing),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		// Snould return that it can't bootstrap anything because we don't
 		// know how to interpret the unknown host.

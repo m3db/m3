@@ -260,7 +260,7 @@ func (s *peersSource) readData(
 		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
 		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
-		count                   = len(shardsTimeRanges)
+		count                   = shardsTimeRanges.Len()
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
 	)
@@ -279,7 +279,7 @@ func (s *peersSource) readData(
 
 	workers := xsync.NewWorkerPool(concurrency)
 	workers.Init()
-	for shard, ranges := range shardsTimeRanges {
+	for shard, ranges := range shardsTimeRanges.Iter() {
 		shard, ranges := shard, ranges
 		wg.Add(1)
 		workers.Go(func() {
@@ -329,9 +329,10 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		// Make unfulfilled.
 		lock.Lock()
 		unfulfilled := bootstrapResult.Unfulfilled().Copy()
-		unfulfilled.AddRanges(result.ShardTimeRanges{
-			flush.shard: xtime.NewRanges(flush.timeRange),
-		})
+		unfulfilled.AddRanges(result.NewShardTimeRanges().Set(
+			flush.shard,
+			xtime.NewRanges(flush.timeRange),
+		))
 		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
@@ -363,7 +364,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	unfulfill := func(r xtime.Range) {
 		lock.Lock()
 		unfulfilled := bootstrapResult.Unfulfilled()
-		unfulfilled.AddRanges(result.ShardTimeRanges{shard: xtime.NewRanges(r)})
+		unfulfilled.AddRanges(result.NewShardTimeRanges().Set(shard, xtime.NewRanges(r)))
 		lock.Unlock()
 	}
 	for it.Next() {
@@ -651,7 +652,7 @@ func (s *peersSource) readIndex(
 	}
 
 	var (
-		count          = len(shardsTimeRanges)
+		count          = shardsTimeRanges.Len()
 		indexBlockSize = ns.Options().IndexOptions().BlockSize()
 		runtimeOpts    = s.opts.RuntimeOptionsManager().Get()
 		fsOpts         = s.opts.FilesystemOptions()
@@ -766,17 +767,19 @@ func (s *peersSource) processReaders(
 
 			if err == nil {
 				// Mark index block as fulfilled.
-				fulfilled := result.ShardTimeRanges{
-					shard: xtime.NewRanges(timeRange),
-				}
+				fulfilled := result.NewShardTimeRanges().Set(
+					shard,
+					xtime.NewRanges(timeRange),
+				)
 				err = r.IndexResults().MarkFulfilled(start, fulfilled,
 					idxOpts)
 			}
 
 			if err == nil {
-				remainingRanges.Subtract(result.ShardTimeRanges{
-					shard: xtime.NewRanges(timeRange),
-				})
+				remainingRanges.Subtract(result.NewShardTimeRanges().Set(
+					shard,
+					xtime.NewRanges(timeRange),
+				))
 			} else {
 				s.log.Error(err.Error(),
 					zap.String("timeRange.start", fmt.Sprintf("%v", start)))
@@ -913,7 +916,7 @@ func (s *peersSource) peerAvailability(
 		initialTopologyState    = runOpts.InitialTopologyState()
 	)
 
-	for shardIDUint := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges.Iter() {
 		shardID := topology.ShardID(shardIDUint)
 		shardPeers, ok := peerAvailabilityByShard[shardID]
 		if !ok {
@@ -958,9 +961,9 @@ func (s *peersSource) peerAvailability(
 		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
 		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
 		majorityReplicas          = initialTopologyState.MajorityReplicas
-		availableShardTimeRanges  = result.ShardTimeRanges{}
+		availableShardTimeRanges  = result.NewShardTimeRanges()
 	)
-	for shardIDUint := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges.Iter() {
 		var (
 			shardID    = topology.ShardID(shardIDUint)
 			shardPeers = peerAvailabilityByShard[shardID]
@@ -992,7 +995,7 @@ func (s *peersSource) peerAvailability(
 		// all the data. This assumption is safe, as the shard/block ranges
 		// will simply be marked unfulfilled if the peers are not able to
 		// satisfy the requests.
-		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+		availableShardTimeRanges.Set(shardIDUint, shardsTimeRanges.Get(shardIDUint))
 	}
 
 	return availableShardTimeRanges, nil
@@ -1016,9 +1019,10 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	resultLock.Lock()
 	defer resultLock.Unlock()
 
-	unfulfilled := result.ShardTimeRanges{
-		shard: xtime.NewRanges(timeRange),
-	}
+	unfulfilled := result.NewShardTimeRanges().Set(
+		shard,
+		xtime.NewRanges(timeRange),
+	)
 	r.Add(result.IndexBlock{}, unfulfilled)
 }
 

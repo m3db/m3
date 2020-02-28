@@ -76,12 +76,13 @@ func newTestBootstrapIndexTimes(
 		panic("unexpected")
 	}
 
-	shardTimeRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.NewRanges(xtime.Range{
+	shardTimeRanges := result.NewShardTimeRanges().Set(
+		testShard,
+		xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
-	}
+	)
 
 	return testBootstrapIndexTimes{
 		start:           start,
@@ -566,12 +567,13 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	require.NoError(t, err)
 
 	// NB(bodu): Simulate requesting bootstrapping of two whole index blocks instead of 3 data blocks (1.5 index blocks).
-	times.shardTimeRanges = map[uint32]xtime.Ranges{
-		testShard: xtime.NewRanges(xtime.Range{
+	times.shardTimeRanges = result.NewShardTimeRanges().Set(
+		testShard,
+		xtime.NewRanges(xtime.Range{
 			Start: firstIndexBlockStart,
 			End:   times.end,
 		}),
-	}
+	)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, ns)
 	defer tester.Finish()

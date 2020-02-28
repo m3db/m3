@@ -233,12 +233,13 @@ func TestBootstrapIndex(t *testing.T) {
 
 	end := start.Add(ropts.RetentionPeriod())
 
-	shardTimeRanges := map[uint32]xtime.Ranges{
-		0: xtime.NewRanges(xtime.Range{
+	shardTimeRanges := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
-	}
+	)
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
@@ -354,11 +355,11 @@ func TestBootstrapIndex(t *testing.T) {
 
 	blk1, ok := indexResults[xtime.ToUnixNano(t1)]
 	require.True(t, ok)
-	assertShardRangesEqual(t, result.NewShardTimeRanges(t1, t2, 0), blk1.Fulfilled())
+	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t1, t2, 0), blk1.Fulfilled())
 
 	blk2, ok := indexResults[xtime.ToUnixNano(t2)]
 	require.True(t, ok)
-	assertShardRangesEqual(t, result.NewShardTimeRanges(t2, t3, 0), blk2.Fulfilled())
+	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t2, t3, 0), blk2.Fulfilled())
 
 	for _, blk := range indexResults {
 		if blk.BlockStart().Equal(t1) || blk.BlockStart().Equal(t2) {
@@ -368,7 +369,7 @@ func TestBootstrapIndex(t *testing.T) {
 		// any errors in the response.
 		start := blk.BlockStart()
 		end := start.Add(indexBlockSize)
-		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
+		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(start, end, 0), blk.Fulfilled())
 	}
 
 	tester.EnsureNoWrites()

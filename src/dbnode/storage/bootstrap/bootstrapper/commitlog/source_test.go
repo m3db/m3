@@ -48,7 +48,7 @@ func TestAvailableData(t *testing.T) {
 		blockSize                  = 2 * time.Hour
 		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
-		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
+		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
@@ -56,7 +56,7 @@ func TestAvailableData(t *testing.T) {
 	)
 
 	for i := 0; i < int(numShards); i++ {
-		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
+		shardTimeRangesToBootstrap.Set(uint32(i), bootstrapRanges)
 	}
 
 	testCases := []struct {
@@ -72,7 +72,7 @@ func TestAvailableData(t *testing.T) {
 				tu.SelfID: tu.ShardsRange(0, numShards, shard.Initializing),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		{
 			title: "Single node - Shard unknown",
@@ -80,7 +80,7 @@ func TestAvailableData(t *testing.T) {
 				tu.SelfID: tu.ShardsRange(0, numShards, shard.Unknown),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 			expectedErr:                       errors.New("unknown shard state: Unknown"),
 		},
 		{
@@ -115,7 +115,7 @@ func TestAvailableData(t *testing.T) {
 				notSelfID: tu.ShardsRange(0, numShards, shard.Available),
 			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 	}
 

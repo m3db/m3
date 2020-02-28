@@ -52,7 +52,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		nsMetadata                 = testNamespaceMetadata(t)
 		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
-		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
+		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
 		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
@@ -60,11 +60,11 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 	)
 
 	for i := 0; i < int(numShards); i++ {
-		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
+		shardTimeRangesToBootstrap.Set(uint32(i), bootstrapRanges)
 	}
 
 	shardTimeRangesToBootstrapOneExtra := shardTimeRangesToBootstrap.Copy()
-	shardTimeRangesToBootstrapOneExtra[100] = bootstrapRanges
+	shardTimeRangesToBootstrapOneExtra.Set(100, bootstrapRanges)
 
 	testCases := []struct {
 		title                             string
@@ -81,7 +81,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			}),
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		{
 			title: "Returns empty if all other peers initializing/unknown",
@@ -92,7 +92,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			}),
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 			expectedErr:                       errors.New("unknown shard state: Unknown"),
 		},
 		{
@@ -126,7 +126,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			}),
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelAll,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 	}
 
@@ -188,10 +188,13 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
 	runOpts := testRunOptsWithPersist.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
 	tester := bootstrap.BuildNamespacesTester(t, runOpts, target, testNsMd)

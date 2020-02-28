@@ -22,6 +22,7 @@ package bootstrapper
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -100,6 +101,8 @@ func (b baseBootstrapper) Bootstrap(
 			return bootstrap.NamespaceResults{}, err
 		}
 
+		log.Println("dataAvailable:", dataAvailable)
+		log.Println("currNamespace.DataRunOptions.ShardTimeRanges.Copy():", currNamespace.DataRunOptions.ShardTimeRanges.Copy())
 		currNamespace.DataRunOptions.ShardTimeRanges = dataAvailable
 
 		// Prepare index if required.
@@ -240,9 +243,9 @@ func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBoo
 		nextNamespace.DataRunOptions.ShardTimeRanges = dataUnfulfilled.Copy()
 
 		var (
-			indexCurrRequested = result.ShardTimeRanges{}
-			indexCurrFulfilled = result.ShardTimeRanges{}
-			indexUnfulfilled   = result.ShardTimeRanges{}
+			indexCurrRequested = result.NewShardTimeRanges()
+			indexCurrFulfilled = result.NewShardTimeRanges()
+			indexUnfulfilled   = result.NewShardTimeRanges()
 		)
 		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			// Calculate bootstrap time ranges.

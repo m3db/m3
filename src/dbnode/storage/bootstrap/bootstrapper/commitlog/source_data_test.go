@@ -62,10 +62,10 @@ func TestAvailableEmptyRangeError(t *testing.T) {
 	var (
 		opts     = testDefaultOpts
 		src      = newCommitLogSource(opts, fs.Inspection{})
-		res, err = src.AvailableData(testNsMetadata(t), result.ShardTimeRanges{}, testDefaultRunOpts)
+		res, err = src.AvailableData(testNsMetadata(t), result.NewShardTimeRanges(), testDefaultRunOpts)
 	)
 	require.NoError(t, err)
-	require.True(t, result.ShardTimeRanges{}.Equal(res))
+	require.True(t, result.NewShardTimeRanges().Equal(res))
 }
 
 func TestReadEmpty(t *testing.T) {
@@ -73,7 +73,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts, fs.Inspection{})
 	md := testNsMetadata(t)
-	target := result.ShardTimeRanges{}
+	target := result.NewShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
@@ -100,7 +100,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	ranges := xtime.NewRanges(xtime.Range{Start: time.Now(), End: time.Now().Add(time.Hour)})
 
 	md := testNsMetadata(t)
-	target := result.ShardTimeRanges{0: ranges}
+	target := result.NewShardTimeRanges().Set(0, ranges)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
@@ -151,7 +151,7 @@ func testReadOrderedValues(t *testing.T, opts Options, md namespace.Metadata, se
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	targetRanges := result.NewShardTimeRanges().Set(0, ranges).Set(1, ranges)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
 	defer tester.Finish()
 
@@ -200,7 +200,7 @@ func testReadUnorderedValues(t *testing.T, opts Options, md namespace.Metadata, 
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	targetRanges := result.NewShardTimeRanges().Set(0, ranges).Set(1, ranges)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
 	defer tester.Finish()
 
@@ -258,7 +258,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	targetRanges := result.NewShardTimeRanges().Set(0, ranges).Set(1, ranges)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md)
 	defer tester.Finish()
 
@@ -395,7 +395,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 		return mockReader, nil
 	}
 
-	targetRanges := result.ShardTimeRanges{0: ranges}
+	targetRanges := result.NewShardTimeRanges().Set(0, ranges)
 	tester := bootstrap.BuildNamespacesTesterWithReaderIteratorPool(
 		t,
 		testDefaultRunOpts,

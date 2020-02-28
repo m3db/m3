@@ -172,7 +172,7 @@ func testTimeRanges() xtime.Ranges {
 }
 
 func testShardTimeRanges() result.ShardTimeRanges {
-	return map[uint32]xtime.Ranges{testShard: testTimeRanges()}
+	return result.NewShardTimeRanges().Set(testShard, testTimeRanges())
 }
 
 func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
@@ -180,12 +180,13 @@ func testBootstrappingIndexShardTimeRanges() result.ShardTimeRanges {
 	// `testBlockSize` values should be fulfilled in the index block. This is
 	// `testBlockSize` rather than `testIndexSize` since the files generated
 	// by this test use 2 hour (which is `testBlockSize`) reader blocks.
-	return map[uint32]xtime.Ranges{
-		testShard: xtime.NewRanges(xtime.Range{
+	return result.NewShardTimeRanges().Set(
+		testShard,
+		xtime.NewRanges(xtime.Range{
 			Start: testStart.Add(testBlockSize),
 			End:   testStart.Add(11 * time.Hour),
 		}),
-	}
+	)
 }
 
 func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) {
@@ -305,7 +306,7 @@ func TestAvailableEmptyRangeError(t *testing.T) {
 	require.NoError(t, err)
 	res, err := src.AvailableData(
 		testNsMetadata(t),
-		map[uint32]xtime.Ranges{0: xtime.NewRanges()},
+		result.NewShardTimeRanges().Set(0, xtime.NewRanges()),
 		testDefaultRunOpts,
 	)
 	require.NoError(t, err)
@@ -388,13 +389,13 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, 1, len(res))
-	require.NotNil(t, res[testShard])
+	require.Equal(t, 1, res.Len())
+	require.NotNil(t, res.Get(testShard))
 
 	expected := xtime.NewRanges(
 		xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)},
 		xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
-	validateTimeRanges(t, res[testShard], expected)
+	validateTimeRanges(t, res.Get(testShard), expected)
 }
 
 func TestAvailableTimeRangePartialError(t *testing.T) {
@@ -415,13 +416,13 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, 1, len(res))
-	require.NotNil(t, res[testShard])
+	require.Equal(t, 1, res.Len())
+	require.NotNil(t, res.Get(testShard))
 
 	expected := xtime.NewRanges(
 		xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)},
 		xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
-	validateTimeRanges(t, res[testShard], expected)
+	validateTimeRanges(t, res.Get(testShard), expected)
 }
 
 // NB: too real :'(
@@ -438,7 +439,7 @@ func TestReadEmptyRangeErr(t *testing.T) {
 	src, err := newFileSystemSource(newTestOptions(t, "foo"))
 	require.NoError(t, err)
 	nsMD := testNsMetadata(t)
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, nil, nsMD)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, result.NewShardTimeRanges(), nsMD)
 	defer tester.Finish()
 	unfulfilledAndEmpty(t, src, nsMD, tester)
 }
@@ -446,7 +447,7 @@ func TestReadEmptyRangeErr(t *testing.T) {
 func TestReadPatternError(t *testing.T) {
 	src, err := newFileSystemSource(newTestOptions(t, "[["))
 	require.NoError(t, err)
-	timeRanges := result.ShardTimeRanges{testShard: xtime.NewRanges()}
+	timeRanges := result.NewShardTimeRanges().Set(testShard, xtime.NewRanges())
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
 		timeRanges, nsMD)
@@ -500,10 +501,13 @@ func TestReadNilTimeRanges(t *testing.T) {
 
 	src, err := newFileSystemSource(newTestOptions(t, dir))
 	require.NoError(t, err)
-	timeRanges := result.ShardTimeRanges{
-		testShard: testTimeRanges(),
-		555:       xtime.NewRanges(),
-	}
+	timeRanges := result.NewShardTimeRanges().Set(
+		testShard,
+		testTimeRanges(),
+	).Set(
+		555,
+		xtime.NewRanges(),
+	)
 
 	validateReadResults(t, src, dir, timeRanges)
 }

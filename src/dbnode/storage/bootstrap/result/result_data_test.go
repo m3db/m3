@@ -44,7 +44,7 @@ func testResultOptions() Options {
 
 func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
-	rangeOne := ShardTimeRanges{
+	rangeOne := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(8 * testBlockSize),
@@ -55,7 +55,7 @@ func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 		}),
 	}
 
-	rangeTwo := ShardTimeRanges{
+	rangeTwo := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start.Add(6 * testBlockSize),
 			End:   start.Add(10 * testBlockSize),
@@ -81,7 +81,7 @@ func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 	assert.True(t, rMerged.Unfulfilled().Equal(rangeOne))
 
 	rMerged = MergedDataBootstrapResult(r, rTwo)
-	expected := ShardTimeRanges{
+	expected := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(10 * testBlockSize),
@@ -101,27 +101,27 @@ func TestDataResultSetUnfulfilledMergeShardResults(t *testing.T) {
 func TestDataResultSetUnfulfilledOverwitesUnfulfilled(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 	r := NewDataBootstrapResult()
-	r.SetUnfulfilled(ShardTimeRanges{
+	r.SetUnfulfilled(shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(8 * testBlockSize),
 		}),
 	})
 
-	expected := ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
+	expected := shardTimeRanges{0: xtime.NewRanges(xtime.Range{
 		Start: start,
 		End:   start.Add(8 * testBlockSize),
 	})}
 
 	assert.True(t, r.Unfulfilled().Equal(expected))
-	r.SetUnfulfilled(ShardTimeRanges{
+	r.SetUnfulfilled(shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start.Add(6 * testBlockSize),
 			End:   start.Add(10 * testBlockSize),
 		}),
 	})
 
-	expected = ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
+	expected = shardTimeRanges{0: xtime.NewRanges(xtime.Range{
 		Start: start.Add(6 * testBlockSize),
 		End:   start.Add(10 * testBlockSize),
 	})}
@@ -133,7 +133,7 @@ func TestResultSetUnfulfilled(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	r := NewDataBootstrapResult()
-	r.SetUnfulfilled(ShardTimeRanges{
+	r.SetUnfulfilled(shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(2 * testBlockSize),
@@ -143,14 +143,14 @@ func TestResultSetUnfulfilled(t *testing.T) {
 			End:   start.Add(2 * testBlockSize),
 		}),
 	})
-	r.SetUnfulfilled(ShardTimeRanges{
+	r.SetUnfulfilled(shardTimeRanges{
 		1: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(2 * testBlockSize),
 		}),
 	})
 
-	assert.True(t, r.Unfulfilled().Equal(ShardTimeRanges{
+	assert.True(t, r.Unfulfilled().Equal(shardTimeRanges{
 		1: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(2 * testBlockSize),
@@ -273,17 +273,17 @@ func TestShardResultRemoveSeries(t *testing.T) {
 }
 
 func TestShardTimeRangesIsEmpty(t *testing.T) {
-	assert.True(t, ShardTimeRanges{}.IsEmpty())
-	assert.True(t, ShardTimeRanges{0: xtime.Ranges{}, 1: xtime.Ranges{}}.IsEmpty())
-	assert.True(t, ShardTimeRanges{0: xtime.NewRanges(xtime.Range{})}.IsEmpty())
-	assert.False(t, ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
+	assert.True(t, shardTimeRanges{}.IsEmpty())
+	assert.True(t, shardTimeRanges{0: xtime.NewRanges(), 1: xtime.NewRanges()}.IsEmpty())
+	assert.True(t, shardTimeRanges{0: xtime.NewRanges(xtime.Range{})}.IsEmpty())
+	assert.False(t, shardTimeRanges{0: xtime.NewRanges(xtime.Range{
 		Start: time.Now(),
 		End:   time.Now().Add(time.Second),
 	})}.IsEmpty())
 }
 
 func TestShardTimeRangesCopy(t *testing.T) {
-	str := ShardTimeRanges{0: xtime.NewRanges(xtime.Range{
+	str := shardTimeRanges{0: xtime.NewRanges(xtime.Range{
 		Start: time.Now(),
 		End:   time.Now().Add(time.Second),
 	})}
@@ -294,7 +294,7 @@ func TestShardTimeRangesCopy(t *testing.T) {
 }
 
 func TestShardTimeRangesToUnfulfilledDataResult(t *testing.T) {
-	str := ShardTimeRanges{
+	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: time.Now(),
 			End:   time.Now().Add(time.Minute),
@@ -311,7 +311,7 @@ func TestShardTimeRangesToUnfulfilledDataResult(t *testing.T) {
 func TestShardTimeRangesSubtract(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
-	str := ShardTimeRanges{
+	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(2 * testBlockSize),
@@ -321,7 +321,7 @@ func TestShardTimeRangesSubtract(t *testing.T) {
 			End:   start.Add(2 * testBlockSize),
 		}),
 	}
-	str.Subtract(ShardTimeRanges{
+	str.Subtract(shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(testBlockSize),
@@ -332,7 +332,7 @@ func TestShardTimeRangesSubtract(t *testing.T) {
 		}),
 	})
 
-	assert.True(t, str.Equal(ShardTimeRanges{
+	assert.True(t, str.Equal(shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start.Add(testBlockSize),
 			End:   start.Add(2 * testBlockSize),
@@ -348,7 +348,7 @@ func TestShardTimeRangesMinMax(t *testing.T) {
 
 	start := time.Now().Truncate(testBlockSize)
 
-	str := ShardTimeRanges{
+	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   start.Add(testBlockSize),
@@ -374,7 +374,7 @@ func TestShardTimeRangesString(t *testing.T) {
 		[]time.Time{start, start.Add(2 * testBlockSize)},
 	}
 
-	str := ShardTimeRanges{
+	str := shardTimeRanges{
 		0: xtime.NewRanges(
 			xtime.Range{Start: ts[0][0], End: ts[0][1]},
 			xtime.Range{Start: ts[1][0], End: ts[1][1]}),
@@ -395,7 +395,7 @@ func TestShardTimeRangesString(t *testing.T) {
 func TestShardTimeRangesSummaryString(t *testing.T) {
 	start := time.Unix(1472824800, 0)
 
-	str := ShardTimeRanges{
+	str := shardTimeRanges{
 		0: xtime.NewRanges(
 			xtime.Range{Start: start, End: start.Add(testBlockSize)},
 			xtime.Range{Start: start.Add(2 * testBlockSize), End: start.Add(4 * testBlockSize)}),

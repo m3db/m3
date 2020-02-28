@@ -347,8 +347,8 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	iterPool encoding.MultiReaderIteratorPool,
 	mds ...namespace.Metadata,
 ) NamespacesTester {
-	shards := make([]uint32, 0, len(ranges))
-	for shard := range ranges {
+	shards := make([]uint32, 0, ranges.Len())
+	for shard := range ranges.Iter() {
 		shards = append(shards, shard)
 	}
 
@@ -581,14 +581,14 @@ func validateShardTimeRanges(
 	r result.ShardTimeRanges,
 	ex result.ShardTimeRanges,
 ) error {
-	if len(ex) != len(r) {
+	if ex.Len() != r.Len() {
 		return fmt.Errorf("expected %v and actual %v size mismatch", ex, r)
 	}
 
-	seen := make(map[uint32]struct{}, len(r))
-	for k, val := range r {
-		expectedVal, found := ex[k]
-		if !found {
+	seen := make(map[uint32]struct{}, r.Len())
+	for k, val := range r.Iter() {
+		expectedVal := ex.Get(k)
+		if expectedVal == nil {
 			return fmt.Errorf("expected shard map %v does not have shard %d; "+
 				"actual: %v", ex, k, r)
 		}
@@ -600,7 +600,7 @@ func validateShardTimeRanges(
 		seen[k] = struct{}{}
 	}
 
-	for k := range ex {
+	for k := range ex.Iter() {
 		if _, beenFound := seen[k]; !beenFound {
 			return fmt.Errorf("shard %d in actual not found in expected %v", k, ex)
 		}
@@ -706,7 +706,7 @@ var _ gomock.Matcher = (*NamespaceMatcher)(nil)
 // ShardTimeRangesMatcher is a matcher for ShardTimeRanges.
 type ShardTimeRangesMatcher struct {
 	// Ranges are the expected ranges.
-	Ranges map[uint32]xtime.Ranges
+	Ranges result.ShardTimeRanges
 }
 
 // Matches returns whether x is a match.

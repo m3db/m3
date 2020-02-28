@@ -142,7 +142,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 
 	var (
 		nsMetadata = testNamespaceMetadata(t)
-		target     = result.ShardTimeRanges{}
+		target     = result.NewShardTimeRanges()
 		runOpts    = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
 	available, err := src.AvailableData(nsMetadata, target, runOpts)
@@ -176,10 +176,13 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
 	defer tester.Finish()
@@ -228,9 +231,10 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
 	defer tester.Finish()
@@ -418,10 +422,13 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		src, err := newPeersSource(opts)
 		require.NoError(t, err)
 
-		target := result.ShardTimeRanges{
-			0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		}
+		target := result.NewShardTimeRanges().Set(
+			0,
+			xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		).Set(
+			1,
+			xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		)
 
 		tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
 		defer tester.Finish()
@@ -733,31 +740,45 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(
 			xtime.Range{Start: start, End: midway},
 			xtime.Range{Start: midway, End: end}),
-		1: xtime.NewRanges(
+	).Set(
+		1,
+		xtime.NewRanges(
 			xtime.Range{Start: start, End: midway},
 			xtime.Range{Start: midway, End: end}),
-		2: xtime.NewRanges(
+	).Set(
+		2,
+		xtime.NewRanges(
 			xtime.Range{Start: start, End: midway},
 			xtime.Range{Start: midway, End: end}),
-		3: xtime.NewRanges(
+	).Set(
+		3,
+		xtime.NewRanges(
 			xtime.Range{Start: start, End: midway},
 			xtime.Range{Start: midway, End: end}),
-	}
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
 	defer tester.Finish()
 	tester.TestReadWith(src)
 
-	expectedRanges := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
-		2: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
-		3: xtime.NewRanges(xtime.Range{Start: start, End: midway}),
-	}
+	expectedRanges := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		2,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		3,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	)
 
 	// NB(bodu): There is no time series data written to disk so all ranges fail to be fulfilled.
 	expectedIndexRanges := target

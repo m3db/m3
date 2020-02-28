@@ -91,13 +91,13 @@ func PersistBootstrapIndexSegment(
 	}
 
 	shards := make(map[uint32]struct{})
-	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
-	for shard := range requestedRanges {
+	expectedRanges := result.NewShardTimeRangesFromSize(requestedRanges.Len())
+	for shard := range requestedRanges.Iter() {
 		shards[shard] = struct{}{}
-		expectedRanges[shard] = xtime.NewRanges(xtime.Range{
+		expectedRanges.Set(shard, xtime.NewRanges(xtime.Range{
 			Start: expectedRangeStart,
 			End:   expectedRangeEnd,
-		})
+		}))
 	}
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
@@ -251,12 +251,12 @@ func BuildBootstrapIndexSegment(
 		expectedRangeStart = earliestRetentionTime
 	}
 
-	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
-	for shard := range requestedRanges {
-		expectedRanges[shard] = xtime.NewRanges(xtime.Range{
+	expectedRanges := result.NewShardTimeRangesFromSize(requestedRanges.Len())
+	for shard := range requestedRanges.Iter() {
+		expectedRanges.Set(shard, xtime.NewRanges(xtime.Range{
 			Start: expectedRangeStart,
 			End:   expectedRangeEnd,
-		})
+		}))
 	}
 
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]

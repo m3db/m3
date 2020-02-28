@@ -162,8 +162,19 @@ func TestBootstrapIndex(t *testing.T) {
 		xtime.Range{Start: start.Add(2 * dataBlockSize), End: start.Add(3 * dataBlockSize)})
 
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
-	targetRanges := result.ShardTimeRanges{
-		shardn(0): ranges, shardn(1): ranges, shardn(2): ranges, shardn(5): ranges}
+	targetRanges := result.NewShardTimeRanges().Set(
+		shardn(0),
+		ranges,
+	).Set(
+		shardn(1),
+		ranges,
+	).Set(
+		shardn(2),
+		ranges,
+	).Set(
+		shardn(5),
+		ranges,
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md1, md2, md3)
 	defer tester.Finish()
@@ -211,7 +222,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	target := result.ShardTimeRanges{}
+	target := result.NewShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
@@ -379,8 +390,19 @@ func TestBootstrapIndexFailsForDecodedTags(t *testing.T) {
 		xtime.Range{Start: start.Add(2 * dataBlockSize), End: start.Add(3 * dataBlockSize)})
 
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
-	targetRanges := result.ShardTimeRanges{
-		shardn(0): ranges, shardn(1): ranges, shardn(2): ranges, shardn(5): ranges}
+	targetRanges := result.NewShardTimeRanges().Set(
+		shardn(0),
+		ranges,
+	).Set(
+		shardn(1),
+		ranges,
+	).Set(
+		shardn(2),
+		ranges,
+	).Set(
+		shardn(5),
+		ranges,
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md1)
 	defer tester.Finish()
