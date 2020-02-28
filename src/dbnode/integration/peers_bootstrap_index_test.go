@@ -165,7 +165,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
+	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
