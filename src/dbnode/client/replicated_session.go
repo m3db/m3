@@ -65,7 +65,7 @@ func newReplicatedSessionMetrics(scope tally.Scope) replicatedSessionMetrics {
 		replicateExecuted:    scope.Counter("replicate.executed"),
 		replicateNotExecuted: scope.Counter("replicate.not-executed"),
 		replicateError:       scope.Counter("replicate.error"),
-		replicateSucess:      scope.Counter("replicate.success"),
+		replicateSuccess:     scope.Counter("replicate.success"),
 	}
 }
 
