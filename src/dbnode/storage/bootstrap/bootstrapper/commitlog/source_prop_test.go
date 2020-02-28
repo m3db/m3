@@ -348,9 +348,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Assign the previously-determined bootstrap range to each known shard
-			shardTimeRanges := result.ShardTimeRanges{}
+			shardTimeRanges := result.NewShardTimeRanges()
 			for shard := range allShardsMap {
-				shardTimeRanges[shard] = ranges
+				shardTimeRanges.Set(shard, ranges)
 			}
 
 			// Perform the bootstrap
