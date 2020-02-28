@@ -183,12 +183,12 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
+	iter, fetchResponse, err := session.FetchTaggedIDs(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{fooSeries, barSeries},
@@ -197,12 +197,12 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
+	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries},
