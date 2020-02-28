@@ -16,7 +16,10 @@ type calcTransport struct {
 	size int
 }
 
-func (t *calcTransport) reset() {
+func (t *calcTransport) Reset() {
+	if t == nil {
+		return
+	}
 	t.size = 0
 }
 func (t *calcTransport) GetSize() int {

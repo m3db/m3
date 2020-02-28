@@ -229,7 +229,7 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 	accum.startTime, accum.endTime = time.Time{}, time.Time{}
 	accum.topoMap = nil
 	accum.exhaustive = true
-	accum.calcTransport.reset()
+	accum.calcTransport.Reset()
 }
 
 func (accum *fetchTaggedResultAccumulator) Reset(
@@ -260,7 +260,7 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 		}
 	}
 
-	accum.calcTransport.reset()
+	accum.calcTransport.Reset()
 }
 
 func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
