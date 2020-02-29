@@ -265,7 +265,9 @@ Some use cases for using this endpoint include:
 If the placement for `M3DB` needs to be recreated, the `/api/v1/services/m3db/placement/set` can be used to do so.
 Please note, a placement already needs to exist to use this endpoint. If no placement exists, use the `Placement Initialization`
 endpoint described above. Also, as mentioned above, this endpoint creates an entirely new placement therefore 
-complete placement information needs to be passed into the body of the request. For example,
+complete placement information needs to be passed into the body of the request. The recommended way to this
+is to get the existing placement using `/api/v1/placement` and modify that (as the `placement` field) along 
+with two additional fields -- `version` and `confirm`. Please see below for a full example:
 
 ```bash
 curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
