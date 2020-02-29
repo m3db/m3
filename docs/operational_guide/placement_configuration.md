@@ -259,7 +259,7 @@ initialCluster:
 This endpoint is unsafe since it creates a brand new placement and therefore should be used with extreme caution.
 Some use cases for using this endpoint include:
 
-- Changing IP addresses of seed nodes
+- Changing IP addresses of nodes
 - Rebalancing shards
 
 If the placement for `M3DB` needs to be recreated, the `/api/v1/services/m3db/placement/set` can be used to do so.
