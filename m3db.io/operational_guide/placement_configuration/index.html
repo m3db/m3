@@ -1035,6 +1035,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#setting-a-new-placement-not-recommended" title="Setting a new placement (Not Recommended)" class="md-nav__link">
+    Setting a new placement (Not Recommended)
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1501,6 +1508,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#setting-a-new-placement-not-recommended" title="Setting a new placement (Not Recommended)" class="md-nav__link">
+    Setting a new placement (Not Recommended)
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1763,6 +1777,62 @@ Removed member 2fd477713daf243 from cluster
 <p>Follow the steps from <code>Replacing a Seed Node</code> to replace <code>host3</code> with <code>host4</code> in the M3DB placement.</p>
 </li>
 </ol>
+<h4 id="setting-a-new-placement-not-recommended">Setting a new placement (Not Recommended)</h4>
+<p>This endpoint is unsafe since it creates a brand new placement and therefore should be used with extreme caution.
+Some use cases for using this endpoint include:</p>
+<ul>
+<li>Changing IP addresses of nodes</li>
+<li>Rebalancing shards</li>
+</ul>
+<p>If the placement for <code>M3DB</code> needs to be recreated, the <code>/api/v1/services/m3db/placement/set</code> can be used to do so.
+Please note, a placement already needs to exist to use this endpoint. If no placement exists, use the <code>Placement Initialization</code>
+endpoint described above. Also, as mentioned above, this endpoint creates an entirely new placement therefore 
+complete placement information needs to be passed into the body of the request. The recommended way to this
+is to get the existing placement using <code>/api/v1/placement</code> and modify that (as the <code>placement</code> field) along 
+with two additional fields -- <code>version</code> and <code>confirm</code>. Please see below for a full example:</p>
+<div class="highlight"><pre><span></span>curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d <span class="s1">&#39;{</span>
+<span class="s1">  &quot;placement&quot;: {</span>
+<span class="s1">    &quot;num_shards&quot;: &lt;DESIRED_NUMBER_OF_SHARDS&gt;,</span>
+<span class="s1">    &quot;replication_factor&quot;: &lt;DESIRED_REPLICATION_FACTOR&gt;(recommended 3),</span>
+<span class="s1">    &quot;instances&quot;: [</span>
+<span class="s1">        {</span>
+<span class="s1">            &quot;id&quot;: &quot;&lt;NODE_1_ID&gt;&quot;,</span>
+<span class="s1">            &quot;isolation_group&quot;: &quot;&lt;NODE_1_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">            &quot;endpoint&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;:&lt;NODE_1_PORT&gt;&quot;,</span>
+<span class="s1">            &quot;hostname&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;&quot;,</span>
+<span class="s1">            &quot;port&quot;: &lt;NODE_1_PORT&gt;</span>
+<span class="s1">        },</span>
+<span class="s1">        {</span>
+<span class="s1">            &quot;id&quot;: &quot;&lt;NODE_2_ID&gt;&quot;,</span>
+<span class="s1">            &quot;isolation_group&quot;: &quot;&lt;NODE_2_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">            &quot;endpoint&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;:&lt;NODE_2_PORT&gt;&quot;,</span>
+<span class="s1">            &quot;hostname&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;&quot;,</span>
+<span class="s1">            &quot;port&quot;: &lt;NODE_2_PORT&gt;</span>
+<span class="s1">        },</span>
+<span class="s1">        {</span>
+<span class="s1">            &quot;id&quot;: &quot;&lt;NODE_3_ID&gt;&quot;,</span>
+<span class="s1">            &quot;isolation_group&quot;: &quot;&lt;NODE_3_ISOLATION_GROUP&gt;&quot;,</span>
+<span class="s1">            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,</span>
+<span class="s1">            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,</span>
+<span class="s1">            &quot;endpoint&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;:&lt;NODE_3_PORT&gt;&quot;,</span>
+<span class="s1">            &quot;hostname&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;&quot;,</span>
+<span class="s1">            &quot;port&quot;: &lt;NODE_3_PORT&gt;</span>
+<span class="s1">        }</span>
+<span class="s1">      ]</span>
+<span class="s1">    },</span>
+<span class="s1">    &quot;version&quot;: &lt;version&gt;,</span>
+<span class="s1">    &quot;confirm&quot;: &lt;true/false&gt;</span>
+<span class="s1">}&#39;</span>
+</pre></div>
+
+<p><strong>Note:</strong> The <code>set</code> endpoint can also be used to set the placements in <code>M3Aggregator</code> and <code>M3Coordinator</code> using the following endpoints, respectively:
+<div class="highlight"><pre><span></span>/api/v1/m3aggregator/set
+/api/v1/m3coordinator/set
+</pre></div></p>
                 
                   
                 
