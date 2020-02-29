@@ -292,13 +292,14 @@ func makeTestFetchTagged(
 		require.NoError(t, err)
 
 		startTime := nodes[0].getNowFn()
-		return s.FetchTagged(testNamespaces[0],
+		series, metadata, err := s.FetchTagged(testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
 				EndExclusive:   startTime.Add(time.Minute),
 				Limit:          100,
 			})
+		return series, metadata.Exhaustive, err
 	}
 
 	return nodes, closeFn, testFetch
