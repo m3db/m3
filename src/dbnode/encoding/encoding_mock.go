@@ -254,7 +254,7 @@ func (mr *MockOptionsMockRecorder) DefaultTimeUnit() *gomock.Call {
 }
 
 // SetTimeEncodingSchemes mocks base method
-func (m *MockOptions) SetTimeEncodingSchemes(value TimeEncodingSchemes) Options {
+func (m *MockOptions) SetTimeEncodingSchemes(value map[time0.Unit]TimeEncodingScheme) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTimeEncodingSchemes", value)
 	ret0, _ := ret[0].(Options)
