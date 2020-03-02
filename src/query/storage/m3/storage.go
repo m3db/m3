@@ -33,11 +33,14 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/opentracing/opentracing-go/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -301,14 +304,28 @@ func (s *m3storage) fetchCompressed(
 		namespace := namespace // Capture var
 		wg.Add(1)
 		go func() {
+			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
+				tracepoint.FetchCompressedFetchTagged)
+			defer span.Finish()
+
 			session := namespace.Session()
-			ns := namespace.NamespaceID()
-			iters, exhaustive, err := session.FetchTagged(ns, m3query, opts)
-			meta := block.NewResultMetadata()
-			meta.Exhaustive = exhaustive
+			namespaceID := namespace.NamespaceID()
+			iters, metadata, err := session.FetchTagged(namespaceID, m3query, opts)
+			if err == nil && sampled {
+				span.LogFields(
+					log.String("namespace", namespaceID.String()),
+					log.Int("series", iters.Len()),
+					log.Bool("exhaustive", metadata.Exhaustive),
+					log.Int("responses", metadata.Responses),
+					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
+				)
+			}
+
+			blockMeta := block.NewResultMetadata()
+			blockMeta.Exhaustive = metadata.Exhaustive
 			fetchResult := SeriesFetchResult{
 				SeriesIterators: iters,
-				Metadata:        meta,
+				Metadata:        blockMeta,
 			}
 
 			// Ignore error from getting iterator pools, since operation
@@ -434,13 +451,29 @@ func (s *m3storage) CompleteTags(
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		go func() {
-			defer wg.Done()
+			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
+				tracepoint.CompleteTagsAggregate)
+			defer func() {
+				span.Finish()
+				wg.Done()
+			}()
+
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			aggTagIter, exhaustive, err := session.Aggregate(namespaceID, m3query, aggOpts)
+			aggTagIter, metadata, err := session.Aggregate(namespaceID, m3query, aggOpts)
 			if err != nil {
 				multiErr.add(err)
 				return
+			}
+
+			if sampled {
+				span.LogFields(
+					log.String("namespace", namespaceID.String()),
+					log.Int("results", aggTagIter.Remaining()),
+					log.Bool("exhaustive", metadata.Exhaustive),
+					log.Int("responses", metadata.Responses),
+					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
+				)
 			}
 
 			mu.Lock()
@@ -471,12 +504,12 @@ func (s *m3storage) CompleteTags(
 				return
 			}
 
-			metadata := block.NewResultMetadata()
-			metadata.Exhaustive = exhaustive
+			blockMeta := block.NewResultMetadata()
+			blockMeta.Exhaustive = metadata.Exhaustive
 			result := &storage.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
-				Metadata:         metadata,
+				Metadata:         blockMeta,
 			}
 
 			if err := accumulatedTags.Add(result); err != nil {
@@ -541,12 +574,26 @@ func (s *m3storage) SearchCompressed(
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		go func() {
+			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
+				tracepoint.SearchCompressedFetchTaggedIDs)
+			defer span.Finish()
+
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iter, exhaustive, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
-			meta := block.NewResultMetadata()
-			meta.Exhaustive = exhaustive
-			result.Add(iter, meta, err)
+			iter, metadata, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
+			if err == nil && sampled {
+				span.LogFields(
+					log.String("namespace", namespaceID.String()),
+					log.Int("series", iter.Remaining()),
+					log.Bool("exhaustive", metadata.Exhaustive),
+					log.Int("responses", metadata.Responses),
+					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
+				)
+			}
+
+			blockMeta := block.NewResultMetadata()
+			blockMeta.Exhaustive = metadata.Exhaustive
+			result.Add(iter, blockMeta, err)
 			wg.Done()
 		}()
 	}
