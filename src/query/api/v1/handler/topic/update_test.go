@@ -34,7 +34,12 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	testTopicName = "test-topic"
 )
 
 func TestPlacementUpdateHandler(t *testing.T) {
@@ -45,34 +50,40 @@ func TestPlacementUpdateHandler(t *testing.T) {
 	handler := NewUpdateHandler(nil, config.Configuration{}, instrument.NewOptions())
 	handler.serviceFn = testServiceFn(mockService)
 
+	consumerSvc := &topicpb.ConsumerService{
+		ServiceId: &topicpb.ServiceID{
+			Name:        "svc",
+			Environment: "env",
+			Zone:        "zone",
+		},
+		ConsumptionType: topicpb.ConsumptionType_SHARED,
+	}
+
 	// Test topic init success
 	updateProto := admin.TopicUpdateRequest{
-		ConsumerServices: []*topicpb.ConsumerService{
-			{
-				ServiceId: &topicpb.ServiceID{
-					Name:        "svc",
-					Environment: "env",
-					Zone:        "zone",
-				},
-				ConsumptionType: topicpb.ConsumptionType_SHARED,
-			},
-		},
-		Version: 2,
+		ConsumerServices: []*topicpb.ConsumerService{consumerSvc},
+		Version:          2,
 	}
 	w := httptest.NewRecorder()
 	b := bytes.NewBuffer(nil)
 	require.NoError(t, jsonMarshaler.Marshal(b, &updateProto))
 	req := httptest.NewRequest("PUT", "/topic/update", b)
-	req.Header.Add("topic-name", "test-topic")
+	req.Header.Add("topic-name", testTopicName)
 	require.NotNil(t, req)
 
 	returnTopic := topic.NewTopic().
-		SetName("test-topic").
+		SetName(testTopicName).
 		SetNumberOfShards(256).
-		SetVersion(1)
+		SetVersion(1).SetConsumerServices([]topic.ConsumerService{
+		func() topic.ConsumerService {
+			svc, err := topic.NewConsumerServiceFromProto(consumerSvc)
+			assert.NoError(t, err)
+			return svc
+		}(),
+	})
 
 	mockService.EXPECT().
-		Get("test-topic").
+		Get(testTopicName).
 		Return(returnTopic, nil)
 
 	mockService.
@@ -93,9 +104,52 @@ func TestPlacementUpdateHandler(t *testing.T) {
 	require.NoError(t, jsonUnmarshaler.Unmarshal(bytes.NewBuffer(body), &respProto))
 
 	validateEqualTopicProto(t, topicpb.Topic{
-		Name:           "test-topic",
-		NumberOfShards: 256,
+		Name:             testTopicName,
+		NumberOfShards:   256,
+		ConsumerServices: []*topicpb.ConsumerService{consumerSvc},
 	}, *respProto.Topic)
 
 	require.Equal(t, uint32(3), respProto.Version)
+
+	// Test removing all consumers.
+	updateProto = admin.TopicUpdateRequest{
+		ConsumerServices: []*topicpb.ConsumerService{},
+		Version:          3,
+	}
+	w = httptest.NewRecorder()
+	b = bytes.NewBuffer(nil)
+	require.NoError(t, jsonMarshaler.Marshal(b, &updateProto))
+	req = httptest.NewRequest("PUT", "/topic/update", b)
+	req.Header.Add("topic-name", testTopicName)
+	require.NotNil(t, req)
+
+	returnTopic = returnTopic.SetConsumerServices([]topic.ConsumerService{})
+
+	mockService.EXPECT().
+		Get(testTopicName).
+		Return(returnTopic, nil)
+
+	mockService.
+		EXPECT().
+		CheckAndSet(returnTopic, 3).
+		Return(
+			returnTopic.SetVersion(4),
+			nil,
+		)
+
+	handler.ServeHTTP(w, req)
+	resp = w.Result()
+	body, err = ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	require.NoError(t, jsonUnmarshaler.Unmarshal(bytes.NewBuffer(body), &respProto))
+
+	validateEqualTopicProto(t, topicpb.Topic{
+		Name:             testTopicName,
+		NumberOfShards:   256,
+		ConsumerServices: []*topicpb.ConsumerService{},
+	}, *respProto.Topic)
+
+	require.Equal(t, uint32(4), respProto.Version)
 }

@@ -94,7 +94,10 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	csvcs := make([]topic.ConsumerService, 0, len(req.ConsumerServices))
+	oldConsumers := len(m3Topic.ConsumerServices())
+	newConsumers := len(req.ConsumerServices)
+
+	csvcs := make([]topic.ConsumerService, 0, newConsumers)
 	for _, svc := range req.ConsumerServices {
 		csvc, err := topic.NewConsumerServiceFromProto(svc)
 		if err != nil {
@@ -116,7 +119,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svcLogger.Info("updated service in-place")
+	svcLogger.Info("updated service in-place", zap.Int("oldConsumers", oldConsumers), zap.Int("newConsumers", newConsumers))
 
 	pb, err := topic.ToProto(m3Topic)
 	if err != nil {
