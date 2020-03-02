@@ -51,21 +51,23 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	numShards := 1024
-	numReplicas := 3
-	numHosts := 8
+	var (
+		numShards   = 1024
+		numReplicas = 3
+		numHosts    = 8
 
-	concurrency := 4
-	fetchAllEach := 128
+		concurrency  = 4
+		fetchAllEach = 128
 
-	maxIDs := 0
-	fetchAllTypes := []struct {
-		numIDs int
-		ids    []string
-	}{
-		{numIDs: 16},
-		{numIDs: 32},
-	}
+		maxIDs        = 0
+		fetchAllTypes = []struct {
+			numIDs int
+			ids    []string
+		}{
+			{numIDs: 16},
+			{numIDs: 32},
+		}
+	)
 	for i := range fetchAllTypes {
 		for j := 0; j < fetchAllTypes[i].numIDs; j++ {
 			fetchAllTypes[i].ids = append(fetchAllTypes[i].ids, fmt.Sprintf("foo.%d", j))
@@ -75,11 +77,13 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		}
 	}
 
-	healthCheckResult := &rpc.NodeHealthResult_{Ok: true, Status: "ok", Bootstrapped: true}
-
-	start := time.Now().Truncate(time.Hour)
-	end := start.Add(2 * time.Hour)
-
+	var (
+		healthCheckResult = &rpc.NodeHealthResult_{Ok: true, Status: "ok", Bootstrapped: true}
+		start             = time.Now().Truncate(time.Hour)
+		end               = start.Add(2 * time.Hour)
+		startNanos        = start.UnixNano()
+		startNanosPtr     = &startNanos
+	)
 	encoder := m3tsz.NewEncoder(start, nil, true, nil)
 	for at := start; at.Before(end); at = at.Add(30 * time.Second) {
 		dp := ts.Datapoint{
@@ -90,7 +94,11 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	}
 	seg := encoder.Discard()
 	respSegments := []*rpc.Segments{&rpc.Segments{
-		Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
+		Merged: &rpc.Segment{
+			Head:      seg.Head.Bytes(),
+			Tail:      seg.Tail.Bytes(),
+			StartTime: startNanosPtr,
+		},
 	}}
 	respElements := make([]*rpc.FetchRawResult_, maxIDs)
 	for i := range respElements {

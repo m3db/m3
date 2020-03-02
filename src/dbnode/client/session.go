@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -1581,6 +1582,12 @@ func (s *session) fetchIDsAttempt(
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
 
+				deduplicatedReplicas, err := s.dedupeReplicasBlockByBlock(nsCtx, itersToInclude)
+				if err != nil {
+					// TODO: handle error properly.
+					panic(err)
+				}
+
 				iter := s.pools.seriesIterator.Get()
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
@@ -1593,7 +1600,7 @@ func (s *session) fetchIDsAttempt(
 					Namespace:      namespaceID,
 					StartInclusive: startInclusive,
 					EndExclusive:   endExclusive,
-					Replicas:       itersToInclude,
+					Replicas:       deduplicatedReplicas,
 				})
 				iters.SetAt(idx, iter)
 			}
@@ -1731,6 +1738,176 @@ func (s *session) fetchIDsAttempt(
 	}
 	success = true
 	return iters, nil
+}
+
+// dedupeReplicasBlockByBlock uses a minheap to perform the "merge K-sorted arrays" algorithm to
+// deduplicate K replicas block-by-block. The output is a new slice of replicas in which any replicas
+// that had identical blocks have been stripped out. This should improve the performance of reads over
+// large number of blocks since for many blocks we will only have to decode one stream instead of 2 or 3.
+func (s *session) dedupeReplicasBlockByBlock(
+	nsCtx namespace.Context,
+	replicas []encoding.MultiReaderIterator,
+) ([]encoding.MultiReaderIterator, error) {
+	deduplicatedReplicas := make([]encoding.MultiReaderIterator, 0, len(replicas))
+
+	// Copy the slice since the minheap will be moving things around in it.
+	replicasToDedupe := make([]encoding.MultiReaderIterator, 0, len(replicas))
+	for _, replica := range replicas {
+		// Minheap logic expects every replica to have readers.
+		if replica.Readers() == nil {
+			// If the replica has no data just include it in the final output as is to keep the logic for
+			// the rest of the codepaths after this function the same.
+			deduplicatedReplicas = append(deduplicatedReplicas, replica)
+		} else {
+			// If the replica has data then run it through the block-by-block deduplication logic and it will
+			// get loaded into deduplicatedReplicas at the end.
+			replicasToDedupe = append(replicasToDedupe, replica)
+		}
+	}
+
+	minHeap := newMultiReaderIterHeap(replicasToDedupe)
+	heap.Init(minHeap)
+
+	pop := func() (time.Time, []xio.BlockReader) {
+		var (
+			popped      = heap.Pop(minHeap).(encoding.MultiReaderIterator)
+			currReaders = popped.Readers()
+		)
+		numReaders, blockStart, _ := currReaders.CurrentReaders()
+
+		blockReaders := make([]xio.BlockReader, 0, numReaders)
+		for i := 0; i < numReaders; i++ {
+			blockReader := currReaders.CurrentReaderAt(i)
+			blockReaders = append(blockReaders, blockReader)
+		}
+
+		// To avoid creating a giant min heap backed by a very large slice, we limit the size of
+		// the minheap to the number of replicas (I.E only one bock per replica can be in the heap
+		// at any given moment). As a result of this, everytime we pop a block we need to check if
+		// that replicas has any more blocks, and if so, push them back into the heap.
+		if currReaders.Next() {
+			heap.Push(minHeap, popped)
+		}
+		return blockStart, blockReaders
+	}
+
+	peak := func() (int, time.Time) {
+		numReaders, blockStart, _ := minHeap.multiReaderIters[0].Readers().CurrentReaders()
+		return numReaders, blockStart
+	}
+
+	type dedupeState struct {
+		blockReaders []xio.BlockReader
+		checksum     uint32
+	}
+
+	var (
+		// First level of slice represents a replica, second level a block, and third is a slice
+		// of data blocks that when merge generate the complete data stream for that blockStart
+		// for that replica.
+		deduplicatedBlockReaders = make([][][]xio.BlockReader, len(replicasToDedupe))
+		toDedupe                 = make([]dedupeState, 0, len(replicasToDedupe))
+	)
+	// Outer loop runs until the minheap is empty which will only occur once we've exhausted all of
+	// the data in the replica streams due to how push (documented above) is implemented.
+	for minHeap.Len() > 0 {
+		toDedupe = toDedupe[:0]
+		currBlockStart, outerBlockReaders := pop()
+		toDedupe = append(toDedupe, dedupeState{
+			blockReaders: outerBlockReaders,
+		})
+
+		// Inner loop runs until the minheap is exhausted OR after we peak ahead and see that the next
+		// available block of data in the heap does not belong to the same blockStart that we're currently
+		// trying to merge. The reason for this inner loop is that unlike in the standard merge K-sorted
+		// arrays algorithm, we're not just trying to generated a merged sorted array, but also actively
+		// deduplicate by blockStart which means that we need to consume all the blocks for a given blockStart
+		// in each iteration of the outer loop.
+		for minHeap.Len() > 0 {
+			if _, blockStart := peak(); blockStart != currBlockStart {
+				break
+			}
+
+			_, innerBlockReaders := pop()
+
+			var (
+				calculatedChecksum uint32
+				foundDuplicate     bool
+			)
+			if len(innerBlockReaders) == 1 {
+				// Only attempt to deduplicate if there is only a single block reader since if there
+				// is more than one data block for a given blockStart it is unlikely that there will be
+				// an exact match between replicas.
+
+				for i, dedupeState := range toDedupe {
+					if len(dedupeState.blockReaders) != 1 {
+						continue
+					}
+
+					if dedupeState.checksum == 0 {
+						// Checksum has not been calculated yet.
+						seg, err := dedupeState.blockReaders[0].Segment()
+						if err != nil {
+							return nil, fmt.Errorf("error getting segment from block reader: %v", err)
+						}
+						checksum := digest.SegmentChecksum(seg)
+						dedupeState.checksum = checksum
+						toDedupe[i] = dedupeState
+					}
+
+					if calculatedChecksum == 0 {
+						// Checksum has not been calculated yet.
+						seg, err := innerBlockReaders[0].Segment()
+						if err != nil {
+							return nil, fmt.Errorf("error getting segment from block reader: %v", err)
+						}
+						calculatedChecksum = digest.SegmentChecksum(seg)
+					}
+
+					if calculatedChecksum == dedupeState.checksum {
+						foundDuplicate = true
+						break
+					}
+				}
+			}
+
+			if foundDuplicate {
+				// Don't add these block readers since they're an exact duplicate of an existing set
+				// from a different replica.
+				continue
+			}
+
+			// Otherwise add them to the set since we don't have any other copies yet.
+			toDedupe = append(toDedupe, dedupeState{
+				blockReaders: innerBlockReaders,
+				checksum:     calculatedChecksum,
+			})
+		}
+
+		for i, deduped := range toDedupe {
+			for _, br := range deduped.blockReaders {
+				// Reset the block readers before appending them because they've already been partially
+				// consumed by the MultiReaderIterator.
+				seg, err := br.Segment()
+				if err != nil {
+					return nil, fmt.Errorf("error getting segment from block reader: %v", err)
+				}
+				br.ResetWindowed(seg, br.Start, br.BlockSize)
+			}
+			deduplicatedBlockReaders[i] = append(deduplicatedBlockReaders[i], deduped.blockReaders)
+		}
+	}
+
+	for _, dedupedBRs := range deduplicatedBlockReaders {
+		var (
+			multiIter     = s.pools.multiReaderIterator.Get()
+			sliceOfSlices = xio.NewReaderSliceOfSlicesFromBlockReadersIterator(dedupedBRs)
+		)
+		multiIter.ResetSliceOfSlices(sliceOfSlices, nsCtx.Schema)
+		deduplicatedReplicas = append(deduplicatedReplicas, multiIter)
+	}
+
+	return deduplicatedReplicas, nil
 }
 
 func (s *session) writeConsistencyResult(
@@ -4049,4 +4226,39 @@ func minDuration(x, y time.Duration) time.Duration {
 		return x
 	}
 	return y
+}
+
+type multiReaderIterHeap struct {
+	multiReaderIters []encoding.MultiReaderIterator
+}
+
+func newMultiReaderIterHeap(iters []encoding.MultiReaderIterator) *multiReaderIterHeap {
+	return &multiReaderIterHeap{
+		multiReaderIters: iters,
+	}
+}
+
+func (h *multiReaderIterHeap) Len() int {
+	return len(h.multiReaderIters)
+}
+
+func (h *multiReaderIterHeap) Less(i, j int) bool {
+	_, _, iBlockSize := h.multiReaderIters[i].Readers().CurrentReaders()
+	_, _, jBlockSize := h.multiReaderIters[j].Readers().CurrentReaders()
+	return iBlockSize < jBlockSize
+}
+
+func (h *multiReaderIterHeap) Swap(i, j int) {
+	h.multiReaderIters[i], h.multiReaderIters[j] = h.multiReaderIters[j], h.multiReaderIters[i]
+}
+
+func (h *multiReaderIterHeap) Push(x interface{}) {
+	h.multiReaderIters = append(h.multiReaderIters, x.(encoding.MultiReaderIterator))
+}
+
+func (h *multiReaderIterHeap) Pop() interface{} {
+	lastIdx := len(h.multiReaderIters) - 1
+	toReturn := h.multiReaderIters[lastIdx]
+	h.multiReaderIters = h.multiReaderIters[:lastIdx]
+	return toReturn
 }
