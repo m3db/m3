@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -47,8 +47,8 @@ func TestPlacementUpdateHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewUpdateHandler(nil, config.Configuration{}, instrument.NewOptions())
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newUpdateHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*UpdateHandler).serviceFn = testServiceFn(mockService)
 
 	consumerSvc := &topicpb.ConsumerService{
 		ServiceId: &topicpb.ServiceID{

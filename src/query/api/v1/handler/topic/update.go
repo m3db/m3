@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -38,23 +38,23 @@ import (
 )
 
 const (
-	// UpdateURL is the url for the topic delete handler (with the PUT method).
+	// UpdateURL is the url for the topic update handler (with the PUT method).
 	UpdateURL = handler.RoutePrefixV1 + "/topic"
 
 	// UpdateHTTPMethod is the HTTP method used with this resource.
 	UpdateHTTPMethod = http.MethodPut
 )
 
-// UpdateHandler is the handler for topic adds.
+// UpdateHandler is the handler for topic updates.
 type UpdateHandler Handler
 
-// NewUpdateHandler returns a new instance of UpdateHandler. This is used for
+// newUpdateHandler returns a new instance of UpdateHandler. This is used for
 // updating a topic in-place, for example to add or remove consumers.
-func NewUpdateHandler(
+func newUpdateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *UpdateHandler {
+) http.Handler {
 	return &UpdateHandler{
 		client:         client,
 		cfg:            cfg,

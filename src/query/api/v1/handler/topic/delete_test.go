@@ -39,8 +39,8 @@ func TestTopicDeleteHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewDeleteHandler(nil, config.Configuration{}, instrument.NewOptions())
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newDeleteHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*DeleteHandler).serviceFn = testServiceFn(mockService)
 
 	// Test successful get
 	w := httptest.NewRecorder()
