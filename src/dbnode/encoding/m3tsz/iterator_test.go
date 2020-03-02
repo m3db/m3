@@ -65,7 +65,7 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 
 		err := it.readNextTimestamp(stream)
 		require.NoError(t, err)
-		require.Equal(t, input.expectedTimeDelta, it.PrevTimeDelta)
+		require.Equal(t, xtime.ToUnixNanoDuration(input.expectedTimeDelta), it.PrevTimeDelta)
 	}
 
 	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}), 16)
