@@ -1162,7 +1162,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
-			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
+			expected = append(expected, ts.Datapoint{Timestamp: start, TimestampNanos: xtime.ToUnixNano(start), Value: value})
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
 		}

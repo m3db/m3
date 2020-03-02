@@ -54,7 +54,7 @@ type Unit uint16
 // Value is the time duration of the time unit.
 func (tu Unit) Value() (time.Duration, error) {
 	// Skip zero-length time.
-	if tu < 1 || int(tu) > unitCount {
+	if tu < 1 || int(tu) >= unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
 	return time.Duration(unitsToDuration[tu]), nil

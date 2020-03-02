@@ -61,8 +61,9 @@ func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
 	for i, dp := range fetched.Datapoints {
 		converted[i] = generate.TestValue{
 			Datapoint: ts.Datapoint{
-				Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
-				Value:     dp.Value,
+				Timestamp:      xtime.FromNormalizedTime(dp.Timestamp, time.Second),
+				TimestampNanos: xtime.ToUnixNano(xtime.FromNormalizedTime(dp.Timestamp, time.Second)),
+				Value:          dp.Value,
 			},
 			Annotation: dp.Annotation,
 		}
