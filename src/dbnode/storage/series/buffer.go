@@ -692,9 +692,12 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	}
 	if bucket, exists := buckets.writableBucket(ColdWrite); exists {
 		bucket.version = version
-	} else {
-		return nil, fmt.Errorf("writable bucket does not exist with block start %s", start)
 	}
+	// No-op if the writable bucket doesn't exist.
+	// This function should only get called for blocks that we know need to be
+	// cold flushed. However, buckets that get attempted to be cold flushed and
+	// fail need to get cold flushed as well. These kinds of buckets will have
+	// a non-writable version.
 
 	return blocks, nil
 }
