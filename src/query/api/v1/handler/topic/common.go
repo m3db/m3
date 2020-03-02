@@ -89,6 +89,9 @@ func RegisterRoutes(
 	r.HandleFunc(AddURL,
 		wrapped(NewAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(AddHTTPMethod)
+	r.HandleFunc(UpdateURL,
+		wrapped(NewUpdateHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		Methods(UpdateHTTPMethod)
 	r.HandleFunc(DeleteURL,
 		wrapped(NewDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(DeleteHTTPMethod)
