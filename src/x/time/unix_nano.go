@@ -36,11 +36,6 @@ func ToUnixNano(t time.Time) UnixNano {
 	return UnixNano(t.UnixNano())
 }
 
-// ToUnixNanoDuration returns a UnixNano from a time.Duration
-func ToUnixNanoDuration(d time.Duration) UnixNano {
-	return UnixNano(d.Nanoseconds())
-}
-
 // Before reports whether the time instant u is before t.
 func (u UnixNano) Before(t UnixNano) bool {
 	return u < t

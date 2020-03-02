@@ -212,8 +212,7 @@ func initialTimeUnit(start xtime.UnixNano, tu xtime.Unit) xtime.Unit {
 	}
 	// If we want to use tu as the time unit for start, start must
 	// be a multiple of tu.
-	tvInNano := xtime.ToUnixNanoDuration(tv)
-	if start%tvInNano == 0 {
+	if start%xtime.UnixNano(tv) == 0 {
 		return tu
 	}
 	return xtime.None

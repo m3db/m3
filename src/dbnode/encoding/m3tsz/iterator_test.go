@@ -61,11 +61,11 @@ func TestReaderIteratorReadNextTimestamp(t *testing.T) {
 		it := NewTimestampIterator(encoding.NewOptions(), false)
 
 		it.TimeUnit = input.timeUnit
-		it.PrevTimeDelta = xtime.ToUnixNanoDuration(input.previousTimeDelta)
+		it.PrevTimeDelta = input.previousTimeDelta
 
 		err := it.readNextTimestamp(stream)
 		require.NoError(t, err)
-		require.Equal(t, xtime.ToUnixNanoDuration(input.expectedTimeDelta), it.PrevTimeDelta)
+		require.Equal(t, input.expectedTimeDelta, it.PrevTimeDelta)
 	}
 
 	stream := encoding.NewIStream(bytes.NewBuffer([]byte{0x1}), 16)

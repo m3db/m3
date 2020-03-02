@@ -23,6 +23,7 @@ package m3tsz
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -33,7 +34,7 @@ import (
 // delta-of-delta compresed timestamps.
 type TimestampIterator struct {
 	PrevTime      xtime.UnixNano
-	PrevTimeDelta xtime.UnixNano
+	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
 
 	TimeUnit xtime.Unit
@@ -120,7 +121,7 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	it.PrevTime = nt + it.PrevTimeDelta
+	it.PrevTime = nt + xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
@@ -131,11 +132,11 @@ func (it *TimestampIterator) readNextTimestamp(stream encoding.IStream) error {
 	}
 
 	it.PrevTimeDelta += dod
-	it.PrevTime = it.PrevTime + it.PrevTimeDelta
+	it.PrevTime = it.PrevTime + xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
-func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (xtime.UnixNano, bool, error) {
+func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Duration, bool, error) {
 	mes := it.Opts.MarkerEncodingScheme()
 	numBits := mes.NumOpcodeBits() + mes.NumValueBits()
 	opcodeAndValue, success := it.tryPeekBits(stream, numBits)
@@ -193,7 +194,7 @@ func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (xtime.UnixN
 	}
 }
 
-func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (xtime.UnixNano, error) {
+func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (time.Duration, error) {
 	if !it.SkipMarkers {
 		dod, success, err := it.tryReadMarker(stream)
 		if err != nil {
@@ -217,7 +218,7 @@ func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (
 }
 
 func (it *TimestampIterator) readDeltaOfDelta(
-	stream encoding.IStream, tes encoding.TimeEncodingScheme) (xtime.UnixNano, error) {
+	stream encoding.IStream, tes encoding.TimeEncodingScheme) (time.Duration, error) {
 	if it.TimeUnitChanged {
 		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
 		// dod in nanoseconds.
@@ -227,7 +228,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 		}
 
 		dod := encoding.SignExtend(dodBits, 64)
-		return xtime.UnixNano(dod), nil
+		return time.Duration(dod), nil
 	}
 
 	cb, err := stream.ReadBits(1)
@@ -258,7 +259,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 				return 0, nil
 			}
 
-			return xtime.ToUnixNanoDuration(xtime.FromNormalizedDuration(dod, timeUnit)), nil
+			return xtime.FromNormalizedDuration(dod, timeUnit), nil
 		}
 	}
 
@@ -273,7 +274,7 @@ func (it *TimestampIterator) readDeltaOfDelta(
 		return 0, nil
 	}
 
-	return xtime.ToUnixNanoDuration(xtime.FromNormalizedDuration(dod, timeUnit)), nil
+	return xtime.FromNormalizedDuration(dod, timeUnit), nil
 }
 
 func (it *TimestampIterator) readAnnotation(stream encoding.IStream) error {
