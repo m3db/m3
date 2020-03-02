@@ -63,7 +63,7 @@ func NewStepLookbackConsolidator(
 	startTime time.Time,
 	fn ConsolidationFunc,
 ) *StepLookbackConsolidator {
-	datapoints := make([]ts.Datapoint, 0, initLength)
+	datapoints := make([]ts.Datapoint, 0, initLength*BufferSteps)
 	buffer := make([]float64, BufferSteps)
 	return &StepLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
@@ -108,6 +108,7 @@ func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	}
 
 	val := c.unconsumed[0]
-	c.unconsumed = c.unconsumed[1:]
+	copy(c.unconsumed, c.unconsumed[1:])
+	c.unconsumed = c.unconsumed[:len(c.unconsumed)-1]
 	return val
 }

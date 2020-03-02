@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -373,6 +375,7 @@ const (
 	stepSequential iterType = iota
 	stepParallel
 	seriesSequential
+	seriesBatch
 )
 
 func (t iterType) name(name string) string {
@@ -384,6 +387,8 @@ func (t iterType) name(name string) string {
 		n = "sequential"
 	case seriesSequential:
 		n = "series"
+	case seriesBatch:
+		n = "series_batch"
 	default:
 		panic(fmt.Sprint("bad iter type", t))
 	}
@@ -391,7 +396,9 @@ func (t iterType) name(name string) string {
 	return fmt.Sprintf("%s_%s", n, name)
 }
 
-func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
+type reset func()
+
+func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 	var (
 		seriesCount   = 100
 		replicasCount = 3
@@ -402,7 +409,6 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		iters         = make([]encoding.SeriesIterator, seriesCount)
 		itersReset    = make([]func(), seriesCount)
 		collectors    = make([]consolidators.StepCollector, seriesCount)
-		peeks         = make([]peekValue, seriesCount)
 
 		encodingOpts = encoding.NewOptions()
 		namespaceID  = ident.StringID("namespace")
@@ -456,7 +462,6 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		}
 
 		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i))
-
 		tags, err := ident.NewTagStringsIterator("foo", "bar", "baz", "qux")
 		require.NoError(b, err)
 
@@ -515,83 +520,89 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
 
+	opts := NewOptions()
+	if usePools {
+		poolOpts := xsync.NewPooledWorkerPoolOptions()
+		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, poolOpts)
+		require.NoError(b, err)
+		readWorkerPools.Init()
+		opts = opts.SetReadWorkerPool(readWorkerPools)
+	}
+
+	for _, reset := range itersReset {
+		reset()
+	}
+
+	block, err := NewEncodedBlock(iters, models.Bounds{
+		Start:    start,
+		StepSize: stepSize,
+		Duration: window,
+	}, false, block.NewResultMetadata(), NewOptions())
+
+	require.NoError(b, err)
+	return block, func() {
+		for _, reset := range itersReset {
+			reset()
+		}
+	}
+}
+
+func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
+	bl, reset := setupBlock(b, iterations, t)
 	if t == seriesSequential {
-		sm := make([]block.SeriesMeta, seriesCount)
-		for i := range iters {
-			sm[i] = block.SeriesMeta{}
-		}
-
-		it := encodedSeriesIter{
-			idx: -1,
-			meta: block.Metadata{
-				Bounds: models.Bounds{
-					Start:    start,
-					StepSize: stepSize,
-					Duration: window,
-				},
-			},
-
-			seriesIters:      iters,
-			seriesMeta:       sm,
-			lookbackDuration: time.Minute * 5,
-		}
+		it, err := bl.SeriesIter()
+		require.NoError(b, err)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			it.idx = -1
-			// Reset all the underlying compressed series iterators.
-			for _, reset := range itersReset {
-				reset()
-			}
-
+			reset()
 			for it.Next() {
 			}
+
 			require.NoError(b, it.Err())
 		}
 
 		return
 	}
 
-	it := &encodedStepIterWithCollector{
-		stepTime: start,
-		blockEnd: end,
-		meta: block.Metadata{
-			Bounds: models.Bounds{
-				Start:    start,
-				StepSize: stepSize,
-				Duration: window,
-			},
-		},
-
-		seriesCollectors: collectors,
-		seriesPeek:       peeks,
-		seriesIters:      iters,
-	}
-
-	if usePools {
-		opts := xsync.NewPooledWorkerPoolOptions()
-		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
+	if t == seriesBatch {
+		batches, err := bl.MultiSeriesIter(runtime.NumCPU())
 		require.NoError(b, err)
-		readWorkerPools.Init()
-		it.workerPool = readWorkerPools
+
+		var wg sync.WaitGroup
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			reset()
+
+			for _, batch := range batches {
+				it := batch.Iter
+				wg.Add(1)
+				go func() {
+					for it.Next() {
+					}
+
+					wg.Done()
+				}()
+			}
+
+			wg.Wait()
+			for _, batch := range batches {
+				require.NoError(b, batch.Iter.Err())
+			}
+		}
+
+		return
 	}
+
+	it, err := bl.StepIter()
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		it.stepTime = start
-		it.bufferTime = time.Time{}
-		it.finished = false
-		for i := range it.seriesPeek {
-			it.seriesPeek[i] = peekValue{}
-		}
-
-		// Reset all the underlying compressed series iterators.
-		for _, reset := range itersReset {
-			reset()
-		}
-
+		reset()
 		for it.Next() {
 		}
+
 		require.NoError(b, it.Err())
 	}
 }
@@ -638,9 +649,10 @@ func BenchmarkNextIteration(b *testing.B) {
 		stepSequential,
 		stepParallel,
 		seriesSequential,
+		seriesBatch,
 	}
 
-	for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
+	for _, s := range []int{2000} {
 		for _, t := range iterTypes {
 			name := t.name(fmt.Sprintf("%d", s))
 			b.Run(name, func(b *testing.B) {
