@@ -206,10 +206,8 @@ func buildUnconsolidatedSeriesBlock(ctrl *gomock.Controller,
 	}
 
 	it.EXPECT().Current().Return(UnconsolidatedSeries{
-		opts: UnconsolidatedSeriesOptions{
-			Datapoints: vals,
-			Meta:       SeriesMeta{Name: []byte(fmt.Sprint(v))},
-		},
+		datapoints: vals,
+		Meta:       SeriesMeta{Name: []byte(fmt.Sprint(v))},
 	})
 
 	it.EXPECT().SeriesMeta().
@@ -256,7 +254,7 @@ func TestUnconsolidatedContainerSeriesIter(t *testing.T) {
 		assert.Equal(t, expected[ex], current.Datapoints())
 		ex++
 
-		assert.Equal(t, []byte(fmt.Sprint(ex)), current.opts.Meta.Name)
+		assert.Equal(t, []byte(fmt.Sprint(ex)), current.Meta.Name)
 	}
 
 	metas := it.SeriesMeta()
@@ -299,10 +297,8 @@ func buildMultiSeriesBlock(
 		}
 
 		it.EXPECT().Current().Return(UnconsolidatedSeries{
-			opts: UnconsolidatedSeriesOptions{
-				Datapoints: vals,
-				Meta:       SeriesMeta{Name: []byte(fmt.Sprintf("%d_%d", i, int(v)))},
-			},
+			datapoints: vals,
+			Meta:       SeriesMeta{Name: []byte(fmt.Sprintf("%d_%d", i, int(v)))},
 		})
 
 		batches = append(batches, SeriesIterBatch{Iter: it, Size: 1})
@@ -359,7 +355,7 @@ func TestUnconsolidatedContainerMultiSeriesIter(t *testing.T) {
 			assert.Equal(t, ex[i], current.Datapoints())
 			i++
 
-			assert.Equal(t, expectedNames[n], string(current.opts.Meta.Name))
+			assert.Equal(t, expectedNames[n], string(current.Meta.Name))
 			n++
 		}
 	}
