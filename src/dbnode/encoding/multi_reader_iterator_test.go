@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type testMultiReader struct {
@@ -359,6 +359,7 @@ func assertTestMultiReaderIterator(
 		require.Equal(t, true, next, "expected next for idx %d", i)
 		dp, unit, annotation := iter.Current()
 		expected := test.expected[i]
+		fmt.Println("DATA", dp.Value, expected.value)
 		require.Equal(t, expected.value, dp.Value, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.t, dp.Timestamp, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.unit, unit, fmt.Sprintf("mismatch for idx %d", i))
