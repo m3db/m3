@@ -617,33 +617,42 @@ var (
 	profilesTaken = make(map[profileTakenKey]int)
 )
 
-// $ go test -v -run none -bench BenchmarkNextIteration
-// goos: darwin
-// goarch: amd64
-// pkg: github.com/m3db/m3/src/query/ts/m3db
-// BenchmarkNextIteration/sequential_10-12			1776			642349 ns/op
-// BenchmarkNextIteration/parallel_10-12	  		2538			466186 ns/op
-// BenchmarkNextIteration/series_10-12	    		1915			601583 ns/op
+/*
+	$ go test -v -run none -bench BenchmarkNextIteration
+	goos: darwin
+	goarch: amd64
+	pkg: github.com/m3db/m3/src/query/ts/m3db
 
-// BenchmarkNextIteration/sequential_100-12			621				1945963 ns/op
-// BenchmarkNextIteration/parallel_100-12	 			1118			1042822 ns/op
-// BenchmarkNextIteration/series_100-12	    		834				1451031 ns/op
+	BenchmarkNextIteration/sequential_10-12      4112  282491 ns/op
+	BenchmarkNextIteration/parallel_10-12        4214  249335 ns/op
+	BenchmarkNextIteration/series_10-12          4515  248946 ns/op
+	BenchmarkNextIteration/series_batch_10-12    4434  269776 ns/op
 
-// BenchmarkNextIteration/sequential_200-12			398				3002165 ns/op
-// BenchmarkNextIteration/parallel_200-12	  		699				1613085 ns/op
-// BenchmarkNextIteration/series_200-12	    		614				1969783 ns/op
+	BenchmarkNextIteration/sequential_100-12     4069  267836 ns/op
+	BenchmarkNextIteration/parallel_100-12       4126  283069 ns/op
+	BenchmarkNextIteration/series_100-12         4146  266928 ns/op
+	BenchmarkNextIteration/series_batch_100-12   4399  255991 ns/op
 
-// BenchmarkNextIteration/sequential_500-12			214				5522765 ns/op
-// BenchmarkNextIteration/parallel_500-12	  		382				2904843 ns/op
-// BenchmarkNextIteration/series_500-12	    		400				2996965 ns/op
+	BenchmarkNextIteration/sequential_200-12     4267  245249 ns/op
+	BenchmarkNextIteration/parallel_200-12       4233  239597 ns/op
+	BenchmarkNextIteration/series_200-12         4365  245924 ns/op
+	BenchmarkNextIteration/series_batch_200-12   4485  235055 ns/op
 
-// BenchmarkNextIteration/sequential_1000-12		129				9050684 ns/op
-// BenchmarkNextIteration/parallel_1000-12	 		238				4775567 ns/op
-// BenchmarkNextIteration/series_1000-12	   		289				4176052 ns/op
+	BenchmarkNextIteration/sequential_500-12     5108  230085 ns/op
+	BenchmarkNextIteration/parallel_500-12       4802  230694 ns/op
+	BenchmarkNextIteration/series_500-12         4831  229797 ns/op
+	BenchmarkNextIteration/series_batch_500-12   4880  246588 ns/op
 
-// BenchmarkNextIteration/sequential_2000-12		64				16190003 ns/op
-// BenchmarkNextIteration/parallel_2000-12	 		136				8238382 ns/op
-// BenchmarkNextIteration/series_2000-12	   		207				5744589 ns/op
+	BenchmarkNextIteration/sequential_1000-12    3807  265449 ns/op
+	BenchmarkNextIteration/parallel_1000-12      5062  254942 ns/op
+	BenchmarkNextIteration/series_1000-12        4423  236796 ns/op
+	BenchmarkNextIteration/series_batch_1000-12  4772  251977 ns/op
+
+	BenchmarkNextIteration/sequential_2000-12    4916  243593 ns/op
+	BenchmarkNextIteration/parallel_2000-12      4743  253677 ns/op
+	BenchmarkNextIteration/series_2000-12        4078  256375 ns/op
+	BenchmarkNextIteration/series_batch_2000-12  4465  242323 ns/op
+*/
 func BenchmarkNextIteration(b *testing.B) {
 	iterTypes := []iterType{
 		stepSequential,
