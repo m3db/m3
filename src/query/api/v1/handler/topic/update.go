@@ -110,7 +110,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		csvcs = append(csvcs, csvc)
 	}
 
-	m3Topic.SetConsumerServices(csvcs)
+	m3Topic = m3Topic.SetConsumerServices(csvcs)
 	newTopic, err := service.CheckAndSet(m3Topic, int(req.Version))
 	if err != nil {
 		svcLogger.Error("unable to delete service", zap.Error(err))
