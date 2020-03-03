@@ -28,9 +28,11 @@ import (
 )
 
 type segmentReader struct {
-	segment ts.Segment
-	si      int
-	pool    SegmentReaderPool
+	segment  ts.Segment
+	lazyHead []byte
+	lazyTail []byte
+	si       int
+	pool     SegmentReaderPool
 }
 
 // NewSegmentReader creates a new segment reader along with a specified segment.
@@ -48,20 +50,24 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
-	var head, tail []byte
-	if b := sr.segment.Head; b != nil {
-		head = b.Bytes()
+	if sr.lazyHead == nil {
+		if b := sr.segment.Head; b != nil {
+			sr.lazyHead = b.Bytes()
+		}
 	}
-	if b := sr.segment.Tail; b != nil {
-		tail = b.Bytes()
+	if sr.lazyTail == nil {
+		if b := sr.segment.Tail; b != nil {
+			sr.lazyTail = b.Bytes()
+		}
 	}
-	nh, nt := len(head), len(tail)
+
+	nh, nt := len(sr.lazyHead), len(sr.lazyTail)
 	if sr.si >= nh+nt {
 		return 0, io.EOF
 	}
 	n := 0
 	if sr.si < nh {
-		nRead := copy(b, head[sr.si:])
+		nRead := copy(b, sr.lazyHead[sr.si:])
 		sr.si += nRead
 		n += nRead
 		if n == len(b) {
@@ -69,7 +75,7 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 		}
 	}
 	if sr.si < nh+nt {
-		nRead := copy(b[n:], tail[sr.si-nh:])
+		nRead := copy(b[n:], sr.lazyTail[sr.si-nh:])
 		sr.si += nRead
 		n += nRead
 	}
