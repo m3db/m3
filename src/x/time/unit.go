@@ -209,3 +209,8 @@ func init() {
 	}
 	sort.Sort(byDurationDesc(unitsByDurationDesc))
 }
+
+// UnitCount returns the total number of unit types.
+func UnitCount() int {
+	return unitCount
+}

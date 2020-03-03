@@ -128,7 +128,7 @@ type timeEncodingScheme struct {
 // newTimeEncodingSchemes converts the unit-to-scheme mapping
 // to the underlying TimeEncodingSchemes used for lookups.
 func newTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
-	encodingSchemes := make(TimeEncodingSchemes, int(xtime.Year))
+	encodingSchemes := make(TimeEncodingSchemes, xtime.UnitCount())
 	for k, v := range schemes {
 		if !k.IsValid() {
 			continue
