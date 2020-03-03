@@ -53,7 +53,6 @@ type Unit uint16
 
 // Value is the time duration of the time unit.
 func (tu Unit) Value() (time.Duration, error) {
-	// Skip zero-length time.
 	if tu < 1 || int(tu) >= unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
@@ -66,8 +65,7 @@ func (tu Unit) Count(d time.Duration) (int, error) {
 		return 0, errNegativeDuraton
 	}
 
-	// Skip zero-length time.
-	if tu < 1 || int(tu) > unitCount {
+	if tu < 1 || int(tu) >= unitCount {
 		return 0, errUnrecognizedTimeUnit
 	}
 
@@ -88,12 +86,12 @@ func (tu Unit) MustCount(d time.Duration) int {
 
 // IsValid returns whether the given time unit is valid / supported.
 func (tu Unit) IsValid() bool {
-	return tu > 0 && int(tu) < len(unitsToDuration)
+	return tu > 0 && int(tu) < unitCount
 }
 
 // String returns the string representation for the time unit
 func (tu Unit) String() string {
-	if tu < 1 || int(tu) > len(unitsToDuration) {
+	if tu < 1 || int(tu) >= unitCount {
 		return "unknown"
 	}
 
@@ -111,7 +109,7 @@ func UnitFromDuration(d time.Duration) (Unit, error) {
 
 // DurationFromUnit creates a time duration from a time unit.
 func DurationFromUnit(u Unit) (time.Duration, error) {
-	if u < 1 || int(u) > len(unitsToDuration) {
+	if u < 1 || int(u) >= unitCount {
 		return 0, errConvertUnitToDuration
 	}
 
@@ -199,7 +197,7 @@ func (b byDurationDesc) Less(i, j int) bool {
 }
 
 func init() {
-	unitsByDurationDesc = make([]Unit, 0, len(unitsToDuration))
+	unitsByDurationDesc = make([]Unit, 0, unitCount)
 	for u, d := range unitsToDuration {
 		unit := Unit(u)
 		if unit == None {

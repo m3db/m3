@@ -125,9 +125,9 @@ type timeEncodingScheme struct {
 	defaultBucket TimeBucket
 }
 
-// NewTimeEncodingSchemes converts the unit-to-scheme mapping
+// newTimeEncodingSchemes converts the unit-to-scheme mapping
 // to the underlying TimeEncodingSchemes used for lookups.
-func NewTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
+func newTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
 	encodingSchemes := make(TimeEncodingSchemes, int(xtime.Year))
 	for k, v := range schemes {
 		if !k.IsValid() {
