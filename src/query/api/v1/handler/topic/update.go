@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,27 +33,29 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	pkgerrors "github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
 const (
-	// GetURL is the url for the topic get handler (with the GET method).
-	GetURL = handler.RoutePrefixV1 + "/topic"
+	// UpdateURL is the url for the topic update handler (with the PUT method).
+	UpdateURL = handler.RoutePrefixV1 + "/topic"
 
-	// GetHTTPMethod is the HTTP method used with this resource.
-	GetHTTPMethod = http.MethodGet
+	// UpdateHTTPMethod is the HTTP method used with this resource.
+	UpdateHTTPMethod = http.MethodPut
 )
 
-// GetHandler is the handler for topic gets.
-type GetHandler Handler
+// UpdateHandler is the handler for topic updates.
+type UpdateHandler Handler
 
-// newGetHandler returns a new instance of GetHandler.
-func newGetHandler(
+// newUpdateHandler returns a new instance of UpdateHandler. This is used for
+// updating a topic in-place, for example to add or remove consumers.
+func newUpdateHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
 ) http.Handler {
-	return &GetHandler{
+	return &UpdateHandler{
 		client:         client,
 		cfg:            cfg,
 		serviceFn:      Service,
@@ -61,11 +63,18 @@ func newGetHandler(
 	}
 }
 
-func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx, h.instrumentOpts)
+		req    admin.TopicUpdateRequest
 	)
+
+	if rErr := parseRequest(r, &req); rErr != nil {
+		logger.Error("unable to parse request", zap.Error(rErr))
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
 
 	serviceCfg := handleroptions.ServiceNameAndDefaults{}
 	svcOpts := handleroptions.NewServiceOptions(serviceCfg, r.Header, nil)
@@ -76,23 +85,52 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, err := service.Get(topicName(r.Header))
+	name := topicName(r.Header)
+	svcLogger := logger.With(zap.String("service", name))
+	m3Topic, err := service.Get(name)
 	if err != nil {
 		logger.Error("unable to get topic", zap.Error(err))
 		xhttp.Error(w, err, http.StatusNotFound)
 		return
 	}
 
-	pb, err := topic.ToProto(t)
+	oldConsumers := len(m3Topic.ConsumerServices())
+	newConsumers := len(req.ConsumerServices)
+
+	csvcs := make([]topic.ConsumerService, 0, newConsumers)
+	for _, svc := range req.ConsumerServices {
+		csvc, err := topic.NewConsumerServiceFromProto(svc)
+		if err != nil {
+			err := pkgerrors.WithMessagef(err, "error converting consumer service '%s'", svc.String())
+			svcLogger.Error("convert consumer service error", zap.Error(err))
+			xhttp.Error(w, err, http.StatusBadRequest)
+			return
+		}
+
+		csvcs = append(csvcs, csvc)
+	}
+
+	m3Topic = m3Topic.SetConsumerServices(csvcs)
+	newTopic, err := service.CheckAndSet(m3Topic, int(req.Version))
 	if err != nil {
-		logger.Error("unable to get topic protobuf", zap.Error(err))
+		svcLogger.Error("unable to delete service", zap.Error(err))
+		err := pkgerrors.WithMessagef(err, "error deleting service '%s'", name)
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	svcLogger.Info("updated service in-place", zap.Int("oldConsumers", oldConsumers), zap.Int("newConsumers", newConsumers))
+
+	pb, err := topic.ToProto(m3Topic)
+	if err != nil {
+		logger.Error("unable to convert topic to protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	resp := &admin.TopicGetResponse{
 		Topic:   pb,
-		Version: uint32(t.Version()),
+		Version: uint32(newTopic.Version()),
 	}
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
