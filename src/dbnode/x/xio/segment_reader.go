@@ -97,6 +97,8 @@ func (sr *segmentReader) Reset(segment ts.Segment) {
 func (sr *segmentReader) Finalize() {
 	// Finalize the segment
 	sr.segment.Finalize()
+	sr.lazyHead = nil
+	sr.lazyTail = nil
 
 	if pool := sr.pool; pool != nil {
 		pool.Put(sr)
