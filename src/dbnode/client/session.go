@@ -1164,24 +1164,24 @@ func (s *session) FetchIDs(
 
 func (s *session) Aggregate(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f := s.pools.aggregateAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.attemptFn)
-	iter, exhaustive := f.resultIter, f.resultExhaustive
+	iter, metadata := f.resultIter, f.resultMetadata
 	s.pools.aggregateAttempt.Put(f)
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 func (s *session) aggregateAttempt(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1192,7 +1192,7 @@ func (s *session) aggregateAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1204,7 +1204,7 @@ func (s *session) aggregateAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1214,52 +1214,52 @@ func (s *session) aggregateAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asAggregatedTagsIterator(s.pools)
+	iters, meta, err := fetchState.asAggregatedTagsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, exhaustive, err
+	return iters, meta, err
 }
 
 func (s *session) FetchTagged(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
-	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
+	iters, metadata := f.dataResultIters, f.dataResultMetadata
 	s.pools.fetchTaggedAttempt.Put(f)
-	return iters, exhaustive, err
+	return iters, metadata, err
 }
 
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
-	iter, exhaustive := f.idsResultIter, f.idsResultExhaustive
+	iter, metadata := f.idsResultIter, f.idsResultMetadata
 	s.pools.fetchTaggedAttempt.Put(f)
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 func (s *session) fetchTaggedAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	nsCtx, err := s.nsCtxFor(ns)
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1275,7 +1275,7 @@ func (s *session) fetchTaggedAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1287,7 +1287,7 @@ func (s *session) fetchTaggedAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1297,22 +1297,22 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
+	iters, metadata, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, exhaustive, err
+	return iters, metadata, err
 }
 
 func (s *session) fetchTaggedIDsAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1328,7 +1328,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1340,7 +1340,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1350,13 +1350,13 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asTaggedIDsIterator` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iter, exhaustive, err := fetchState.asTaggedIDsIterator(s.pools)
+	iter, metadata, err := fetchState.asTaggedIDsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 type newFetchStateOpts struct {

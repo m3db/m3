@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type fetchTaggedResultAccumulatorOpts struct {
@@ -46,7 +46,9 @@ type aggregateResultAccumulatorOpts struct {
 }
 
 func newFetchTaggedResultAccumulator() fetchTaggedResultAccumulator {
-	accum := fetchTaggedResultAccumulator{}
+	accum := fetchTaggedResultAccumulator{
+		calcTransport: &calcTransport{},
+	}
 	accum.Clear()
 	return accum
 }
@@ -69,6 +71,8 @@ type fetchTaggedResultAccumulator struct {
 	majority         int
 	consistencyLevel topology.ReadConsistencyLevel
 	topoMap          topology.Map
+
+	calcTransport *calcTransport
 }
 
 type fetchTaggedShardConsistencyResult struct {
@@ -76,6 +80,12 @@ type fetchTaggedShardConsistencyResult struct {
 	success  int8
 	errors   int8
 	done     bool
+}
+
+type fetchTaggedResultAccumulatorStats struct {
+	exhaustive            bool
+	responseReplicas      int
+	responseBytesEstimate int
 }
 
 func (rs fetchTaggedShardConsistencyResult) pending() int32 {
@@ -93,6 +103,9 @@ func (accum *fetchTaggedResultAccumulator) AddFetchTaggedResponse(
 		}
 	}
 
+	// NB(r): Write the response to calculate transport to work out length.
+	opts.response.Write(accum.calcTransport)
+
 	return accum.accumulatedResult(opts.host, resultErr)
 }
 
@@ -106,6 +119,10 @@ func (accum *fetchTaggedResultAccumulator) AddAggregateResponse(
 			accum.aggResponses = append(accum.aggResponses, elem)
 		}
 	}
+
+	// NB(r): Write the response to calculate transport to work out length.
+	opts.response.Write(accum.calcTransport)
+
 	return accum.accumulatedResult(opts.host, resultErr)
 }
 
@@ -212,6 +229,7 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 	accum.startTime, accum.endTime = time.Time{}, time.Time{}
 	accum.topoMap = nil
 	accum.exhaustive = true
+	accum.calcTransport.Reset()
 }
 
 func (accum *fetchTaggedResultAccumulator) Reset(
@@ -241,6 +259,8 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 			accum.shardConsistencyResults[id].enqueued++
 		}
 	}
+
+	accum.calcTransport.Reset()
 }
 
 func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
@@ -284,7 +304,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 
 func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	limit int, pools fetchTaggedPools, descr namespace.SchemaDescr,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	results := fetchTaggedIDResultsSortedByID(accum.fetchResponses)
 	sort.Sort(results)
 	accum.fetchResponses = fetchTaggedIDResults(results)
@@ -308,13 +328,17 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	})
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
-	return result, exhaustive, nil
+	return result, FetchResponseMetadata{
+		Exhaustive:         exhaustive,
+		Responses:          len(accum.fetchResponses),
+		EstimateTotalBytes: accum.calcTransport.GetSize(),
+	}, nil
 }
 
 func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 	limit int,
 	pools fetchTaggedPools,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	var (
 		iter      = newTaggedIDsIterator(pools)
 		count     = 0
@@ -331,13 +355,17 @@ func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 	})
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
-	return iter, exhaustive, nil
+	return iter, FetchResponseMetadata{
+		Exhaustive:         exhaustive,
+		Responses:          len(accum.aggResponses),
+		EstimateTotalBytes: accum.calcTransport.GetSize(),
+	}, nil
 }
 
 func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 	limit int,
 	pools fetchTaggedPools,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	var (
 		iter      = newAggregateTagsIterator(pools)
 		count     = 0
@@ -438,7 +466,11 @@ func (accum *fetchTaggedResultAccumulator) AsAggregatedTagsIterator(
 	})
 
 	exhaustive := accum.exhaustive && count <= limit && !moreElems
-	return iter, exhaustive, nil
+	return iter, FetchResponseMetadata{
+		Exhaustive:         exhaustive,
+		Responses:          len(accum.aggResponses),
+		EstimateTotalBytes: accum.calcTransport.GetSize(),
+	}, nil
 }
 
 type fetchTaggedShardConsistencyResults []fetchTaggedShardConsistencyResult

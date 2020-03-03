@@ -73,21 +73,21 @@ func TestAggregateResultsAccumulatorIdsMerge(t *testing.T) {
 	accum := workflow.run()
 
 	// not really restricting, ensuring we don't have extra results
-	resultsIter, resultsExhaustive, err := accum.AsAggregatedTagsIterator(10, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsAggregatedTagsIterator(10, th.pools)
 	require.NoError(t, err)
-	require.True(t, resultsExhaustive)
+	require.True(t, resultsMetadata.Exhaustive)
 	testSerieses{ts1, ts2}.assertMatchesAggregatedTagsIter(t, resultsIter)
 
 	// restrict to 2 elements, i.e. same as above; doing this to check off by ones
-	resultsIter, resultsExhaustive, err = accum.AsAggregatedTagsIterator(2, th.pools)
+	resultsIter, resultsMetadata, err = accum.AsAggregatedTagsIterator(2, th.pools)
 	require.NoError(t, err)
-	require.True(t, resultsExhaustive)
+	require.True(t, resultsMetadata.Exhaustive)
 	testSerieses{ts1, ts2}.assertMatchesAggregatedTagsIter(t, resultsIter)
 
 	// restrict to 1 elements, ensuring we actually limit the responses
-	resultsIter, resultsExhaustive, err = accum.AsAggregatedTagsIterator(1, th.pools)
+	resultsIter, resultsMetadata, err = accum.AsAggregatedTagsIterator(1, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	testSerieses{ts1, ts2}.assertMatchesLimitedAggregatedTagsIter(t, 1, resultsIter)
 }
 
@@ -120,9 +120,9 @@ func TestAggregateResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 	}
 	accum := workflow.run()
 
-	resultsIter, resultsExhaustive, err := accum.AsAggregatedTagsIterator(10, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsAggregatedTagsIterator(10, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	newTestSerieses(1, 15).assertMatchesLimitedAggregatedTagsIter(t, 10, resultsIter)
 }
 
@@ -155,8 +155,8 @@ func TestAggregateResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *testin
 	}
 	accum := workflow.run()
 
-	resultsIter, resultsExhaustive, err := accum.AsAggregatedTagsIterator(100, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsAggregatedTagsIterator(100, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	newTestSerieses(1, 15).assertMatchesAggregatedTagsIter(t, resultsIter)
 }
