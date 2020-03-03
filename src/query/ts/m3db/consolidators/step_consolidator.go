@@ -48,6 +48,7 @@ type StepLookbackConsolidator struct {
 	stepSize         time.Duration
 	earliestLookback time.Time
 	datapoints       []ts.Datapoint
+	datapointsBuffer []ts.Datapoint
 	buffer           []float64
 	unconsumed       []float64
 	fn               ConsolidationFunc
@@ -63,13 +64,14 @@ func NewStepLookbackConsolidator(
 	startTime time.Time,
 	fn ConsolidationFunc,
 ) *StepLookbackConsolidator {
-	datapoints := make([]ts.Datapoint, 0, initLength*BufferSteps)
+	datapoints := make([]ts.Datapoint, 0, initLength)
 	buffer := make([]float64, BufferSteps)
 	return &StepLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
+		datapointsBuffer: datapoints,
 		buffer:           buffer,
 		unconsumed:       buffer[:0],
 		fn:               fn,
@@ -91,7 +93,20 @@ func (c *StepLookbackConsolidator) AddPoint(dp ts.Datapoint) {
 func (c *StepLookbackConsolidator) BufferStep() {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	val := c.fn(c.datapoints)
-	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
+
+	// Remove any datapoints not relevant to the next step now.
+	datapointsRelevant := removeStale(c.earliestLookback, c.datapoints)
+	if len(datapointsRelevant) > 0 {
+		// Move them back to the start of the slice to reuse the slice
+		// as best as possible.
+		c.datapoints = c.datapointsBuffer[:len(datapointsRelevant)]
+		copy(c.datapoints, datapointsRelevant)
+	} else {
+		// No relevant datapoints, repoint to the start of the buffer.
+		c.datapoints = c.datapointsBuffer[:0]
+	}
+
+	// Blindly append to unconsumed.
 	c.unconsumed = append(c.unconsumed, val)
 }
 
@@ -107,8 +122,18 @@ func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 		return c.fn(nil)
 	}
 
+	// Consume value.
 	val := c.unconsumed[0]
-	copy(c.unconsumed, c.unconsumed[1:])
-	c.unconsumed = c.unconsumed[:len(c.unconsumed)-1]
+	remaining := c.unconsumed[1:]
+
+	if len(remaining) > 0 {
+		// Move any unconsumed values to the front of unconsumed.
+		c.unconsumed = c.buffer[:len(remaining)]
+		copy(c.unconsumed, remaining)
+	} else {
+		// Otherwise just repoint to the start of the buffer.
+		c.unconsumed = c.buffer[:0]
+	}
+
 	return val
 }

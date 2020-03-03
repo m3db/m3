@@ -58,7 +58,7 @@ func TakeLast(values []ts.Datapoint) float64 {
 	return math.NaN()
 }
 
-const initLength = 10
+const initLength = BufferSteps
 
 // Set NaN to a variable makes tests easier.
 var nan = math.NaN()

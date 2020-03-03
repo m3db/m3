@@ -36,10 +36,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/pkg/profile"
@@ -144,7 +145,7 @@ var consolidatedStepIteratorTests = []struct {
 
 func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 	for _, tt := range consolidatedStepIteratorTests {
-		opts := NewOptions().
+		opts := newTestOptions().
 			SetLookbackDuration(1 * time.Minute).
 			SetSplitSeriesByBlock(false)
 		require.NoError(t, opts.Validate())
@@ -293,7 +294,7 @@ var consolidatedStepIteratorTestsSplitByBlock = []struct {
 
 func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 	for _, tt := range consolidatedStepIteratorTestsSplitByBlock {
-		opts := NewOptions().
+		opts := newTestOptions().
 			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
 		require.NoError(t, opts.Validate())
@@ -330,7 +331,7 @@ func TestConsolidatedStepIteratorSplitByBlockSequential(t *testing.T) {
 }
 
 func benchmarkSingleBlock(b *testing.B, withPools bool) {
-	opts := NewOptions().
+	opts := newTestOptions().
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(b, opts.Validate())
@@ -398,9 +399,33 @@ func (t iterType) name(name string) string {
 
 type reset func()
 
+// newTestOptions provides options with very small/non-existent pools
+// so that memory profiles don't get cluttered with pooled allocated objects.
+func newTestOptions() Options {
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts,
+		func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, poolOpts)
+		})
+	bytesPool.Init()
+
+	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{
+		Replicas:               1,
+		SeriesIteratorPoolSize: 1,
+		SeriesIteratorsPoolBuckets: []pool.Bucket{
+			{Capacity: 1, Count: 1},
+		},
+		SeriesIDBytesPoolBuckets: []pool.Bucket{
+			{Capacity: 1, Count: 1},
+		},
+		CheckedBytesWrapperPoolSize: 1,
+	})
+	return newOptions(bytesPool, iteratorPools)
+}
+
 func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 	var (
-		seriesCount   = 100
+		seriesCount   = 1000
 		replicasCount = 3
 		start         = time.Now()
 		stepSize      = time.Second * 10
@@ -408,19 +433,12 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 		end           = start.Add(window)
 		iters         = make([]encoding.SeriesIterator, seriesCount)
 		itersReset    = make([]func(), seriesCount)
-		collectors    = make([]consolidators.StepCollector, seriesCount)
 
 		encodingOpts = encoding.NewOptions()
 		namespaceID  = ident.StringID("namespace")
 	)
 
 	for i := 0; i < seriesCount; i++ {
-		collectors[i] = consolidators.NewStepLookbackConsolidator(
-			stepSize,
-			stepSize,
-			start,
-			consolidators.TakeLast)
-
 		encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil),
 			m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 
@@ -520,7 +538,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
 
-	opts := NewOptions()
+	opts := newTestOptions()
 	if usePools {
 		poolOpts := xsync.NewPooledWorkerPoolOptions()
 		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, poolOpts)
@@ -537,7 +555,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 		Start:    start,
 		StepSize: stepSize,
 		Duration: window,
-	}, false, block.NewResultMetadata(), NewOptions())
+	}, false, block.NewResultMetadata(), opts)
 
 	require.NoError(b, err)
 	return block, func() {
