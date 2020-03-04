@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/cost"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
@@ -59,7 +60,7 @@ func TestEngine_Execute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
-		gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+		gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute

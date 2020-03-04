@@ -1647,10 +1647,11 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{reader}, opts, nsCtx)
 	assert.Equal(t, 4, buffer.bucketsMap[blockStartNano1].buckets[0].version)
 
-	// Try to fetch from block1 again, which should result in error since we
-	// just fetched, which would mark those buckets as not dirty.
-	_, err = buffer.FetchBlocksForColdFlush(ctx, blockStart1, 9, nsCtx)
-	assert.Error(t, err)
+	// Try to fetch from block1 again, this should not be an error because we
+	// would want to fetch blocks with buckets that failed to flush fully a
+	// previous time.
+	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart1, 9, nsCtx)
+	assert.NoError(t, err)
 
 	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
 	assert.NoError(t, err)

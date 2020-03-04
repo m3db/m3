@@ -32,6 +32,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRegisterFinalizerWithChild(t *testing.T) {
@@ -253,9 +254,14 @@ func TestSampledTraceSpan(t *testing.T) {
 	)
 
 	// use a mock tracer to ensure sampling rate is set to 1.
-	mktr := mocktracer.New()
-	sp = mktr.StartSpan("test_op")
+	tracer := mocktracer.New()
+	sp = tracer.StartSpan("foo")
 	defer sp.Finish()
+
+	mockSpan, ok := sp.(*mocktracer.MockSpan)
+	require.True(t, ok)
+
+	mockSpan.SpanContext.Sampled = true
 
 	spGoCtx := opentracing.ContextWithSpan(goCtx, sp)
 

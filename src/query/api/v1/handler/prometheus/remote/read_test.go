@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -81,7 +82,7 @@ func setupServer(t *testing.T) *httptest.Server {
 	lstore, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
 		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, false, fmt.Errorf("not initialized"))
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("not initialized"))
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
 	promRead := readHandler(storage, timeoutOpts)
 	server := httptest.NewServer(test.NewSlowHandler(promRead, 10*time.Millisecond))
@@ -153,7 +154,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, true, fmt.Errorf("unable to get data"))
+		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
 		Return(nil, nil)
 	promRead := readHandler(store, timeoutOpts)
@@ -210,7 +211,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, true, fmt.Errorf("unable to get data"))
+		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
 		Return(nil, nil)
 

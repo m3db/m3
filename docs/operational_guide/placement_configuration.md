@@ -253,3 +253,65 @@ initialCluster:
    `/health`) endpoint before continuing to the next.
 
 6. Follow the steps from `Replacing a Seed Node` to replace `host3` with `host4` in the M3DB placement.
+
+#### Setting a new placement (Not Recommended)
+
+This endpoint is unsafe since it creates a brand new placement and therefore should be used with extreme caution.
+Some use cases for using this endpoint include:
+
+- Changing IP addresses of nodes
+- Rebalancing shards
+
+If the placement for `M3DB` needs to be recreated, the `/api/v1/services/m3db/placement/set` can be used to do so.
+Please note, a placement already needs to exist to use this endpoint. If no placement exists, use the `Placement Initialization`
+endpoint described above. Also, as mentioned above, this endpoint creates an entirely new placement therefore 
+complete placement information needs to be passed into the body of the request. The recommended way to this
+is to get the existing placement using `/api/v1/placement` and modify that (as the `placement` field) along 
+with two additional fields -- `version` and `confirm`. Please see below for a full example:
+
+```bash
+curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
+  "placement": {
+    "num_shards": <DESIRED_NUMBER_OF_SHARDS>,
+    "replication_factor": <DESIRED_REPLICATION_FACTOR>(recommended 3),
+    "instances": [
+        {
+            "id": "<NODE_1_ID>",
+            "isolation_group": "<NODE_1_ISOLATION_GROUP>",
+            "zone": "<ETCD_ZONE>",
+            "weight": <NODE_WEIGHT>,
+            "endpoint": "<NODE_1_HOST_NAME>:<NODE_1_PORT>",
+            "hostname": "<NODE_1_HOST_NAME>",
+            "port": <NODE_1_PORT>
+        },
+        {
+            "id": "<NODE_2_ID>",
+            "isolation_group": "<NODE_2_ISOLATION_GROUP>",
+            "zone": "<ETCD_ZONE>",
+            "weight": <NODE_WEIGHT>,
+            "endpoint": "<NODE_2_HOST_NAME>:<NODE_2_PORT>",
+            "hostname": "<NODE_2_HOST_NAME>",
+            "port": <NODE_2_PORT>
+        },
+        {
+            "id": "<NODE_3_ID>",
+            "isolation_group": "<NODE_3_ISOLATION_GROUP>",
+            "zone": "<ETCD_ZONE>",
+            "weight": <NODE_WEIGHT>,
+            "endpoint": "<NODE_3_HOST_NAME>:<NODE_3_PORT>",
+            "hostname": "<NODE_3_HOST_NAME>",
+            "port": <NODE_3_PORT>
+        }
+      ]
+    },
+    "version": <version>,
+    "confirm": <true/false>
+}'
+```
+
+**Note:** The `set` endpoint can also be used to set the placements in `M3Aggregator` and `M3Coordinator` using the following endpoints, respectively:
+```bash
+/api/v1/m3aggregator/set
+/api/v1/m3coordinator/set
+```
+

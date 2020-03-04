@@ -74,13 +74,13 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
+	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (iter TaggedIDsIterator, exhaustive bool, err error)
+	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error)
 
 	// Aggregate aggregates values from the database for the given set of constraints.
-	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (iter AggregatedTagsIterator, exhaustive bool, err error)
+	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (AggregatedTagsIterator, FetchResponseMetadata, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -92,6 +92,17 @@ type Session interface {
 
 	// Close the session
 	Close() error
+}
+
+// FetchResponseMetadata is metadata about a fetch response.
+type FetchResponseMetadata struct {
+	// Exhaustive indicates whether the underlying data set presents a full
+	// collection of retrieved data.
+	Exhaustive bool
+	// Responses is the count of responses.
+	Responses int
+	// EstimateTotalBytes is an approximation of the total byte size of the response.
+	EstimateTotalBytes int
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally
@@ -118,6 +129,9 @@ type AggregatedTagsIterator interface {
 type TaggedIDsIterator interface {
 	// Next returns whether there are more items in the collection.
 	Next() bool
+
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
 
 	// Current returns the ID, Tags and Namespace for a single timeseries.
 	// These remain valid until Next() is called again.

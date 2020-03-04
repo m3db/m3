@@ -78,6 +78,10 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
+	// SetInstrumented marks if the encoding step should have instrumentation enabled.
+	SetInstrumented(bool) Options
+	// Instrumented returns if the encoding step should have instrumentation enabled.
+	Instrumented() bool
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }
@@ -88,7 +92,7 @@ type IteratorBatchingFn func(
 	seriesBlockIterators []encoding.SeriesIterator,
 	seriesMetas []block.SeriesMeta,
 	meta block.Metadata,
-	lookback time.Duration,
+	opts Options,
 ) ([]block.SeriesIterBatch, error)
 
 type peekValue struct {
