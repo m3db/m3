@@ -89,6 +89,8 @@ func (sr *segmentReader) Segment() (ts.Segment, error) {
 func (sr *segmentReader) Reset(segment ts.Segment) {
 	sr.segment = segment
 	sr.si = 0
+	sr.lazyHead = nil
+	sr.lazyTail = nil
 }
 
 func (sr *segmentReader) Finalize() {
