@@ -50,6 +50,7 @@
 		TopicGetResponse
 		TopicInitRequest
 		TopicAddRequest
+		TopicUpdateRequest
 */
 package admin
 
