@@ -55,8 +55,8 @@ func NewStepLookbackAccumulator(
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
-		datapoints:       datapoints,
 		buffer:           buffer,
+		datapoints:       datapoints,
 		unconsumed:       buffer[:0],
 	}
 }

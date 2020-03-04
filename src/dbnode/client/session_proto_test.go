@@ -133,8 +133,8 @@ func TestProtoSeriesIteratorRoundtrip(t *testing.T) {
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
 		ID:             ident.StringID("test_series_id"),
 		Namespace:      testNamespace,
-		StartInclusive: data[0].t,
-		EndExclusive:   start.Add(4 * time.Second),
+		StartInclusive: xtime.ToUnixNano(data[0].t),
+		EndExclusive:   xtime.ToUnixNano(start.Add(4 * time.Second)),
 		Replicas:       []encoding.MultiReaderIterator{multiIter},
 	})
 

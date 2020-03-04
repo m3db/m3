@@ -136,8 +136,8 @@ func buildSeriesIterator(
 				ID:             id,
 				Namespace:      ident.StringID("ns"),
 				Tags:           tagIter,
-				StartInclusive: opts.start,
-				EndExclusive:   end,
+				StartInclusive: xtime.ToUnixNano(opts.start),
+				EndExclusive:   xtime.ToUnixNano(end),
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
 				},

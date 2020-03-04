@@ -94,8 +94,9 @@ type Series struct {
 
 // A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
-	Timestamp time.Time
-	Value     float64
+	Timestamp      time.Time
+	TimestampNanos xtime.UnixNano
+	Value          float64
 }
 
 // Equal returns whether one Datapoint is equal to another
