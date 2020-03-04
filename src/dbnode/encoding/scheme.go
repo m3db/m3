@@ -173,7 +173,7 @@ type TimeEncodingSchemes []TimeEncodingScheme
 // SchemeForUnit returns the corresponding TimeEncodingScheme for the provided unit.
 // Returns false if the unit does not match a scheme or is invalid.
 func (s TimeEncodingSchemes) SchemeForUnit(u xtime.Unit) (TimeEncodingScheme, bool) {
-	if !u.IsValid() {
+	if !u.IsValid() || int(u) >= len(s) {
 		return nil, false
 	}
 
