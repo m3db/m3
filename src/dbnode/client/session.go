@@ -1591,8 +1591,8 @@ func (s *session) fetchIDsAttempt(
 				iter.Reset(encoding.SeriesIteratorOptions{
 					ID:             seriesID,
 					Namespace:      namespaceID,
-					StartInclusive: startInclusive,
-					EndExclusive:   endExclusive,
+					StartInclusive: xtime.ToUnixNano(startInclusive),
+					EndExclusive:   xtime.ToUnixNano(endExclusive),
 					Replicas:       itersToInclude,
 				})
 				iters.SetAt(idx, iter)
